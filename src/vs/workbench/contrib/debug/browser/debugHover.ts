@@ -114,6 +114,7 @@ export class DebugHoverWidget implements IContentWidget {
 			mouseSupport: false,
 			horizontalScrolling: true,
 			useShadows: false,
+			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression) => e.name },
 			overrideStyles: {
 				listBackground: editorHoverBackground
 			}
@@ -310,7 +311,7 @@ export class DebugHoverWidget implements IContentWidget {
 
 	private layoutTreeAndContainer(initialLayout: boolean): void {
 		const scrollBarHeight = 10;
-		const treeHeight = Math.min(this.editor.getLayoutInfo().height * 0.55, this.tree.contentHeight + scrollBarHeight);
+		const treeHeight = Math.min(Math.max(266, this.editor.getLayoutInfo().height * 0.55), this.tree.contentHeight + scrollBarHeight);
 		this.treeContainer.style.height = `${treeHeight}px`;
 		this.tree.layout(treeHeight, initialLayout ? 400 : undefined);
 		this.editor.layoutContentWidget(this);

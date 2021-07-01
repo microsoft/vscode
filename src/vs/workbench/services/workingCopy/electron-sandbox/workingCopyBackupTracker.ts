@@ -337,9 +337,24 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 
 	private async onBeforeShutdownWithoutDirty(): Promise<boolean> {
 
-		// Discard all backups except those that
-		// were not restored
-		await this.discardBackupsBeforeShutdown({ except: Array.from(this.unrestoredBackups) });
+		// We are about to shutdown without dirty editors
+		// and will discard any backups that are still
+		// around that have not been handled depending
+		// on the window state.
+		//
+		// Empty window: discard even unrestored backups to
+		// prevent empty windows from restoring that cannot
+		// be closed (workaround for not having implemented
+		// https://github.com/microsoft/vscode/issues/127163
+		// and a fix for what users have reported in issue
+		// https://github.com/microsoft/vscode/issues/126725)
+		//
+		// Workspace/Folder window: do not discard unrestored
+		// backups to give a chance to restore them in the
+		// future. Since we do not restore workspace/folder
+		// windows with backups, this is fine.
+
+		await this.discardBackupsBeforeShutdown({ except: this.contextService.getWorkbenchState() === WorkbenchState.EMPTY ? [] : Array.from(this.unrestoredBackups) });
 
 		return false; // no veto (no dirty)
 	}

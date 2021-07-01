@@ -90,6 +90,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			const wrappingIndent = options.get(EditorOption.wrappingIndent);
 
 			this._lines = new SplitLinesCollection(
+				this._editorId,
 				this.model,
 				domLineBreaksComputerFactory,
 				monospaceLineBreaksComputerFactory,
@@ -250,7 +251,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	private _registerModelEvents(): void {
 
-		this._register(this.model.onDidChangeRawContentFast((e) => {
+		this._register(this.model.onDidChangeContentOrInjectedText((e) => {
 			try {
 				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
 
@@ -258,20 +259,29 @@ export class ViewModel extends Disposable implements IViewModel {
 				let hadModelLineChangeThatChangedLineMapping = false;
 
 				const changes = e.changes;
-				const versionId = e.versionId;
+				const versionId = (e instanceof textModelEvents.ModelRawContentChangedEvent ? e.versionId : null);
 
 				// Do a first pass to compute line mappings, and a second pass to actually interpret them
 				const lineBreaksComputer = this._lines.createLineBreaksComputer();
 				for (const change of changes) {
 					switch (change.changeType) {
 						case textModelEvents.RawContentChangedType.LinesInserted: {
-							for (const line of change.detail) {
-								lineBreaksComputer.addRequest(line, null);
+							for (let lineIdx = 0; lineIdx < change.detail.length; lineIdx++) {
+								const line = change.detail[lineIdx];
+								let injectedText = change.injectedTexts[lineIdx];
+								if (injectedText) {
+									injectedText = injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
+								}
+								lineBreaksComputer.addRequest(line, injectedText, null);
 							}
 							break;
 						}
 						case textModelEvents.RawContentChangedType.LineChanged: {
-							lineBreaksComputer.addRequest(change.detail, null);
+							let injectedText: textModelEvents.LineInjectedText[] | null = null;
+							if (change.injectedText) {
+								injectedText = change.injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
+							}
+							lineBreaksComputer.addRequest(change.detail, injectedText, null);
 							break;
 						}
 					}
@@ -336,7 +346,10 @@ export class ViewModel extends Disposable implements IViewModel {
 						}
 					}
 				}
-				this._lines.acceptVersionId(versionId);
+
+				if (versionId !== null) {
+					this._lines.acceptVersionId(versionId);
+				}
 				this.viewLayout.onHeightMaybeChanged();
 
 				if (!hadOtherModelChange && hadModelLineChangeThatChangedLineMapping) {
@@ -364,11 +377,13 @@ export class ViewModel extends Disposable implements IViewModel {
 				}
 			}
 
-			try {
-				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
-				this._cursor.onModelContentChanged(eventsCollector, e);
-			} finally {
-				this._eventDispatcher.endEmitViewEvents();
+			if (e instanceof textModelEvents.ModelRawContentChangedEvent) {
+				try {
+					const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
+					this._cursor.onModelContentChanged(eventsCollector, e);
+				} finally {
+					this._eventDispatcher.endEmitViewEvents();
+				}
 			}
 		}));
 

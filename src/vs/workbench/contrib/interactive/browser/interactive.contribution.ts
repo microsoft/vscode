@@ -13,7 +13,7 @@ import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -22,7 +22,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorExtensions, EditorsOrder, IEditorInputFactoryRegistry, IEditorInputSerializer, viewColumnToEditorGroup } from 'vs/workbench/common/editor';
+import { EditorExtensions, EditorsOrder, IEditorInputSerializer, viewColumnToEditorGroup } from 'vs/workbench/common/editor';
 import { InteractiveEditor } from 'vs/workbench/contrib/interactive/browser/interactiveEditor';
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
 import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
@@ -34,6 +34,15 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { Schemas } from 'vs/base/common/network';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IInteractiveHistoryService, InteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
+import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { IInteractiveDocumentService, InteractiveDocumentService } from 'vs/workbench/contrib/interactive/browser/interactiveDocumentService';
+import { IEditorOverrideService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
+import { EditorActivation } from 'vs/platform/editor/common/editor';
 
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -48,7 +57,11 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 );
 
 export class InteractiveDocumentContribution extends Disposable implements IWorkbenchContribution {
-	constructor(@INotebookService notebookService: INotebookService) {
+	constructor(
+		@INotebookService notebookService: INotebookService,
+		@IEditorOverrideService editorOverrideService: IEditorOverrideService,
+		@IEditorService editorService: IEditorService,
+	) {
 		super();
 
 		const contentOptions = {
@@ -105,8 +118,8 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 				};
 			},
 			save: async (uri: URI) => {
-				// return this._proxy.$saveNotebook(viewType, uri, token);
-				return true;
+				// trigger backup always
+				return false;
 			},
 			saveAs: async (uri: URI, target: URI, token: CancellationToken) => {
 				// return this._proxy.$saveNotebookAs(viewType, uri, target, token);
@@ -159,13 +172,47 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 				exclusive: true
 			}));
 		}
+
+		editorOverrideService.registerEditor(
+			`${Schemas.vscodeInteractiveInput}:/**`,
+			{
+				id: InteractiveEditor.ID,
+				label: 'Interactive Editor',
+				priority: RegisteredEditorPriority.exclusive
+			},
+			{
+				canSupportResource: uri => uri.scheme === Schemas.vscodeInteractiveInput,
+				singlePerResource: true
+			},
+			({ resource }) => {
+				const editorInput = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.editor instanceof InteractiveEditorInput && editor.editor.inputResource.toString() === resource.toString());
+				return editorInput!;
+			}
+		);
+
+		editorOverrideService.registerEditor(
+			`*.interactive`,
+			{
+				id: InteractiveEditor.ID,
+				label: 'Interactive Editor',
+				priority: RegisteredEditorPriority.exclusive
+			},
+			{
+				canSupportResource: uri => uri.scheme === Schemas.vscodeInteractive,
+				singlePerResource: true
+			},
+			({ resource }) => {
+				const editorInput = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.editor instanceof InteractiveEditorInput && editor.editor.resource?.toString() === resource.toString());
+				return editorInput!;
+			}
+		);
 	}
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveDocumentContribution, LifecyclePhase.Starting);
 
-class InteractiveEditorSerializer implements IEditorInputSerializer {
+export class InteractiveEditorSerializer implements IEditorInputSerializer {
 	canSerialize(): boolean {
 		return true;
 	}
@@ -194,22 +241,20 @@ class InteractiveEditorSerializer implements IEditorInputSerializer {
 	}
 }
 
-Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(
-	InteractiveEditorInput.ID,
-	InteractiveEditorSerializer
-);
+// Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(
+// 	InteractiveEditorInput.ID,
+// 	InteractiveEditorSerializer
+// );
+
+registerSingleton(IInteractiveHistoryService, InteractiveHistoryService);
+registerSingleton(IInteractiveDocumentService, InteractiveDocumentService);
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'interactive.open',
 			title: { value: localize('interactive.open', "Open Interactive Window"), original: 'Open Interactive Window' },
-			menu: [
-				{
-					id: MenuId.CommandPalette,
-					when: ContextKeyExpr.equals('config.interactive.experiments.enable', true)
-				}
-			],
+			f1: false,
 			category: 'Interactive',
 			description: {
 				description: localize('notebookActions.executeNotebook', "Run All"),
@@ -221,6 +266,16 @@ registerAction2(class extends Action2 {
 							type: 'number',
 							default: -1
 						}
+					},
+					{
+						name: 'resource',
+						description: 'Interactive resource Uri',
+						isOptional: true
+					},
+					{
+						name: 'controllerId',
+						description: 'Notebook controller Id',
+						isOptional: true
 					}
 				]
 			}
@@ -228,8 +283,26 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, column?: number): Promise<{ notebookUri: URI, inputUri: URI; }> {
+	async run(accessor: ServicesAccessor, column?: number, resource?: URI, id?: string): Promise<{ notebookUri: URI, inputUri: URI; }> {
 		const editorService = accessor.get(IEditorService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
+		const historyService = accessor.get(IInteractiveHistoryService);
+		const kernelService = accessor.get(INotebookKernelService);
+		const group = viewColumnToEditorGroup(editorGroupService, column);
+
+		if (resource && resource.scheme === Schemas.vscodeInteractive) {
+			const resourceUri = URI.revive(resource);
+			const editors = editorService.findEditors(resourceUri).filter(id => id.editor instanceof InteractiveEditorInput && id.editor.resource?.toString() === resourceUri.toString());
+			if (editors.length) {
+				const editorInput = editors[0].editor as InteractiveEditorInput;
+				const currentGroup = editors[0].groupId;
+				await editorService.openEditor(editorInput, { activation: EditorActivation.PRESERVE, preserveFocus: true }, currentGroup);
+				return {
+					notebookUri: editorInput.resource!,
+					inputUri: editorInput.inputResource
+				};
+			}
+		}
 
 		const existingNotebookDocument = new Set<string>();
 		editorService.getEditors(EditorsOrder.SEQUENTIAL).forEach(editor => {
@@ -243,21 +316,26 @@ registerAction2(class extends Action2 {
 		let counter = 1;
 		do {
 			notebookUri = URI.from({ scheme: Schemas.vscodeInteractive, path: `Interactive-${counter}.interactive` });
-			inputUri = URI.from({ scheme: Schemas.vscodeInteractiveInput, path: `InteractiveInput-${counter}` });
+			inputUri = URI.from({ scheme: Schemas.vscodeInteractiveInput, path: `/InteractiveInput-${counter}` });
 
 			counter++;
 		} while (existingNotebookDocument.has(notebookUri.toString()));
 
-		const editorGroupService = accessor.get(IEditorGroupsService);
-		const editorInput = InteractiveEditorInput.create(accessor.get(IInstantiationService), notebookUri, inputUri);
-		const group = viewColumnToEditorGroup(editorGroupService, column);
-		await editorService.openEditor(editorInput, undefined, group);
+		if (id) {
+			const allKernels = kernelService.getMatchingKernel({ uri: notebookUri, viewType: 'interactive' }).all;
+			const preferredKernel = allKernels.find(kernel => kernel.id === id);
+			if (preferredKernel) {
+				kernelService.selectKernelForNotebook(preferredKernel, { uri: notebookUri, viewType: 'interactive' });
+			}
+		}
 
+		const editorInput = InteractiveEditorInput.create(accessor.get(IInstantiationService), notebookUri, inputUri);
+		historyService.clearHistory(notebookUri);
+		await editorService.openEditor(editorInput, undefined, group);
 		// Extensions must retain references to these URIs to manipulate the interactive editor
 		return { notebookUri, inputUri };
 	}
 });
-
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -281,6 +359,7 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const bulkEditService = accessor.get(IBulkEditService);
+		const historyService = accessor.get(IInteractiveHistoryService);
 		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined, codeEditor: CodeEditorWidget; } | undefined;
 
 		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
@@ -292,8 +371,9 @@ registerAction2(class extends Action2 {
 			if (notebookDocument && textModel) {
 				const index = notebookDocument.length;
 				const value = textModel.getValue();
-
+				historyService.addToHistory(notebookDocument.uri, '');
 				textModel.setValue('');
+
 				await bulkEditService.apply([
 					new ResourceNotebookCellEdit(notebookDocument.uri,
 						{
@@ -318,3 +398,82 @@ registerAction2(class extends Action2 {
 		}
 	}
 });
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'interactive.history.previous',
+			title: { value: localize('interactive.history.previous', "Previous value in history"), original: 'Previous value in history' },
+			category: 'Interactive',
+			f1: false,
+			keybinding: {
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
+					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('bottom'),
+					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('none'),
+					SuggestContext.Visible.toNegated()
+				),
+				primary: KeyCode.UpArrow,
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const historyService = accessor.get(IInteractiveHistoryService);
+		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined, codeEditor: CodeEditorWidget; } | undefined;
+
+		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+			const notebookDocument = editorControl.notebookEditor.textModel;
+			const textModel = editorControl.codeEditor.getModel();
+
+			if (notebookDocument && textModel) {
+				const previousValue = historyService.getPreviousValue(notebookDocument.uri);
+				if (previousValue) {
+					textModel.setValue(previousValue);
+				}
+			}
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'interactive.history.next',
+			title: { value: localize('interactive.history.next', "Next value in history"), original: 'Next value in history' },
+			category: 'Interactive',
+			f1: false,
+			keybinding: {
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
+					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('top'),
+					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('none'),
+					SuggestContext.Visible.toNegated()
+				),
+				primary: KeyCode.DownArrow,
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const historyService = accessor.get(IInteractiveHistoryService);
+		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined, codeEditor: CodeEditorWidget; } | undefined;
+
+		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+			const notebookDocument = editorControl.notebookEditor.textModel;
+			const textModel = editorControl.codeEditor.getModel();
+
+			if (notebookDocument && textModel) {
+				const previousValue = historyService.getNextValue(notebookDocument.uri);
+				if (previousValue) {
+					textModel.setValue(previousValue);
+				}
+			}
+		}
+	}
+});
+

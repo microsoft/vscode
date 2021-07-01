@@ -130,10 +130,6 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		return [uri];
 	}
 
-	protected addFileSchemaIfNeeded(schema: string): string[] {
-		return schema === Schemas.untitled ? [Schemas.file] : [schema];
-	}
-
 	private shouldUseSimplified(scheme: string): boolean {
 		return ![Schemas.file, Schemas.userData, Schemas.tmp].includes(scheme);
 	}

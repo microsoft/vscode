@@ -15,6 +15,7 @@ import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workben
 import { Promises } from 'vs/base/common/async';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorsOrder, IEditorInput } from 'vs/workbench/common/editor';
+import { EditorOverride } from 'vs/platform/editor/common/editor';
 
 /**
  * The working copy backup tracker deals with:
@@ -273,7 +274,8 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 				options: {
 					pinned: true,
 					preserveFocus: true,
-					inactive: true
+					inactive: true,
+					override: EditorOverride.DISABLED // very important to disable overrides because the editor input we got is proper
 				}
 			})));
 
@@ -282,9 +284,17 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 			}
 		}
 
-		// Then, resolve each editor to make sure the working copy
+		// Then, resolve each opened editor to make sure the working copy
 		// is loaded and the dirty editor appears properly
-		await Promises.settled([...openedEditorsForBackups].map(openedEditorsForBackup => openedEditorsForBackup.resolve()));
+		// We only do that for editors that are not active in a group
+		// already to prevent calling `resolve` twice!
+		await Promises.settled([...openedEditorsForBackups].map(async openedEditorForBackup => {
+			if (this.editorService.isVisible(openedEditorForBackup)) {
+				return;
+			}
+
+			return openedEditorForBackup.resolve();
+		}));
 
 		// Finally, remove all handled backups from the list
 		for (const restoredBackup of restoredBackups) {

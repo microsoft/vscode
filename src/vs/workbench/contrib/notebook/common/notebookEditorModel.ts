@@ -529,6 +529,11 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 				this._workingCopyListeners.clear();
 				this._workingCopy?.model?.dispose();
 			}));
+		} else {
+			await this._workingCopyManager.resolve(this.resource, {
+				forceReadFromFile: options?.forceReadFromFile,
+				reload: { async: !options?.forceReadFromFile }
+			});
 		}
 
 		assertType(this.isResolved());

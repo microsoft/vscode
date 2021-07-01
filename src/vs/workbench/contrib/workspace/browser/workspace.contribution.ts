@@ -410,7 +410,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 		}
 
 		// info has been dismissed
-		if (this.bannerSetting === 'once' && dismissedRestricted) {
+		if (this.bannerSetting === 'untilDismissed' && dismissedRestricted) {
 			return undefined;
 		}
 
@@ -463,7 +463,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 	}
 
 
-	private get bannerSetting(): 'always' | 'once' | 'never' {
+	private get bannerSetting(): 'always' | 'untilDismissed' | 'never' {
 		return this.configurationService.getValue(WORKSPACE_TRUST_BANNER);
 	}
 
@@ -680,15 +680,15 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			[WORKSPACE_TRUST_BANNER]: {
 				type: 'string',
-				default: 'once',
+				default: 'untilDismissed',
 				included: !isWeb,
 				description: localize('workspace.trust.banner.description', "Controls when the restricted mode banner is shown."),
 				tags: [WORKSPACE_TRUST_SETTING_TAG],
 				scope: ConfigurationScope.APPLICATION,
-				enum: ['always', 'once', 'never'],
+				enum: ['always', 'untilDismissed', 'never'],
 				enumDescriptions: [
 					localize('workspace.trust.banner.always', "Show the banner every time an untrusted workspace is open."),
-					localize('workspace.trust.banner.once', "Show the banner the first time an untrusted workspace is opened until dismissed."),
+					localize('workspace.trust.banner.untilDismissed', "Show the banner when an untrusted workspace is opened until dismissed."),
 					localize('workspace.trust.banner.never', "Do not show the banner when an untrusted workspace is open."),
 				]
 			},

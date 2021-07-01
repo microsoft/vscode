@@ -12,6 +12,7 @@ import { IDimension } from 'vs/editor/common/editorCommon';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
+import { isEditorInput } from 'vs/workbench/common/editor/editorInput';
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
 
@@ -108,6 +109,12 @@ export interface IEditorReplacement {
 	 * save the document. Only use this if you really need to!
 	 */
 	forceReplaceDirty?: boolean;
+}
+
+export function isEditorReplacement(obj: unknown): obj is IEditorReplacement {
+	const candidate = obj as IEditorReplacement | undefined;
+
+	return !!candidate && isEditorInput(candidate.editor) && isEditorInput(candidate.replacement);
 }
 
 export const enum GroupsOrder {
@@ -637,6 +644,11 @@ export interface IEditorGroup {
 	focus(): void;
 }
 
+export function isEditorGroup(obj: unknown): obj is IEditorGroup {
+	const group = obj as IEditorGroup | undefined;
+
+	return !!group && typeof group.id === 'number' && Array.isArray(group.editors);
+}
 
 //#region Editor Group Helpers
 

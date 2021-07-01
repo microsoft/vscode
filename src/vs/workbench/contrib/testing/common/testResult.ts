@@ -12,8 +12,17 @@ import { Range } from 'vs/editor/common/core/range';
 import { localize } from 'vs/nls';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
+import { IObservableValue, MutableObservableValue, staticObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { ExtensionRunTestsRequest, ISerializedTestResults, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, RunTestsRequest, TestIdPath, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { maxPriority, statesInOrder } from 'vs/workbench/contrib/testing/common/testingStates';
+
+export interface ITestRunTaskWithCoverage extends ITestRunTask {
+	/**
+	 * Contains test coverage for the result, if it's available.
+	 */
+	readonly coverage: IObservableValue<TestCoverage | undefined>;
+}
 
 export interface ITestResult {
 	/**
@@ -50,7 +59,7 @@ export interface ITestResult {
 	/**
 	 * List of this result's subtasks.
 	 */
-	tasks: ReadonlyArray<ITestRunTask>;
+	tasks: ReadonlyArray<ITestRunTaskWithCoverage>;
 
 	/**
 	 * Gets the state of the test by its extension-assigned ID.
@@ -243,7 +252,7 @@ export class LiveTestResult implements ITestResult {
 
 	public readonly onChange = this.changeEmitter.event;
 	public readonly onComplete = this.completeEmitter.event;
-	public readonly tasks: ITestRunTask[] = [];
+	public readonly tasks: ITestRunTaskWithCoverage[] = [];
 	public readonly name = localize('runFinished', 'Test run at {0}', new Date().toLocaleString());
 
 	/**
@@ -323,7 +332,7 @@ export class LiveTestResult implements ITestResult {
 	 */
 	public addTask(task: ITestRunTask) {
 		const index = this.tasks.length;
-		this.tasks.push(task);
+		this.tasks.push({ ...task, coverage: new MutableObservableValue(undefined) });
 
 		for (const test of this.tests) {
 			test.tasks.push({ duration: undefined, messages: [], state: TestResultState.Unset });
@@ -557,7 +566,7 @@ export class HydratedTestResult implements ITestResult {
 	/**
 	 * @inheritdoc
 	 */
-	public readonly tasks: ITestRunTask[];
+	public readonly tasks: ITestRunTaskWithCoverage[];
 
 	/**
 	 * @inheritdoc
@@ -580,7 +589,7 @@ export class HydratedTestResult implements ITestResult {
 	) {
 		this.id = serialized.id;
 		this.completedAt = serialized.completedAt;
-		this.tasks = serialized.tasks;
+		this.tasks = serialized.tasks.map(task => ({ ...task, coverage: staticObservableValue(undefined) }));
 		this.name = serialized.name;
 
 		for (const item of serialized.items) {

@@ -64,5 +64,7 @@ export class BinaryEditorModel extends EditorModel {
 				this.size = stat.size;
 			}
 		}
+
+		return super.resolve();
 	}
 }

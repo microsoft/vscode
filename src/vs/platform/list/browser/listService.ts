@@ -22,7 +22,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { ObjectTree, IObjectTreeOptions, ICompressibleTreeRenderer, CompressibleObjectTree, ICompressibleObjectTreeOptions, ICompressibleObjectTreeOptionsUpdate } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeRenderer, IAsyncDataSource, IDataSource, ITreeEvent } from 'vs/base/browser/ui/tree/tree';
-import { AsyncDataTree, IAsyncDataTreeOptions, CompressibleAsyncDataTree, ITreeCompressionDelegate, ICompressibleAsyncDataTreeOptions, IAsyncDataTreeOptionsUpdate } from 'vs/base/browser/ui/tree/asyncDataTree';
+import { AsyncDataTree, IAsyncDataTreeOptions, CompressibleAsyncDataTree, ITreeCompressionDelegate, ICompressibleAsyncDataTreeOptions, IAsyncDataTreeOptionsUpdate, ICompressibleAsyncDataTreeOptionsUpdate } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { DataTree, IDataTreeOptions } from 'vs/base/browser/ui/tree/dataTree';
 import { IKeyboardNavigationEventFilter, IAbstractTreeOptions, RenderIndentGuides, IAbstractTreeOptionsUpdate } from 'vs/base/browser/ui/tree/abstractTree';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -171,7 +171,7 @@ function toWorkbenchListOptions<T>(options: IListOptions<T>, configurationServic
 	const disposables = new DisposableStore();
 	const result = { ...options };
 
-	if (options.multipleSelectionSupport !== false && !options.multipleSelectionController) {
+	if (!options.multipleSelectionController) {
 		const multipleSelectionController = new MultipleSelectionController(configurationService);
 		result.multipleSelectionController = multipleSelectionController;
 		disposables.add(multipleSelectionController);
@@ -200,6 +200,7 @@ export class WorkbenchList<T> extends List<T> {
 
 	readonly contextKeyService: IContextKeyService;
 	private readonly themeService: IThemeService;
+	private listSupportsMultiSelect: IContextKey<boolean>;
 	private listHasSelectionOrFocus: IContextKey<boolean>;
 	private listDoubleSelection: IContextKey<boolean>;
 	private listMultiSelection: IContextKey<boolean>;
@@ -238,8 +239,8 @@ export class WorkbenchList<T> extends List<T> {
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 		this.themeService = themeService;
 
-		const listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
-		listSupportsMultiSelect.set(!(options.multipleSelectionSupport === false));
+		this.listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
+		this.listSupportsMultiSelect.set(!!options.multipleSelectionSupport);
 
 		const listSelectionNavigation = WorkbenchListSelectionNavigation.bindTo(this.contextKeyService);
 		listSelectionNavigation.set(Boolean(options.selectionNavigation));
@@ -304,6 +305,10 @@ export class WorkbenchList<T> extends List<T> {
 		if (options.overrideStyles) {
 			this.updateStyles(options.overrideStyles);
 		}
+
+		if (options.multipleSelectionSupport !== undefined) {
+			this.listSupportsMultiSelect.set(!!options.multipleSelectionSupport);
+		}
 	}
 
 	private updateStyles(styles: IColorMapping): void {
@@ -330,6 +335,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 	readonly contextKeyService: IContextKeyService;
 	private readonly themeService: IThemeService;
 	private readonly disposables: DisposableStore;
+	private listSupportsMultiSelect: IContextKey<boolean>;
 	private _useAltAsMultipleSelectionModifier: boolean;
 	private horizontalScrolling: boolean | undefined;
 	private _styler: IDisposable | undefined;
@@ -367,8 +373,8 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 
 		this.horizontalScrolling = options.horizontalScrolling;
 
-		const listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
-		listSupportsMultiSelect.set(!(options.multipleSelectionSupport === false));
+		this.listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
+		this.listSupportsMultiSelect.set(!!options.multipleSelectionSupport);
 
 		const listSelectionNavigation = WorkbenchListSelectionNavigation.bindTo(this.contextKeyService);
 		listSelectionNavigation.set(Boolean(options.selectionNavigation));
@@ -416,6 +422,10 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		if (options.overrideStyles) {
 			this.updateStyles(options.overrideStyles);
 		}
+
+		if (options.multipleSelectionSupport !== undefined) {
+			this.listSupportsMultiSelect.set(!!options.multipleSelectionSupport);
+		}
 	}
 
 	private updateStyles(styles: IColorMapping): void {
@@ -446,6 +456,7 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 
 	readonly contextKeyService: IContextKeyService;
 	private readonly themeService: IThemeService;
+	private listSupportsMultiSelect: IContextKey<boolean>;
 	private listHasSelectionOrFocus: IContextKey<boolean>;
 	private listDoubleSelection: IContextKey<boolean>;
 	private listMultiSelection: IContextKey<boolean>;
@@ -487,8 +498,8 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 		this.themeService = themeService;
 
-		const listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
-		listSupportsMultiSelect.set(!(options.multipleSelectionSupport === false));
+		this.listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
+		this.listSupportsMultiSelect.set(!!options.multipleSelectionSupport);
 
 		const listSelectionNavigation = WorkbenchListSelectionNavigation.bindTo(this.contextKeyService);
 		listSelectionNavigation.set(Boolean(options.selectionNavigation));
@@ -552,6 +563,10 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 
 		if (options.overrideStyles) {
 			this.updateStyles(options.overrideStyles);
+		}
+
+		if (options.multipleSelectionSupport !== undefined) {
+			this.listSupportsMultiSelect.set(!!options.multipleSelectionSupport);
 		}
 	}
 
@@ -807,6 +822,11 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 		this.internals = new WorkbenchTreeInternals(this, options, getAutomaticKeyboardNavigation, options.overrideStyles, contextKeyService, listService, themeService, configurationService, accessibilityService);
 		this.disposables.add(this.internals);
 	}
+
+	override updateOptions(options: IAbstractTreeOptionsUpdate): void {
+		super.updateOptions(options);
+		this.internals.updateOptions(options);
+	}
 }
 
 export interface IWorkbenchCompressibleObjectTreeOptionsUpdate extends ICompressibleObjectTreeOptionsUpdate {
@@ -851,6 +871,8 @@ export class WorkbenchCompressibleObjectTree<T extends NonNullable<any>, TFilter
 		if (options.overrideStyles) {
 			this.internals.updateStyleOverrides(options.overrideStyles);
 		}
+
+		this.internals.updateOptions(options);
 	}
 }
 
@@ -897,6 +919,8 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 		if (options.overrideStyles) {
 			this.internals.updateStyleOverrides(options.overrideStyles);
 		}
+
+		this.internals.updateOptions(options);
 	}
 }
 
@@ -943,6 +967,8 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 		if (options.overrideStyles) {
 			this.internals.updateStyleOverrides(options.overrideStyles);
 		}
+
+		this.internals.updateOptions(options);
 	}
 }
 
@@ -979,6 +1005,11 @@ export class WorkbenchCompressibleAsyncDataTree<TInput, T, TFilterData = void> e
 		this.disposables.add(disposable);
 		this.internals = new WorkbenchTreeInternals(this, options, getAutomaticKeyboardNavigation, options.overrideStyles, contextKeyService, listService, themeService, configurationService, accessibilityService);
 		this.disposables.add(this.internals);
+	}
+
+	override updateOptions(options: ICompressibleAsyncDataTreeOptionsUpdate): void {
+		super.updateOptions(options);
+		this.internals.updateOptions(options);
 	}
 }
 
@@ -1036,9 +1067,14 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 	};
 }
 
+interface IWorkbenchTreeInternalsOptionsUpdate {
+	readonly multipleSelectionSupport?: boolean;
+}
+
 class WorkbenchTreeInternals<TInput, T, TFilterData> {
 
 	readonly contextKeyService: IContextKeyService;
+	private listSupportsMultiSelect: IContextKey<boolean>;
 	private hasSelectionOrFocus: IContextKey<boolean>;
 	private hasDoubleSelection: IContextKey<boolean>;
 	private hasMultiSelection: IContextKey<boolean>;
@@ -1062,8 +1098,8 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 	) {
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, tree);
 
-		const listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
-		listSupportsMultiSelect.set(!(options.multipleSelectionSupport === false));
+		this.listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
+		this.listSupportsMultiSelect.set(!!options.multipleSelectionSupport);
 
 		const listSelectionNavigation = WorkbenchListSelectionNavigation.bindTo(this.contextKeyService);
 		listSelectionNavigation.set(Boolean(options.selectionNavigation));
@@ -1154,6 +1190,12 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 
 	get useAltAsMultipleSelectionModifier(): boolean {
 		return this._useAltAsMultipleSelectionModifier;
+	}
+
+	updateOptions(options: IWorkbenchTreeInternalsOptionsUpdate): void {
+		if (options.multipleSelectionSupport !== undefined) {
+			this.listSupportsMultiSelect.set(!!options.multipleSelectionSupport);
+		}
 	}
 
 	updateStyleOverrides(overrideStyles?: IColorMapping): void {

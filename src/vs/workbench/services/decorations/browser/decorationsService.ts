@@ -104,7 +104,7 @@ class DecorationRule {
 			// TODO @misolori update bubble badge to adopt letter: ThemeIcon instead of unicode
 			createCSSRule(
 				`.${this.bubbleBadgeClassName}::after`,
-				`content: "\uea71"; color: ${getColor(theme, color)}; font-family: codicon; font-size: 14px; padding-right: 14px; opacity: 0.4;`,
+				`content: "\uea71"; color: ${getColor(theme, color)}; font-family: codicon; font-size: 14px; margin-right: 14px; opacity: 0.4;`,
 				element
 			);
 		}

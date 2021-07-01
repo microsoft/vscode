@@ -329,6 +329,11 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 			type: 'string',
 			doNotSuggest: true,
 			description: nls.localize('workspaceConfig.remoteAuthority', "The remote server where the workspace is located."),
+		},
+		'transient': {
+			type: 'boolean',
+			doNotSuggest: true,
+			description: nls.localize('workspaceConfig.transient', "A transient workspace will disappear when restarting or reloading."),
 		}
 	},
 	errorMessage: nls.localize('unknownWorkspaceProperty', "Unknown workspace configuration property")

@@ -271,8 +271,16 @@ interface IWorkbenchConstructionOptions {
 
 	/**
 	 * An URL pointing to the web worker extension host <iframe> src.
+	 * @deprecated. This will be removed soon.
 	 */
 	readonly webWorkerExtensionHostIframeSrc?: string;
+
+	/**
+	 * [TEMPORARY]: This will be removed soon.
+	 * Use an unique origin for the web worker extension host.
+	 * Defaults to false.
+	 */
+	readonly __uniqueWebWorkerExtensionHostOrigin?: boolean;
 
 	/**
 	 * A factory for web sockets.
@@ -349,13 +357,6 @@ interface IWorkbenchConstructionOptions {
 	 * Defaults to true.
 	 */
 	readonly _enableBuiltinExtensions?: boolean;
-
-	/**
-	 * Allows the workbench to skip checking whether an extension was built for the web
-	 * and assumes they are addressable via the `Microsoft.VisualStudio.Code.WebResources`
-	 * asset URI.
-	 */
-	readonly assumeGalleryExtensionsAreAddressable?: boolean;
 
 	/**
 	 * Support for URL callbacks.

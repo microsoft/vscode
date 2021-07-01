@@ -17,7 +17,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IS_SPLIT_TERMINAL_CONTEXT_KEY, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
 import { MarkdownString } from 'vs/base/common/htmlContent';
@@ -117,7 +117,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		this.onMouseDblClick(async e => {
 			const focus = this.getFocus();
 			if (focus.length === 0) {
-				const instance = this._terminalService.createTerminal();
+				const instance = this._terminalService.createTerminal({ target: TerminalLocation.TerminalView });
 				this._terminalGroupService.setActiveInstance(instance);
 				await instance.focusWhenReady();
 			}
@@ -160,9 +160,6 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		this.onDidOpen(async e => {
 			const instance = e.element;
 			if (!instance) {
-				return;
-			}
-			if (e.editorOptions.pinned) {
 				return;
 			}
 			this._terminalGroupService.setActiveInstance(instance);
@@ -235,7 +232,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		const actionBar = new ActionBar(actionsContainer, {
 			actionViewItemProvider: action =>
 				action instanceof MenuItemAction
-					? this._instantiationService.createInstance(MenuEntryActionViewItem, action)
+					? this._instantiationService.createInstance(MenuEntryActionViewItem, action, undefined)
 					: undefined
 		});
 
@@ -471,7 +468,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		} else {
 			callback(instance);
 		}
-		this._terminalService.focusTabs();
+		this._terminalGroupService.focusTabs();
 		this._listService.lastFocusedList?.focusNext();
 	}
 }
@@ -544,6 +541,12 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		return elements.length === 1 ? elements[0].title : undefined;
 	}
 
+	onDragLeave() {
+		this._autoFocusInstance = undefined;
+		this._autoFocusDisposable.dispose();
+		this._autoFocusDisposable = Disposable.None;
+	}
+
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
 		if (!originalEvent.dataTransfer) {
 			return;
@@ -555,21 +558,14 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		// Attach terminals type to event
 		const terminals: ITerminalInstance[] = dndData.filter(e => 'instanceId' in (e as any));
 		if (terminals.length > 0) {
+			originalEvent.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(terminals.map(e => e.resource.toString())));
 			originalEvent.dataTransfer.setData(DataTransfers.TERMINALS, JSON.stringify(terminals.map(e => e.instanceId)));
 		}
 	}
 
 	onDragOver(data: IDragAndDropData, targetInstance: ITerminalInstance | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | IListDragOverReaction {
-		if (containsDragType(originalEvent, DataTransfers.TERMINALS)) {
-			return {
-				feedback: targetIndex ? [targetIndex] : undefined,
-				accept: true,
-				effect: ListDragOverEffect.Move
-			};
-		}
-
 		if (data instanceof NativeDragAndDropData) {
-			if (!containsDragType(originalEvent, DataTransfers.FILES, DataTransfers.RESOURCES)) {
+			if (!containsDragType(originalEvent, DataTransfers.FILES, DataTransfers.RESOURCES, DataTransfers.TERMINALS)) {
 				return false;
 			}
 		}
@@ -580,11 +576,11 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 			this._autoFocusInstance = targetInstance;
 		}
 
-		if (!targetInstance) {
+		if (!targetInstance && !containsDragType(originalEvent, DataTransfers.TERMINALS)) {
 			return data instanceof ElementsDragAndDropData;
 		}
 
-		if (didChangeAutoFocusInstance) {
+		if (didChangeAutoFocusInstance && targetInstance) {
 			this._autoFocusDisposable = disposableTimeout(() => {
 				this._terminalService.setActiveInstance(targetInstance);
 				this._autoFocusInstance = undefined;
@@ -605,13 +601,14 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		let sourceInstances: ITerminalInstance[] | undefined;
 		const terminalResources = originalEvent.dataTransfer?.getData(DataTransfers.TERMINALS);
 		if (terminalResources) {
-			const uri = URI.parse(JSON.parse(terminalResources)[0]);
-			if (uri.scheme === Schemas.vscodeTerminal) {
+			const json = JSON.parse(terminalResources);
+			for (const entry of json) {
+				const uri = URI.parse(entry);
 				const instance = this._terminalService.instances.find(e => e.resource.path === uri.path);
 				if (instance) {
 					sourceInstances = [instance];
+					this._terminalService.moveToTerminalView(instance);
 				}
-				this._terminalService.moveToTerminalView(instance);
 			}
 		}
 
@@ -635,9 +632,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		}
 
 		if (!targetInstance) {
-			for (const instance of sourceInstances) {
-				this._terminalGroupService.unsplitInstance(instance);
-			}
+			this._terminalGroupService.moveGroupToEnd(sourceInstances[0]);
 			return;
 		}
 

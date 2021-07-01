@@ -120,6 +120,7 @@ export class SettingsEditor2 extends EditorPane {
 		}
 		return type === SettingValueType.Enum ||
 			type === SettingValueType.StringOrEnumArray ||
+			type === SettingValueType.BooleanObject ||
 			type === SettingValueType.Complex ||
 			type === SettingValueType.Boolean ||
 			type === SettingValueType.Exclude;
@@ -229,8 +230,8 @@ export class SettingsEditor2 extends EditorPane {
 
 			if (this.settingsTreeModel) {
 				this.settingsTreeModel.updateWorkspaceTrust(workspaceTrustManagementService.isWorkpaceTrusted());
+				this.renderTree();
 			}
-			this.renderTree();
 		}));
 
 		this._register(configurationService.onDidChangeRestrictedSettings(e => {
@@ -1158,6 +1159,11 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private async onSearchInputChanged(): Promise<void> {
+		if (!this.currentSettingsModel) {
+			// Initializing search widget value
+			return;
+		}
+
 		const query = this.searchWidget.getValue().trim();
 		this.delayedFilterLogging.cancel();
 		await this.triggerSearch(query.replace(/›/g, ' '));

@@ -65,6 +65,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'status': { type: 'boolean', alias: 's', cat: 't', description: localize('status', "Print process usage and diagnostics information.") },
 	'prof-startup': { type: 'boolean', cat: 't', description: localize('prof-startup', "Run CPU profiler during startup.") },
 	'prof-append-timers': { type: 'string' },
+	'no-cached-data': { type: 'boolean' },
 	'prof-startup-prefix': { type: 'string' },
 	'prof-v8-extensions': { type: 'boolean' },
 	'disable-extensions': { type: 'boolean', deprecates: 'disableExtensions', cat: 't', description: localize('disableExtensions', "Disable all installed extensions.") },

@@ -738,6 +738,8 @@ function _applyRenderWhitespace(input: RenderLineInput, lineContent: string, len
 			if (tokenIndex < tokensLength) {
 				tokenType = tokens[tokenIndex].type;
 				tokenEndIndex = tokens[tokenIndex].endIndex;
+			} else {
+				break;
 			}
 		}
 	}

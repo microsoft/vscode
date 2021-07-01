@@ -11,7 +11,6 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
-import { IModelService } from 'vs/editor/common/services/modelService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -32,6 +31,10 @@ import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/not
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
+import { IInteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
+import { ComplexNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 
@@ -47,10 +50,11 @@ export class InteractiveEditor extends EditorPane {
 	// #inputLineCount = 1;
 	#notebookWidgetService: INotebookEditorService;
 	#instantiationService: IInstantiationService;
-	#modelService: IModelService;
 	#modeService: IModeService;
 	#contextKeyService: IContextKeyService;
 	#notebookKernelService: INotebookKernelService;
+	#keybindingService: IKeybindingService;
+	#historyService: IInteractiveHistoryService;
 	#widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
 	#dimension?: DOM.Dimension;
 
@@ -60,11 +64,12 @@ export class InteractiveEditor extends EditorPane {
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@INotebookEditorService notebookWidgetService: INotebookEditorService,
-		@IModelService modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@INotebookKernelService notebookKernelService: INotebookKernelService,
 		@IModeService modeService: IModeService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IInteractiveHistoryService historyService: IInteractiveHistoryService,
 	) {
 		super(
 			InteractiveEditor.ID,
@@ -74,10 +79,11 @@ export class InteractiveEditor extends EditorPane {
 		);
 		this.#instantiationService = instantiationService;
 		this.#notebookWidgetService = notebookWidgetService;
-		this.#modelService = modelService;
 		this.#contextKeyService = contextKeyService;
 		this.#notebookKernelService = notebookKernelService;
 		this.#modeService = modeService;
+		this.#keybindingService = keybindingService;
+		this.#historyService = historyService;
 
 		codeEditorService.registerDecorationType('interactive-decoration', DECORATION_KEY, {});
 	}
@@ -150,8 +156,11 @@ export class InteractiveEditor extends EditorPane {
 			isReadOnly: true
 		});
 
-		const editorModel = this.#modelService.getModel(input.inputResource) || this.#modelService.createModel('', null, input.inputResource, false);
-		this.#widgetDisposableStore.add(editorModel);
+		this.#widgetDisposableStore.add(model.notebook.onDidChangeContent(() => {
+			(model as ComplexNotebookEditorModel).setDirty(false);
+		}));
+
+		const editorModel = input.resolveInput(this.#notebookWidget.value?.activeKernel?.supportedLanguages[0] ?? 'plaintext');
 		this.#codeEditorWidget.setModel(editorModel);
 		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidContentSizeChange(e => {
 			if (!e.contentHeightChanged) {
@@ -180,6 +189,38 @@ export class InteractiveEditor extends EditorPane {
 		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidChangeModelContent(() => {
 			if (this.isVisible()) {
 				this.#updateInputDecoration();
+			}
+		}));
+
+		const cursorAtBoundaryContext = INTERACTIVE_INPUT_CURSOR_BOUNDARY.bindTo(this.#contextKeyService);
+		cursorAtBoundaryContext.set('none');
+
+		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidChangeCursorPosition(({ position }) => {
+			const viewModel = this.#codeEditorWidget._getViewModel()!;
+			const lastLineNumber = viewModel.getLineCount();
+			const lastLineCol = viewModel.getLineContent(lastLineNumber).length + 1;
+			const viewPosition = viewModel.coordinatesConverter.convertModelPositionToViewPosition(position);
+			const firstLine = viewPosition.lineNumber === 1 && viewPosition.column === 1;
+			const lastLine = viewPosition.lineNumber === lastLineNumber && viewPosition.column === lastLineCol;
+
+			if (firstLine) {
+				if (lastLine) {
+					cursorAtBoundaryContext.set('both');
+				} else {
+					cursorAtBoundaryContext.set('top');
+				}
+			} else {
+				if (lastLine) {
+					cursorAtBoundaryContext.set('bottom');
+				} else {
+					cursorAtBoundaryContext.set('none');
+				}
+			}
+		}));
+
+		this.#widgetDisposableStore.add(editorModel.onDidChangeContent(() => {
+			if (this.input?.resource) {
+				this.#historyService.replaceLast(this.input.resource, editorModel!.getValue());
 			}
 		}));
 
@@ -237,6 +278,8 @@ export class InteractiveEditor extends EditorPane {
 
 		if (model?.getValueLength() === 0) {
 			const transparentForeground = resolveColorValue(editorForeground, this.themeService.getColorTheme())?.transparent(0.4);
+			const keybinding = this.#keybindingService.lookupKeybinding('interactive.execute')?.getLabel();
+			const text = nls.localize('interactiveInputPlaceHolder', "Type code here and press {0} to run", keybinding ?? 'ctrl+enter');
 			decorations.push({
 				range: {
 					startLineNumber: 0,
@@ -246,7 +289,7 @@ export class InteractiveEditor extends EditorPane {
 				},
 				renderOptions: {
 					after: {
-						contentText: nls.localize('interactiveInputPlaceHolder', "Type code here and press ctrl+enter to run"),
+						contentText: text,
 						color: transparentForeground ? transparentForeground.toString() : undefined
 					}
 				}

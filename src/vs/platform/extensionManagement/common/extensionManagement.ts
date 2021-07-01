@@ -92,7 +92,6 @@ export interface IGalleryExtension {
 	telemetryData: any;
 	preview: boolean;
 	webExtension: boolean;
-	webResource?: URI;
 }
 
 export interface IGalleryMetadata {
@@ -200,6 +199,7 @@ export const INSTALL_ERROR_INCOMPATIBLE = 'incompatible';
 export class ExtensionManagementError extends Error {
 	constructor(message: string, readonly code: string) {
 		super(message);
+		this.name = code;
 	}
 }
 

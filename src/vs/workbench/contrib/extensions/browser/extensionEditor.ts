@@ -27,7 +27,7 @@ import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget } from 'vs/workben
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import {
-	UpdateAction, ReloadAction, MaliciousStatusLabelAction, EnableDropDownAction, DisableDropDownAction, StatusLabelAction, SetFileIconThemeAction, SetColorThemeAction,
+	UpdateAction, ReloadAction, EnableDropDownAction, DisableDropDownAction, StatusLabelAction, SetFileIconThemeAction, SetColorThemeAction,
 	RemoteInstallAction, ExtensionToolTipAction, SystemDisabledWarningAction, LocalInstallAction, ToggleSyncExtensionAction, SetProductIconThemeAction,
 	ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, UninstallAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction,
 	InstallAnotherVersionAction, ExtensionEditorManageExtensionAction, WebInstallAction
@@ -437,7 +437,6 @@ export class ExtensionEditor extends EditorPane {
 			this.instantiationService.createInstance(ExtensionEditorManageExtensionAction),
 			systemDisabledWarningAction,
 			this.instantiationService.createInstance(ExtensionToolTipAction, systemDisabledWarningAction, reloadAction),
-			this.instantiationService.createInstance(MaliciousStatusLabelAction, true),
 		];
 		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets]);
 		extensionContainers.extension = extension;

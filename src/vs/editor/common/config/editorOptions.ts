@@ -3174,7 +3174,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 	constructor() {
 		const defaults: InternalInlineSuggestOptions = {
 			enabled: false,
-			mode: 'prefix'
+			mode: 'subwordDiff'
 		};
 
 		super(
@@ -3387,7 +3387,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			showIcons: true,
 			showStatusBar: false,
 			preview: false,
-			previewMode: 'subwordDiff',
+			previewMode: 'prefix',
 			showInlineDetails: true,
 			showMethods: true,
 			showFunctions: true,

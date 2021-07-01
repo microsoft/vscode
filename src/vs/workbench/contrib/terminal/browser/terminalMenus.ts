@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from 'vs/base/common/codicons';
+import { Schemas } from 'vs/base/common/network';
 import { localize } from 'vs/nls';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IS_SPLIT_TERMINAL_CONTEXT_KEY, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TerminalCommandId, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 
@@ -392,8 +394,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.ChangeIcon,
 						title: localize('workbench.action.terminal.changeIcon', "Change Icon...")
 					},
-					group: ContextMenuGroup.Edit,
-					order: 3
+					group: ContextMenuGroup.Edit
 				}
 			},
 			{
@@ -403,8 +404,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.ChangeColor,
 						title: localize('workbench.action.terminal.changeColor', "Change Color...")
 					},
-					group: ContextMenuGroup.Edit,
-					order: 4
+					group: ContextMenuGroup.Edit
 				}
 			},
 			{
@@ -518,4 +518,50 @@ export function setupTerminalMenus(): void {
 			}
 		]
 	);
+
+	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
+		command: {
+			id: TerminalCommandId.MoveToTerminalPanel,
+			title: terminalStrings.moveToTerminalPanel
+		},
+		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
+		group: '2_files'
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
+		command: {
+			id: TerminalCommandId.Rename,
+			title: terminalStrings.rename
+		},
+		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
+		group: '3_files'
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
+		command: {
+			id: TerminalCommandId.ChangeColor,
+			title: terminalStrings.changeColor
+		},
+		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
+		group: '3_files'
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
+		command: {
+			id: TerminalCommandId.ChangeIcon,
+			title: terminalStrings.changeIcon
+		},
+		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
+		group: '3_files'
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+		command: {
+			id: TerminalCommandId.CreateWithProfileButton,
+			title: TerminalCommandId.CreateWithProfileButton
+		},
+		group: 'navigation',
+		order: 0,
+		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal)
+	});
 }

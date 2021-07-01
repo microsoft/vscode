@@ -24,6 +24,7 @@ export type BuiltinGettingStartedStep = {
 	when?: string,
 	media:
 	| { type: 'image', path: string | { hc: string, light: string, dark: string }, altText: string }
+	| { type: 'svg', path: string, altText: string }
 	| { type: 'markdown', path: string },
 };
 
@@ -31,6 +32,7 @@ export type BuiltinGettingStartedCategory = {
 	id: string
 	title: string,
 	description: string,
+	isFeatured: boolean,
 	next?: string,
 	icon: ThemeIcon,
 	when?: string,
@@ -53,15 +55,25 @@ type GettingStartedStartEntryContent = BuiltinGettingStartedStartEntry[];
 
 export const startEntries: GettingStartedStartEntryContent = [
 	{
-		id: 'welcome.showNewEntries',
-		title: localize('gettingStarted.newFile.title', "New..."),
-		description: localize('gettingStarted.newFile.description', "Start with something new!"),
+		id: 'welcome.showNewFileEntries',
+		title: localize('gettingStarted.newFile.title', "New File..."),
+		description: localize('gettingStarted.newFile.description', "Open a new untitled file, notebook, or custom editor."),
 		icon: Codicon.newFile,
 		content: {
 			type: 'startEntry',
-			command: 'welcome.showNewEntries',
+			command: 'welcome.showNewFileEntries',
 		}
 	},
+	// {
+	// 	id: 'welcome.showNewFolderEntries',
+	// 	title: localize('gettingStarted.newFolder.title', "New Folder..."),
+	// 	description: localize('gettingStarted.newFolder.description', "Create a folder from a Git repo or an extension contributed template folder"),
+	// 	icon: Codicon.newFolder,
+	// 	content: {
+	// 		type: 'startEntry',
+	// 		command: 'welcome.showNewFolderEntries',
+	// 	}
+	// },
 	{
 		id: 'topLevelOpenMac',
 		title: localize('gettingStarted.openMac.title', "Open..."),
@@ -95,17 +107,6 @@ export const startEntries: GettingStartedStartEntryContent = [
 			command: 'workbench.action.files.openFolder',
 		}
 	},
-	// {
-	// 	id: 'topLevelCloneRepo',
-	// 	title: localize('gettingStarted.cloneRepo.title', "Clone Git Repository..."),
-	// 	description: localize('gettingStarted.cloneRepo.description', "Clone a git repository"),
-	// 	icon: Codicon.repoClone,
-	// 	when: '!git.missing',
-	// 	content: {
-	// 		type: 'startEntry',
-	// 		command: 'git.clone',
-	// 	}
-	// },
 	{
 		id: 'topLevelCommandPalette',
 		title: localize('gettingStarted.topLevelCommandPalette.title', "Run a Command..."),
@@ -125,6 +126,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		id: 'Setup',
 		title: localize('gettingStarted.setup.title', "Get Started with VS Code"),
 		description: localize('gettingStarted.setup.description', "Discover the best customizations to make VS Code yours."),
+		isFeatured: true,
 		icon: setupIcon,
 		next: 'Beginner',
 		content: {
@@ -145,24 +147,14 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					title: localize('gettingStarted.findLanguageExts.title', "Rich support for all your languages"),
 					description: localize('gettingStarted.findLanguageExts.description.interpolated', "Code smarter with syntax highlighting, code completion, linting and debugging. While many languages are built-in, many more can be added as extensions.\n{0}", Button(localize('browseLangExts', "Browse Language Extensions"), 'command:workbench.extensions.action.showLanguageExtensions')),
 					media: {
-						type: 'image', altText: 'Language extensions', path: {
-							dark: 'dark/languageExtensions.png',
-							light: 'light/languageExtensions.png',
-							hc: 'hc/languageExtensions.png',
-						}
-					}
+						type: 'svg', altText: 'Language extensions', path: 'languages.svg'
+					},
 				},
 				{
 					id: 'commandPaletteTask',
 					title: localize('gettingStarted.commandPalette.title', "One shortcut to access everything"),
 					description: localize('gettingStarted.commandPalette.description.interpolated', "Commands Palette is the keyboard way to accomplish any task in VS Code. **Practice** by looking up your frequently used commands to save time and keep in the flow.\n{0}\n__Try searching for 'view toggle'.__", Button(localize('commandPalette', "Open Command Palette"), 'command:workbench.action.showCommands')),
-					media: {
-						type: 'image', altText: 'Command Palette overlay for searching and executing commands.', path: {
-							dark: 'dark/commandPalette.png',
-							light: 'light/commandPalette.png',
-							hc: 'hc/commandPalette.png',
-						}
-					},
+					media: { type: 'svg', altText: 'Command Palette overlay for searching and executing commands.', path: 'commandPalette.svg' },
 				},
 				{
 					id: 'workspaceTrust',
@@ -170,11 +162,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					description: localize('gettingStarted.workspaceTrust.description.interpolated', "{0} lets you decide whether your project folders should **allow or restrict** automatic code execution __(required for extensions, debugging, etc)__.\nOpening a file/folder will prompt to grant trust. You can always {1} later.", Button(localize('workspaceTrust', "Workspace Trust"), 'https://github.com/microsoft/vscode-docs/blob/workspaceTrust/docs/editor/workspace-trust.md'), Button(localize('enableTrust', "enable trust"), 'command:toSide:workbench.action.manageTrustedDomain')),
 					when: '!isWorkspaceTrusted && workspaceFolderCount == 0',
 					media: {
-						type: 'image', altText: 'Workspace Trust editor in Restricted mode and a primary button for switching to Trusted mode.', path: {
-							dark: 'dark/workspaceTrust.svg',
-							light: 'light/workspaceTrust.svg',
-							hc: 'dark/workspaceTrust.svg',
-						},
+						type: 'svg', altText: 'Workspace Trust editor in Restricted mode and a primary button for switching to Trusted mode.', path: 'workspaceTrust.svg'
 					},
 				},
 				{
@@ -183,11 +171,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					description: localize('gettingStarted.setup.OpenFolder.description.interpolated', "You're all set to start coding. Open a project folder to get your files into VS Code.\n{0}", Button(localize('pickFolder', "Pick a Folder"), 'command:workbench.action.files.openFileFolder')),
 					when: 'isMac && workspaceFolderCount == 0',
 					media: {
-						type: 'image', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: {
-							dark: 'dark/openFolder.png',
-							light: 'light/openFolder.png',
-							hc: 'hc/openFolder.png',
-						}
+						type: 'svg', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: 'openFolder.svg'
 					}
 				},
 				{
@@ -196,11 +180,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					description: localize('gettingStarted.setup.OpenFolder.description.interpolated', "You're all set to start coding. Open a project folder to get your files into VS Code.\n{0}", Button(localize('pickFolder', "Pick a Folder"), 'command:workbench.action.files.openFolder')),
 					when: '!isMac && workspaceFolderCount == 0',
 					media: {
-						type: 'image', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: {
-							dark: 'dark/openFolder.png',
-							light: 'light/openFolder.png',
-							hc: 'hc/openFolder.png',
-						}
+						type: 'svg', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: 'openFolder.svg'
 					}
 				},
 				{
@@ -209,11 +189,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					description: localize('gettingStarted.quickOpen.description.interpolated', "Navigate between files in an instant with one keystroke. Tip: Open multiple files by pressing the right arrow key.\n{0}", Button(localize('quickOpen', "Quick Open a File"), 'command:toSide:workbench.action.quickOpen')),
 					when: 'workspaceFolderCount != 0',
 					media: {
-						type: 'image', altText: 'Go to file in quick search.', path: {
-							dark: 'dark/openFolder.png',
-							light: 'light/openFolder.png',
-							hc: 'hc/openFolder.png',
-						}
+						type: 'svg', altText: 'Go to file in quick search.', path: 'search.svg'
 					}
 				}
 			]
@@ -224,6 +200,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		id: 'Beginner',
 		title: localize('gettingStarted.beginner.title', "Learn the Fundamentals"),
 		icon: beginnerIcon,
+		isFeatured: true,
 		next: 'Intermediate',
 		description: localize('gettingStarted.beginner.description', "Jump right into VS Code and get an overview of the must-have features."),
 		content: {
@@ -234,11 +211,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					title: localize('gettingStarted.playground.title', "Redefine your editing skills"),
 					description: localize('gettingStarted.playground.description.interpolated', "Want to code faster and smarter? Practice powerful code editing features in the interactive playground.\n{0}", Button(localize('openInteractivePlayground', "Open Interactive Playground"), 'command:toSide:workbench.action.showInteractivePlayground')),
 					media: {
-						type: 'image', altText: 'Interactive Playground.', path: {
-							dark: 'dark/playground.png',
-							light: 'light/playground.png',
-							hc: 'light/playground.png'
-						},
+						type: 'svg', altText: 'Interactive Playground.', path: 'interactivePlayground.svg'
 					},
 				},
 				{
@@ -247,11 +220,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					description: localize('gettingStarted.terminal.description.interpolated', "Quickly run shell commands and monitor build output, right next to your code.\n{0}", Button(localize('showTerminal', "Show Terminal Panel"), 'command:workbench.action.terminal.toggleTerminal')),
 					when: 'remoteName != codespaces && !terminalIsOpen',
 					media: {
-						type: 'image', altText: 'Integrated terminal running a few npm commands', path: {
-							dark: 'dark/terminal.png',
-							light: 'light/terminal.png',
-							hc: 'hc/terminal.png',
-						}
+						type: 'svg', altText: 'Integrated terminal running a few npm commands', path: 'terminal.svg'
 					},
 				},
 				{
@@ -259,11 +228,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					title: localize('gettingStarted.extensions.title', "Limitless extensibility"),
 					description: localize('gettingStarted.extensions.description.interpolated', "Extensions are VS Code's power-ups. They range from handy productivity hacks, expanding out-of-the-box features, to adding completely new capabilities.\n{0}", Button(localize('browseRecommended', "Browse Recommended Extensions"), 'command:workbench.extensions.action.showRecommendedExtensions')),
 					media: {
-						type: 'image', altText: 'VS Code extension marketplace with featured language extensions', path: {
-							dark: 'dark/extensions.png',
-							light: 'light/extensions.png',
-							hc: 'hc/extensions.png',
-						}
+						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions.svg'
 					},
 				},
 				{
@@ -271,11 +236,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					title: localize('gettingStarted.settings.title', "Tune your settings"),
 					description: localize('gettingStarted.settings.description.interpolated', "Tweak every aspect of VS Code and your extensions to your liking. Commonly used settings are listed first to get you started.\n{0}", Button(localize('tweakSettings', "Tweak my Settings"), 'command:toSide:workbench.action.openSettings')),
 					media: {
-						type: 'image', altText: 'VS Code Settings', path: {
-							dark: 'dark/settings.png',
-							light: 'light/settings.png',
-							hc: 'hc/settings.png',
-						}
+						type: 'svg', altText: 'VS Code Settings', path: 'settings.svg'
 					},
 				},
 				{
@@ -285,18 +246,14 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					when: 'syncStatus != uninitialized',
 					completionEvents: ['onEvent:sync-enabled'],
 					media: {
-						type: 'image', altText: 'The "Turn on Sync" entry in the settings gear menu.', path: {
-							dark: 'dark/settingsSync.png',
-							light: 'light/settingsSync.png',
-							hc: 'hc/settingsSync.png',
-						},
-					}
+						type: 'svg', altText: 'The "Turn on Sync" entry in the settings gear menu.', path: 'settingsSync.svg'
+					},
 				},
 				{
 					id: 'videoTutorial',
 					title: localize('gettingStarted.videoTutorial.title', "Lean back and learn"),
 					description: localize('gettingStarted.videoTutorial.description.interpolated', "Watch the first in a series of short & practical video tutorials for VS Code's key features.\n{0}", Button(localize('watch', "Watch Tutorial"), 'https://aka.ms/vscode-getting-started-video')),
-					media: { type: 'image', altText: 'VS Code Settings', path: 'tutorialVideo.png' },
+					media: { type: 'svg', altText: 'VS Code Settings', path: 'learn.svg' },
 				}
 			]
 		}
@@ -304,6 +261,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 
 	{
 		id: 'Intermediate',
+		isFeatured: false,
 		title: localize('gettingStarted.intermediate.title', "Boost your Productivity"),
 		icon: intermediateIcon,
 		description: localize('gettingStarted.intermediate.description', "Optimize your development workflow with these tips & tricks."),
@@ -315,11 +273,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					title: localize('gettingStarted.splitview.title', "Side by side editing"),
 					description: localize('gettingStarted.splitview.description.interpolated', "Make the most of your screen estate by opening files side by side, vertically and horizontally.\n{0}", Button(localize('splitEditor', "Split Editor"), 'command:workbench.action.splitEditor')),
 					media: {
-						type: 'image', altText: 'Multiple editors in split view.', path: {
-							dark: 'dark/splitview.png',
-							light: 'light/splitview.png',
-							hc: 'light/splitview.png'
-						},
+						type: 'svg', altText: 'Multiple editors in split view.', path: 'sideBySide.svg',
 					},
 				},
 				{
@@ -328,11 +282,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					description: localize('gettingStarted.debug.description.interpolated', "Accelerate your edit, build, test, and debug loop by setting up a launch configuration.\n{0}", Button(localize('runProject', "Run your Project"), 'command:workbench.action.debug.selectandstart')),
 					when: 'workspaceFolderCount != 0',
 					media: {
-						type: 'image', altText: 'Run and debug view.', path: {
-							dark: 'dark/debug.png',
-							light: 'light/debug.png',
-							hc: 'light/debug.png'
-						},
+						type: 'svg', altText: 'Run and debug view.', path: 'debug.svg',
 					},
 				},
 				{
@@ -341,11 +291,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					description: localize('gettingStarted.scmClone.description.interpolated', "Set up the built-in version control for your project to track your changes and collaborate with others.\n{0}", Button(localize('cloneRepo', "Clone Repository"), 'command:git.clone')),
 					when: 'config.git.enabled && !git.missing && workspaceFolderCount == 0',
 					media: {
-						type: 'image', altText: 'Source Control view.', path: {
-							dark: 'dark/scm.png',
-							light: 'light/scm.png',
-							hc: 'light/scm.png'
-						},
+						type: 'svg', altText: 'Source Control view.', path: 'git.svg',
 					},
 				},
 				{
@@ -354,11 +300,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					description: localize('gettingStarted.scmSetup.description.interpolated', "Set up the built-in version control for your project to track your changes and collaborate with others.\n{0}", Button(localize('initRepo', "Initialize Git Repository"), 'command:git.init')),
 					when: 'config.git.enabled && !git.missing && workspaceFolderCount != 0 && gitOpenRepositoryCount == 0',
 					media: {
-						type: 'image', altText: 'Source Control view.', path: {
-							dark: 'dark/scm.png',
-							light: 'light/scm.png',
-							hc: 'light/scm.png'
-						},
+						type: 'svg', altText: 'Source Control view.', path: 'git.svg',
 					},
 				},
 				{
@@ -367,11 +309,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					description: localize('gettingStarted.scm.description.interpolated', "No more looking up Git commands! Git and GitHub workflows are seamlessly integrated.\n{0}", Button(localize('openSCM', "Open Source Control"), 'command:workbench.view.scm')),
 					when: 'config.git.enabled && !git.missing && workspaceFolderCount != 0 && gitOpenRepositoryCount != 0 && activeViewlet != \'workbench.view.scm\'',
 					media: {
-						type: 'image', altText: 'Source Control view.', path: {
-							dark: 'dark/scm.png',
-							light: 'light/scm.png',
-							hc: 'light/scm.png'
-						},
+						type: 'svg', altText: 'Source Control view.', path: 'git.svg',
 					},
 				},
 				{
@@ -380,11 +318,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					when: 'workspaceFolderCount != 0',
 					description: localize('gettingStarted.tasks.description.interpolated', "Create tasks for your common workflows and enjoy the integrated experience of running scripts and automatically checking results.\n{0}", Button(localize('runTasks', "Run Auto-detected Tasks"), 'command:workbench.action.tasks.runTask')),
 					media: {
-						type: 'image', altText: 'Task runner.', path: {
-							dark: 'dark/tasks.png',
-							light: 'light/tasks.png',
-							hc: 'light/tasks.png'
-						},
+						type: 'svg', altText: 'Task runner.', path: 'runTask.svg',
 					},
 				},
 				{
@@ -392,11 +326,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					title: localize('gettingStarted.shortcuts.title', "Customize your shortcuts"),
 					description: localize('gettingStarted.shortcuts.description.interpolated', "Once you have discovered your favorite commands, create custom keyboard shortcuts for instant access.\n{0}", Button(localize('keyboardShortcuts', "Keyboard Shortcuts"), 'command:toSide:workbench.action.openGlobalKeybindings')),
 					media: {
-						type: 'image', altText: 'Interactive shortcuts.', path: {
-							dark: 'dark/shortcuts.png',
-							light: 'light/shortcuts.png',
-							hc: 'light/shortcuts.png'
-						},
+						type: 'svg', altText: 'Interactive shortcuts.', path: 'shortcuts.svg',
 					}
 				}
 			]
@@ -407,6 +337,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		title: localize('gettingStarted.notebook.title', "Customize Notebooks"),
 		description: '',
 		icon: setupIcon,
+		isFeatured: false,
 		when: 'config.notebook.experimental.gettingStarted && userHasOpenedNotebook',
 		content: {
 			type: 'steps',

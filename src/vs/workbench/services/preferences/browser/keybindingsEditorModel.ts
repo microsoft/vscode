@@ -158,6 +158,8 @@ export class KeybindingsEditorModel extends EditorModel {
 			this._keybindingItemsSortedByPrecedence.push(KeybindingsEditorModel.toKeybindingEntry(command, keybindingItem, workbenchActionsRegistry, actionLabels));
 		}
 		this._keybindingItems = this._keybindingItemsSortedByPrecedence.slice(0).sort((a, b) => KeybindingsEditorModel.compareKeybindingData(a, b));
+
+		return super.resolve();
 	}
 
 	private static getId(keybindingItem: IKeybindingItem): string {

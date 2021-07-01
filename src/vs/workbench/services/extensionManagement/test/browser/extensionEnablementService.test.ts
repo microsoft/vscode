@@ -505,6 +505,24 @@ suite('ExtensionEnablementService Test', () => {
 		assert.deepStrictEqual(testObject.getEnablementState(extension), EnablementState.DisabledByVirtualWorkspace);
 	});
 
+	test('test web extension from web extension management server and does not support vitrual workspace is enabled in virtual workspace', async () => {
+		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(null, anExtensionManagementServer('vscode-remote', instantiationService), anExtensionManagementServer('web', instantiationService)));
+		const extension = aLocalExtension2('pub.a', { capabilities: { virtualWorkspaces: false }, browser: 'browser.js' }, { location: URI.file(`pub.a`).with({ scheme: 'web' }) });
+		instantiationService.stub(IWorkspaceContextService, 'getWorkspace', <IWorkspace>{ folders: [{ uri: URI.file('worskapceA').with(({ scheme: 'virtual' })) }] });
+		testObject = new TestExtensionEnablementService(instantiationService);
+		assert.ok(testObject.isEnabled(extension));
+		assert.deepStrictEqual(testObject.getEnablementState(extension), EnablementState.EnabledGlobally);
+	});
+
+	test('test web extension from remote extension management server and does not support vitrual workspace is disabled in virtual workspace', async () => {
+		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(null, anExtensionManagementServer('vscode-remote', instantiationService), anExtensionManagementServer('web', instantiationService)));
+		const extension = aLocalExtension2('pub.a', { capabilities: { virtualWorkspaces: false }, browser: 'browser.js' }, { location: URI.file(`pub.a`).with({ scheme: 'vscode-remote' }) });
+		instantiationService.stub(IWorkspaceContextService, 'getWorkspace', <IWorkspace>{ folders: [{ uri: URI.file('worskapceA').with(({ scheme: 'virtual' })) }] });
+		testObject = new TestExtensionEnablementService(instantiationService);
+		assert.ok(!testObject.isEnabled(extension));
+		assert.deepStrictEqual(testObject.getEnablementState(extension), EnablementState.DisabledByVirtualWorkspace);
+	});
+
 	test('test canChangeEnablement return false when extension is disabled in virtual workspace', () => {
 		const extension = aLocalExtension2('pub.a', { capabilities: { virtualWorkspaces: false } });
 		instantiationService.stub(IWorkspaceContextService, 'getWorkspace', <IWorkspace>{ folders: [{ uri: URI.file('worskapceA').with(({ scheme: 'virtual' })) }] });

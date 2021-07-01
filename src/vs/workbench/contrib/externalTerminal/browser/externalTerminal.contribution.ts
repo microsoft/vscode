@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
 import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
-import { ITerminalService as IIntegratedTerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalGroupService, ITerminalService as IIntegratedTerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IListService } from 'vs/platform/list/browser/listService';
@@ -37,6 +37,7 @@ CommandsRegistry.registerCommand({
 		const terminalService: IExternalTerminalService | undefined = accessor.get(IExternalTerminalService, optional);
 		const integratedTerminalService = accessor.get(IIntegratedTerminalService);
 		const remoteAgentService = accessor.get(IRemoteAgentService);
+		const terminalGroupService = accessor.get(ITerminalGroupService);
 
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService, accessor.get(IExplorerService));
 		return fileService.resolveAll(resources.map(r => ({ resource: r }))).then(async stats => {
@@ -67,7 +68,7 @@ CommandsRegistry.registerCommand({
 					const instance = integratedTerminalService.createTerminal({ config: { cwd } });
 					if (instance && (resources.length === 1 || !resource || cwd.path === resource.path || cwd.path === dirname(resource.path))) {
 						integratedTerminalService.setActiveInstance(instance);
-						integratedTerminalService.showPanel(true);
+						terminalGroupService.showPanel(true);
 					}
 				});
 			} else {

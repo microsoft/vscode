@@ -1154,7 +1154,7 @@ export class TabsTitleControl extends TitleControl {
 			{ name, description, resource: EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH }) },
 			{
 				title,
-				extraClasses: coalesce(['tab-label', fileDecorationBadges ? 'tab-label-has-badge' : undefined]),
+				extraClasses: coalesce(['tab-label', fileDecorationBadges ? 'tab-label-has-badge' : undefined].concat(editor.getLabelExtraClasses())),
 				italic: !this.group.isPinned(editor),
 				forceLabel,
 				fileDecorations: {

@@ -6,6 +6,7 @@
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { MarshalledId } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
+import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { TestMessageSeverity, TestResultState } from 'vs/workbench/api/common/extHostTypes';
 
@@ -90,6 +91,7 @@ export interface ITestItem {
 	/** ID of the test given by the test controller */
 	extId: string;
 	label: string;
+	busy?: boolean;
 	children?: never;
 	uri?: URI;
 	range: IRange | null;
@@ -177,6 +179,48 @@ export interface ISerializedTestResults {
 	tasks: ITestRunTask[];
 	/** Human-readable name of the test run. */
 	name: string;
+}
+
+export interface ITestCoverage {
+	files: IFileCoverage[];
+}
+
+export interface ICoveredCount {
+	covered: number;
+	total: number;
+}
+
+export interface IFileCoverage {
+	uri: URI;
+	statement: ICoveredCount;
+	branch?: ICoveredCount;
+	function?: ICoveredCount;
+	details?: CoverageDetails[];
+}
+
+export const enum DetailType {
+	Function,
+	Statement,
+}
+
+export type CoverageDetails = IFunctionCoverage | IStatementCoverage;
+
+export interface IBranchCoverage {
+	count: number;
+	location?: IRange | IPosition;
+}
+
+export interface IFunctionCoverage {
+	type: DetailType.Function;
+	count: number;
+	location?: IRange | IPosition;
+}
+
+export interface IStatementCoverage {
+	type: DetailType.Statement;
+	count: number;
+	location: IRange | IPosition;
+	branches?: IBranchCoverage[];
 }
 
 export const enum TestDiffOpType {

@@ -92,6 +92,7 @@ export interface NotebookCellInternalMetadata {
 	runStartTime?: number;
 	runStartTimeAdjustment?: number;
 	runEndTime?: number;
+	isPaused?: boolean;
 }
 
 export type TransientCellMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
@@ -345,6 +346,10 @@ export type NotebookTextModelChangedEvent = {
 	readonly versionId: number;
 	readonly synchronous: boolean;
 	readonly endSelectionState: ISelectionState | undefined;
+};
+
+export type NotebookTextModelWillAddRemoveEvent = {
+	readonly rawEvent: NotebookCellsModelChangedEvent<ICell>;
 };
 
 export const enum CellEditType {
@@ -714,8 +719,6 @@ export interface INotebookEditorModel extends IEditorModel {
 export interface INotebookDiffEditorModel extends IEditorModel {
 	original: IResolvedNotebookEditorModel;
 	modified: IResolvedNotebookEditorModel;
-	resolveOriginalFromDisk(): Promise<void>;
-	resolveModifiedFromDisk(): Promise<void>;
 }
 
 export interface NotebookDocumentBackupData extends IWorkingCopyBackupMeta {

@@ -21,6 +21,7 @@ import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce } from 'vs/base/common/arrays';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IExtUri } from 'vs/base/common/resources';
+import { Schemas } from 'vs/base/common/network';
 
 // Static values for editor contributions
 export const EditorExtensions = {
@@ -41,6 +42,7 @@ export const ActiveEditorDirtyContext = new RawContextKey<boolean>('activeEditor
 export const ActiveEditorPinnedContext = new RawContextKey<boolean>('activeEditorIsNotPreview', false, localize('activeEditorIsNotPreview', "Whether the active editor is not in preview mode"));
 export const ActiveEditorStickyContext = new RawContextKey<boolean>('activeEditorIsPinned', false, localize('activeEditorIsPinned', "Whether the active editor is pinned"));
 export const ActiveEditorReadonlyContext = new RawContextKey<boolean>('activeEditorIsReadonly', false, localize('activeEditorIsReadonly', "Whether the active editor is readonly"));
+export const ActiveEditorCanRevertContext = new RawContextKey<boolean>('activeEditorCanRevert', false, localize('activeEditorCanRevert', "Whether the active editor can revert"));
 
 // Editor Kind Context Keys
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null, { type: 'string', description: localize('activeEditor', "The identifier of the active editor") });
@@ -312,6 +314,12 @@ export function isResourceDiffEditorInput(editor: IUntypedEditorInput): editor i
 	return candidate.originalInput !== undefined && candidate.modifiedInput !== undefined;
 }
 
+export function isUntitledResourceEditorInput(editor: IUntypedEditorInput): editor is IUntitledTextResourceEditorInput {
+	const candidate = editor as IUntitledTextResourceEditorInput;
+
+	return candidate.resource === undefined || candidate.resource.scheme === Schemas.untitled || candidate.forceUntitled === true;
+}
+
 export const enum Verbosity {
 	SHORT,
 	MEDIUM,
@@ -501,6 +509,11 @@ export interface IEditorInput extends IDisposable {
 	 * Returns the display name of this input.
 	 */
 	getName(): string;
+
+	/**
+	 * Returns the extra classes to apply to the label of this input.
+	 */
+	getLabelExtraClasses(): string[];
 
 	/**
 	 * Returns the display description of this input.
@@ -720,12 +733,8 @@ export interface IEditorInputWithOptions {
 	options?: IEditorOptions;
 }
 
-export interface IEditorInputWithOptionsAndGroup extends IEditorInputWithOptions {
-	group?: IEditorGroup;
-}
-
 export function isEditorInputWithOptions(obj: unknown): obj is IEditorInputWithOptions {
-	const editorInputWithOptions = obj as IEditorInputWithOptions;
+	const editorInputWithOptions = obj as IEditorInputWithOptions | undefined;
 
 	return !!editorInputWithOptions && !!editorInputWithOptions.editor;
 }

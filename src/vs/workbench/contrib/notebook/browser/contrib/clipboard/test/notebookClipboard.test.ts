@@ -35,7 +35,7 @@ suite('Notebook Clipboard', () => {
 		return editorService;
 	};
 
-	test('Cut multiple selected cells', async function () {
+	test.skip('Cut multiple selected cells', async function () {
 		await withTestNotebook(
 			[
 				['# header 1', 'markdown', CellKind.Markup, [], {}],
@@ -55,7 +55,7 @@ suite('Notebook Clipboard', () => {
 			});
 	});
 
-	test('Cut should take folding info into account', async function () {
+	test.skip('Cut should take folding info into account', async function () {
 		await withTestNotebook(
 			[
 				['# header a', 'markdown', CellKind.Markup, [], {}],
@@ -86,7 +86,7 @@ suite('Notebook Clipboard', () => {
 			});
 	});
 
-	test('Copy should take folding info into account', async function () {
+	test.skip('Copy should take folding info into account', async function () {
 		await withTestNotebook(
 			[
 				['# header a', 'markdown', CellKind.Markup, [], {}],
@@ -123,7 +123,7 @@ suite('Notebook Clipboard', () => {
 			});
 	});
 
-	test('#119773, cut last item should not focus on the top first cell', async function () {
+	test.skip('#119773, cut last item should not focus on the top first cell', async function () {
 		await withTestNotebook(
 			[
 				['# header 1', 'markdown', CellKind.Markup, [], {}],
@@ -141,7 +141,7 @@ suite('Notebook Clipboard', () => {
 			});
 	});
 
-	test('#119771, undo paste should restore selections', async function () {
+	test.skip('#119771, undo paste should restore selections', async function () {
 		await withTestNotebook(
 			[
 				['# header 1', 'markdown', CellKind.Markup, [], {}],

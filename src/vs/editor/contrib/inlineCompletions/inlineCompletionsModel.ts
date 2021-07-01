@@ -20,7 +20,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { MutableDisposable } from 'vs/editor/contrib/inlineCompletions/utils';
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
-import { stringDiff } from 'vs/base/common/diff/diff';
+import { IDiffChange, stringDiff } from 'vs/base/common/diff/diff';
 import { GhostTextWidgetModel, GhostText, BaseGhostTextWidgetModel, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/ghostText';
 
 export class InlineCompletionsModel extends Disposable implements GhostTextWidgetModel {
@@ -178,6 +178,12 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 			}
 		}));
 
+		this._register(this.editor.onDidChangeCursorPosition((e) => {
+			if (this.cache.value) {
+				this.onDidChangeEmitter.fire();
+			}
+		}));
+
 		this._register(this.editor.onDidChangeModelContent((e) => {
 			if (this.cache.value) {
 				let hasChanged = false;
@@ -287,7 +293,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	public get ghostText(): GhostText | undefined {
 		const currentCompletion = this.currentCompletion;
 		const mode = this.editor.getOptions().get(EditorOption.inlineSuggest).mode;
-		return currentCompletion ? inlineCompletionToGhostText(currentCompletion, this.editor.getModel(), mode) : undefined;
+		return currentCompletion ? inlineCompletionToGhostText(currentCompletion, this.editor.getModel(), mode, this.editor.getSelection().getEndPosition()) : undefined;
 	}
 
 	get currentCompletion(): LiveInlineCompletion | undefined {
@@ -484,7 +490,7 @@ export interface NormalizedInlineCompletion extends InlineCompletion {
 	range: Range;
 }
 
-export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCompletion, textModel: ITextModel, mode: 'prefix' | 'subwordDiff'): GhostText | undefined {
+export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCompletion, textModel: ITextModel, mode: 'prefix' | 'subwordDiff', cursorPosition?: Position): GhostText | undefined {
 	if (inlineCompletion.range.startLineNumber !== inlineCompletion.range.endLineNumber) {
 		// Only single line replacements are supported.
 		return undefined;
@@ -493,12 +499,11 @@ export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCo
 	// This is a single line string
 	const valueToBeReplaced = textModel.getValueInRange(inlineCompletion.range);
 
-	const changes = stringDiff(valueToBeReplaced, inlineCompletion.text, false);
+	const changes = cachingDiff(valueToBeReplaced, inlineCompletion.text);
 
 	const lineNumber = inlineCompletion.range.startLineNumber;
 
 	const parts = new Array<GhostTextPart>();
-	let additionalLines = new Array<string>();
 
 	if (mode === 'prefix') {
 		const filteredChanges = changes.filter(c => c.originalLength === 0);
@@ -509,6 +514,11 @@ export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCo
 	}
 	for (const c of changes) {
 		const insertColumn = inlineCompletion.range.startColumn + c.originalStart + c.originalLength;
+
+		if (cursorPosition && cursorPosition.lineNumber === inlineCompletion.range.startLineNumber && insertColumn < cursorPosition.column) {
+			// No ghost text before cursor
+			return undefined;
+		}
 
 		if (c.originalLength > 0) {
 			const originalText = valueToBeReplaced.substr(c.originalStart, c.originalLength);
@@ -523,21 +533,26 @@ export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCo
 		}
 
 		const text = inlineCompletion.text.substr(c.modifiedStart, c.modifiedLength);
-		const isEndOfLine = insertColumn === textModel.getLineMaxColumn(lineNumber);
-		if (!isEndOfLine) {
-			if (text.indexOf('\n') !== -1) {
-				// no line breaks inside the text
-				return undefined;
-			}
-			parts.push({ column: insertColumn, text });
-		} else {
-			const lines = strings.splitLines(text);
-			additionalLines = lines.slice(1);
-			parts.push({ column: insertColumn, text: lines[0] });
-		}
+		const lines = strings.splitLines(text);
+		parts.push({ column: insertColumn, lines });
 	}
 
-	return new GhostText(lineNumber, parts, additionalLines, 0);
+	return new GhostText(lineNumber, parts, 0);
+}
+
+let lastRequest: { originalValue: string, newValue: string, changes: IDiffChange[] } | undefined = undefined;
+function cachingDiff(originalValue: string, newValue: string): readonly IDiffChange[] {
+	if (lastRequest?.originalValue === originalValue && lastRequest?.newValue === newValue) {
+		return lastRequest?.changes;
+	} else {
+		const changes = stringDiff(originalValue, newValue, false);
+		lastRequest = {
+			originalValue,
+			newValue,
+			changes
+		};
+		return changes;
+	}
 }
 
 export interface LiveInlineCompletion extends NormalizedInlineCompletion {

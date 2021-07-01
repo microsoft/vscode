@@ -19,7 +19,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { EditorOverride, IResourceEditorInput } from 'vs/platform/editor/common/editor';
 
 suite('Workbench editor utils', () => {
 
@@ -343,9 +343,9 @@ suite('Workbench editor utils', () => {
 
 		for (const resource of resources) {
 			if (custom) {
-				await accessor.editorService.openEditor(new TestFileEditorInput(resource, 'testTypeId'), { pinned: true });
+				await accessor.editorService.openEditor(new TestFileEditorInput(resource, 'testTypeId'), { pinned: true, override: EditorOverride.DISABLED });
 			} else if (sideBySide) {
-				await accessor.editorService.openEditor(new SideBySideEditorInput('testSideBySideEditor', undefined, new TestFileEditorInput(resource, 'testTypeId'), new TestFileEditorInput(resource, 'testTypeId')), { pinned: true });
+				await accessor.editorService.openEditor(new SideBySideEditorInput('testSideBySideEditor', undefined, new TestFileEditorInput(resource, 'testTypeId'), new TestFileEditorInput(resource, 'testTypeId')), { pinned: true, override: EditorOverride.DISABLED });
 			} else {
 				await accessor.editorService.openEditor({ resource, options: { pinned: true } });
 			}

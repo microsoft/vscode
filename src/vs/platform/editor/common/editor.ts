@@ -120,19 +120,24 @@ export interface ITextResourceEditorInput extends IResourceEditorInput, IBaseTex
 
 /**
  * This identifier allows to uniquely identify an editor with a
- * resource and type identifier.
+ * resource, type and editor identifier.
  */
 export interface IResourceEditorInputIdentifier {
-
-	/**
-	 * The resource URI of the editor.
-	 */
-	readonly resource: URI;
 
 	/**
 	 * The type of the editor.
 	 */
 	readonly typeId: string;
+
+	/**
+	 * The identifier of the editor if provided.
+	 */
+	readonly editorId: string | undefined;
+
+	/**
+	 * The resource URI of the editor.
+	 */
+	readonly resource: URI;
 }
 
 export enum EditorActivation {
@@ -141,7 +146,7 @@ export enum EditorActivation {
 	 * Activate the editor after it opened. This will automatically restore
 	 * the editor if it is minimized.
 	 */
-	ACTIVATE,
+	ACTIVATE = 1,
 
 	/**
 	 * Only restore the editor if it is minimized but do not activate it.

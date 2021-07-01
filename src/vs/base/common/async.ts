@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { canceled, onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event, Listener } from 'vs/base/common/event';
+import { canceled, } from 'vs/base/common/errors';
+import { Emitter, Event, } from 'vs/base/common/event';
 import { IDisposable, toDisposable, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
 import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 
@@ -1195,118 +1194,9 @@ export class DeferredPromise<T> {
 
 //#endregion
 
-//#region
-
-export interface IWaitUntil {
-	waitUntil(thenable: Promise<unknown>): void;
-}
-
-export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
-
-	private _asyncDeliveryQueue?: LinkedList<[Listener<T>, Omit<T, 'waitUntil'>]>;
-
-	async fireAsync(data: Omit<T, 'waitUntil'>, token: CancellationToken, promiseJoin?: (p: Promise<unknown>, listener: Function) => Promise<unknown>): Promise<void> {
-		if (!this._listeners) {
-			return;
-		}
-
-		if (!this._asyncDeliveryQueue) {
-			this._asyncDeliveryQueue = new LinkedList();
-		}
-
-		for (const listener of this._listeners) {
-			this._asyncDeliveryQueue.push([listener, data]);
-		}
-
-		while (this._asyncDeliveryQueue.size > 0 && !token.isCancellationRequested) {
-
-			const [listener, data] = this._asyncDeliveryQueue.shift()!;
-			const thenables: Promise<unknown>[] = [];
-
-			const event = <T>{
-				...data,
-				waitUntil: (p: Promise<unknown>): void => {
-					if (Object.isFrozen(thenables)) {
-						throw new Error('waitUntil can NOT be called asynchronous');
-					}
-					if (promiseJoin) {
-						p = promiseJoin(p, typeof listener === 'function' ? listener : listener[0]);
-					}
-					thenables.push(p);
-				}
-			};
-
-			try {
-				if (typeof listener === 'function') {
-					listener.call(undefined, event);
-				} else {
-					listener[0].call(listener[1], event);
-				}
-			} catch (e) {
-				onUnexpectedError(e);
-				continue;
-			}
-
-			// freeze thenables-collection to enforce sync-calls to
-			// wait until and then wait for all thenables to resolve
-			Object.freeze(thenables);
-			await Promises.settled(thenables).catch(e => onUnexpectedError(e));
-		}
-	}
-}
-
-//#endregion
-
 //#region Promises
 
 export namespace Promises {
-
-	export interface IResolvedPromise<T> {
-		status: 'fulfilled';
-		value: T;
-	}
-
-	export interface IRejectedPromise {
-		status: 'rejected';
-		reason: Error;
-	}
-
-	/**
-	 * Interface of https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/allSettled
-	 */
-	interface PromiseWithAllSettled<T> {
-		allSettled<T>(promises: Promise<T>[]): Promise<readonly (IResolvedPromise<T> | IRejectedPromise)[]>;
-	}
-
-	/**
-	 * A polyfill of `Promise.allSettled`: returns after all promises have
-	 * resolved or rejected and provides access to each result or error
-	 * in the order of the original passed in promises array.
-	 * See: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/allSettled
-	 */
-	export async function allSettled<T>(promises: Promise<T>[]): Promise<readonly (IResolvedPromise<T> | IRejectedPromise)[]> {
-		if (typeof (Promise as unknown as PromiseWithAllSettled<T>).allSettled === 'function') {
-			return allSettledNative(promises); // in some environments we can benefit from native implementation
-		}
-
-		return allSettledShim(promises);
-	}
-
-	async function allSettledNative<T>(promises: Promise<T>[]): Promise<readonly (IResolvedPromise<T> | IRejectedPromise)[]> {
-		return (Promise as unknown as PromiseWithAllSettled<T>).allSettled(promises);
-	}
-
-	async function allSettledShim<T>(promises: Promise<T>[]): Promise<readonly (IResolvedPromise<T> | IRejectedPromise)[]> {
-		return Promise.all(promises.map(promise => (promise.then(value => {
-			const fulfilled: IResolvedPromise<T> = { status: 'fulfilled', value };
-
-			return fulfilled;
-		}, error => {
-			const rejected: IRejectedPromise = { status: 'rejected', reason: error };
-
-			return rejected;
-		}))));
-	}
 
 	/**
 	 * A drop-in replacement for `Promise.all` with the only difference

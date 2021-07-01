@@ -3297,16 +3297,11 @@ export enum TestMessageSeverity {
 	Hint = 3
 }
 
-export enum TestItemStatus {
-	Pending = 0,
-	Resolved = 1,
-}
-
-const testItemPropAccessor = <K extends keyof vscode.TestItem<never>>(
+const testItemPropAccessor = <K extends keyof vscode.TestItem>(
 	api: IExtHostTestItemApi,
 	key: K,
-	defaultValue: vscode.TestItem<never>[K],
-	equals: (a: vscode.TestItem<never>[K], b: vscode.TestItem<never>[K]) => boolean
+	defaultValue: vscode.TestItem[K],
+	equals: (a: vscode.TestItem[K], b: vscode.TestItem[K]) => boolean
 ) => {
 	let value = defaultValue;
 	return {
@@ -3315,7 +3310,7 @@ const testItemPropAccessor = <K extends keyof vscode.TestItem<never>>(
 		get() {
 			return value;
 		},
-		set(newValue: vscode.TestItem<never>[K]) {
+		set(newValue: vscode.TestItem[K]) {
 			if (!equals(value, newValue)) {
 				value = newValue;
 				api.bus.fire([ExtHostTestItemEventType.SetProp, key, newValue]);
@@ -3331,19 +3326,19 @@ const rangeComparator = (a: vscode.Range | undefined, b: vscode.Range | undefine
 	return a.isEqual(b);
 };
 
-export class TestRunRequest<T> implements vscode.TestRunRequest<T> {
+export class TestRunRequest implements vscode.TestRunRequest {
 	constructor(
-		public readonly tests: vscode.TestItem<T>[],
-		public readonly exclude?: vscode.TestItem<T>[] | undefined,
+		public readonly tests: vscode.TestItem[],
+		public readonly exclude?: vscode.TestItem[] | undefined,
 		public readonly debug = false,
 	) { }
 }
 
-export class TestItemImpl<T = any> implements vscode.TestItem<T> {
+export class TestItemImpl implements vscode.TestItem {
 	public readonly id!: string;
 	public readonly uri!: vscode.Uri | undefined;
-	public readonly children!: ReadonlyMap<string, TestItemImpl<T>>;
-	public readonly parent!: TestItemImpl<T> | undefined;
+	public readonly children!: ReadonlyMap<string, TestItemImpl>;
+	public readonly parent!: TestItemImpl | undefined;
 
 	public range!: vscode.Range | undefined;
 	public description!: string | undefined;
@@ -3351,9 +3346,13 @@ export class TestItemImpl<T = any> implements vscode.TestItem<T> {
 	public debuggable!: boolean;
 	public label!: string;
 	public error!: string | vscode.MarkdownString;
-	public status!: vscode.TestItemStatus;
+	public busy!: boolean;
+	public canResolveChildren!: boolean;
 
-	constructor(id: string, label: string, uri: vscode.Uri | undefined, public data: T, parent: vscode.TestItem | undefined) {
+	/**
+	 * Note that data is deprecated and here for back-compat only
+	 */
+	constructor(id: string, label: string, uri: vscode.Uri | undefined, public data: any, parent: vscode.TestItem | undefined) {
 		const api = getPrivateApiFor(this);
 
 		Object.defineProperties(this, {
@@ -3382,7 +3381,8 @@ export class TestItemImpl<T = any> implements vscode.TestItem<T> {
 			description: testItemPropAccessor(api, 'description', undefined, strictEqualComparator),
 			runnable: testItemPropAccessor(api, 'runnable', true, strictEqualComparator),
 			debuggable: testItemPropAccessor(api, 'debuggable', false, strictEqualComparator),
-			status: testItemPropAccessor(api, 'status', TestItemStatus.Resolved, strictEqualComparator),
+			canResolveChildren: testItemPropAccessor(api, 'canResolveChildren', false, strictEqualComparator),
+			busy: testItemPropAccessor(api, 'busy', false, strictEqualComparator),
 			error: testItemPropAccessor(api, 'error', undefined, strictEqualComparator),
 		});
 
@@ -3401,7 +3401,12 @@ export class TestItemImpl<T = any> implements vscode.TestItem<T> {
 		}
 	}
 
+	/** @deprecated back compat */
 	public invalidate() {
+		return this.invalidateResults();
+	}
+
+	public invalidateResults() {
 		getPrivateApiFor(this).bus.fire([ExtHostTestItemEventType.Invalidated]);
 	}
 
@@ -3414,7 +3419,7 @@ export class TestItemImpl<T = any> implements vscode.TestItem<T> {
 	}
 }
 
-
+@es5ClassCompat
 export class TestMessage implements vscode.TestMessage {
 	public severity = TestMessageSeverity.Error;
 	public expectedOutput?: string;
@@ -3430,6 +3435,82 @@ export class TestMessage implements vscode.TestMessage {
 	constructor(public message: string | vscode.MarkdownString) { }
 }
 
+//#endregion
+
+//#region Test Coverage
+@es5ClassCompat
+export class CoveredCount implements vscode.CoveredCount {
+	constructor(public covered: number, public total: number) { }
+}
+
+@es5ClassCompat
+export class FileCoverage implements vscode.FileCoverage {
+	public static fromDetails(uri: vscode.Uri, details: vscode.DetailedCoverage[]): vscode.FileCoverage {
+		const statements = new CoveredCount(0, 0);
+		const branches = new CoveredCount(0, 0);
+		const fn = new CoveredCount(0, 0);
+
+		for (const detail of details) {
+			if ('branches' in detail) {
+				statements.total += 1;
+				statements.covered += detail.executionCount > 0 ? 1 : 0;
+
+				for (const branch of detail.branches) {
+					branches.total += 1;
+					branches.covered += branch.executionCount > 0 ? 1 : 0;
+				}
+			} else {
+				fn.total += 1;
+				fn.covered += detail.executionCount > 0 ? 1 : 0;
+			}
+		}
+
+		const coverage = new FileCoverage(
+			uri,
+			statements,
+			branches.total > 0 ? branches : undefined,
+			fn.total > 0 ? fn : undefined,
+		);
+
+		coverage.detailedCoverage = details;
+
+		return coverage;
+	}
+
+	detailedCoverage?: vscode.DetailedCoverage[];
+
+	constructor(
+		public readonly uri: vscode.Uri,
+		public statementCoverage: vscode.CoveredCount,
+		public branchCoverage?: vscode.CoveredCount,
+		public functionCoverage?: vscode.CoveredCount,
+	) { }
+}
+
+@es5ClassCompat
+export class StatementCoverage implements vscode.StatementCoverage {
+	constructor(
+		public executionCount: number,
+		public location: Position | Range,
+		public branches: vscode.BranchCoverage[] = [],
+	) { }
+}
+
+@es5ClassCompat
+export class BranchCoverage implements vscode.BranchCoverage {
+	constructor(
+		public executionCount: number,
+		public location: Position | Range,
+	) { }
+}
+
+@es5ClassCompat
+export class FunctionCoverage implements vscode.FunctionCoverage {
+	constructor(
+		public executionCount: number,
+		public location: Position | Range,
+	) { }
+}
 //#endregion
 
 export enum ExternalUriOpenerPriority {
