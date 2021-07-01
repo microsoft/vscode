@@ -218,7 +218,7 @@ export default class FileConfigurationManager extends Disposable {
 export function getInlayHintsPreferences(config: vscode.WorkspaceConfiguration) {
 	return {
 		includeInlayParameterNameHints: getInlayParameterNameHintsPreference(config),
-		includeInlayParameterNameHintsWhenArgumentMatchesName: config.get<boolean>('inlayHints.includeInlayParameterNameHintsWhenArgumentMatchesName', false),
+		includeInlayParameterNameHintsWhenArgumentMatchesName: !config.get<boolean>('inlayHints.suppressInlayParameterNameHintsWhenArgumentMatchesName', true),
 		includeInlayFunctionParameterTypeHints: config.get<boolean>('inlayHints.includeInlayFunctionParameterTypeHints', false),
 		includeInlayVariableTypeHints: config.get<boolean>('inlayHints.includeInlayVariableTypeHints', false),
 		includeInlayPropertyDeclarationTypeHints: config.get<boolean>('inlayHints.includeInlayPropertyDeclarationTypeHints', false),

@@ -293,10 +293,10 @@
           "description": "%configuration.inlayHints.includeInlayVariableTypeHints%",
           "scope": "resource"
         },
-        "typescript.inlayHints.includeInlayParameterNameHintsWhenArgumentMatchesName": {
+        "typescript.inlayHints.suppressInlayParameterNameHintsWhenArgumentMatchesName": {
           "type": "boolean",
-          "default": false,
-          "description": "%configuration.inlayHints.includeInlayParameterNameHintsWhenArgumentMatchesName%",
+          "default": true,
+          "description": "%configuration.inlayHints.suppressInlayParameterNameHintsWhenArgumentMatchesName%",
           "scope": "resource"
         },
         "typescript.inlayHints.includeInlayPropertyDeclarationTypeHints": {
@@ -340,10 +340,10 @@
           "description": "%configuration.inlayHints.includeInlayVariableTypeHints%",
           "scope": "resource"
         },
-        "javascript.inlayHints.includeInlayParameterNameHintsWhenArgumentMatchesName": {
+        "javascript.inlayHints.suppressInlayParameterNameHintsWhenArgumentMatchesName": {
           "type": "boolean",
-          "default": false,
-          "description": "%configuration.inlayHints.includeInlayParameterNameHintsWhenArgumentMatchesName%",
+          "default": true,
+          "description": "%configuration.inlayHints.suppressInlayParameterNameHintsWhenArgumentMatchesName%",
           "scope": "resource"
         },
         "javascript.inlayHints.includeInlayPropertyDeclarationTypeHints": {
