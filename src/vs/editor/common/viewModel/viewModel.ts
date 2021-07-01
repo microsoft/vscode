@@ -96,6 +96,10 @@ export class OutputPosition {
 		this.outputLineIndex = outputLineIndex;
 		this.outputOffset = outputOffset;
 	}
+
+	toString(): string {
+		return `${this.outputLineIndex}:${this.outputOffset}`;
+	}
 }
 
 export class LineBreakData {
@@ -137,7 +141,7 @@ export class LineBreakData {
 		let delta = 0;
 		if (this.injectionOffsets !== null) {
 			for (let i = 0; i < this.injectionOffsets.length; i++) {
-				if (inputOffset < this.injectionOffsets[i]) {
+				if (inputOffset <= this.injectionOffsets[i]) {
 					break;
 				}
 				delta += this.injectionOptions![i].content.length;
