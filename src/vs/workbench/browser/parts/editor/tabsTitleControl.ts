@@ -667,6 +667,10 @@ export class TabsTitleControl extends TitleControl {
 			const input = this.group.getEditorByIndex(index);
 			if (input) {
 				this.group.openEditor(input, { preserveFocus });
+				if (preserveFocus) {
+					// Even if focus is preserved make sure to activate the group. If focus is passed group will auto activate.
+					this.editorGroupService.activateGroup(this.group);
+				}
 			}
 
 			return undefined;
