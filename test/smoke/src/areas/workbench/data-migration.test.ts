@@ -5,11 +5,13 @@
 
 import { Application, ApplicationOptions, Quality } from '../../../../automation';
 import { join } from 'path';
+import { ParsedArgs } from 'minimist';
 
-export function setup(stableCodePath: string, testDataPath: string) {
+export function setup(opts: ParsedArgs, testDataPath: string) {
 
 	describe('Datamigration', () => {
 		it(`verifies opened editors are restored`, async function () {
+			const stableCodePath = opts['stable-build'];
 			if (!stableCodePath) {
 				this.skip();
 			}
@@ -50,6 +52,7 @@ export function setup(stableCodePath: string, testDataPath: string) {
 		});
 
 		it(`verifies that 'hot exit' works for dirty files`, async function () {
+			const stableCodePath = opts['stable-build'];
 			if (!stableCodePath) {
 				this.skip();
 			}

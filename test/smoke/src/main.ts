@@ -11,6 +11,7 @@ import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
 import * as mkdirp from 'mkdirp';
 import { ncp } from 'ncp';
+import * as vscodetest from 'vscode-test';
 import {
 	Application,
 	Quality,
@@ -118,16 +119,10 @@ if (!opts.web) {
 	}
 
 	let testCodePath = opts.build;
-	let stableCodePath = opts['stable-build'];
 	let electronPath: string;
-	let stablePath: string | undefined = undefined;
 
 	if (testCodePath) {
 		electronPath = getBuildElectronPath(testCodePath);
-
-		if (stableCodePath) {
-			stablePath = getBuildElectronPath(stableCodePath);
-		}
 	} else {
 		testCodePath = getDevElectronPath();
 		electronPath = testCodePath;
@@ -138,10 +133,6 @@ if (!opts.web) {
 
 	if (!fs.existsSync(electronPath || '')) {
 		fail(`Can't find VSCode at ${electronPath}.`);
-	}
-
-	if (typeof stablePath === 'string' && !fs.existsSync(stablePath)) {
-		fail(`Can't find Stable VSCode at ${stablePath}.`);
 	}
 
 	if (process.env.VSCODE_DEV === '1') {
@@ -215,10 +206,39 @@ async function setupRepository(): Promise<void> {
 	}
 }
 
+async function ensureStableCode(): Promise<void> {
+	if (opts.web || typeof opts['build'] !== 'string') {
+		return;
+	}
+
+	let stableCodePath = opts['stable-build'];
+	if (!stableCodePath) {
+		console.log('*** Running with --build and thus making sure VSCode stable is also there...');
+
+		const stableCodeExecutable = await vscodetest.downloadAndUnzipVSCode('stable');
+		if (process.platform === 'darwin') {
+			// Visual Studio Code.app/Contents/MacOS/Electron
+			stableCodePath = path.dirname(path.dirname(path.dirname(stableCodeExecutable)));
+		} else {
+			// VSCode/Code.exe (Windows) | VSCode/code (Linux)
+			stableCodePath = path.dirname(path.dirname(stableCodeExecutable));
+		}
+	}
+
+	if (!fs.existsSync(stableCodePath)) {
+		throw new Error(`Can't find Stable VSCode at ${stableCodePath}.`);
+	}
+
+	console.log(`*** Using stable build ${stableCodePath} for migration tests`);
+
+	opts['stable-build'] = stableCodePath;
+}
+
 async function setup(): Promise<void> {
 	console.log('*** Test data:', testDataPath);
 	console.log('*** Preparing smoketest setup...');
 
+	await ensureStableCode();
 	await setupRepository();
 
 	console.log('*** Smoketest setup done!\n');
@@ -296,9 +316,9 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 		});
 	}
 
-	if (!opts.web && opts['stable-build']) {
-		describe(`Stable vs Insiders Smoke Tests: This test MUST run before releasing by providing the --stable-build command line argument`, () => {
-			setupDataMigrationTests(opts['stable-build'], testDataPath);
+	if (!opts.web && opts['build']) {
+		describe(`Stable vs Insiders Smoke Tests: This test MUST run before releasing`, () => {
+			setupDataMigrationTests(opts, testDataPath);
 		});
 	}
 
