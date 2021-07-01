@@ -613,7 +613,7 @@ export class NotebookService extends Disposable implements INotebookService {
 					orderMimeTypes.push({
 						mimeType: mimeType,
 						rendererId: BUILTIN_RENDERER_ID,
-						isTrusted: mimeTypeIsAlwaysSecure(mimeType) || this.workspaceTrustManagementService.isWorkpaceTrusted()
+						isTrusted: mimeTypeIsAlwaysSecure(mimeType) || this.workspaceTrustManagementService.isWorkspaceTrusted()
 					});
 				}
 			} else {
@@ -621,7 +621,7 @@ export class NotebookService extends Disposable implements INotebookService {
 					orderMimeTypes.push({
 						mimeType: mimeType,
 						rendererId: BUILTIN_RENDERER_ID,
-						isTrusted: mimeTypeIsAlwaysSecure(mimeType) || this.workspaceTrustManagementService.isWorkpaceTrusted()
+						isTrusted: mimeTypeIsAlwaysSecure(mimeType) || this.workspaceTrustManagementService.isWorkspaceTrusted()
 					});
 				} else {
 					orderMimeTypes.push({

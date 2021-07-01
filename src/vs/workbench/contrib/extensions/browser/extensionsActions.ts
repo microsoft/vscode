@@ -18,7 +18,7 @@ import { IGalleryExtension, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, I
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionRecommendationReason, IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionType, ExtensionIdentifier, IExtensionDescription, IExtensionManifest, isLanguagePackExtension, getWorkpaceSupportTypeMessage } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, ExtensionIdentifier, IExtensionDescription, IExtensionManifest, isLanguagePackExtension, getWorkspaceSupportTypeMessage } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IFileService, IFileContent } from 'vs/platform/files/common/files';
@@ -2118,7 +2118,7 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 			}
 
 			const virtualSupportType = this.extensionManifestPropertiesService.getExtensionVirtualWorkspaceSupportType(this.extension.local.manifest);
-			const details = getWorkpaceSupportTypeMessage(this.extension.local.manifest.capabilities?.virtualWorkspaces);
+			const details = getWorkspaceSupportTypeMessage(this.extension.local.manifest.capabilities?.virtualWorkspaces);
 			if (virtualSupportType === 'limited' || details) {
 				this.class = `${SystemDisabledWarningAction.INFO_CLASS}`;
 				this.tooltip = localize('extension limited because of virtual workspace', "This extension has limited features because the current workspace is virtual.");
@@ -2176,9 +2176,9 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 			}
 		}
 
-		if (this.workspaceTrustService.workspaceTrustEnabled && !this.workspaceTrustService.isWorkpaceTrusted() && this.extension.enablementState === EnablementState.DisabledByTrustRequirement) {
+		if (this.workspaceTrustService.workspaceTrustEnabled && !this.workspaceTrustService.isWorkspaceTrusted() && this.extension.enablementState === EnablementState.DisabledByTrustRequirement) {
 			const untrustedSupportType = this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(this.extension.local.manifest);
-			const untrustedDetails = getWorkpaceSupportTypeMessage(this.extension.local.manifest.capabilities?.untrustedWorkspaces);
+			const untrustedDetails = getWorkspaceSupportTypeMessage(this.extension.local.manifest.capabilities?.untrustedWorkspaces);
 
 			this.enabled = true;
 			this.class = `${SystemDisabledWarningAction.TRUST_CLASS}`;

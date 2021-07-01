@@ -330,7 +330,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	}
 
 	private _isDisabledByWorkspaceTrust(extension: IExtension, extensions: ReadonlyArray<IExtension>): boolean {
-		if (this.workspaceTrustManagementService.isWorkpaceTrusted()) {
+		if (this.workspaceTrustManagementService.isWorkspaceTrusted()) {
 			return false;
 		}
 

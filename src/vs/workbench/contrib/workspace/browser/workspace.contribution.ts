@@ -234,7 +234,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 			if (!this.workspaceTrustManagementService.workspaceTrustEnabled) {
 				return;
 			}
-			const trusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
+			const trusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
 
 			return e.join(new Promise(async resolve => {
 				// Workspace is trusted and there are added/changed folders
@@ -328,7 +328,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 	}
 
 	private async showModalOnStart(): Promise<void> {
-		if (this.workspaceTrustManagementService.isWorkpaceTrusted()) {
+		if (this.workspaceTrustManagementService.isWorkspaceTrusted()) {
 			this.updateWorkbenchIndicators(true);
 			return;
 		}
@@ -472,7 +472,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 	//#region Statusbar
 
 	private createStatusbarEntry(): void {
-		const entry = this.getStatusbarEntry(this.workspaceTrustManagementService.isWorkpaceTrusted());
+		const entry = this.getStatusbarEntry(this.workspaceTrustManagementService.isWorkspaceTrusted());
 		this.statusbarEntryAccessor.value = this.statusbarService.addEntry(entry, this.entryId, StatusbarAlignment.LEFT, 0.99 * Number.MAX_VALUE /* Right of remote indicator */);
 		this.statusbarService.updateEntryVisibility(this.entryId, false);
 	}
@@ -735,7 +735,7 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 		this.workspaceTrustManagementService.workspaceTrustInitialized
 			.then(() => {
 				this.logInitialWorkspaceTrustInfo();
-				this.logWorkspaceTrust(this.workspaceTrustManagementService.isWorkpaceTrusted());
+				this.logWorkspaceTrust(this.workspaceTrustManagementService.isWorkspaceTrusted());
 
 				this._register(this.workspaceTrustManagementService.onDidChangeTrust(isTrusted => this.logWorkspaceTrust(isTrusted)));
 				this._register(this.workspaceTrustRequestService.onDidInitiateWorkspaceTrustRequest(_ => this.logWorkspaceTrustRequest()));

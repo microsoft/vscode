@@ -597,7 +597,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 	// Settings Section
 	private configurationContainer!: HTMLElement;
-	private workpaceTrustedUrisTable!: WorkspaceTrustedUrisTable;
+	private workspaceTrustedUrisTable!: WorkspaceTrustedUrisTable;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -728,7 +728,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.rendering = true;
 		this.rerenderDisposables.clear();
 
-		const isWorkspaceTrusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
+		const isWorkspaceTrusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
 		this.rootElement.classList.toggle('trusted', isWorkspaceTrusted);
 		this.rootElement.classList.toggle('untrusted', !isWorkspaceTrusted);
 
@@ -791,7 +791,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.renderAffectedFeatures(settingsRequiringTrustedWorkspaceCount, this.getExtensionCount());
 
 		// Configuration Tree
-		this.workpaceTrustedUrisTable.updateTable();
+		this.workspaceTrustedUrisTable.updateTable();
 
 		this.bodyScrollBar.getDomNode().style.height = `calc(100% - ${this.headerContainer.clientHeight}px)`;
 		this.bodyScrollBar.scanDomNode();
@@ -840,7 +840,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		const configurationDescription = append(this.configurationContainer, $('.workspace-trusted-folders-description'));
 		configurationDescription.innerText = localize('trustedFoldersDescription', "You trust the following folders, their subfolders, and workspace files.");
 
-		this.workpaceTrustedUrisTable = this._register(this.instantiationService.createInstance(WorkspaceTrustedUrisTable, this.configurationContainer));
+		this.workspaceTrustedUrisTable = this._register(this.instantiationService.createInstance(WorkspaceTrustedUrisTable, this.configurationContainer));
 	}
 
 	private createAffectedFeaturesElement(parent: HTMLElement): void {
@@ -888,7 +888,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 			];
 		this.renderLimitationsListElement(untrustedContainer, untrustedContainerItems, xListIcon.classNamesArray);
 
-		if (this.workspaceTrustManagementService.isWorkpaceTrusted()) {
+		if (this.workspaceTrustManagementService.isWorkspaceTrusted()) {
 			if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
 				this.addDontTrustButtonToElement(untrustedContainer);
 			} else {
@@ -1018,7 +1018,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 			return;
 		}
 
-		this.workpaceTrustedUrisTable.layout();
+		this.workspaceTrustedUrisTable.layout();
 
 		this.layoutParticipants.forEach(participant => {
 			participant.layout();
