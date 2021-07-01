@@ -1041,6 +1041,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			let shellOptions: ShellConfiguration | undefined = task.command.options && task.command.options.shell;
 			if (shellOptions) {
 				if (shellOptions.executable) {
+					// Clear out the args so that we don't end up with mismatched args.
+					if (shellOptions.executable !== shellLaunchConfig.executable) {
+						shellLaunchConfig.args = undefined;
+					}
 					shellLaunchConfig.executable = await this.resolveVariable(variableResolver, shellOptions.executable);
 					shellSpecified = true;
 				}
