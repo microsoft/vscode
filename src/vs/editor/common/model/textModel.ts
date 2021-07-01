@@ -1464,8 +1464,6 @@ export class TextModel extends Disposable implements model.ITextModel {
 				const firstEditLineNumber = currentEditStartLineNumber;
 				const lastInsertedLineNumber = currentEditStartLineNumber + insertingLinesCnt;
 
-				// We use `cacheVersionId` 0 because we only increment the model version id once at the end of handling all the changes
-				// and we wouldn't want the interval tree to cache ranges incorrectly
 				const decorationsWithInjectedTextInEditedRange = this._ensureNodesHaveRanges(this._decorationsTree.getInjectedTextInInterval(
 					this.getOffsetAt(new Position(firstEditLineNumber, 1)),
 					this.getOffsetAt(new Position(lastInsertedLineNumber, this.getLineMaxColumn(lastInsertedLineNumber))),

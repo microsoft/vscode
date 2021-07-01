@@ -14,7 +14,6 @@ suite('Editor Model - Injected Text Events', () => {
 	let thisModel: TextModel;
 
 	setup(() => {
-
 		thisModel = createTextModel('First Line\nSecond Line');
 	});
 
