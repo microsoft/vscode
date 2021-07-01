@@ -27,7 +27,7 @@ export interface IViewWhitespaceViewportData {
 }
 
 export class Viewport {
-	readonly _viewportBrand: void;
+	readonly _viewportBrand: void = undefined;
 
 	readonly top: number;
 	readonly left: number;
@@ -280,7 +280,7 @@ export class MinimapLinesRenderingData {
 }
 
 export class ViewLineData {
-	_viewLineDataBrand: void;
+	_viewLineDataBrand: void = undefined;
 
 	/**
 	 * The content at this view line.
@@ -424,7 +424,7 @@ export class InlineDecoration {
 }
 
 export class ViewModelDecoration {
-	_viewModelDecorationBrand: void;
+	_viewModelDecorationBrand: void = undefined;
 
 	public readonly range: Range;
 	public readonly options: IModelDecorationOptions;

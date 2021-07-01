@@ -419,7 +419,7 @@ export interface ICursorStateComputer {
 }
 
 export class TextModelResolvedOptions {
-	_textModelResolvedOptionsBrand: void;
+	_textModelResolvedOptionsBrand: void = undefined;
 
 	readonly tabSize: number;
 	readonly indentSize: number;
@@ -492,7 +492,7 @@ export interface ITextModelUpdateOptions {
 }
 
 export class FindMatch {
-	_findMatchBrand: void;
+	_findMatchBrand: void = undefined;
 
 	public readonly range: Range;
 	public readonly matches: string[] | null;
