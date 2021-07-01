@@ -2111,21 +2111,27 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 		}
 
 		if (isVirtualWorkspace(this.contextService.getWorkspace())) {
-			const virtualSupportType = this.extensionManifestPropertiesService.getExtensionVirtualWorkspaceSupportType(this.extension.local.manifest);
-			if (virtualSupportType !== true) {
+			if (this.extension.enablementState === EnablementState.DisabledByVirtualWorkspace) {
 				this.class = `${SystemDisabledWarningAction.INFO_CLASS}`;
-				const details = getWorkpaceSupportTypeMessage(this.extension.local.manifest.capabilities?.virtualWorkspaces);
-				this.tooltip = details || (virtualSupportType === 'limited' ?
-					localize('extension limited because of virtual workspace', "This extension has limited features because the current workspace is virtual.") :
-					localize('disabled because of virtual workspace', "This extension has been disabled because it does not support virtual workspaces."));
+				this.tooltip = localize('disabled because of virtual workspace', "This extension has been disabled because it does not support virtual workspaces.");
 				return;
 			}
+
+			const virtualSupportType = this.extensionManifestPropertiesService.getExtensionVirtualWorkspaceSupportType(this.extension.local.manifest);
+			const details = getWorkpaceSupportTypeMessage(this.extension.local.manifest.capabilities?.virtualWorkspaces);
+			if (virtualSupportType === 'limited' || details) {
+				this.class = `${SystemDisabledWarningAction.INFO_CLASS}`;
+				this.tooltip = localize('extension limited because of virtual workspace', "This extension has limited features because the current workspace is virtual.");
+			}
+			return;
 		}
+
 		if (this.extension.enablementState === EnablementState.DisabledByExtensionDependency) {
 			this.class = `${SystemDisabledWarningAction.WARNING_CLASS}`;
 			this.tooltip = localize('extension disabled because of dependency', "This extension has been disabled because it depends on an extension that is disabled.");
 			return;
 		}
+
 		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
 			if (isLanguagePackExtension(this.extension.local.manifest)) {
 				if (!this.extensionsWorkbenchService.installed.some(e => areSameExtensions(e.identifier, this.extension!.identifier) && e.server !== this.extension!.server)) {
@@ -2137,6 +2143,7 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 				return;
 			}
 		}
+
 		if (this.extension.enablementState === EnablementState.DisabledByExtensionKind) {
 			if (!this.extensionsWorkbenchService.installed.some(e => areSameExtensions(e.identifier, this.extension!.identifier) && e.server !== this.extension!.server)) {
 				const server = this.extensionManagementServerService.localExtensionManagementServer === this.extension.server ? this.extensionManagementServerService.remoteExtensionManagementServer : this.extensionManagementServerService.localExtensionManagementServer;
@@ -2149,6 +2156,7 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 				return;
 			}
 		}
+
 		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
 			const runningExtension = this._runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension!.identifier))[0];
 			const runningExtensionServer = runningExtension ? this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension)) : null;
@@ -2167,6 +2175,7 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 				return;
 			}
 		}
+
 		if (this.workspaceTrustService.workspaceTrustEnabled && !this.workspaceTrustService.isWorkpaceTrusted() && this.extension.enablementState === EnablementState.DisabledByTrustRequirement) {
 			const untrustedSupportType = this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(this.extension.local.manifest);
 			const untrustedDetails = getWorkpaceSupportTypeMessage(this.extension.local.manifest.capabilities?.untrustedWorkspaces);

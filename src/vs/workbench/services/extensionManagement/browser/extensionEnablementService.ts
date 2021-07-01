@@ -278,10 +278,22 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	}
 
 	private _isDisabledByVirtualWorkspace(extension: IExtension): boolean {
-		if (isVirtualWorkspace(this.contextService.getWorkspace())) {
-			return this.extensionManifestPropertiesService.getExtensionVirtualWorkspaceSupportType(extension.manifest) === false;
+		// Not a virtual workspace
+		if (!isVirtualWorkspace(this.contextService.getWorkspace())) {
+			return false;
 		}
-		return false;
+
+		// Supports virtual workspace
+		if (this.extensionManifestPropertiesService.getExtensionVirtualWorkspaceSupportType(extension.manifest) !== false) {
+			return false;
+		}
+
+		// Web extension from web extension management server
+		if (this.extensionManagementServerService.getExtensionManagementServer(extension) === this.extensionManagementServerService.webExtensionManagementServer && this.extensionManifestPropertiesService.canExecuteOnWeb(extension.manifest)) {
+			return false;
+		}
+
+		return true;
 	}
 
 	private _isDisabledByExtensionKind(extension: IExtension): boolean {
