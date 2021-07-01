@@ -43,6 +43,8 @@ export class NotebookDiffEditorInput extends DiffEditorInput {
 		return this.viewType;
 	}
 
+	private _cachedModel: NotebookDiffEditorModel | undefined = undefined;
+
 	constructor(
 		name: string | undefined,
 		description: string | undefined,
@@ -68,14 +70,12 @@ export class NotebookDiffEditorInput extends DiffEditorInput {
 	}
 
 	override async resolve(): Promise<NotebookDiffEditorModel> {
-
 		const [originalEditorModel, modifiedEditorModel] = await Promise.all([
 			this.originalInput.resolve(),
 			this.modifiedInput.resolve(),
 		]);
 
-		this._originalTextModel?.dispose();
-		this._modifiedTextModel?.dispose();
+		this._cachedModel?.dispose();
 
 		// TODO@rebornix check how we restore the editor in text diff editor
 		if (!modifiedEditorModel) {
@@ -88,7 +88,8 @@ export class NotebookDiffEditorInput extends DiffEditorInput {
 
 		this._originalTextModel = originalEditorModel;
 		this._modifiedTextModel = modifiedEditorModel;
-		return new NotebookDiffEditorModel(this._originalTextModel, this._modifiedTextModel);
+		this._cachedModel = new NotebookDiffEditorModel(this._originalTextModel, this._modifiedTextModel);
+		return this._cachedModel;
 	}
 
 	override toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IResourceDiffEditorInput {
