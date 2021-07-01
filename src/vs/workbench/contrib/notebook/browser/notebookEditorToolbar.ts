@@ -16,7 +16,6 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { toolbarActiveBackground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
@@ -56,7 +55,6 @@ export class NotebookEditorToolbar extends Disposable {
 		@IMenuService readonly menuService: IMenuService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@INotificationService private readonly notificationService: INotificationService,
 		@optional(ITASExperimentService) private readonly experimentService: ITASExperimentService
 	) {
 		super();
@@ -118,7 +116,7 @@ export class NotebookEditorToolbar extends Disposable {
 				return this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this.notebookEditor);
 			}
 
-			return action instanceof MenuItemAction ? new ActionViewWithLabel(action, this.keybindingService, this.notificationService) : undefined;
+			return action instanceof MenuItemAction ? this.instantiationService.createInstance(ActionViewWithLabel, action) : undefined;
 		};
 
 		this._notebookLeftToolbar = new ToolBar(this._notebookTopLeftToolbarContainer, this.contextMenuService, {
