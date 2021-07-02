@@ -23,10 +23,7 @@
 			"ES2020.Intl",
 			"ES2021.Promise",
 			"ES2021.String",
-			"ES2021.Weakref",
-			"DOM",
-			"DOM.Iterable",
-			"WebWorker.ImportScripts"
+			"ES2021.Weakref"
 		],
 		"module": "commonjs",
 		"strict": true,
