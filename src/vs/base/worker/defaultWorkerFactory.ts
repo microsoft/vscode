@@ -71,10 +71,10 @@ class WebWorker implements IWorker {
 		}
 		this.postMessage(moduleId, []);
 		this.worker.then((w) => {
-			w.onmessage = function (ev: any) {
+			w.onmessage = function (ev) {
 				onMessageCallback(ev.data);
 			};
-			(<any>w).onmessageerror = onErrorCallback;
+			w.onmessageerror = onErrorCallback;
 			if (typeof w.addEventListener === 'function') {
 				w.addEventListener('error', onErrorCallback);
 			}
