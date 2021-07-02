@@ -24,6 +24,7 @@ import { IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from 'vs
 import { hasWorkspaceFileExtension, IRecent, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ILocalizedString } from 'vs/platform/actions/common/actions';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export const ADD_ROOT_FOLDER_COMMAND_ID = 'addRootFolder';
 export const ADD_ROOT_FOLDER_LABEL: ILocalizedString = { value: localize('addFolderToWorkspace', "Add Folder to Workspace..."), original: 'Add Folder to Workspace...' };
@@ -54,7 +55,13 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: 'workbench.action.openWorkspaceInNewWindow',
-	handler: (accessor: ServicesAccessor) => accessor.get(IFileDialogService).pickWorkspaceAndOpen({ forceNewWindow: true })
+	handler: (accessor: ServicesAccessor) => {
+		const availableFileSystems = [Schemas.file];
+		if (accessor.get(IWorkbenchEnvironmentService).remoteAuthority) {
+			availableFileSystems.unshift(Schemas.vscodeRemote);
+		}
+		return accessor.get(IFileDialogService).pickWorkspaceAndOpen({ forceNewWindow: true });
+	}
 });
 
 CommandsRegistry.registerCommand({
