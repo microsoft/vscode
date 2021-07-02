@@ -54,9 +54,7 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: 'workbench.action.openWorkspaceInNewWindow',
-	handler: (accessor: ServicesAccessor) => {
-		return accessor.get(IFileDialogService).pickWorkspaceAndOpen({ forceNewWindow: true });
-	}
+	handler: (accessor: ServicesAccessor) => accessor.get(IFileDialogService).pickWorkspaceAndOpen({ forceNewWindow: true })
 });
 
 CommandsRegistry.registerCommand({
