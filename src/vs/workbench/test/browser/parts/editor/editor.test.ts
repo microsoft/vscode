@@ -67,13 +67,20 @@ suite('Workbench editor utils', () => {
 	});
 
 	test('untyped check functions', () => {
-		assert.ok(isResourceEditorInput({ resource: URI.file('/') }));
-		assert.ok(isUntitledResourceEditorInput({}));
-		assert.ok(isResourceDiffEditorInput({ originalInput: { resource: URI.file('/') }, modifiedInput: { resource: URI.file('/') } }));
-
 		assert.ok(!isResourceEditorInput(undefined));
+		assert.ok(!isResourceEditorInput({}));
+		assert.ok(!isResourceEditorInput({ originalInput: { resource: URI.file('/') }, modifiedInput: { resource: URI.file('/') } }));
+		assert.ok(isResourceEditorInput({ resource: URI.file('/') }));
+
 		assert.ok(!isUntitledResourceEditorInput(undefined));
+		assert.ok(isUntitledResourceEditorInput({}));
+		assert.ok(isUntitledResourceEditorInput({ resource: URI.file('/').with({ scheme: Schemas.untitled }) }));
+		assert.ok(isUntitledResourceEditorInput({ resource: URI.file('/'), forceUntitled: true }));
+
 		assert.ok(!isResourceDiffEditorInput(undefined));
+		assert.ok(!isResourceDiffEditorInput({}));
+		assert.ok(!isResourceDiffEditorInput({ resource: URI.file('/') }));
+		assert.ok(isResourceDiffEditorInput({ originalInput: { resource: URI.file('/') }, modifiedInput: { resource: URI.file('/') } }));
 	});
 
 	test('EditorInputCapabilities', () => {

@@ -308,16 +308,8 @@ export interface IResourceDiffEditorInput extends IBaseResourceEditorInput {
 	readonly modifiedInput: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
 }
 
-export function isEditorInput(editor: unknown): editor is IEditorInput {
-	const candidate = editor as IEditorInput | undefined;
-
-	return typeof candidate?.typeId === 'string' &&
-		typeof candidate.capabilities === 'number' &&
-		areFunctions(candidate.matches, candidate.toUntyped, candidate.resolve);
-}
-
 export function isResourceEditorInput(editor: unknown): editor is IResourceEditorInput {
-	if (isEditorInput(editor)) {
+	if (isIEditorInput(editor)) {
 		return false; // make sure to not accidentally match on typed editor inputs
 	}
 
@@ -327,7 +319,7 @@ export function isResourceEditorInput(editor: unknown): editor is IResourceEdito
 }
 
 export function isResourceDiffEditorInput(editor: unknown): editor is IResourceDiffEditorInput {
-	if (isEditorInput(editor)) {
+	if (isIEditorInput(editor)) {
 		return false; // make sure to not accidentally match on typed editor inputs
 	}
 
@@ -337,7 +329,7 @@ export function isResourceDiffEditorInput(editor: unknown): editor is IResourceD
 }
 
 export function isUntitledResourceEditorInput(editor: unknown): editor is IUntitledTextResourceEditorInput {
-	if (isEditorInput(editor)) {
+	if (isIEditorInput(editor)) {
 		return false; // make sure to not accidentally match on typed editor inputs
 	}
 
@@ -641,6 +633,14 @@ export interface IEditorInput extends IDisposable {
 	isDisposed(): boolean;
 }
 
+export function isIEditorInput(editor: unknown): editor is IEditorInput {
+	const candidate = editor as IEditorInput | undefined;
+
+	return typeof candidate?.typeId === 'string' &&
+		typeof candidate.capabilities === 'number' &&
+		areFunctions(candidate.matches, candidate.toUntyped, candidate.resolve);
+}
+
 export interface IEditorInputWithPreferredResource {
 
 	/**
@@ -685,7 +685,7 @@ export interface ISideBySideEditorInput extends IEditorInput {
 export function isSideBySideEditorInput(editor: unknown): editor is ISideBySideEditorInput {
 	const candidate = editor as ISideBySideEditorInput | undefined;
 
-	return isEditorInput(candidate?.primary) && isEditorInput(candidate?.secondary);
+	return isIEditorInput(candidate?.primary) && isIEditorInput(candidate?.secondary);
 }
 
 /**
@@ -759,7 +759,7 @@ export interface IEditorInputWithOptions {
 export function isEditorInputWithOptions(editor: unknown): editor is IEditorInputWithOptions {
 	const candidate = editor as IEditorInputWithOptions | undefined;
 
-	return isEditorInput(candidate?.editor);
+	return isIEditorInput(candidate?.editor);
 }
 
 /**
@@ -786,7 +786,7 @@ export interface IEditorIdentifier {
 export function isEditorIdentifier(identifier: unknown): identifier is IEditorIdentifier {
 	const candidate = identifier as IEditorIdentifier | undefined;
 
-	return typeof candidate?.groupId === 'number' && isEditorInput(candidate.editor);
+	return typeof candidate?.groupId === 'number' && isIEditorInput(candidate.editor);
 }
 
 /**
