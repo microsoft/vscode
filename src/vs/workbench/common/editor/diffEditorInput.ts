@@ -40,13 +40,13 @@ export class DiffEditorInput extends SideBySideEditorInput {
 	constructor(
 		name: string | undefined,
 		description: string | undefined,
-		readonly originalInput: EditorInput,
-		readonly modifiedInput: EditorInput,
+		readonly original: EditorInput,
+		readonly modified: EditorInput,
 		private readonly forceOpenAsBinary: boolean | undefined,
 		@ILabelService private readonly labelService: ILabelService,
 		@IFileService private readonly fileService: IFileService
 	) {
-		super(name, description, originalInput, modifiedInput);
+		super(name, description, original, modified);
 	}
 
 	override getName(): string {
@@ -60,7 +60,7 @@ export class DiffEditorInput extends SideBySideEditorInput {
 				return `${this.labelService.getUriLabel(fileResources.original, { relative: true })} ↔ ${this.labelService.getUriLabel(fileResources.modified, { relative: true })}`;
 			}
 
-			return localize('sideBySideLabels', "{0} ↔ {1}", this.originalInput.getName(), this.modifiedInput.getName());
+			return localize('sideBySideLabels', "{0} ↔ {1}", this.original.getName(), this.modified.getName());
 		}
 
 		return this.name;
@@ -73,7 +73,7 @@ export class DiffEditorInput extends SideBySideEditorInput {
 			// and modified input have the same parent and we compare file resources.
 			const fileResources = this.asFileResources();
 			if (fileResources && dirname(fileResources.original).path === dirname(fileResources.modified).path) {
-				return this.modifiedInput.getDescription(verbosity);
+				return this.modified.getDescription(verbosity);
 			}
 		}
 
@@ -82,14 +82,14 @@ export class DiffEditorInput extends SideBySideEditorInput {
 
 	private asFileResources(): { original: URI, modified: URI } | undefined {
 		if (
-			this.originalInput instanceof AbstractTextResourceEditorInput &&
-			this.modifiedInput instanceof AbstractTextResourceEditorInput &&
-			this.fileService.canHandleResource(this.originalInput.preferredResource) &&
-			this.fileService.canHandleResource(this.modifiedInput.preferredResource)
+			this.original instanceof AbstractTextResourceEditorInput &&
+			this.modified instanceof AbstractTextResourceEditorInput &&
+			this.fileService.canHandleResource(this.original.preferredResource) &&
+			this.fileService.canHandleResource(this.modified.preferredResource)
 		) {
 			return {
-				original: this.originalInput.preferredResource,
-				modified: this.modifiedInput.preferredResource
+				original: this.original.preferredResource,
+				modified: this.modified.preferredResource
 			};
 		}
 
@@ -124,8 +124,8 @@ export class DiffEditorInput extends SideBySideEditorInput {
 
 		// Join resolve call over two inputs and build diff editor model
 		const [originalEditorModel, modifiedEditorModel] = await Promise.all([
-			this.originalInput.resolve(),
-			this.modifiedInput.resolve()
+			this.original.resolve(),
+			this.modified.resolve()
 		]);
 
 		// If both are text models, return textdiffeditor model
@@ -145,8 +145,8 @@ export class DiffEditorInput extends SideBySideEditorInput {
 			return {
 				label: this.name,
 				description: this.description,
-				originalInput: originalResourceEditorInput,
-				modifiedInput: modifiedResourceEditorInput
+				original: originalResourceEditorInput,
+				modified: modifiedResourceEditorInput
 			};
 		}
 
@@ -155,7 +155,7 @@ export class DiffEditorInput extends SideBySideEditorInput {
 
 	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
 		if (isResourceDiffEditorInput(otherInput)) {
-			return this.modifiedInput.matches(otherInput.modifiedInput) && this.originalInput.matches(otherInput.originalInput);
+			return this.modified.matches(otherInput.modified) && this.original.matches(otherInput.original);
 		}
 
 		if (!super.matches(otherInput)) {

@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.58.0",
-  "distro": "1afd5b4f39a7a5d420ea4906f5a35f009e2b377c",
+  "version": "1.59.0",
+  "distro": "11a4ffb5d3ab4615937d307cd3ab58fcdd1d36ea",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -74,7 +74,7 @@
     "spdlog": "^0.13.0",
     "sudo-prompt": "9.2.1",
     "tas-client-umd": "0.1.4",
-    "v8-inspect-profiler": "^0.0.21",
+    "v8-inspect-profiler": "^0.0.22",
     "vscode-oniguruma": "1.5.1",
     "vscode-proxy-agent": "^0.11.0",
     "vscode-regexpp": "^3.1.0",

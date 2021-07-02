@@ -669,8 +669,8 @@ export class NativeWindow extends Disposable {
 		// In diffMode we open 2 resources as diff
 		if (diffMode && resources.length === 2 && resources[0].resource && resources[1].resource) {
 			const diffEditor: IResourceDiffEditorInput = {
-				originalInput: { resource: resources[0].resource },
-				modifiedInput: { resource: resources[1].resource },
+				original: { resource: resources[0].resource },
+				modified: { resource: resources[1].resource },
 				options: { pinned: true }
 			};
 			editors.push(diffEditor);
