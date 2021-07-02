@@ -221,7 +221,7 @@ async function ensureStableCode(): Promise<void> {
 			stableCodePath = path.dirname(path.dirname(path.dirname(stableCodeExecutable)));
 		} else {
 			// VSCode/Code.exe (Windows) | VSCode/code (Linux)
-			stableCodePath = path.dirname(path.dirname(stableCodeExecutable));
+			stableCodePath = path.dirname(stableCodeExecutable);
 		}
 	}
 
