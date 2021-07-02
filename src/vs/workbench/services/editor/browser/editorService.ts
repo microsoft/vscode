@@ -833,12 +833,12 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			// Untyped editor
 			else {
 				if (isResourceDiffEditorInput(editor)) {
-					const originalResourceEditor = editor.originalInput;
+					const originalResourceEditor = editor.original;
 					if (URI.isUri(originalResourceEditor.resource)) {
 						resources.set(originalResourceEditor.resource, true);
 					}
 
-					const modifiedResourceEditor = editor.modifiedInput;
+					const modifiedResourceEditor = editor.modified;
 					if (URI.isUri(modifiedResourceEditor.resource)) {
 						resources.set(modifiedResourceEditor.resource, true);
 					}
@@ -1038,14 +1038,14 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Diff Editor Support
 		if (isResourceDiffEditorInput(input)) {
-			const originalInput = this.createEditorInput({ ...input.originalInput, forceFile: input.forceFile });
-			const modifiedInput = this.createEditorInput({ ...input.modifiedInput, forceFile: input.forceFile });
+			const original = this.createEditorInput({ ...input.original, forceFile: input.forceFile });
+			const modified = this.createEditorInput({ ...input.modified, forceFile: input.forceFile });
 
 			return this.instantiationService.createInstance(DiffEditorInput,
 				input.label,
 				input.description,
-				originalInput,
-				modifiedInput,
+				original,
+				modified,
 				undefined
 			);
 		}

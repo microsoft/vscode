@@ -178,10 +178,8 @@ export class NotebookProviderInfoStore extends Disposable {
 				}
 				return { editor: NotebookEditorInput.create(this._instantiationService, resource.with({ scheme: Schemas.untitled }), notebookProviderInfo.id), options };
 			};
-			const notebookDiffEditorInputFactory: DiffEditorInputFactoryFunction = diffEditorInput => {
-				const modifiedInput = diffEditorInput.modifiedInput;
-				const originalInput = diffEditorInput.originalInput;
-				return { editor: NotebookDiffEditorInput.create(this._instantiationService, modifiedInput.resource!, undefined, undefined, originalInput.resource!, notebookProviderInfo.id) };
+			const notebookDiffEditorInputFactory: DiffEditorInputFactoryFunction = ({ modified, original }) => {
+				return { editor: NotebookDiffEditorInput.create(this._instantiationService, modified.resource!, undefined, undefined, original.resource!, notebookProviderInfo.id) };
 			};
 			// Register the notebook editor
 			disposables.add(this._editorOverrideService.registerEditor(

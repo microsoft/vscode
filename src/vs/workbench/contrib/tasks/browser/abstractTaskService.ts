@@ -3335,8 +3335,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				run: async () => {
 					for (const upgrade of fileDiffs) {
 						await this.editorService.openEditor({
-							originalInput: { resource: upgrade[0] },
-							modifiedInput: { resource: upgrade[1] }
+							original: { resource: upgrade[0] },
+							modified: { resource: upgrade[1] }
 						});
 					}
 				}

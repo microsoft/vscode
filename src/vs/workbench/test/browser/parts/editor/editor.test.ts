@@ -261,8 +261,8 @@ suite('Workbench editor utils', () => {
 		assert.ok(!EditorResourceAccessor.getOriginalUri(file, { filterByScheme: Schemas.untitled }));
 
 		const diffEditorInput: IResourceDiffEditorInput = {
-			originalInput: untitled,
-			modifiedInput: file
+			original: untitled,
+			modified: file
 		};
 
 		assert.ok(!EditorResourceAccessor.getCanonicalUri(diffEditorInput));

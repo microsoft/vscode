@@ -153,8 +153,8 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			return input instanceof EditorInput ? input : undefined;
 		};
 
-		const modifiedOverride = createEditorForSubInput(editor.modifiedInput, editorID, 'modified') ?? this.editorService.createEditorInput(editor.modifiedInput);
-		const originalOverride = createEditorForSubInput(editor.originalInput, editorID, 'original') ?? this.editorService.createEditorInput(editor.originalInput);
+		const modifiedOverride = createEditorForSubInput(editor.modified, editorID, 'modified') ?? this.editorService.createEditorInput(editor.modified);
+		const originalOverride = createEditorForSubInput(editor.original, editorID, 'original') ?? this.editorService.createEditorInput(editor.original);
 
 		return this.instantiationService.createInstance(DiffEditorInput, undefined, undefined, originalOverride, modifiedOverride, true);
 	}

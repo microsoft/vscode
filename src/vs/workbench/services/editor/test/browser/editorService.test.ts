@@ -807,8 +807,8 @@ suite('EditorService', () => {
 			// untyped diff editor, no options, no group
 			{
 				let untypedEditor: IResourceDiffEditorInput = {
-					originalInput: { resource: URI.file('file-original.editor-service-override-tests') },
-					modifiedInput: { resource: URI.file('file-modified.editor-service-override-tests') },
+					original: { resource: URI.file('file-original.editor-service-override-tests') },
+					modified: { resource: URI.file('file-modified.editor-service-override-tests') },
 					options: { override: TEST_EDITOR_INPUT_ID }
 				};
 				let pane = await openEditor(untypedEditor);
@@ -831,8 +831,8 @@ suite('EditorService', () => {
 			// untyped diff editor, no options, SIDE_GROUP
 			{
 				let untypedEditor: IResourceDiffEditorInput = {
-					originalInput: { resource: URI.file('file-original.editor-service-override-tests') },
-					modifiedInput: { resource: URI.file('file-modified.editor-service-override-tests') },
+					original: { resource: URI.file('file-original.editor-service-override-tests') },
+					modified: { resource: URI.file('file-modified.editor-service-override-tests') },
 					options: { override: TEST_EDITOR_INPUT_ID }
 				};
 				let pane = await openEditor(untypedEditor, SIDE_GROUP);
@@ -855,8 +855,8 @@ suite('EditorService', () => {
 			// untyped diff editor, options (sticky: true, preserveFocus: true), no group
 			{
 				let untypedEditor: IResourceDiffEditorInput = {
-					originalInput: { resource: URI.file('file-original.editor-service-override-tests') },
-					modifiedInput: { resource: URI.file('file-modified.editor-service-override-tests') },
+					original: { resource: URI.file('file-original.editor-service-override-tests') },
+					modified: { resource: URI.file('file-modified.editor-service-override-tests') },
 					options: {
 						override: TEST_EDITOR_INPUT_ID, sticky: true, preserveFocus: true
 					}
@@ -1169,8 +1169,8 @@ suite('EditorService', () => {
 
 		const input = { resource: URI.parse('my://resource-openEditors') };
 		const otherInput: IResourceDiffEditorInput = {
-			originalInput: { resource: URI.parse('my://resource2-openEditors') },
-			modifiedInput: { resource: URI.parse('my://resource3-openEditors') }
+			original: { resource: URI.parse('my://resource2-openEditors') },
+			modified: { resource: URI.parse('my://resource3-openEditors') }
 		};
 
 		const oldHandler = accessor.workspaceTrustRequestService.requestOpenUrisHandler;
@@ -1186,8 +1186,8 @@ suite('EditorService', () => {
 			assert.strictEqual(part.activeGroup.count, 0);
 			assert.strictEqual(trustEditorUris.length, 3);
 			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === input.resource.toString()), true);
-			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === otherInput.originalInput.resource?.toString()), true);
-			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === otherInput.modifiedInput.resource?.toString()), true);
+			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === otherInput.original.resource?.toString()), true);
+			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === otherInput.modified.resource?.toString()), true);
 		} finally {
 			accessor.workspaceTrustRequestService.requestOpenUrisHandler = oldHandler;
 		}
@@ -1351,17 +1351,17 @@ suite('EditorService', () => {
 
 		// Untyped Input (diff)
 		const resourceDiffInput = {
-			originalInput: { resource: toResource.call(this, '/primary.html') },
-			modifiedInput: { resource: toResource.call(this, '/secondary.html') }
+			original: { resource: toResource.call(this, '/primary.html') },
+			modified: { resource: toResource.call(this, '/secondary.html') }
 		};
 		assert.strictEqual(isResourceDiffEditorInput(resourceDiffInput), true);
 		input = service.createEditorInput(resourceDiffInput);
 		assert(input instanceof DiffEditorInput);
-		assert.strictEqual(input.originalInput.resource?.toString(), resourceDiffInput.originalInput.resource.toString());
-		assert.strictEqual(input.modifiedInput.resource?.toString(), resourceDiffInput.modifiedInput.resource.toString());
+		assert.strictEqual(input.original.resource?.toString(), resourceDiffInput.original.resource.toString());
+		assert.strictEqual(input.modified.resource?.toString(), resourceDiffInput.modified.resource.toString());
 		const untypedDiffInput = input.toUntyped(0, UntypedEditorContext.Default) as IResourceDiffEditorInput;
-		assert.strictEqual(untypedDiffInput.originalInput.resource?.toString(), resourceDiffInput.originalInput.resource.toString());
-		assert.strictEqual(untypedDiffInput.modifiedInput.resource?.toString(), resourceDiffInput.modifiedInput.resource.toString());
+		assert.strictEqual(untypedDiffInput.original.resource?.toString(), resourceDiffInput.original.resource.toString());
+		assert.strictEqual(untypedDiffInput.modified.resource?.toString(), resourceDiffInput.modified.resource.toString());
 	});
 
 	test('close editor does not dispose when editor opened in other group', async () => {
