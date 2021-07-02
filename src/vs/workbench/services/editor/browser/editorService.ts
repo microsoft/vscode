@@ -844,9 +844,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					}
 
 					diffMode = true;
-				}
-
-				if (isResourceEditorInput(editor)) {
+				} else if (isResourceEditorInput(editor)) {
 					resources.set(editor.resource, true);
 				}
 			}
