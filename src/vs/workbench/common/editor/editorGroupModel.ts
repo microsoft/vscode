@@ -54,10 +54,10 @@ export interface ISerializedEditorGroupModel {
 	sticky?: number;
 }
 
-export function isSerializedEditorGroupModel(obj?: unknown): obj is ISerializedEditorGroupModel {
-	const group = obj as ISerializedEditorGroupModel;
+export function isSerializedEditorGroupModel(group?: unknown): group is ISerializedEditorGroupModel {
+	const candidate = group as ISerializedEditorGroupModel | undefined;
 
-	return !!(obj && typeof obj === 'object' && Array.isArray(group.editors) && Array.isArray(group.mru));
+	return !!(candidate && typeof candidate === 'object' && Array.isArray(candidate.editors) && Array.isArray(candidate.mru));
 }
 
 export class EditorGroupModel extends Disposable {

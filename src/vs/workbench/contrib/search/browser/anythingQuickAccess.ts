@@ -27,8 +27,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { localize } from 'vs/nls';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchEditorConfiguration, IEditorInput, EditorResourceAccessor } from 'vs/workbench/common/editor';
-import { isEditorInput } from 'vs/workbench/common/editor/editorInput';
+import { IWorkbenchEditorConfiguration, IEditorInput, EditorResourceAccessor, isEditorInput } from 'vs/workbench/common/editor';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -61,9 +60,9 @@ interface IEditorSymbolAnythingQuickPickItem extends IAnythingQuickPickItem {
 }
 
 function isEditorSymbolQuickPickItem(pick?: IAnythingQuickPickItem): pick is IEditorSymbolAnythingQuickPickItem {
-	const candidate = pick ? pick as IEditorSymbolAnythingQuickPickItem : undefined;
+	const candidate = pick as IEditorSymbolAnythingQuickPickItem | undefined;
 
-	return !!candidate && !!candidate.range && !!candidate.resource;
+	return !!candidate?.range && !!candidate.resource;
 }
 
 export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnythingQuickPickItem> {

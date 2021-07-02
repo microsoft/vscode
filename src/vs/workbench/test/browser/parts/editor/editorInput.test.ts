@@ -5,8 +5,8 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { isIEditorInput, isResourceDiffEditorInput, isResourceEditorInput, isUntitledResourceEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput, isEditorInput } from 'vs/workbench/common/editor/editorInput';
+import { isEditorInput, isResourceDiffEditorInput, isResourceEditorInput, isUntitledResourceEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { TestEditorInput } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('EditorInput', () => {
@@ -27,11 +27,6 @@ suite('EditorInput', () => {
 		assert.ok(!isEditorInput(undefined));
 		assert.ok(!isEditorInput({ resource: URI.file('/') }));
 		assert.ok(!isEditorInput({}));
-
-		assert.ok(isIEditorInput(input));
-		assert.ok(!isIEditorInput(undefined));
-		assert.ok(!isIEditorInput({ resource: URI.file('/') }));
-		assert.ok(!isIEditorInput({}));
 
 		assert.ok(!isResourceEditorInput(input));
 		assert.ok(!isUntitledResourceEditorInput(input));

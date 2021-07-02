@@ -5,9 +5,9 @@
 
 import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
-import { areFunctions, assertIsDefined } from 'vs/base/common/types';
+import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IEditor, IEditorViewState, IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceEditorInput, IResourceEditorInput, ITextResourceEditorInput, IBaseTextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
@@ -309,7 +309,7 @@ export interface IResourceDiffEditorInput extends IBaseResourceEditorInput {
 }
 
 export function isResourceEditorInput(editor: unknown): editor is IResourceEditorInput {
-	if (isIEditorInput(editor)) {
+	if (isEditorInput(editor)) {
 		return false; // make sure to not accidentally match on typed editor inputs
 	}
 
@@ -319,7 +319,7 @@ export function isResourceEditorInput(editor: unknown): editor is IResourceEdito
 }
 
 export function isResourceDiffEditorInput(editor: unknown): editor is IResourceDiffEditorInput {
-	if (isIEditorInput(editor)) {
+	if (isEditorInput(editor)) {
 		return false; // make sure to not accidentally match on typed editor inputs
 	}
 
@@ -329,7 +329,7 @@ export function isResourceDiffEditorInput(editor: unknown): editor is IResourceD
 }
 
 export function isUntitledResourceEditorInput(editor: unknown): editor is IUntitledTextResourceEditorInput {
-	if (isIEditorInput(editor)) {
+	if (isEditorInput(editor)) {
 		return false; // make sure to not accidentally match on typed editor inputs
 	}
 
@@ -633,12 +633,12 @@ export interface IEditorInput extends IDisposable {
 	isDisposed(): boolean;
 }
 
-export function isIEditorInput(editor: unknown): editor is IEditorInput {
-	const candidate = editor as IEditorInput | undefined;
+export abstract class BaseEditorInput extends Disposable {
+	// Marker class for implementing `isEditorInput`
+}
 
-	return typeof candidate?.typeId === 'string' &&
-		typeof candidate.capabilities === 'number' &&
-		areFunctions(candidate.matches, candidate.toUntyped, candidate.resolve);
+export function isEditorInput(editor: unknown): editor is IEditorInput {
+	return editor instanceof BaseEditorInput;
 }
 
 export interface IEditorInputWithPreferredResource {
@@ -685,7 +685,7 @@ export interface ISideBySideEditorInput extends IEditorInput {
 export function isSideBySideEditorInput(editor: unknown): editor is ISideBySideEditorInput {
 	const candidate = editor as ISideBySideEditorInput | undefined;
 
-	return isIEditorInput(candidate?.primary) && isIEditorInput(candidate?.secondary);
+	return isEditorInput(candidate?.primary) && isEditorInput(candidate?.secondary);
 }
 
 /**
@@ -759,7 +759,7 @@ export interface IEditorInputWithOptions {
 export function isEditorInputWithOptions(editor: unknown): editor is IEditorInputWithOptions {
 	const candidate = editor as IEditorInputWithOptions | undefined;
 
-	return isIEditorInput(candidate?.editor);
+	return isEditorInput(candidate?.editor);
 }
 
 /**
@@ -786,7 +786,7 @@ export interface IEditorIdentifier {
 export function isEditorIdentifier(identifier: unknown): identifier is IEditorIdentifier {
 	const candidate = identifier as IEditorIdentifier | undefined;
 
-	return typeof candidate?.groupId === 'number' && isIEditorInput(candidate.editor);
+	return typeof candidate?.groupId === 'number' && isEditorInput(candidate.editor);
 }
 
 /**
