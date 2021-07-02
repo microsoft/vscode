@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert = require('assert');
+import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
 import { LineBreakData } from 'vs/editor/common/viewModel/viewModel';
 
 suite('Editor ViewModel - LineBreakData', () => {
@@ -32,8 +33,12 @@ suite('Editor ViewModel - LineBreakData', () => {
 		return sequence(11).map(i => data.getInputOffsetOfOutputPosition(outputLineIdx, i));
 	}
 
+	function mapTextToInjectedTextOptions(arr: string[]): ModelDecorationInjectedTextOptions[] {
+		return arr.map(e => ModelDecorationInjectedTextOptions.from({ content: e }));
+	}
+
 	suite('Injected Text 1', () => {
-		const data = new LineBreakData([10], [], 0, ['1', '22', '333'], [2, 3, 10]);
+		const data = new LineBreakData([10], [], 0, [2, 3, 10], mapTextToInjectedTextOptions(['1', '22', '333']));
 
 		test('getInputOffsetOfOutputPosition', () => {
 			assert.deepStrictEqual(getInputOffsets(data, 0), [0, 1, 2, 2, 3, 3, 3, 4, 5, 6, 7]);
@@ -46,7 +51,7 @@ suite('Editor ViewModel - LineBreakData', () => {
 	});
 
 	suite('Injected Text 2', () => {
-		const data = new LineBreakData([10], [], 0, ['1', '22', '333'], [2, 2, 6]);
+		const data = new LineBreakData([10], [], 0, [2, 2, 6], mapTextToInjectedTextOptions(['1', '22', '333']));
 
 		test('getInputOffsetOfOutputPosition', () => {
 			assert.deepStrictEqual(getInputOffsets(data, 0), [0, 1, 2, 2, 2, 2, 3, 4, 5, 6, 6]);
@@ -59,7 +64,7 @@ suite('Editor ViewModel - LineBreakData', () => {
 	});
 
 	suite('Injected Text 3', () => {
-		const data = new LineBreakData([10], [], 0, ['1', '22', '333'], [2, 2, 7]);
+		const data = new LineBreakData([10], [], 0, [2, 2, 7], mapTextToInjectedTextOptions(['1', '22', '333']));
 
 		test('getInputOffsetOfOutputPosition', () => {
 			assert.deepStrictEqual(getInputOffsets(data, 0), [0, 1, 2, 2, 2, 2, 3, 4, 5, 6, 7]);

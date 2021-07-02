@@ -9,7 +9,7 @@ import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { INewScrollPosition, ScrollType } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecorationOptions, TextModelResolvedOptions, ITextModel } from 'vs/editor/common/model';
+import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecorationOptions, TextModelResolvedOptions, ITextModel, InjectedTextOptions } from 'vs/editor/common/model';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IEditorWhitespace, IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
@@ -103,8 +103,8 @@ export class LineBreakData {
 		public breakOffsets: number[],
 		public breakOffsetsVisibleColumn: number[],
 		public wrappedTextIndentLength: number,
-		public injectionTexts: string[] | null,
-		public injectionOffsets: number[] | null
+		public injectionOffsets: number[] | null,
+		public injectionOptions: InjectedTextOptions[] | null
 	) { }
 
 	public getInputOffsetOfOutputPosition(outputLineIndex: number, outputOffset: number): number {
@@ -118,11 +118,11 @@ export class LineBreakData {
 		if (this.injectionOffsets !== null) {
 			for (let i = 0; i < this.injectionOffsets.length; i++) {
 				if (inputOffset > this.injectionOffsets[i]) {
-					if (inputOffset < this.injectionOffsets[i] + this.injectionTexts![i].length) {
+					if (inputOffset < this.injectionOffsets[i] + this.injectionOptions![i].content.length) {
 						// `inputOffset` is within injected text
 						inputOffset = this.injectionOffsets[i];
 					} else {
-						inputOffset -= this.injectionTexts![i].length;
+						inputOffset -= this.injectionOptions![i].content.length;
 					}
 				} else {
 					break;
@@ -140,7 +140,7 @@ export class LineBreakData {
 				if (inputOffset < this.injectionOffsets[i]) {
 					break;
 				}
-				delta += this.injectionTexts![i].length;
+				delta += this.injectionOptions![i].content.length;
 			}
 		}
 		inputOffset += delta;
@@ -307,13 +307,19 @@ export class ViewLineData {
 	 */
 	public readonly tokens: IViewLineTokens;
 
+	/**
+	 * Additional inline decorations for this line.
+	*/
+	public readonly inlineDecorations: readonly SingleLineInlineDecoration[] | null;
+
 	constructor(
 		content: string,
 		continuesWithWrappedLine: boolean,
 		minColumn: number,
 		maxColumn: number,
 		startVisibleColumn: number,
-		tokens: IViewLineTokens
+		tokens: IViewLineTokens,
+		inlineDecorations: readonly SingleLineInlineDecoration[] | null
 	) {
 		this.content = content;
 		this.continuesWithWrappedLine = continuesWithWrappedLine;
@@ -321,6 +327,7 @@ export class ViewLineData {
 		this.maxColumn = maxColumn;
 		this.startVisibleColumn = startVisibleColumn;
 		this.tokens = tokens;
+		this.inlineDecorations = inlineDecorations;
 	}
 }
 
@@ -376,7 +383,7 @@ export class ViewLineRenderingData {
 		tokens: IViewLineTokens,
 		inlineDecorations: InlineDecoration[],
 		tabSize: number,
-		startVisibleColumn: number
+		startVisibleColumn: number,
 	) {
 		this.minColumn = minColumn;
 		this.maxColumn = maxColumn;
@@ -420,6 +427,23 @@ export class InlineDecoration {
 		public readonly inlineClassName: string,
 		public readonly type: InlineDecorationType
 	) {
+	}
+}
+
+export class SingleLineInlineDecoration {
+	constructor(
+		public readonly startOffset: number,
+		public readonly endOffset: number,
+		public readonly inlineClassName: string
+	) {
+	}
+
+	toInlineDecoration(lineNumber: number): InlineDecoration {
+		return new InlineDecoration(
+			new Range(lineNumber, this.startOffset + 1, lineNumber, this.endOffset + 1),
+			this.inlineClassName,
+			InlineDecorationType.Regular
+		);
 	}
 }
 

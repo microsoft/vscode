@@ -3379,10 +3379,19 @@ export class ModelDecorationMinimapOptions extends DecorationOptions {
 }
 
 export class ModelDecorationInjectedTextOptions implements model.InjectedTextOptions {
-	public readonly content: string;
+	public static from(options: model.InjectedTextOptions): ModelDecorationInjectedTextOptions {
+		if (options instanceof ModelDecorationInjectedTextOptions) {
+			return options;
+		}
+		return new ModelDecorationInjectedTextOptions(options);
+	}
 
-	constructor(content: string) {
-		this.content = content || '';
+	public readonly content: string;
+	readonly inlineClassName: string | null;
+
+	private constructor(options: model.InjectedTextOptions) {
+		this.content = options.content || '';
+		this.inlineClassName = options.inlineClassName || null;
 	}
 }
 
@@ -3440,8 +3449,8 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.inlineClassNameAffectsLetterSpacing = options.inlineClassNameAffectsLetterSpacing || false;
 		this.beforeContentClassName = options.beforeContentClassName ? cleanClassName(options.beforeContentClassName) : null;
 		this.afterContentClassName = options.afterContentClassName ? cleanClassName(options.afterContentClassName) : null;
-		this.after = options.after ? new ModelDecorationInjectedTextOptions(options.after.content) : null;
-		this.before = options.before ? new ModelDecorationInjectedTextOptions(options.before.content) : null;
+		this.after = options.after ? ModelDecorationInjectedTextOptions.from(options.after) : null;
+		this.before = options.before ? ModelDecorationInjectedTextOptions.from(options.before) : null;
 	}
 }
 ModelDecorationOptions.EMPTY = ModelDecorationOptions.register({ description: 'empty' });
