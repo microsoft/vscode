@@ -179,7 +179,7 @@ function stripBracketSearchCanceled<T>(result: T | null | BracketSearchCanceled)
 
 export class TextModel extends Disposable implements model.ITextModel {
 
-	private static readonly MODEL_SYNC_LIMIT = 50 * 1024 * 1024; // 50 MB
+	private static readonly MODEL_SYNC_LIMIT = 500 * 1024 * 1024; // 500 MB
 	private static readonly LARGE_FILE_SIZE_THRESHOLD = 20 * 1024 * 1024; // 20 MB;
 	private static readonly LARGE_FILE_LINE_COUNT_THRESHOLD = 300 * 1000; // 300K lines
 
