@@ -142,10 +142,10 @@ class WorkspaceTrustedUrisTable extends Disposable {
 						} else {
 							const hostLabel = getHostLabel(this.labelService, item);
 							if (hostLabel === undefined || hostLabel.length === 0) {
-								return localize('trustedFolderAriaLabel', "You trust {0}", this.labelService.getUriLabel(item.uri));
+								return localize('trustedFolderAriaLabel', "{0}, trusted", this.labelService.getUriLabel(item.uri));
 							}
 
-							return localize('trustedFolderWithHostAriaLabel', "You trust {0} on {1}", this.labelService.getUriLabel(item.uri), hostLabel);
+							return localize('trustedFolderWithHostAriaLabel', "{0} on {1}, trusted", this.labelService.getUriLabel(item.uri), hostLabel);
 
 
 						}
