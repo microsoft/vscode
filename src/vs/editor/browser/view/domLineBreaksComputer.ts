@@ -42,11 +42,27 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 	}
 }
 
-function createLineBreaks(requests: string[], fontInfo: FontInfo, tabSize: number, firstLineBreakColumn: number, wrappingIndent: WrappingIndent, injectedTexts: (LineInjectedText[] | null)[]): (LineBreakData | null)[] {
+function createLineBreaks(requests: string[], fontInfo: FontInfo, tabSize: number, firstLineBreakColumn: number, wrappingIndent: WrappingIndent, injectedTextsPerLine: (LineInjectedText[] | null)[]): (LineBreakData | null)[] {
+	function createEmptyLineBreakWithPossiblyInjectedText(requestIdx: number): LineBreakData | null {
+		const injectedTexts = injectedTextsPerLine[requestIdx];
+		if (injectedTexts) {
+			const lineText = LineInjectedText.applyInjectedText(requests[requestIdx], injectedTexts);
+
+			const injectionTexts = injectedTexts.map(t => t.text);
+			const injectionOffsets = injectedTexts.map(text => text.column - 1);
+
+			// creating a `LineBreakData` with an invalid `breakOffsetsVisibleColumn` is OK
+			// because `breakOffsetsVisibleColumn` will never be used because it contains injected text
+			return new LineBreakData([lineText.length], [], 0, injectionTexts, injectionOffsets);
+		} else {
+			return null;
+		}
+	}
+
 	if (firstLineBreakColumn === -1) {
-		const result: null[] = [];
+		const result: (LineBreakData | null)[] = [];
 		for (let i = 0, len = requests.length; i < len; i++) {
-			result[i] = null;
+			result[i] = createEmptyLineBreakWithPossiblyInjectedText(i);
 		}
 		return result;
 	}
@@ -69,7 +85,7 @@ function createLineBreaks(requests: string[], fontInfo: FontInfo, tabSize: numbe
 	const allCharOffsets: number[][] = [];
 	const allVisibleColumns: number[][] = [];
 	for (let i = 0; i < requests.length; i++) {
-		const lineContent = LineInjectedText.applyInjectedText(requests[i], injectedTexts[i]);
+		const lineContent = LineInjectedText.applyInjectedText(requests[i], injectedTextsPerLine[i]);
 
 		let firstNonWhitespaceIndex = 0;
 		let wrappedTextIndentLength = 0;
@@ -130,7 +146,7 @@ function createLineBreaks(requests: string[], fontInfo: FontInfo, tabSize: numbe
 		const lineDomNode = lineDomNodes[i];
 		const breakOffsets: number[] | null = readLineBreaks(range, lineDomNode, renderLineContents[i], allCharOffsets[i]);
 		if (breakOffsets === null) {
-			result[i] = null;
+			result[i] = createEmptyLineBreakWithPossiblyInjectedText(i);
 			continue;
 		}
 
@@ -152,7 +168,7 @@ function createLineBreaks(requests: string[], fontInfo: FontInfo, tabSize: numbe
 
 		let injectionTexts: string[] | null;
 		let injectionOffsets: number[] | null;
-		const curInjectedTexts = injectedTexts[i];
+		const curInjectedTexts = injectedTextsPerLine[i];
 		if (curInjectedTexts) {
 			injectionTexts = curInjectedTexts.map(t => t.text);
 			injectionOffsets = curInjectedTexts.map(text => text.column - 1);
