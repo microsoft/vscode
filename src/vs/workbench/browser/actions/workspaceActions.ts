@@ -22,7 +22,6 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspacesService, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { Schemas } from 'vs/base/common/network';
 
 const workspacesCategory: ILocalizedString = { value: localize('workspaces', "Workspaces"), original: 'Workspaces' };
 
@@ -88,18 +87,13 @@ export class OpenWorkspaceAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IFileDialogService private readonly dialogService: IFileDialogService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IFileDialogService private readonly dialogService: IFileDialogService
 	) {
 		super(id, label);
 	}
 
 	override run(event?: unknown, data?: ITelemetryData): Promise<void> {
-		const availableFileSystems = [Schemas.file];
-		if (this.environmentService.remoteAuthority) {
-			availableFileSystems.unshift(Schemas.vscodeRemote);
-		}
-		return this.dialogService.pickWorkspaceAndOpen({ telemetryExtraData: data, availableFileSystems });
+		return this.dialogService.pickWorkspaceAndOpen({ telemetryExtraData: data });
 	}
 }
 
