@@ -205,7 +205,6 @@ export class DisassemblyView extends EditorPane {
 					this._onDidChangeStackFrame.fire();
 				}
 			}
-
 		}));
 
 		this._register(this._debugService.onDidChangeState(e => {

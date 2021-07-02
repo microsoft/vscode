@@ -15,7 +15,7 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
-import { DebugModel, FunctionBreakpoint, Breakpoint, DataBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
+import { DebugModel, FunctionBreakpoint, Breakpoint, DataBreakpoint, InstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { ViewModel } from 'vs/workbench/contrib/debug/common/debugViewModel';
 import { ConfigurationManager } from 'vs/workbench/contrib/debug/browser/debugConfigurationManager';
 import { VIEWLET_ID as EXPLORER_VIEWLET_ID } from 'vs/workbench/contrib/files/common/files';
@@ -878,6 +878,8 @@ export class DebugService implements IDebugService {
 				await this.sendFunctionBreakpoints();
 			} else if (breakpoint instanceof DataBreakpoint) {
 				await this.sendDataBreakpoints();
+			} else if (breakpoint instanceof InstructionBreakpoint) {
+				await this.sendInstructionBreakpoints();
 			} else {
 				await this.sendExceptionBreakpoints();
 			}

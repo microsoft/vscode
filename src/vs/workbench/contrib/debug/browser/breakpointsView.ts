@@ -160,6 +160,9 @@ export class BreakpointsView extends ViewPane {
 			if (e.element instanceof Breakpoint) {
 				openBreakpointSource(e.element, e.sideBySide, e.editorOptions.preserveFocus || false, e.editorOptions.pinned || !e.editorOptions.preserveFocus, this.debugService, this.editorService);
 			}
+			if (e.element instanceof InstructionBreakpoint) {
+
+			}
 			if (e.browserEvent instanceof MouseEvent && e.browserEvent.detail === 2 && e.element instanceof FunctionBreakpoint && e.element !== this.inputBoxData?.breakpoint) {
 				// double click
 				this.renderInputBox({ breakpoint: e.element, type: 'name' });
@@ -1175,6 +1178,8 @@ registerAction2(class extends Action2 {
 			await debugService.removeFunctionBreakpoints(breakpoint.getId());
 		} else if (breakpoint instanceof DataBreakpoint) {
 			await debugService.removeDataBreakpoints(breakpoint.getId());
+		} else if (breakpoint instanceof InstructionBreakpoint) {
+			await debugService.removeInstructionBreakpoints(breakpoint.instructionReference);
 		}
 	}
 });
