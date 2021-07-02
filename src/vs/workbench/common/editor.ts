@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
-import { assertIsDefined, isUndefinedOrNull } from 'vs/base/common/types';
+import { areFunctions, assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IEditor, IEditorViewState, IDiffEditor } from 'vs/editor/common/editorCommon';
@@ -188,8 +188,8 @@ export interface ITextEditorPane extends IEditorPane {
 	getViewState(): IEditorViewState | undefined;
 }
 
-export function isTextEditorPane(thing: IEditorPane | undefined): thing is ITextEditorPane {
-	const candidate = thing as ITextEditorPane | undefined;
+export function isTextEditorPane(pane: IEditorPane | undefined): pane is ITextEditorPane {
+	const candidate = pane as ITextEditorPane | undefined;
 
 	return typeof candidate?.getViewState === 'function';
 }
@@ -308,16 +308,37 @@ export interface IResourceDiffEditorInput extends IBaseResourceEditorInput {
 	readonly modified: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
 }
 
-export function isResourceDiffEditorInput(editor: IUntypedEditorInput): editor is IResourceDiffEditorInput {
-	const candidate = editor as IResourceDiffEditorInput;
+export function isResourceEditorInput(editor: unknown): editor is IResourceEditorInput {
+	if (isIEditorInput(editor)) {
+		return false; // make sure to not accidentally match on typed editor inputs
+	}
 
-	return candidate.original !== undefined && candidate.modified !== undefined;
+	const candidate = editor as IResourceEditorInput | undefined;
+
+	return URI.isUri(candidate?.resource);
 }
 
-export function isUntitledResourceEditorInput(editor: IUntypedEditorInput): editor is IUntitledTextResourceEditorInput {
-	const candidate = editor as IUntitledTextResourceEditorInput;
+export function isResourceDiffEditorInput(editor: unknown): editor is IResourceDiffEditorInput {
+	if (isIEditorInput(editor)) {
+		return false; // make sure to not accidentally match on typed editor inputs
+	}
 
-	return candidate.resource === undefined || candidate.resource.scheme === Schemas.untitled || candidate.forceUntitled === true;
+	const candidate = editor as IResourceDiffEditorInput | undefined;
+
+	return candidate?.original !== undefined && candidate.modified !== undefined;
+}
+
+export function isUntitledResourceEditorInput(editor: unknown): editor is IUntitledTextResourceEditorInput {
+	if (isIEditorInput(editor)) {
+		return false; // make sure to not accidentally match on typed editor inputs
+	}
+
+	const candidate = editor as IUntitledTextResourceEditorInput | undefined;
+	if (!candidate) {
+		return false;
+	}
+
+	return candidate?.resource === undefined || candidate.resource.scheme === Schemas.untitled || candidate.forceUntitled === true;
 }
 
 export const enum Verbosity {
@@ -612,6 +633,14 @@ export interface IEditorInput extends IDisposable {
 	isDisposed(): boolean;
 }
 
+export function isIEditorInput(editor: unknown): editor is IEditorInput {
+	const candidate = editor as IEditorInput | undefined;
+
+	return typeof candidate?.typeId === 'string' &&
+		typeof candidate.capabilities === 'number' &&
+		areFunctions(candidate.matches, candidate.toUntyped, candidate.resolve);
+}
+
 export interface IEditorInputWithPreferredResource {
 
 	/**
@@ -634,13 +663,10 @@ export interface IEditorInputWithPreferredResource {
 	readonly preferredResource: URI;
 }
 
-export function isEditorInputWithPreferredResource(obj: unknown): obj is IEditorInputWithPreferredResource {
-	const editorInputWithPreferredResource = obj as IEditorInputWithPreferredResource | undefined;
-	if (!editorInputWithPreferredResource) {
-		return false;
-	}
+function isEditorInputWithPreferredResource(editor: unknown): editor is IEditorInputWithPreferredResource {
+	const candidate = editor as IEditorInputWithPreferredResource | undefined;
 
-	return URI.isUri(editorInputWithPreferredResource.preferredResource);
+	return URI.isUri(candidate?.preferredResource);
 }
 
 export interface ISideBySideEditorInput extends IEditorInput {
@@ -656,13 +682,10 @@ export interface ISideBySideEditorInput extends IEditorInput {
 	secondary: IEditorInput;
 }
 
-function isSideBySideEditorInput(obj: unknown): obj is ISideBySideEditorInput {
-	const sideBySideEditorInput = obj as ISideBySideEditorInput | undefined;
-	if (!sideBySideEditorInput) {
-		return false;
-	}
+export function isSideBySideEditorInput(editor: unknown): editor is ISideBySideEditorInput {
+	const candidate = editor as ISideBySideEditorInput | undefined;
 
-	return !!sideBySideEditorInput.primary && !!sideBySideEditorInput.secondary;
+	return isIEditorInput(candidate?.primary) && isIEditorInput(candidate?.secondary);
 }
 
 /**
@@ -733,10 +756,10 @@ export interface IEditorInputWithOptions {
 	options?: IEditorOptions;
 }
 
-export function isEditorInputWithOptions(obj: unknown): obj is IEditorInputWithOptions {
-	const editorInputWithOptions = obj as IEditorInputWithOptions | undefined;
+export function isEditorInputWithOptions(editor: unknown): editor is IEditorInputWithOptions {
+	const candidate = editor as IEditorInputWithOptions | undefined;
 
-	return !!editorInputWithOptions && !!editorInputWithOptions.editor;
+	return isIEditorInput(candidate?.editor);
 }
 
 /**
@@ -760,13 +783,10 @@ export interface IEditorIdentifier {
 	editor: IEditorInput;
 }
 
-export function isEditorIdentifier(thing: unknown): thing is IEditorIdentifier {
-	const identifier = thing as IEditorIdentifier | undefined;
-	if (!identifier) {
-		return false;
-	}
+export function isEditorIdentifier(identifier: unknown): identifier is IEditorIdentifier {
+	const candidate = identifier as IEditorIdentifier | undefined;
 
-	return typeof identifier.groupId === 'number' && !isUndefinedOrNull(identifier.editor);
+	return typeof candidate?.groupId === 'number' && isIEditorInput(candidate.editor);
 }
 
 /**

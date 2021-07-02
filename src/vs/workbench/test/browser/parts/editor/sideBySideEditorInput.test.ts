@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { IResourceDiffEditorInput } from 'vs/workbench/common/editor';
+import { IResourceDiffEditorInput, isSideBySideEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { TestFileEditorInput } from 'vs/workbench/test/browser/workbenchTestServices';
@@ -36,6 +36,8 @@ suite('SideBySideEditorInput', () => {
 		let otherInput = new MyEditorInput();
 
 		const sideBySideInut = new SideBySideEditorInput('name', 'description', otherInput, input);
+
+		assert.ok(isSideBySideEditorInput(sideBySideInut));
 
 		let capabilitiesChangeCounter = 0;
 		sideBySideInut.onDidChangeCapabilities(() => capabilitiesChangeCounter++);
