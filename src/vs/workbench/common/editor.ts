@@ -300,18 +300,18 @@ export interface IResourceDiffEditorInput extends IBaseResourceEditorInput {
 	/**
 	 * The left hand side editor to open inside a diff editor.
 	 */
-	readonly originalInput: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+	readonly original: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
 
 	/**
 	 * The right hand side editor to open inside a diff editor.
 	 */
-	readonly modifiedInput: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+	readonly modified: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
 }
 
 export function isResourceDiffEditorInput(editor: IUntypedEditorInput): editor is IResourceDiffEditorInput {
 	const candidate = editor as IResourceDiffEditorInput;
 
-	return candidate.originalInput !== undefined && candidate.modifiedInput !== undefined;
+	return candidate.original !== undefined && candidate.modified !== undefined;
 }
 
 export function isUntitledResourceEditorInput(editor: IUntypedEditorInput): editor is IUntitledTextResourceEditorInput {
@@ -893,8 +893,8 @@ class EditorResourceAccessorImpl {
 		}
 
 		// Optionally support side-by-side editors
-		const primaryEditor = isSideBySideEditorInput(editor) ? editor.primary : isResourceDiffEditorInput(editor) ? editor.modifiedInput : undefined;
-		const secondaryEditor = isSideBySideEditorInput(editor) ? editor.secondary : isResourceDiffEditorInput(editor) ? editor.originalInput : undefined;
+		const primaryEditor = isSideBySideEditorInput(editor) ? editor.primary : isResourceDiffEditorInput(editor) ? editor.modified : undefined;
+		const secondaryEditor = isSideBySideEditorInput(editor) ? editor.secondary : isResourceDiffEditorInput(editor) ? editor.original : undefined;
 		if (options?.supportSideBySide && primaryEditor && secondaryEditor) {
 			if (options?.supportSideBySide === SideBySideEditor.BOTH) {
 				return {
@@ -941,8 +941,8 @@ class EditorResourceAccessorImpl {
 		}
 
 		// Optionally support side-by-side editors
-		const primaryEditor = isSideBySideEditorInput(editor) ? editor.primary : isResourceDiffEditorInput(editor) ? editor.modifiedInput : undefined;
-		const secondaryEditor = isSideBySideEditorInput(editor) ? editor.secondary : isResourceDiffEditorInput(editor) ? editor.originalInput : undefined;
+		const primaryEditor = isSideBySideEditorInput(editor) ? editor.primary : isResourceDiffEditorInput(editor) ? editor.modified : undefined;
+		const secondaryEditor = isSideBySideEditorInput(editor) ? editor.secondary : isResourceDiffEditorInput(editor) ? editor.original : undefined;
 		if (options?.supportSideBySide && primaryEditor && secondaryEditor) {
 			if (options?.supportSideBySide === SideBySideEditor.BOTH) {
 				return {

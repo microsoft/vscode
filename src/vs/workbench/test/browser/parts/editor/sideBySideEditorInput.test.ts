@@ -68,19 +68,19 @@ suite('SideBySideEditorInput', () => {
 
 		const primaryUntypedInput = { resource: URI.file('/fake'), options: { override: 'primaryId' } };
 		const secondaryUntypedInput = { resource: URI.file('/fake2'), options: { override: 'secondaryId' } };
-		const sideBySideUntyped: IResourceDiffEditorInput = { originalInput: secondaryUntypedInput, modifiedInput: primaryUntypedInput };
+		const sideBySideUntyped: IResourceDiffEditorInput = { original: secondaryUntypedInput, modified: primaryUntypedInput };
 
 		assert.ok(sideBySideInput.matches(sideBySideUntyped));
 
 		const primaryUntypedInput2 = { resource: URI.file('/fake'), options: { override: 'primaryIdWrong' } };
 		const secondaryUntypedInput2 = { resource: URI.file('/fake2'), options: { override: 'secondaryId' } };
-		const sideBySideUntyped2: IResourceDiffEditorInput = { originalInput: secondaryUntypedInput2, modifiedInput: primaryUntypedInput2 };
+		const sideBySideUntyped2: IResourceDiffEditorInput = { original: secondaryUntypedInput2, modified: primaryUntypedInput2 };
 
 		assert.ok(!sideBySideInput.matches(sideBySideUntyped2));
 
 		const primaryUntypedInput3 = { resource: URI.file('/fake'), options: { override: 'primaryId' } };
 		const secondaryUntypedInput3 = { resource: URI.file('/fake2Wrong'), options: { override: 'secondaryId' } };
-		const sideBySideUntyped3: IResourceDiffEditorInput = { originalInput: secondaryUntypedInput3, modifiedInput: primaryUntypedInput3 };
+		const sideBySideUntyped3: IResourceDiffEditorInput = { original: secondaryUntypedInput3, modified: primaryUntypedInput3 };
 
 		assert.ok(!sideBySideInput.matches(sideBySideUntyped3));
 	});

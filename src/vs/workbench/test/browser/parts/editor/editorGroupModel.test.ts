@@ -310,12 +310,12 @@ suite('EditorGroupModel', () => {
 		const diffInput2 = instantiationService.createInstance(DiffEditorInput, 'name', 'description', input2, input1, undefined);
 
 		const untypedDiffInput1: IResourceDiffEditorInput = {
-			originalInput: untypedInput1,
-			modifiedInput: untypedInput2
+			original: untypedInput1,
+			modified: untypedInput2
 		};
 		const untypedDiffInput2: IResourceDiffEditorInput = {
-			originalInput: untypedInput2,
-			modifiedInput: untypedInput1
+			original: untypedInput2,
+			modified: untypedInput1
 		};
 
 		group.openEditor(input1, { pinned: true, active: true });

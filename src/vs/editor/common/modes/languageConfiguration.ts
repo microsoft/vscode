@@ -254,7 +254,7 @@ export interface CompleteEnterAction {
  * @internal
  */
 export class StandardAutoClosingPairConditional {
-	_standardAutoClosingPairConditionalBrand: void;
+	_standardAutoClosingPairConditionalBrand: void = undefined;
 
 	readonly open: string;
 	readonly close: string;

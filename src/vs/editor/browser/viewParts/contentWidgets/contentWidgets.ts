@@ -18,7 +18,7 @@ import { IDimension } from 'vs/editor/common/editorCommon';
 
 
 class Coordinate {
-	_coordinateBrand: void;
+	_coordinateBrand: void = undefined;
 
 	public readonly top: number;
 	public readonly left: number;

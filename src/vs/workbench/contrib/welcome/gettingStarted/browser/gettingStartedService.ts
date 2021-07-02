@@ -34,6 +34,7 @@ import { isLinux, isMacintosh, isWindows, OperatingSystem as OS } from 'vs/base/
 import { localize } from 'vs/nls';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import product from 'vs/platform/product/common/product';
 
 export const WorkspacePlatform = new RawContextKey<'mac' | 'linux' | 'windows' | undefined>('workspacePlatform', undefined, localize('workspacePlatform', "The platform of the current workspace, which in remote contexts may be different from the platform of the UI"));
 export const HasMultipleNewFileEntries = new RawContextKey<boolean>('hasMultipleNewFileEntries', false);
@@ -513,6 +514,10 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	}
 
 	private async registerExtensionNewContributions(extension: IExtensionDescription) {
+		if (product.quality === 'stable' && !this.configurationService.getValue('workbench.welcome.experimental.startEntries')) {
+			console.warn('Warning: ignoring startEntries contributed by', extension.identifier, 'becuase this is a stable build and welcome.experimental.startEntries has not been set');
+			return;
+		}
 		extension.contributes?.startEntries?.forEach(entry => {
 			this.registerNewMenuItem({
 				sourceExtensionId: extension.identifier.value,
@@ -825,7 +830,12 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		const isNew = firstSeenDate && firstSeenDate > (+new Date() - NEW_WALKTHROUGH_TIME);
 
 		const lastStepIDs = this.metadata.get(category.id)?.stepIDs;
-		const hasNewSteps = lastStepIDs && (category.content.steps.length !== lastStepIDs.length || category.content.steps.some(({ id }, index) => id !== lastStepIDs[index]));
+		const rawCategory = this.gettingStartedContributions.get(category.id);
+		let currentStepIds: string[] = [];
+		if (rawCategory?.content.type === 'steps') {
+			currentStepIds = rawCategory.content.steps.map(s => s.id);
+		}
+		const hasNewSteps = lastStepIDs && (currentStepIds.length !== lastStepIDs.length || currentStepIds.some((id, index) => id !== lastStepIDs[index]));
 
 		let priority = 0;
 
@@ -979,7 +989,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'resetGettingStartedProgress',
 			category: 'Developer',
-			title: 'Reset Welcome Page Walkthrough Progress',
+			title: 'Reset Welcome Page Getting Started Progress',
 			f1: true
 		});
 	}

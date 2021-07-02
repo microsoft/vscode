@@ -181,6 +181,7 @@ export class ElectronIframeWebview extends IFrameWebview implements WebviewFindD
 		if (!this.element) {
 			return;
 		}
+		this._iframeDelayer.cancel();
 		this._findStarted = false;
 		this._webviewMainService.stopFindInFrame({ windowId: this.nativeHostService.windowId }, this.id, {
 			keepSelection

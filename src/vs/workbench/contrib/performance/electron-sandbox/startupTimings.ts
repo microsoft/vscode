@@ -89,7 +89,7 @@ export class StartupTimings implements IWorkbenchContribution {
 		if (this._lifecycleService.startupKind !== StartupKind.NewWindow) {
 			return StartupKindToString(this._lifecycleService.startupKind);
 		}
-		if (!this._workspaceTrustService.isWorkpaceTrusted()) {
+		if (!this._workspaceTrustService.isWorkspaceTrusted()) {
 			return 'Workspace not trusted';
 		}
 		const windowCount = await this._nativeHostService.getWindowCount();
