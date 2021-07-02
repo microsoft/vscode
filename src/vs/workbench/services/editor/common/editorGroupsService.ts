@@ -6,13 +6,13 @@
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInput, IEditorPane, GroupIdentifier, IEditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IEditorMoveEvent, IEditorOpenEvent, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { isEditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
-import { isEditorInput } from 'vs/workbench/common/editor/editorInput';
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
 
@@ -111,10 +111,10 @@ export interface IEditorReplacement {
 	forceReplaceDirty?: boolean;
 }
 
-export function isEditorReplacement(obj: unknown): obj is IEditorReplacement {
-	const candidate = obj as IEditorReplacement | undefined;
+export function isEditorReplacement(replacement: unknown): replacement is IEditorReplacement {
+	const candidate = replacement as IEditorReplacement | undefined;
 
-	return !!candidate && isEditorInput(candidate.editor) && isEditorInput(candidate.replacement);
+	return isEditorInput(candidate?.editor) && isEditorInput(candidate?.replacement);
 }
 
 export const enum GroupsOrder {

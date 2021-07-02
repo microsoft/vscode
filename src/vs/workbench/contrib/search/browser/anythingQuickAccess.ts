@@ -28,6 +28,7 @@ import { localize } from 'vs/nls';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchEditorConfiguration, IEditorInput, EditorResourceAccessor } from 'vs/workbench/common/editor';
+import { isEditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -51,7 +52,6 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { Codicon } from 'vs/base/common/codicons';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { stripIcons } from 'vs/base/common/iconLabels';
-import { isEditorInput } from 'vs/workbench/common/editor/editorInput';
 
 interface IAnythingQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource { }
 
