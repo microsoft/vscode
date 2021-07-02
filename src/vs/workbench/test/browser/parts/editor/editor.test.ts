@@ -69,7 +69,7 @@ suite('Workbench editor utils', () => {
 	test('untyped check functions', () => {
 		assert.ok(!isResourceEditorInput(undefined));
 		assert.ok(!isResourceEditorInput({}));
-		assert.ok(!isResourceEditorInput({ originalInput: { resource: URI.file('/') }, modifiedInput: { resource: URI.file('/') } }));
+		assert.ok(!isResourceEditorInput({ original: { resource: URI.file('/') }, modified: { resource: URI.file('/') } }));
 		assert.ok(isResourceEditorInput({ resource: URI.file('/') }));
 
 		assert.ok(!isUntitledResourceEditorInput(undefined));
@@ -80,7 +80,7 @@ suite('Workbench editor utils', () => {
 		assert.ok(!isResourceDiffEditorInput(undefined));
 		assert.ok(!isResourceDiffEditorInput({}));
 		assert.ok(!isResourceDiffEditorInput({ resource: URI.file('/') }));
-		assert.ok(isResourceDiffEditorInput({ originalInput: { resource: URI.file('/') }, modifiedInput: { resource: URI.file('/') } }));
+		assert.ok(isResourceDiffEditorInput({ original: { resource: URI.file('/') }, modified: { resource: URI.file('/') } }));
 	});
 
 	test('EditorInputCapabilities', () => {
