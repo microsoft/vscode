@@ -57,7 +57,8 @@ export class DisassemblyView extends EditorPane {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IDebugService private readonly _debugService: IDebugService
+		@IDebugService private readonly _debugService: IDebugService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super(DISASSEMBLY_VIEW_ID, telemetryService, themeService, storageService);
 
@@ -66,6 +67,15 @@ export class DisassemblyView extends EditorPane {
 			if (e.affectsConfiguration('editor')) {
 				this._fontInfo = BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel(), getPixelRatio());
 				this._disassembledInstructions?.rerender();
+			}
+		}));
+
+		this._register(editorService.onDidActiveEditorChange(() => {
+			if (this.editorService.activeEditorPane?.getId() === `workbench.debug.disassemblyView`) {
+				this._disassemblyViewFocus.set(true);
+			}
+			else {
+				this._disassemblyViewFocus.reset();
 			}
 		}));
 
@@ -215,13 +225,6 @@ export class DisassemblyView extends EditorPane {
 			}
 			this._privousDebuggingState = e;
 		}));
-	}
-
-	override focus(): void {
-		super.focus();
-		let isFocus = this.hasFocus();
-		console.log(`DisassemblyView: Focus(${isFocus})`);
-		this._disassemblyViewFocus.set(isFocus);
 	}
 
 	layout(dimension: Dimension): void {

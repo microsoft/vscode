@@ -519,20 +519,20 @@ export class Thread implements IThread {
 		return Promise.resolve(undefined);
 	}
 
-	next(): Promise<any> {
-		return this.session.next(this.threadId);
+	next(granularity?: DebugProtocol.SteppingGranularity): Promise<any> {
+		return this.session.next(this.threadId, granularity);
 	}
 
-	stepIn(): Promise<any> {
-		return this.session.stepIn(this.threadId);
+	stepIn(granularity?: DebugProtocol.SteppingGranularity): Promise<any> {
+		return this.session.stepIn(this.threadId, undefined, granularity);
 	}
 
-	stepOut(): Promise<any> {
-		return this.session.stepOut(this.threadId);
+	stepOut(granularity?: DebugProtocol.SteppingGranularity): Promise<any> {
+		return this.session.stepOut(this.threadId, granularity);
 	}
 
-	stepBack(): Promise<any> {
-		return this.session.stepBack(this.threadId);
+	stepBack(granularity?: DebugProtocol.SteppingGranularity): Promise<any> {
+		return this.session.stepBack(this.threadId, granularity);
 	}
 
 	continue(): Promise<any> {
@@ -1244,9 +1244,9 @@ export class DebugModel implements IDebugModel {
 			if (!data) {
 				ibp.setSessionData(sessionId, undefined);
 			} else {
-				const dbpData = data.get(ibp.getId());
-				if (dbpData) {
-					ibp.setSessionData(sessionId, toBreakpointSessionData(dbpData, capabilites));
+				const ibpData = data.get(ibp.getId());
+				if (ibpData) {
+					ibp.setSessionData(sessionId, toBreakpointSessionData(ibpData, capabilites));
 				}
 			}
 		});

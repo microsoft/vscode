@@ -343,10 +343,10 @@ export interface IThread extends ITreeElement {
 	 */
 	readonly stopped: boolean;
 
-	next(): Promise<any>;
-	stepIn(): Promise<any>;
-	stepOut(): Promise<any>;
-	stepBack(): Promise<any>;
+	next(granularity?: DebugProtocol.SteppingGranularity): Promise<any>;
+	stepIn(granularity?: DebugProtocol.SteppingGranularity): Promise<any>;
+	stepOut(granularity?: DebugProtocol.SteppingGranularity): Promise<any>;
+	stepBack(granularity?: DebugProtocol.SteppingGranularity): Promise<any>;
 	continue(): Promise<any>;
 	pause(): Promise<any>;
 	terminate(): Promise<any>;
