@@ -145,6 +145,20 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		);
 	}
 
+	async openOrFocusEditor(instance: ITerminalInstance): Promise<void> {
+		const input = this.getOrCreateEditorInput(instance);
+		console.log(this._editorService.activeEditorPane?.group);
+		if (!this._editorService.activeEditorPane?.group.contains(input)) {
+			instance.focus();
+			return;
+		}
+		await this._editorService.openEditor(input, {
+			pinned: true,
+			forceReload: true
+		}
+		);
+	}
+
 	getOrCreateEditorInput(instance: ITerminalInstance | SerializedTerminalEditorInput, isFutureSplit: boolean = false): TerminalEditorInput {
 		let cachedEditor;
 		if ('id' in instance) {
