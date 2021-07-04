@@ -34,16 +34,13 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 	 */
 	async getAllMarkdownDocuments(): Promise<SkinnyTextDocument[]> {
 		const maxConcurrent = 20;
-		const docList: SkinnyTextDocument[] = [];
+		let docList: SkinnyTextDocument[] = [];
 		const resources = await vscode.workspace.findFiles('**/*.md', '**/node_modules/**');
 
-		// add 1 in case of any remaining files,
-		// ex (10 % 3) = 3, needs 1 more loop to complete
-		for (let i = 0; i < resources.length % maxConcurrent + 1; i++) {
-			const resourceBatch = resources.slice(i * maxConcurrent, (i + 1) * maxConcurrent);
-			(await Promise.all(resourceBatch.map(async doc => {
-				return await this.getMarkdownDocument(doc);
-			}))).filter((doc) => !!doc);
+		for (let i = 0; i < resources.length; i += maxConcurrent) {
+			const resourceBatch = resources.slice(i, i + maxConcurrent);
+			const documentBatch = (await Promise.all(resourceBatch.map(this.getMarkdownDocument))).filter((doc) => !!doc) as SkinnyTextDocument[];
+			docList = [...docList, ...documentBatch];
 		}
 		return docList;
 	}
