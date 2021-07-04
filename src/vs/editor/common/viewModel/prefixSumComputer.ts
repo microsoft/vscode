@@ -6,7 +6,7 @@
 import { toUint32 } from 'vs/base/common/uint';
 
 export class PrefixSumIndexOfResult {
-	_prefixSumIndexOfResultBrand: void;
+	_prefixSumIndexOfResultBrand: void = undefined;
 
 	index: number;
 	remainder: number;
@@ -85,9 +85,9 @@ export class PrefixSumComputer {
 		return true;
 	}
 
-	public removeValues(startIndex: number, cnt: number): boolean {
+	public removeValues(startIndex: number, count: number): boolean {
 		startIndex = toUint32(startIndex);
-		cnt = toUint32(cnt);
+		count = toUint32(count);
 
 		const oldValues = this.values;
 		const oldPrefixSum = this.prefixSum;
@@ -96,18 +96,18 @@ export class PrefixSumComputer {
 			return false;
 		}
 
-		let maxCnt = oldValues.length - startIndex;
-		if (cnt >= maxCnt) {
-			cnt = maxCnt;
+		let maxCount = oldValues.length - startIndex;
+		if (count >= maxCount) {
+			count = maxCount;
 		}
 
-		if (cnt === 0) {
+		if (count === 0) {
 			return false;
 		}
 
-		this.values = new Uint32Array(oldValues.length - cnt);
+		this.values = new Uint32Array(oldValues.length - count);
 		this.values.set(oldValues.subarray(0, startIndex), 0);
-		this.values.set(oldValues.subarray(startIndex + cnt), startIndex);
+		this.values.set(oldValues.subarray(startIndex + count), startIndex);
 
 		this.prefixSum = new Uint32Array(this.values.length);
 		if (startIndex - 1 < this.prefixSumValidIndex[0]) {
@@ -119,23 +119,23 @@ export class PrefixSumComputer {
 		return true;
 	}
 
-	public getTotalValue(): number {
+	public getTotalSum(): number {
 		if (this.values.length === 0) {
 			return 0;
 		}
-		return this._getAccumulatedValue(this.values.length - 1);
+		return this._getPrefixSum(this.values.length - 1);
 	}
 
-	public getAccumulatedValue(index: number): number {
+	public getPrefixSum(index: number): number {
 		if (index < 0) {
 			return 0;
 		}
 
 		index = toUint32(index);
-		return this._getAccumulatedValue(index);
+		return this._getPrefixSum(index);
 	}
 
-	private _getAccumulatedValue(index: number): number {
+	private _getPrefixSum(index: number): number {
 		if (index <= this.prefixSumValidIndex[0]) {
 			return this.prefixSum[index];
 		}
@@ -157,11 +157,11 @@ export class PrefixSumComputer {
 		return this.prefixSum[index];
 	}
 
-	public getIndexOf(accumulatedValue: number): PrefixSumIndexOfResult {
-		accumulatedValue = Math.floor(accumulatedValue); //@perf
+	public getIndexOf(sum: number): PrefixSumIndexOfResult {
+		sum = Math.floor(sum); //@perf
 
 		// Compute all sums (to get a fully valid prefixSum)
-		this.getTotalValue();
+		this.getTotalSum();
 
 		let low = 0;
 		let high = this.values.length - 1;
@@ -175,15 +175,15 @@ export class PrefixSumComputer {
 			midStop = this.prefixSum[mid];
 			midStart = midStop - this.values[mid];
 
-			if (accumulatedValue < midStart) {
+			if (sum < midStart) {
 				high = mid - 1;
-			} else if (accumulatedValue >= midStop) {
+			} else if (sum >= midStop) {
 				low = mid + 1;
 			} else {
 				break;
 			}
 		}
 
-		return new PrefixSumIndexOfResult(mid, accumulatedValue - midStart);
+		return new PrefixSumIndexOfResult(mid, sum - midStart);
 	}
 }

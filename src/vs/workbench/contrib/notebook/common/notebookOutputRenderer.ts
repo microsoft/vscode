@@ -8,7 +8,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { INotebookRendererInfo, NotebookRendererEntrypoint, NotebookRendererMatch } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookRendererInfo, NotebookRendererEntrypoint, NotebookRendererMatch, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 class DependencyList {
 	private readonly value: ReadonlySet<string>;
@@ -41,6 +41,8 @@ export class NotebookOutputRendererInfo implements INotebookRendererInfo {
 	readonly extensionId: ExtensionIdentifier;
 	readonly hardDependencies: DependencyList;
 	readonly optionalDependencies: DependencyList;
+	/** @see RendererMessagingSpec */
+	readonly messaging: RendererMessagingSpec;
 	// todo: re-add preloads in pure renderer API
 	readonly preloads: ReadonlyArray<URI> = [];
 
@@ -55,6 +57,7 @@ export class NotebookOutputRendererInfo implements INotebookRendererInfo {
 		readonly extension: IExtensionDescription;
 		readonly dependencies: readonly string[] | undefined;
 		readonly optionalDependencies: readonly string[] | undefined;
+		readonly requiresMessaging: RendererMessagingSpec | undefined;
 	}) {
 		this.id = descriptor.id;
 		this.extensionId = descriptor.extension.identifier;
@@ -72,6 +75,7 @@ export class NotebookOutputRendererInfo implements INotebookRendererInfo {
 		this.mimeTypeGlobs = this.mimeTypes.map(pattern => glob.parse(pattern));
 		this.hardDependencies = new DependencyList(descriptor.dependencies ?? Iterable.empty());
 		this.optionalDependencies = new DependencyList(descriptor.optionalDependencies ?? Iterable.empty());
+		this.messaging = descriptor.requiresMessaging ?? RendererMessagingSpec.Never;
 	}
 
 	get dependencies(): string[] {

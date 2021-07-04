@@ -37,7 +37,6 @@ import { ITextModel } from 'vs/editor/common/model';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { basename } from 'vs/base/common/path';
-import { domEvent } from 'vs/base/browser/event';
 import { ModesHoverController } from 'vs/editor/contrib/hover/hover';
 import { HoverStartMode } from 'vs/editor/contrib/hover/hoverOperation';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -47,6 +46,8 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { Expression } from 'vs/workbench/contrib/debug/common/debugModel';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { addDisposableListener } from 'vs/base/browser/dom';
+import { DomEmitter } from 'vs/base/browser/event';
 
 const LAUNCH_JSON_REGEX = /\.vscode\/launch\.json$/;
 const INLINE_VALUE_DECORATION_KEY = 'inlinevaluedecoration';
@@ -212,7 +213,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.toDispose = [];
 		this.registerListeners();
 		this.updateConfigurationWidgetVisibility();
-		this.codeEditorService.registerDecorationType(INLINE_VALUE_DECORATION_KEY, {});
+		this.codeEditorService.registerDecorationType('debug-inline-value-decoration', INLINE_VALUE_DECORATION_KEY, {});
 		this.exceptionWidgetVisible = CONTEXT_EXCEPTION_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this.toggleExceptionWidget();
 	}
@@ -284,7 +285,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				this.altListener.dispose();
 			}
 			// When the alt key is pressed show regular editor hover and hide the debug hover #84561
-			this.altListener = domEvent(document, 'keydown')(keydownEvent => {
+			this.altListener = addDisposableListener(document, 'keydown', keydownEvent => {
 				const standardKeyboardEvent = new StandardKeyboardEvent(keydownEvent);
 				if (standardKeyboardEvent.keyCode === KeyCode.Alt) {
 					this.altPressed = true;
@@ -297,7 +298,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 						hoverController.showContentHover(this.hoverRange, HoverStartMode.Immediate, false);
 					}
 
-					const listener = Event.any<KeyboardEvent | boolean>(this.hostService.onDidChangeFocus, domEvent(document, 'keyup'))(keyupEvent => {
+					const onKeyUp = new DomEmitter(document, 'keyup');
+					const listener = Event.any<KeyboardEvent | boolean>(this.hostService.onDidChangeFocus, onKeyUp.event)(keyupEvent => {
 						let standardKeyboardEvent = undefined;
 						if (keyupEvent instanceof KeyboardEvent) {
 							standardKeyboardEvent = new StandardKeyboardEvent(keyupEvent);
@@ -306,6 +308,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 							this.altPressed = false;
 							this.editor.updateOptions({ hover: { enabled: false } });
 							listener.dispose();
+							onKeyUp.dispose();
 						}
 					});
 				}
@@ -715,7 +718,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			allDecorations = decorationsPerScope.reduce((previous, current) => previous.concat(current), []);
 		}
 
-		this.editor.setDecorations(INLINE_VALUE_DECORATION_KEY, allDecorations);
+		this.editor.setDecorations('debug-inline-value-decoration', INLINE_VALUE_DECORATION_KEY, allDecorations);
 	}
 
 	dispose(): void {

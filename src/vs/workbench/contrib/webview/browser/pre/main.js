@@ -23,8 +23,14 @@ const isSafari = navigator.vendor && navigator.vendor.indexOf('Apple') > -1 &&
 	navigator.userAgent.indexOf('CriOS') === -1 &&
 	navigator.userAgent.indexOf('FxiOS') === -1;
 
+const isFirefox = (
+	navigator.userAgent &&
+	navigator.userAgent.indexOf('Firefox') >= 0
+);
+
 const searchParams = new URL(location.toString()).searchParams;
 const ID = searchParams.get('id');
+const expectedWorkerVersion = parseInt(searchParams.get('swVersion'));
 
 /**
  * Use polling to track focus of main webview and iframes within the webview
@@ -210,16 +216,16 @@ const workerReady = new Promise(async (resolve, reject) => {
 		return reject(new Error('Service Workers are not enabled in browser. Webviews will not work.'));
 	}
 
-	const expectedWorkerVersion = 1;
+	const swPath = `service-worker.js${self.location.search}`;
 
-	navigator.serviceWorker.register(`service-worker.js${self.location.search}`).then(
+	navigator.serviceWorker.register(swPath).then(
 		async registration => {
 			await navigator.serviceWorker.ready;
 
 			/**
 			 * @param {MessageEvent} event
 			 */
-			const versionHandler = (event) => {
+			const versionHandler = async (event) => {
 				if (event.data.channel !== 'version') {
 					return;
 				}
@@ -228,10 +234,16 @@ const workerReady = new Promise(async (resolve, reject) => {
 				if (event.data.version === expectedWorkerVersion) {
 					return resolve();
 				} else {
-					// If we have the wrong version, try once to unregister and re-register
-					return registration.update()
+					console.log(`Found unexpected service worker version. Found: ${event.data.version}. Expected: ${expectedWorkerVersion}`);
+					console.log(`Attempting to reload service worker`);
+
+					// If we have the wrong version, try once (and only once) to unregister and re-register
+					// Note that `.update` doesn't seem to work desktop electron at the moment so we use
+					// `unregister` and `register` here.
+					return registration.unregister()
+						.then(() => navigator.serviceWorker.register(swPath))
 						.then(() => navigator.serviceWorker.ready)
-						.finally(resolve);
+						.finally(() => { resolve(); });
 				}
 			};
 			navigator.serviceWorker.addEventListener('message', versionHandler);
@@ -511,7 +523,7 @@ export async function createWebviewManager(host) {
 	 *         readonly allowMultipleAPIAcquire: boolean;
 	 *     }
 	 *     state: any;
-	 *     resourceEndpoint: string;
+	 *     cspSource: string;
 	 * }} ContentUpdateData
 	 */
 
@@ -553,10 +565,9 @@ export async function createWebviewManager(host) {
 		} else {
 			try {
 				// Attempt to rewrite CSPs that hardcode old-style resource endpoint
-				const endpointUrl = new URL(data.resourceEndpoint);
 				const cspContent = csp.getAttribute('content');
 				if (cspContent) {
-					const newCsp = cspContent.replace(/(vscode-webview-resource|vscode-resource):(?=(\s|;|$))/g, endpointUrl.origin);
+					const newCsp = cspContent.replace(/(vscode-webview-resource|vscode-resource):(?=(\s|;|$))/g, data.cspSource);
 					csp.setAttribute('content', newCsp);
 				}
 			} catch (e) {
@@ -668,7 +679,9 @@ export async function createWebviewManager(host) {
 			newFrame.setAttribute('id', 'pending-frame');
 			newFrame.setAttribute('frameborder', '0');
 			newFrame.setAttribute('sandbox', options.allowScripts ? 'allow-scripts allow-forms allow-same-origin allow-pointer-lock allow-downloads' : 'allow-same-origin allow-pointer-lock');
-			newFrame.setAttribute('allow', options.allowScripts ? 'clipboard-read; clipboard-write;' : '');
+			if (!isFirefox) {
+				newFrame.setAttribute('allow', options.allowScripts ? 'clipboard-read; clipboard-write;' : '');
+			}
 			// We should just be able to use srcdoc, but I wasn't
 			// seeing the service worker applying properly.
 			// Fake load an empty on the correct origin and then write real html

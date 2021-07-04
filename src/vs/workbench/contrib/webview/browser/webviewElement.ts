@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isFirefox } from 'vs/base/browser/browser';
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IMenuService } from 'vs/platform/actions/common/actions';
@@ -79,9 +80,12 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		// Do not start loading the webview yet.
 		// Wait the end of the ctor when all listeners have been hooked up.
 		const element = document.createElement('iframe');
+		element.name = this.id;
 		element.className = `webview ${options.customClasses || ''}`;
 		element.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-forms', 'allow-pointer-lock', 'allow-downloads');
-		element.setAttribute('allow', 'clipboard-read; clipboard-write;');
+		if (!isFirefox) {
+			element.setAttribute('allow', 'clipboard-read; clipboard-write;');
+		}
 		element.style.border = 'none';
 		element.style.width = '100%';
 		element.style.height = '100%';
@@ -97,15 +101,18 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		this.element?.contentWindow?.focus();
 	}
 
-	protected initElement(extension: WebviewExtensionDescription | undefined, options: WebviewOptions, extraParams?: object) {
-		const params = {
+	protected initElement(extension: WebviewExtensionDescription | undefined, options: WebviewOptions, extraParams?: { [key: string]: string }) {
+		const params: { [key: string]: string } = {
 			id: this.id,
+			swVersion: String(this._expectedServiceWorkerVersion),
 			extensionId: extension?.id.value ?? '', // The extensionId and purpose in the URL are used for filtering in js-debug:
-			purpose: options.purpose,
-			serviceWorkerFetchIgnoreSubdomain: options.serviceWorkerFetchIgnoreSubdomain,
 			...extraParams,
-			'vscode-resource-origin': this.webviewResourceOrigin,
-		} as const;
+			'vscode-resource-base-authority': this.webviewRootResourceAuthority,
+		};
+
+		if (options.purpose) {
+			params.purpose = options.purpose;
+		}
 
 		const queryString = (Object.keys(params) as Array<keyof typeof params>)
 			.map((key) => `${key}=${encodeURIComponent(params[key]!)}`)

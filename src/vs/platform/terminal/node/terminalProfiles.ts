@@ -3,41 +3,44 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
 import { normalize, basename, delimiter } from 'vs/base/common/path';
 import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
 import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import * as cp from 'child_process';
 import { ILogService } from 'vs/platform/log/common/log';
 import * as pfs from 'vs/base/node/pfs';
-import { ITerminalEnvironment, ITerminalProfile, ITerminalProfileObject, ProfileSource, SafeConfigProvider, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { ITerminalEnvironment, ITerminalProfile, ITerminalProfileObject, ProfileSource, TerminalIcon, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isLinux, isWindows } from 'vs/base/common/platform';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { URI } from 'vs/base/common/uri';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 let profileSources: Map<string, IPotentialTerminalProfile> | undefined;
 
 export function detectAvailableProfiles(
+	profiles: unknown,
+	defaultProfile: unknown,
 	includeDetectedProfiles: boolean,
-	safeConfigProvider: SafeConfigProvider,
+	configurationService: IConfigurationService,
 	fsProvider?: IFsProvider,
 	logService?: ILogService,
 	variableResolver?: (text: string[]) => Promise<string[]>,
-	testPaths?: string[]
+	testPwshSourcePaths?: string[]
 ): Promise<ITerminalProfile[]> {
 	fsProvider = fsProvider || {
 		existsFile: pfs.SymlinkSupport.existsFile,
-		readFile: fs.promises.readFile
+		readFile: pfs.Promises.readFile
 	};
 	if (isWindows) {
 		return detectAvailableWindowsProfiles(
 			includeDetectedProfiles,
 			fsProvider,
 			logService,
-			safeConfigProvider(TerminalSettingId.UseWslProfiles) || true,
-			safeConfigProvider(TerminalSettingId.ProfilesWindows),
-			safeConfigProvider(TerminalSettingId.DefaultProfileWindows),
+			configurationService.getValue<boolean>(TerminalSettingId.UseWslProfiles) !== false,
+			profiles && typeof profiles === 'object' ? { ...profiles } : configurationService.getValue<{ [key: string]: ITerminalProfileObject }>(TerminalSettingId.ProfilesWindows),
+			typeof defaultProfile === 'string' ? defaultProfile : configurationService.getValue<string>(TerminalSettingId.DefaultProfileWindows),
+			testPwshSourcePaths,
 			variableResolver
 		);
 	}
@@ -45,9 +48,9 @@ export function detectAvailableProfiles(
 		fsProvider,
 		logService,
 		includeDetectedProfiles,
-		safeConfigProvider(isMacintosh ? TerminalSettingId.ProfilesMacOs : TerminalSettingId.ProfilesLinux),
-		safeConfigProvider(isMacintosh ? TerminalSettingId.DefaultProfileMacOs : TerminalSettingId.DefaultProfileLinux),
-		testPaths,
+		profiles && typeof profiles === 'object' ? { ...profiles } : configurationService.getValue<{ [key: string]: ITerminalProfileObject }>(isLinux ? TerminalSettingId.ProfilesLinux : TerminalSettingId.ProfilesMacOs),
+		typeof defaultProfile === 'string' ? defaultProfile : configurationService.getValue<string>(isLinux ? TerminalSettingId.DefaultProfileLinux : TerminalSettingId.DefaultProfileMacOs),
+		testPwshSourcePaths,
 		variableResolver
 	);
 }
@@ -59,6 +62,7 @@ async function detectAvailableWindowsProfiles(
 	useWslProfiles?: boolean,
 	configProfiles?: { [key: string]: ITerminalProfileObject },
 	defaultProfileName?: string,
+	testPwshSourcePaths?: string[],
 	variableResolver?: (text: string[]) => Promise<string[]>
 ): Promise<ITerminalProfile[]> {
 	// Determine the correct System32 path. We want to point to Sysnative
@@ -74,7 +78,7 @@ async function detectAvailableWindowsProfiles(
 		useWSLexe = true;
 	}
 
-	await initializeWindowsProfiles();
+	await initializeWindowsProfiles(testPwshSourcePaths);
 
 	const detectedProfiles: Map<string, ITerminalProfileObject> = new Map();
 
@@ -116,8 +120,10 @@ async function detectAvailableWindowsProfiles(
 	if (includeDetectedProfiles || (!includeDetectedProfiles && useWslProfiles)) {
 		try {
 			const result = await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl' : 'bash'}.exe`, defaultProfileName);
-			if (result) {
-				resultProfiles.push(...result);
+			for (const wslProfile of result) {
+				if (!configProfiles || !(wslProfile.profileName in configProfiles)) {
+					resultProfiles.push(wslProfile);
+				}
 			}
 		} catch (e) {
 			logService?.info('WSL is not installed, so could not detect WSL profiles');
@@ -150,14 +156,14 @@ async function transformToTerminalProfiles(
 			// if there are configured args, override the default ones
 			args = profile.args || source.args;
 			if (profile.icon) {
-				icon = profile.icon;
+				icon = validateIcon(profile.icon);
 			} else if (source.icon) {
 				icon = source.icon;
 			}
 		} else {
 			originalPaths = Array.isArray(profile.path) ? profile.path : [profile.path];
 			args = isWindows ? profile.args : Array.isArray(profile.args) ? profile.args : undefined;
-			icon = profile.icon || undefined;
+			icon = validateIcon(profile.icon) || undefined;
 		}
 
 		const paths = (await variableResolver?.(originalPaths)) || originalPaths.slice();
@@ -165,6 +171,7 @@ async function transformToTerminalProfiles(
 		if (validatedProfile) {
 			validatedProfile.isAutoDetected = profile.isAutoDetected;
 			validatedProfile.icon = icon;
+			validatedProfile.color = profile.color;
 			resultProfiles.push(validatedProfile);
 		} else {
 			logService?.trace('profile not validated', profileName, originalPaths);
@@ -173,8 +180,15 @@ async function transformToTerminalProfiles(
 	return resultProfiles;
 }
 
-async function initializeWindowsProfiles(): Promise<void> {
-	if (profileSources) {
+function validateIcon(icon: string | TerminalIcon | undefined): TerminalIcon | undefined {
+	if (typeof icon === 'string') {
+		return { id: icon };
+	}
+	return icon;
+}
+
+async function initializeWindowsProfiles(testPwshSourcePaths?: string[]): Promise<void> {
+	if (profileSources && !testPwshSourcePaths) {
 		return;
 	}
 
@@ -195,7 +209,7 @@ async function initializeWindowsProfiles(): Promise<void> {
 	});
 	profileSources.set('PowerShell', {
 		profileName: 'PowerShell',
-		paths: await getPowershellPaths(),
+		paths: testPwshSourcePaths || await getPowershellPaths(),
 		icon: ThemeIcon.asThemeIcon(Codicon.terminalPowershell)
 	});
 }
@@ -243,21 +257,23 @@ async function getWslProfiles(wslPath: string, defaultProfileName: string | unde
 			profileName,
 			path: wslPath,
 			args: [`-d`, `${distroName}`],
-			isDefault: profileName === defaultProfileName
+			isDefault: profileName === defaultProfileName,
+			icon: getWslIcon(distroName)
 		};
-		if (distroName.includes('Ubuntu')) {
-			profile.icon = ThemeIcon.asThemeIcon(Codicon.terminalUbuntu);
-		}
-		else if (distroName.includes('Debian')) {
-			profile.icon = ThemeIcon.asThemeIcon(Codicon.terminalDebian);
-		} else {
-			profile.icon = ThemeIcon.asThemeIcon(Codicon.terminalLinux);
-		}
-
 		// Add the profile
 		profiles.push(profile);
 	}
 	return profiles;
+}
+
+function getWslIcon(distroName: string): ThemeIcon {
+	if (distroName.includes('Ubuntu')) {
+		return ThemeIcon.asThemeIcon(Codicon.terminalUbuntu);
+	} else if (distroName.includes('Debian')) {
+		return ThemeIcon.asThemeIcon(Codicon.terminalDebian);
+	} else {
+		return ThemeIcon.asThemeIcon(Codicon.terminalLinux);
+	}
 }
 
 async function detectAvailableUnixProfiles(
@@ -273,7 +289,7 @@ async function detectAvailableUnixProfiles(
 
 	// Add non-quick launch profiles
 	if (includeDetectedProfiles) {
-		const contents = await fsProvider.readFile('/etc/shells', 'utf8');
+		const contents = (await fsProvider.readFile('/etc/shells')).toString();
 		const profiles = testPaths || contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
 		const counts: Map<string, number> = new Map();
 		for (const profile of profiles) {
@@ -338,7 +354,7 @@ async function validateProfilePaths(profileName: string, defaultProfileName: str
 
 export interface IFsProvider {
 	existsFile(path: string): Promise<boolean>,
-	readFile(path: string, options: { encoding: BufferEncoding, flag?: string | number } | BufferEncoding): Promise<string>;
+	readFile(path: string): Promise<Buffer>;
 }
 
 export interface IProfileVariableResolver {

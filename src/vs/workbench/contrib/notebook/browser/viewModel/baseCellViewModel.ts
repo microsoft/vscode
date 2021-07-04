@@ -18,6 +18,7 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
+import { Mimes } from 'vs/base/common/mime';
 
 export abstract class BaseCellViewModel extends Disposable {
 
@@ -44,6 +45,20 @@ export abstract class BaseCellViewModel extends Disposable {
 	}
 	get language() {
 		return this.model.language;
+	}
+
+	get mime(): string {
+		if (typeof this.model.mime === 'string') {
+			return this.model.mime;
+		}
+
+		switch (this.language) {
+			case 'markdown':
+				return Mimes.markdown;
+
+			default:
+				return Mimes.text;
+		}
 	}
 
 	abstract cellKind: CellKind;
@@ -144,10 +159,8 @@ export abstract class BaseCellViewModel extends Disposable {
 
 		this._register(model.onDidChangeInternalMetadata(e => {
 			this._onDidChangeState.fire({ internalMetadataChanged: true, runStateChanged: e.runStateChanged });
-		}));
-
-		this._register(this._viewContext.notebookOptions.onDidChangeOptions(e => {
-			if (e.cellStatusBarVisibility || e.insertToolbarPosition) {
+			if (e.runStateChanged || e.lastRunSuccessChanged) {
+				// Statusbar visibility may change
 				this.layoutChange({});
 			}
 		}));
@@ -159,9 +172,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		}));
 	}
 
-	getEditorStatusbarHeight() {
-		return this._viewContext.notebookOptions.computeStatusBarHeight();
-	}
+
 
 	abstract hasDynamicHeight(): boolean;
 	abstract getHeight(lineHeight: number): number;
@@ -403,7 +414,7 @@ export abstract class BaseCellViewModel extends Disposable {
 			return 0;
 		}
 
-		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding();
+		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding(this.internalMetadata);
 		return this._textEditor.getTopForLineNumber(line) + editorPadding.top;
 	}
 
@@ -412,7 +423,7 @@ export abstract class BaseCellViewModel extends Disposable {
 			return 0;
 		}
 
-		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding();
+		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding(this.internalMetadata);
 		return this._textEditor.getTopForPosition(line, column) + editorPadding.top;
 	}
 

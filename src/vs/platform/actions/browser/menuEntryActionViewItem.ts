@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./menuEntryActionViewItem';
-import { asCSSUrl, ModifierKeyEmitter } from 'vs/base/browser/dom';
-import { domEvent } from 'vs/base/browser/event';
+import { addDisposableListener, asCSSUrl, ModifierKeyEmitter } from 'vs/base/browser/dom';
 import { IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { IDisposable, toDisposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
@@ -19,6 +18,7 @@ import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { isWindows, isLinux, OS } from 'vs/base/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, primaryGroup?: string): IDisposable {
 	const groups = menu.getActions(options);
@@ -116,6 +116,10 @@ function fillInActions(
 	}
 }
 
+export interface IMenuEntryActionViewItemOptions {
+	draggable?: boolean;
+}
+
 export class MenuEntryActionViewItem extends ActionViewItem {
 
 	private _wantsAltCommand: boolean = false;
@@ -124,10 +128,12 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 
 	constructor(
 		_action: MenuItemAction,
+		options: IMenuEntryActionViewItemOptions | undefined,
 		@IKeybindingService protected readonly _keybindingService: IKeybindingService,
-		@INotificationService protected _notificationService: INotificationService
+		@INotificationService protected _notificationService: INotificationService,
+		@IContextKeyService protected _contextKeyService: IContextKeyService
 	) {
-		super(undefined, _action, { icon: !!(_action.class || _action.item.icon), label: !_action.class && !_action.item.icon });
+		super(undefined, _action, { icon: !!(_action.class || _action.item.icon), label: !_action.class && !_action.item.icon, draggable: options?.draggable });
 		this._altKey = ModifierKeyEmitter.getInstance();
 	}
 
@@ -177,12 +183,12 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			}));
 		}
 
-		this._register(domEvent(container, 'mouseleave')(_ => {
+		this._register(addDisposableListener(container, 'mouseleave', _ => {
 			mouseOver = false;
 			updateAltState();
 		}));
 
-		this._register(domEvent(container, 'mouseenter')(e => {
+		this._register(addDisposableListener(container, 'mouseenter', _ => {
 			mouseOver = true;
 			updateAltState();
 		}));
@@ -196,7 +202,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 
 	override updateTooltip(): void {
 		if (this.label) {
-			const keybinding = this._keybindingService.lookupKeybinding(this._commandAction.id);
+			const keybinding = this._keybindingService.lookupKeybinding(this._commandAction.id, this._contextKeyService);
 			const keybindingLabel = keybinding && keybinding.getLabel();
 
 			const tooltip = this._commandAction.tooltip || this._commandAction.label;
@@ -205,7 +211,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 				: tooltip;
 			if (!this._wantsAltCommand && this._menuItemAction.alt) {
 				const altTooltip = this._menuItemAction.alt.tooltip || this._menuItemAction.alt.label;
-				const altKeybinding = this._keybindingService.lookupKeybinding(this._menuItemAction.alt.id);
+				const altKeybinding = this._keybindingService.lookupKeybinding(this._menuItemAction.alt.id, this._contextKeyService);
 				const altKeybindingLabel = altKeybinding && altKeybinding.getLabel();
 				const altTitleSection = altKeybindingLabel
 					? localize('titleAndKb', "{0} ({1})", altTooltip, altKeybindingLabel)
@@ -303,7 +309,7 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
  */
 export function createActionViewItem(instaService: IInstantiationService, action: IAction): undefined | MenuEntryActionViewItem | SubmenuEntryActionViewItem {
 	if (action instanceof MenuItemAction) {
-		return instaService.createInstance(MenuEntryActionViewItem, action);
+		return instaService.createInstance(MenuEntryActionViewItem, action, undefined);
 	} else if (action instanceof SubmenuItemAction) {
 		return instaService.createInstance(SubmenuEntryActionViewItem, action);
 	} else {

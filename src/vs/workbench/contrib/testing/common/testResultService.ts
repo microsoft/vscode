@@ -65,6 +65,9 @@ export interface ITestResultService {
 	getStateById(extId: string): [results: ITestResult, item: TestResultItem] | undefined;
 }
 
+export const isRunningTests = (service: ITestResultService) =>
+	service.results.length > 0 && service.results[0].completedAt === undefined;
+
 export const ITestResultService = createDecorator<ITestResultService>('testResultService');
 
 export class TestResultService implements ITestResultService {
@@ -92,6 +95,7 @@ export class TestResultService implements ITestResultService {
 	public readonly onTestChanged = this.testChangeEmitter.event;
 
 	private readonly isRunning: IContextKey<boolean>;
+	private readonly hasAnyResults: IContextKey<boolean>;
 	private readonly loadResults = once(() => this.storage.read().then(loaded => {
 		for (let i = loaded.length - 1; i >= 0; i--) {
 			this.push(loaded[i]);
@@ -105,6 +109,7 @@ export class TestResultService implements ITestResultService {
 		@ITestResultStorage private readonly storage: ITestResultStorage,
 	) {
 		this.isRunning = TestingContextKeys.isRunning.bindTo(contextKeyService);
+		this.hasAnyResults = TestingContextKeys.hasAnyResults.bindTo(contextKeyService);
 	}
 
 	/**
@@ -145,6 +150,7 @@ export class TestResultService implements ITestResultService {
 			this.persistScheduler.schedule();
 		}
 
+		this.hasAnyResults.set(true);
 		if (this.results.length > RETAIN_MAX_RESULTS) {
 			this.results.pop();
 		}
@@ -197,6 +203,9 @@ export class TestResultService implements ITestResultService {
 
 		this._results = keep;
 		this.persistScheduler.schedule();
+		if (keep.length === 0) {
+			this.hasAnyResults.set(false);
+		}
 		this.changeResultEmitter.fire({ removed });
 	}
 
@@ -212,7 +221,7 @@ export class TestResultService implements ITestResultService {
 	}
 
 	private updateIsRunning() {
-		this.isRunning.set(this.results.length > 0 && this.results[0].completedAt === undefined);
+		this.isRunning.set(isRunningTests(this));
 	}
 
 	protected async persistImmediately() {

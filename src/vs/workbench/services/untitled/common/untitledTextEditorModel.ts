@@ -114,8 +114,8 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 
 	constructor(
-		public readonly resource: URI,
-		public readonly hasAssociatedFilePath: boolean,
+		readonly resource: URI,
+		readonly hasAssociatedFilePath: boolean,
 		private readonly initialValue: string | undefined,
 		private preferredMode: string | undefined,
 		private preferredEncoding: string | undefined,
@@ -344,6 +344,8 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 				this._onDidChangeContent.fire();
 			}
 		}
+
+		return super.resolve();
 	}
 
 	private onModelContentChanged(textEditorModel: ITextModel, e: IModelContentChangedEvent): void {

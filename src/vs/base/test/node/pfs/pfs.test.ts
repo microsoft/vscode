@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import { tmpdir } from 'os';
 import { join, sep } from 'vs/base/common/path';
 import { generateUuid } from 'vs/base/common/uuid';
-import { copy, exists, move, readdir, readDirsInDir, rimraf, RimRafMode, rimrafSync, SymlinkSupport, writeFile, writeFileSync } from 'vs/base/node/pfs';
+import { Promises, RimRafMode, rimrafSync, SymlinkSupport, writeFileSync } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { canNormalize } from 'vs/base/common/normalization';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -22,21 +22,21 @@ flakySuite('PFS', function () {
 	setup(() => {
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'pfs');
 
-		return fs.promises.mkdir(testDir, { recursive: true });
+		return Promises.mkdir(testDir, { recursive: true });
 	});
 
 	teardown(() => {
-		return rimraf(testDir);
+		return Promises.rm(testDir);
 	});
 
 	test('writeFile', async () => {
 		const testFile = join(testDir, 'writefile.txt');
 
-		assert.ok(!(await exists(testFile)));
+		assert.ok(!(await Promises.exists(testFile)));
 
-		await writeFile(testFile, 'Hello World', (null!));
+		await Promises.writeFile(testFile, 'Hello World', (null!));
 
-		assert.strictEqual((await fs.promises.readFile(testFile)).toString(), 'Hello World');
+		assert.strictEqual((await Promises.readFile(testFile)).toString(), 'Hello World');
 	});
 
 	test('writeFile - parallel write on different files works', async () => {
@@ -47,11 +47,11 @@ flakySuite('PFS', function () {
 		const testFile5 = join(testDir, 'writefile5.txt');
 
 		await Promise.all([
-			writeFile(testFile1, 'Hello World 1', (null!)),
-			writeFile(testFile2, 'Hello World 2', (null!)),
-			writeFile(testFile3, 'Hello World 3', (null!)),
-			writeFile(testFile4, 'Hello World 4', (null!)),
-			writeFile(testFile5, 'Hello World 5', (null!))
+			Promises.writeFile(testFile1, 'Hello World 1', (null!)),
+			Promises.writeFile(testFile2, 'Hello World 2', (null!)),
+			Promises.writeFile(testFile3, 'Hello World 3', (null!)),
+			Promises.writeFile(testFile4, 'Hello World 4', (null!)),
+			Promises.writeFile(testFile5, 'Hello World 5', (null!))
 		]);
 		assert.strictEqual(fs.readFileSync(testFile1).toString(), 'Hello World 1');
 		assert.strictEqual(fs.readFileSync(testFile2).toString(), 'Hello World 2');
@@ -64,11 +64,11 @@ flakySuite('PFS', function () {
 		const testFile = join(testDir, 'writefile.txt');
 
 		await Promise.all([
-			writeFile(testFile, 'Hello World 1', undefined),
-			writeFile(testFile, 'Hello World 2', undefined),
-			timeout(10).then(() => writeFile(testFile, 'Hello World 3', undefined)),
-			writeFile(testFile, 'Hello World 4', undefined),
-			timeout(10).then(() => writeFile(testFile, 'Hello World 5', undefined))
+			Promises.writeFile(testFile, 'Hello World 1', undefined),
+			Promises.writeFile(testFile, 'Hello World 2', undefined),
+			timeout(10).then(() => Promises.writeFile(testFile, 'Hello World 3', undefined)),
+			Promises.writeFile(testFile, 'Hello World 4', undefined),
+			timeout(10).then(() => Promises.writeFile(testFile, 'Hello World 5', undefined))
 		]);
 		assert.strictEqual(fs.readFileSync(testFile).toString(), 'Hello World 5');
 	});
@@ -77,7 +77,7 @@ flakySuite('PFS', function () {
 		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
 		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
 
-		await rimraf(testDir);
+		await Promises.rm(testDir);
 		assert.ok(!fs.existsSync(testDir));
 	});
 
@@ -85,7 +85,7 @@ flakySuite('PFS', function () {
 		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
 		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
 
-		await rimraf(testDir, RimRafMode.MOVE);
+		await Promises.rm(testDir, RimRafMode.MOVE);
 		assert.ok(!fs.existsSync(testDir));
 	});
 
@@ -95,7 +95,7 @@ flakySuite('PFS', function () {
 		fs.mkdirSync(join(testDir, 'somefolder'));
 		fs.writeFileSync(join(testDir, 'somefolder', 'somefile.txt'), 'Contents');
 
-		await rimraf(testDir);
+		await Promises.rm(testDir);
 		assert.ok(!fs.existsSync(testDir));
 	});
 
@@ -105,7 +105,7 @@ flakySuite('PFS', function () {
 		fs.mkdirSync(join(testDir, 'somefolder'));
 		fs.writeFileSync(join(testDir, 'somefolder', 'somefile.txt'), 'Contents');
 
-		await rimraf(testDir, RimRafMode.MOVE);
+		await Promises.rm(testDir, RimRafMode.MOVE);
 		assert.ok(!fs.existsSync(testDir));
 	});
 
@@ -113,7 +113,7 @@ flakySuite('PFS', function () {
 		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
 		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
 
-		await rimraf(testDir, RimRafMode.MOVE);
+		await Promises.rm(testDir, RimRafMode.MOVE);
 		assert.ok(!fs.existsSync(testDir));
 	});
 
@@ -121,7 +121,7 @@ flakySuite('PFS', function () {
 		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
 		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
 
-		await rimraf(`${testDir}${sep}`, RimRafMode.MOVE);
+		await Promises.rm(`${testDir}${sep}`, RimRafMode.MOVE);
 		assert.ok(!fs.existsSync(testDir));
 	});
 
@@ -161,7 +161,7 @@ flakySuite('PFS', function () {
 		const targetDir = join(parentDir, id);
 		const targetDir2 = join(parentDir, id2);
 
-		await copy(sourceDir, targetDir, { preserveSymlinks: true });
+		await Promises.copy(sourceDir, targetDir, { preserveSymlinks: true });
 
 		assert.ok(fs.existsSync(targetDir));
 		assert.ok(fs.existsSync(join(targetDir, 'index.html')));
@@ -170,7 +170,7 @@ flakySuite('PFS', function () {
 		assert.ok(fs.statSync(join(targetDir, 'examples')).isDirectory());
 		assert.ok(fs.existsSync(join(targetDir, 'examples', 'small.jxs')));
 
-		await move(targetDir, targetDir2);
+		await Promises.move(targetDir, targetDir2);
 
 		assert.ok(!fs.existsSync(targetDir));
 		assert.ok(fs.existsSync(targetDir2));
@@ -180,12 +180,12 @@ flakySuite('PFS', function () {
 		assert.ok(fs.statSync(join(targetDir2, 'examples')).isDirectory());
 		assert.ok(fs.existsSync(join(targetDir2, 'examples', 'small.jxs')));
 
-		await move(join(targetDir2, 'index.html'), join(targetDir2, 'index_moved.html'));
+		await Promises.move(join(targetDir2, 'index.html'), join(targetDir2, 'index_moved.html'));
 
 		assert.ok(!fs.existsSync(join(targetDir2, 'index.html')));
 		assert.ok(fs.existsSync(join(targetDir2, 'index_moved.html')));
 
-		await rimraf(parentDir);
+		await Promises.rm(parentDir);
 
 		assert.ok(!fs.existsSync(parentDir));
 	});
@@ -200,7 +200,7 @@ flakySuite('PFS', function () {
 		const id3 = generateUuid();
 		const copyTarget = join(testDir, id3);
 
-		await fs.promises.mkdir(symbolicLinkTarget, { recursive: true });
+		await Promises.mkdir(symbolicLinkTarget, { recursive: true });
 
 		fs.symlinkSync(symbolicLinkTarget, symLink, 'junction');
 
@@ -209,7 +209,7 @@ flakySuite('PFS', function () {
 		// Windows: this test does not work because creating symlinks
 		// requires priviledged permissions (admin).
 		if (!isWindows) {
-			await copy(symLink, copyTarget, { preserveSymlinks: true });
+			await Promises.copy(symLink, copyTarget, { preserveSymlinks: true });
 
 			assert.ok(fs.existsSync(copyTarget));
 
@@ -217,13 +217,13 @@ flakySuite('PFS', function () {
 			assert.ok(symbolicLink);
 			assert.ok(!symbolicLink.dangling);
 
-			const target = await fs.promises.readlink(copyTarget);
+			const target = await Promises.readlink(copyTarget);
 			assert.strictEqual(target, symbolicLinkTarget);
 
 			// Copy does not preserve symlinks if configured as such
 
-			await rimraf(copyTarget);
-			await copy(symLink, copyTarget, { preserveSymlinks: false });
+			await Promises.rm(copyTarget);
+			await Promises.copy(symLink, copyTarget, { preserveSymlinks: false });
 
 			assert.ok(fs.existsSync(copyTarget));
 
@@ -233,10 +233,10 @@ flakySuite('PFS', function () {
 
 		// Copy does not fail over dangling symlinks
 
-		await rimraf(copyTarget);
-		await rimraf(symbolicLinkTarget);
+		await Promises.rm(copyTarget);
+		await Promises.rm(symbolicLinkTarget);
 
-		await copy(symLink, copyTarget, { preserveSymlinks: true }); // this should not throw
+		await Promises.copy(symLink, copyTarget, { preserveSymlinks: true }); // this should not throw
 
 		if (!isWindows) {
 			const { symbolicLink } = await SymlinkSupport.stat(copyTarget);
@@ -253,8 +253,8 @@ flakySuite('PFS', function () {
 		const sourceLinkTestFolder = join(sourceFolder, 'link-test');		// copy-test/link-test
 		const sourceLinkMD5JSFolder = join(sourceLinkTestFolder, 'md5');	// copy-test/link-test/md5
 		const sourceLinkMD5JSFile = join(sourceLinkMD5JSFolder, 'md5.js');	// copy-test/link-test/md5/md5.js
-		await fs.promises.mkdir(sourceLinkMD5JSFolder, { recursive: true });
-		await writeFile(sourceLinkMD5JSFile, 'Hello from MD5');
+		await Promises.mkdir(sourceLinkMD5JSFolder, { recursive: true });
+		await Promises.writeFile(sourceLinkMD5JSFile, 'Hello from MD5');
 
 		const sourceLinkMD5JSFolderLinked = join(sourceLinkTestFolder, 'md5-linked');	// copy-test/link-test/md5-linked
 		fs.symlinkSync(sourceLinkMD5JSFolder, sourceLinkMD5JSFolderLinked, 'junction');
@@ -270,7 +270,7 @@ flakySuite('PFS', function () {
 		// Windows: this test does not work because creating symlinks
 		// requires priviledged permissions (admin).
 		if (!isWindows) {
-			await copy(sourceLinkTestFolder, targetLinkTestFolder, { preserveSymlinks: true });
+			await Promises.copy(sourceLinkTestFolder, targetLinkTestFolder, { preserveSymlinks: true });
 
 			assert.ok(fs.existsSync(targetLinkTestFolder));
 			assert.ok(fs.existsSync(targetLinkMD5JSFolder));
@@ -278,14 +278,14 @@ flakySuite('PFS', function () {
 			assert.ok(fs.existsSync(targetLinkMD5JSFolderLinked));
 			assert.ok(fs.lstatSync(targetLinkMD5JSFolderLinked).isSymbolicLink());
 
-			const linkTarget = await fs.promises.readlink(targetLinkMD5JSFolderLinked);
+			const linkTarget = await Promises.readlink(targetLinkMD5JSFolderLinked);
 			assert.strictEqual(linkTarget, targetLinkMD5JSFolder);
 
-			await fs.promises.rmdir(targetLinkTestFolder, { recursive: true });
+			await Promises.rmdir(targetLinkTestFolder, { recursive: true });
 		}
 
 		// Copy with `preserveSymlinks: false` and verify result
-		await copy(sourceLinkTestFolder, targetLinkTestFolder, { preserveSymlinks: false });
+		await Promises.copy(sourceLinkTestFolder, targetLinkTestFolder, { preserveSymlinks: false });
 
 		assert.ok(fs.existsSync(targetLinkTestFolder));
 		assert.ok(fs.existsSync(targetLinkMD5JSFolder));
@@ -301,7 +301,7 @@ flakySuite('PFS', function () {
 		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
 		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
 
-		const result = await readDirsInDir(testDir);
+		const result = await Promises.readDirsInDir(testDir);
 		assert.strictEqual(result.length, 3);
 		assert.ok(result.indexOf('somefolder1') !== -1);
 		assert.ok(result.indexOf('somefolder2') !== -1);
@@ -315,7 +315,7 @@ flakySuite('PFS', function () {
 		const id2 = generateUuid();
 		const symbolicLink = join(testDir, id2);
 
-		await fs.promises.mkdir(directory, { recursive: true });
+		await Promises.mkdir(directory, { recursive: true });
 
 		fs.symlinkSync(directory, symbolicLink, 'junction');
 
@@ -334,11 +334,11 @@ flakySuite('PFS', function () {
 		const id2 = generateUuid();
 		const symbolicLink = join(testDir, id2);
 
-		await fs.promises.mkdir(directory, { recursive: true });
+		await Promises.mkdir(directory, { recursive: true });
 
 		fs.symlinkSync(directory, symbolicLink, 'junction');
 
-		await rimraf(directory);
+		await Promises.rm(directory);
 
 		const statAndIsLink = await SymlinkSupport.stat(symbolicLink);
 		assert.ok(statAndIsLink?.symbolicLink);
@@ -350,11 +350,11 @@ flakySuite('PFS', function () {
 			const id = generateUuid();
 			const newDir = join(testDir, 'pfs', id, 'öäü');
 
-			await fs.promises.mkdir(newDir, { recursive: true });
+			await Promises.mkdir(newDir, { recursive: true });
 
 			assert.ok(fs.existsSync(newDir));
 
-			const children = await readdir(join(testDir, 'pfs', id));
+			const children = await Promises.readdir(join(testDir, 'pfs', id));
 			assert.strictEqual(children.some(n => n === 'öäü'), true); // Mac always converts to NFD, so
 		}
 	});
@@ -362,13 +362,13 @@ flakySuite('PFS', function () {
 	test('readdir (with file types)', async () => {
 		if (canNormalize && typeof process.versions['electron'] !== 'undefined' /* needs electron */) {
 			const newDir = join(testDir, 'öäü');
-			await fs.promises.mkdir(newDir, { recursive: true });
+			await Promises.mkdir(newDir, { recursive: true });
 
-			await writeFile(join(testDir, 'somefile.txt'), 'contents');
+			await Promises.writeFile(join(testDir, 'somefile.txt'), 'contents');
 
 			assert.ok(fs.existsSync(newDir));
 
-			const children = await readdir(testDir, { withFileTypes: true });
+			const children = await Promises.readdir(testDir, { withFileTypes: true });
 
 			assert.strictEqual(children.some(n => n.name === 'öäü'), true); // Mac always converts to NFD, so
 			assert.strictEqual(children.some(n => n.isDirectory()), true);
@@ -409,10 +409,10 @@ flakySuite('PFS', function () {
 
 		assert.ok(fs.existsSync(testDir));
 
-		await writeFile(testFile, smallData);
+		await Promises.writeFile(testFile, smallData);
 		assert.strictEqual(fs.readFileSync(testFile).toString(), smallDataValue);
 
-		await writeFile(testFile, bigData);
+		await Promises.writeFile(testFile, bigData);
 		assert.strictEqual(fs.readFileSync(testFile).toString(), bigDataValue);
 	}
 
@@ -423,7 +423,7 @@ flakySuite('PFS', function () {
 
 		let expectedError: Error | undefined;
 		try {
-			await writeFile(testFile, 'Hello World');
+			await Promises.writeFile(testFile, 'Hello World');
 		} catch (error) {
 			expectedError = error;
 		}

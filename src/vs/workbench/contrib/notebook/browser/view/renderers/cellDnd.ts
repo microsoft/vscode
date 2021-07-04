@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import * as DOM from 'vs/base/browser/dom';
-import { domEvent } from 'vs/base/browser/event';
 import { Delayer } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
@@ -49,8 +47,8 @@ export class CellDragAndDropController extends Disposable {
 
 		this.listInsertionIndicator = DOM.append(insertionIndicatorContainer, $('.cell-list-insertion-indicator'));
 
-		this._register(domEvent(document.body, DOM.EventType.DRAG_START, true)(this.onGlobalDragStart.bind(this)));
-		this._register(domEvent(document.body, DOM.EventType.DRAG_END, true)(this.onGlobalDragEnd.bind(this)));
+		this._register(DOM.addDisposableListener(document.body, DOM.EventType.DRAG_START, this.onGlobalDragStart.bind(this), true));
+		this._register(DOM.addDisposableListener(document.body, DOM.EventType.DRAG_END, this.onGlobalDragEnd.bind(this), true));
 
 		const addCellDragListener = (eventType: string, handler: (e: CellDragEvent) => void) => {
 			this._register(DOM.addDisposableListener(
@@ -156,8 +154,8 @@ export class CellDragAndDropController extends Disposable {
 	}
 
 	private updateInsertIndicator(dropDirection: string, insertionIndicatorAbsolutePos: number) {
-		const layoutInfo = this.notebookEditor.notebookOptions.getLayoutConfiguration();
-		const insertionIndicatorTop = insertionIndicatorAbsolutePos - this.list.scrollTop + layoutInfo.bottomToolbarGap / 2;
+		const { bottomToolbarGap } = this.notebookEditor.notebookOptions.computeBottomToolbarDimensions(this.notebookEditor.textModel?.viewType);
+		const insertionIndicatorTop = insertionIndicatorAbsolutePos - this.list.scrollTop + bottomToolbarGap / 2;
 		if (insertionIndicatorTop >= 0) {
 			this.listInsertionIndicator.style.top = `${insertionIndicatorTop}px`;
 			this.setInsertIndicatorVisibility(true);
@@ -195,12 +193,12 @@ export class CellDragAndDropController extends Disposable {
 		}
 	}
 
-	private _dropImpl(draggedCell: ICellViewModel, dropDirection: 'above' | 'below', ctx: { ctrlKey: boolean, altKey: boolean }, draggedOverCell: ICellViewModel) {
+	private _dropImpl(draggedCell: ICellViewModel, dropDirection: 'above' | 'below', ctx: { ctrlKey: boolean, altKey: boolean; }, draggedOverCell: ICellViewModel) {
 		const cellTop = this.list.getAbsoluteTopOfElement(draggedOverCell);
 		const cellHeight = this.list.elementHeight(draggedOverCell);
 		const insertionIndicatorAbsolutePos = dropDirection === 'above' ? cellTop : cellTop + cellHeight;
-		const layoutInfo = this.notebookEditor.notebookOptions.getLayoutConfiguration();
-		const insertionIndicatorTop = insertionIndicatorAbsolutePos - this.list.scrollTop + layoutInfo.bottomToolbarGap / 2;
+		const { bottomToolbarGap } = this.notebookEditor.notebookOptions.computeBottomToolbarDimensions(this.notebookEditor.textModel?.viewType);
+		const insertionIndicatorTop = insertionIndicatorAbsolutePos - this.list.scrollTop + bottomToolbarGap / 2;
 		const editorHeight = this.notebookEditor.getDomNode().getBoundingClientRect().height;
 		if (insertionIndicatorTop < 0 || insertionIndicatorTop > editorHeight) {
 			// Ignore drop, insertion point is off-screen
@@ -300,14 +298,22 @@ export class CellDragAndDropController extends Disposable {
 		const container = templateData.container;
 		dragHandle.setAttribute('draggable', 'true');
 
-		templateData.disposables.add(domEvent(dragHandle, DOM.EventType.DRAG_END)(() => {
+		templateData.disposables.add(DOM.addDisposableListener(dragHandle, DOM.EventType.DRAG_END, () => {
+			if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled || !!this.notebookEditor.viewModel?.options.isReadOnly) {
+				return;
+			}
+
 			// Note, templateData may have a different element rendered into it by now
 			container.classList.remove(DRAGGING_CLASS);
 			this.dragCleanup();
 		}));
 
-		templateData.disposables.add(domEvent(dragHandle, DOM.EventType.DRAG_START)(event => {
+		templateData.disposables.add(DOM.addDisposableListener(dragHandle, DOM.EventType.DRAG_START, event => {
 			if (!event.dataTransfer) {
+				return;
+			}
+
+			if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled || !!this.notebookEditor.viewModel?.options.isReadOnly) {
 				return;
 			}
 
@@ -324,11 +330,19 @@ export class CellDragAndDropController extends Disposable {
 	}
 
 	public startExplicitDrag(cell: ICellViewModel, _dragOffsetY: number) {
+		if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled || !!this.notebookEditor.viewModel?.options.isReadOnly) {
+			return;
+		}
+
 		this.currentDraggedCell = cell;
 		this.setInsertIndicatorVisibility(true);
 	}
 
 	public explicitDrag(cell: ICellViewModel, dragOffsetY: number) {
+		if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled || !!this.notebookEditor.viewModel?.options.isReadOnly) {
+			return;
+		}
+
 		const target = this.list.elementAt(dragOffsetY);
 		if (target && target !== cell) {
 			const cellTop = this.list.getAbsoluteTopOfElement(target);
@@ -364,7 +378,7 @@ export class CellDragAndDropController extends Disposable {
 		this.setInsertIndicatorVisibility(false);
 	}
 
-	public explicitDrop(cell: ICellViewModel, ctx: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean }) {
+	public explicitDrop(cell: ICellViewModel, ctx: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean; }) {
 		this.currentDraggedCell = undefined;
 		this.setInsertIndicatorVisibility(false);
 

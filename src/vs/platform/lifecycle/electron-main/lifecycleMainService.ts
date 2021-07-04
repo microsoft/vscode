@@ -20,6 +20,11 @@ import { cwd } from 'vs/base/common/process';
 
 export const ILifecycleMainService = createDecorator<ILifecycleMainService>('lifecycleMainService');
 
+export const enum LoadReason {
+	LOAD = 1,
+	RELOAD = 2
+}
+
 export const enum UnloadReason {
 	CLOSE = 1,
 	QUIT = 2,
@@ -30,6 +35,7 @@ export const enum UnloadReason {
 export interface IWindowLoadEvent {
 	window: ICodeWindow;
 	workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined;
+	reason: LoadReason;
 }
 
 export interface IWindowUnloadEvent {
@@ -357,7 +363,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		this.windowCounter++;
 
 		// Window Will Load
-		windowListeners.add(window.onWillLoad(e => this._onWillLoadWindow.fire({ window, workspace: e.workspace })));
+		windowListeners.add(window.onWillLoad(e => this._onWillLoadWindow.fire({ window, workspace: e.workspace, reason: e.isReload ? LoadReason.RELOAD : LoadReason.LOAD })));
 
 		// Window Before Closing: Main -> Renderer
 		const win = assertIsDefined(window.win);

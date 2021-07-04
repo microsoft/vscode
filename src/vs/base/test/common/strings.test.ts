@@ -113,6 +113,17 @@ suite('Strings', () => {
 		assert.strictEqual(strings.format('Foo {0} Bar. {1}', '(foo)', '.test'), 'Foo (foo) Bar. .test');
 	});
 
+	test('format2', () => {
+		assert.strictEqual(strings.format2('Foo Bar', {}), 'Foo Bar');
+		assert.strictEqual(strings.format2('Foo {oops} Bar', {}), 'Foo {oops} Bar');
+		assert.strictEqual(strings.format2('Foo {foo} Bar', { foo: 'bar' }), 'Foo bar Bar');
+		assert.strictEqual(strings.format2('Foo {foo} Bar {foo}', { foo: 'bar' }), 'Foo bar Bar bar');
+		assert.strictEqual(strings.format2('Foo {foo} Bar {bar}{boo}', { foo: 'bar' }), 'Foo bar Bar {bar}{boo}');
+		assert.strictEqual(strings.format2('Foo {foo} Bar {bar}{boo}', { foo: 'bar', bar: 'undefined' }), 'Foo bar Bar undefined{boo}');
+		assert.strictEqual(strings.format2('Foo {foo} Bar {bar}{boo}', { foo: 'bar', bar: '5', boo: false }), 'Foo bar Bar 5false');
+		assert.strictEqual(strings.format2('Foo {foo} Bar. {bar}', { foo: '(foo)', bar: '.test' }), 'Foo (foo) Bar. .test');
+	});
+
 	test('lcut', () => {
 		assert.strictEqual(strings.lcut('foo bar', 0), '');
 		assert.strictEqual(strings.lcut('foo bar', 1), 'bar');

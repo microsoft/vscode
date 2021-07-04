@@ -25,7 +25,7 @@ import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remot
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WebviewPortMappingManager } from 'vs/platform/webview/common/webviewPortMapping';
-import { asWebviewUri, webviewResourceOrigin } from 'vs/workbench/api/common/shared/webview';
+import { asWebviewUri, webviewGenericCspSource, webviewRootResourceAuthority } from 'vs/workbench/api/common/shared/webview';
 import { loadLocalResource, WebviewResourceResponse } from 'vs/workbench/contrib/webview/browser/resourceLoading';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { areWebviewContentOptionsEqual, WebviewContentOptions, WebviewExtensionDescription, WebviewMessageReceivedEvent, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
@@ -83,6 +83,8 @@ namespace WebviewState {
 
 export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
+	protected readonly _expectedServiceWorkerVersion = 2; // Keep this in sync with the version in service-worker.js
+
 	private _element: T | undefined;
 	protected get element(): T | undefined { return this._element; }
 
@@ -105,14 +107,17 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	protected readonly _environmentService: IWorkbenchEnvironmentService;
 	private _contextKeyService: IContextKeyService | undefined;
 
-	private readonly _focusDelayer = this._register(new ThrottledDelayer(10));
+	private readonly _focusDelayer = this._register(new ThrottledDelayer(50));
+
+	private readonly _onDidHtmlChange: Emitter<string> = this._register(new Emitter<string>());
+	protected readonly onDidHtmlChange = this._onDidHtmlChange.event;
 
 	constructor(
 		public readonly id: string,
 		private readonly options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
 		public extension: WebviewExtensionDescription | undefined,
-		private readonly webviewThemeDataProvider: WebviewThemeDataProvider,
+		protected readonly webviewThemeDataProvider: WebviewThemeDataProvider,
 		services: {
 			contextMenuService: IContextMenuService,
 			environmentService: IWorkbenchEnvironmentService,
@@ -239,21 +244,22 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			});
 		}));
 
-		this._register(this.on(WebviewMessageChannels.loadResource, (entry: { id: number, path: string, query: string, ifNoneMatch?: string }) => {
-			const rawPath = entry.path;
-			// scheme / path-authority / ...path
-			const match = rawPath.match(/^\/([^\/]*)\/([^\/]*)(\/.+)$/);
-			if (!match) {
-				throw new Error('Could not parse resource url');
+		this._register(this.on(WebviewMessageChannels.loadResource, (entry: { id: number, path: string, query: string, scheme: string, authority: string, ifNoneMatch?: string }) => {
+			try {
+				const uri = URI.from({
+					scheme: entry.scheme,
+					authority: entry.authority,
+					path: decodeURIComponent(entry.path), // This gets re-encoded
+					query: entry.query ? decodeURIComponent(entry.query) : entry.query,
+				});
+				this.loadResource(entry.id, uri, entry.ifNoneMatch);
+			} catch (e) {
+				this._send('did-load-resource', {
+					id: entry.id,
+					status: 404,
+					path: entry.path,
+				});
 			}
-
-			const [_, scheme, pathAuthority, paths] = match;
-
-			const uri = URI.parse(`${scheme}://${decodeURIComponent(pathAuthority)}${paths}`).with({
-				query: decodeURIComponent(entry.query),
-			});
-
-			this.loadResource(entry.id, rawPath, uri, entry.ifNoneMatch);
 		}));
 
 		this._register(this.on(WebviewMessageChannels.loadLocalhost, (entry: any) => {
@@ -372,29 +378,31 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			options: this.content.options,
 			state: this.content.state,
 		});
+		this._onDidHtmlChange.fire(value);
 	}
 
-	protected get webviewResourceOrigin(): string {
-		return webviewResourceOrigin(this.id);
+	protected get webviewRootResourceAuthority(): string {
+		return webviewRootResourceAuthority;
 	}
 
 	private rewriteVsCodeResourceUrls(value: string): string {
+		const isRemote = this.extension?.location.scheme === Schemas.vscodeRemote;
 		const remoteAuthority = this.extension?.location.scheme === Schemas.vscodeRemote ? this.extension.location.authority : undefined;
 		return value
 			.replace(/(["'])(?:vscode-resource):(\/\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (_match, startQuote, _1, scheme, path, endQuote) => {
 				const uri = URI.from({
 					scheme: scheme || 'file',
-					path: path,
+					path: decodeURIComponent(path),
 				});
-				const webviewUri = asWebviewUri(this.id, uri, remoteAuthority).toString();
+				const webviewUri = asWebviewUri(uri, { isRemote, authority: remoteAuthority }).toString();
 				return `${startQuote}${webviewUri}${endQuote}`;
 			})
 			.replace(/(["'])(?:vscode-webview-resource):(\/\/[^\s\/'"]+\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (_match, startQuote, _1, scheme, path, endQuote) => {
 				const uri = URI.from({
 					scheme: scheme || 'file',
-					path: path,
+					path: decodeURIComponent(path),
 				});
-				const webviewUri = asWebviewUri(this.id, uri, remoteAuthority).toString();
+				const webviewUri = asWebviewUri(uri, { isRemote, authority: remoteAuthority }).toString();
 				return `${startQuote}${webviewUri}${endQuote}`;
 			});
 	}
@@ -442,7 +450,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			contents: this.content.html,
 			options: this.content.options,
 			state: this.content.state,
-			resourceEndpoint: this.webviewResourceOrigin,
+			cspSource: webviewGenericCspSource,
 			...this.extraContentOptions
 		});
 	}
@@ -521,7 +529,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		}
 	}
 
-	private async loadResource(id: number, requestPath: string, uri: URI, ifNoneMatch: string | undefined) {
+	private async loadResource(id: number, uri: URI, ifNoneMatch: string | undefined) {
 		try {
 			const result = await loadLocalResource(uri, {
 				ifNoneMatch,
@@ -535,10 +543,11 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 						return this._send('did-load-resource', {
 							id,
 							status: 200,
-							path: requestPath,
+							path: uri.path,
 							mime: result.mimeType,
 							data: buffer,
 							etag: result.etag,
+							mtime: result.mtime
 						});
 					}
 				case WebviewResourceResponse.Type.NotModified:
@@ -546,8 +555,9 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 						return this._send('did-load-resource', {
 							id,
 							status: 304, // not modified
-							path: requestPath,
+							path: uri.path,
 							mime: result.mimeType,
+							mtime: result.mtime
 						});
 					}
 				case WebviewResourceResponse.Type.AccessDenied:
@@ -555,7 +565,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 						return this._send('did-load-resource', {
 							id,
 							status: 401, // unauthorized
-							path: requestPath,
+							path: uri.path,
 						});
 					}
 			}
@@ -566,7 +576,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		return this._send('did-load-resource', {
 			id,
 			status: 404,
-			path: requestPath
+			path: uri.path,
 		});
 	}
 

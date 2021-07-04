@@ -5,7 +5,6 @@
 import * as osLib from 'os';
 import { virtualMachineHint } from 'vs/base/node/id';
 import { IDiagnosticsService, IMachineInfo, WorkspaceStats, WorkspaceStatItem, PerformanceInfo, SystemInfo, IRemoteDiagnosticInfo, IRemoteDiagnosticError, isRemoteDiagnosticError, IWorkspaceInformation } from 'vs/platform/diagnostics/common/diagnostics';
-import { exists, readFile } from 'fs';
 import { join, basename } from 'vs/base/common/path';
 import { parse, ParseError, getNodeType } from 'vs/base/common/json';
 import { listProcesses } from 'vs/base/node/ps';
@@ -18,7 +17,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Iterable } from 'vs/base/common/iterator';
 import { Schemas } from 'vs/base/common/network';
 import { ByteSize } from 'vs/platform/files/common/files';
-import { IDirent, readdir } from 'vs/base/node/pfs';
+import { IDirent, Promises } from 'vs/base/node/pfs';
 
 export interface VersionInfo {
 	vscodeVersion: string;
@@ -70,7 +69,7 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 		return new Promise(async resolve => {
 			let files: IDirent[];
 			try {
-				files = await readdir(dir, { withFileTypes: true });
+				files = await Promises.readdir(dir, { withFileTypes: true });
 			} catch (error) {
 				// Ignore folders that can't be read
 				resolve();
@@ -168,45 +167,37 @@ export function getMachineInfo(): IMachineInfo {
 	return machineInfo;
 }
 
-export function collectLaunchConfigs(folder: string): Promise<WorkspaceStatItem[]> {
-	let launchConfigs = new Map<string, number>();
+export async function collectLaunchConfigs(folder: string): Promise<WorkspaceStatItem[]> {
+	try {
+		const launchConfigs = new Map<string, number>();
+		const launchConfig = join(folder, '.vscode', 'launch.json');
 
-	let launchConfig = join(folder, '.vscode', 'launch.json');
-	return new Promise((resolve, reject) => {
-		exists(launchConfig, (doesExist) => {
-			if (doesExist) {
-				readFile(launchConfig, (err, contents) => {
-					if (err) {
-						return resolve([]);
+		const contents = await Promises.readFile(launchConfig);
+
+		const errors: ParseError[] = [];
+		const json = parse(contents.toString(), errors);
+		if (errors.length) {
+			console.log(`Unable to parse ${launchConfig}`);
+			return [];
+		}
+
+		if (getNodeType(json) === 'object' && json['configurations']) {
+			for (const each of json['configurations']) {
+				const type = each['type'];
+				if (type) {
+					if (launchConfigs.has(type)) {
+						launchConfigs.set(type, launchConfigs.get(type)! + 1);
+					} else {
+						launchConfigs.set(type, 1);
 					}
-
-					const errors: ParseError[] = [];
-					const json = parse(contents.toString(), errors);
-					if (errors.length) {
-						console.log(`Unable to parse ${launchConfig}`);
-						return resolve([]);
-					}
-
-					if (getNodeType(json) === 'object' && json['configurations']) {
-						for (const each of json['configurations']) {
-							const type = each['type'];
-							if (type) {
-								if (launchConfigs.has(type)) {
-									launchConfigs.set(type, launchConfigs.get(type)! + 1);
-								} else {
-									launchConfigs.set(type, 1);
-								}
-							}
-						}
-					}
-
-					return resolve(asSortedItems(launchConfigs));
-				});
-			} else {
-				return resolve([]);
+				}
 			}
-		});
-	});
+		}
+
+		return asSortedItems(launchConfigs);
+	} catch (error) {
+		return [];
+	}
 }
 
 export class DiagnosticsService implements IDiagnosticsService {

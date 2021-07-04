@@ -12,6 +12,7 @@ steps:
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
+      SecretsFilter: 'builds-docdb-key-readwrite'
 
   - script: |
       set -e

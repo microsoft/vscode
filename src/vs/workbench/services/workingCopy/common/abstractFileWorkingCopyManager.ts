@@ -11,9 +11,9 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IBaseFileWorkingCopy, IBaseFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/abstractFileWorkingCopy';
+import { IFileWorkingCopy, IFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 
-export interface IBaseFileWorkingCopyManager<M extends IBaseFileWorkingCopyModel, W extends IBaseFileWorkingCopy<M>> extends IDisposable {
+export interface IBaseFileWorkingCopyManager<M extends IFileWorkingCopyModel, W extends IFileWorkingCopy<M>> extends IDisposable {
 
 	/**
 	 * An event for when a file working copy was created.
@@ -44,7 +44,7 @@ export interface IBaseFileWorkingCopyManager<M extends IBaseFileWorkingCopyModel
 	destroy(): Promise<void>;
 }
 
-export abstract class BaseFileWorkingCopyManager<M extends IBaseFileWorkingCopyModel, W extends IBaseFileWorkingCopy<M>> extends Disposable implements IBaseFileWorkingCopyManager<M, W> {
+export abstract class BaseFileWorkingCopyManager<M extends IFileWorkingCopyModel, W extends IFileWorkingCopy<M>> extends Disposable implements IBaseFileWorkingCopyManager<M, W> {
 
 	private readonly _onDidCreate = this._register(new Emitter<W>());
 	readonly onDidCreate = this._onDidCreate.event;

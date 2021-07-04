@@ -36,12 +36,11 @@ export class TerminalDecorationsProvider implements IDecorationsProvider {
 			return undefined;
 		}
 
-		const instanceId = parseInt(resource.fragment);
-		if (!instanceId) {
+		const instance = this._terminalService.getInstanceFromResource(resource);
+		if (!instance) {
 			return undefined;
 		}
 
-		const instance = this._terminalService.getInstanceFromId(parseInt(resource.fragment));
 		const primaryStatus = instance?.statusList?.primary;
 		if (!primaryStatus?.icon) {
 			return undefined;

@@ -6,10 +6,9 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { VSBufferReadableStream } from 'vs/base/common/buffer';
 import { IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IBaseFileWorkingCopy, IBaseFileWorkingCopyModel, IBaseFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/abstractFileWorkingCopy';
+import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ISaveOptions } from 'vs/workbench/common/editor';
@@ -21,7 +20,7 @@ import { emptyStream } from 'vs/base/common/stream';
 /**
  * Untitled file specific working copy model factory.
  */
-export interface IUntitledFileWorkingCopyModelFactory<M extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopyModelFactory<M> { }
+export interface IUntitledFileWorkingCopyModelFactory<M extends IUntitledFileWorkingCopyModel> extends IFileWorkingCopyModelFactory<M> { }
 
 /**
  * The underlying model of a untitled file working copy provides
@@ -29,7 +28,7 @@ export interface IUntitledFileWorkingCopyModelFactory<M extends IUntitledFileWor
  * The model is typically only available after the working copy
  * has been resolved via it's `resolve()` method.
  */
-export interface IUntitledFileWorkingCopyModel extends IBaseFileWorkingCopyModel {
+export interface IUntitledFileWorkingCopyModel extends IFileWorkingCopyModel {
 
 	readonly onDidChangeContent: Event<IUntitledFileWorkingCopyModelContentChangedEvent>;
 }
@@ -37,15 +36,15 @@ export interface IUntitledFileWorkingCopyModel extends IBaseFileWorkingCopyModel
 export interface IUntitledFileWorkingCopyModelContentChangedEvent {
 
 	/**
-	 * Flag that indicates that the content change
-	 * resulted in empty contents. A untitled file
-	 * working copy without contents may be marked
-	 * as non-dirty.
+	 * Flag that indicates that the content change should
+	 * clear the dirty flag, e.g. because the contents are
+	 * back to being empty or back to an initial state that
+	 * should not be considered as dirty.
 	 */
-	readonly isEmpty: boolean;
+	readonly isInitial: boolean;
 }
 
-export interface IUntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopy<M> {
+export interface IUntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> extends IFileWorkingCopy<M> {
 
 	/**
 	 * Whether this untitled file working copy model has an associated file path.
@@ -74,9 +73,26 @@ export interface IUntitledFileWorkingCopySaveDelegate<M extends IUntitledFileWor
 	(workingCopy: IUntitledFileWorkingCopy<M>, options?: ISaveOptions): Promise<boolean>;
 }
 
+export interface IUntitledFileWorkingCopyInitialContents {
+
+	/**
+	 * The initial contents of the untitled file working copy.
+	 */
+	value: VSBufferReadableStream;
+
+	/**
+	 * If not provided, the untitled file working copy will be marked
+	 * dirty by default given initial contents are provided.
+	 *
+	 * Note: if the untitled file working copy has an associated path
+	 * the dirty state will always be set.
+	 */
+	markDirty?: boolean;
+}
+
 export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> extends Disposable implements IUntitledFileWorkingCopy<M>  {
 
-	readonly capabilities: WorkingCopyCapabilities = WorkingCopyCapabilities.Untitled;
+	readonly capabilities = WorkingCopyCapabilities.Untitled;
 
 	private _model: M | undefined = undefined;
 	get model(): M | undefined { return this._model; }
@@ -102,7 +118,7 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 		readonly resource: URI,
 		readonly name: string,
 		readonly hasAssociatedFilePath: boolean,
-		private readonly initialValue: VSBufferReadableStream | undefined,
+		private readonly initialContents: IUntitledFileWorkingCopyInitialContents | undefined,
 		private readonly modelFactory: IUntitledFileWorkingCopyModelFactory<M>,
 		private readonly saveDelegate: IUntitledFileWorkingCopySaveDelegate<M>,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
@@ -111,17 +127,13 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 	) {
 		super();
 
-		if (resource.scheme !== Schemas.untitled) {
-			throw new Error(`The untitled file working copy resource ${this.resource.toString(true)} is not using untitled as scheme.`);
-		}
-
 		// Make known to working copy service
 		this._register(workingCopyService.registerWorkingCopy(this));
 	}
 
 	//#region Dirty
 
-	private dirty = this.hasAssociatedFilePath || !!this.initialValue;
+	private dirty = this.hasAssociatedFilePath || Boolean(this.initialContents && this.initialContents.markDirty !== false);
 
 	isDirty(): boolean {
 		return this.dirty;
@@ -161,10 +173,10 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 			this.trace('[untitled file working copy] resolve() - with backup');
 
 			untitledContents = backup.value;
-		} else if (this.initialValue) {
+		} else if (this.initialContents?.value) {
 			this.trace('[untitled file working copy] resolve() - with initial contents');
 
-			untitledContents = this.initialValue;
+			untitledContents = this.initialContents.value;
 		} else {
 			this.trace('[untitled file working copy] resolve() - empty');
 
@@ -175,11 +187,11 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 		await this.doCreateModel(untitledContents);
 
 		// Untitled associated to file path are dirty right away as well as untitled with content
-		this.setDirty(this.hasAssociatedFilePath || !!backup || !!this.initialValue);
+		this.setDirty(this.hasAssociatedFilePath || !!backup || Boolean(this.initialContents && this.initialContents.markDirty !== false));
 
 		// If we have initial contents, make sure to emit this
 		// as the appropiate events to the outside.
-		if (!!backup || this.initialValue) {
+		if (!!backup || this.initialContents) {
 			this._onDidChangeContent.fire();
 		}
 	}
@@ -206,9 +218,9 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 	private onModelContentChanged(e: IUntitledFileWorkingCopyModelContentChangedEvent): void {
 
 		// Mark the untitled file working copy as non-dirty once its
-		// content becomes empty and we do not have an associated
-		// path set. we never want dirty indicator in that case.
-		if (!this.hasAssociatedFilePath && e.isEmpty) {
+		// in case provided by the change event and in case we do not
+		// have an associated path set
+		if (!this.hasAssociatedFilePath && e.isInitial) {
 			this.setDirty(false);
 		}
 

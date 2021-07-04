@@ -30,7 +30,7 @@ import { equals, deepClone } from 'vs/base/common/objects';
 import * as path from 'vs/base/common/path';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { compareFileExtensionsDefault, compareFileNamesDefault, compareFileNamesUpper, compareFileExtensionsUpper, compareFileNamesLower, compareFileExtensionsLower, compareFileNamesUnicode, compareFileExtensionsUnicode } from 'vs/base/common/comparers';
-import { fillResourceDataTransfers, CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
+import { fillEditorsDragData, CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
@@ -49,7 +49,6 @@ import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { isNumber } from 'vs/base/common/types';
-import { domEvent } from 'vs/base/browser/event';
 import { IEditableData } from 'vs/workbench/common/views';
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
@@ -328,13 +327,13 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			// accessibility
 			disposables.add(this._onDidChangeActiveDescendant.add(compressedNavigationController.onDidChange));
 
-			domEvent(templateData.container, 'mousedown')(e => {
+			disposables.add(DOM.addDisposableListener(templateData.container, 'mousedown', e => {
 				const result = getIconLabelNameFromHTMLElement(e.target);
 
 				if (result) {
 					compressedNavigationController.setIndex(result.index);
 				}
-			}, undefined, disposables);
+			}));
 
 			disposables.add(toDisposable(() => this.compressedNavigationControllers.delete(stat)));
 
@@ -831,6 +830,10 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			if (!containsDragType(originalEvent, DataTransfers.FILES, CodeDataTransfers.FILES, DataTransfers.RESOURCES)) {
 				return false;
 			}
+			if (isWeb && originalEvent.dataTransfer?.types.indexOf('Files') === -1) {
+				// DnD from vscode to web is not supported #115535. Only if we are dragging from native finder / explorer then the "Files" data transfer will be set
+				return false;
+			}
 		}
 
 		// Other-Tree DND
@@ -928,7 +931,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		const items = FileDragAndDrop.getStatsFromDragAndDropData(data as ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, originalEvent);
 		if (items && items.length && originalEvent.dataTransfer) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
-			this.instantiationService.invokeFunction(fillResourceDataTransfers, items, undefined, originalEvent);
+			this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, items, originalEvent));
 
 			// The only custom data transfer we set from the explorer is a file transfer
 			// to be able to DND between multiple code file explorers across windows
@@ -984,7 +987,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				await this.handleExplorerDrop(data as ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, resolvedTarget, originalEvent);
 			}
 		} catch (error) {
-			this.dialogService.show(Severity.Error, toErrorMessage(error), [localize('ok', 'OK')]);
+			this.dialogService.show(Severity.Error, toErrorMessage(error));
 		}
 	}
 

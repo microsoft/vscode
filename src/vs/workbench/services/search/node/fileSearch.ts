@@ -18,7 +18,7 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import * as strings from 'vs/base/common/strings';
 import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { readdir } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import { IFileQuery, IFolderQuery, IProgressMessage, ISearchEngineStats, IRawFileMatch, ISearchEngine, ISearchEngineSuccess, isFilePatternMatch } from 'vs/workbench/services/search/common/search';
 import { spawnRipgrepCmd } from './ripgrepFileSearch';
 import { prepareQuery } from 'vs/base/common/fuzzyScorer';
@@ -518,7 +518,7 @@ export class FileWalker {
 							this.walkedPaths[realpath] = true; // remember as walked
 
 							// Continue walking
-							return readdir(currentAbsolutePath).then(children => {
+							return Promises.readdir(currentAbsolutePath).then(children => {
 								if (this.isCanceled || this.isLimitHit) {
 									return clb(null);
 								}

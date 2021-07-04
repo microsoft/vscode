@@ -30,7 +30,7 @@ import { IMenu, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/co
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { contrastBorder, editorForeground, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, editorForeground, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, resolveColorValue, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { CommentFormActions } from 'vs/workbench/contrib/comments/browser/commentFormActions';
 import { CommentGlyphWidget } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
@@ -48,6 +48,7 @@ import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
+import { MarshalledId } from 'vs/base/common/marshalling';
 
 
 const collapseIcon = registerIcon('review-comment-collapse', Codicon.chevronUp, nls.localize('collapseIcon', 'Icon to collapse a review comment.'));
@@ -666,7 +667,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			action.run({
 				thread: this._commentThread,
 				text: this._commentReplyComponent?.editor.getValue(),
-				$mid: 8
+				$mid: MarshalledId.CommentThreadReply
 			});
 
 			this.hideReplyArea();
@@ -805,12 +806,12 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 				renderOptions: {
 					after: {
 						contentText: placeholder,
-						color: `${transparent(editorForeground, 0.4)(this.themeService.getColorTheme())}`
+						color: `${resolveColorValue(editorForeground, this.themeService.getColorTheme())?.transparent(0.4)}`
 					}
 				}
 			}];
 
-			this._commentReplyComponent?.editor.setDecorations(COMMENTEDITOR_DECORATION_KEY, decorations);
+			this._commentReplyComponent?.editor.setDecorations('review-zone-widget', COMMENTEDITOR_DECORATION_KEY, decorations);
 		}
 	}
 

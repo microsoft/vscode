@@ -278,8 +278,8 @@ class WorkspaceProvider implements IWorkspaceProvider {
 	readonly trusted = true;
 
 	constructor(
-		public readonly workspace: IWorkspace,
-		public readonly payload: object
+		readonly workspace: IWorkspace,
+		readonly payload: object
 	) { }
 
 	async open(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<boolean> {

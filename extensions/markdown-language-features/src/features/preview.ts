@@ -11,7 +11,7 @@ import { Logger } from '../logger';
 import { MarkdownContributionProvider } from '../markdownExtensions';
 import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
-import { normalizeResource, WebviewResourceProvider } from '../util/resources';
+import { WebviewResourceProvider } from '../util/resources';
 import { getVisibleLine, LastScrollLocation, TopmostLineMonitor } from '../util/topmostLineMonitor';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { MarkdownContentProvider, MarkdownContentProviderOutput } from './previewContentProvider';
@@ -423,12 +423,12 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			baseRoots.push(vscode.Uri.file(path.dirname(this._resource.fsPath)));
 		}
 
-		return baseRoots.map(root => normalizeResource(this._resource, root));
+		return baseRoots;
 	}
 
 
 	private async onDidClickPreviewLink(href: string) {
-		let [hrefPath, fragment] = decodeURIComponent(href).split('#');
+		let [hrefPath, fragment] = href.split('#').map(c => decodeURIComponent(c));
 
 		if (hrefPath[0] !== '/') {
 			// We perviously already resolve absolute paths.
@@ -456,7 +456,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	//#region WebviewResourceProvider
 
 	asWebviewUri(resource: vscode.Uri) {
-		return this._webviewPanel.webview.asWebviewUri(normalizeResource(this._resource, resource));
+		return this._webviewPanel.webview.asWebviewUri(resource);
 	}
 
 	get cspSource() {
@@ -531,7 +531,7 @@ export class StaticMarkdownPreview extends Disposable implements ManagedMarkdown
 		}));
 
 		this._register(this.preview.onScroll((scrollInfo) => {
-			topmostLineMonitor.setPreviousEditorLine(scrollInfo);
+			topmostLineMonitor.setPreviousStaticEditorLine(scrollInfo);
 		}));
 
 		this._register(topmostLineMonitor.onDidChanged(event => {

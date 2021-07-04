@@ -83,7 +83,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		if (!this.galleryService.isEnabled()) {
 			return;
 		}
-		if (!language || !locale || language === 'en' || language.indexOf('en-') === 0) {
+		if (!language || !locale || locale === 'en' || locale.indexOf('en-') === 0) {
 			return;
 		}
 		if (language === locale || languagePackSuggestionIgnoreList.indexOf(language) > -1) {
@@ -214,6 +214,7 @@ workbenchRegistry.registerWorkbenchContribution(LocalizationWorkbenchContributio
 
 ExtensionsRegistry.registerExtensionPoint({
 	extensionPoint: 'localizations',
+	defaultExtensionKind: ['ui', 'workspace'],
 	jsonSchema: {
 		description: localize('vscode.extension.contributes.localizations', "Contributes localizations to the editor"),
 		type: 'array',

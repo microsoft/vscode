@@ -5,11 +5,12 @@
 
 import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { basename } from 'vs/base/common/resources';
+import { basename, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IEditorInputWithOptions, IEditorIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInput, IEditorPane, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier, EditorInput, EditorOptions, EditorsOrder, IFileEditorInput, IEditorInputFactoryRegistry, IEditorInputSerializer, EditorExtensions, ISaveOptions, IMoveResult, ITextEditorPane, ITextDiffEditorPane, IVisibleEditorPane, IEditorOpenContext, SideBySideEditorInput, IEditorMoveEvent, EditorExtensions as Extensions } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { IEditorInputWithOptions, IEditorIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInput, IEditorPane, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier, EditorsOrder, IFileEditorInput, IEditorInputFactoryRegistry, IEditorInputSerializer, EditorExtensions, ISaveOptions, IMoveResult, ITextEditorPane, ITextDiffEditorPane, IVisibleEditorPane, IEditorOpenContext, IEditorMoveEvent, EditorExtensions as Extensions, EditorInputCapabilities, IEditorOpenEvent, IUntypedEditorInput, UntypedEditorContext } from 'vs/workbench/common/editor';
 import { EditorServiceImpl, IEditorGroupView, IEditorGroupsAccessor, IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
@@ -17,12 +18,12 @@ import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configur
 import { IWorkbenchLayoutService, Parts, Position as PartPosition } from 'vs/workbench/services/layout/browser/layoutService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IEditorOptions, IResourceEditorInput, IEditorModel, ITextEditorOptions, IResourceEditorInputIdentifier } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, IResourceEditorInput, IEditorModel, IResourceEditorInputIdentifier, ITextResourceEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, BeforeShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { FileOperationEvent, IFileService, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, ICreateFileOptions, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent, FileOperationError, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, IReadFileStreamOptions } from 'vs/platform/files/common/files';
+import { FileOperationEvent, IFileService, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, ICreateFileOptions, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent, FileOperationError, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, IReadFileStreamOptions, IFileSystemProviderCapabilitiesChangeEvent, IRawFileChangesEvent } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
@@ -51,7 +52,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IEditorReplacement, IGroupChangeEvent, IFindGroupScope, EditorGroupLayout, ICloseEditorOptions, GroupOrientation, ICloseAllEditorsOptions, ICloseEditorsFilter } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService, IOpenEditorOverrideHandler, ISaveEditorsOptions, IRevertAllEditorsOptions, IResourceEditorInputType, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, IOpenEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, ISaveEditorsOptions, IRevertAllEditorsOptions, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorRegistry, EditorDescriptor } from 'vs/workbench/browser/editor';
 import { Dimension, IDimension } from 'vs/base/browser/dom';
@@ -123,11 +124,11 @@ import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResource
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { IEnterWorkspaceResult, IRecent, IRecentlyOpened, IWorkspaceFolderCreationData, IWorkspaceIdentifier, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { TestWorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
-import { ILocalTerminalService, IShellLaunchConfig, ITerminalChildProcess, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
+import { TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
+import { ICreateTerminalOptions, ILocalTerminalService, IShellLaunchConfig, ITerminalChildProcess, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
-import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { isArray } from 'vs/base/common/types';
 import { IShellLaunchConfigResolveOptions, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorOverrideService } from 'vs/workbench/services/editor/browser/editorOverrideService';
@@ -139,17 +140,18 @@ import { BrowserElevatedFileService } from 'vs/workbench/services/files/browser/
 import { IDiffComputationResult, IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { TextEdit, IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
 import { ResourceMap } from 'vs/base/common/map';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
-	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined);
+	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
 }
 
 Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerFileEditorInputFactory({
 
 	typeId: FILE_EDITOR_INPUT_ID,
 
-	createFileEditorInput: (resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode, instantiationService): IFileEditorInput => {
-		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode);
+	createFileEditorInput: (resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode, preferredContents, instantiationService): IFileEditorInput => {
+		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode, preferredContents);
 	},
 
 	isFileEditorInput: (obj): obj is IFileEditorInput => {
@@ -165,6 +167,14 @@ export class TestTextResourceEditor extends TextResourceEditor {
 }
 
 export class TestTextFileEditor extends TextFileEditor {
+
+	lastSetOptions: ITextEditorOptions | undefined = undefined;
+
+	override setOptions(options: ITextEditorOptions | undefined): void {
+		this.lastSetOptions = options;
+
+		super.setOptions(options);
+	}
 
 	protected override createEditorControl(parent: HTMLElement, configuration: any): IEditor {
 		return this.instantiationService.createInstance(TestCodeEditor, parent, configuration, {});
@@ -283,7 +293,8 @@ export class TestServiceAccessor {
 		@INotificationService public notificationService: INotificationService,
 		@IWorkingCopyEditorService public workingCopyEditorService: IWorkingCopyEditorService,
 		@IInstantiationService public instantiationService: IInstantiationService,
-		@IElevatedFileService public elevatedFileService: IElevatedFileService
+		@IElevatedFileService public elevatedFileService: IElevatedFileService,
+		@IWorkspaceTrustRequestService public workspaceTrustRequestService: TestWorkspaceTrustRequestService
 	) { }
 }
 
@@ -718,6 +729,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	onDidFocus: Event<void> = Event.None;
 	onDidChange: Event<{ width: number; height: number; }> = Event.None;
 	onWillMoveEditor: Event<IEditorMoveEvent> = Event.None;
+	onWillOpenEditor: Event<IEditorOpenEvent> = Event.None;
 
 	getEditors(_order?: EditorsOrder): readonly IEditorInput[] { return []; }
 	findEditors(_resource: URI): readonly IEditorInput[] { return []; }
@@ -727,10 +739,10 @@ export class TestEditorGroupView implements IEditorGroupView {
 	openEditors(_editors: IEditorInputWithOptions[]): Promise<IEditorPane> { throw new Error('not implemented'); }
 	isPinned(_editor: IEditorInput): boolean { return false; }
 	isSticky(_editor: IEditorInput): boolean { return false; }
-	isActive(_editor: IEditorInput): boolean { return false; }
-	contains(candidate: IEditorInput): boolean { return false; }
-	moveEditor(_editor: IEditorInput, _target: IEditorGroup, _options?: IEditorOptions | ITextEditorOptions): void { }
-	copyEditor(_editor: IEditorInput, _target: IEditorGroup, _options?: IEditorOptions | ITextEditorOptions): void { }
+	isActive(_editor: IEditorInput | IUntypedEditorInput): boolean { return false; }
+	contains(candidate: IEditorInput | IUntypedEditorInput): boolean { return false; }
+	moveEditor(_editor: IEditorInput, _target: IEditorGroup, _options?: IEditorOptions): void { }
+	copyEditor(_editor: IEditorInput, _target: IEditorGroup, _options?: IEditorOptions): void { }
 	async closeEditor(_editor?: IEditorInput, options?: ICloseEditorOptions): Promise<void> { }
 	async closeEditors(_editors: IEditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<void> { }
 	async closeAllEditors(options?: ICloseAllEditorsOptions): Promise<void> { }
@@ -801,15 +813,13 @@ export class TestEditorService implements EditorServiceImpl {
 	constructor(private editorGroupService?: IEditorGroupsService) { }
 	getEditors() { return []; }
 	findEditors() { return [] as any; }
-	getEditorOverrides(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined): [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry][] { return []; }
-	overrideOpenEditor(_handler: IOpenEditorOverrideHandler): IDisposable { return toDisposable(() => undefined); }
-	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
+	openEditor(editor: IEditorInput, options?: IEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
 	openEditor(editor: IResourceEditorInput | IUntitledTextResourceEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextEditorPane | undefined>;
 	openEditor(editor: IResourceDiffEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextDiffEditorPane | undefined>;
-	async openEditor(editor: IEditorInput | IResourceEditorInputType, optionsOrGroup?: IEditorOptions | ITextEditorOptions | IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined> {
+	async openEditor(editor: IEditorInput | IUntypedEditorInput, optionsOrGroup?: IEditorOptions | IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined> {
 		throw new Error('not implemented');
 	}
-	doResolveEditorOpenRequest(editor: IEditorInput | IResourceEditorInputType): [IEditorGroup, EditorInput, EditorOptions | undefined] | undefined {
+	doResolveEditorOpenRequest(editor: IEditorInput | IUntypedEditorInput): [IEditorGroup, EditorInput, IEditorOptions | undefined] | undefined {
 		if (!this.editorGroupService) {
 			return undefined;
 		}
@@ -818,6 +828,7 @@ export class TestEditorService implements EditorServiceImpl {
 	}
 	openEditors(_editors: any, _group?: any): Promise<IEditorPane[]> { throw new Error('not implemented'); }
 	isOpened(_editor: IResourceEditorInputIdentifier): boolean { return false; }
+	isVisible(_editor: IEditorInput): boolean { return false; }
 	replaceEditors(_editors: any, _group: any) { return Promise.resolve(undefined); }
 	createEditorInput(_input: IResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput): EditorInput { throw new Error('not implemented'); }
 	save(editors: IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
@@ -831,10 +842,21 @@ export class TestFileService implements IFileService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidFilesChange = new Emitter<FileChangesEvent>();
+	get onDidFilesChange(): Event<FileChangesEvent> { return this._onDidFilesChange.event; }
+	fireFileChanges(event: FileChangesEvent): void { this._onDidFilesChange.fire(event); }
+
+	private readonly _onDidChangeFilesRaw = new Emitter<IRawFileChangesEvent>();
+	get onDidChangeFilesRaw(): Event<IRawFileChangesEvent> { return this._onDidChangeFilesRaw.event; }
+
 	private readonly _onDidRunOperation = new Emitter<FileOperationEvent>();
+	get onDidRunOperation(): Event<FileOperationEvent> { return this._onDidRunOperation.event; }
+	fireAfterOperation(event: FileOperationEvent): void { this._onDidRunOperation.fire(event); }
+
+	private readonly _onDidChangeFileSystemProviderCapabilities = new Emitter<IFileSystemProviderCapabilitiesChangeEvent>();
+	get onDidChangeFileSystemProviderCapabilities(): Event<IFileSystemProviderCapabilitiesChangeEvent> { return this._onDidChangeFileSystemProviderCapabilities.event; }
+	fireFileSystemProviderCapabilitiesChangeEvent(event: IFileSystemProviderCapabilitiesChangeEvent): void { this._onDidChangeFileSystemProviderCapabilities.fire(event); }
 
 	readonly onWillActivateFileSystemProvider = Event.None;
-	readonly onDidChangeFileSystemProviderCapabilities = Event.None;
 	readonly onError: Event<Error> = Event.None;
 
 	private content = 'Hello Html';
@@ -845,12 +867,9 @@ export class TestFileService implements IFileService {
 	setContent(content: string): void { this.content = content; }
 	getContent(): string { return this.content; }
 	getLastReadFileUri(): URI { return this.lastReadFileUri; }
-	get onDidFilesChange(): Event<FileChangesEvent> { return this._onDidFilesChange.event; }
-	fireFileChanges(event: FileChangesEvent): void { this._onDidFilesChange.fire(event); }
-	get onDidRunOperation(): Event<FileOperationEvent> { return this._onDidRunOperation.event; }
-	fireAfterOperation(event: FileOperationEvent): void { this._onDidRunOperation.fire(event); }
-	resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat>;
+
 	resolve(resource: URI, _options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
+	resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat>;
 	resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat> {
 		return Promise.resolve({
 			resource,
@@ -973,7 +992,9 @@ export class TestFileService implements IFileService {
 			return true;
 		}
 
-		return false;
+		const provider = this.getProvider(resource.scheme);
+
+		return !!(provider && (provider.capabilities & capability));
 	}
 
 	async del(_resource: URI, _options?: { useTrash?: boolean, recursive?: boolean; }): Promise<void> { }
@@ -1206,7 +1227,6 @@ export class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider i
 		| FileSystemProviderCapabilities.PathCaseSensitive
 		| FileSystemProviderCapabilities.FileReadStream;
 
-
 	readFileStream(resource: URI): ReadableStreamEvents<Uint8Array> {
 		const BUFFER_SIZE = 64 * 1024;
 		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
@@ -1289,13 +1309,28 @@ export class TestEditorInput extends EditorInput {
 		return this._typeId;
 	}
 
+	override get editorId(): string {
+		return this._typeId;
+	}
+
 	override resolve(): Promise<IEditorModel | null> {
 		return Promise.resolve(null);
 	}
 }
 
+export abstract class TestEditorWithOptions extends EditorPane {
+
+	lastSetOptions: ITextEditorOptions | undefined = undefined;
+
+	override setOptions(options: ITextEditorOptions | undefined): void {
+		this.lastSetOptions = options;
+
+		super.setOptions(options);
+	}
+}
+
 export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInput>[], serializerInputId?: string): IDisposable {
-	class TestEditor extends EditorPane {
+	class TestEditor extends TestEditorWithOptions {
 
 		private _scopedContextKeyService: IContextKeyService;
 
@@ -1304,7 +1339,7 @@ export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInpu
 			this._scopedContextKeyService = new MockContextKeyService();
 		}
 
-		override async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		override async setInput(input: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 			super.setInput(input, options, context, token);
 
 			await input.resolve();
@@ -1366,7 +1401,7 @@ export function registerTestFileEditor(): IDisposable {
 			TestTextFileEditor.ID,
 			'Text File Editor'
 		),
-		[new SyncDescriptor<EditorInput>(FileEditorInput)]
+		[new SyncDescriptor(FileEditorInput)]
 	));
 
 	return disposables;
@@ -1382,8 +1417,8 @@ export function registerTestResourceEditor(): IDisposable {
 			'Text Editor'
 		),
 		[
-			new SyncDescriptor<EditorInput>(UntitledTextEditorInput),
-			new SyncDescriptor<EditorInput>(TextResourceEditorInput)
+			new SyncDescriptor(UntitledTextEditorInput),
+			new SyncDescriptor(TextResourceEditorInput)
 		]
 	));
 
@@ -1418,6 +1453,8 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 	dirty = false;
 	private fails = false;
 
+	disableToUntyped = false;
+
 	constructor(
 		public resource: URI,
 		private _typeId: string
@@ -1426,14 +1463,34 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 	}
 
 	override get typeId() { return this._typeId; }
+	override get editorId() { return this._typeId; }
+
+	private _capabilities: EditorInputCapabilities = EditorInputCapabilities.None;
+	override get capabilities(): EditorInputCapabilities { return this._capabilities; }
+	override set capabilities(capabilities: EditorInputCapabilities) {
+		if (this._capabilities !== capabilities) {
+			this._capabilities = capabilities;
+			this._onDidChangeCapabilities.fire();
+		}
+	}
+
 	override resolve(): Promise<IEditorModel | null> { return !this.fails ? Promise.resolve(null) : Promise.reject(new Error('fails')); }
-	override matches(other: EditorInput): boolean { return !!(other?.resource && this.resource.toString() === other.resource.toString() && other instanceof TestFileEditorInput && other.typeId === this.typeId); }
+	override matches(other: EditorInput | IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput): boolean {
+		if (super.matches(other)) {
+			return true;
+		}
+		if (other instanceof EditorInput) {
+			return !!(other?.resource && this.resource.toString() === other.resource.toString() && other instanceof TestFileEditorInput && other.typeId === this.typeId);
+		}
+		return isEqual(this.resource, other.resource) && this.editorId === other.options?.override;
+	}
 	setPreferredResource(resource: URI): void { }
 	async setEncoding(encoding: string) { }
 	getEncoding() { return undefined; }
 	setPreferredName(name: string): void { }
 	setPreferredDescription(description: string): void { }
 	setPreferredEncoding(encoding: string) { }
+	setPreferredContents(contents: string): void { }
 	setMode(mode: string) { }
 	setPreferredMode(mode: string) { }
 	setForceOpenAsBinary(): void { }
@@ -1455,12 +1512,15 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 		this.gotSavedAs = false;
 		this.dirty = false;
 	}
+	override toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IUntypedEditorInput | undefined {
+		if (this.disableToUntyped) {
+			return undefined;
+		}
+		return { resource: this.resource };
+	}
 	setDirty(): void { this.dirty = true; }
 	override isDirty(): boolean {
 		return this.dirty;
-	}
-	override isReadonly(): boolean {
-		return false;
 	}
 	isResolved(): boolean { return false; }
 	override dispose(): void {
@@ -1566,6 +1626,7 @@ export class TestWorkspacesService implements IWorkspacesService {
 }
 
 export class TestTerminalInstanceService implements ITerminalInstanceService {
+	onDidCreateInstance = Event.None;
 	declare readonly _serviceBrand: undefined;
 
 	async getXtermConstructor(): Promise<any> { throw new Error('Method not implemented.'); }
@@ -1573,6 +1634,7 @@ export class TestTerminalInstanceService implements ITerminalInstanceService {
 	async getXtermUnicode11Constructor(): Promise<any> { throw new Error('Method not implemented.'); }
 	async getXtermWebglConstructor(): Promise<any> { throw new Error('Method not implemented.'); }
 	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType, isRemote: boolean): Promise<string> { throw new Error('Method not implemented.'); }
+	createInstance(options: ICreateTerminalOptions, target?: TerminalLocation): ITerminalInstance { throw new Error('Method not implemented.'); }
 }
 
 export class TestTerminalProfileResolverService implements ITerminalProfileResolverService {
@@ -1586,6 +1648,7 @@ export class TestTerminalProfileResolverService implements ITerminalProfileResol
 	async getEnvironment(): Promise<IProcessEnvironment> { return process.env; }
 	getSafeConfigValue(key: string, os: OperatingSystem): unknown | undefined { return undefined; }
 	getSafeConfigValueFullKey(key: string): unknown | undefined { return undefined; }
+	createProfileFromShellAndShellArgs(shell?: unknown, shellArgs?: unknown): Promise<string | ITerminalProfile> { throw new Error('Method not implemented.'); }
 }
 
 export class TestLocalTerminalService implements ILocalTerminalService {
@@ -1602,7 +1665,7 @@ export class TestLocalTerminalService implements ILocalTerminalService {
 	async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> { throw new Error('Method not implemented.'); }
 	async listProcesses(): Promise<IProcessDetails[]> { throw new Error('Method not implemented.'); }
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> { throw new Error('Method not implemented.'); }
-	getProfiles(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> { throw new Error('Method not implemented.'); }
+	getProfiles(isWorkspaceTrusted: boolean, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> { throw new Error('Method not implemented.'); }
 	getEnvironment(): Promise<IProcessEnvironment> { throw new Error('Method not implemented.'); }
 	getShellEnvironment(): Promise<IProcessEnvironment | undefined> { throw new Error('Method not implemented.'); }
 	getWslPath(original: string): Promise<string> { throw new Error('Method not implemented.'); }

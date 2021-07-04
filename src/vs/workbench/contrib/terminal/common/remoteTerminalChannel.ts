@@ -198,6 +198,9 @@ export class RemoteTerminalChannelClient {
 	attachToProcess(id: number): Promise<void> {
 		return this._channel.call('$attachToProcess', [id]);
 	}
+	detachFromProcess(id: number): Promise<void> {
+		return this._channel.call('$detachFromProcess', [id]);
+	}
 	listProcesses(): Promise<IProcessDetails[]> {
 		return this._channel.call('$listProcesses');
 	}
@@ -238,8 +241,8 @@ export class RemoteTerminalChannelClient {
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
 		return this._channel.call('$getDefaultSystemShell', [osOverride]);
 	}
-	getProfiles(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> {
-		return this._channel.call('$getProfiles', [includeDetectedProfiles]);
+	getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> {
+		return this._channel.call('$getProfiles', [profiles, defaultProfile, includeDetectedProfiles]);
 	}
 	acceptPtyHostResolvedVariables(id: number, resolved: string[]) {
 		return this._channel.call('$acceptPtyHostResolvedVariables', [id, resolved]);

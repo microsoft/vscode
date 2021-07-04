@@ -19,6 +19,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 
 export class WorkbenchIssueService implements IWorkbenchIssueService {
 	declare readonly _serviceBrand: undefined;
@@ -29,6 +30,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IProductService private readonly productService: IProductService,
 		@ITASExperimentService private readonly experimentService: ITASExperimentService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService
@@ -86,6 +88,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 			zoomLevel: getZoomLevel(),
 			enabledExtensions: extensionData,
 			experiments: experiments?.join('\n'),
+			restrictedMode: !this.workspaceTrustManagementService.isWorkspaceTrusted(),
 			githubAccessToken,
 		}, dataOverrides);
 		return this.issueService.openReporter(issueReporterData);

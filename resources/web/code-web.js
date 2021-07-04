@@ -37,7 +37,7 @@ const ALLOWED_CORS_ORIGINS = [
 	'http://127.0.0.1:8080',
 ];
 
-const WEB_PLAYGROUND_VERSION = '0.0.10';
+const WEB_PLAYGROUND_VERSION = '0.0.12';
 
 const args = minimist(process.argv, {
 	boolean: [
@@ -53,6 +53,7 @@ const args = minimist(process.argv, {
 		'port',
 		'local_port',
 		'extension',
+		'extensionId',
 		'github-auth'
 	],
 });
@@ -69,6 +70,7 @@ if (args.help) {
 		' --local_port     Local port override\n' +
 		' --secondary-port Secondary port\n' +
 		' --extension      Path of an extension to include\n' +
+		' --extensionId    Id of an extension to include\n' +
 		' --github-auth    Github authentication token\n' +
 		' --verbose        Print out more information\n' +
 		' --help\n' +
@@ -169,23 +171,28 @@ async function getCommandlineProvidedExtensionInfos() {
 	const locations = {};
 
 	let extensionArg = args['extension'];
-	if (!extensionArg) {
+	let extensionIdArg = args['extensionId'];
+	if (!extensionArg && !extensionIdArg) {
 		return { extensions, locations };
 	}
 
-	const extensionPaths = Array.isArray(extensionArg) ? extensionArg : [extensionArg];
-	await Promise.all(extensionPaths.map(async extensionPath => {
-		extensionPath = path.resolve(process.cwd(), extensionPath);
-		const packageJSON = await getExtensionPackageJSON(extensionPath);
-		if (packageJSON) {
-			const extensionId = `${packageJSON.publisher}.${packageJSON.name}`;
-			extensions.push({
-				packageJSON,
-				extensionLocation: { scheme: SCHEME, authority: AUTHORITY, path: `/extension/${extensionId}` }
-			});
-			locations[extensionId] = extensionPath;
-		}
-	}));
+	if (extensionArg) {
+		const extensionPaths = Array.isArray(extensionArg) ? extensionArg : [extensionArg];
+		await Promise.all(extensionPaths.map(async extensionPath => {
+			extensionPath = path.resolve(process.cwd(), extensionPath);
+			const packageJSON = await getExtensionPackageJSON(extensionPath);
+			if (packageJSON) {
+				const extensionId = `${packageJSON.publisher}.${packageJSON.name}`;
+				extensions.push({ scheme: SCHEME, authority: AUTHORITY, path: `/extension/${extensionId}` });
+				locations[extensionId] = extensionPath;
+			}
+		}));
+	}
+
+	if (extensionIdArg) {
+		extensions.push(...(Array.isArray(extensionIdArg) ? extensionIdArg : [extensionIdArg]));
+	}
+
 	return { extensions, locations };
 }
 
@@ -198,13 +205,6 @@ async function getExtensionPackageJSON(extensionPath) {
 			if (packageJSON.main && !packageJSON.browser) {
 				return; // unsupported
 			}
-
-			const packageNLSPath = path.join(extensionPath, 'package.nls.json');
-			const packageNLSExists = await exists(packageNLSPath);
-			if (packageNLSExists) {
-				packageJSON = extensions.translatePackageJSON(packageJSON, packageNLSPath); // temporary, until fixed in core
-			}
-
 			return packageJSON;
 		} catch (e) {
 			console.log(e);
@@ -397,7 +397,7 @@ async function handleRoot(req, res) {
 	}
 
 	const { extensions: builtInExtensions } = await builtInExtensionsPromise;
-	const { extensions: staticExtensions, locations: staticLocations } = await commandlineProvidedExtensionsPromise;
+	const { extensions: additionalBuiltinExtensions, locations: staticLocations } = await commandlineProvidedExtensionsPromise;
 
 	const dedupedBuiltInExtensions = [];
 	for (const builtInExtension of builtInExtensions) {
@@ -412,7 +412,7 @@ async function handleRoot(req, res) {
 
 	if (args.verbose) {
 		fancyLog(`${ansiColors.magenta('BuiltIn extensions')}: ${dedupedBuiltInExtensions.map(e => path.basename(e.extensionPath)).join(', ')}`);
-		fancyLog(`${ansiColors.magenta('Additional extensions')}: ${staticExtensions.map(e => path.basename(e.extensionLocation.path)).join(', ') || 'None'}`);
+		fancyLog(`${ansiColors.magenta('Additional extensions')}: ${additionalBuiltinExtensions.map(e => path.basename(e.extensionLocation.path)).join(', ') || 'None'}`);
 	}
 
 	const secondaryHost = (
@@ -422,10 +422,7 @@ async function handleRoot(req, res) {
 	);
 	const webConfigJSON = {
 		folderUri: folderUri,
-		staticExtensions,
-		settingsSyncOptions: {
-			enabled: args['enable-sync']
-		},
+		additionalBuiltinExtensions,
 		webWorkerExtensionHostIframeSrc: `${SCHEME}://${secondaryHost}/static/out/vs/workbench/services/extensions/worker/httpWebWorkerExtensionHostIframe.html`
 	};
 	if (args['wrap-iframe']) {

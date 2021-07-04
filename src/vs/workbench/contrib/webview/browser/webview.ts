@@ -80,7 +80,6 @@ export interface WebviewOptions {
 	readonly enableFindWidget?: boolean;
 	readonly tryRestoreScrollPosition?: boolean;
 	readonly retainContextWhenHidden?: boolean;
-	readonly serviceWorkerFetchIgnoreSubdomain?: boolean;
 	transformCssVariables?(styles: Readonly<WebviewStyles>): Readonly<WebviewStyles>;
 }
 

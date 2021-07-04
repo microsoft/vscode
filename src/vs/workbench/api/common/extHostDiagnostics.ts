@@ -10,7 +10,7 @@ import type * as vscode from 'vscode';
 import { MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape, IMainContext } from './extHost.protocol';
 import { DiagnosticSeverity } from './extHostTypes';
 import * as converter from './extHostTypeConverters';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event, Emitter, DebounceEmitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ResourceMap } from 'vs/base/common/map';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -215,15 +215,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 
 	private readonly _proxy: MainThreadDiagnosticsShape;
 	private readonly _collections = new Map<string, DiagnosticCollection>();
-	private readonly _onDidChangeDiagnostics = new Emitter<vscode.Uri[]>();
-
-	static _debouncer(last: vscode.Uri[] | undefined, current: vscode.Uri[]): vscode.Uri[] {
-		if (!last) {
-			return current;
-		} else {
-			return last.concat(current);
-		}
-	}
+	private readonly _onDidChangeDiagnostics = new DebounceEmitter<vscode.Uri[]>({ merge: all => all.flat(), delay: 50 });
 
 	static _mapper(last: vscode.Uri[]): { uris: readonly vscode.Uri[] } {
 		const map = new ResourceMap<vscode.Uri>();
@@ -233,7 +225,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 		return { uris: Object.freeze(Array.from(map.values())) };
 	}
 
-	readonly onDidChangeDiagnostics: Event<vscode.DiagnosticChangeEvent> = Event.map(Event.debounce(this._onDidChangeDiagnostics.event, ExtHostDiagnostics._debouncer, 50), ExtHostDiagnostics._mapper);
+	readonly onDidChangeDiagnostics: Event<vscode.DiagnosticChangeEvent> = Event.map(this._onDidChangeDiagnostics.event, ExtHostDiagnostics._mapper);
 
 	constructor(mainContext: IMainContext, @ILogService private readonly _logService: ILogService) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadDiagnostics);

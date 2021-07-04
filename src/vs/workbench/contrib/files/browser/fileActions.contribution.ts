@@ -26,7 +26,7 @@ import { DirtyWorkingCopiesContext, EmptyWorkspaceSupportContext, HasWebFileSyst
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { OpenFileFolderAction, OpenFileAction, OpenFolderAction, OpenWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
-import { ActiveEditorContext } from 'vs/workbench/common/editor';
+import { ActiveEditorCanRevertContext, ActiveEditorContext } from 'vs/workbench/common/editor';
 import { SidebarFocusContext } from 'vs/workbench/common/viewlet';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
@@ -112,7 +112,7 @@ const CUT_FILE_ID = 'filesExplorer.cut';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: CUT_FILE_ID,
 	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
-	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated()),
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated(), ExplorerResourceNotReadonlyContext),
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
 	handler: cutFileHandler,
 });
@@ -460,7 +460,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 		id: CUT_FILE_ID,
 		title: nls.localize('cut', "Cut")
 	},
-	when: ExplorerRootContext.toNegated()
+	when: ContextKeyExpr.and(ExplorerRootContext.toNegated(), ExplorerResourceNotReadonlyContext)
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
@@ -512,7 +512,9 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, ({
 		// only in web
 		IsWebContext,
 		// only on folders
-		ExplorerFolderContext
+		ExplorerFolderContext,
+		// only on editable folders
+		ExplorerResourceNotReadonlyContext
 	)
 }));
 
@@ -686,7 +688,12 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	command: {
 		id: REVERT_FILE_COMMAND_ID,
 		title: nls.localize({ key: 'miRevert', comment: ['&& denotes a mnemonic'] }, "Re&&vert File"),
-		precondition: ContextKeyExpr.or(ActiveEditorContext, ContextKeyExpr.and(ExplorerViewletVisibleContext, SidebarFocusContext))
+		precondition: ContextKeyExpr.or(
+			// Active editor can revert
+			ContextKeyExpr.and(ActiveEditorCanRevertContext),
+			// Explorer focused but not on untitled
+			ContextKeyExpr.and(ResourceContextKey.Scheme.notEqualsTo(Schemas.untitled), ExplorerViewletVisibleContext, SidebarFocusContext)
+		),
 	},
 	order: 1
 });

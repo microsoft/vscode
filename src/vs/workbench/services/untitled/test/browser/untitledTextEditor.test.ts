@@ -16,6 +16,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { EditorInputCapabilities, UntypedEditorContext } from 'vs/workbench/common/editor';
 
 suite('Untitled text editors', () => {
 
@@ -42,8 +43,17 @@ suite('Untitled text editors', () => {
 		assert.ok(service.get(input1.resource));
 		assert.ok(!service.get(URI.file('testing')));
 
+		assert.ok(input1.hasCapability(EditorInputCapabilities.Untitled));
+		assert.ok(!input1.hasCapability(EditorInputCapabilities.Readonly));
+		assert.ok(!input1.hasCapability(EditorInputCapabilities.Singleton));
+		assert.ok(!input1.hasCapability(EditorInputCapabilities.RequiresTrust));
+
 		const input2 = instantiationService.createInstance(UntitledTextEditorInput, service.create());
 		assert.strictEqual(service.get(input2.resource), input2.model);
+
+		// toUntyped()
+		const untypedInput = input1.toUntyped(0, UntypedEditorContext.Full);
+		assert.strictEqual(untypedInput.forceUntitled, true);
 
 		// get()
 		assert.strictEqual(service.get(input1.resource), input1.model);
@@ -70,6 +80,12 @@ suite('Untitled text editors', () => {
 		assert.strictEqual(resource.toString(), input2.resource.toString());
 
 		assert.ok(input2.isDirty());
+
+		const dirtyUntypedInput = input2.toUntyped(0, UntypedEditorContext.Full);
+		assert.strictEqual(dirtyUntypedInput.contents, 'foo bar');
+
+		const dirtyUntypedInputWithoutContent = input2.toUntyped(0, UntypedEditorContext.Default);
+		assert.strictEqual(dirtyUntypedInputWithoutContent.contents, undefined);
 
 		assert.ok(workingCopyService.isDirty(input2.resource));
 		assert.strictEqual(workingCopyService.dirtyCount, 1);

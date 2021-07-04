@@ -239,14 +239,30 @@ export interface IRawUriWorkspaceFolder {
 
 export type IStoredWorkspaceFolder = IRawFileWorkspaceFolder | IRawUriWorkspaceFolder;
 
-export interface IResolvedWorkspace extends IWorkspaceIdentifier {
-	folders: IWorkspaceFolder[];
+interface IBaseWorkspace {
+
+	/**
+	 * If present, marks the window that opens the workspace
+	 * as a remote window with the given authority.
+	 */
 	remoteAuthority?: string;
+
+	/**
+	 * Transient workspaces are meant to go away after being used
+	 * once, e.g. a window reload of a transient workspace will
+	 * open an empty window.
+	 *
+	 * See: https://github.com/microsoft/vscode/issues/119695
+	 */
+	transient?: boolean;
 }
 
-export interface IStoredWorkspace {
+export interface IResolvedWorkspace extends IWorkspaceIdentifier, IBaseWorkspace {
+	folders: IWorkspaceFolder[];
+}
+
+export interface IStoredWorkspace extends IBaseWorkspace {
 	folders: IStoredWorkspaceFolder[];
-	remoteAuthority?: string;
 }
 
 export interface IWorkspaceFolderCreationData {

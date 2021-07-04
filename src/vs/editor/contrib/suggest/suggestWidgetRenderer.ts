@@ -208,16 +208,12 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 		data.iconLabel.setLabel(element.textLabel, undefined, labelOptions);
 		if (typeof completion.label === 'string') {
 			data.parametersLabel.textContent = '';
-			data.qualifierLabel.textContent = '';
 			data.detailsLabel.textContent = stripNewLines(completion.detail || '');
 			data.root.classList.add('string-label');
-			data.root.title = '';
 		} else {
-			data.parametersLabel.textContent = stripNewLines(completion.label.parameters || '');
-			data.qualifierLabel.textContent = stripNewLines(completion.label.qualifier || '');
-			data.detailsLabel.textContent = stripNewLines(completion.label.type || '');
+			data.parametersLabel.textContent = stripNewLines(completion.label.detail || '');
+			data.detailsLabel.textContent = stripNewLines(completion.label.description || '');
 			data.root.classList.remove('string-label');
-			data.root.title = `${element.textLabel}${completion.label.parameters ?? ''}  ${completion.label.qualifier ?? ''}  ${completion.label.type ?? ''}`;
 		}
 
 		if (this._editor.getOption(EditorOption.suggest).showInlineDetails) {

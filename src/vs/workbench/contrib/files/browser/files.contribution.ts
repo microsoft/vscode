@@ -8,7 +8,7 @@ import { sep } from 'vs/base/common/path';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { EditorInput, IFileEditorInput, IEditorInputFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
+import { IFileEditorInput, IEditorInputFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { AutoSaveConfiguration, HotExitConfiguration, FILES_EXCLUDE_CONFIG, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
 import { SortOrder, LexicographicOptions, FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
 import { TextFileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/textFileEditorTracker';
@@ -61,7 +61,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 		nls.localize('binaryFileEditor', "Binary File Editor")
 	),
 	[
-		new SyncDescriptor<EditorInput>(FileEditorInput)
+		new SyncDescriptor(FileEditorInput)
 	]
 );
 
@@ -70,8 +70,8 @@ Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).
 
 	typeId: FILE_EDITOR_INPUT_ID,
 
-	createFileEditorInput: (resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode, instantiationService): IFileEditorInput => {
-		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode);
+	createFileEditorInput: (resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode, preferredContents, instantiationService): IFileEditorInput => {
+		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode, preferredContents);
 	},
 
 	isFileEditorInput: (obj): obj is IFileEditorInput => {
@@ -178,7 +178,7 @@ configurationRegistry.registerConfiguration({
 		'files.autoGuessEncoding': {
 			'type': 'boolean',
 			'default': false,
-			'description': nls.localize('autoGuessEncoding', "When enabled, the editor will attempt to guess the character set encoding when opening files. This setting can also be configured per language."),
+			'markdownDescription': nls.localize('autoGuessEncoding', "When enabled, the editor will attempt to guess the character set encoding when opening files. This setting can also be configured per language. Note, this setting is not respected by text search. Only `#files.encoding#` is respected."),
 			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
 		'files.eol': {
@@ -239,8 +239,8 @@ configurationRegistry.registerConfiguration({
 		},
 		'files.watcherExclude': {
 			'type': 'object',
-			'default': isWindows /* https://github.com/microsoft/vscode/issues/23954 */ ? { '**/.git/objects/**': true, '**/.git/subtree-cache/**': true, '**/node_modules/*/**': true, '**/.hg/store/**': true } : { '**/.git/objects/**': true, '**/.git/subtree-cache/**': true, '**/node_modules/**': true, '**/.hg/store/**': true },
-			'description': nls.localize('watcherExclude', "Configure glob patterns of file paths to exclude from file watching. Patterns must match on absolute paths (i.e. prefix with ** or the full path to match properly). Changing this setting requires a restart. When you experience Code consuming lots of CPU time on startup, you can exclude large folders to reduce the initial load."),
+			'default': { '**/.git/objects/**': true, '**/.git/subtree-cache/**': true, '**/node_modules/*/**': true, '**/.hg/store/**': true },
+			'markdownDescription': nls.localize('watcherExclude', "Configure glob patterns of file paths to exclude from file watching. Patterns must match on absolute paths, i.e. prefix with `**/` or the full path to match properly and suffix with `/**` to match files within a path (for example `**/build/output/**` or `/Users/name/workspaces/project/build/output/**`). Changing this setting requires a restart. When you experience Code consuming lots of CPU time on startup, you can exclude large folders to reduce the initial load."),
 			'scope': ConfigurationScope.RESOURCE
 		},
 		'files.hotExit': hotExitConfiguration,

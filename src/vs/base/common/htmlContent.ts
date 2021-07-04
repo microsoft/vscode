@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals } from 'vs/base/common/arrays';
 import { UriComponents } from 'vs/base/common/uri';
 import { escapeIcons } from 'vs/base/common/iconLabels';
 import { illegalArgument } from 'vs/base/common/errors';
@@ -90,21 +89,7 @@ export function isMarkdownString(thing: any): thing is IMarkdownString {
 	return false;
 }
 
-export function markedStringsEquals(a: IMarkdownString | IMarkdownString[], b: IMarkdownString | IMarkdownString[]): boolean {
-	if (!a && !b) {
-		return true;
-	} else if (!a || !b) {
-		return false;
-	} else if (Array.isArray(a) && Array.isArray(b)) {
-		return equals(a, b, markdownStringEqual);
-	} else if (isMarkdownString(a) && isMarkdownString(b)) {
-		return markdownStringEqual(a, b);
-	} else {
-		return false;
-	}
-}
-
-function markdownStringEqual(a: IMarkdownString, b: IMarkdownString): boolean {
+export function markdownStringEqual(a: IMarkdownString, b: IMarkdownString): boolean {
 	if (a === b) {
 		return true;
 	} else if (!a || !b) {

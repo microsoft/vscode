@@ -15,16 +15,16 @@ export interface WebviewInitData {
 }
 
 /**
- * Location where we load resources from
+ * Root from which resources in webviews are loaded.
  *
- * There endpoints can be hardcoded because we never expect to actually hit them. Instead these requests
+ * This is hardcoded because we never expect to actually hit it. Instead these requests
  * should always go to a service worker.
  */
-export const webviewResourceOrigin = (id: string) => `https://${id}.vscode-webview-test.com`;
+export const webviewResourceBaseHost = 'vscode-webview.net';
 
-export const webviewResourceRoot = (id: string) => `${webviewResourceOrigin(id)}/vscode-resource/{{resource}}`;
+export const webviewRootResourceAuthority = `vscode-resource.${webviewResourceBaseHost}`;
 
-export const webviewGenericCspSource = 'https://*.vscode-webview-test.com';
+export const webviewGenericCspSource = `https://*.${webviewResourceBaseHost}`;
 
 /**
  * Construct a uri that can load resources inside a webview
@@ -33,34 +33,32 @@ export const webviewGenericCspSource = 'https://*.vscode-webview-test.com';
  * we know where to load the resource from (remote or truly local):
  *
  * ```txt
- * scheme/resource-authority/path...
+ * ${scheme}+${resource-authority}.vscode-resource.vscode-webview.net/${path}
  * ```
  *
- * @param uuid Unique id of the webview.
  * @param resource Uri of the resource to load.
- * @param fromAuthority Optional remote authority that specifies where `resource` should be resolved from.
+ * @param remoteInfo Optional information about the remote that specifies where `resource` should be resolved from.
  */
 export function asWebviewUri(
-	uuid: string,
 	resource: vscode.Uri,
-	fromAuthority: string | undefined
+	remoteInfo?: { authority: string | undefined, isRemote: boolean }
 ): vscode.Uri {
 	if (resource.scheme === Schemas.http || resource.scheme === Schemas.https) {
 		return resource;
 	}
 
-	if (fromAuthority && resource.scheme === Schemas.file) {
+	if (remoteInfo && remoteInfo.authority && remoteInfo.isRemote && resource.scheme === Schemas.file) {
 		resource = URI.from({
 			scheme: Schemas.vscodeRemote,
-			authority: fromAuthority,
+			authority: remoteInfo.authority,
 			path: resource.path,
 		});
 	}
 
-	const uri = webviewResourceRoot(uuid)
-		.replace('{{resource}}', resource.scheme + '/' + encodeURIComponent(resource.authority) + resource.path)
-		.replace('{{uuid}}', uuid);
-	return URI.parse(uri).with({
+	return URI.from({
+		scheme: Schemas.https,
+		authority: `${resource.scheme}+${resource.authority}.${webviewRootResourceAuthority}`,
+		path: resource.path,
 		fragment: resource.fragment,
 		query: resource.query,
 	});

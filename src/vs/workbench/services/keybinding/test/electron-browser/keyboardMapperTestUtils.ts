@@ -5,11 +5,10 @@
 
 import * as assert from 'assert';
 import * as path from 'vs/base/common/path';
-import { promises } from 'fs';
 import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 import { Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { ScanCodeBinding } from 'vs/base/common/scanCode';
-import { writeFile } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
 
@@ -53,7 +52,7 @@ export function assertResolveUserBinding(mapper: IKeyboardMapper, parts: (Simple
 }
 
 export function readRawMapping<T>(file: string): Promise<T> {
-	return promises.readFile(getPathFromAmdModule(require, `vs/workbench/services/keybinding/test/electron-browser/${file}.js`)).then((buff) => {
+	return Promises.readFile(getPathFromAmdModule(require, `vs/workbench/services/keybinding/test/electron-browser/${file}.js`)).then((buff) => {
 		let contents = buff.toString();
 		let func = new Function('define', contents);
 		let rawMappings: T | null = null;
@@ -67,12 +66,12 @@ export function readRawMapping<T>(file: string): Promise<T> {
 export function assertMapping(writeFileIfDifferent: boolean, mapper: IKeyboardMapper, file: string): Promise<void> {
 	const filePath = path.normalize(getPathFromAmdModule(require, `vs/workbench/services/keybinding/test/electron-browser/${file}`));
 
-	return promises.readFile(filePath).then((buff) => {
+	return Promises.readFile(filePath).then((buff) => {
 		const expected = buff.toString().replace(/\r\n/g, '\n');
 		const actual = mapper.dumpDebugInfo().replace(/\r\n/g, '\n');
 		if (actual !== expected && writeFileIfDifferent) {
 			const destPath = filePath.replace(/vscode[\/\\]out[\/\\]vs/, 'vscode/src/vs');
-			writeFile(destPath, actual);
+			Promises.writeFile(destPath, actual);
 		}
 		assert.deepStrictEqual(actual, expected);
 	});

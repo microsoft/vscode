@@ -24,7 +24,7 @@ import { ICommandDelegate } from 'vs/editor/browser/view/viewController';
 import { IContentWidgetData, IOverlayWidgetData, View } from 'vs/editor/browser/view/viewImpl';
 import { ViewUserInputEvents } from 'vs/editor/browser/view/viewUserInputEvents';
 import { ConfigurationChangedEvent, EditorLayoutInfo, IEditorOptions, EditorOption, IComputedEditorOptions, FindComputedEditorOptionValueById, filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
-import { Cursor } from 'vs/editor/common/controller/cursor';
+import { CursorsController } from 'vs/editor/common/controller/cursor';
 import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 import { CursorChangeReason, ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -1221,7 +1221,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.model.deltaDecorations(oldDecorations, newDecorations, this._id);
 	}
 
-	public setDecorations(decorationTypeKey: string, decorationOptions: editorCommon.IDecorationOptions[]): void {
+	public setDecorations(description: string, decorationTypeKey: string, decorationOptions: editorCommon.IDecorationOptions[]): void {
 
 		const newDecorationsSubTypes: { [key: string]: boolean } = {};
 		const oldDecorationsSubTypes = this._decorationTypeSubtypes[decorationTypeKey] || {};
@@ -1240,7 +1240,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				typeKey = decorationTypeKey + '-' + subType;
 				if (!oldDecorationsSubTypes[subType] && !newDecorationsSubTypes[subType]) {
 					// decoration type did not exist before, register new one
-					this._registerDecorationType(typeKey, decorationOption.renderOptions, decorationTypeKey);
+					this._registerDecorationType(description, typeKey, decorationOption.renderOptions, decorationTypeKey);
 				}
 				newDecorationsSubTypes[subType] = true;
 			}
@@ -1540,7 +1540,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					break;
 				case OutgoingViewModelEventKind.CursorStateChanged: {
 					if (e.reachedMaxCursorCount) {
-						this._notificationService.warn(nls.localize('cursors.maximum', "The number of cursors has been limited to {0}.", Cursor.MAX_CURSOR_COUNT));
+						this._notificationService.warn(nls.localize('cursors.maximum', "The number of cursors has been limited to {0}.", CursorsController.MAX_CURSOR_COUNT));
 					}
 
 					const positions: Position[] = [];
@@ -1701,8 +1701,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return model;
 	}
 
-	private _registerDecorationType(key: string, options: editorCommon.IDecorationRenderOptions, parentTypeKey?: string): void {
-		this._codeEditorService.registerDecorationType(key, options, parentTypeKey, this);
+	private _registerDecorationType(description: string, key: string, options: editorCommon.IDecorationRenderOptions, parentTypeKey?: string): void {
+		this._codeEditorService.registerDecorationType(description, key, options, parentTypeKey, this);
 	}
 
 	private _removeDecorationType(key: string): void {

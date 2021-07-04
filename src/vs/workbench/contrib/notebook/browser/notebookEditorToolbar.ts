@@ -10,7 +10,7 @@ import { IAction, Separator } from 'vs/base/common/actions';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { IMenu, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenu, IMenuService, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -22,8 +22,7 @@ import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/contrib/
 import { INotebookEditor, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebooKernelActionViewItem } from 'vs/workbench/contrib/notebook/browser/notebookKernelActionViewItem';
 import { ActionViewWithLabel } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
-import { CellMenus } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellMenus';
-import { ExperimentalGlobalToolbar } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { GlobalToolbar } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 
@@ -53,6 +52,7 @@ export class NotebookEditorToolbar extends Disposable {
 		@IInstantiationService readonly instantiationService: IInstantiationService,
 		@IConfigurationService readonly configurationService: IConfigurationService,
 		@IContextMenuService readonly contextMenuService: IContextMenuService,
+		@IMenuService readonly menuService: IMenuService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@optional(ITASExperimentService) private readonly experimentService: ITASExperimentService
@@ -94,14 +94,13 @@ export class NotebookEditorToolbar extends Disposable {
 	}
 
 	private _reigsterNotebookActionsToolbar() {
-		const cellMenu = this.instantiationService.createInstance(CellMenus);
-		this._notebookGlobalActionsMenu = this._register(cellMenu.getNotebookToolbar(this.contextKeyService));
+		this._notebookGlobalActionsMenu = this._register(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.notebookToolbar, this.contextKeyService));
 		this._register(this._notebookGlobalActionsMenu);
 
-		this._useGlobalToolbar = this.configurationService.getValue<boolean | undefined>(ExperimentalGlobalToolbar) ?? false;
+		this._useGlobalToolbar = this.configurationService.getValue<boolean | undefined>(GlobalToolbar) ?? false;
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ExperimentalGlobalToolbar)) {
-				this._useGlobalToolbar = this.configurationService.getValue<boolean>(ExperimentalGlobalToolbar);
+			if (e.affectsConfiguration(GlobalToolbar)) {
+				this._useGlobalToolbar = this.configurationService.getValue<boolean>(GlobalToolbar);
 				this._showNotebookActionsinEditorToolbar();
 			}
 		}));
@@ -164,7 +163,7 @@ export class NotebookEditorToolbar extends Disposable {
 			this.domNode.style.display = 'none';
 		} else {
 			this._notebookLeftToolbar.setActions([], []);
-			const groups = this._notebookGlobalActionsMenu.getActions({ shouldForwardArgs: true });
+			const groups = this._notebookGlobalActionsMenu.getActions({ shouldForwardArgs: true, renderShortTitle: true });
 			this.domNode.style.display = 'flex';
 			const primaryLeftGroups = groups.filter(group => /^navigation/.test(group[0]));
 			let primaryActions: IAction[] = [];
@@ -186,7 +185,7 @@ export class NotebookEditorToolbar extends Disposable {
 			});
 			const primaryRightGroup = groups.find(group => /^status/.test(group[0]));
 			const primaryRightActions = primaryRightGroup ? primaryRightGroup[1] : [];
-			const secondaryActions = groups.filter(group => /^navigation/.test(group[0]) && /^status/.test(group[0])).reduce((prev: (MenuItemAction | SubmenuItemAction)[], curr) => { prev.push(...curr[1]); return prev; }, []);
+			const secondaryActions = groups.filter(group => !/^navigation/.test(group[0]) && !/^status/.test(group[0])).reduce((prev: (MenuItemAction | SubmenuItemAction)[], curr) => { prev.push(...curr[1]); return prev; }, []);
 
 			this._notebookLeftToolbar.setActions(primaryActions, secondaryActions);
 			this._notebookRightToolbar.setActions(primaryRightActions, []);

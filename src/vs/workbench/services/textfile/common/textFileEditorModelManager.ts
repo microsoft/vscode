@@ -12,7 +12,7 @@ import { dispose, IDisposable, Disposable, DisposableStore } from 'vs/base/commo
 import { ITextFileEditorModel, ITextFileEditorModelManager, ITextFileEditorModelResolveOrCreateOptions, ITextFileResolveEvent, ITextFileSaveEvent, ITextFileSaveParticipant } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceMap } from 'vs/base/common/map';
-import { IFileService, FileChangesEvent, FileOperation, FileChangeType } from 'vs/platform/files/common/files';
+import { IFileService, FileChangesEvent, FileOperation, FileChangeType, IFileSystemProviderRegistrationEvent, IFileSystemProviderCapabilitiesChangeEvent } from 'vs/platform/files/common/files';
 import { Promises, ResourceQueue } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TextFileSaveParticipant } from 'vs/workbench/services/textfile/common/textFileSaveParticipant';
@@ -21,9 +21,9 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { ITextSnapshot } from 'vs/editor/common/model';
-import { joinPath } from 'vs/base/common/resources';
+import { extname, joinPath } from 'vs/base/common/resources';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_EXTENSION, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class TextFileEditorModelManager extends Disposable implements ITextFileEditorModelManager {
@@ -87,6 +87,10 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		// Update models from file change events
 		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
 
+		// File system provider changes
+		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onDidChangeFileSystemProviderCapabilities(e)));
+		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onDidChangeFileSystemProviderRegistrations(e)));
+
 		// Working copy operations
 		this._register(this.workingCopyFileService.onWillRunWorkingCopyFileOperation(e => this.onWillRunWorkingCopyFileOperation(e)));
 		this._register(this.workingCopyFileService.onDidFailWorkingCopyFileOperation(e => this.onDidFailWorkingCopyFileOperation(e)));
@@ -103,6 +107,39 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 			// the model. We also consider the added event because it could
 			// be that a file was added and updated right after.
 			if (e.contains(model.resource, FileChangeType.UPDATED, FileChangeType.ADDED)) {
+				this.queueModelResolve(model);
+			}
+		}
+	}
+
+	private onDidChangeFileSystemProviderCapabilities(e: IFileSystemProviderCapabilitiesChangeEvent): void {
+
+		// Resolve models again for file systems that changed
+		// capabilities to fetch latest metadata (e.g. readonly)
+		// into all models.
+		this.queueModelResolves(e.scheme);
+	}
+
+	private onDidChangeFileSystemProviderRegistrations(e: IFileSystemProviderRegistrationEvent): void {
+		if (!e.added) {
+			return; // only if added
+		}
+
+		// Resolve models again for file systems that registered
+		// to account for capability changes: extensions may
+		// unregister and register the same provider with different
+		// capabilities, so we want to ensure to fetch latest
+		// metadata (e.g. readonly) into all models.
+		this.queueModelResolves(e.scheme);
+	}
+
+	private queueModelResolves(scheme: string): void {
+		for (const model of this.models) {
+			if (model.isDirty() || !model.isResolved()) {
+				continue; // require a resolved, saved model to continue
+			}
+
+			if (scheme === model.resource.scheme) {
 				this.queueModelResolve(model);
 			}
 		}
@@ -236,7 +273,14 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 							});
 
 							// restore previous mode only if the mode is now unspecified and it was specified
-							if (modelToRestore.mode && modelToRestore.mode !== PLAINTEXT_MODE_ID && restoredModel.getMode() === PLAINTEXT_MODE_ID) {
+							// but not when the file was explicitly stored with the plain text extension
+							// (https://github.com/microsoft/vscode/issues/125795)
+							if (
+								modelToRestore.mode &&
+								modelToRestore.mode !== PLAINTEXT_MODE_ID &&
+								restoredModel.getMode() === PLAINTEXT_MODE_ID &&
+								extname(modelToRestore.target) !== PLAINTEXT_EXTENSION
+							) {
 								restoredModel.updateTextEditorModel(undefined, modelToRestore.mode);
 							}
 						}));

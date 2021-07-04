@@ -69,10 +69,7 @@ export class ExtHostWebview implements vscode.Webview {
 
 	public asWebviewUri(resource: vscode.Uri): vscode.Uri {
 		this.#hasCalledAsWebviewUri = true;
-		const remoteAuthority = this.#initData.remote.isRemote
-			? this.#initData.remote.authority
-			: undefined;
-		return asWebviewUri(this.#handle, resource, remoteAuthority);
+		return asWebviewUri(resource, this.#initData.remote);
 	}
 
 	public get cspSource(): string {

@@ -37,7 +37,7 @@ export class TerminalNativeContribution extends Disposable implements IWorkbench
 	}
 
 	private _onOsResume(): void {
-		this._terminalService.terminalInstances.forEach(instance => instance.forceRedraw());
+		this._terminalService.instances.forEach(instance => instance.forceRedraw());
 	}
 
 	private async _onOpenFileRequest(request: INativeOpenFileRequest): Promise<void> {
@@ -49,7 +49,7 @@ export class TerminalNativeContribution extends Disposable implements IWorkbench
 			await this._whenFileDeleted(waitMarkerFileUri);
 
 			// Focus active terminal
-			this._terminalService.getActiveInstance()?.focus();
+			this._terminalService.activeInstance?.focus();
 		}
 	}
 

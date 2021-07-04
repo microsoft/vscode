@@ -12,6 +12,7 @@ export namespace TestingContextKeys {
 	export const providerCount = new RawContextKey('testing.providerCount', 0);
 	export const hasDebuggableTests = new RawContextKey('testing.hasDebuggableTests', false);
 	export const hasRunnableTests = new RawContextKey('testing.hasRunnableTests', false);
+	export const hasAnyResults = new RawContextKey('testing.hasAnyResults', false);
 	export const viewMode = new RawContextKey('testing.explorerViewMode', TestExplorerViewMode.List);
 	export const viewSorting = new RawContextKey('testing.explorerViewSorting', TestExplorerViewSorting.ByLocation);
 	export const isRunning = new RawContextKey('testing.isRunning', false);
@@ -20,6 +21,10 @@ export namespace TestingContextKeys {
 	export const explorerLocation = new RawContextKey('testing.explorerLocation', ViewContainerLocation.Sidebar);
 	export const autoRun = new RawContextKey('testing.autoRun', false);
 
+	export const peekItemType = new RawContextKey<string | undefined>('peekItemType', undefined, {
+		type: 'string',
+		description: localize('testing.peekItemType', 'Type of the item in the output peek view. Either a "test", "message", "task", or "result".'),
+	});
 	export const testItemExtId = new RawContextKey<string | undefined>('testId', undefined, {
 		type: 'string',
 		description: localize('testing.testId', 'ID of the current test item, set when creating or opening menus on test items')

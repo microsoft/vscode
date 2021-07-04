@@ -12,6 +12,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Extensions as ViewContainerExtensions, IViewContainersRegistry, IViewsRegistry, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
@@ -19,23 +20,23 @@ import { testingViewIcon } from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingDecorations } from 'vs/workbench/contrib/testing/browser/testingDecorations';
 import { ITestExplorerFilterState, TestExplorerFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
-import { CloseTestPeek, ITestingPeekOpener, TestingOutputPeekController, TestingPeekOpener } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
+import { CloseTestPeek, TestingOutputPeekController, TestingPeekOpener } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { ITestingOutputTerminalService, TestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
 import { ITestingProgressUiService, TestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { TestingViewPaneContainer } from 'vs/workbench/contrib/testing/browser/testingViewPaneContainer';
 import { testingConfiguation } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { TestIdPath, TestIdWithSrc } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestIdPath, ITestIdWithSrc, identifyTest } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestingAutoRun, TestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
 import { TestingContentProvider } from 'vs/workbench/contrib/testing/common/testingContentProvider';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { ITestResultService, TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestResultStorage, TestResultStorage } from 'vs/workbench/contrib/testing/common/testResultStorage';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { TestService } from 'vs/workbench/contrib/testing/common/testServiceImpl';
-import { IWorkspaceTestCollectionService, WorkspaceTestCollectionService } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import * as Action from './testExplorerActions';
+import { allTestActions, runTestsByPath } from './testExplorerActions';
 
 registerSingleton(ITestService, TestService);
 registerSingleton(ITestResultStorage, TestResultStorage);
@@ -45,7 +46,6 @@ registerSingleton(ITestingAutoRun, TestingAutoRun, true);
 registerSingleton(ITestingOutputTerminalService, TestingOutputTerminalService, true);
 registerSingleton(ITestingPeekOpener, TestingPeekOpener);
 registerSingleton(ITestingProgressUiService, TestingProgressUiService);
-registerSingleton(IWorkspaceTestCollectionService, WorkspaceTestCollectionService);
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: Testing.ViewletId,
@@ -54,6 +54,13 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensio
 	icon: testingViewIcon,
 	alwaysUseContainerInfo: true,
 	order: 6,
+	openCommandActionDescriptor: {
+		id: Testing.ViewletId,
+		mnemonicTitle: localize({ key: 'miViewTesting', comment: ['&& denotes a mnemonic'] }, "T&&esting"),
+		// todo: coordinate with joh whether this is available
+		// keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_SEMICOLON },
+		order: 4,
+	},
 	hideIfEmpty: true,
 }, ViewContainerLocation.Sidebar);
 
@@ -89,35 +96,7 @@ viewsRegistry.registerViews([{
 	when: ContextKeyExpr.greater(TestingContextKeys.providerCount.key, 0),
 }], viewContainer);
 
-registerAction2(Action.AutoRunOffAction);
-registerAction2(Action.AutoRunOnAction);
-registerAction2(Action.CancelTestRunAction);
-registerAction2(Action.ClearTestResultsAction);
-registerAction2(Action.CollapseAllAction);
-registerAction2(Action.DebugAction);
-registerAction2(Action.DebugAllAction);
-registerAction2(Action.DebugAtCursor);
-registerAction2(Action.DebugCurrentFile);
-registerAction2(Action.DebugFailedTests);
-registerAction2(Action.DebugLastRun);
-registerAction2(Action.DebugSelectedAction);
-registerAction2(Action.GoToTest);
-registerAction2(Action.HideTestAction);
-registerAction2(Action.RefreshTestsAction);
-registerAction2(Action.ReRunFailedTests);
-registerAction2(Action.ReRunLastRun);
-registerAction2(Action.RunAction);
-registerAction2(Action.RunAllAction);
-registerAction2(Action.RunAtCursor);
-registerAction2(Action.RunCurrentFile);
-registerAction2(Action.RunSelectedAction);
-registerAction2(Action.SearchForTestExtension);
-registerAction2(Action.ShowMostRecentOutputAction);
-registerAction2(Action.TestingSortByLocationAction);
-registerAction2(Action.TestingSortByNameAction);
-registerAction2(Action.TestingViewAsListAction);
-registerAction2(Action.TestingViewAsTreeAction);
-registerAction2(Action.UnhideTestAction);
+allTestActions.forEach(registerAction2);
 registerAction2(CloseTestPeek);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingContentProvider, LifecyclePhase.Restored);
@@ -129,17 +108,17 @@ registerEditorContribution(Testing.DecorationsContributionId, TestingDecorations
 
 CommandsRegistry.registerCommand({
 	id: 'vscode.runTests',
-	handler: async (accessor: ServicesAccessor, tests: TestIdWithSrc[]) => {
+	handler: async (accessor: ServicesAccessor, tests: ITestIdWithSrc[]) => {
 		const testService = accessor.get(ITestService);
-		testService.runTests({ debug: false, tests: tests.filter(t => t.src && t.testId) });
+		testService.runTests({ debug: false, tests });
 	}
 });
 
 CommandsRegistry.registerCommand({
 	id: 'vscode.debugTests',
-	handler: async (accessor: ServicesAccessor, tests: TestIdWithSrc[]) => {
+	handler: async (accessor: ServicesAccessor, tests: ITestIdWithSrc[]) => {
 		const testService = accessor.get(ITestService);
-		testService.runTests({ debug: true, tests: tests.filter(t => t.src && t.testId) });
+		testService.runTests({ debug: true, tests });
 	}
 });
 
@@ -158,6 +137,22 @@ CommandsRegistry.registerCommand({
 		if (lookup) {
 			accessor.get(ITestingPeekOpener).tryPeekFirstError(lookup[0], lookup[1]);
 		}
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: 'vscode.runTestsByPath',
+	handler: async (accessor: ServicesAccessor, debug: boolean, ...pathToTests: TestIdPath[]) => {
+		const testService = accessor.get(ITestService);
+		await runTestsByPath(
+			accessor.get(ITestService).collection,
+			accessor.get(IProgressService),
+			pathToTests,
+			tests => testService.runTests({
+				debug: false,
+				tests: tests.map(identifyTest),
+			}),
+		);
 	}
 });
 

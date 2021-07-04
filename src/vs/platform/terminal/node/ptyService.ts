@@ -5,7 +5,7 @@
 
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
-import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, LocalReconnectConstants, ITerminalsLayoutInfo, IRawTerminalInstanceLayoutInfo, ITerminalTabLayoutInfoById, ITerminalInstanceLayoutInfoById, TerminalShellType, IProcessReadyEvent, TitleEventSource, TerminalIcon } from 'vs/platform/terminal/common/terminal';
+import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalsLayoutInfo, IRawTerminalInstanceLayoutInfo, ITerminalTabLayoutInfoById, ITerminalInstanceLayoutInfoById, TerminalShellType, IProcessReadyEvent, TitleEventSource, TerminalIcon, IReconnectConstants } from 'vs/platform/terminal/common/terminal';
 import { AutoOpenBarrier, Queue, RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
@@ -51,7 +51,8 @@ export class PtyService extends Disposable implements IPtyService {
 
 	constructor(
 		private _lastPtyId: number,
-		private readonly _logService: ILogService
+		private readonly _logService: ILogService,
+		private readonly _reconnectConstants: IReconnectConstants
 	) {
 		super();
 
@@ -92,7 +93,7 @@ export class PtyService extends Disposable implements IPtyService {
 		if (process.onProcessResolvedShellLaunchConfig) {
 			process.onProcessResolvedShellLaunchConfig(event => this._onProcessResolvedShellLaunchConfig.fire({ id, event }));
 		}
-		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, this._logService, shellLaunchConfig.icon);
+		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, this._reconnectConstants, this._logService, shellLaunchConfig.icon);
 		process.onProcessExit(() => {
 			persistentProcess.dispose();
 			this._ptys.delete(id);
@@ -143,10 +144,14 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	async start(id: number): Promise<ITerminalLaunchError | undefined> {
-		return this._throwIfNoPty(id).start();
+		this._logService.trace('ptyService#start', id);
+		const pty = this._ptys.get(id);
+		return pty ? pty.start() : { message: `Could not find pty with id "${id}"` };
 	}
+
 	async shutdown(id: number, immediate: boolean): Promise<void> {
 		// Don't throw if the pty is already shutdown
+		this._logService.trace('ptyService#shutDown', id, immediate);
 		return this._ptys.get(id)?.shutdown(immediate);
 	}
 	async input(id: number, data: string): Promise<void> {
@@ -203,9 +208,11 @@ export class PtyService extends Disposable implements IPtyService {
 
 	async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
 		const layout = this._workspaceLayoutInfos.get(args.workspaceId);
+		this._logService.trace('ptyService#getLayoutInfo', args);
 		if (layout) {
 			const expandedTabs = await Promise.all(layout.tabs.map(async tab => this._expandTerminalTab(tab)));
 			const tabs = expandedTabs.filter(t => t.terminals.length > 0);
+			this._logService.trace('ptyService#returnLayoutInfo', tabs);
 			return { tabs };
 		}
 		return undefined;
@@ -324,22 +331,24 @@ export class PersistentTerminalProcess extends Disposable {
 		readonly workspaceName: string,
 		readonly shouldPersistTerminal: boolean,
 		cols: number, rows: number,
+		reconnectConstants: IReconnectConstants,
 		private readonly _logService: ILogService,
 		private _icon?: TerminalIcon,
 		private _color?: string
 	) {
 		super();
+		this._logService.trace('persistentTerminalProcess#ctor', _persistentProcessId, arguments);
 		this._recorder = new TerminalRecorder(cols, rows);
 		this._orphanQuestionBarrier = null;
 		this._orphanQuestionReplyTime = 0;
 		this._disconnectRunner1 = this._register(new RunOnceScheduler(() => {
-			this._logService.info(`Persistent process "${this._persistentProcessId}": The reconnection grace time of ${printTime(LocalReconnectConstants.ReconnectionGraceTime)} has expired, shutting down pid "${this._pid}"`);
+			this._logService.info(`Persistent process "${this._persistentProcessId}": The reconnection grace time of ${printTime(reconnectConstants.GraceTime)} has expired, shutting down pid "${this._pid}"`);
 			this.shutdown(true);
-		}, LocalReconnectConstants.ReconnectionGraceTime));
+		}, reconnectConstants.GraceTime));
 		this._disconnectRunner2 = this._register(new RunOnceScheduler(() => {
-			this._logService.info(`Persistent process "${this._persistentProcessId}": The short reconnection grace time of ${printTime(LocalReconnectConstants.ReconnectionShortGraceTime)} has expired, shutting down pid ${this._pid}`);
+			this._logService.info(`Persistent process "${this._persistentProcessId}": The short reconnection grace time of ${printTime(reconnectConstants.ShortGraceTime)} has expired, shutting down pid ${this._pid}`);
 			this.shutdown(true);
-		}, LocalReconnectConstants.ReconnectionShortGraceTime));
+		}, reconnectConstants.ShortGraceTime));
 
 		this._register(this._terminalProcess.onProcessReady(e => {
 			this._pid = e.pid;
@@ -359,10 +368,13 @@ export class PersistentTerminalProcess extends Disposable {
 	}
 
 	attach(): void {
+		this._logService.trace('persistentTerminalProcess#attach', this._persistentProcessId);
 		this._disconnectRunner1.cancel();
+		this._disconnectRunner2.cancel();
 	}
 
 	async detach(): Promise<void> {
+		this._logService.trace('persistentTerminalProcess#detach', this._persistentProcessId);
 		if (this.shouldPersistTerminal) {
 			this._disconnectRunner1.schedule();
 		} else {
@@ -371,6 +383,7 @@ export class PersistentTerminalProcess extends Disposable {
 	}
 
 	async start(): Promise<ITerminalLaunchError | undefined> {
+		this._logService.trace('persistentTerminalProcess#start', this._persistentProcessId, this._isStarted);
 		if (!this._isStarted) {
 			const result = await this._terminalProcess.start();
 			if (result) {

@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorInput } from 'vs/workbench/common/editor';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { URI } from 'vs/base/common/uri';
+import { isEditorInput, isResourceDiffEditorInput, isResourceEditorInput, isUntitledResourceEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { TestEditorInput } from 'vs/workbench/test/browser/workbenchTestServices';
 
-suite('Workbench editor input', () => {
+suite('EditorInput', () => {
 
 	class MyEditorInput extends EditorInput {
 		readonly resource = undefined;
@@ -17,14 +18,22 @@ suite('Workbench editor input', () => {
 		override resolve(): any { return null; }
 	}
 
-	test('EditorInput', () => {
+	test('basics', () => {
 		let counter = 0;
 		let input = new MyEditorInput();
 		let otherInput = new MyEditorInput();
 
+		assert.ok(isEditorInput(input));
+		assert.ok(!isEditorInput(undefined));
+		assert.ok(!isEditorInput({ resource: URI.file('/') }));
+		assert.ok(!isEditorInput({}));
+
+		assert.ok(!isResourceEditorInput(input));
+		assert.ok(!isUntitledResourceEditorInput(input));
+		assert.ok(!isResourceDiffEditorInput(input));
+
 		assert(input.matches(input));
 		assert(!input.matches(otherInput));
-		assert(!input.matches(null));
 		assert(input.getName());
 
 		input.onWillDispose(() => {
@@ -36,59 +45,19 @@ suite('Workbench editor input', () => {
 		assert.strictEqual(counter, 1);
 	});
 
-	test('DiffEditorInput', () => {
-		const instantiationService = workbenchInstantiationService();
+	test('untyped matches', () => {
+		const testInputID = 'untypedMatches';
+		const testInputResource = URI.file('/fake');
+		const testInput = new TestEditorInput(testInputResource, testInputID);
+		const testUntypedInput = { resource: testInputResource, options: { override: testInputID } };
+		const tetUntypedInputWrongResource = { resource: URI.file('/incorrectFake'), options: { override: testInputID } };
+		const testUntypedInputWrongId = { resource: testInputResource, options: { override: 'wrongId' } };
+		const testUntypedInputWrong = { resource: URI.file('/incorrectFake'), options: { override: 'wrongId' } };
 
-		let counter = 0;
-		let input = new MyEditorInput();
-		input.onWillDispose(() => {
-			assert(true);
-			counter++;
-		});
+		assert(testInput.matches(testUntypedInput));
+		assert.ok(!testInput.matches(tetUntypedInputWrongResource));
+		assert.ok(!testInput.matches(testUntypedInputWrongId));
+		assert.ok(!testInput.matches(testUntypedInputWrong));
 
-		let otherInput = new MyEditorInput();
-		otherInput.onWillDispose(() => {
-			assert(true);
-			counter++;
-		});
-
-		let diffInput = instantiationService.createInstance(DiffEditorInput, 'name', 'description', input, otherInput, undefined);
-
-		assert.strictEqual(diffInput.originalInput, input);
-		assert.strictEqual(diffInput.modifiedInput, otherInput);
-		assert(diffInput.matches(diffInput));
-		assert(!diffInput.matches(otherInput));
-		assert(!diffInput.matches(null));
-
-		diffInput.dispose();
-		assert.strictEqual(counter, 0);
-	});
-
-	test('DiffEditorInput disposes when input inside disposes', function () {
-		const instantiationService = workbenchInstantiationService();
-
-		let counter = 0;
-		let input = new MyEditorInput();
-		let otherInput = new MyEditorInput();
-
-		let diffInput = instantiationService.createInstance(DiffEditorInput, 'name', 'description', input, otherInput, undefined);
-		diffInput.onWillDispose(() => {
-			counter++;
-			assert(true);
-		});
-
-		input.dispose();
-
-		input = new MyEditorInput();
-		otherInput = new MyEditorInput();
-
-		let diffInput2 = instantiationService.createInstance(DiffEditorInput, 'name', 'description', input, otherInput, undefined);
-		diffInput2.onWillDispose(() => {
-			counter++;
-			assert(true);
-		});
-
-		otherInput.dispose();
-		assert.strictEqual(counter, 2);
 	});
 });

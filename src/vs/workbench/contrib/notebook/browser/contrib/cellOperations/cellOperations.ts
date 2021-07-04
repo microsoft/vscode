@@ -40,6 +40,12 @@ registerAction2(class extends NotebookCellAction {
 					primary: KeyMod.Alt | KeyCode.UpArrow,
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext.toNegated()),
 					weight: KeybindingWeight.WorkbenchContrib
+				},
+				menu: {
+					id: MenuId.NotebookCellTitle,
+					when: ContextKeyExpr.equals('config.notebook.dragAndDropEnabled', false),
+					group: CellOverflowToolbarGroups.Edit,
+					order: 13
 				}
 			});
 	}
@@ -60,6 +66,12 @@ registerAction2(class extends NotebookCellAction {
 					primary: KeyMod.Alt | KeyCode.DownArrow,
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext.toNegated()),
 					weight: KeybindingWeight.WorkbenchContrib
+				},
+				menu: {
+					id: MenuId.NotebookCellTitle,
+					when: ContextKeyExpr.equals('config.notebook.dragAndDropEnabled', false),
+					group: CellOverflowToolbarGroups.Edit,
+					order: 14
 				}
 			});
 	}
@@ -70,10 +82,11 @@ registerAction2(class extends NotebookCellAction {
 });
 
 export async function moveCellRange(context: INotebookCellActionContext, direction: 'up' | 'down'): Promise<void> {
-	const viewModel = context.notebookEditor.viewModel;
-	if (!viewModel) {
+	if (!context.notebookEditor.hasModel()) {
 		return;
 	}
+	const viewModel = context.notebookEditor.viewModel;
+	const textModel = context.notebookEditor.textModel;
 
 	if (viewModel.options.isReadOnly) {
 		return;
@@ -95,7 +108,7 @@ export async function moveCellRange(context: INotebookCellActionContext, directi
 		const finalSelection = { start: range.start - 1, end: range.end - 1 };
 		const focus = context.notebookEditor.getFocus();
 		const newFocus = cellRangeContains(range, focus) ? { start: focus.start - 1, end: focus.end - 1 } : { start: range.start - 1, end: range.start };
-		viewModel.notebookDocument.applyEdits([
+		textModel.applyEdits([
 			{
 				editType: CellEditType.Move,
 				index: indexAbove,
@@ -123,7 +136,7 @@ export async function moveCellRange(context: INotebookCellActionContext, directi
 		const focus = context.notebookEditor.getFocus();
 		const newFocus = cellRangeContains(range, focus) ? { start: focus.start + 1, end: focus.end + 1 } : { start: range.start + 1, end: range.start + 2 };
 
-		viewModel.notebookDocument.applyEdits([
+		textModel.applyEdits([
 			{
 				editType: CellEditType.Move,
 				index: indexBelow,
@@ -190,10 +203,11 @@ registerAction2(class extends NotebookCellAction {
 });
 
 export async function copyCellRange(context: INotebookCellActionContext, direction: 'up' | 'down'): Promise<void> {
-	const viewModel = context.notebookEditor.viewModel;
-	if (!viewModel) {
+	if (!context.notebookEditor.hasModel()) {
 		return;
 	}
+	const viewModel = context.notebookEditor.viewModel;
+	const textModel = context.notebookEditor.textModel;
 
 	if (viewModel.options.isReadOnly) {
 		return;
@@ -219,7 +233,7 @@ export async function copyCellRange(context: INotebookCellActionContext, directi
 		// insert up, without changing focus and selections
 		const focus = viewModel.getFocus();
 		const selections = viewModel.getSelections();
-		viewModel.notebookDocument.applyEdits([
+		textModel.applyEdits([
 			{
 				editType: CellEditType.Replace,
 				index: range.end,
@@ -243,7 +257,7 @@ export async function copyCellRange(context: INotebookCellActionContext, directi
 		const countDelta = newCells.length;
 		const newFocus = context.ui ? focus : { start: focus.start + countDelta, end: focus.end + countDelta };
 		const newSelections = context.ui ? selections : [{ start: range.start + countDelta, end: range.end + countDelta }];
-		viewModel.notebookDocument.applyEdits([
+		textModel.applyEdits([
 			{
 				editType: CellEditType.Replace,
 				index: range.end,
@@ -298,7 +312,7 @@ registerAction2(class extends NotebookCellAction {
 	}
 });
 
-export async function joinNotebookCells(viewModel: NotebookViewModel, range: ICellRange, direction: 'above' | 'below', constraint?: CellKind): Promise<{ edits: ResourceEdit[], cell: ICellViewModel, endFocus: ICellRange, endSelections: ICellRange[] } | null> {
+export async function joinNotebookCells(viewModel: NotebookViewModel, range: ICellRange, direction: 'above' | 'below', constraint?: CellKind): Promise<{ edits: ResourceEdit[], cell: ICellViewModel, endFocus: ICellRange, endSelections: ICellRange[]; } | null> {
 	if (!viewModel || viewModel.options.isReadOnly) {
 		return null;
 	}

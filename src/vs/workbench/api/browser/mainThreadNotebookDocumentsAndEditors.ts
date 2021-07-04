@@ -9,6 +9,7 @@ import { combinedDisposable, DisposableStore, IDisposable } from 'vs/base/common
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MainThreadNotebookDocuments } from 'vs/workbench/api/browser/mainThreadNotebookDocuments';
+import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 import { MainThreadNotebookEditors } from 'vs/workbench/api/browser/mainThreadNotebookEditors';
 import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { editorGroupToViewColumn } from 'vs/workbench/common/editor';
@@ -226,17 +227,7 @@ export class MainThreadNotebooksAndEditors {
 			uri: e.uri,
 			metadata: e.metadata,
 			versionId: e.versionId,
-			cells: e.cells.map(cell => ({
-				handle: cell.handle,
-				uri: cell.uri,
-				source: cell.textBuffer.getLinesContent(),
-				eol: cell.textBuffer.getEOL(),
-				language: cell.language,
-				cellKind: cell.cellKind,
-				outputs: cell.outputs,
-				metadata: cell.metadata,
-				internalMetadata: cell.internalMetadata,
-			}))
+			cells: e.cells.map(NotebookDto.toNotebookCellDto)
 		};
 	}
 
@@ -246,7 +237,7 @@ export class MainThreadNotebooksAndEditors {
 
 		return {
 			id: add.getId(),
-			documentUri: add.viewModel.uri,
+			documentUri: add.textModel.uri,
 			selections: add.getSelections(),
 			visibleRanges: add.visibleRanges,
 			viewColumn: pane && editorGroupToViewColumn(this._editorGroupService, pane.group)

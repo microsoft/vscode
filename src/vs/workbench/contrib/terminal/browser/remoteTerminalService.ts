@@ -134,7 +134,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 				}));
 			}
 			this._register(channel.onPtyHostRequestResolveVariables(async e => {
-				const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
+				const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.vscodeRemote);
 				const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
 				const resolveCalls: Promise<string>[] = e.originalText.map(t => {
 					return configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, t);
@@ -226,8 +226,8 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		return this._remoteTerminalChannel?.getDefaultSystemShell(osOverride) || '';
 	}
 
-	async getProfiles(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> {
-		return this._remoteTerminalChannel?.getProfiles(includeDetectedProfiles) || [];
+	async getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> {
+		return this._remoteTerminalChannel?.getProfiles(profiles, defaultProfile, includeDetectedProfiles) || [];
 	}
 
 	async getEnvironment(): Promise<IProcessEnvironment> {

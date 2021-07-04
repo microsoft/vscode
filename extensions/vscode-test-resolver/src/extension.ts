@@ -52,7 +52,7 @@ export function activate(context: vscode.ExtensionContext) {
 						const match = lastProgressLine.match(/Extension host agent listening on (\d+)/);
 						if (match) {
 							isResolved = true;
-							res(new vscode.ResolvedAuthority('localhost', parseInt(match[1], 10))); // success!
+							res(new vscode.ResolvedAuthority('127.0.0.1', parseInt(match[1], 10))); // success!
 						}
 						lastProgressLine = '';
 					} else if (chr === CharCode.Backspace) {
@@ -135,9 +135,9 @@ export function activate(context: vscode.ExtensionContext) {
 					let remoteReady = true, localReady = true;
 					const remoteSocket = net.createConnection({ port: serverAddr.port });
 
-					let isDisconnected = getConfiguration('pause') === true;
-					vscode.workspace.onDidChangeConfiguration(_ => {
-						let newIsDisconnected = getConfiguration('pause') === true;
+					let isDisconnected = connectionPaused;
+					connectionPausedEvent.event(_ => {
+						let newIsDisconnected = connectionPaused;
 						if (isDisconnected !== newIsDisconnected) {
 							outputChannel.appendLine(`Connection state: ${newIsDisconnected ? 'open' : 'paused'}`);
 							isDisconnected = newIsDisconnected;
@@ -200,7 +200,7 @@ export function activate(context: vscode.ExtensionContext) {
 						}
 					});
 				});
-				proxyServer.listen(0, () => {
+				proxyServer.listen(0, '127.0.0.1', () => {
 					const port = (<net.AddressInfo>proxyServer.address()).port;
 					outputChannel.appendLine(`Going through proxy at port ${port}`);
 					const r: vscode.ResolverResult = new vscode.ResolvedAuthority('127.0.0.1', port);
@@ -215,7 +215,13 @@ export function activate(context: vscode.ExtensionContext) {
 		});
 	}
 
+	let connectionPaused = false;
+	let connectionPausedEvent = new vscode.EventEmitter<boolean>();
+
 	const authorityResolverDisposable = vscode.workspace.registerRemoteAuthorityResolver('test', {
+		async getCanonicalURI(uri: vscode.Uri): Promise<vscode.Uri> {
+			return vscode.Uri.file(uri.path);
+		},
 		resolve(_authority: string): Thenable<vscode.ResolvedAuthority> {
 			return vscode.window.withProgress({
 				location: vscode.ProgressLocation.Notification,
@@ -255,6 +261,22 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}));
 
+	const pauseStatusBarEntry = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+	pauseStatusBarEntry.text = 'Remote connection paused. Click to undo';
+	pauseStatusBarEntry.command = 'vscode-testresolver.toggleConnectionPause';
+	pauseStatusBarEntry.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+
+	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.toggleConnectionPause', () => {
+		if (!connectionPaused) {
+			connectionPaused = true;
+			pauseStatusBarEntry.show();
+		} else {
+			connectionPaused = false;
+			pauseStatusBarEntry.hide();
+		}
+		connectionPausedEvent.fire(connectionPaused);
+	}));
+
 	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.openTunnel', async () => {
 		const result = await vscode.window.showInputBox({
 			prompt: 'Enter the remote port for the tunnel',
@@ -265,7 +287,7 @@ export function activate(context: vscode.ExtensionContext) {
 			const port = Number.parseInt(result);
 			vscode.workspace.openTunnel({
 				remoteAddress: {
-					host: 'localhost',
+					host: '127.0.0.1',
 					port: port
 				},
 				localAddressPort: port + 1
@@ -360,13 +382,14 @@ async function tunnelFactory(tunnelOptions: vscode.TunnelOptions, tunnelCreation
 
 	return createTunnelService();
 
-	function newTunnel(localAddress: { host: string, port: number }) {
+	function newTunnel(localAddress: { host: string, port: number }): vscode.Tunnel {
 		const onDidDispose: vscode.EventEmitter<void> = new vscode.EventEmitter();
 		let isDisposed = false;
 		return {
 			localAddress,
 			remoteAddress: tunnelOptions.remoteAddress,
 			public: !!vscode.workspace.getConfiguration('testresolver').get('supportPublicPorts') && tunnelOptions.public,
+			protocol: tunnelOptions.protocol,
 			onDidDispose: onDidDispose.event,
 			dispose: () => {
 				if (!isDisposed) {
@@ -403,10 +426,10 @@ async function tunnelFactory(tunnelOptions: vscode.TunnelOptions, tunnelCreation
 			if (localPort < 1024 && process.platform !== 'win32') {
 				localPort = 0;
 			}
-			proxyServer.listen(localPort, () => {
+			proxyServer.listen(localPort, '127.0.0.1', () => {
 				const localPort = (<net.AddressInfo>proxyServer.address()).port;
 				outputChannel.appendLine(`New test resolver tunnel service: Remote ${tunnelOptions.remoteAddress.port} -> local ${localPort}`);
-				const tunnel = newTunnel({ host: 'localhost', port: localPort });
+				const tunnel = newTunnel({ host: '127.0.0.1', port: localPort });
 				tunnel.onDidDispose(() => proxyServer.close());
 				res(tunnel);
 			});
@@ -420,8 +443,8 @@ function runHTTPTestServer(port: number): vscode.Disposable {
 		res.end(`Hello, World from test server running on port ${port}!`);
 	});
 	remoteServers.push(port);
-	server.listen(port);
-	const message = `Opened HTTP server on http://localhost:${port}`;
+	server.listen(port, '127.0.0.1');
+	const message = `Opened HTTP server on http://127.0.0.1:${port}`;
 	console.log(message);
 	outputChannel.appendLine(message);
 	return {
