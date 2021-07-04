@@ -101,6 +101,11 @@ export class TerminalEditor extends EditorPane {
 		}
 	}
 
+	override clearInput(): void {
+		super.clearInput();
+		this._editorInput = undefined;
+	}
+
 	private _setActiveInstance(): void {
 		if (!this._editorInput?.terminalInstance) {
 			return;

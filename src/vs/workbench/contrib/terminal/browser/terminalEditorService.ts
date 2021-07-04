@@ -14,7 +14,7 @@ import { ITerminalEditorService, ITerminalInstance, ITerminalInstanceService } f
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { SerializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
-import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class TerminalEditorService extends Disposable implements ITerminalEditorService {
 	declare _serviceBrand: undefined;
@@ -141,8 +141,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		await this._editorService.openEditor(input, {
 			pinned: true,
 			forceReload: true
-		},
-			SIDE_GROUP
+		}
 		);
 	}
 
