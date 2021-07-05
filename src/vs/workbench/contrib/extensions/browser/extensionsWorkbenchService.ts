@@ -807,7 +807,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			this.webExtensions ? this.webExtensions.syncLocalWithGalleryExtension(gallery, maliciousExtensionSet) : Promise.resolve(false)
 		])
 			.then(result => {
-				if (result[0] || result[1]) {
+				if (result[0] || result[1] || result[2]) {
 					this.eventuallyAutoUpdateExtensions();
 				}
 			});
@@ -951,7 +951,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		if (this.extensionManagementServerService.webExtensionManagementServer) {
-			return extension.gallery.webExtension;
+			const configuredExtensionKind = this.extensionManifestPropertiesService.getUserConfiguredExtensionKind(extension.gallery.identifier);
+			return configuredExtensionKind ? configuredExtensionKind.includes('web') : extension.gallery.webExtension;
 		}
 
 		return false;

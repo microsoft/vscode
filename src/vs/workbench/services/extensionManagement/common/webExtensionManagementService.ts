@@ -3,18 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionType, IExtension, IExtensionIdentifier, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent, IGalleryExtension, IReportedExtension, IGalleryMetadata, InstallOperation, IExtensionGalleryService, ExtensionManagementError, INSTALL_ERROR_INCOMPATIBLE } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionType, IExtensionIdentifier, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent, IGalleryExtension, IReportedExtension, IGalleryMetadata, InstallOperation, IExtensionGalleryService, ExtensionManagementError, INSTALL_ERROR_INCOMPATIBLE, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { IScannedExtension, IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IProductService } from 'vs/platform/product/common/productService';
+
+type Metadata = {
+	isMachineScoped?: boolean;
+};
 
 export class WebExtensionManagementService extends Disposable implements IExtensionManagementService {
 
@@ -67,10 +71,10 @@ export class WebExtensionManagementService extends Disposable implements IExtens
 		if (!this.extensionManifestPropertiesService.canExecuteOnWeb(manifest)) {
 			return false;
 		}
-		return this.webExtensionsScannerService.canAddExtension(gallery);
+		return true;
 	}
 
-	async install(location: URI): Promise<ILocalExtension> {
+	async install(location: URI, installOptions?: InstallOptions): Promise<ILocalExtension> {
 		const manifest = await this.webExtensionsScannerService.scanExtensionManifest(location);
 		if (!manifest) {
 			throw new Error(`Cannot find packageJSON from the location ${location.toString()}`);
@@ -79,8 +83,13 @@ export class WebExtensionManagementService extends Disposable implements IExtens
 		const identifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
 		this.logService.info('Installing extension:', identifier.id);
 		this._onInstallExtension.fire({ identifier: identifier });
+
 		try {
-			const extension = await this.webExtensionsScannerService.addExtension(location);
+			const userExtensions = await this.webExtensionsScannerService.scanUserExtensions();
+			const existingExtension = userExtensions.find(e => areSameExtensions(e.identifier, identifier));
+			const metadata = this.getMetadata(installOptions, existingExtension);
+
+			const extension = await this.webExtensionsScannerService.addExtension(location, metadata);
 			const local = this.toLocalExtension(extension);
 			this._onDidInstallExtension.fire({ local, identifier: extension.identifier, operation: InstallOperation.Install });
 			return local;
@@ -90,7 +99,7 @@ export class WebExtensionManagementService extends Disposable implements IExtens
 		}
 	}
 
-	async installFromGallery(gallery: IGalleryExtension): Promise<ILocalExtension> {
+	async installFromGallery(gallery: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
 		this.logService.info('Installing extension:', gallery.identifier.id);
 		this._onInstallExtension.fire({ identifier: gallery.identifier, gallery });
 		try {
@@ -98,7 +107,11 @@ export class WebExtensionManagementService extends Disposable implements IExtens
 			if (!compatibleExtension) {
 				throw new ExtensionManagementError(localize('notFoundCompatibleDependency', "Unable to install '{0}' extension because it is not compatible with the current version of VS Code (version {1}).", gallery.identifier.id, this.productService.version), INSTALL_ERROR_INCOMPATIBLE);
 			}
-			const scannedExtension = await this.webExtensionsScannerService.addExtensionFromGallery(compatibleExtension);
+			const userExtensions = await this.webExtensionsScannerService.scanUserExtensions();
+			const existingExtension = userExtensions.find(e => areSameExtensions(e.identifier, compatibleExtension.identifier));
+			const metadata = this.getMetadata(installOptions, existingExtension);
+
+			const scannedExtension = await this.webExtensionsScannerService.addExtensionFromGallery(compatibleExtension, metadata);
 			const local = this.toLocalExtension(scannedExtension);
 			this._onDidInstallExtension.fire({ local, identifier: compatibleExtension.identifier, operation: InstallOperation.Install, gallery: compatibleExtension });
 			return local;
@@ -124,13 +137,21 @@ export class WebExtensionManagementService extends Disposable implements IExtens
 		return local;
 	}
 
-	private toLocalExtension(extension: IExtension): ILocalExtension {
+	private toLocalExtension(extension: IScannedExtension): ILocalExtension {
+		const metadata = this.getMetadata(undefined, extension);
 		return {
 			...extension,
-			isMachineScoped: false,
+			isMachineScoped: !!metadata.isMachineScoped,
 			publisherId: null,
 			publisherDisplayName: null,
 		};
+	}
+
+	private getMetadata(options?: InstallOptions, existingExtension?: IScannedExtension): Metadata {
+		const metadata: Metadata = {};
+		const existingExtensionMetadata: Metadata = existingExtension?.metadata || {};
+		metadata.isMachineScoped = options?.isMachineScoped || existingExtensionMetadata.isMachineScoped;
+		return metadata;
 	}
 
 	zip(extension: ILocalExtension): Promise<URI> { throw new Error('unsupported'); }

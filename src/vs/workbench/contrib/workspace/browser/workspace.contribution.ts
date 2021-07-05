@@ -234,7 +234,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 			if (!this.workspaceTrustManagementService.workspaceTrustEnabled) {
 				return;
 			}
-			const trusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
+			const trusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
 
 			return e.join(new Promise(async resolve => {
 				// Workspace is trusted and there are added/changed folders
@@ -328,7 +328,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 	}
 
 	private async showModalOnStart(): Promise<void> {
-		if (this.workspaceTrustManagementService.isWorkpaceTrusted()) {
+		if (this.workspaceTrustManagementService.isWorkspaceTrusted()) {
 			this.updateWorkbenchIndicators(true);
 			return;
 		}
@@ -410,7 +410,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 		}
 
 		// info has been dismissed
-		if (this.bannerSetting === 'once' && dismissedRestricted) {
+		if (this.bannerSetting === 'untilDismissed' && dismissedRestricted) {
 			return undefined;
 		}
 
@@ -463,7 +463,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 	}
 
 
-	private get bannerSetting(): 'always' | 'once' | 'never' {
+	private get bannerSetting(): 'always' | 'untilDismissed' | 'never' {
 		return this.configurationService.getValue(WORKSPACE_TRUST_BANNER);
 	}
 
@@ -472,7 +472,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 	//#region Statusbar
 
 	private createStatusbarEntry(): void {
-		const entry = this.getStatusbarEntry(this.workspaceTrustManagementService.isWorkpaceTrusted());
+		const entry = this.getStatusbarEntry(this.workspaceTrustManagementService.isWorkspaceTrusted());
 		this.statusbarEntryAccessor.value = this.statusbarService.addEntry(entry, this.entryId, StatusbarAlignment.LEFT, 0.99 * Number.MAX_VALUE /* Right of remote indicator */);
 		this.statusbarService.updateEntryVisibility(this.entryId, false);
 	}
@@ -680,15 +680,15 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			[WORKSPACE_TRUST_BANNER]: {
 				type: 'string',
-				default: 'once',
+				default: 'untilDismissed',
 				included: !isWeb,
 				description: localize('workspace.trust.banner.description', "Controls when the restricted mode banner is shown."),
 				tags: [WORKSPACE_TRUST_SETTING_TAG],
 				scope: ConfigurationScope.APPLICATION,
-				enum: ['always', 'once', 'never'],
+				enum: ['always', 'untilDismissed', 'never'],
 				enumDescriptions: [
 					localize('workspace.trust.banner.always', "Show the banner every time an untrusted workspace is open."),
-					localize('workspace.trust.banner.once', "Show the banner the first time an untrusted workspace is opened until dismissed."),
+					localize('workspace.trust.banner.untilDismissed', "Show the banner when an untrusted workspace is opened until dismissed."),
 					localize('workspace.trust.banner.never', "Do not show the banner when an untrusted workspace is open."),
 				]
 			},
@@ -735,7 +735,7 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 		this.workspaceTrustManagementService.workspaceTrustInitialized
 			.then(() => {
 				this.logInitialWorkspaceTrustInfo();
-				this.logWorkspaceTrust(this.workspaceTrustManagementService.isWorkpaceTrusted());
+				this.logWorkspaceTrust(this.workspaceTrustManagementService.isWorkspaceTrusted());
 
 				this._register(this.workspaceTrustManagementService.onDidChangeTrust(isTrusted => this.logWorkspaceTrust(isTrusted)));
 				this._register(this.workspaceTrustRequestService.onDidInitiateWorkspaceTrustRequest(_ => this.logWorkspaceTrustRequest()));

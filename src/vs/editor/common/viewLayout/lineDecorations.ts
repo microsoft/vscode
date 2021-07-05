@@ -9,7 +9,7 @@ import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewMod
 import { LinePartMetadata } from 'vs/editor/common/viewLayout/viewLineRenderer';
 
 export class LineDecoration {
-	_lineDecorationBrand: void;
+	_lineDecorationBrand: void = undefined;
 
 	constructor(
 		public readonly startColumn: number,

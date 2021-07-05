@@ -22,7 +22,6 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
-import { joinPath } from 'vs/base/common/resources';
 
 interface IRawGalleryExtensionFile {
 	readonly assetType: string;
@@ -306,12 +305,6 @@ function getIsPreview(flags: string): boolean {
 	return flags.indexOf('preview') !== -1;
 }
 
-function getWebResource(version: IRawGalleryExtensionVersion): URI | undefined {
-	return version.files.some(f => f.assetType.startsWith('Microsoft.VisualStudio.Code.WebResources'))
-		? joinPath(URI.parse(version.assetUri), 'Microsoft.VisualStudio.Code.WebResources', 'extension')
-		: undefined;
-}
-
 function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGalleryExtensionVersion, index: number, query: Query, querySource?: string): IGalleryExtension {
 	const assets = <IGalleryExtensionAssets>{
 		manifest: getVersionAsset(version, AssetType.Manifest),
@@ -342,7 +335,6 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 		ratingCount: getStatistic(galleryExtension.statistics, 'ratingcount'),
 		assetUri: URI.parse(version.assetUri),
 		webExtension: !!galleryExtension.tags?.includes(WEB_EXTENSION_TAG),
-		webResource: getWebResource(version),
 		assetTypes: version.files.map(({ assetType }) => assetType),
 		assets,
 		properties: {

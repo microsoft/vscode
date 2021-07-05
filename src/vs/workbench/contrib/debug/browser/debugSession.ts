@@ -95,8 +95,8 @@ export class DebugSession implements IDebugSession {
 		const toDispose: IDisposable[] = [];
 		toDispose.push(this.repl.onDidChangeElements(() => this._onDidChangeREPLElements.fire()));
 		if (lifecycleService) {
-			toDispose.push(lifecycleService.onWillShutdown((e) => {
-				e.join(this.shutdown(), 'debugSessionShutdown');
+			toDispose.push(lifecycleService.onWillShutdown(() => {
+				this.shutdown();
 				dispose(toDispose);
 			}));
 		}
@@ -908,13 +908,19 @@ export class DebugSession implements IDebugSession {
 			this.model.clearThreads(this.getId(), false, threadId);
 			this._onDidChangeState.fire();
 			// If the focused thread does get stopped in the next 800ms auto focus another thread or session https://github.com/microsoft/vscode/issues/125144
-			setTimeout(() => {
-				if (typeof threadId === 'number' && this.debugService.getViewModel().focusedThread?.threadId === threadId && this.debugService.state !== State.Stopped) {
+			if (typeof threadId === 'number') {
+				const thread = this.debugService.getViewModel().focusedThread;
+				if (thread && thread.threadId === threadId && !thread.stopped) {
 					const toFocusThreadId = this.getStoppedDetails()?.threadId;
 					const toFocusThread = typeof toFocusThreadId === 'number' ? this.getThread(toFocusThreadId) : undefined;
 					this.debugService.focusStackFrame(undefined, toFocusThread);
 				}
-			}, 800);
+			} else {
+				const session = this.debugService.getViewModel().focusedSession;
+				if (session && session.getId() === this.getId() && session.state !== State.Stopped) {
+					this.debugService.focusStackFrame(undefined);
+				}
+			}
 		}));
 
 		const outputQueue = new Queue<void>();
@@ -1077,10 +1083,11 @@ export class DebugSession implements IDebugSession {
 	}
 
 	// Disconnects and clears state. Session can be initialized again for a new connection.
-	private async shutdown(): Promise<void> {
+	private shutdown(): void {
 		dispose(this.rawListeners);
 		if (this.raw) {
-			await this.raw.disconnect({});
+			// Send out disconnect and immediatly dispose (do not wait for response) #127418
+			this.raw.disconnect({});
 			this.raw.dispose();
 			this.raw = undefined;
 		}

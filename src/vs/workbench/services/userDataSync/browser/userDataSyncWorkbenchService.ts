@@ -148,11 +148,17 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			this.logService.trace('Settings Sync: Initializing accounts');
 			await this.initialize();
 		} catch (error) {
-			this.logService.error(error);
+			// Do not log if the current window is running extension tests
+			if (!this.environmentService.extensionTestsLocationURI) {
+				this.logService.error(error);
+			}
 		}
 
 		if (this.accountStatus === AccountStatus.Uninitialized) {
-			this.logService.warn('Settings Sync: Accounts are not initialized');
+			// Do not log if the current window is running extension tests
+			if (!this.environmentService.extensionTestsLocationURI) {
+				this.logService.warn('Settings Sync: Accounts are not initialized');
+			}
 		} else {
 			this.logService.trace('Settings Sync: Accounts are initialized');
 		}

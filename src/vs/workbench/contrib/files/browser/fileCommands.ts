@@ -244,8 +244,8 @@ CommandsRegistry.registerCommand({
 
 		if (resources.length === 2) {
 			return editorService.openEditor({
-				originalInput: { resource: resources[0] },
-				modifiedInput: { resource: resources[1] },
+				original: { resource: resources[0] },
+				modified: { resource: resources[1] },
 				options: { pinned: true }
 			});
 		}
@@ -263,8 +263,8 @@ CommandsRegistry.registerCommand({
 		const rightResource = getResourceForCommand(resource, listService, editorService);
 		if (globalResourceToCompare && rightResource) {
 			editorService.openEditor({
-				originalInput: { resource: globalResourceToCompare },
-				modifiedInput: { resource: rightResource },
+				original: { resource: globalResourceToCompare },
+				modified: { resource: rightResource },
 				options: { pinned: true }
 			});
 		}

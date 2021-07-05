@@ -781,15 +781,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 	}
 
-	protected _safeInvokeIsDisabledByWorkspaceTrust(extension: IExtension): boolean {
-		try {
-			const enablementState = this._extensionEnablementService.getEnablementState(extension);
-			return enablementState === EnablementState.DisabledByTrustRequirement;
-		} catch (err) {
-			return false;
-		}
-	}
-
 	private _filterEnabledExtensions(extensions: IExtensionDescription[], ignoreWorkspaceTrust: boolean): IExtensionDescription[] {
 		const enabledExtensions: IExtensionDescription[] = [], extensionsToCheck: IExtensionDescription[] = [], mappedExtensions: IExtension[] = [];
 		for (const extension of extensions) {

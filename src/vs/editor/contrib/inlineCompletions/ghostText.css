@@ -21,4 +21,5 @@
 
 .monaco-editor .ghost-text-hidden {
 	opacity: 0;
+	font-size: 0;
 }

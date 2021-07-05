@@ -82,7 +82,7 @@ export interface ITerminalGroup {
 	focusNextPane(): void;
 	resizePane(direction: Direction): void;
 	resizePanes(relativeSizes: number[]): void;
-	setActiveInstanceByIndex(index: number): void;
+	setActiveInstanceByIndex(index: number, force?: boolean): void;
 	attachToElement(element: HTMLElement): void;
 	addInstance(instance: ITerminalInstance): void;
 	removeInstance(instance: ITerminalInstance): void;
@@ -138,8 +138,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	/**
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
 	 */
-	createInstance(profile: ITerminalProfile): ITerminalInstance;
-	createInstance(shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance | undefined;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
 	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined;
@@ -199,6 +197,7 @@ export interface ITerminalEditorService extends ITerminalInstanceHost, ITerminal
 	readonly instances: readonly ITerminalInstance[];
 
 	openEditor(instance: ITerminalInstance): Promise<void>;
+	openOrFocusEditor(instance: ITerminalInstance): Promise<void>;
 	getOrCreateEditorInput(instance: ITerminalInstance | SerializedTerminalEditorInput): TerminalEditorInput;
 	detachActiveEditorInstance(): ITerminalInstance;
 	detachInstance(instance: ITerminalInstance): void;
@@ -217,7 +216,6 @@ export interface ITerminalGroupService extends ITerminalInstanceHost, ITerminalF
 	readonly groups: readonly ITerminalGroup[];
 	activeGroup: ITerminalGroup | undefined;
 	readonly activeGroupIndex: number;
-	readonly activeInstanceIndex: number;
 
 	readonly onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
 	readonly onDidDisposeGroup: Event<ITerminalGroup>;

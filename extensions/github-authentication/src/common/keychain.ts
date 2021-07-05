@@ -46,7 +46,11 @@ export class Keychain {
 
 	async getToken(): Promise<string | null | undefined> {
 		try {
-			return await this.context.secrets.get(this.serviceId);
+			const secret = await this.context.secrets.get(this.serviceId);
+			if (secret && secret !== '[]') {
+				Logger.trace('Token acquired from secret storage.');
+			}
+			return secret;
 		} catch (e) {
 			// Ignore
 			Logger.error(`Getting token failed: ${e}`);
@@ -73,6 +77,7 @@ export class Keychain {
 
 			const oldValue = await keytar.getPassword(`${vscode.env.uriScheme}-github.login`, 'account');
 			if (oldValue) {
+				Logger.trace('Attempting to migrate from keytar to secret store...');
 				await this.setToken(oldValue);
 				await keytar.deletePassword(`${vscode.env.uriScheme}-github.login`, 'account');
 			}

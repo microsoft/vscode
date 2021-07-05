@@ -92,7 +92,6 @@ export interface IGalleryExtension {
 	telemetryData: any;
 	preview: boolean;
 	webExtension: boolean;
-	webResource?: URI;
 }
 
 export interface IGalleryMetadata {

@@ -22,7 +22,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorExtensions, EditorsOrder, IEditorInputFactoryRegistry, IEditorInputSerializer, viewColumnToEditorGroup } from 'vs/workbench/common/editor';
+import { EditorExtensions, EditorsOrder, IEditorInputSerializer, viewColumnToEditorGroup } from 'vs/workbench/common/editor';
 import { InteractiveEditor } from 'vs/workbench/contrib/interactive/browser/interactiveEditor';
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
 import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
@@ -40,6 +40,9 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IInteractiveDocumentService, InteractiveDocumentService } from 'vs/workbench/contrib/interactive/browser/interactiveDocumentService';
+import { IEditorOverrideService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
+import { EditorActivation } from 'vs/platform/editor/common/editor';
 
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -54,7 +57,11 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 );
 
 export class InteractiveDocumentContribution extends Disposable implements IWorkbenchContribution {
-	constructor(@INotebookService notebookService: INotebookService) {
+	constructor(
+		@INotebookService notebookService: INotebookService,
+		@IEditorOverrideService editorOverrideService: IEditorOverrideService,
+		@IEditorService editorService: IEditorService,
+	) {
 		super();
 
 		const contentOptions = {
@@ -165,13 +172,47 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 				exclusive: true
 			}));
 		}
+
+		editorOverrideService.registerEditor(
+			`${Schemas.vscodeInteractiveInput}:/**`,
+			{
+				id: InteractiveEditor.ID,
+				label: 'Interactive Editor',
+				priority: RegisteredEditorPriority.exclusive
+			},
+			{
+				canSupportResource: uri => uri.scheme === Schemas.vscodeInteractiveInput,
+				singlePerResource: true
+			},
+			({ resource }) => {
+				const editorInput = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.editor instanceof InteractiveEditorInput && editor.editor.inputResource.toString() === resource.toString());
+				return editorInput!;
+			}
+		);
+
+		editorOverrideService.registerEditor(
+			`*.interactive`,
+			{
+				id: InteractiveEditor.ID,
+				label: 'Interactive Editor',
+				priority: RegisteredEditorPriority.exclusive
+			},
+			{
+				canSupportResource: uri => uri.scheme === Schemas.vscodeInteractive,
+				singlePerResource: true
+			},
+			({ resource }) => {
+				const editorInput = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.editor instanceof InteractiveEditorInput && editor.editor.resource?.toString() === resource.toString());
+				return editorInput!;
+			}
+		);
 	}
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveDocumentContribution, LifecyclePhase.Starting);
 
-class InteractiveEditorSerializer implements IEditorInputSerializer {
+export class InteractiveEditorSerializer implements IEditorInputSerializer {
 	canSerialize(): boolean {
 		return true;
 	}
@@ -200,10 +241,10 @@ class InteractiveEditorSerializer implements IEditorInputSerializer {
 	}
 }
 
-Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(
-	InteractiveEditorInput.ID,
-	InteractiveEditorSerializer
-);
+// Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(
+// 	InteractiveEditorInput.ID,
+// 	InteractiveEditorSerializer
+// );
 
 registerSingleton(IInteractiveHistoryService, InteractiveHistoryService);
 registerSingleton(IInteractiveDocumentService, InteractiveDocumentService);
@@ -255,7 +296,7 @@ registerAction2(class extends Action2 {
 			if (editors.length) {
 				const editorInput = editors[0].editor as InteractiveEditorInput;
 				const currentGroup = editors[0].groupId;
-				await editorService.openEditor(editorInput, { preserveFocus: true }, currentGroup);
+				await editorService.openEditor(editorInput, { activation: EditorActivation.PRESERVE, preserveFocus: true }, currentGroup);
 				return {
 					notebookUri: editorInput.resource!,
 					inputUri: editorInput.inputResource
@@ -275,7 +316,7 @@ registerAction2(class extends Action2 {
 		let counter = 1;
 		do {
 			notebookUri = URI.from({ scheme: Schemas.vscodeInteractive, path: `Interactive-${counter}.interactive` });
-			inputUri = URI.from({ scheme: Schemas.vscodeInteractiveInput, path: `InteractiveInput-${counter}` });
+			inputUri = URI.from({ scheme: Schemas.vscodeInteractiveInput, path: `/InteractiveInput-${counter}` });
 
 			counter++;
 		} while (existingNotebookDocument.has(notebookUri.toString()));
@@ -370,6 +411,7 @@ registerAction2(class extends Action2 {
 					ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('bottom'),
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('none'),
+					SuggestContext.Visible.toNegated()
 				),
 				primary: KeyCode.UpArrow,
 				weight: KeybindingWeight.WorkbenchContrib
@@ -408,6 +450,7 @@ registerAction2(class extends Action2 {
 					ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('top'),
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('none'),
+					SuggestContext.Visible.toNegated()
 				),
 				primary: KeyCode.DownArrow,
 				weight: KeybindingWeight.WorkbenchContrib

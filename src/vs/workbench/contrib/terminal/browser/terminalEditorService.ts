@@ -63,6 +63,19 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 				this.instances.push(unknownEditor.terminalInstance);
 			}
 		}));
+		this._register(this.onDidDisposeInstance(instance => this.detachInstance(instance)));
+
+		// Remove the terminal from the managed instances when the editor closes. This fires when
+		// dragging and dropping to another editor or closing the editor via cmd/ctrl+w.
+		this._register(this._editorService.onDidCloseEditor(e => {
+			const instance = e.editor instanceof TerminalEditorInput ? e.editor.terminalInstance : undefined;
+			if (instance) {
+				const instanceIndex = this.instances.findIndex(e => e === instance);
+				if (instanceIndex !== -1) {
+					this.instances.splice(instanceIndex, 1);
+				}
+			}
+		}));
 	}
 
 	private _getActiveTerminalEditors(): IEditorInput[] {
@@ -120,8 +133,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		} else {
 			this._activeInstanceIndex = this.instances.findIndex(e => e === instance);
 		}
-		const newActiveInstance = this.activeInstance;
-		this._onDidChangeActiveInstance.fire(newActiveInstance);
+		this._onDidChangeActiveInstance.fire(this.activeInstance);
 	}
 
 	async openEditor(instance: ITerminalInstance): Promise<void> {
@@ -129,7 +141,22 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		await this._editorService.openEditor(input, {
 			pinned: true,
 			forceReload: true
-		});
+		}
+		);
+	}
+
+	async openOrFocusEditor(instance: ITerminalInstance): Promise<void> {
+		const input = this.getOrCreateEditorInput(instance);
+		console.log(this._editorService.activeEditorPane?.group);
+		if (!this._editorService.activeEditorPane?.group.contains(input)) {
+			instance.focus();
+			return;
+		}
+		await this._editorService.openEditor(input, {
+			pinned: true,
+			forceReload: true
+		}
+		);
 	}
 
 	getOrCreateEditorInput(instance: ITerminalInstance | SerializedTerminalEditorInput, isFutureSplit: boolean = false): TerminalEditorInput {

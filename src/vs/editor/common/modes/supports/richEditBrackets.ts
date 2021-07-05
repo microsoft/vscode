@@ -15,7 +15,7 @@ interface InternalBracket {
 }
 
 export class RichEditBracket {
-	_richEditBracketBrand: void;
+	_richEditBracketBrand: void = undefined;
 
 	readonly languageIdentifier: LanguageIdentifier;
 	readonly index: number;
@@ -113,7 +113,7 @@ function groupFuzzyBrackets(brackets: CharacterPair[]): InternalBracket[] {
 }
 
 export class RichEditBrackets {
-	_richEditBracketsBrand: void;
+	_richEditBracketsBrand: void = undefined;
 
 	public readonly brackets: RichEditBracket[];
 	public readonly forwardRegex: RegExp;

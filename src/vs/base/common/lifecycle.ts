@@ -165,10 +165,10 @@ export function combinedDisposable(...disposables: IDisposable[]): IDisposable {
 
 export function toDisposable(fn: () => void): IDisposable {
 	const self = trackDisposable({
-		dispose: () => {
+		dispose: once(() => {
 			markAsDisposed(self);
 			fn();
-		}
+		})
 	});
 	return self;
 }

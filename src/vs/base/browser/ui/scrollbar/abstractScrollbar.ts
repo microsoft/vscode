@@ -48,7 +48,7 @@ export abstract class AbstractScrollbar extends Widget {
 	protected _scrollByPage: boolean;
 	private _lazyRender: boolean;
 	protected _scrollbarState: ScrollbarState;
-	private _visibilityController: ScrollbarVisibilityController;
+	protected _visibilityController: ScrollbarVisibilityController;
 	private _mouseMoveMonitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
 
 	public domNode: FastDomNode<HTMLElement>;

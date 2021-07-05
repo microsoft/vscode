@@ -226,6 +226,8 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			return enablementState;
 		}
 
+		enablementState = this._getUserEnablementState(extension.identifier);
+
 		if (this.extensionBisectService.isDisabledByBisect(extension)) {
 			enablementState = EnablementState.DisabledByEnvironment;
 		}
@@ -238,21 +240,16 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			enablementState = EnablementState.DisabledByVirtualWorkspace;
 		}
 
+		else if (this._isEnabledEnablementState(enablementState) && this._isDisabledByWorkspaceTrust(extension, extensions)) {
+			enablementState = EnablementState.DisabledByTrustRequirement;
+		}
+
 		else if (this._isDisabledByExtensionKind(extension)) {
 			enablementState = EnablementState.DisabledByExtensionKind;
 		}
 
-		else {
-			enablementState = this._getUserEnablementState(extension.identifier);
-			if (this._isEnabledEnablementState(enablementState)) {
-				if (this._isDisabledByWorkspaceTrust(extension, extensions)) {
-					enablementState = EnablementState.DisabledByTrustRequirement;
-				}
-
-				else if (this._isDisabledByExtensionDependency(extension, extensions, computedEnablementStates)) {
-					enablementState = EnablementState.DisabledByExtensionDependency;
-				}
-			}
+		else if (this._isEnabledEnablementState(enablementState) && this._isDisabledByExtensionDependency(extension, extensions, computedEnablementStates)) {
+			enablementState = EnablementState.DisabledByExtensionDependency;
 		}
 
 		computedEnablementStates.set(extension, enablementState);
@@ -278,10 +275,22 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	}
 
 	private _isDisabledByVirtualWorkspace(extension: IExtension): boolean {
-		if (isVirtualWorkspace(this.contextService.getWorkspace())) {
-			return this.extensionManifestPropertiesService.getExtensionVirtualWorkspaceSupportType(extension.manifest) === false;
+		// Not a virtual workspace
+		if (!isVirtualWorkspace(this.contextService.getWorkspace())) {
+			return false;
 		}
-		return false;
+
+		// Supports virtual workspace
+		if (this.extensionManifestPropertiesService.getExtensionVirtualWorkspaceSupportType(extension.manifest) !== false) {
+			return false;
+		}
+
+		// Web extension from web extension management server
+		if (this.extensionManagementServerService.getExtensionManagementServer(extension) === this.extensionManagementServerService.webExtensionManagementServer && this.extensionManifestPropertiesService.canExecuteOnWeb(extension.manifest)) {
+			return false;
+		}
+
+		return true;
 	}
 
 	private _isDisabledByExtensionKind(extension: IExtension): boolean {
@@ -318,7 +327,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	}
 
 	private _isDisabledByWorkspaceTrust(extension: IExtension, extensions: ReadonlyArray<IExtension>): boolean {
-		if (this.workspaceTrustManagementService.isWorkpaceTrusted()) {
+		if (this.workspaceTrustManagementService.isWorkspaceTrusted()) {
 			return false;
 		}
 

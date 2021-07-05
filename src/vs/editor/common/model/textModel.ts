@@ -39,7 +39,7 @@ import { TextChange } from 'vs/editor/common/model/textChange';
 import { Constants } from 'vs/base/common/uint';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 import { listenStream } from 'vs/base/common/stream';
-import { filterSortedByKey } from 'vs/base/common/arrays';
+import { ArrayQueue } from 'vs/base/common/arrays';
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
@@ -1443,6 +1443,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 			let rawContentChanges: ModelRawChange[] = [];
 
+			this._increaseVersionId();
+
 			let lineCount = oldLineCount;
 			for (let i = 0, len = contentChanges.length; i < len; i++) {
 				const change = contentChanges[i];
@@ -1462,25 +1464,29 @@ export class TextModel extends Disposable implements model.ITextModel {
 				const firstEditLineNumber = currentEditStartLineNumber;
 				const lastInsertedLineNumber = currentEditStartLineNumber + insertingLinesCnt;
 
-				// We use `cacheVersionId` 0 because we only increment the model version id once at the end of handling all the changes
-				// and we wouldn't want the interval tree to cache ranges incorrectly
 				const decorationsWithInjectedTextInEditedRange = this._ensureNodesHaveRanges(this._decorationsTree.getInjectedTextInInterval(
 					this.getOffsetAt(new Position(firstEditLineNumber, 1)),
 					this.getOffsetAt(new Position(lastInsertedLineNumber, this.getLineMaxColumn(lastInsertedLineNumber))),
 					0,
-					0
+					this._versionId
 				));
+
+
 				const injectedTextInEditedRange = LineInjectedText.fromDecorations(decorationsWithInjectedTextInEditedRange);
+				const injectedTextInEditedRangeQueue = new ArrayQueue(injectedTextInEditedRange);
 
 				for (let j = editingLinesCnt; j >= 0; j--) {
 					const editLineNumber = startLineNumber + j;
 					const currentEditLineNumber = currentEditStartLineNumber + j;
 
+					injectedTextInEditedRangeQueue.takeFromEndWhile(r => r.lineNumber > currentEditLineNumber);
+					const decorationsInCurrentLine = injectedTextInEditedRangeQueue.takeFromEndWhile(r => r.lineNumber === currentEditLineNumber);
+
 					rawContentChanges.push(
 						new ModelRawLineChanged(
 							editLineNumber,
 							this.getLineContent(currentEditLineNumber),
-							filterSortedByKey(injectedTextInEditedRange, i => i.lineNumber, currentEditLineNumber)
+							decorationsInCurrentLine
 						));
 				}
 
@@ -1491,6 +1497,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 				}
 
 				if (editingLinesCnt < insertingLinesCnt) {
+					const injectedTextInEditedRangeQueue = new ArrayQueue(injectedTextInEditedRange);
 					// Must insert some lines
 					const spliceLineNumber = startLineNumber + editingLinesCnt;
 					const cnt = insertingLinesCnt - editingLinesCnt;
@@ -1500,7 +1507,9 @@ export class TextModel extends Disposable implements model.ITextModel {
 					for (let i = 0; i < cnt; i++) {
 						let lineNumber = fromLineNumber + i;
 						newLines[i] = this.getLineContent(lineNumber);
-						injectedTexts[i] = filterSortedByKey(injectedTextInEditedRange, i => i.lineNumber, lineNumber);
+
+						injectedTextInEditedRangeQueue.takeWhile(r => r.lineNumber < lineNumber);
+						injectedTexts[i] = injectedTextInEditedRangeQueue.takeWhile(r => r.lineNumber === lineNumber);
 					}
 
 					rawContentChanges.push(
@@ -1515,8 +1524,6 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 				lineCount += changeLineCountDelta;
 			}
-
-			this._increaseVersionId();
 
 			this._emitContentChangedEvent(
 				new ModelRawContentChangedEvent(

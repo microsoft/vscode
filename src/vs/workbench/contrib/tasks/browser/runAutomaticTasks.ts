@@ -38,7 +38,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 			await Event.toPromise(Event.once(this.taskService.onDidChangeTaskSystemInfo));
 		}
 		const isFolderAutomaticAllowed = this.storageService.getBoolean(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, StorageScope.WORKSPACE, undefined);
-		const isWorkspaceTrusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
+		const isWorkspaceTrusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
 		// Only run if allowed. Prompting for permission occurs when a user first tries to run a task.
 		if (isFolderAutomaticAllowed && isWorkspaceTrusted) {
 			this.taskService.getWorkspaceTasks(TaskRunSource.FolderOpen).then(workspaceTaskResult => {
@@ -121,7 +121,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 
 	public static async promptForPermission(taskService: ITaskService, storageService: IStorageService, notificationService: INotificationService, workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		openerService: IOpenerService, workspaceTaskResult: Map<string, WorkspaceFolderTaskResult>) {
-		const isWorkspaceTrusted = workspaceTrustManagementService.isWorkpaceTrusted;
+		const isWorkspaceTrusted = workspaceTrustManagementService.isWorkspaceTrusted;
 		if (!isWorkspaceTrusted) {
 			return;
 		}

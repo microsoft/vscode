@@ -126,7 +126,7 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 
 	override toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IUntitledTextResourceEditorInput {
 		const untypedInput: IUntitledTextResourceEditorInput & { options: ITextEditorOptions } = {
-			resource: this.model.hasAssociatedFilePath ? toLocalResource(this.model.resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme) : undefined,
+			resource: this.model.hasAssociatedFilePath ? toLocalResource(this.model.resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme) : this.resource,
 			forceUntitled: true,
 			options: {
 				override: this.editorId

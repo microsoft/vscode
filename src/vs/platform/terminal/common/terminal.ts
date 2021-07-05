@@ -437,6 +437,7 @@ export interface ICreateTerminalOptions {
 export interface ICreateContributedTerminalProfileOptions {
 	isSplitTerminal: boolean;
 	target?: TerminalLocation;
+	icon?: string;
 }
 
 export const enum TerminalLocation {
