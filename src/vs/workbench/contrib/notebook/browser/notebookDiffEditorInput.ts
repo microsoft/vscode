@@ -6,7 +6,6 @@
 import { GroupIdentifier, IEditorInput, IResourceDiffEditorInput, isResourceDiffEditorInput, IUntypedEditorInput, UntypedEditorContext } from 'vs/workbench/common/editor';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { URI } from 'vs/base/common/uri';
-import { isEqual } from 'vs/base/common/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotebookDiffEditorModel, IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -108,8 +107,9 @@ export class NotebookDiffEditorInput extends DiffEditorInput {
 		}
 
 		if (otherInput instanceof NotebookDiffEditorInput) {
-			return this.viewType === otherInput.viewType
-				&& isEqual(this.resource, otherInput.resource);
+			return this.modified.matches(otherInput.modified)
+				&& this.original.matches(otherInput.original)
+				&& this.viewType === otherInput.viewType;
 		}
 
 		if (isResourceDiffEditorInput(otherInput)) {
