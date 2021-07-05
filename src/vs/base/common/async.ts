@@ -25,6 +25,7 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 	const promise = new Promise<T>((resolve, reject) => {
 		const subscription = source.token.onCancellationRequested(() => {
 			subscription.dispose();
+			source.dispose();
 			reject(canceled());
 		});
 		Promise.resolve(thenable).then(value => {
