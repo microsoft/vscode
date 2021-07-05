@@ -143,7 +143,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			pinned: true,
 			forceReload: true
 		},
-		input.group
+			input.group
 		);
 		input.setGroup(editorPane?.group);
 	}
