@@ -121,7 +121,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 				},
 				accept: (keyMod, event) => {
 					if (terminal.target === TerminalLocation.Editor) {
-						this._terminalEditorService.openOrFocusEditor(terminal);
+						this._terminalEditorService.openEditor(terminal);
 						this._terminalEditorService.setActiveInstance(terminal);
 					} else {
 						this._terminalGroupService.showPanel(!event.inBackground);

@@ -142,19 +142,10 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		const editorPane: IEditorPane | undefined = await this._editorService.openEditor(input, {
 			pinned: true,
 			forceReload: true
-		}
-		);
-		input.setGroup(editorPane?.group);
-	}
-
-	async openOrFocusEditor(instance: ITerminalInstance): Promise<void> {
-		const input = this.getOrCreateEditorInput(instance);
-		await this._editorService.openEditor(input, {
-			pinned: true,
-			forceReload: true
 		},
 			input.group
 		);
+		input.setGroup(editorPane?.group);
 	}
 
 	getOrCreateEditorInput(instance: ITerminalInstance | SerializedTerminalEditorInput, isFutureSplit: boolean = false): TerminalEditorInput {
