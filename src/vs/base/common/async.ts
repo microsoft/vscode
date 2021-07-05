@@ -6,7 +6,7 @@
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { canceled, } from 'vs/base/common/errors';
 import { Emitter, Event, } from 'vs/base/common/event';
-import { IDisposable, toDisposable, Disposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 
@@ -19,19 +19,21 @@ export interface CancelablePromise<T> extends Promise<T> {
 }
 
 export function createCancelablePromise<T>(callback: (token: CancellationToken) => Promise<T>): CancelablePromise<T> {
-	const disposableStore = new DisposableStore();
-	const source = disposableStore.add(new CancellationTokenSource());
+	const source = new CancellationTokenSource();
 
 	const thenable = callback(source.token);
 	const promise = new Promise<T>((resolve, reject) => {
-		disposableStore.add(source.token.onCancellationRequested(() => {
+		const subscription = source.token.onCancellationRequested(() => {
+			subscription.dispose();
 			reject(canceled());
-		}));
+		});
 		Promise.resolve(thenable).then(value => {
-			disposableStore.dispose();
+			subscription.dispose();
+			source.dispose();
 			resolve(value);
 		}, err => {
-			disposableStore.dispose();
+			subscription.dispose();
+			source.dispose();
 			reject(err);
 		});
 	});
