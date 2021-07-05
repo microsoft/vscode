@@ -107,14 +107,18 @@ export class NotebookDiffEditorInput extends DiffEditorInput {
 			return true;
 		}
 
-		if (isResourceDiffEditorInput(otherInput)) {
-			return this.primary.matches(otherInput.modified) && this.secondary.matches(otherInput.original) && this.editorId !== undefined && this.editorId === otherInput.options?.override;
-		}
-
 		if (otherInput instanceof NotebookDiffEditorInput) {
 			return this.viewType === otherInput.viewType
 				&& isEqual(this.resource, otherInput.resource);
 		}
+
+		if (isResourceDiffEditorInput(otherInput)) {
+			return this.modified.matches(otherInput.modified)
+				&& this.original.matches(otherInput.original)
+				&& this.editorId !== undefined
+				&& this.editorId === otherInput.options?.override;
+		}
+
 		return false;
 	}
 }

@@ -132,12 +132,13 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 			return true;
 		}
 
-		if (isResourceDiffEditorInput(otherInput)) {
-			return this.primary.matches(otherInput.modified) && this.secondary.matches(otherInput.original);
-		}
-
 		if (otherInput instanceof SideBySideEditorInput) {
 			return this.primary.matches(otherInput.primary) && this.secondary.matches(otherInput.secondary);
+		}
+
+		if (isResourceDiffEditorInput(otherInput)) {
+			// TODO@lramos15 https://github.com/microsoft/vscode/issues/127131
+			return this.primary.matches(otherInput.modified) && this.secondary.matches(otherInput.original);
 		}
 
 		return false;
