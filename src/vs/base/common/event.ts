@@ -6,7 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { once as onceFn } from 'vs/base/common/functional';
-import { Disposable, IDisposable, toDisposable, combinedDisposable, DisposableStore, toNonLeakingDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, combinedDisposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { StopWatch } from 'vs/base/common/stopwatch';
 
@@ -522,7 +522,7 @@ export class Emitter<T> {
 				// check and record this emitter for potential leakage
 				const removeMonitor = this._leakageMon?.check(this._listeners.size);
 
-				const result = toNonLeakingDisposable(() => {
+				const result = toDisposable(() => {
 					if (removeMonitor) {
 						removeMonitor();
 					}
