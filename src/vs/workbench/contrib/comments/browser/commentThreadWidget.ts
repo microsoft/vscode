@@ -58,6 +58,52 @@ const COLLAPSE_ACTION_CLASS = 'expand-review-action ' + ThemeIcon.asClassName(co
 const COMMENT_SCHEME = 'comment';
 
 
+export function parseMouseDownInfoFromEvent(e: IEditorMouseEvent) {
+	const range = e.target.range;
+
+	if (!range) {
+		return null;
+	}
+
+	if (!e.event.leftButton) {
+		return null;
+	}
+
+	if (e.target.type !== MouseTargetType.GUTTER_LINE_DECORATIONS) {
+		return null;
+	}
+
+	const data = e.target.detail as IMarginData;
+	const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth - data.glyphMarginLeft;
+
+	// don't collide with folding and git decorations
+	if (gutterOffsetX > 14) {
+		return null;
+	}
+
+	return { lineNumber: range.startLineNumber };
+}
+
+export function isMouseUpEventMatchMouseDown(mouseDownInfo: { lineNumber: number } | null, e: IEditorMouseEvent) {
+	if (!mouseDownInfo) {
+		return null;
+	}
+
+	const { lineNumber } = mouseDownInfo;
+
+	const range = e.target.range;
+
+	if (!range || range.startLineNumber !== lineNumber) {
+		return null;
+	}
+
+	if (e.target.type !== MouseTargetType.GUTTER_LINE_DECORATIONS) {
+		return null;
+	}
+
+	return lineNumber;
+}
+
 let INMEM_MODEL_ID = 0;
 
 export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget {
@@ -818,61 +864,23 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private mouseDownInfo: { lineNumber: number } | null = null;
 
 	private onEditorMouseDown(e: IEditorMouseEvent): void {
-		this.mouseDownInfo = null;
-
-		const range = e.target.range;
-
-		if (!range) {
-			return;
-		}
-
-		if (!e.event.leftButton) {
-			return;
-		}
-
-		if (e.target.type !== MouseTargetType.GUTTER_LINE_DECORATIONS) {
-			return;
-		}
-
-		const data = e.target.detail as IMarginData;
-		const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth - data.glyphMarginLeft;
-
-		// don't collide with folding and git decorations
-		if (gutterOffsetX > 14) {
-			return;
-		}
-
-		this.mouseDownInfo = { lineNumber: range.startLineNumber };
+		this.mouseDownInfo = parseMouseDownInfoFromEvent(e);
 	}
 
 	private onEditorMouseUp(e: IEditorMouseEvent): void {
-		if (!this.mouseDownInfo) {
-			return;
-		}
-
-		const { lineNumber } = this.mouseDownInfo;
+		const matchedLineNumber = isMouseUpEventMatchMouseDown(this.mouseDownInfo, e);
 		this.mouseDownInfo = null;
 
-		const range = e.target.range;
-
-		if (!range || range.startLineNumber !== lineNumber) {
+		if (matchedLineNumber === null || !e.target.element) {
 			return;
 		}
 
-		if (e.target.type !== MouseTargetType.GUTTER_LINE_DECORATIONS) {
-			return;
-		}
-
-		if (!e.target.element) {
-			return;
-		}
-
-		if (this._commentGlyph && this._commentGlyph.getPosition().position!.lineNumber !== lineNumber) {
+		if (this._commentGlyph && this._commentGlyph.getPosition().position!.lineNumber !== matchedLineNumber) {
 			return;
 		}
 
 		if (e.target.element.className.indexOf('comment-thread') >= 0) {
-			this.toggleExpand(lineNumber);
+			this.toggleExpand(matchedLineNumber);
 		}
 	}
 

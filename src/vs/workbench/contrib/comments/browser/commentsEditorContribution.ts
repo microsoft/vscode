@@ -11,8 +11,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/review';
-import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
-import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, isCodeEditor, isDiffEditor, IViewZone, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, isCodeEditor, isDiffEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -32,7 +31,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND } from 'vs/workbench/common/theme';
 import { overviewRulerCommentingRangeForeground } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
 import { ICommentInfo, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { COMMENTEDITOR_DECORATION_KEY, ReviewZoneWidget } from 'vs/workbench/contrib/comments/browser/commentThreadWidget';
+import { COMMENTEDITOR_DECORATION_KEY, isMouseUpEventMatchMouseDown, parseMouseDownInfoFromEvent, ReviewZoneWidget } from 'vs/workbench/contrib/comments/browser/commentThreadWidget';
 import { ctxCommentEditorFocused, SimpleCommentEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
@@ -409,52 +408,14 @@ export class CommentController implements IEditorContribution {
 	}
 
 	private onEditorMouseDown(e: IEditorMouseEvent): void {
-		this.mouseDownInfo = null;
-
-		const range = e.target.range;
-
-		if (!range) {
-			return;
-		}
-
-		if (!e.event.leftButton) {
-			return;
-		}
-
-		if (e.target.type !== MouseTargetType.GUTTER_LINE_DECORATIONS) {
-			return;
-		}
-
-		const data = e.target.detail as IMarginData;
-		const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth - data.glyphMarginLeft;
-
-		// don't collide with folding and git decorations
-		if (gutterOffsetX > 14) {
-			return;
-		}
-
-		this.mouseDownInfo = { lineNumber: range.startLineNumber };
+		this.mouseDownInfo = parseMouseDownInfoFromEvent(e);
 	}
 
 	private onEditorMouseUp(e: IEditorMouseEvent): void {
-		if (!this.mouseDownInfo) {
-			return;
-		}
-
-		const { lineNumber } = this.mouseDownInfo;
+		const matchedLineNumber = isMouseUpEventMatchMouseDown(this.mouseDownInfo, e);
 		this.mouseDownInfo = null;
 
-		const range = e.target.range;
-
-		if (!range || range.startLineNumber !== lineNumber) {
-			return;
-		}
-
-		if (e.target.type !== MouseTargetType.GUTTER_LINE_DECORATIONS) {
-			return;
-		}
-
-		if (!e.target.element) {
+		if (matchedLineNumber === null || !e.target.element) {
 			return;
 		}
 
