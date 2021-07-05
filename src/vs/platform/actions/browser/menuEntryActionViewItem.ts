@@ -308,7 +308,7 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 	}
 }
 
-class DropdownWithDefauktActionViewItem extends BaseActionViewItem {
+class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 	private _defaultAction: ActionViewItem;
 	private _dropdown: DropdownMenuActionViewItem;
 	private _container: HTMLElement | null = null;
@@ -440,7 +440,7 @@ export function createActionViewItem(instaService: IInstantiationService, action
 		return instaService.createInstance(MenuEntryActionViewItem, action, undefined);
 	} else if (action instanceof SubmenuItemAction) {
 		if (action.item.storageKey) {
-			return instaService.createInstance(DropdownWithDefauktActionViewItem, action);
+			return instaService.createInstance(DropdownWithDefaultActionViewItem, action);
 		} else {
 			return instaService.createInstance(SubmenuEntryActionViewItem, action);
 		}
