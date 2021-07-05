@@ -12,6 +12,7 @@ import * as strings from 'vs/base/common/strings';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ILineBreaksComputer, LineBreakData } from 'vs/editor/common/viewModel/viewModel';
 import { LineInjectedText } from 'vs/editor/common/model/textModelEvents';
+import { InjectedTextOptions } from 'vs/editor/common/model';
 
 const ttPolicy = window.trustedTypes?.createPolicy('domLineBreaksComputer', { createHTML: value => value });
 
@@ -48,12 +49,12 @@ function createLineBreaks(requests: string[], fontInfo: FontInfo, tabSize: numbe
 		if (injectedTexts) {
 			const lineText = LineInjectedText.applyInjectedText(requests[requestIdx], injectedTexts);
 
-			const injectionTexts = injectedTexts.map(t => t.text);
+			const injectionOptions = injectedTexts.map(t => t.options);
 			const injectionOffsets = injectedTexts.map(text => text.column - 1);
 
 			// creating a `LineBreakData` with an invalid `breakOffsetsVisibleColumn` is OK
 			// because `breakOffsetsVisibleColumn` will never be used because it contains injected text
-			return new LineBreakData([lineText.length], [], 0, injectionTexts, injectionOffsets);
+			return new LineBreakData([lineText.length], [], 0, injectionOffsets, injectionOptions);
 		} else {
 			return null;
 		}
@@ -166,18 +167,18 @@ function createLineBreaks(requests: string[], fontInfo: FontInfo, tabSize: numbe
 			}
 		}
 
-		let injectionTexts: string[] | null;
+		let injectionOptions: InjectedTextOptions[] | null;
 		let injectionOffsets: number[] | null;
 		const curInjectedTexts = injectedTextsPerLine[i];
 		if (curInjectedTexts) {
-			injectionTexts = curInjectedTexts.map(t => t.text);
+			injectionOptions = curInjectedTexts.map(t => t.options);
 			injectionOffsets = curInjectedTexts.map(text => text.column - 1);
 		} else {
-			injectionTexts = null;
+			injectionOptions = null;
 			injectionOffsets = null;
 		}
 
-		result[i] = new LineBreakData(breakOffsets, breakOffsetsVisibleColumn, wrappedTextIndentLength, injectionTexts, injectionOffsets);
+		result[i] = new LineBreakData(breakOffsets, breakOffsetsVisibleColumn, wrappedTextIndentLength, injectionOffsets, injectionOptions);
 	}
 
 	document.body.removeChild(containerDomNode);
