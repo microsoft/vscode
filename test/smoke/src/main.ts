@@ -12,6 +12,7 @@ import * as rimraf from 'rimraf';
 import * as mkdirp from 'mkdirp';
 import { ncp } from 'ncp';
 import * as vscodetest from 'vscode-test';
+import fetch from 'node-fetch';
 import {
 	Application,
 	Quality,
@@ -85,6 +86,12 @@ function fail(errorMessage): void {
 const repoPath = path.join(__dirname, '..', '..', '..');
 
 let quality: Quality;
+let version: string | undefined;
+
+function parseVersion(version: string): { major: number, minor: number, patch: number } {
+	const [, major, minor, patch] = /^(\d+)\.(\d+)\.(\d+)/.exec(version)!;
+	return { major: parseInt(major), minor: parseInt(minor), patch: parseInt(patch) };
+}
 
 //
 // #### Electron Smoke Tests ####
@@ -124,11 +131,21 @@ if (!opts.web) {
 		}
 	}
 
+	function getBuildVersion(root: string): string {
+		switch (process.platform) {
+			case 'darwin':
+				return require(path.join(root, 'Contents', 'Resources', 'app', 'package.json')).version;
+			default:
+				return require(path.join(root, 'resources', 'app', 'package.json')).version;
+		}
+	}
+
 	let testCodePath = opts.build;
 	let electronPath: string;
 
 	if (testCodePath) {
 		electronPath = getBuildElectronPath(testCodePath);
+		version = getBuildVersion(testCodePath);
 	} else {
 		testCodePath = getDevElectronPath();
 		electronPath = testCodePath;
@@ -219,9 +236,25 @@ async function ensureStableCode(): Promise<void> {
 
 	let stableCodePath = opts['stable-build'];
 	if (!stableCodePath) {
-		console.log('*** Running with --build and thus making sure VSCode stable is also there...');
+		const { major, minor } = parseVersion(version!);
+		const majorMinorVersion = `${major}.${minor - 1}`;
+		const versionsReq = await fetch('https://update.code.visualstudio.com/api/releases/stable', { headers: { 'x-api-version': '2' } });
 
-		const stableCodeExecutable = await vscodetest.downloadAndUnzipVSCode('stable');
+		if (!versionsReq.ok) {
+			throw new Error('Could not fetch releases from update server');
+		}
+
+		const versions: { version: string }[] = await versionsReq.json();
+		const prefix = `${majorMinorVersion}.`;
+		const previousVersion = versions.find(v => v.version.startsWith(prefix));
+
+		if (!previousVersion) {
+			throw new Error(`Could not find suitable stable version ${majorMinorVersion}`);
+		}
+
+		console.log(`*** Found VS Code v${version}, downloading previous VS Code version ${previousVersion.version}...`);
+
+		const stableCodeExecutable = await vscodetest.downloadAndUnzipVSCode(previousVersion.version);
 		if (process.platform === 'darwin') {
 			// Visual Studio Code.app/Contents/MacOS/Electron
 			stableCodePath = path.dirname(path.dirname(path.dirname(stableCodeExecutable)));
