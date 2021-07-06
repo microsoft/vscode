@@ -204,7 +204,9 @@ export class TerminalTabbedView extends Disposable {
 	private _handleOnDidSashReset(): void {
 		// Calculate ideal size of list to display all text based on its contents
 		let idealWidth = TerminalTabsListSizes.WideViewMinimumWidth;
-		const offscreenCanvas = new OffscreenCanvas(1, 1);
+		const offscreenCanvas = document.createElement('canvas');
+		offscreenCanvas.width = 1;
+		offscreenCanvas.height = 1;
 		const ctx = offscreenCanvas.getContext('2d');
 		if (ctx) {
 			const style = window.getComputedStyle(this._tabListElement);
