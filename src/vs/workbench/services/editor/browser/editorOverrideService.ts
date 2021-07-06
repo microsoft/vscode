@@ -250,7 +250,13 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 			}
 		}
 		// Return the editors sorted by their priority
-		return matchingEditors.sort((a, b) => priorityToRank(b.editorInfo.priority) - priorityToRank(a.editorInfo.priority));
+		return matchingEditors.sort((a, b) => {
+			// Very crude if priorities match longer glob wins as longer globs are normally more specific
+			if (priorityToRank(b.editorInfo.priority) === priorityToRank(a.editorInfo.priority) && typeof b.globPattern === 'string' && typeof a.globPattern === 'string') {
+				return b.globPattern.length - a.globPattern.length;
+			}
+			return priorityToRank(b.editorInfo.priority) - priorityToRank(a.editorInfo.priority);
+		});
 	}
 
 	public getEditorIds(resource: URI): string[] {
