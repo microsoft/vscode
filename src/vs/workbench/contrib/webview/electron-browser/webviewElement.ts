@@ -5,99 +5,40 @@
 
 import { FindInPageOptions, WebviewTag } from 'electron';
 import { addDisposableListener } from 'vs/base/browser/dom';
-import { ThrottledDelayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { isMacintosh } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { FileAccess, Schemas } from 'vs/base/common/network';
+import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { ILogService } from 'vs/platform/log/common/log';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { webviewPartitionId } from 'vs/platform/webview/common/resourceLoader';
-import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
+import { webviewPartitionId } from 'vs/platform/webview/common/webviewManagerService';
 import { BaseWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/baseWebviewElement';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewFindDelegate, WebviewFindWidget } from 'vs/workbench/contrib/webview/browser/webviewFindWidget';
+import { WebviewIgnoreMenuShortcutsManager } from 'vs/workbench/contrib/webview/electron-browser/webviewIgnoreMenuShortcutsManager';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { WebviewFindDelegate, WebviewFindWidget } from '../browser/webviewFindWidget';
-import { WebviewResourceRequestManager, rewriteVsCodeResourceUrls } from './resourceLoading';
-
-class WebviewKeyboardHandler {
-
-	private readonly _webviews = new Set<WebviewTag>();
-	private readonly _isUsingNativeTitleBars: boolean;
-
-	private readonly webviewMainService: IWebviewManagerService;
-
-	constructor(
-		configurationService: IConfigurationService,
-		mainProcessService: IMainProcessService,
-	) {
-		this._isUsingNativeTitleBars = configurationService.getValue<string>('window.titleBarStyle') === 'native';
-
-		this.webviewMainService = createChannelSender<IWebviewManagerService>(mainProcessService.getChannel('webview'));
-	}
-
-	public add(webview: WebviewTag): IDisposable {
-		this._webviews.add(webview);
-
-		const disposables = new DisposableStore();
-
-		if (this.shouldToggleMenuShortcutsEnablement) {
-			this.setIgnoreMenuShortcutsForWebview(webview, true);
-		}
-
-		disposables.add(addDisposableListener(webview, 'ipc-message', (event) => {
-			switch (event.channel) {
-				case 'did-focus':
-					this.setIgnoreMenuShortcuts(true);
-					break;
-
-				case 'did-blur':
-					this.setIgnoreMenuShortcuts(false);
-					return;
-			}
-		}));
-
-		return toDisposable(() => {
-			disposables.dispose();
-			this._webviews.delete(webview);
-		});
-	}
-
-	private get shouldToggleMenuShortcutsEnablement() {
-		return isMacintosh || this._isUsingNativeTitleBars;
-	}
-
-	private setIgnoreMenuShortcuts(value: boolean) {
-		for (const webview of this._webviews) {
-			this.setIgnoreMenuShortcutsForWebview(webview, value);
-		}
-	}
-
-	private setIgnoreMenuShortcutsForWebview(webview: WebviewTag, value: boolean) {
-		if (this.shouldToggleMenuShortcutsEnablement) {
-			this.webviewMainService.setIgnoreMenuShortcuts(webview.getWebContentsId(), value);
-		}
-	}
-}
 
 export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> implements Webview, WebviewFindDelegate {
+	private static _webviewKeyboardHandler: WebviewIgnoreMenuShortcutsManager | undefined;
 
-	private static _webviewKeyboardHandler: WebviewKeyboardHandler | undefined;
+	public readonly checkImeCompletionState = false;
 
 	private static getWebviewKeyboardHandler(
 		configService: IConfigurationService,
 		mainProcessService: IMainProcessService,
 	) {
 		if (!this._webviewKeyboardHandler) {
-			this._webviewKeyboardHandler = new WebviewKeyboardHandler(configService, mainProcessService);
+			this._webviewKeyboardHandler = new WebviewIgnoreMenuShortcutsManager(configService, mainProcessService);
 		}
 		return this._webviewKeyboardHandler;
 	}
@@ -105,41 +46,51 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 	private _webviewFindWidget: WebviewFindWidget | undefined;
 	private _findStarted: boolean = false;
 
-	private readonly _resourceRequestManager: WebviewResourceRequestManager;
-	private _messagePromise = Promise.resolve();
-
-	private readonly _focusDelayer = this._register(new ThrottledDelayer(10));
-	private _elementFocusImpl!: (options?: FocusOptions | undefined) => void;
-
 	constructor(
 		id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
 		extension: WebviewExtensionDescription | undefined,
 		private readonly _webviewThemeDataProvider: WebviewThemeDataProvider,
+		@IContextMenuService contextMenuService: IContextMenuService,
 		@ILogService private readonly _myLogService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMainProcessService mainProcessService: IMainProcessService,
+		@IMenuService menuService: IMenuService,
+		@INotificationService notificationService: INotificationService,
+		@IFileService fileService: IFileService,
+		@ITunnelService tunnelService: ITunnelService,
+		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 	) {
-		super(id, options, contentOptions, extension, _webviewThemeDataProvider, _myLogService, telemetryService, environmentService, workbenchEnvironmentService);
+		super(id, options, contentOptions, extension, _webviewThemeDataProvider, {
+			contextMenuService,
+			notificationService,
+			logService: _myLogService,
+			telemetryService,
+			environmentService,
+			fileService,
+			menuService,
+			tunnelService,
+			remoteAuthorityResolverService
+		});
+
+		/* __GDPR__
+			"webview.createWebview" : {
+				"extension": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"enableFindWidget": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"webviewElementType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			}
+		*/
+		telemetryService.publicLog('webview.createWebview', {
+			enableFindWidget: !!options.enableFindWidget,
+			extension: extension?.id.value,
+			webviewElementType: 'webview',
+		});
 
 		this._myLogService.debug(`Webview(${this.id}): init`);
-
-		const webviewId = new Promise<number | undefined>((resolve, reject) => {
-			const sub = this._register(addDisposableListener(this.element!, 'dom-ready', once(() => {
-				if (!this.element) {
-					reject();
-					throw new Error('No element');
-				}
-				resolve(this.element.getWebContentsId());
-				sub.dispose();
-			})));
-		});
-		this._resourceRequestManager = this._register(instantiationService.createInstance(WebviewResourceRequestManager, id, extension, this.content.options, webviewId));
 
 		this._register(addDisposableListener(this.element!, 'dom-ready', once(() => {
 			this._register(ElectronWebviewBasedWebview.getWebviewKeyboardHandler(configurationService, mainProcessService).add(this.element!));
@@ -153,7 +104,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 			this._myLogService.debug(`Webview(${this.id}): dom-ready`);
 
 			// Workaround for https://github.com/electron/electron/issues/14474
-			if (this.element && (this.focused || document.activeElement === this.element)) {
+			if (this.element && (this.isFocused || document.activeElement === this.element)) {
 				this.element.blur();
 				this.element.focus();
 			}
@@ -205,8 +156,11 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 			this.styledFindWidget();
 		}
 
-		this.element!.preload = require.toUrl('./pre/electron-index.js');
-		this.element!.src = `${Schemas.vscodeWebview}://${this.id}/electron-browser/index.html`;
+		// We must ensure to put a `file:` URI as the preload attribute
+		// and not the `vscode-file` URI because preload scripts are loaded
+		// via node.js from the main side and only allow `file:` protocol
+		this.element!.preload = FileAccess.asFileUri('./pre/electron-index.js', require).toString(true);
+		this.element!.src = `${Schemas.vscodeWebview}://${this.id}/electron-browser-index.html?platform=electron&id=${this.id}&vscode-resource-base-authority=${encodeURIComponent(this.webviewRootResourceAuthority)}&swVersion=${this._expectedServiceWorkerVersion}`;
 	}
 
 	protected createElement(options: WebviewOptions) {
@@ -214,7 +168,6 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		// Wait the end of the ctor when all listeners have been hooked up.
 		const element = document.createElement('webview');
 
-		this._elementFocusImpl = element.focus.bind(element);
 		element.focus = () => {
 			this.doFocus();
 		};
@@ -231,27 +184,16 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		return element;
 	}
 
-	public set contentOptions(options: WebviewContentOptions) {
+	protected elementFocusImpl() {
+		this.element?.focus();
+	}
+
+	public override set contentOptions(options: WebviewContentOptions) {
 		this._myLogService.debug(`Webview(${this.id}): will set content options`);
-		this._resourceRequestManager.update(options);
 		super.contentOptions = options;
 	}
 
-	public set localResourcesRoot(resources: URI[]) {
-		this._resourceRequestManager.update({
-			...this.contentOptions,
-			localResourceRoots: resources,
-		});
-		super.localResourcesRoot = resources;
-	}
-
 	protected readonly extraContentOptions = {};
-
-	public set html(value: string) {
-		this._myLogService.debug(`Webview(${this.id}): will set html`);
-
-		super.html = rewriteVsCodeResourceUrls(this.id, value);
-	}
 
 	public mountTo(parent: HTMLElement) {
 		if (!this.element) {
@@ -265,57 +207,11 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 	}
 
 	protected async doPostMessage(channel: string, data?: any): Promise<void> {
-		this._myLogService.debug(`Webview(${this.id}): will post message on '${channel}'`);
-
-		this._messagePromise = this._messagePromise
-			.then(() => this._resourceRequestManager.ensureReady())
-			.then(() => {
-				this._myLogService.debug(`Webview(${this.id}): did post message on '${channel}'`);
-				return this.element?.send(channel, data);
-			});
+		this._myLogService.debug(`Webview(${this.id}): did post message on '${channel}'`);
+		this.element?.send(channel, data);
 	}
 
-	public focus(): void {
-		this.doFocus();
-
-		// Handle focus change programmatically (do not rely on event from <webview>)
-		this.handleFocusChange(true);
-	}
-
-	private doFocus() {
-		if (!this.element) {
-			return;
-		}
-
-		// Workaround for https://github.com/microsoft/vscode/issues/75209
-		// Electron's webview.focus is async so for a sequence of actions such as:
-		//
-		// 1. Open webview
-		// 1. Show quick pick from command palette
-		//
-		// We end up focusing the webview after showing the quick pick, which causes
-		// the quick pick to instantly dismiss.
-		//
-		// Workaround this by debouncing the focus and making sure we are not focused on an input
-		// when we try to re-focus.
-		this._focusDelayer.trigger(async () => {
-			if (!this.focused || !this.element) {
-				return;
-			}
-
-			if (document.activeElement?.tagName === 'INPUT') {
-				return;
-			}
-			try {
-				this._elementFocusImpl();
-			} catch {
-				// noop
-			}
-			this._send('focus');
-		});
-	}
-
-	protected style(): void {
+	protected override style(): void {
 		super.style();
 		this.styledFindWidget();
 	}
@@ -326,6 +222,9 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 
 	private readonly _hasFindResult = this._register(new Emitter<boolean>());
 	public readonly hasFindResult: Event<boolean> = this._hasFindResult.event;
+
+	private readonly _onDidStopFind = this._register(new Emitter<void>());
+	public readonly onDidStopFind: Event<void> = this._onDidStopFind.event;
 
 	public startFind(value: string, options?: FindInPageOptions) {
 		if (!value || !this.element) {
@@ -338,9 +237,8 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		// FindNext must be false for a first request
 		const findOptions: FindInPageOptions = {
 			forward: options.forward,
-			findNext: false,
-			matchCase: options.matchCase,
-			medialCapitalAsWordStart: options.medialCapitalAsWordStart
+			findNext: true,
+			matchCase: options.matchCase
 		};
 
 		this._findStarted = true;
@@ -364,7 +262,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 			return;
 		}
 
-		const options = { findNext: true, forward: !previous };
+		const options = { findNext: false, forward: !previous };
 		if (!this._findStarted) {
 			this.startFind(value, options);
 			return;
@@ -380,6 +278,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		}
 		this._findStarted = false;
 		this.element.stopFindInPage(keepSelection ? 'keepSelection' : 'clearSelection');
+		this._onDidStopFind.fire();
 	}
 
 	public showFind() {
@@ -394,31 +293,31 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		this._webviewFindWidget?.find(previous);
 	}
 
-	public selectAll() {
+	public override selectAll() {
 		this.element?.selectAll();
 	}
 
-	public copy() {
+	public override copy() {
 		this.element?.copy();
 	}
 
-	public paste() {
+	public override paste() {
 		this.element?.paste();
 	}
 
-	public cut() {
+	public override cut() {
 		this.element?.cut();
 	}
 
-	public undo() {
+	public override undo() {
 		this.element?.undo();
 	}
 
-	public redo() {
+	public override redo() {
 		this.element?.redo();
 	}
 
-	protected on<T = unknown>(channel: WebviewMessageChannels | string, handler: (data: T) => void): IDisposable {
+	protected override on<T = unknown>(channel: WebviewMessageChannels | string, handler: (data: T) => void): IDisposable {
 		if (!this.element) {
 			throw new Error('Cannot add event listener. No webview element found.');
 		}

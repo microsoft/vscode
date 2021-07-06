@@ -8,12 +8,13 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IUserDataSyncStoreService, IUserData, IUserDataSyncLogService, IUserDataManifest } from 'vs/platform/userDataSync/common/userDataSync';
 import { localize } from 'vs/nls';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { PlatformToString, isWeb, Platform, platform } from 'vs/base/common/platform';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
+import { Event, Emitter } from 'vs/base/common/event';
 
 interface IMachineData {
 	id: string;
@@ -32,6 +33,8 @@ export const IUserDataSyncMachinesService = createDecorator<IUserDataSyncMachine
 export interface IUserDataSyncMachinesService {
 	_serviceBrand: any;
 
+	readonly onDidChange: Event<void>;
+
 	getMachines(manifest?: IUserDataManifest): Promise<IUserDataSyncMachine[]>;
 
 	addCurrentMachine(manifest?: IUserDataManifest): Promise<void>;
@@ -48,6 +51,9 @@ export class UserDataSyncMachinesService extends Disposable implements IUserData
 	private static readonly RESOURCE = 'machines';
 
 	_serviceBrand: any;
+
+	private readonly _onDidChange = this._register(new Emitter<void>());
+	readonly onDidChange = this._onDidChange.event;
 
 	private readonly currentMachineIdPromise: Promise<string>;
 	private userData: IUserData | null = null;
@@ -97,7 +103,7 @@ export class UserDataSyncMachinesService extends Disposable implements IUserData
 			machine.name = name;
 			await this.writeMachinesData(machineData);
 			if (machineData.machines.some(({ id }) => id === currentMachineId)) {
-				this.storageService.store(currentMachineNameKey, name, StorageScope.GLOBAL);
+				this.storageService.store(currentMachineNameKey, name, StorageScope.GLOBAL, StorageTarget.MACHINE);
 			}
 		}
 	}
@@ -118,7 +124,7 @@ export class UserDataSyncMachinesService extends Disposable implements IUserData
 		}
 
 		const namePrefix = `${this.productService.nameLong} (${PlatformToString(isWeb ? Platform.Web : platform)})`;
-		const nameRegEx = new RegExp(`${escapeRegExpCharacters(namePrefix)}\\s#(\\d)`);
+		const nameRegEx = new RegExp(`${escapeRegExpCharacters(namePrefix)}\\s#(\\d+)`);
 		let nameIndex = 0;
 		for (const machine of machines) {
 			const matches = nameRegEx.exec(machine.name);
@@ -141,6 +147,7 @@ export class UserDataSyncMachinesService extends Disposable implements IUserData
 		const content = JSON.stringify(machinesData);
 		const ref = await this.userDataSyncStoreService.write(UserDataSyncMachinesService.RESOURCE, content, this.userData?.ref || null);
 		this.userData = { ref, content };
+		this._onDidChange.fire();
 	}
 
 	private async readUserData(manifest?: IUserDataManifest): Promise<IUserData> {

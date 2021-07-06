@@ -8,10 +8,10 @@ import { Disposable, IReference } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { ICustomEditorModel } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ITextFileEditorModel, ITextFileService, TextFileEditorModelState } from 'vs/workbench/services/textfile/common/textfiles';
 
 export class CustomTextEditorModel extends Disposable implements ICustomEditorModel {
 
@@ -22,21 +22,34 @@ export class CustomTextEditorModel extends Disposable implements ICustomEditorMo
 	): Promise<CustomTextEditorModel> {
 		return instantiationService.invokeFunction(async accessor => {
 			const textModelResolverService = accessor.get(ITextModelService);
-			const textFileService = accessor.get(ITextFileService);
 			const model = await textModelResolverService.createModelReference(resource);
-			return new CustomTextEditorModel(viewType, resource, model, textFileService);
+			return instantiationService.createInstance(CustomTextEditorModel, viewType, resource, model);
 		});
 	}
 
-	private constructor(
+	private readonly _textFileModel: ITextFileEditorModel | undefined;
+
+	private readonly _onDidChangeOrphaned = this._register(new Emitter<void>());
+	public readonly onDidChangeOrphaned = this._onDidChangeOrphaned.event;
+
+	private readonly _onDidChangeReadonly = this._register(new Emitter<void>());
+	public readonly onDidChangeReadonly = this._onDidChangeReadonly.event;
+
+	constructor(
 		public readonly viewType: string,
 		private readonly _resource: URI,
 		private readonly _model: IReference<IResolvedTextEditorModel>,
-		@ITextFileService private readonly textFileService: ITextFileService,
+		@ITextFileService private readonly textFileService: ITextFileService
 	) {
 		super();
 
 		this._register(_model);
+
+		this._textFileModel = this.textFileService.files.get(_resource);
+		if (this._textFileModel) {
+			this._register(this._textFileModel.onDidChangeOrphaned(() => this._onDidChangeOrphaned.fire()));
+			this._register(this._textFileModel.onDidChangeReadonly(() => this._onDidChangeReadonly.fire()));
+		}
 
 		this._register(this.textFileService.files.onDidChangeDirty(e => {
 			if (isEqual(this.resource, e.resource)) {
@@ -60,6 +73,10 @@ export class CustomTextEditorModel extends Disposable implements ICustomEditorMo
 
 	public isDirty(): boolean {
 		return this.textFileService.isDirty(this.resource);
+	}
+
+	public isOrphaned(): boolean {
+		return !!this._textFileModel?.hasState(TextFileEditorModelState.ORPHAN);
 	}
 
 	private readonly _onDidChangeDirty: Emitter<void> = this._register(new Emitter<void>());

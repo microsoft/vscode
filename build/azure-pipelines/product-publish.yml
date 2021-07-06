@@ -1,0 +1,91 @@
+steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: "12.x"
+
+  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+    inputs:
+      versionSpec: "1.x"
+
+  - task: AzureKeyVault@1
+    displayName: "Azure Key Vault: Get Secrets"
+    inputs:
+      azureSubscription: "vscode-builds-subscription"
+      KeyVaultName: vscode
+      SecretsFilter: 'builds-docdb-key-readwrite,github-distro-mixin-password,ticino-storage-key,vscode-storage-key,vscode-mooncake-storage-key'
+
+  - pwsh: |
+      . build/azure-pipelines/win32/exec.ps1
+      cd build
+      exec { yarn }
+    displayName: Install dependencies
+
+  - download: current
+    patterns: '**/artifacts_processed_*.txt'
+    displayName: Download all artifacts_processed text files
+
+  - pwsh: |
+      . build/azure-pipelines/win32/exec.ps1
+
+      if (Test-Path "$(Pipeline.Workspace)/artifacts_processed_*/artifacts_processed_*.txt") {
+        Write-Host "Artifacts already processed so a build must have already been created."
+        return
+      }
+
+      $env:AZURE_DOCUMENTDB_MASTERKEY = "$(builds-docdb-key-readwrite)"
+      $VERSION = node -p "require('./package.json').version"
+      Write-Host "Creating build with version: $VERSION"
+      exec { node build/azure-pipelines/common/createBuild.js $VERSION }
+    displayName: Create build if it hasn't been created before
+
+  - pwsh: |
+      $env:VSCODE_MIXIN_PASSWORD = "$(github-distro-mixin-password)"
+      $env:AZURE_DOCUMENTDB_MASTERKEY = "$(builds-docdb-key-readwrite)"
+      $env:AZURE_STORAGE_ACCESS_KEY = "$(ticino-storage-key)"
+      $env:AZURE_STORAGE_ACCESS_KEY_2 = "$(vscode-storage-key)"
+      $env:MOONCAKE_STORAGE_ACCESS_KEY = "$(vscode-mooncake-storage-key)"
+      build/azure-pipelines/product-publish.ps1
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+    displayName: Process artifacts
+
+  - publish: $(Pipeline.Workspace)/artifacts_processed_$(System.StageAttempt)/artifacts_processed_$(System.StageAttempt).txt
+    artifact: artifacts_processed_$(System.StageAttempt)
+    displayName: Publish what artifacts were published for this stage attempt
+    condition: always()
+
+  - pwsh: |
+      $ErrorActionPreference = 'Stop'
+
+      # Determine which stages we need to watch
+      $stages = @(
+        if ($env:VSCODE_BUILD_STAGE_WINDOWS -eq 'True') { 'Windows' }
+        if ($env:VSCODE_BUILD_STAGE_LINUX -eq 'True') { 'Linux' }
+        if ($env:VSCODE_BUILD_STAGE_MACOS -eq 'True') { 'macOS' }
+      )
+      Write-Host "Stages to check: $stages"
+
+      # Get the timeline and see if it says the other stage completed
+      $timeline = Invoke-RestMethod "$($env:BUILDS_API_URL)timeline?api-version=6.0" -Headers @{
+        Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN"
+      }  -MaximumRetryCount 5 -RetryIntervalSec 1
+
+      $failedStages = @()
+      foreach ($stage in $stages) {
+        $didStageFail = $timeline.records | Where-Object {
+          $_.name -eq $stage -and $_.type -eq 'stage' -and $_.result -ne 'succeeded' -and $_.result -ne 'succeededWithIssues'
+        }
+
+        if($didStageFail) {
+          $failedStages += $stage
+        } else {
+          Write-Host "'$stage' did not fail."
+        }
+      }
+
+      if ($failedStages.Length) {
+        throw "Failed stages: $($failedStages -join ', '). This stage will now fail so that it is easier to retry failed jobs."
+      }
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+    displayName: Determine if stage should succeed

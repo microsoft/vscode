@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, ResponseError, ErrorCodes } from 'vscode-languageserver';
+import { CancellationToken, ResponseError, LSPErrorCodes } from 'vscode-languageserver';
 
 export function formatError(message: string, err: any): string {
 	if (err instanceof Error) {
@@ -64,5 +64,5 @@ export function runSafe<T, E>(func: () => T, errorVal: T, errorMessage: string, 
 
 function cancelValue<E>() {
 	console.log('cancelled');
-	return new ResponseError<E>(ErrorCodes.RequestCancelled, 'Request cancelled');
+	return new ResponseError<E>(LSPErrorCodes.RequestCancelled, 'Request cancelled');
 }

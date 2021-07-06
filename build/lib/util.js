@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getElectronVersion = exports.streamToPromise = exports.versionStringToNumber = exports.filter = exports.rebase = exports.getVersion = exports.ensureDir = exports.rreddir = exports.rimraf = exports.stripSourceMappingURL = exports.loadSourcemaps = exports.cleanNodeModules = exports.skipDirectories = exports.toFileUri = exports.setExecutableBit = exports.fixWin32DirectoryPermissions = exports.incremental = void 0;
+exports.getElectronVersion = exports.streamToPromise = exports.versionStringToNumber = exports.filter = exports.rebase = exports.getVersion = exports.ensureDir = exports.rreddir = exports.rimraf = exports.rewriteSourceMappingURL = exports.stripSourceMappingURL = exports.loadSourcemaps = exports.cleanNodeModules = exports.skipDirectories = exports.toFileUri = exports.setExecutableBit = exports.fixWin32DirectoryPermissions = exports.incremental = void 0;
 const es = require("event-stream");
 const debounce = require("debounce");
 const _filter = require("gulp-filter");
@@ -167,6 +167,18 @@ function stripSourceMappingURL() {
     return es.duplex(input, output);
 }
 exports.stripSourceMappingURL = stripSourceMappingURL;
+function rewriteSourceMappingURL(sourceMappingURLBase) {
+    const input = es.through();
+    const output = input
+        .pipe(es.mapSync(f => {
+        const contents = f.contents.toString('utf8');
+        const str = `//# sourceMappingURL=${sourceMappingURLBase}/${path.dirname(f.relative).replace(/\\/g, '/')}/$1`;
+        f.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, str));
+        return f;
+    }));
+    return es.duplex(input, output);
+}
+exports.rewriteSourceMappingURL = rewriteSourceMappingURL;
 function rimraf(dir) {
     const result = () => new Promise((c, e) => {
         let retries = 0;

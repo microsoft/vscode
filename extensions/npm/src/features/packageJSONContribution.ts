@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkedString, CompletionItemKind, CompletionItem, DocumentSelector, SnippetString, workspace, MarkdownString } from 'vscode';
+import { CompletionItemKind, CompletionItem, DocumentSelector, SnippetString, workspace, MarkdownString, Uri } from 'vscode';
 import { IJSONContribution, ISuggestionsCollector } from './jsonContributions';
 import { XHRRequest } from 'request-light';
 import { Location } from 'jsonc-parser';
 
 import * as cp from 'child_process';
 import * as nls from 'vscode-nls';
+import { dirname } from 'path';
 const localize = nls.loadMessageBundle();
 
 const LIMIT = 40;
-const SCOPED_LIMIT = 250;
 
 const USER_AGENT = 'Visual Studio Code';
 
@@ -32,10 +32,10 @@ export class PackageJSONContribution implements IJSONContribution {
 		return [{ language: 'json', scheme: '*', pattern: '**/package.json' }];
 	}
 
-	public constructor(private xhr: XHRRequest, private canRunNPM: boolean) {
+	public constructor(private xhr: XHRRequest, private npmCommandPath: string | undefined) {
 	}
 
-	public collectDefaultSuggestions(_fileName: string, result: ISuggestionsCollector): Thenable<any> {
+	public collectDefaultSuggestions(_resource: Uri, result: ISuggestionsCollector): Thenable<any> {
 		const defaultValue = {
 			'name': '${1:name}',
 			'description': '${2:description}',
@@ -51,19 +51,23 @@ export class PackageJSONContribution implements IJSONContribution {
 		return Promise.resolve(null);
 	}
 
+	private isEnabled() {
+		return this.npmCommandPath || this.onlineEnabled();
+	}
+
 	private onlineEnabled() {
 		return !!workspace.getConfiguration('npm').get('fetchOnlinePackageInfo');
 	}
 
 	public collectPropertySuggestions(
-		_resource: string,
+		_resource: Uri,
 		location: Location,
 		currentWord: string,
 		addValue: boolean,
 		isLast: boolean,
 		collector: ISuggestionsCollector
 	): Thenable<any> | null {
-		if (!this.onlineEnabled()) {
+		if (!this.isEnabled()) {
 			return null;
 		}
 
@@ -89,7 +93,7 @@ export class PackageJSONContribution implements IJSONContribution {
 					collector.setAsIncomplete();
 				}
 
-				queryUrl = `https://api.npms.io/v2/search/suggestions?size=${LIMIT}&q=${encodeURIComponent(currentWord)}`;
+				queryUrl = `https://registry.npmjs.org/-/v1/search?size=${LIMIT}&text=${encodeURIComponent(currentWord)}`;
 				return this.xhr({
 					url: queryUrl,
 					agent: USER_AGENT
@@ -97,18 +101,17 @@ export class PackageJSONContribution implements IJSONContribution {
 					if (success.status === 200) {
 						try {
 							const obj = JSON.parse(success.responseText);
-							if (obj && Array.isArray(obj)) {
-								const results = <{ package: SearchPackageInfo; }[]>obj;
+							if (obj && obj.objects && Array.isArray(obj.objects)) {
+								const results = <{ package: SearchPackageInfo; }[]>obj.objects;
 								for (const result of results) {
 									this.processPackage(result.package, addValue, isLast, collector);
 								}
-								if (results.length === LIMIT) {
-									collector.setAsIncomplete();
-								}
+
 							}
 						} catch (e) {
 							// ignore
 						}
+						collector.setAsIncomplete();
 					} else {
 						collector.error(localize('json.npm.error.repoaccess', 'Request to the NPM repository failed: {0}', success.responseText));
 						return 0;
@@ -150,7 +153,7 @@ export class PackageJSONContribution implements IJSONContribution {
 			if (name.length < 4) {
 				name = '';
 			}
-			let queryUrl = `https://api.npms.io/v2/search?q=scope:${scope}%20${name}&size=250`;
+			let queryUrl = `https://registry.npmjs.com/-/v1/search?text=scope:${scope}%20${name}&size=250`;
 			return this.xhr({
 				url: queryUrl,
 				agent: USER_AGENT
@@ -158,18 +161,16 @@ export class PackageJSONContribution implements IJSONContribution {
 				if (success.status === 200) {
 					try {
 						const obj = JSON.parse(success.responseText);
-						if (obj && Array.isArray(obj.results)) {
-							const objects = <{ package: SearchPackageInfo }[]>obj.results;
+						if (obj && Array.isArray(obj.objects)) {
+							const objects = <{ package: SearchPackageInfo; }[]>obj.objects;
 							for (let object of objects) {
 								this.processPackage(object.package, addValue, isLast, collector);
-							}
-							if (objects.length === SCOPED_LIMIT) {
-								collector.setAsIncomplete();
 							}
 						}
 					} catch (e) {
 						// ignore
 					}
+					collector.setAsIncomplete();
 				} else {
 					collector.error(localize('json.npm.error.repoaccess', 'Request to the NPM repository failed: {0}', success.responseText));
 				}
@@ -179,15 +180,15 @@ export class PackageJSONContribution implements IJSONContribution {
 		return Promise.resolve(null);
 	}
 
-	public async collectValueSuggestions(_fileName: string, location: Location, result: ISuggestionsCollector): Promise<any> {
-		if (!this.onlineEnabled()) {
+	public async collectValueSuggestions(resource: Uri, location: Location, result: ISuggestionsCollector): Promise<any> {
+		if (!this.isEnabled()) {
 			return null;
 		}
 
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
 			const currentKey = location.path[location.path.length - 1];
 			if (typeof currentKey === 'string') {
-				const info = await this.fetchPackageInfo(currentKey);
+				const info = await this.fetchPackageInfo(currentKey, resource);
 				if (info && info.version) {
 
 					let name = JSON.stringify(info.version);
@@ -232,9 +233,15 @@ export class PackageJSONContribution implements IJSONContribution {
 		return str;
 	}
 
-	public resolveSuggestion(item: CompletionItem): Thenable<CompletionItem | null> | null {
+	public resolveSuggestion(resource: Uri | undefined, item: CompletionItem): Thenable<CompletionItem | null> | null {
 		if (item.kind === CompletionItemKind.Property && !item.documentation) {
-			return this.fetchPackageInfo(item.label).then(info => {
+
+			let name = item.label;
+			if (typeof name !== 'string') {
+				name = name.label;
+			}
+
+			return this.fetchPackageInfo(name, resource).then(info => {
 				if (info) {
 					item.documentation = this.getDocumentation(info.description, info.version, info.homepage);
 					return item;
@@ -245,22 +252,42 @@ export class PackageJSONContribution implements IJSONContribution {
 		return null;
 	}
 
-	private async fetchPackageInfo(pack: string): Promise<ViewPackageInfo | undefined> {
-		let info: ViewPackageInfo | undefined;
-		if (this.canRunNPM) {
-			info = await this.npmView(pack);
+	private isValidNPMName(name: string): boolean {
+		// following rules from https://github.com/npm/validate-npm-package-name
+		if (!name || name.length > 214 || name.match(/^[_.]/)) {
+			return false;
 		}
-		if (!info) {
+		const match = name.match(/^(?:@([^/]+?)[/])?([^/]+?)$/);
+		if (match) {
+			const scope = match[1];
+			if (scope && encodeURIComponent(scope) !== scope) {
+				return false;
+			}
+			const name = match[2];
+			return encodeURIComponent(name) === name;
+		}
+		return false;
+	}
+
+	private async fetchPackageInfo(pack: string, resource: Uri | undefined): Promise<ViewPackageInfo | undefined> {
+		if (!this.isValidNPMName(pack)) {
+			return undefined; // avoid unnecessary lookups
+		}
+		let info: ViewPackageInfo | undefined;
+		if (this.npmCommandPath) {
+			info = await this.npmView(this.npmCommandPath, pack, resource);
+		}
+		if (!info && this.onlineEnabled()) {
 			info = await this.npmjsView(pack);
 		}
 		return info;
 	}
 
-
-	private npmView(pack: string): Promise<ViewPackageInfo | undefined> {
+	private npmView(npmCommandPath: string, pack: string, resource: Uri | undefined): Promise<ViewPackageInfo | undefined> {
 		return new Promise((resolve, _reject) => {
-			const command = 'npm view --json ' + pack + ' description dist-tags.latest homepage version';
-			cp.exec(command, (error, stdout) => {
+			const args = ['view', '--json', pack, 'description', 'dist-tags.latest', 'homepage', 'version'];
+			let cwd = resource && resource.scheme === 'file' ? dirname(resource.fsPath) : undefined;
+			cp.execFile(npmCommandPath, args, { cwd }, (error, stdout) => {
 				if (!error) {
 					try {
 						const content = JSON.parse(stdout);
@@ -280,21 +307,18 @@ export class PackageJSONContribution implements IJSONContribution {
 	}
 
 	private async npmjsView(pack: string): Promise<ViewPackageInfo | undefined> {
-		const queryUrl = 'https://api.npms.io/v2/package/' + encodeURIComponent(pack);
+		const queryUrl = 'https://registry.npmjs.org/' + encodeURIComponent(pack);
 		try {
 			const success = await this.xhr({
 				url: queryUrl,
 				agent: USER_AGENT
 			});
 			const obj = JSON.parse(success.responseText);
-			const metadata = obj?.collected?.metadata;
-			if (metadata) {
-				return {
-					description: metadata.description || '',
-					version: metadata.version,
-					homepage: metadata.links?.homepage || ''
-				};
-			}
+			return {
+				description: obj.description || '',
+				version: Object.keys(obj.versions).pop(),
+				homepage: obj.homepage || ''
+			};
 		}
 		catch (e) {
 			//ignore
@@ -302,11 +326,14 @@ export class PackageJSONContribution implements IJSONContribution {
 		return undefined;
 	}
 
-	public getInfoContribution(_fileName: string, location: Location): Thenable<MarkedString[] | null> | null {
+	public getInfoContribution(resource: Uri, location: Location): Thenable<MarkdownString[] | null> | null {
+		if (!this.isEnabled()) {
+			return null;
+		}
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
 			const pack = location.path[location.path.length - 1];
 			if (typeof pack === 'string') {
-				return this.fetchPackageInfo(pack).then(info => {
+				return this.fetchPackageInfo(pack, resource).then(info => {
 					if (info) {
 						return [this.getDocumentation(info.description, info.version, info.homepage)];
 					}

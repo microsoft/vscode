@@ -34,11 +34,6 @@ import { setup as setupDataMultirootTests } from './areas/multiroot/multiroot.te
 import { setup as setupDataLocalizationTests } from './areas/workbench/localization.test';
 import { setup as setupLaunchTests } from './areas/workbench/launch.test';
 
-if (!/^v10/.test(process.version) && !/^v12/.test(process.version)) {
-	console.error('Error: Smoketest must be run using Node 10/12. Currently running', process.version);
-	process.exit(1);
-}
-
 const tmpDir = tmp.dirSync({ prefix: 't' }) as { name: string; removeCallback: Function; };
 const testDataPath = tmpDir.name;
 process.once('exit', () => rimraf.sync(testDataPath));
@@ -52,7 +47,8 @@ const opts = minimist(args, {
 		'wait-time',
 		'test-repo',
 		'screenshots',
-		'log'
+		'log',
+		'electronArgs'
 	],
 	boolean: [
 		'verbose',
@@ -64,7 +60,7 @@ const opts = minimist(args, {
 	}
 });
 
-const testRepoUrl = 'https://github.com/Microsoft/vscode-smoketest-express';
+const testRepoUrl = 'https://github.com/microsoft/vscode-smoketest-express';
 const workspacePath = path.join(testDataPath, 'vscode-smoketest-express');
 const extensionsPath = path.join(testDataPath, 'extensions-dir');
 mkdirp.sync(extensionsPath);
@@ -212,8 +208,10 @@ async function setupRepository(): Promise<void> {
 			cp.spawnSync('git', ['clean', '-xdf'], { cwd: workspacePath });
 		}
 
-		console.log('*** Running yarn...');
-		cp.execSync('yarn', { cwd: workspacePath, stdio: 'inherit' });
+		// None of the current smoke tests have a dependency on the packages.
+		// If new smoke tests are added that need the packages, uncomment this.
+		// console.log('*** Running yarn...');
+		// cp.execSync('yarn', { cwd: workspacePath, stdio: 'inherit' });
 	}
 }
 
@@ -239,6 +237,7 @@ function createOptions(): ApplicationOptions {
 		loggers.push(new FileLogger(opts.log));
 		log = 'trace';
 	}
+
 	return {
 		quality,
 		codePath: opts.build,
@@ -252,7 +251,8 @@ function createOptions(): ApplicationOptions {
 		screenshotsPath,
 		remote: opts.remote,
 		web: opts.web,
-		browser: opts.browser
+		browser: opts.browser,
+		extraArgs: (opts.electronArgs || '').split(' ').map(a => a.trim()).filter(a => !!a)
 	};
 }
 
@@ -268,20 +268,20 @@ after(async function () {
 	if (opts.log) {
 		const logsDir = path.join(userDataDir, 'logs');
 		const destLogsDir = path.join(path.dirname(opts.log), 'logs');
-		await new Promise((c, e) => ncp(logsDir, destLogsDir, err => err ? e(err) : c()));
+		await new Promise((c, e) => ncp(logsDir, destLogsDir, err => err ? e(err) : c(undefined)));
 	}
 
-	await new Promise((c, e) => rimraf(testDataPath, { maxBusyTries: 10 }, err => err ? e(err) : c()));
+	await new Promise((c, e) => rimraf(testDataPath, { maxBusyTries: 10 }, err => err ? e(err) : c(undefined)));
 });
 
 describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	if (screenshotsPath) {
 		afterEach(async function () {
-			if (this.currentTest.state !== 'failed') {
+			if (this.currentTest!.state !== 'failed') {
 				return;
 			}
 			const app = this.app as Application;
-			const name = this.currentTest.fullTitle().replace(/[^a-z0-9\-]/ig, '_');
+			const name = this.currentTest!.fullTitle().replace(/[^a-z0-9\-]/ig, '_');
 
 			await app.captureScreenshot(name);
 		});
@@ -290,7 +290,7 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	if (opts.log) {
 		beforeEach(async function () {
 			const app = this.app as Application;
-			const title = this.currentTest.fullTitle();
+			const title = this.currentTest!.fullTitle();
 
 			app.logger.log('*** Test start:', title);
 		});
@@ -303,27 +303,16 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	}
 
 	describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
-		before(async function () {
-			const app = new Application(this.defaultOptions);
-			await app!.start(opts.web ? false : undefined);
-			this.app = app;
-		});
-
-		after(async function () {
-			await this.app.stop();
-		});
-
-		if (!opts.web) { setupDataLossTests(); }
-		if (!opts.web) { setupDataPreferencesTests(); }
-		setupDataSearchTests();
-		setupDataNotebookTests();
-		setupDataLanguagesTests();
-		setupDataEditorTests();
-		setupDataStatusbarTests(!!opts.web);
-		if (!opts.web) { setupDataExtensionTests(); }
-		if (!opts.web) { setupDataMultirootTests(); }
-		if (!opts.web) { setupDataLocalizationTests(); }
+		if (!opts.web) { setupDataLossTests(opts); }
+		if (!opts.web) { setupDataPreferencesTests(opts); }
+		setupDataSearchTests(opts);
+		setupDataNotebookTests(opts);
+		setupDataLanguagesTests(opts);
+		setupDataEditorTests(opts);
+		setupDataStatusbarTests(opts);
+		setupDataExtensionTests(opts);
+		if (!opts.web) { setupDataMultirootTests(opts); }
+		if (!opts.web) { setupDataLocalizationTests(opts); }
 		if (!opts.web) { setupLaunchTests(); }
 	});
 });
-

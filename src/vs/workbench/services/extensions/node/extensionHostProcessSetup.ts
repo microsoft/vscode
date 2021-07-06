@@ -6,22 +6,25 @@
 import * as nativeWatchdog from 'native-watchdog';
 import * as net from 'net';
 import * as minimist from 'minimist';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import * as performance from 'vs/base/common/performance';
+import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { PersistentProtocol, ProtocolConstants, BufferedEmitter } from 'vs/base/parts/ipc/common/ipc.net';
 import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import product from 'vs/platform/product/common/product';
 import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
-import { MessageType, createMessageOfType, isMessageOfType, IExtHostSocketMessage, IExtHostReadyMessage, IExtHostReduceGraceTimeMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { MessageType, createMessageOfType, isMessageOfType, IExtHostSocketMessage, IExtHostReadyMessage, IExtHostReduceGraceTimeMessage, ExtensionHostExitCode } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { ExtensionHostMain, IExitFn } from 'vs/workbench/services/extensions/common/extensionHostMain';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IURITransformer, URITransformer, IRawURITransformer } from 'vs/base/common/uriIpc';
-import { exists } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import { realpath } from 'vs/base/node/extpath';
 import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
-import 'vs/workbench/api/node/extHost.services';
 import { RunOnceScheduler } from 'vs/base/common/async';
+
+import 'vs/workbench/api/common/extHost.common.services';
+import 'vs/workbench/api/node/extHost.node.services';
 
 interface ParsedExtHostArgs {
 	uriTransformerPath?: string;
@@ -90,25 +93,25 @@ interface IRendererConnection {
 
 // This calls exit directly in case the initialization is not finished and we need to exit
 // Otherwise, if initialization completed we go to extensionHostMain.terminate()
-let onTerminate = function () {
+let onTerminate = function (reason: string) {
 	nativeExit();
 };
 
-function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
+function _createExtHostProtocol(): Promise<PersistentProtocol> {
 	if (process.env.VSCODE_EXTHOST_WILL_SEND_SOCKET) {
 
-		return new Promise<IMessagePassingProtocol>((resolve, reject) => {
+		return new Promise<PersistentProtocol>((resolve, reject) => {
 
 			let protocol: PersistentProtocol | null = null;
 
 			let timer = setTimeout(() => {
-				reject(new Error('VSCODE_EXTHOST_IPC_SOCKET timeout'));
+				onTerminate('VSCODE_EXTHOST_IPC_SOCKET timeout');
 			}, 60000);
 
 			const reconnectionGraceTime = ProtocolConstants.ReconnectionGraceTime;
 			const reconnectionShortGraceTime = ProtocolConstants.ReconnectionShortGraceTime;
-			const disconnectRunner1 = new RunOnceScheduler(() => onTerminate(), reconnectionGraceTime);
-			const disconnectRunner2 = new RunOnceScheduler(() => onTerminate(), reconnectionShortGraceTime);
+			const disconnectRunner1 = new RunOnceScheduler(() => onTerminate('renderer disconnected for too long (1)'), reconnectionGraceTime);
+			const disconnectRunner2 = new RunOnceScheduler(() => onTerminate('renderer disconnected for too long (2)'), reconnectionShortGraceTime);
 
 			process.on('message', (msg: IExtHostSocketMessage | IExtHostReduceGraceTimeMessage, handle: net.Socket) => {
 				if (msg && msg.type === 'VSCODE_EXTHOST_IPC_SOCKET') {
@@ -117,7 +120,8 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 					if (msg.skipWebSocketFrames) {
 						socket = new NodeSocket(handle);
 					} else {
-						socket = new WebSocketNodeSocket(new NodeSocket(handle));
+						const inflateBytes = VSBuffer.wrap(Buffer.from(msg.inflateBytes, 'base64'));
+						socket = new WebSocketNodeSocket(new NodeSocket(handle), msg.permessageDeflate, inflateBytes, false);
 					}
 					if (protocol) {
 						// reconnection case
@@ -128,7 +132,7 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 					} else {
 						clearTimeout(timer);
 						protocol = new PersistentProtocol(socket, initialDataChunk);
-						protocol.onClose(() => onTerminate());
+						protocol.onDidDispose(() => onTerminate('renderer disconnected'));
 						resolve(protocol);
 
 						// Wait for rich client to reconnect
@@ -161,7 +165,7 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 
 		const pipeName = process.env.VSCODE_IPC_HOOK_EXTHOST!;
 
-		return new Promise<IMessagePassingProtocol>((resolve, reject) => {
+		return new Promise<PersistentProtocol>((resolve, reject) => {
 
 			const socket = net.createConnection(pipeName, () => {
 				socket.removeListener('error', reject);
@@ -169,6 +173,9 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 			});
 			socket.once('error', reject);
 
+			socket.on('close', () => {
+				onTerminate('renderer closed the socket');
+			});
 		});
 	}
 }
@@ -189,7 +196,7 @@ async function createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 			protocol.onMessage((msg) => {
 				if (isMessageOfType(msg, MessageType.Terminate)) {
 					this._terminating = true;
-					onTerminate();
+					onTerminate('received terminate message from renderer');
 				} else {
 					this._onMessage.fire(msg);
 				}
@@ -200,6 +207,10 @@ async function createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 			if (!this._terminating) {
 				protocol.send(msg);
 			}
+		}
+
+		drain(): Promise<void> {
+			return protocol.drain();
 		}
 	};
 }
@@ -219,7 +230,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 			if (rendererCommit && myCommit) {
 				// Running in the built version where commits are defined
 				if (rendererCommit !== myCommit) {
-					nativeExit(55);
+					nativeExit(ExtensionHostExitCode.VersionMismatch);
 				}
 			}
 
@@ -234,11 +245,13 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 					if (idx >= 0) {
 						promise.catch(e => {
 							unhandledPromises.splice(idx, 1);
-							console.warn(`rejected promise not handled within 1 second: ${e}`);
-							if (e && e.stack) {
-								console.warn(`stack trace: ${e.stack}`);
+							if (!isPromiseCanceledError(e)) {
+								console.warn(`rejected promise not handled within 1 second: ${e}`);
+								if (e && e.stack) {
+									console.warn(`stack trace: ${e.stack}`);
+								}
+								onUnexpectedError(reason);
 							}
-							onUnexpectedError(reason);
 						});
 					}
 				}, 1000);
@@ -257,11 +270,23 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 			});
 
 			// Kill oneself if one's parent dies. Much drama.
+			let epermErrors = 0;
 			setInterval(function () {
 				try {
 					process.kill(initData.parentPid, 0); // throws an exception if the main process doesn't exist anymore.
+					epermErrors = 0;
 				} catch (e) {
-					onTerminate();
+					if (e && e.code === 'EPERM') {
+						// Even if the parent process is still alive,
+						// some antivirus software can lead to an EPERM error to be thrown here.
+						// Let's terminate only if we get 3 consecutive EPERM errors.
+						epermErrors++;
+						if (epermErrors >= 3) {
+							onTerminate(`parent process ${initData.parentPid} does not exist anymore (3 x EPERM): ${e.message} (code: ${e.code}) (errno: ${e.errno})`);
+						}
+					} else {
+						onTerminate(`parent process ${initData.parentPid} does not exist anymore: ${e.message} (code: ${e.code}) (errno: ${e.errno})`);
+					}
 				}
 			}, 1000);
 
@@ -289,19 +314,21 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 }
 
 export async function startExtensionHostProcess(): Promise<void> {
-
+	performance.mark(`code/extHost/willConnectToRenderer`);
 	const protocol = await createExtHostProtocol();
+	performance.mark(`code/extHost/didConnectToRenderer`);
 	const renderer = await connectToRenderer(protocol);
+	performance.mark(`code/extHost/didWaitForInitData`);
 	const { initData } = renderer;
 	// setup things
-	patchProcess(!!initData.environment.extensionTestsLocationURI); // to support other test frameworks like Jasmin that use process.exit (https://github.com/Microsoft/vscode/issues/37708)
+	patchProcess(!!initData.environment.extensionTestsLocationURI); // to support other test frameworks like Jasmin that use process.exit (https://github.com/microsoft/vscode/issues/37708)
 	initData.environment.useHostProxy = args.useHostProxy !== undefined ? args.useHostProxy !== 'false' : undefined;
 
 	// host abstraction
 	const hostUtils = new class NodeHost implements IHostUtils {
 		declare readonly _serviceBrand: undefined;
 		exit(code: number) { nativeExit(code); }
-		exists(path: string) { return exists(path); }
+		exists(path: string) { return Promises.exists(path); }
 		realpath(path: string) { return realpath(path); }
 	};
 
@@ -325,5 +352,5 @@ export async function startExtensionHostProcess(): Promise<void> {
 	);
 
 	// rewrite onTerminate-function to be a proper shutdown
-	onTerminate = () => extensionHostMain.terminate();
+	onTerminate = (reason: string) => extensionHostMain.terminate(reason);
 }

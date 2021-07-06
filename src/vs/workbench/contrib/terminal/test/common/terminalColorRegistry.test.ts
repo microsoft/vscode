@@ -7,14 +7,15 @@ import * as assert from 'assert';
 import { Extensions as ThemeingExtensions, IColorRegistry, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ansiColorIdentifiers, registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { IColorTheme, ThemeType } from 'vs/platform/theme/common/themeService';
+import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 registerColors();
 
-let themingRegistry = Registry.as<IColorRegistry>(ThemeingExtensions.ColorContribution);
-function getMockTheme(type: ThemeType): IColorTheme {
-	let theme = {
+const themingRegistry = Registry.as<IColorRegistry>(ThemeingExtensions.ColorContribution);
+function getMockTheme(type: ColorScheme): IColorTheme {
+	const theme = {
 		selector: '',
 		label: '',
 		type: type,
@@ -30,10 +31,10 @@ function getMockTheme(type: ThemeType): IColorTheme {
 suite('Workbench - TerminalColorRegistry', () => {
 
 	test('hc colors', function () {
-		let theme = getMockTheme('hc');
-		let colors = ansiColorIdentifiers.map(colorId => Color.Format.CSS.formatHexA(theme.getColor(colorId)!, true));
+		const theme = getMockTheme(ColorScheme.HIGH_CONTRAST);
+		const colors = ansiColorIdentifiers.map(colorId => Color.Format.CSS.formatHexA(theme.getColor(colorId)!, true));
 
-		assert.deepEqual(colors, [
+		assert.deepStrictEqual(colors, [
 			'#000000',
 			'#cd0000',
 			'#00cd00',
@@ -55,10 +56,10 @@ suite('Workbench - TerminalColorRegistry', () => {
 	});
 
 	test('light colors', function () {
-		let theme = getMockTheme('light');
-		let colors = ansiColorIdentifiers.map(colorId => Color.Format.CSS.formatHexA(theme.getColor(colorId)!, true));
+		const theme = getMockTheme(ColorScheme.LIGHT);
+		const colors = ansiColorIdentifiers.map(colorId => Color.Format.CSS.formatHexA(theme.getColor(colorId)!, true));
 
-		assert.deepEqual(colors, [
+		assert.deepStrictEqual(colors, [
 			'#000000',
 			'#cd3131',
 			'#00bc00',
@@ -80,10 +81,10 @@ suite('Workbench - TerminalColorRegistry', () => {
 	});
 
 	test('dark colors', function () {
-		let theme = getMockTheme('dark');
-		let colors = ansiColorIdentifiers.map(colorId => Color.Format.CSS.formatHexA(theme.getColor(colorId)!, true));
+		const theme = getMockTheme(ColorScheme.DARK);
+		const colors = ansiColorIdentifiers.map(colorId => Color.Format.CSS.formatHexA(theme.getColor(colorId)!, true));
 
-		assert.deepEqual(colors, [
+		assert.deepStrictEqual(colors, [
 			'#000000',
 			'#cd3131',
 			'#0dbc79',

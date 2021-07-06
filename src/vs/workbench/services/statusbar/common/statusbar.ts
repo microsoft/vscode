@@ -8,6 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { Event } from 'vs/base/common/event';
 import { Command } from 'vs/editor/common/modes';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export const IStatusbarService = createDecorator<IStatusbarService>('statusbarService');
 
@@ -22,6 +23,12 @@ export const enum StatusbarAlignment {
 export interface IStatusbarEntry {
 
 	/**
+	 * The (short) name to show for the entry like 'Language Indicator',
+	 * 'Git Status' etc.
+	 */
+	readonly name: string;
+
+	/**
 	 * The text to show for the entry. You can embed icons in the text by leveraging the syntax:
 	 *
 	 * `My text ${icon name} contains icons like ${icon name} this one.`
@@ -34,9 +41,15 @@ export interface IStatusbarEntry {
 	readonly ariaLabel: string;
 
 	/**
+	 * Role of the status bar entry which defines how a screen reader interacts with it.
+	 * Default is 'button'.
+	 */
+	readonly role?: string;
+
+	/**
 	 * An optional tooltip text to show when you hover over the entry
 	 */
-	readonly tooltip?: string;
+	readonly tooltip?: string | IMarkdownString;
 
 	/**
 	 * An optional color to use for the entry
@@ -57,6 +70,12 @@ export interface IStatusbarEntry {
 	 * Whether to show a beak above the status bar entry.
 	 */
 	readonly showBeak?: boolean;
+
+	/**
+	 * Will enable a spinning icon in front of the text to indicate progress.
+	 */
+	readonly showProgress?: boolean;
+
 }
 
 export interface IStatusbarService {
@@ -68,12 +87,11 @@ export interface IStatusbarService {
 	 * to update or remove the statusbar entry.
 	 *
 	 * @param id  identifier of the entry is needed to allow users to hide entries via settings
-	 * @param name human readable name the entry is about
 	 * @param alignment either LEFT or RIGHT
 	 * @param priority items get arranged from highest priority to lowest priority from left to right
 	 * in their respective alignment slot
 	 */
-	addEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority?: number): IStatusbarEntryAccessor;
+	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priority?: number): IStatusbarEntryAccessor;
 
 	/**
 	 * An event that is triggered when an entry's visibility is changed.
@@ -104,6 +122,11 @@ export interface IStatusbarService {
 	 * Focuses the previous status bar entry. If none focused, focuses the last.
 	 */
 	focusPreviousEntry(): void;
+
+	/**
+	 *	Returns true if a status bar entry is focused.
+	 */
+	isEntryFocused(): boolean;
 }
 
 export interface IStatusbarEntryAccessor extends IDisposable {

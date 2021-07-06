@@ -6,39 +6,51 @@
 import * as DOM from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import 'vs/css!./media/notebook';
+import { localize } from 'vs/nls';
+import { extname } from 'vs/base/common/resources';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { EditorOverride } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorOptions, IEditorMemento, IEditorInput } from 'vs/workbench/common/editor';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
+import { EditorInputCapabilities, IEditorInput, IEditorMemento, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { NotebookEditorWidget, NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IEditorGroup, IEditorGroupsService, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { INotebookEditorWidgetService, IBorrowValue } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidgetService';
-import { localize } from 'vs/nls';
+import { INotebookEditorOptions, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
+import { clearMarks, getAndClearMarks, mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction } from 'vs/base/common/actions';
+import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { NotebooKernelActionViewItem } from 'vs/workbench/contrib/notebook/browser/notebookKernelActionViewItem';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
-export class NotebookEditor extends BaseEditor {
-	static readonly ID: string = 'workbench.editor.notebook';
+export class NotebookEditor extends EditorPane {
+	static readonly ID: string = NOTEBOOK_EDITOR_ID;
 
 	private readonly _editorMemento: IEditorMemento<INotebookEditorViewState>;
 	private readonly _groupListener = this._register(new DisposableStore());
-	private readonly _widgetDisposableStore: DisposableStore = new DisposableStore();
+	private readonly _widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
 	private _widget: IBorrowValue<NotebookEditorWidget> = { value: undefined };
 	private _rootElement!: HTMLElement;
 	private _dimension?: DOM.Dimension;
 
+	private readonly inputListener = this._register(new MutableDisposable());
+
 	// todo@rebornix is there a reason that `super.fireOnDidFocus` isn't used?
 	private readonly _onDidFocusWidget = this._register(new Emitter<void>());
-	get onDidFocus(): Event<void> { return this._onDidFocusWidget.event; }
+	override get onDidFocus(): Event<void> { return this._onDidFocusWidget.event; }
 
 	private readonly _onDidChangeModel = this._register(new Emitter<void>());
 	readonly onDidChangeModel: Event<void> = this._onDidChangeModel.event;
@@ -52,34 +64,49 @@ export class NotebookEditor extends BaseEditor {
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IEditorDropService private readonly _editorDropService: IEditorDropService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@INotebookEditorWidgetService private readonly _notebookWidgetService: INotebookEditorWidgetService,
+		@INotebookEditorService private readonly _notebookWidgetService: INotebookEditorService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 		this._editorMemento = this.getEditorMemento<INotebookEditorViewState>(_editorGroupService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
+
+		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onDidChangeFileSystemProvider(e.scheme)));
+		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onDidChangeFileSystemProvider(e.scheme)));
 	}
 
-	set viewModel(newModel: NotebookViewModel | undefined) {
-		if (this._widget.value) {
-			this._widget.value.viewModel = newModel;
-			this._onDidChangeModel.fire();
+	private onDidChangeFileSystemProvider(scheme: string): void {
+		if (this.input instanceof NotebookEditorInput && this.input.resource?.scheme === scheme) {
+			this.updateReadonly(this.input);
 		}
 	}
 
-	get viewModel() {
+	private onDidChangeInputCapabilities(input: NotebookEditorInput): void {
+		if (this.input === input) {
+			this.updateReadonly(input);
+		}
+	}
+
+	private updateReadonly(input: NotebookEditorInput): void {
+		if (this._widget.value) {
+			this._widget.value.setOptions({ isReadOnly: input.hasCapability(EditorInputCapabilities.Readonly) });
+		}
+	}
+
+	get viewModel(): NotebookViewModel | undefined {
 		return this._widget.value?.viewModel;
 	}
 
-	get minimumWidth(): number { return 375; }
-	get maximumWidth(): number { return Number.POSITIVE_INFINITY; }
+	override get minimumWidth(): number { return 375; }
+	override get maximumWidth(): number { return Number.POSITIVE_INFINITY; }
 
-	// these setters need to exist because this extends from BaseEditor
-	set minimumWidth(value: number) { /*noop*/ }
-	set maximumWidth(value: number) { /*noop*/ }
+	// these setters need to exist because this extends from EditorPane
+	override set minimumWidth(value: number) { /*noop*/ }
+	override set maximumWidth(value: number) { /*noop*/ }
 
 	//#region Editor Core
-
-	get isNotebookEditor() {
-		return true;
+	override get scopedContextKeyService(): IContextKeyService | undefined {
+		return this._widget.value?.scopedContextKeyService;
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -94,13 +121,22 @@ export class NotebookEditor extends BaseEditor {
 		return this._rootElement;
 	}
 
-	getControl(): NotebookEditorWidget | undefined {
+	override getActionViewItem(action: IAction): IActionViewItem | undefined {
+		if (action.id === SELECT_KERNEL_ID) {
+			// this is being disposed by the consumer
+			return this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this);
+		}
+		return undefined;
+	}
+
+	override getControl(): NotebookEditorWidget | undefined {
 		return this._widget.value;
 	}
 
-	setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+	override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		super.setEditorVisible(visible, group);
 		if (group) {
+			this._groupListener.clear();
 			this._groupListener.add(group.onWillCloseEditor(e => this._saveEditorViewState(e.editor)));
 			this._groupListener.add(group.onDidGroupChange(() => {
 				if (this._editorGroupService.activeGroup !== group) {
@@ -118,22 +154,26 @@ export class NotebookEditor extends BaseEditor {
 		}
 	}
 
-	focus() {
+	override focus() {
 		super.focus();
 		this._widget.value?.focus();
 	}
 
-	async setInput(input: NotebookEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
+	override hasFocus(): boolean {
+		const activeElement = document.activeElement;
+		const value = this._widget.value;
 
+		return !!value && (DOM.isAncestor(activeElement, value.getDomNode() || DOM.isAncestor(activeElement, value.getOverflowContainerDomNode())));
+	}
+
+	override async setInput(input: NotebookEditorInput, options: INotebookEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		clearMarks(input.resource);
+		mark(input.resource, 'startTime');
 		const group = this.group!;
 
-		this._saveEditorViewState(this.input);
-		await super.setInput(input, options, token);
+		this.inputListener.value = input.onDidChangeCapabilities(() => this.onDidChangeInputCapabilities(input));
 
-		// Check for cancellation
-		if (token.isCancellationRequested) {
-			return undefined;
-		}
+		this._saveEditorViewState(this.input);
 
 		this._widgetDisposableStore.clear();
 
@@ -144,12 +184,18 @@ export class NotebookEditor extends BaseEditor {
 		}
 
 		this._widget = this.instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, input);
+		this._widgetDisposableStore.add(this._widget.value!.onDidChangeModel(() => this._onDidChangeModel.fire()));
 
 		if (this._dimension) {
 			this._widget.value!.layout(this._dimension, this._rootElement);
 		}
 
-		const model = await input.resolve(this._widget.value!.getId());
+		// only now `setInput` and yield/await. this is AFTER the actual widget is ready. This is very important
+		// so that others synchronously receive a notebook editor with the correct widget being set
+		await super.setInput(input, options, context, token);
+		const model = await input.resolve();
+		mark(input.resource, 'inputLoaded');
+
 		// Check for cancellation
 		if (token.isCancellationRequested) {
 			return undefined;
@@ -162,27 +208,86 @@ export class NotebookEditor extends BaseEditor {
 				[{
 					label: localize('fail.reOpen', "Reopen file with VS Code standard text editor"),
 					run: async () => {
-						const fileEditorInput = this._editorService.createEditorInput({ resource: input.resource, forceFile: true });
-						const textOptions: IEditorOptions | ITextEditorOptions = options ? { ...options, override: false } : { override: false };
-						await this._editorService.openEditor(fileEditorInput, textOptions);
+						await this._editorService.openEditor({ resource: input.resource, forceFile: true, options: { ...options, override: EditorOverride.DISABLED } });
 					}
 				}]
 			);
 			return;
 		}
 
-		const viewState = this._loadTextEditorViewState(input);
 
+
+		const viewState = this._loadNotebookEditorViewState(input);
+
+		this._widget.value?.setParentContextKeyService(this._contextKeyService);
 		await this._widget.value!.setModel(model.notebook, viewState);
-		await this._widget.value!.setOptions(options instanceof NotebookEditorOptions ? options : undefined);
+		const isReadOnly = input.hasCapability(EditorInputCapabilities.Readonly);
+		await this._widget.value!.setOptions({ ...options, isReadOnly });
 		this._widgetDisposableStore.add(this._widget.value!.onDidFocus(() => this._onDidFocusWidget.fire()));
 
 		this._widgetDisposableStore.add(this._editorDropService.createEditorDropTarget(this._widget.value!.getDomNode(), {
-			containsGroup: (group) => this.group?.id === group.group.id
+			containsGroup: (group) => this.group?.id === group.id
 		}));
+
+		mark(input.resource, 'editorLoaded');
+
+		type WorkbenchNotebookOpenClassification = {
+			scheme: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+			ext: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+			viewType: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+			extensionActivated: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+			inputLoaded: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+			webviewCommLoaded: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+			customMarkdownLoaded: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+			editorLoaded: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+		};
+
+		type WorkbenchNotebookOpenEvent = {
+			scheme: string;
+			ext: string;
+			viewType: string;
+			extensionActivated: number;
+			inputLoaded: number;
+			webviewCommLoaded: number;
+			customMarkdownLoaded: number;
+			editorLoaded: number;
+		};
+
+		const perfMarks = getAndClearMarks(input.resource);
+
+		if (perfMarks) {
+			const startTime = perfMarks['startTime'];
+			const extensionActivated = perfMarks['extensionActivated'];
+			const inputLoaded = perfMarks['inputLoaded'];
+			const webviewCommLoaded = perfMarks['webviewCommLoaded'];
+			const customMarkdownLoaded = perfMarks['customMarkdownLoaded'];
+			const editorLoaded = perfMarks['editorLoaded'];
+
+			if (
+				startTime !== undefined
+				&& extensionActivated !== undefined
+				&& inputLoaded !== undefined
+				&& webviewCommLoaded !== undefined
+				&& customMarkdownLoaded !== undefined
+				&& editorLoaded !== undefined
+			) {
+				this.telemetryService.publicLog2<WorkbenchNotebookOpenEvent, WorkbenchNotebookOpenClassification>('notebook/editorOpenPerf', {
+					scheme: model.notebook.uri.scheme,
+					ext: extname(model.notebook.uri),
+					viewType: model.notebook.viewType,
+					extensionActivated: extensionActivated - startTime,
+					inputLoaded: inputLoaded - startTime,
+					webviewCommLoaded: webviewCommLoaded - startTime,
+					customMarkdownLoaded: customMarkdownLoaded - startTime,
+					editorLoaded: editorLoaded - startTime
+				});
+			}
+		}
 	}
 
-	clearInput(): void {
+	override clearInput(): void {
+		this.inputListener.clear();
+
 		if (this._widget.value) {
 			this._saveEditorViewState(this.input);
 			this._widget.value.onWillHide();
@@ -190,14 +295,12 @@ export class NotebookEditor extends BaseEditor {
 		super.clearInput();
 	}
 
-	setOptions(options: EditorOptions | undefined): void {
-		if (options instanceof NotebookEditorOptions) {
-			this._widget.value?.setOptions(options);
-		}
+	override setOptions(options: INotebookEditorOptions | undefined): void {
+		this._widget.value?.setOptions(options);
 		super.setOptions(options);
 	}
 
-	protected saveState(): void {
+	protected override saveState(): void {
 		this._saveEditorViewState(this.input);
 		super.saveState();
 	}
@@ -213,11 +316,21 @@ export class NotebookEditor extends BaseEditor {
 		}
 	}
 
-	private _loadTextEditorViewState(input: NotebookEditorInput): INotebookEditorViewState | undefined {
+	private _loadNotebookEditorViewState(input: NotebookEditorInput): INotebookEditorViewState | undefined {
+		let result: INotebookEditorViewState | undefined;
 		if (this.group) {
-			return this._editorMemento.loadEditorState(this.group, input.resource);
+			result = this._editorMemento.loadEditorState(this.group, input.resource);
 		}
-
+		if (result) {
+			return result;
+		}
+		// when we don't have a view state for the group/input-tuple then we try to use an existing
+		// editor for the same resource.
+		for (const group of this._editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+			if (group.activeEditorPane !== this && group.activeEditorPane instanceof NotebookEditor && group.activeEditor?.matches(input)) {
+				return group.activeEditorPane._widget.value?.getEditorViewState();
+			}
+		}
 		return;
 	}
 
@@ -249,13 +362,13 @@ export class NotebookEditor extends BaseEditor {
 
 	//#endregion
 
-	dispose() {
+	override dispose() {
 		super.dispose();
 	}
 
-	toJSON(): object {
-		return {
-			notebookHandle: this.viewModel?.handle
-		};
-	}
+	// toJSON(): object {
+	// 	return {
+	// 		notebookHandle: this.viewModel?.handle
+	// 	};
+	// }
 }

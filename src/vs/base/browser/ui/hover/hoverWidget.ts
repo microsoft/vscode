@@ -5,10 +5,14 @@
 
 import 'vs/css!./hover';
 import * as dom from 'vs/base/browser/dom';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 
 const $ = dom.$;
+
+export const enum HoverPosition {
+	LEFT, RIGHT, BELOW, ABOVE
+}
 
 export class HoverWidget extends Disposable {
 
@@ -27,7 +31,9 @@ export class HoverWidget extends Disposable {
 		this.contentsDomNode = document.createElement('div');
 		this.contentsDomNode.className = 'monaco-hover-content';
 
-		this._scrollbar = this._register(new DomScrollableElement(this.contentsDomNode, {}));
+		this._scrollbar = this._register(new DomScrollableElement(this.contentsDomNode, {
+			consumeMouseWheelIfScrollbarIsNeeded: true
+		}));
 		this.containerDomNode.appendChild(this._scrollbar.getDomNode());
 	}
 
@@ -36,19 +42,43 @@ export class HoverWidget extends Disposable {
 	}
 }
 
-export function renderHoverAction(parent: HTMLElement, actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }, keybindingLabel: string | null): IDisposable {
-	const actionContainer = dom.append(parent, $('div.action-container'));
-	const action = dom.append(actionContainer, $('a.action'));
-	action.setAttribute('href', '#');
-	action.setAttribute('role', 'button');
-	if (actionOptions.iconClass) {
-		dom.append(action, $(`span.icon.${actionOptions.iconClass}`));
+export class HoverAction extends Disposable {
+	public static render(parent: HTMLElement, actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }, keybindingLabel: string | null) {
+		return new HoverAction(parent, actionOptions, keybindingLabel);
 	}
-	const label = dom.append(action, $('span'));
-	label.textContent = keybindingLabel ? `${actionOptions.label} (${keybindingLabel})` : actionOptions.label;
-	return dom.addDisposableListener(actionContainer, dom.EventType.CLICK, e => {
-		e.stopPropagation();
-		e.preventDefault();
-		actionOptions.run(actionContainer);
-	});
+
+	private readonly actionContainer: HTMLElement;
+	private readonly action: HTMLElement;
+
+	private constructor(parent: HTMLElement, actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }, keybindingLabel: string | null) {
+		super();
+
+		this.actionContainer = dom.append(parent, $('div.action-container'));
+		this.action = dom.append(this.actionContainer, $('a.action'));
+		this.action.setAttribute('href', '#');
+		this.action.setAttribute('role', 'button');
+		if (actionOptions.iconClass) {
+			dom.append(this.action, $(`span.icon.${actionOptions.iconClass}`));
+		}
+		const label = dom.append(this.action, $('span'));
+		label.textContent = keybindingLabel ? `${actionOptions.label} (${keybindingLabel})` : actionOptions.label;
+
+		this._register(dom.addDisposableListener(this.actionContainer, dom.EventType.CLICK, e => {
+			e.stopPropagation();
+			e.preventDefault();
+			actionOptions.run(this.actionContainer);
+		}));
+
+		this.setEnabled(true);
+	}
+
+	public setEnabled(enabled: boolean): void {
+		if (enabled) {
+			this.actionContainer.classList.remove('disabled');
+			this.actionContainer.removeAttribute('aria-disabled');
+		} else {
+			this.actionContainer.classList.add('disabled');
+			this.actionContainer.setAttribute('aria-disabled', 'true');
+		}
+	}
 }

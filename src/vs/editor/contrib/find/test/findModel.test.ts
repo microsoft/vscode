@@ -81,13 +81,13 @@ suite('FindModel', () => {
 	}
 
 	function assertFindState(editor: ICodeEditor, cursor: number[], highlighted: number[] | null, findDecorations: number[][]): void {
-		assert.deepEqual(fromRange(editor.getSelection()!), cursor, 'cursor');
+		assert.deepStrictEqual(fromRange(editor.getSelection()!), cursor, 'cursor');
 
 		let expectedState = {
 			highlighted: highlighted ? [highlighted] : [],
 			findDecorations: findDecorations
 		};
-		assert.deepEqual(_getFindState(editor), expectedState, 'state');
+		assert.deepStrictEqual(_getFindState(editor), expectedState, 'state');
 	}
 
 	findTest('incremental find from beginning of file', (editor) => {
@@ -210,7 +210,7 @@ suite('FindModel', () => {
 		);
 
 		// simulate adding a search scope
-		findState.change({ searchScope: new Range(8, 1, 10, 1) }, true);
+		findState.change({ searchScope: [new Range(8, 1, 10, 1)] }, true);
 		assertFindState(
 			editor,
 			[8, 14, 8, 19],
@@ -245,7 +245,7 @@ suite('FindModel', () => {
 		findState.change({ searchString: 'hello' }, false);
 		let findModel = new FindModelBoundToEditorModel(editor, findState);
 
-		assert.equal(findState.matchesCount, 5);
+		assert.strictEqual(findState.matchesCount, 5);
 		assertFindState(
 			editor,
 			[1, 1, 1, 1],
@@ -275,7 +275,7 @@ suite('FindModel', () => {
 		findState.change({ searchString: 'hello' }, false);
 		let findModel = new FindModelBoundToEditorModel(editor, findState);
 
-		assert.equal(findState.matchesCount, 5);
+		assert.strictEqual(findState.matchesCount, 5);
 		assertFindState(
 			editor,
 			[1, 1, 1, 1],
@@ -290,7 +290,7 @@ suite('FindModel', () => {
 		);
 
 		findState.change({ searchString: 'helloo' }, false);
-		assert.equal(findState.matchesCount, 0);
+		assert.strictEqual(findState.matchesCount, 0);
 		assertFindState(
 			editor,
 			[1, 1, 1, 1],
@@ -443,7 +443,7 @@ suite('FindModel', () => {
 
 	findTest('find model next stays in scope', (editor) => {
 		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello', wholeWord: true, searchScope: new Range(7, 1, 9, 1) }, false);
+		findState.change({ searchString: 'hello', wholeWord: true, searchScope: [new Range(7, 1, 9, 1)] }, false);
 		let findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
@@ -486,6 +486,131 @@ suite('FindModel', () => {
 			[
 				[7, 14, 7, 19],
 				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.dispose();
+		findState.dispose();
+	});
+
+	findTest('multi-selection find model next stays in scope (overlap)', (editor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: 'hello', wholeWord: true, searchScope: [new Range(7, 1, 8, 2), new Range(8, 1, 9, 1)] }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.moveToNextMatch();
+		assertFindState(
+			editor,
+			[7, 14, 7, 19],
+			[7, 14, 7, 19],
+			[
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.moveToNextMatch();
+		assertFindState(
+			editor,
+			[8, 14, 8, 19],
+			[8, 14, 8, 19],
+			[
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.moveToNextMatch();
+		assertFindState(
+			editor,
+			[7, 14, 7, 19],
+			[7, 14, 7, 19],
+			[
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.dispose();
+		findState.dispose();
+	});
+
+	findTest('multi-selection find model next stays in scope', (editor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: 'hello', matchCase: true, wholeWord: false, searchScope: [new Range(6, 1, 7, 38), new Range(9, 3, 9, 38)] }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[
+				[6, 14, 6, 19],
+				// `matchCase: false` would
+				// find this match as well:
+				// [6, 27, 6, 32],
+				[7, 14, 7, 19],
+				// `wholeWord: true` would
+				// exclude this match:
+				[9, 14, 9, 19],
+			]
+		);
+
+		findModel.moveToNextMatch();
+		assertFindState(
+			editor,
+			[6, 14, 6, 19],
+			[6, 14, 6, 19],
+			[
+				[6, 14, 6, 19],
+				[7, 14, 7, 19],
+				[9, 14, 9, 19],
+			]
+		);
+
+		findModel.moveToNextMatch();
+		assertFindState(
+			editor,
+			[7, 14, 7, 19],
+			[7, 14, 7, 19],
+			[
+				[6, 14, 6, 19],
+				[7, 14, 7, 19],
+				[9, 14, 9, 19],
+			]
+		);
+
+		findModel.moveToNextMatch();
+		assertFindState(
+			editor,
+			[9, 14, 9, 19],
+			[9, 14, 9, 19],
+			[
+				[6, 14, 6, 19],
+				[7, 14, 7, 19],
+				[9, 14, 9, 19],
+			]
+		);
+
+		findModel.moveToNextMatch();
+		assertFindState(
+			editor,
+			[6, 14, 6, 19],
+			[6, 14, 6, 19],
+			[
+				[6, 14, 6, 19],
+				[7, 14, 7, 19],
+				[9, 14, 9, 19],
 			]
 		);
 
@@ -581,7 +706,7 @@ suite('FindModel', () => {
 
 	findTest('find model prev stays in scope', (editor) => {
 		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello', wholeWord: true, searchScope: new Range(7, 1, 9, 1) }, false);
+		findState.change({ searchString: 'hello', wholeWord: true, searchScope: [new Range(7, 1, 9, 1)] }, false);
 		let findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
@@ -1181,7 +1306,7 @@ suite('FindModel', () => {
 				[8, 14, 8, 19]
 			]
 		);
-		assert.equal(editor.getModel()!.getLineContent(6), '    cout << "hello world, Hello!" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "hello world, Hello!" << endl;');
 
 		findModel.replace();
 		assertFindState(
@@ -1195,7 +1320,7 @@ suite('FindModel', () => {
 				[8, 14, 8, 19]
 			]
 		);
-		assert.equal(editor.getModel()!.getLineContent(6), '    cout << "hello world, Hello!" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "hello world, Hello!" << endl;');
 
 		findModel.replace();
 		assertFindState(
@@ -1208,7 +1333,7 @@ suite('FindModel', () => {
 				[8, 14, 8, 19]
 			]
 		);
-		assert.equal(editor.getModel()!.getLineContent(6), '    cout << "hello world, hi!" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "hello world, hi!" << endl;');
 
 		findModel.replace();
 		assertFindState(
@@ -1220,7 +1345,7 @@ suite('FindModel', () => {
 				[8, 14, 8, 19]
 			]
 		);
-		assert.equal(editor.getModel()!.getLineContent(7), '    cout << "hi world again" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(7), '    cout << "hi world again" << endl;');
 
 		findModel.replace();
 		assertFindState(
@@ -1231,7 +1356,7 @@ suite('FindModel', () => {
 				[6, 14, 6, 19]
 			]
 		);
-		assert.equal(editor.getModel()!.getLineContent(8), '    cout << "hi world again" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(8), '    cout << "hi world again" << endl;');
 
 		findModel.replace();
 		assertFindState(
@@ -1240,7 +1365,7 @@ suite('FindModel', () => {
 			null,
 			[]
 		);
-		assert.equal(editor.getModel()!.getLineContent(6), '    cout << "hi world, hi!" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "hi world, hi!" << endl;');
 
 		findModel.dispose();
 		findState.dispose();
@@ -1273,7 +1398,7 @@ suite('FindModel', () => {
 				[11, 10, 11, 13]
 			]
 		);
-		assert.equal(editor.getModel()!.getLineContent(11), '// blablablaciao');
+		assert.strictEqual(editor.getModel()!.getLineContent(11), '// blablablaciao');
 
 		findModel.replace();
 		assertFindState(
@@ -1285,7 +1410,7 @@ suite('FindModel', () => {
 				[11, 11, 11, 14]
 			]
 		);
-		assert.equal(editor.getModel()!.getLineContent(11), '// ciaoblablaciao');
+		assert.strictEqual(editor.getModel()!.getLineContent(11), '// ciaoblablaciao');
 
 		findModel.replace();
 		assertFindState(
@@ -1296,7 +1421,7 @@ suite('FindModel', () => {
 				[11, 12, 11, 15]
 			]
 		);
-		assert.equal(editor.getModel()!.getLineContent(11), '// ciaociaoblaciao');
+		assert.strictEqual(editor.getModel()!.getLineContent(11), '// ciaociaoblaciao');
 
 		findModel.replace();
 		assertFindState(
@@ -1305,7 +1430,7 @@ suite('FindModel', () => {
 			null,
 			[]
 		);
-		assert.equal(editor.getModel()!.getLineContent(11), '// ciaociaociaociao');
+		assert.strictEqual(editor.getModel()!.getLineContent(11), '// ciaociaociaociao');
 
 		findModel.dispose();
 		findState.dispose();
@@ -1342,7 +1467,7 @@ suite('FindModel', () => {
 				[8, 14, 8, 19]
 			]
 		);
-		assert.equal(editor.getModel()!.getLineContent(6), '    cout << "hello world, Hello!" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "hello world, Hello!" << endl;');
 
 		findModel.replaceAll();
 		assertFindState(
@@ -1351,9 +1476,9 @@ suite('FindModel', () => {
 			null,
 			[]
 		);
-		assert.equal(editor.getModel()!.getLineContent(6), '    cout << "hi world, hi!" << endl;');
-		assert.equal(editor.getModel()!.getLineContent(7), '    cout << "hi world again" << endl;');
-		assert.equal(editor.getModel()!.getLineContent(8), '    cout << "hi world again" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "hi world, hi!" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(7), '    cout << "hi world again" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(8), '    cout << "hi world again" << endl;');
 
 		findModel.dispose();
 		findState.dispose();
@@ -1392,10 +1517,10 @@ suite('FindModel', () => {
 				[9, 1, 9, 3]
 			]
 		);
-		assert.equal(editor.getModel()!.getLineContent(6), '  cout << "hello world, Hello!" << endl;');
-		assert.equal(editor.getModel()!.getLineContent(7), '  cout << "hello world again" << endl;');
-		assert.equal(editor.getModel()!.getLineContent(8), '  cout << "Hello world again" << endl;');
-		assert.equal(editor.getModel()!.getLineContent(9), '  cout << "helloworld again" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(6), '  cout << "hello world, Hello!" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(7), '  cout << "hello world again" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(8), '  cout << "Hello world again" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(9), '  cout << "helloworld again" << endl;');
 
 		findModel.dispose();
 		findState.dispose();
@@ -1424,7 +1549,7 @@ suite('FindModel', () => {
 			null,
 			[]
 		);
-		assert.equal(editor.getModel()!.getLineContent(11), '// ciaociaociaociao');
+		assert.strictEqual(editor.getModel()!.getLineContent(11), '// ciaociaociaociao');
 
 		findModel.dispose();
 		findState.dispose();
@@ -1453,10 +1578,10 @@ suite('FindModel', () => {
 			null,
 			[]
 		);
-		assert.equal(editor.getModel()!.getLineContent(11), '// <');
-		assert.equal(editor.getModel()!.getLineContent(12), '\t><');
-		assert.equal(editor.getModel()!.getLineContent(13), '\t><');
-		assert.equal(editor.getModel()!.getLineContent(14), '\t>ciao');
+		assert.strictEqual(editor.getModel()!.getLineContent(11), '// <');
+		assert.strictEqual(editor.getModel()!.getLineContent(12), '\t><');
+		assert.strictEqual(editor.getModel()!.getLineContent(13), '\t><');
+		assert.strictEqual(editor.getModel()!.getLineContent(14), '\t>ciao');
 
 		findModel.dispose();
 		findState.dispose();
@@ -1485,8 +1610,8 @@ suite('FindModel', () => {
 			[]
 		);
 
-		assert.equal(editor.getModel()!.getLineContent(2), '#bar "cool.h"');
-		assert.equal(editor.getModel()!.getLineContent(3), '#bar <iostream>');
+		assert.strictEqual(editor.getModel()!.getLineContent(2), '#bar "cool.h"');
+		assert.strictEqual(editor.getModel()!.getLineContent(3), '#bar <iostream>');
 
 		findModel.dispose();
 		findState.dispose();
@@ -1540,7 +1665,7 @@ suite('FindModel', () => {
 
 		findModel.selectAllMatches();
 
-		assert.deepEqual(editor!.getSelections()!.map(s => s.toString()), [
+		assert.deepStrictEqual(editor!.getSelections()!.map(s => s.toString()), [
 			new Selection(6, 14, 6, 19),
 			new Selection(6, 27, 6, 32),
 			new Selection(7, 14, 7, 19),
@@ -1584,14 +1709,14 @@ suite('FindModel', () => {
 
 		findModel.selectAllMatches();
 
-		assert.deepEqual(editor!.getSelections()!.map(s => s.toString()), [
+		assert.deepStrictEqual(editor!.getSelections()!.map(s => s.toString()), [
 			new Selection(7, 14, 7, 19),
 			new Selection(6, 14, 6, 19),
 			new Selection(6, 27, 6, 32),
 			new Selection(8, 14, 8, 19)
 		].map(s => s.toString()));
 
-		assert.deepEqual(editor!.getSelection()!.toString(), new Selection(7, 14, 7, 19).toString());
+		assert.deepStrictEqual(editor!.getSelection()!.toString(), new Selection(7, 14, 7, 19).toString());
 
 		assertFindState(
 			editor,
@@ -1675,7 +1800,7 @@ suite('FindModel', () => {
 				[8, 14, 8, 19]
 			]
 		);
-		assert.equal(editor.getModel()!.getLineContent(6), '    cout << "hello world, Hello!" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "hello world, Hello!" << endl;');
 
 		findModel.replace();
 		assertFindState(
@@ -1687,7 +1812,7 @@ suite('FindModel', () => {
 				[8, 14, 8, 19]
 			]
 		);
-		assert.equal(editor.getModel()!.getLineContent(6), '    cout << "hi world, Hello!" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "hi world, Hello!" << endl;');
 
 		findModel.replace();
 		assertFindState(
@@ -1698,7 +1823,7 @@ suite('FindModel', () => {
 				[8, 14, 8, 19]
 			]
 		);
-		assert.equal(editor.getModel()!.getLineContent(7), '    cout << "hi world again" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(7), '    cout << "hi world again" << endl;');
 
 		findModel.replace();
 		assertFindState(
@@ -1707,7 +1832,7 @@ suite('FindModel', () => {
 			null,
 			[]
 		);
-		assert.equal(editor.getModel()!.getLineContent(8), '    cout << "hi world again" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(8), '    cout << "hi world again" << endl;');
 
 		findModel.dispose();
 		findState.dispose();
@@ -1746,7 +1871,7 @@ suite('FindModel', () => {
 			]
 		);
 
-		assert.equal(editor.getModel()!.getLineContent(8), '    cout << "Hello world again" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(8), '    cout << "Hello world again" << endl;');
 
 		findModel.replace();
 		assertFindState(
@@ -1758,7 +1883,7 @@ suite('FindModel', () => {
 				[7, 14, 7, 19],
 			]
 		);
-		assert.equal(editor.getModel()!.getLineContent(8), '    cout << "hi world again" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(8), '    cout << "hi world again" << endl;');
 
 		findModel.replace();
 		assertFindState(
@@ -1769,7 +1894,7 @@ suite('FindModel', () => {
 				[7, 14, 7, 19]
 			]
 		);
-		assert.equal(editor.getModel()!.getLineContent(6), '    cout << "hi world, Hello!" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "hi world, Hello!" << endl;');
 
 		findModel.replace();
 		assertFindState(
@@ -1778,7 +1903,7 @@ suite('FindModel', () => {
 			null,
 			[]
 		);
-		assert.equal(editor.getModel()!.getLineContent(7), '    cout << "hi world again" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(7), '    cout << "hi world again" << endl;');
 
 		findModel.dispose();
 		findState.dispose();
@@ -1802,9 +1927,9 @@ suite('FindModel', () => {
 
 		findModel.replaceAll();
 
-		assert.equal(editor.getModel()!.getLineContent(6), '    cout << "hi world, Hello!" << endl;');
-		assert.equal(editor.getModel()!.getLineContent(7), '    cout << "hi world again" << endl;');
-		assert.equal(editor.getModel()!.getLineContent(8), '    cout << "hi world again" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "hi world, Hello!" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(7), '    cout << "hi world again" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(8), '    cout << "hi world again" << endl;');
 
 		assertFindState(
 			editor,
@@ -1845,7 +1970,7 @@ suite('FindModel', () => {
 				[8, 14, 8, 19]
 			]
 		);
-		assert.equal(editor.getModel()!.getLineContent(6), '    cout << "hello world, Hello!" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "hello world, Hello!" << endl;');
 
 		findModel.replace();
 		assertFindState(
@@ -1857,7 +1982,7 @@ suite('FindModel', () => {
 				[8, 14, 8, 19]
 			]
 		);
-		assert.equal(editor.getModel()!.getLineContent(6), '    cout << "hilo world, Hello!" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "hilo world, Hello!" << endl;');
 
 		findModel.replace();
 		assertFindState(
@@ -1868,7 +1993,7 @@ suite('FindModel', () => {
 				[8, 14, 8, 19]
 			]
 		);
-		assert.equal(editor.getModel()!.getLineContent(7), '    cout << "hilo world again" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(7), '    cout << "hilo world again" << endl;');
 
 		findModel.replace();
 		assertFindState(
@@ -1877,7 +2002,7 @@ suite('FindModel', () => {
 			null,
 			[]
 		);
-		assert.equal(editor.getModel()!.getLineContent(8), '    cout << "hilo world again" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(8), '    cout << "hilo world again" << endl;');
 
 		findModel.dispose();
 		findState.dispose();
@@ -1902,10 +2027,10 @@ suite('FindModel', () => {
 
 		findModel.replaceAll();
 
-		assert.equal(editor.getModel()!.getLineContent(6), '    cout << "hello girl, Hello!" << endl;');
-		assert.equal(editor.getModel()!.getLineContent(7), '    cout << "hello girl again" << endl;');
-		assert.equal(editor.getModel()!.getLineContent(8), '    cout << "Hello girl again" << endl;');
-		assert.equal(editor.getModel()!.getLineContent(9), '    cout << "hellogirl again" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "hello girl, Hello!" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(7), '    cout << "hello girl again" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(8), '    cout << "Hello girl again" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(9), '    cout << "hellogirl again" << endl;');
 
 		assertFindState(
 			editor,
@@ -1935,8 +2060,8 @@ suite('FindModel', () => {
 
 		findModel.replaceAll();
 
-		assert.equal(editor.getModel()!.getLineContent(6), '    cout << "hello girl, Hello!" << endl;');
-		assert.equal(editor.getModel()!.getLineContent(8), '    cout << "Hello girl again" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "hello girl, Hello!" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(8), '    cout << "Hello girl again" << endl;');
 
 		assertFindState(
 			editor,
@@ -1969,10 +2094,10 @@ suite('FindModel', () => {
 
 		findModel.replaceAll();
 
-		assert.equal(editor.getModel()!.getLineContent(6), '    cout << "goodbye world, Goodbye!" << endl;');
-		assert.equal(editor.getModel()!.getLineContent(7), '    cout << "goodbye world again" << endl;');
-		assert.equal(editor.getModel()!.getLineContent(8), '    cout << "Goodbye world again" << endl;');
-		assert.equal(editor.getModel()!.getLineContent(9), '    cout << "goodbyeworld again" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "goodbye world, Goodbye!" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(7), '    cout << "goodbye world again" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(8), '    cout << "Goodbye world again" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(9), '    cout << "goodbyeworld again" << endl;');
 
 		assertFindState(
 			editor,
@@ -2009,9 +2134,9 @@ suite('FindModel', () => {
 			null,
 			[]
 		);
-		assert.equal(editor.getModel()!.getLineContent(6), '    cout << " world, !" << endl;');
-		assert.equal(editor.getModel()!.getLineContent(7), '    cout << " world again" << endl;');
-		assert.equal(editor.getModel()!.getLineContent(8), '    cout << " world again" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << " world, !" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(7), '    cout << " world again" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(8), '    cout << " world again" << endl;');
 
 		findModel.dispose();
 		findState.dispose();
@@ -2034,7 +2159,7 @@ suite('FindModel', () => {
 			expectedText += 'a line' + i + '\n';
 		}
 		expectedText += 'a ';
-		assert.equal(editor!.getModel()!.getValue(), expectedText);
+		assert.strictEqual(editor!.getModel()!.getValue(), expectedText);
 
 		findModel.dispose();
 		findState.dispose();
@@ -2063,9 +2188,9 @@ suite('FindModel', () => {
 			null,
 			[]
 		);
-		assert.equal(editor.getModel()!.getLineContent(6), '    cout << "hi world, Hello!" << endl;');
-		assert.equal(editor.getModel()!.getLineContent(7), '    cout << "hi world again" << endl;');
-		assert.equal(editor.getModel()!.getLineContent(9), '    cout << "hiworld again" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "hi world, Hello!" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(7), '    cout << "hi world again" << endl;');
+		assert.strictEqual(editor.getModel()!.getLineContent(9), '    cout << "hiworld again" << endl;');
 
 		findModel.dispose();
 		findState.dispose();
@@ -2073,7 +2198,7 @@ suite('FindModel', () => {
 
 	findTest('issue #27083. search scope works even if it is a single line', (editor) => {
 		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello', wholeWord: true, searchScope: new Range(7, 1, 8, 1) }, false);
+		findState.change({ searchString: 'hello', wholeWord: true, searchScope: [new Range(7, 1, 8, 1)] }, false);
 		let findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
@@ -2094,78 +2219,78 @@ suite('FindModel', () => {
 		findState.change({ searchString: 'hello', loop: false }, false);
 		let findModel = new FindModelBoundToEditorModel(editor, findState);
 
-		assert.equal(findState.matchesCount, 5);
+		assert.strictEqual(findState.matchesCount, 5);
 
 		// Test next operations
-		assert.equal(findState.matchesPosition, 0);
-		assert.equal(findState.canNavigateForward(), true);
-		assert.equal(findState.canNavigateBack(), true);
+		assert.strictEqual(findState.matchesPosition, 0);
+		assert.strictEqual(findState.canNavigateForward(), true);
+		assert.strictEqual(findState.canNavigateBack(), true);
 
 		findModel.moveToNextMatch();
-		assert.equal(findState.matchesPosition, 1);
-		assert.equal(findState.canNavigateForward(), true);
-		assert.equal(findState.canNavigateBack(), false);
+		assert.strictEqual(findState.matchesPosition, 1);
+		assert.strictEqual(findState.canNavigateForward(), true);
+		assert.strictEqual(findState.canNavigateBack(), false);
 
 		findModel.moveToNextMatch();
-		assert.equal(findState.matchesPosition, 2);
-		assert.equal(findState.canNavigateForward(), true);
-		assert.equal(findState.canNavigateBack(), true);
+		assert.strictEqual(findState.matchesPosition, 2);
+		assert.strictEqual(findState.canNavigateForward(), true);
+		assert.strictEqual(findState.canNavigateBack(), true);
 
 		findModel.moveToNextMatch();
-		assert.equal(findState.matchesPosition, 3);
-		assert.equal(findState.canNavigateForward(), true);
-		assert.equal(findState.canNavigateBack(), true);
+		assert.strictEqual(findState.matchesPosition, 3);
+		assert.strictEqual(findState.canNavigateForward(), true);
+		assert.strictEqual(findState.canNavigateBack(), true);
 
 		findModel.moveToNextMatch();
-		assert.equal(findState.matchesPosition, 4);
-		assert.equal(findState.canNavigateForward(), true);
-		assert.equal(findState.canNavigateBack(), true);
+		assert.strictEqual(findState.matchesPosition, 4);
+		assert.strictEqual(findState.canNavigateForward(), true);
+		assert.strictEqual(findState.canNavigateBack(), true);
 
 		findModel.moveToNextMatch();
-		assert.equal(findState.matchesPosition, 5);
-		assert.equal(findState.canNavigateForward(), false);
-		assert.equal(findState.canNavigateBack(), true);
+		assert.strictEqual(findState.matchesPosition, 5);
+		assert.strictEqual(findState.canNavigateForward(), false);
+		assert.strictEqual(findState.canNavigateBack(), true);
 
 		findModel.moveToNextMatch();
-		assert.equal(findState.matchesPosition, 5);
-		assert.equal(findState.canNavigateForward(), false);
-		assert.equal(findState.canNavigateBack(), true);
+		assert.strictEqual(findState.matchesPosition, 5);
+		assert.strictEqual(findState.canNavigateForward(), false);
+		assert.strictEqual(findState.canNavigateBack(), true);
 
 		findModel.moveToNextMatch();
-		assert.equal(findState.matchesPosition, 5);
-		assert.equal(findState.canNavigateForward(), false);
-		assert.equal(findState.canNavigateBack(), true);
+		assert.strictEqual(findState.matchesPosition, 5);
+		assert.strictEqual(findState.canNavigateForward(), false);
+		assert.strictEqual(findState.canNavigateBack(), true);
 
 		// Test previous operations
 		findModel.moveToPrevMatch();
-		assert.equal(findState.matchesPosition, 4);
-		assert.equal(findState.canNavigateForward(), true);
-		assert.equal(findState.canNavigateBack(), true);
+		assert.strictEqual(findState.matchesPosition, 4);
+		assert.strictEqual(findState.canNavigateForward(), true);
+		assert.strictEqual(findState.canNavigateBack(), true);
 
 		findModel.moveToPrevMatch();
-		assert.equal(findState.matchesPosition, 3);
-		assert.equal(findState.canNavigateForward(), true);
-		assert.equal(findState.canNavigateBack(), true);
+		assert.strictEqual(findState.matchesPosition, 3);
+		assert.strictEqual(findState.canNavigateForward(), true);
+		assert.strictEqual(findState.canNavigateBack(), true);
 
 		findModel.moveToPrevMatch();
-		assert.equal(findState.matchesPosition, 2);
-		assert.equal(findState.canNavigateForward(), true);
-		assert.equal(findState.canNavigateBack(), true);
+		assert.strictEqual(findState.matchesPosition, 2);
+		assert.strictEqual(findState.canNavigateForward(), true);
+		assert.strictEqual(findState.canNavigateBack(), true);
 
 		findModel.moveToPrevMatch();
-		assert.equal(findState.matchesPosition, 1);
-		assert.equal(findState.canNavigateForward(), true);
-		assert.equal(findState.canNavigateBack(), false);
+		assert.strictEqual(findState.matchesPosition, 1);
+		assert.strictEqual(findState.canNavigateForward(), true);
+		assert.strictEqual(findState.canNavigateBack(), false);
 
 		findModel.moveToPrevMatch();
-		assert.equal(findState.matchesPosition, 1);
-		assert.equal(findState.canNavigateForward(), true);
-		assert.equal(findState.canNavigateBack(), false);
+		assert.strictEqual(findState.matchesPosition, 1);
+		assert.strictEqual(findState.canNavigateForward(), true);
+		assert.strictEqual(findState.canNavigateBack(), false);
 
 		findModel.moveToPrevMatch();
-		assert.equal(findState.matchesPosition, 1);
-		assert.equal(findState.canNavigateForward(), true);
-		assert.equal(findState.canNavigateBack(), false);
+		assert.strictEqual(findState.matchesPosition, 1);
+		assert.strictEqual(findState.canNavigateForward(), true);
+		assert.strictEqual(findState.canNavigateBack(), false);
 
 	});
 
@@ -2174,78 +2299,78 @@ suite('FindModel', () => {
 		findState.change({ searchString: 'hello' }, false);
 		let findModel = new FindModelBoundToEditorModel(editor, findState);
 
-		assert.equal(findState.matchesCount, 5);
+		assert.strictEqual(findState.matchesCount, 5);
 
 		// Test next operations
-		assert.equal(findState.matchesPosition, 0);
-		assert.equal(findState.canNavigateForward(), true);
-		assert.equal(findState.canNavigateBack(), true);
+		assert.strictEqual(findState.matchesPosition, 0);
+		assert.strictEqual(findState.canNavigateForward(), true);
+		assert.strictEqual(findState.canNavigateBack(), true);
 
 		findModel.moveToNextMatch();
-		assert.equal(findState.matchesPosition, 1);
-		assert.equal(findState.canNavigateForward(), true);
-		assert.equal(findState.canNavigateBack(), true);
+		assert.strictEqual(findState.matchesPosition, 1);
+		assert.strictEqual(findState.canNavigateForward(), true);
+		assert.strictEqual(findState.canNavigateBack(), true);
 
 		findModel.moveToNextMatch();
-		assert.equal(findState.matchesPosition, 2);
-		assert.equal(findState.canNavigateForward(), true);
-		assert.equal(findState.canNavigateBack(), true);
+		assert.strictEqual(findState.matchesPosition, 2);
+		assert.strictEqual(findState.canNavigateForward(), true);
+		assert.strictEqual(findState.canNavigateBack(), true);
 
 		findModel.moveToNextMatch();
-		assert.equal(findState.matchesPosition, 3);
-		assert.equal(findState.canNavigateForward(), true);
-		assert.equal(findState.canNavigateBack(), true);
+		assert.strictEqual(findState.matchesPosition, 3);
+		assert.strictEqual(findState.canNavigateForward(), true);
+		assert.strictEqual(findState.canNavigateBack(), true);
 
 		findModel.moveToNextMatch();
-		assert.equal(findState.matchesPosition, 4);
-		assert.equal(findState.canNavigateForward(), true);
-		assert.equal(findState.canNavigateBack(), true);
+		assert.strictEqual(findState.matchesPosition, 4);
+		assert.strictEqual(findState.canNavigateForward(), true);
+		assert.strictEqual(findState.canNavigateBack(), true);
 
 		findModel.moveToNextMatch();
-		assert.equal(findState.matchesPosition, 5);
-		assert.equal(findState.canNavigateForward(), true);
-		assert.equal(findState.canNavigateBack(), true);
+		assert.strictEqual(findState.matchesPosition, 5);
+		assert.strictEqual(findState.canNavigateForward(), true);
+		assert.strictEqual(findState.canNavigateBack(), true);
 
 		findModel.moveToNextMatch();
-		assert.equal(findState.matchesPosition, 1);
-		assert.equal(findState.canNavigateForward(), true);
-		assert.equal(findState.canNavigateBack(), true);
+		assert.strictEqual(findState.matchesPosition, 1);
+		assert.strictEqual(findState.canNavigateForward(), true);
+		assert.strictEqual(findState.canNavigateBack(), true);
 
 		findModel.moveToNextMatch();
-		assert.equal(findState.matchesPosition, 2);
-		assert.equal(findState.canNavigateForward(), true);
-		assert.equal(findState.canNavigateBack(), true);
+		assert.strictEqual(findState.matchesPosition, 2);
+		assert.strictEqual(findState.canNavigateForward(), true);
+		assert.strictEqual(findState.canNavigateBack(), true);
 
 		// Test previous operations
 		findModel.moveToPrevMatch();
-		assert.equal(findState.matchesPosition, 1);
-		assert.equal(findState.canNavigateForward(), true);
-		assert.equal(findState.canNavigateBack(), true);
+		assert.strictEqual(findState.matchesPosition, 1);
+		assert.strictEqual(findState.canNavigateForward(), true);
+		assert.strictEqual(findState.canNavigateBack(), true);
 
 		findModel.moveToPrevMatch();
-		assert.equal(findState.matchesPosition, 5);
-		assert.equal(findState.canNavigateForward(), true);
-		assert.equal(findState.canNavigateBack(), true);
+		assert.strictEqual(findState.matchesPosition, 5);
+		assert.strictEqual(findState.canNavigateForward(), true);
+		assert.strictEqual(findState.canNavigateBack(), true);
 
 		findModel.moveToPrevMatch();
-		assert.equal(findState.matchesPosition, 4);
-		assert.equal(findState.canNavigateForward(), true);
-		assert.equal(findState.canNavigateBack(), true);
+		assert.strictEqual(findState.matchesPosition, 4);
+		assert.strictEqual(findState.canNavigateForward(), true);
+		assert.strictEqual(findState.canNavigateBack(), true);
 
 		findModel.moveToPrevMatch();
-		assert.equal(findState.matchesPosition, 3);
-		assert.equal(findState.canNavigateForward(), true);
-		assert.equal(findState.canNavigateBack(), true);
+		assert.strictEqual(findState.matchesPosition, 3);
+		assert.strictEqual(findState.canNavigateForward(), true);
+		assert.strictEqual(findState.canNavigateBack(), true);
 
 		findModel.moveToPrevMatch();
-		assert.equal(findState.matchesPosition, 2);
-		assert.equal(findState.canNavigateForward(), true);
-		assert.equal(findState.canNavigateBack(), true);
+		assert.strictEqual(findState.matchesPosition, 2);
+		assert.strictEqual(findState.canNavigateForward(), true);
+		assert.strictEqual(findState.canNavigateBack(), true);
 
 		findModel.moveToPrevMatch();
-		assert.equal(findState.matchesPosition, 1);
-		assert.equal(findState.canNavigateForward(), true);
-		assert.equal(findState.canNavigateBack(), true);
+		assert.strictEqual(findState.matchesPosition, 1);
+		assert.strictEqual(findState.canNavigateForward(), true);
+		assert.strictEqual(findState.canNavigateBack(), true);
 
 	});
 

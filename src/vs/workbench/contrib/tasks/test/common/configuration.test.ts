@@ -10,10 +10,13 @@ import * as UUID from 'vs/base/common/uuid';
 import * as Platform from 'vs/base/common/platform';
 import { ValidationStatus } from 'vs/base/common/parsers';
 import { ProblemMatcher, FileLocationKind, ProblemPattern, ApplyToKind } from 'vs/workbench/contrib/tasks/common/problemMatcher';
-import { WorkspaceFolder, Workspace, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { WorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 
 import * as Tasks from 'vs/workbench/contrib/tasks/common/tasks';
 import { parse, ParseResult, IProblemReporter, ExternalTaskRunnerConfiguration, CustomTask, TaskConfigSource } from 'vs/workbench/contrib/tasks/common/taskConfiguration';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { IContext } from 'vs/platform/contextkey/common/contextkey';
+import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 const workspaceFolder: WorkspaceFolder = new WorkspaceFolder({
 	uri: URI.file('/workspace/folderOne'),
@@ -85,7 +88,7 @@ class PresentationBuilder {
 	public result: Tasks.PresentationOptions;
 
 	constructor(public parent: CommandConfigurationBuilder) {
-		this.result = { echo: false, reveal: Tasks.RevealKind.Always, revealProblems: Tasks.RevealProblemKind.Never, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true, clear: false };
+		this.result = { echo: false, reveal: Tasks.RevealKind.Always, revealProblems: Tasks.RevealProblemKind.Never, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true, clear: false, close: false };
 	}
 
 	public echo(value: boolean): PresentationBuilder {
@@ -110,6 +113,11 @@ class PresentationBuilder {
 
 	public showReuseMessage(value: boolean): PresentationBuilder {
 		this.result.showReuseMessage = value;
+		return this;
+	}
+
+	public close(value: boolean): PresentationBuilder {
+		this.result.close = value;
 		return this;
 	}
 
@@ -357,9 +365,19 @@ class PatternBuilder {
 	}
 }
 
+class TasksMockContextKeyService extends MockContextKeyService {
+	public override getContext(domNode: HTMLElement): IContext {
+		return {
+			getValue: <T>(_key: string) => {
+				return <T><unknown>true;
+			}
+		};
+	}
+}
+
 function testDefaultProblemMatcher(external: ExternalTaskRunnerConfiguration, resolved: number) {
 	let reporter = new ProblemReporter();
-	let result = parse(workspaceFolder, workspace, Platform.platform, external, reporter, TaskConfigSource.TasksJson);
+	let result = parse(workspaceFolder, workspace, Platform.platform, external, reporter, TaskConfigSource.TasksJson, new TasksMockContextKeyService());
 	assert.ok(!reporter.receivedMessage);
 	assert.strictEqual(result.custom.length, 1);
 	let task = result.custom[0];
@@ -370,7 +388,7 @@ function testDefaultProblemMatcher(external: ExternalTaskRunnerConfiguration, re
 function testConfiguration(external: ExternalTaskRunnerConfiguration, builder: ConfiguationBuilder): void {
 	builder.done();
 	let reporter = new ProblemReporter();
-	let result = parse(workspaceFolder, workspace, Platform.platform, external, reporter, TaskConfigSource.TasksJson);
+	let result = parse(workspaceFolder, workspace, Platform.platform, external, reporter, TaskConfigSource.TasksJson, new TasksMockContextKeyService());
 	if (reporter.receivedMessage) {
 		assert.ok(false, reporter.lastMessage);
 	}
@@ -486,13 +504,13 @@ function assertCommandConfiguration(actual: Tasks.CommandConfiguration, expected
 		assert.strictEqual(actual.runtime, expected.runtime, 'runtime type');
 		assert.strictEqual(actual.suppressTaskName, expected.suppressTaskName, 'suppressTaskName');
 		assert.strictEqual(actual.taskSelector, expected.taskSelector, 'taskSelector');
-		assert.deepEqual(actual.args, expected.args, 'args');
+		assert.deepStrictEqual(actual.args, expected.args, 'args');
 		assert.strictEqual(typeof actual.options, typeof expected.options);
 		if (actual.options && expected.options) {
 			assert.strictEqual(actual.options.cwd, expected.options.cwd, 'cwd');
 			assert.strictEqual(typeof actual.options.env, typeof expected.options.env, 'env');
 			if (actual.options.env && expected.options.env) {
-				assert.deepEqual(actual.options.env, expected.options.env, 'env');
+				assert.deepStrictEqual(actual.options.env, expected.options.env, 'env');
 			}
 		}
 	}
@@ -543,7 +561,7 @@ function assertProblemPatterns(actual: ProblemPattern | ProblemPattern[], expect
 }
 
 function assertProblemPattern(actual: ProblemPattern, expected: ProblemPattern) {
-	assert.equal(actual.regexp.toString(), expected.regexp.toString());
+	assert.strictEqual(actual.regexp.toString(), expected.regexp.toString());
 	assert.strictEqual(actual.file, expected.file);
 	assert.strictEqual(actual.message, expected.message);
 	if (typeof expected.location !== 'undefined') {
@@ -1637,10 +1655,7 @@ suite('Tasks version 2.0.0', () => {
 });
 
 suite('Bugs / regression tests', () => {
-	test('Bug 19548', () => {
-		if (Platform.isLinux) {
-			return;
-		}
+	(Platform.isLinux ? test.skip : test)('Bug 19548', () => {
 		let external: ExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			windows: {

@@ -4,27 +4,39 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { WebviewTag } from 'electron';
-import { Action } from 'vs/base/common/actions';
 import * as nls from 'vs/nls';
+import { Action2 } from 'vs/platform/actions/common/actions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
-export class OpenWebviewDeveloperToolsAction extends Action {
-	static readonly ID = 'workbench.action.webview.openDeveloperTools';
-	static readonly ALIAS = 'Open Webview Developer Tools';
-	static readonly LABEL = nls.localize('openToolsLabel', "Open Webview Developer Tools");
+export class OpenWebviewDeveloperToolsAction extends Action2 {
 
-	public constructor(id: string, label: string) {
-		super(id, label);
+	constructor() {
+		super({
+			id: 'workbench.action.webview.openDeveloperTools',
+			title: { value: nls.localize('openToolsLabel', "Open Webview Developer Tools"), original: 'Open Webview Developer Tools' },
+			category: CATEGORIES.Developer,
+			f1: true
+		});
 	}
 
-	public async run(): Promise<any> {
-		const elements = document.querySelectorAll('webview.ready');
-		for (let i = 0; i < elements.length; i++) {
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const nativeHostService = accessor.get(INativeHostService);
+
+		const webviewElements = document.querySelectorAll('webview.ready');
+		for (const element of webviewElements) {
 			try {
-				(elements.item(i) as WebviewTag).openDevTools();
+				(element as WebviewTag).openDevTools();
 			} catch (e) {
 				console.error(e);
 			}
 		}
-		return true;
+
+		const iframeWebviewElements = document.querySelectorAll('iframe.webview.ready');
+		if (iframeWebviewElements.length) {
+			console.info(nls.localize('iframeWebviewAlert', "Using standard dev tools to debug iframe based webview"));
+			nativeHostService.openDevTools();
+		}
 	}
 }

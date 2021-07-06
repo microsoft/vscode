@@ -8,9 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
-import { localize } from 'vs/nls';
-import { isEqualOrParent, basename } from 'vs/base/common/resources';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export const ILabelService = createDecorator<ILabelService>('labelService');
 
@@ -25,8 +23,9 @@ export interface ILabelService {
 	 */
 	getUriLabel(resource: URI, options?: { relative?: boolean, noPrefix?: boolean, endWithSeparator?: boolean, pathSeparator?: ResourceLabelFormatting['separator'] }): string;
 	getUriBasenameLabel(resource: URI): string;
-	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWorkspace), options?: { verbose: boolean }): string;
+	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | IWorkspace), options?: { verbose: boolean }): string;
 	getHostLabel(scheme: string, authority?: string): string;
+	getHostTooltip(scheme: string, authority?: string): string | undefined;
 	getSeparator(scheme: string, authority?: string): '/' | '\\';
 
 	registerFormatter(formatter: ResourceLabelFormatter): IDisposable;
@@ -50,23 +49,7 @@ export interface ResourceLabelFormatting {
 	tildify?: boolean;
 	normalizeDriveLetter?: boolean;
 	workspaceSuffix?: string;
+	workspaceTooltip?: string;
 	authorityPrefix?: string;
-}
-
-export function getSimpleWorkspaceLabel(workspace: IWorkspaceIdentifier | URI, workspaceHome: URI): string {
-	if (isSingleFolderWorkspaceIdentifier(workspace)) {
-		return basename(workspace);
-	}
-
-	// Workspace: Untitled
-	if (isEqualOrParent(workspace.configPath, workspaceHome)) {
-		return localize('untitledWorkspace', "Untitled (Workspace)");
-	}
-
-	let filename = basename(workspace.configPath);
-	if (filename.endsWith(WORKSPACE_EXTENSION)) {
-		filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
-	}
-
-	return localize('workspaceName', "{0} (Workspace)", filename);
+	stripPathStartingSeparator?: boolean;
 }

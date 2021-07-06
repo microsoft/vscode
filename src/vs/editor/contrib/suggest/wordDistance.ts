@@ -50,14 +50,14 @@ export abstract class WordDistance {
 		delete wordRanges[wordUntilPos.word];
 
 		return new class extends WordDistance {
-			distance(anchor: IPosition, suggestion: CompletionItem) {
+			distance(anchor: IPosition, item: CompletionItem) {
 				if (!position.equals(editor.getPosition())) {
 					return 0;
 				}
-				if (suggestion.kind === CompletionItemKind.Keyword) {
+				if (item.kind === CompletionItemKind.Keyword) {
 					return 2 << 20;
 				}
-				let word = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.name;
+				let word = typeof item.label === 'string' ? item.label : item.label.label;
 				let wordLines = wordRanges[word];
 				if (isFalsyOrEmpty(wordLines)) {
 					return 2 << 20;
@@ -78,5 +78,3 @@ export abstract class WordDistance {
 
 	abstract distance(anchor: IPosition, suggestion: CompletionItem): number;
 }
-
-

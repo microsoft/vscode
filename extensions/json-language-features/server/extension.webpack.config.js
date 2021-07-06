@@ -23,6 +23,6 @@ const config = withDefaults({
 });
 
 // add plugin, don't replace inherited
-config.plugins.push(new webpack.IgnorePlugin(/vertx/)); // request-light dependency
+config.plugins.push(new webpack.IgnorePlugin({ resourceRegExp: /vertx/ })); // request-light dependency
 
 module.exports = config;

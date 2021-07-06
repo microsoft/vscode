@@ -3,16 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrandedService, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
-import { INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { BrandedService } from 'vs/platform/instantiation/common/instantiation';
+import { INotebookEditor, INotebookEditorContribution, INotebookEditorContributionCtor, INotebookEditorContributionDescription } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
-export type INotebookEditorContributionCtor = IConstructorSignature1<INotebookEditor, INotebookEditorContribution>;
-
-
-export interface INotebookEditorContributionDescription {
-	id: string;
-	ctor: INotebookEditorContributionCtor;
-}
 
 class EditorContributionRegistry {
 	public static readonly INSTANCE = new EditorContributionRegistry();
@@ -22,7 +15,7 @@ class EditorContributionRegistry {
 		this.editorContributions = [];
 	}
 
-	public registerEditorContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: INotebookEditor, ...services: Services): INotebookEditorContribution }): void {
+	public registerEditorContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: INotebookEditor, ...services: Services): INotebookEditorContribution; }): void {
 		this.editorContributions.push({ id, ctor: ctor as INotebookEditorContributionCtor });
 	}
 
@@ -31,7 +24,7 @@ class EditorContributionRegistry {
 	}
 }
 
-export function registerNotebookContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: INotebookEditor, ...services: Services): INotebookEditorContribution }): void {
+export function registerNotebookContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: INotebookEditor, ...services: Services): INotebookEditorContribution; }): void {
 	EditorContributionRegistry.INSTANCE.registerEditorContribution(id, ctor);
 }
 
@@ -39,5 +32,9 @@ export namespace NotebookEditorExtensionsRegistry {
 
 	export function getEditorContributions(): INotebookEditorContributionDescription[] {
 		return EditorContributionRegistry.INSTANCE.getEditorContributions();
+	}
+
+	export function getSomeEditorContributions(ids: string[]): INotebookEditorContributionDescription[] {
+		return EditorContributionRegistry.INSTANCE.getEditorContributions().filter(c => ids.indexOf(c.id) >= 0);
 	}
 }

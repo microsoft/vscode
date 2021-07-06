@@ -16,16 +16,16 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
 import { isMacintosh, isNative, isLinux } from 'vs/base/common/platform';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 interface IConfiguration extends IWindowsConfiguration {
 	update: { mode: string; };
-	telemetry: { enableCrashReporter: boolean };
 	debug: { console: { wordWrap: boolean } };
 	editor: { accessibilitySupport: 'on' | 'off' | 'auto' };
+	security: { workspace: { trust: { enabled: boolean } } }
 }
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
@@ -35,9 +35,8 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private nativeFullScreen: boolean | undefined;
 	private clickThroughInactive: boolean | undefined;
 	private updateMode: string | undefined;
-	private enableCrashReporter: boolean | undefined;
-	private debugConsoleWordWrap: boolean | undefined;
 	private accessibilitySupport: 'on' | 'off' | 'auto' | undefined;
+	private workspaceTrustEnabled: boolean | undefined;
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
@@ -53,12 +52,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 	private onConfigurationChange(config: IConfiguration, notify: boolean): void {
 		let changed = false;
-
-		// Debug console word wrap
-		if (typeof config.debug?.console.wordWrap === 'boolean' && config.debug.console.wordWrap !== this.debugConsoleWordWrap) {
-			this.debugConsoleWordWrap = config.debug.console.wordWrap;
-			changed = true;
-		}
 
 		if (isNative) {
 
@@ -92,18 +85,18 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 				changed = true;
 			}
 
-			// Crash reporter
-			if (typeof config.telemetry?.enableCrashReporter === 'boolean' && config.telemetry.enableCrashReporter !== this.enableCrashReporter) {
-				this.enableCrashReporter = config.telemetry.enableCrashReporter;
-				changed = true;
-			}
-
 			// On linux turning on accessibility support will also pass this flag to the chrome renderer, thus a restart is required
 			if (isLinux && typeof config.editor?.accessibilitySupport === 'string' && config.editor.accessibilitySupport !== this.accessibilitySupport) {
 				this.accessibilitySupport = config.editor.accessibilitySupport;
 				if (this.accessibilitySupport === 'on') {
 					changed = true;
 				}
+			}
+
+			// Workspace trust
+			if (typeof config.security?.workspace.trust.enabled === 'boolean' && config.security?.workspace.trust.enabled !== this.workspaceTrustEnabled) {
+				this.workspaceTrustEnabled = config.security.workspace.trust.enabled;
+				changed = true;
 			}
 		}
 
@@ -151,10 +144,10 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 
 		this.extensionHostRestarter = this._register(new RunOnceScheduler(() => {
 			if (!!environmentService.extensionTestsLocationURI) {
-				return; // no restart when in tests: see https://github.com/Microsoft/vscode/issues/66936
+				return; // no restart when in tests: see https://github.com/microsoft/vscode/issues/66936
 			}
 
-			if (environmentService.configuration.remoteAuthority) {
+			if (environmentService.remoteAuthority) {
 				hostService.reload(); // TODO@aeschli, workaround
 			} else if (isNative) {
 				extensionService.restartExtensionHost();

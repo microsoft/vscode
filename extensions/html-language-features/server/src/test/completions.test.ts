@@ -23,24 +23,24 @@ export function assertCompletion(completions: CompletionList, expected: ItemDesc
 		return completion.label === expected.label;
 	});
 	if (expected.notAvailable) {
-		assert.equal(matches.length, 0, `${expected.label} should not existing is results`);
+		assert.strictEqual(matches.length, 0, `${expected.label} should not existing is results`);
 		return;
 	}
 
-	assert.equal(matches.length, 1, `${expected.label} should only existing once: Actual: ${completions.items.map(c => c.label).join(', ')}`);
+	assert.strictEqual(matches.length, 1, `${expected.label} should only existing once: Actual: ${completions.items.map(c => c.label).join(', ')}`);
 	let match = matches[0];
 	if (expected.documentation) {
-		assert.equal(match.documentation, expected.documentation);
+		assert.strictEqual(match.documentation, expected.documentation);
 	}
 	if (expected.kind) {
-		assert.equal(match.kind, expected.kind);
+		assert.strictEqual(match.kind, expected.kind);
 	}
 	if (expected.resultText && match.textEdit) {
 		const edit = TextEdit.is(match.textEdit) ? match.textEdit : TextEdit.replace(match.textEdit.replace, match.textEdit.newText);
-		assert.equal(TextDocument.applyEdits(document, [edit]), expected.resultText);
+		assert.strictEqual(TextDocument.applyEdits(document, [edit]), expected.resultText);
 	}
 	if (expected.command) {
-		assert.deepEqual(match.command, expected.command);
+		assert.deepStrictEqual(match.command, expected.command);
 	}
 }
 
@@ -57,7 +57,7 @@ export async function testCompletionFor(value: string, expected: { count?: numbe
 
 	let document = TextDocument.create(uri, 'html', 0, value);
 	let position = document.positionAt(offset);
-	const context = getDocumentContext(uri, workspace.folders)
+	const context = getDocumentContext(uri, workspace.folders);
 
 	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFSRequestService());
 	const mode = languageModes.getModeAtPosition(document, position)!;
@@ -65,7 +65,7 @@ export async function testCompletionFor(value: string, expected: { count?: numbe
 	let list = await mode.doComplete!(document, position, context);
 
 	if (expected.count) {
-		assert.equal(list.items.length, expected.count);
+		assert.strictEqual(list.items.length, expected.count);
 	}
 	if (expected.items) {
 		for (let item of expected.items) {

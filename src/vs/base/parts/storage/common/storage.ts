@@ -43,9 +43,10 @@ export interface IStorageDatabase {
 
 export interface IStorage extends IDisposable {
 
+	readonly onDidChangeStorage: Event<string>;
+
 	readonly items: Map<string, string>;
 	readonly size: number;
-	readonly onDidChangeStorage: Event<string>;
 
 	init(): Promise<void>;
 
@@ -60,6 +61,8 @@ export interface IStorage extends IDisposable {
 
 	set(key: string, value: string | boolean | number | undefined | null): Promise<void>;
 	delete(key: string): Promise<void>;
+
+	whenFlushed(): Promise<void>;
 
 	close(): Promise<void>;
 }
@@ -81,10 +84,14 @@ export class Storage extends Disposable implements IStorage {
 
 	private cache = new Map<string, string>();
 
-	private readonly flushDelayer = this._register(new ThrottledDelayer<void>(Storage.DEFAULT_FLUSH_DELAY));
+	private readonly flushDelayer = new ThrottledDelayer<void>(Storage.DEFAULT_FLUSH_DELAY);
 
 	private pendingDeletes = new Set<string>();
 	private pendingInserts = new Map<string, string>();
+
+	private pendingClose: Promise<void> | undefined = undefined;
+
+	private readonly whenFlushedCallbacks: Function[] = [];
 
 	constructor(
 		protected readonly database: IStorageDatabase,
@@ -195,9 +202,9 @@ export class Storage extends Disposable implements IStorage {
 		return parseInt(value, 10);
 	}
 
-	set(key: string, value: string | boolean | number | null | undefined): Promise<void> {
+	async set(key: string, value: string | boolean | number | null | undefined): Promise<void> {
 		if (this.state === StorageState.Closed) {
-			return Promise.resolve(); // Return early if we are already closed
+			return; // Return early if we are already closed
 		}
 
 		// We remove the key for undefined/null values
@@ -211,7 +218,7 @@ export class Storage extends Disposable implements IStorage {
 		// Return early if value already set
 		const currentValue = this.cache.get(key);
 		if (currentValue === valueStr) {
-			return Promise.resolve();
+			return;
 		}
 
 		// Update in cache and pending
@@ -226,15 +233,15 @@ export class Storage extends Disposable implements IStorage {
 		return this.flushDelayer.trigger(() => this.flushPending());
 	}
 
-	delete(key: string): Promise<void> {
+	async delete(key: string): Promise<void> {
 		if (this.state === StorageState.Closed) {
-			return Promise.resolve(); // Return early if we are already closed
+			return; // Return early if we are already closed
 		}
 
 		// Remove from cache and add to pending
 		const wasDeleted = this.cache.delete(key);
 		if (!wasDeleted) {
-			return Promise.resolve(); // Return early if value already deleted
+			return; // Return early if value already deleted
 		}
 
 		if (!this.pendingDeletes.has(key)) {
@@ -251,9 +258,14 @@ export class Storage extends Disposable implements IStorage {
 	}
 
 	async close(): Promise<void> {
-		if (this.state === StorageState.Closed) {
-			return Promise.resolve(); // return if already closed
+		if (!this.pendingClose) {
+			this.pendingClose = this.doClose();
 		}
+
+		return this.pendingClose;
+	}
+
+	private async doClose(): Promise<void> {
 
 		// Update state
 		this.state = StorageState.Closed;
@@ -273,9 +285,13 @@ export class Storage extends Disposable implements IStorage {
 		await this.database.close(() => this.cache);
 	}
 
-	private flushPending(): Promise<void> {
-		if (this.pendingInserts.size === 0 && this.pendingDeletes.size === 0) {
-			return Promise.resolve(); // return early if nothing to do
+	private get hasPending() {
+		return this.pendingInserts.size > 0 || this.pendingDeletes.size > 0;
+	}
+
+	private async flushPending(): Promise<void> {
+		if (!this.hasPending) {
+			return; // return early if nothing to do
 		}
 
 		// Get pending data
@@ -285,8 +301,29 @@ export class Storage extends Disposable implements IStorage {
 		this.pendingDeletes = new Set<string>();
 		this.pendingInserts = new Map<string, string>();
 
-		// Update in storage
-		return this.database.updateItems(updateRequest);
+		// Update in storage and release any
+		// waiters we have once done
+		return this.database.updateItems(updateRequest).finally(() => {
+			if (!this.hasPending) {
+				while (this.whenFlushedCallbacks.length) {
+					this.whenFlushedCallbacks.pop()?.();
+				}
+			}
+		});
+	}
+
+	async whenFlushed(): Promise<void> {
+		if (!this.hasPending) {
+			return; // return early if nothing to do
+		}
+
+		return new Promise(resolve => this.whenFlushedCallbacks.push(resolve));
+	}
+
+	override dispose(): void {
+		this.flushDelayer.dispose();
+
+		super.dispose();
 	}
 }
 

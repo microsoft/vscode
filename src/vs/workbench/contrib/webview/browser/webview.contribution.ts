@@ -3,60 +3,69 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { registerAction2, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
-import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
-import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
-import { webviewDeveloperCategory } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewEditorInputFactory } from 'vs/workbench/contrib/webview/browser/webviewEditorInputFactory';
-import { HideWebViewEditorFindCommand, ReloadWebviewAction, ShowWebViewEditorFindWidgetAction, WebViewEditorFindNextCommand, WebViewEditorFindPreviousCommand, SelectAllWebviewEditorCommand } from '../browser/webviewCommands';
-import { WebviewEditor } from './webviewEditor';
-import { WebviewInput } from './webviewEditorInput';
-import { IWebviewWorkbenchService, WebviewEditorService } from './webviewWorkbenchService';
-
-(Registry.as<IEditorRegistry>(EditorExtensions.Editors)).registerEditor(EditorDescriptor.create(
-	WebviewEditor,
-	WebviewEditor.ID,
-	localize('webview.editor.label', "webview editor")),
-	[new SyncDescriptor(WebviewInput)]);
-
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(
-	WebviewEditorInputFactory.ID,
-	WebviewEditorInputFactory);
-
-registerSingleton(IWebviewWorkbenchService, WebviewEditorService, true);
+import { MultiCommand, RedoCommand, SelectAllCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
+import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/clipboard';
+import * as nls from 'vs/nls';
+import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { IWebviewService, Webview } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 
-const webviewActiveContextKeyExpr = ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', WebviewEditor.ID), ContextKeyExpr.not('editorFocus') /* https://github.com/Microsoft/vscode/issues/58668 */)!;
+const PRIORITY = 100;
 
-registerAction2(class extends ShowWebViewEditorFindWidgetAction {
-	constructor() { super(webviewActiveContextKeyExpr); }
-});
+function overrideCommandForWebview(command: MultiCommand | undefined, f: (webview: Webview) => void) {
+	command?.addImplementation(PRIORITY, 'webview', accessor => {
+		const webviewService = accessor.get(IWebviewService);
+		const webview = webviewService.activeWebview;
+		if (webview?.isFocused) {
+			f(webview);
+			return true;
+		}
 
-registerAction2(class extends HideWebViewEditorFindCommand {
-	constructor() { super(webviewActiveContextKeyExpr); }
-});
+		const editorService = accessor.get(IEditorService);
+		if (editorService.activeEditor instanceof WebviewInput) {
+			f(editorService.activeEditor.webview);
+			return true;
+		}
 
-registerAction2(class extends WebViewEditorFindNextCommand {
-	constructor() { super(webviewActiveContextKeyExpr); }
-});
+		return false;
+	});
+}
 
-registerAction2(class extends WebViewEditorFindPreviousCommand {
-	constructor() { super(webviewActiveContextKeyExpr); }
-});
+overrideCommandForWebview(UndoCommand, webview => webview.undo());
+overrideCommandForWebview(RedoCommand, webview => webview.redo());
+overrideCommandForWebview(SelectAllCommand, webview => webview.selectAll());
+overrideCommandForWebview(CopyAction, webview => webview.copy());
+overrideCommandForWebview(PasteAction, webview => webview.paste());
+overrideCommandForWebview(CutAction, webview => webview.cut());
 
-registerAction2(class extends SelectAllWebviewEditorCommand {
-	constructor() { super(webviewActiveContextKeyExpr); }
-});
+if (CutAction) {
+	MenuRegistry.appendMenuItem(MenuId.WebviewContext, {
+		command: {
+			id: CutAction.id,
+			title: nls.localize('cut', "Cut"),
+		},
+		order: 1,
+	});
+}
 
+if (CopyAction) {
+	MenuRegistry.appendMenuItem(MenuId.WebviewContext, {
+		command: {
+			id: CopyAction.id,
+			title: nls.localize('copy', "Copy"),
+		},
+		order: 2,
+	});
+}
 
-const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-actionRegistry.registerWorkbenchAction(
-	SyncActionDescriptor.from(ReloadWebviewAction),
-	'Reload Webviews',
-	webviewDeveloperCategory);
+if (PasteAction) {
+	MenuRegistry.appendMenuItem(MenuId.WebviewContext, {
+		command: {
+			id: PasteAction.id,
+			title: nls.localize('paste', "Paste"),
+		},
+		order: 3,
+	});
+}

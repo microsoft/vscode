@@ -5,14 +5,20 @@
 
 import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput } from 'vs/workbench/contrib/scm/common/scm';
 import { IMenu } from 'vs/platform/actions/common/actions';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDisposable, Disposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IAction } from 'vs/base/common/actions';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { Action, IAction } from 'vs/base/common/actions';
+import { createActionViewItem, createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { equals } from 'vs/base/common/arrays';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { Command } from 'vs/editor/common/modes';
+import { reset } from 'vs/base/browser/dom';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export function isSCMRepository(element: any): element is ISCMRepository {
-	return !!(element as ISCMRepository).provider && typeof (element as ISCMRepository).setSelected === 'function';
+	return !!(element as ISCMRepository).provider && !!(element as ISCMRepository).input;
 }
 
 export function isSCMInput(element: any): element is ISCMInput {
@@ -29,7 +35,7 @@ export function isSCMResource(element: any): element is ISCMResource {
 
 const compareActions = (a: IAction, b: IAction) => a.id === b.id;
 
-export function connectPrimaryMenu(menu: IMenu, callback: (primary: IAction[], secondary: IAction[]) => void, isPrimaryGroup?: (group: string) => boolean): IDisposable {
+export function connectPrimaryMenu(menu: IMenu, callback: (primary: IAction[], secondary: IAction[]) => void, primaryGroup?: string): IDisposable {
 	let cachedDisposable: IDisposable = Disposable.None;
 	let cachedPrimary: IAction[] = [];
 	let cachedSecondary: IAction[] = [];
@@ -38,7 +44,7 @@ export function connectPrimaryMenu(menu: IMenu, callback: (primary: IAction[], s
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 
-		const disposable = createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, { primary, secondary }, isPrimaryGroup);
+		const disposable = createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, { primary, secondary }, primaryGroup);
 
 		if (equals(cachedPrimary, primary, compareActions) && equals(cachedSecondary, secondary, compareActions)) {
 			disposable.dispose();
@@ -64,5 +70,50 @@ export function connectPrimaryMenuToInlineActionBar(menu: IMenu, actionBar: Acti
 	return connectPrimaryMenu(menu, (primary) => {
 		actionBar.clear();
 		actionBar.push(primary, { icon: true, label: false });
-	}, g => /^inline/.test(g));
+	}, 'inline');
+}
+
+export function collectContextMenuActions(menu: IMenu): [IAction[], IDisposable] {
+	const primary: IAction[] = [];
+	const actions: IAction[] = [];
+	const disposable = createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, { primary, secondary: actions }, 'inline');
+	return [actions, disposable];
+}
+
+export class StatusBarAction extends Action {
+
+	constructor(
+		private command: Command,
+		private commandService: ICommandService
+	) {
+		super(`statusbaraction{${command.id}}`, command.title, '', true);
+		this.tooltip = command.tooltip || '';
+	}
+
+	override run(): Promise<void> {
+		return this.commandService.executeCommand(this.command.id, ...(this.command.arguments || []));
+	}
+}
+
+class StatusBarActionViewItem extends ActionViewItem {
+
+	constructor(action: StatusBarAction) {
+		super(null, action, {});
+	}
+
+	override updateLabel(): void {
+		if (this.options.label && this.label) {
+			reset(this.label, ...renderLabelWithIcons(this.getAction().label));
+		}
+	}
+}
+
+export function getActionViewItemProvider(instaService: IInstantiationService): IActionViewItemProvider {
+	return action => {
+		if (action instanceof StatusBarAction) {
+			return new StatusBarActionViewItem(action);
+		}
+
+		return createActionViewItem(instaService, action);
+	};
 }

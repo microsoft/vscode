@@ -76,7 +76,6 @@
 .extension-editor > .header > .details > .title > .identifier {
 	margin-left: 10px;
 	font-size: 14px;
-	opacity: 0.6;
 	background: rgba(173, 173, 173, 0.31);
 	padding: 0px 4px;
 	border-radius: 4px;
@@ -113,7 +112,11 @@
 	line-height: 20px;
 }
 
-.extension-editor > .header > .details > .subtitle > .publisher {
+.extension-editor > .header > .details > .subtitle .hide {
+	display: none;
+}
+
+.extension-editor > .header > .details > .subtitle .publisher {
 	font-size: 18px;
 }
 
@@ -124,12 +127,11 @@
 	align-items: center;
 }
 
-.extension-editor > .header > .details > .subtitle > .install > .count {
+.extension-editor > .header > .details > .subtitle .install > .count {
 	margin-left: 6px;
 }
 
-.extension-editor > .header > .details > .subtitle > span:not(:first-child):not(:empty),
-.extension-editor > .header > .details > .subtitle > a:not(:first-child):not(:empty) {
+.extension-editor > .header > .details > .subtitle > div:not(:first-child):not(:empty) {
 	border-left: 1px solid rgba(128, 128, 128, 0.7);
 	margin-left: 14px;
 	padding-left: 14px;
@@ -150,33 +152,61 @@
 	text-align: initial;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container {
-	justify-content: flex-start;
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item {
+	margin-right: 0;
+	overflow: hidden;
+	flex-shrink: 0;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action {
-	margin-right: 8px;
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item.disabled {
+	min-width: 0;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action.label {
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item .extension-action {
+	margin-bottom: 2px; /* margin for outline */
+}
+
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action:not(.icon) {
+	margin-left: 2px; /* margin for outline */
+}
+
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .monaco-dropdown .extension-action.action-dropdown {
+	margin-right: 2px; /* margin for outline */
+}
+
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item .extension-action:not(.icon) {
+	border-radius: 0;
+	padding-top: 0;
+	padding-bottom: 0;
+}
+
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action,
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .monaco-dropdown .extension-action.action-dropdown {
+	line-height: 22px;
+}
+
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item,
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item:not(.action-dropdown-item) > .extension-action {
+	margin-right: 6px;
+}
+
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action.label,
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item .extension-action.label {
 	font-weight: 600;
-	padding: 1px 6px;
 	max-width: 300px;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label.system-disable {
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label.extension-status-icon {
 	margin-right: 0;
 }
 
 .extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.extension-status-label,
-.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.disable-status,
-.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.malicious-status {
+.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.disable-status {
 	font-weight: normal;
 }
 
 .extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.extension-status-label:hover,
-.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.disable-status:hover,
-.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.malicious-status:hover {
+.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.disable-status:hover {
 	opacity: 0.9;
 }
 
@@ -203,8 +233,7 @@
 .extension-editor > .header > .details > .subtext-container > .monaco-action-bar .action-label {
 	margin-top: 4px;
 	margin-left: 4px;
-	padding-top: 0;
-	padding-bottom: 2px;
+	padding-bottom: 1px;
 }
 
 .extension-editor > .header.recommended > .details > .recommendation > .monaco-action-bar .actions-container {
@@ -232,11 +261,12 @@
 
 .extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label {
 	margin-right: 16px;
+	font-size: inherit;
+	opacity: 0.7;
 }
 
 .extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label {
-	font-size: inherit;
-	opacity: 0.7;
+	background: none !important;
 }
 
 .extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label.checked {
@@ -361,10 +391,6 @@
 	line-height: 22px;
 }
 
-.extension-editor > .body > .content details > summary::-webkit-details-marker {
-	color: rgba(128, 128, 128, 0.5);
-}
-
 .extension-editor > .body > .content table tr:nth-child(odd) {
 	background-color: rgba(130, 130, 130, 0.04);
 }
@@ -388,7 +414,13 @@
 	word-break: keep-all;
 }
 
-.extension-editor > .body > .content table code:not(:empty) {
+.extension-editor > .body > .content table td > div,
+.extension-editor > .body > .content table td > div > p {
+	padding: 0px;
+	margin: 0px;
+}
+
+.extension-editor > .body > .content code:not(:empty) {
 	font-family: var(--monaco-monospace-font);
 	font-size: 90%;
 	background-color: rgba(128, 128, 128, 0.17);
@@ -492,6 +524,7 @@
 }
 
 .extension-editor .extensions-grid-view > .extension-container {
+	width: 275px;
 	margin: 0 10px 20px 0;
 }
 

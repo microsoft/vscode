@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IProductService, IConfigBasedExtensionTip as IRawConfigBasedExtensionTip } from 'vs/platform/product/common/productService';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IConfigBasedExtensionTip as IRawConfigBasedExtensionTip } from 'vs/base/common/product';
 import { IFileService } from 'vs/platform/files/common/files';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IExtensionTipsService, IExecutableBasedExtensionTip, IWorkspaceTips, IConfigBasedExtensionTip } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -14,9 +15,9 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { joinPath } from 'vs/base/common/resources';
 import { getDomainsOfRemotes } from 'vs/platform/extensionManagement/common/configRemotes';
-import { keys } from 'vs/base/common/map';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-export class ExtensionTipsService implements IExtensionTipsService {
+export class ExtensionTipsService extends Disposable implements IExtensionTipsService {
 
 	_serviceBrand: any;
 
@@ -28,6 +29,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		@IRequestService private readonly requestService: IRequestService,
 		@ILogService private readonly logService: ILogService,
 	) {
+		super();
 		if (this.productService.configBasedExtensionTips) {
 			forEach(this.productService.configBasedExtensionTips, ({ value }) => this.allConfigBasedTips.set(value.configPath, value));
 		}
@@ -76,7 +78,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 						});
 					}
 				});
-				const domains = getDomainsOfRemotes(content.value.toString(), keys(recommendationByRemote));
+				const domains = getDomainsOfRemotes(content.value.toString(), [...recommendationByRemote.keys()]);
 				for (const domain of domains) {
 					const remote = recommendationByRemote.get(domain);
 					if (remote) {

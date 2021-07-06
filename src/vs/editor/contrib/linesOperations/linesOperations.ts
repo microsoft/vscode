@@ -63,10 +63,7 @@ abstract class AbstractCopyLinesAction extends EditorAction {
 
 		const commands: ICommand[] = [];
 		for (const selection of selections) {
-			if (selection.ignore) {
-				continue;
-			}
-			commands.push(new CopyLinesCommand(selection.selection, this.down));
+			commands.push(new CopyLinesCommand(selection.selection, this.down, selection.ignore));
 		}
 
 		editor.pushUndoStop();
@@ -942,43 +939,39 @@ export class TransposeAction extends EditorAction {
 
 export abstract class AbstractCaseAction extends EditorAction {
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let selections = editor.getSelections();
+		const selections = editor.getSelections();
 		if (selections === null) {
 			return;
 		}
 
-		let model = editor.getModel();
+		const model = editor.getModel();
 		if (model === null) {
 			return;
 		}
 
-		let wordSeparators = editor.getOption(EditorOption.wordSeparators);
+		const wordSeparators = editor.getOption(EditorOption.wordSeparators);
+		const textEdits: IIdentifiedSingleEditOperation[] = [];
 
-		let commands: ICommand[] = [];
-
-		for (let i = 0, len = selections.length; i < len; i++) {
-			let selection = selections[i];
+		for (const selection of selections) {
 			if (selection.isEmpty()) {
-				let cursor = selection.getStartPosition();
+				const cursor = selection.getStartPosition();
 				const word = editor.getConfiguredWordAtPosition(cursor);
 
 				if (!word) {
 					continue;
 				}
 
-				let wordRange = new Range(cursor.lineNumber, word.startColumn, cursor.lineNumber, word.endColumn);
-				let text = model.getValueInRange(wordRange);
-				commands.push(new ReplaceCommandThatPreservesSelection(wordRange, this._modifyText(text, wordSeparators),
-					new Selection(cursor.lineNumber, cursor.column, cursor.lineNumber, cursor.column)));
-
+				const wordRange = new Range(cursor.lineNumber, word.startColumn, cursor.lineNumber, word.endColumn);
+				const text = model.getValueInRange(wordRange);
+				textEdits.push(EditOperation.replace(wordRange, this._modifyText(text, wordSeparators)));
 			} else {
-				let text = model.getValueInRange(selection);
-				commands.push(new ReplaceCommandThatPreservesSelection(selection, this._modifyText(text, wordSeparators), selection));
+				const text = model.getValueInRange(selection);
+				textEdits.push(EditOperation.replace(selection, this._modifyText(text, wordSeparators)));
 			}
 		}
 
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, commands);
+		editor.executeEdits(this.id, textEdits);
 		editor.pushUndoStop();
 	}
 
@@ -1052,6 +1045,65 @@ export class TitleCaseAction extends AbstractCaseAction {
 	}
 }
 
+class BackwardsCompatibleRegExp {
+
+	private _actual: RegExp | null;
+	private _evaluated: boolean;
+
+	constructor(
+		private readonly _pattern: string,
+		private readonly _flags: string
+	) {
+		this._actual = null;
+		this._evaluated = false;
+	}
+
+	public get(): RegExp | null {
+		if (!this._evaluated) {
+			this._evaluated = true;
+			try {
+				this._actual = new RegExp(this._pattern, this._flags);
+			} catch (err) {
+				// this browser does not support this regular expression
+			}
+		}
+		return this._actual;
+	}
+
+	public isSupported(): boolean {
+		return (this.get() !== null);
+	}
+}
+
+export class SnakeCaseAction extends AbstractCaseAction {
+
+	public static regExp1 = new BackwardsCompatibleRegExp('(\\p{Ll})(\\p{Lu})', 'gmu');
+	public static regExp2 = new BackwardsCompatibleRegExp('(\\p{Lu}|\\p{N})(\\p{Lu})(\\p{Ll})', 'gmu');
+
+	constructor() {
+		super({
+			id: 'editor.action.transformToSnakecase',
+			label: nls.localize('editor.transformToSnakecase', "Transform to Snake Case"),
+			alias: 'Transform to Snake Case',
+			precondition: EditorContextKeys.writable
+		});
+	}
+
+	protected _modifyText(text: string, wordSeparators: string): string {
+		const regExp1 = SnakeCaseAction.regExp1.get();
+		const regExp2 = SnakeCaseAction.regExp2.get();
+		if (!regExp1 || !regExp2) {
+			// cannot support this
+			return text;
+		}
+		return (text
+			.replace(regExp1, '$1_$2')
+			.replace(regExp2, '$1_$2$3')
+			.toLocaleLowerCase()
+		);
+	}
+}
+
 registerEditorAction(CopyLinesUpAction);
 registerEditorAction(CopyLinesDownAction);
 registerEditorAction(DuplicateSelectionAction);
@@ -1072,3 +1124,7 @@ registerEditorAction(TransposeAction);
 registerEditorAction(UpperCaseAction);
 registerEditorAction(LowerCaseAction);
 registerEditorAction(TitleCaseAction);
+
+if (SnakeCaseAction.regExp1.isSupported() && SnakeCaseAction.regExp2.isSupported()) {
+	registerEditorAction(SnakeCaseAction);
+}

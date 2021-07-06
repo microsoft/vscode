@@ -1,12 +1,21 @@
 {
-	"extends": "../shared.tsconfig.json",
+	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
-		"outDir": "./out",
+		"baseUrl": ".",
 		"experimentalDecorators": true,
-		"typeRoots": [
-			"./node_modules/@types"
-		]
+		"module": "commonjs",
+		"moduleResolution": "node",
+		"noFallthroughCasesInSwitch": true,
+		"noUnusedLocals": false,
+		"outDir": "dist",
+		"resolveJsonModule": true,
+		"rootDir": "src",
+		"skipLibCheck": true,
+		"sourceMap": true
 	},
+	"exclude": [
+		"node_modules"
+	],
 	"include": [
 		"src/**/*"
 	]

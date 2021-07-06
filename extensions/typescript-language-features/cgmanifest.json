@@ -5,7 +5,7 @@
 				"type": "git",
 				"git": {
 					"name": "TypeScript-TmLanguage",
-					"repositoryUrl": "https://github.com/Microsoft/TypeScript-TmLanguage",
+					"repositoryUrl": "https://github.com/microsoft/TypeScript-TmLanguage",
 					"commitHash": "3133e3d914db9a2bb8812119f9273727a305f16b"
 				}
 			},
@@ -28,7 +28,7 @@
 				"type": "other",
 				"other": {
 					"name": "Unicode",
-					"downloadUrl": "http://www.unicode.org/",
+					"downloadUrl": "https://home.unicode.org/",
 					"version": "12.0.0"
 				}
 			},

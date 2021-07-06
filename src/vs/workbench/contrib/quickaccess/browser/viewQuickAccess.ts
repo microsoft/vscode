@@ -9,7 +9,7 @@ import { IPickerQuickAccessItem, PickerQuickAccessProvider } from 'vs/platform/q
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IViewDescriptorService, IViewsService, ViewContainer } from 'vs/workbench/common/views';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IPanelService, IPanelIdentifier } from 'vs/workbench/services/panel/common/panelService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
@@ -17,7 +17,11 @@ import { matchesFuzzy } from 'vs/base/common/filters';
 import { fuzzyContains } from 'vs/base/common/strings';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Action } from 'vs/base/common/actions';
+import { Action2 } from 'vs/platform/actions/common/actions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 interface IViewQuickPickItem extends IPickerQuickAccessItem {
 	containerLabel: string;
@@ -33,6 +37,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		@IViewsService private readonly viewsService: IViewsService,
 		@IOutputService private readonly outputService: IOutputService,
 		@ITerminalService private readonly terminalService: ITerminalService,
+		@ITerminalGroupService private readonly terminalGroupService: ITerminalGroupService,
 		@IPanelService private readonly panelService: IPanelService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
@@ -44,7 +49,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		});
 	}
 
-	protected getPicks(filter: string): Array<IViewQuickPickItem | IQuickPickSeparator> {
+	protected _getPicks(filter: string): Array<IViewQuickPickItem | IQuickPickSeparator> {
 		const filteredViewEntries = this.doGetViewPickItems().filter(entry => {
 			if (!filter) {
 				return true;
@@ -143,15 +148,14 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		}
 
 		// Terminals
-		this.terminalService.terminalTabs.forEach((tab, tabIndex) => {
-			tab.terminalInstances.forEach((terminal, terminalIndex) => {
-				const label = localize('terminalTitle', "{0}: {1}", `${tabIndex + 1}.${terminalIndex + 1}`, terminal.title);
+		this.terminalGroupService.groups.forEach((group, groupIndex) => {
+			group.terminalInstances.forEach((terminal, terminalIndex) => {
+				const label = localize('terminalTitle', "{0}: {1}", `${groupIndex + 1}.${terminalIndex + 1}`, terminal.title);
 				viewEntries.push({
 					label,
 					containerLabel: localize('terminals', "Terminal"),
 					accept: async () => {
-						await this.terminalService.showPanel(true);
-
+						await this.terminalGroupService.showPanel(true);
 						this.terminalService.setActiveInstance(terminal);
 					}
 				});
@@ -185,42 +189,54 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 
 //#region Actions
 
-export class OpenViewPickerAction extends Action {
+export class OpenViewPickerAction extends Action2 {
 
 	static readonly ID = 'workbench.action.openView';
-	static readonly LABEL = localize('openView', "Open View");
 
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: OpenViewPickerAction.ID,
+			title: { value: localize('openView', "Open View"), original: 'Open View' },
+			category: CATEGORIES.View,
+			f1: true
+		});
 	}
 
-	async run(): Promise<void> {
-		this.quickInputService.quickAccess.show(ViewQuickAccessProvider.PREFIX);
+	async run(accessor: ServicesAccessor): Promise<void> {
+		accessor.get(IQuickInputService).quickAccess.show(ViewQuickAccessProvider.PREFIX);
 	}
 }
 
-export class QuickAccessViewPickerAction extends Action {
+export class QuickAccessViewPickerAction extends Action2 {
 
 	static readonly ID = 'workbench.action.quickOpenView';
-	static readonly LABEL = localize('quickOpenView', "Quick Open View");
+	static readonly KEYBINDING = {
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_Q,
+		mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_Q },
+		linux: { primary: 0 }
+	};
 
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: QuickAccessViewPickerAction.ID,
+			title: { value: localize('quickOpenView', "Quick Open View"), original: 'Quick Open View' },
+			category: CATEGORIES.View,
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				when: undefined,
+				...QuickAccessViewPickerAction.KEYBINDING
+			}
+		});
 	}
 
-	async run(): Promise<void> {
-		const keys = this.keybindingService.lookupKeybindings(this.id);
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const keybindingService = accessor.get(IKeybindingService);
+		const quickInputService = accessor.get(IQuickInputService);
 
-		this.quickInputService.quickAccess.show(ViewQuickAccessProvider.PREFIX, { quickNavigateConfiguration: { keybindings: keys }, itemActivation: ItemActivation.FIRST });
+		const keys = keybindingService.lookupKeybindings(QuickAccessViewPickerAction.ID);
+
+		quickInputService.quickAccess.show(ViewQuickAccessProvider.PREFIX, { quickNavigateConfiguration: { keybindings: keys }, itemActivation: ItemActivation.FIRST });
 	}
 }
 

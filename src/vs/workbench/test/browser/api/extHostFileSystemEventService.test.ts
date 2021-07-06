@@ -15,18 +15,19 @@ suite('ExtHostFileSystemEventService', () => {
 		const protocol: IMainContext = {
 			getProxy: () => { return undefined!; },
 			set: undefined!,
-			assertRegistered: undefined!
+			assertRegistered: undefined!,
+			drain: undefined!
 		};
 
 		const watcher1 = new ExtHostFileSystemEventService(protocol, new NullLogService(), undefined!).createFileSystemWatcher('**/somethingInteresting', false, false, false);
-		assert.equal(watcher1.ignoreChangeEvents, false);
-		assert.equal(watcher1.ignoreCreateEvents, false);
-		assert.equal(watcher1.ignoreDeleteEvents, false);
+		assert.strictEqual(watcher1.ignoreChangeEvents, false);
+		assert.strictEqual(watcher1.ignoreCreateEvents, false);
+		assert.strictEqual(watcher1.ignoreDeleteEvents, false);
 
 		const watcher2 = new ExtHostFileSystemEventService(protocol, new NullLogService(), undefined!).createFileSystemWatcher('**/somethingBoring', true, true, true);
-		assert.equal(watcher2.ignoreChangeEvents, true);
-		assert.equal(watcher2.ignoreCreateEvents, true);
-		assert.equal(watcher2.ignoreDeleteEvents, true);
+		assert.strictEqual(watcher2.ignoreChangeEvents, true);
+		assert.strictEqual(watcher2.ignoreCreateEvents, true);
+		assert.strictEqual(watcher2.ignoreDeleteEvents, true);
 	});
 
 });

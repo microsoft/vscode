@@ -18,23 +18,16 @@ function code() {
 		CODE=".build/electron/$NAME"
 	fi
 
-	# Node modules
-	test -d node_modules || yarn
-
-	# Get electron
-	yarn electron
+	# Get electron, compile, built-in extensions
+	if [[ -z "${VSCODE_SKIP_PRELAUNCH}" ]]; then
+		node build/lib/preLaunch.js
+	fi
 
 	# Manage built-in extensions
 	if [[ "$1" == "--builtin" ]]; then
 		exec "$CODE" build/builtin
 		return
 	fi
-
-	# Sync built-in extensions
-	node build/lib/builtInExtensions.js
-
-	# Build
-	test -d out || yarn compile
 
 	ELECTRON_RUN_AS_NODE=1 \
 	NODE_ENV=development \

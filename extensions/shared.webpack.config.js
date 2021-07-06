@@ -57,7 +57,9 @@ function withNodeDefaults(/**@type WebpackConfig*/extConfig) {
 			}]
 		},
 		externals: {
-			'vscode': 'commonjs vscode', // ignored because it doesn't exist
+			'vscode': 'commonjs vscode', // ignored because it doesn't exist,
+			'applicationinsights-native-metrics': 'commonjs applicationinsights-native-metrics', // ignored because we don't ship native module
+			'@opentelemetry/tracing': 'commonjs @opentelemetry/tracing' // ignored because we don't ship this module
 		},
 		output: {
 			// all output goes into `dist`.
@@ -69,16 +71,17 @@ function withNodeDefaults(/**@type WebpackConfig*/extConfig) {
 		// yes, really source maps
 		devtool: 'source-map',
 		plugins: [
-			// @ts-expect-error
-			new CopyWebpackPlugin([
-				{ from: 'src', to: '.', ignore: ['**/test/**', '*.ts'] }
-			]),
+			new CopyWebpackPlugin({
+				patterns: [
+					{ from: 'src', to: '.', globOptions: { ignore: ['**/test/**', '**/*.ts'] }, noErrorOnMissing: true }
+				]
+			}),
 			new NLSBundlePlugin(id)
 		],
 	};
 
 	return merge(defaultConfig, extConfig);
-};
+}
 
 
 function withBrowserDefaults(/**@type WebpackConfig*/extConfig) {
@@ -111,7 +114,9 @@ function withBrowserDefaults(/**@type WebpackConfig*/extConfig) {
 			}]
 		},
 		externals: {
-			'vscode': 'commonjs vscode', // ignored because it doesn't exist
+			'vscode': 'commonjs vscode', // ignored because it doesn't exist,
+			'applicationinsights-native-metrics': 'commonjs applicationinsights-native-metrics', // ignored because we don't ship native module
+			'@opentelemetry/tracing': 'commonjs @opentelemetry/tracing' // ignored because we don't ship this module
 		},
 		performance: {
 			hints: false
@@ -126,16 +131,17 @@ function withBrowserDefaults(/**@type WebpackConfig*/extConfig) {
 		// yes, really source maps
 		devtool: 'source-map',
 		plugins: [
-			// @ts-expect-error
-			new CopyWebpackPlugin([
-				{ from: 'src', to: '.', ignore: ['**/test/**', '*.ts'] }
-			]),
+			new CopyWebpackPlugin({
+				patterns: [
+					{ from: 'src', to: '.', globOptions: { ignore: ['**/test/**', '**/*.ts'] }, noErrorOnMissing: true }
+				]
+			}),
 			new DefinePlugin({ WEBWORKER: JSON.stringify(true) })
 		]
 	};
 
 	return merge(defaultConfig, extConfig);
-};
+}
 
 
 module.exports = withNodeDefaults;

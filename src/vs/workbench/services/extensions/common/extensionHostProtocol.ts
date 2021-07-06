@@ -5,6 +5,12 @@
 
 import { VSBuffer } from 'vs/base/common/buffer';
 
+export const enum ExtensionHostExitCode {
+	// nodejs uses codes 1-13 and exit codes >128 are signal exits
+	VersionMismatch = 55,
+	UnexpectedError = 81,
+}
+
 export interface IExtHostReadyMessage {
 	type: 'VSCODE_EXTHOST_IPC_READY';
 }
@@ -13,6 +19,8 @@ export interface IExtHostSocketMessage {
 	type: 'VSCODE_EXTHOST_IPC_SOCKET';
 	initialDataChunk: string;
 	skipWebSocketFrames: boolean;
+	permessageDeflate: boolean;
+	inflateBytes: string;
 }
 
 export interface IExtHostReduceGraceTimeMessage {

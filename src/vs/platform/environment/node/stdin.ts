@@ -20,14 +20,14 @@ export function hasStdinWithoutTty() {
 }
 
 export function stdinDataListener(durationinMs: number): Promise<boolean> {
-	return new Promise(c => {
-		const dataListener = () => c(true);
+	return new Promise(resolve => {
+		const dataListener = () => resolve(true);
 
 		// wait for 1s maximum...
 		setTimeout(() => {
 			process.stdin.removeListener('data', dataListener);
 
-			c(false);
+			resolve(false);
 		}, durationinMs);
 
 		// ...but finish early if we detect data
@@ -56,7 +56,10 @@ export async function readFromStdin(targetPath: string, verbose: boolean): Promi
 	const decoder = iconv.getDecoder(encoding);
 	process.stdin.on('data', chunk => stdinFileStream.write(decoder.write(chunk)));
 	process.stdin.on('end', () => {
-		stdinFileStream.write(decoder.end());
+		const end = decoder.end();
+		if (typeof end === 'string') {
+			stdinFileStream.write(end);
+		}
 		stdinFileStream.end();
 	});
 	process.stdin.on('error', error => stdinFileStream.destroy(error));

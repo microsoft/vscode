@@ -1,6 +1,6 @@
 # Native File Watching for Windows using C# FileSystemWatcher
 
-- Repository: https://github.com/Microsoft/vscode-filewatcher-windows
+- Repository: https://github.com/microsoft/vscode-filewatcher-windows
 
 # Build
 

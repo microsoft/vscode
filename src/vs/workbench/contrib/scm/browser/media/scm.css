@@ -8,16 +8,23 @@
 	position: relative;
 }
 
+.scm-overflow-widgets-container {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 0;
+	height: 0;
+	overflow: visible;
+	z-index: 5000;
+}
+
 .scm-view .monaco-tl-contents > div {
-	margin-right: 12px;
+	padding-right: 12px;
 	overflow: hidden;
 }
 
 .scm-view .count {
 	display: flex;
-}
-
-.scm-view .count {
 	margin-left: 6px;
 }
 
@@ -33,40 +40,57 @@
 	flex-flow: nowrap;
 }
 
+.scm-view.hide-provider-counts .scm-provider > .count,
+.scm-view.auto-provider-counts .scm-provider > .count[data-count="0"] {
+	display: none;
+}
+
 .scm-view .scm-provider > .label {
-	display: flex;
-	flex-shrink: 1;
+	flex: 1;
 	overflow: hidden;
+	text-overflow: ellipsis;
+	min-width: 50px;
+}
+
+.scm-view .scm-provider > .label > .name {
+	font-weight: bold;
+}
+
+.scm-view .scm-provider > .label > .description {
+	opacity: 0.7;
+	margin-left: 0.5em;
+	font-size: 0.9em;
 }
 
 .scm-view .scm-provider > .actions {
-	flex: 1;
-	padding-left: 10px;
 	overflow: hidden;
 	justify-content: flex-end;
 }
 
-.scm-view .scm-provider > .actions .monaco-action-bar .action-item {
-	margin-left: 4px;
-	text-overflow: ellipsis;
+/**
+ * The following rules are very specific because of inline drop down menus
+ * https://github.com/microsoft/vscode/issues/101410
+ */
+.scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item {
+	padding-left: 4px;
 	display: flex;
 	align-items: center;
-	min-width: 14px;
+	min-width: 16px;
 }
 
-.scm-view .scm-provider > .actions .monaco-action-bar .action-label {
-	text-overflow: ellipsis;
+.scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container  > .action-item > .action-label,
+.scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container  > .action-item > .monaco-dropdown > .dropdown-label > .action-label {
+	display: flex;
+	align-items: center;
 	overflow: hidden;
-	min-width: 14px; /* for flex */
-	height: 100%;
 }
 
-.scm-view .scm-provider > .actions .monaco-action-bar .action-label .codicon {
-	vertical-align: sub;
-	display: inline-flex;
+.scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container  > .action-item > .action-label > .codicon {
+	font-size: 12px;
+	justify-content: center;
 }
 
-.scm-view .scm-provider > .actions .monaco-action-bar .action-item:last-of-type {
+.scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item:last-of-type {
 	padding-right: 0;
 }
 
@@ -105,7 +129,7 @@
 }
 
 .scm-view .monaco-list-row .resource > .name > .monaco-icon-label::after {
-	padding-right: 3px;
+	margin-right: 3px;
 }
 
 .scm-view .monaco-list-row .resource > .name.strike-through > .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-name-container > .label-name {
@@ -128,6 +152,7 @@
 .scm-view .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions {
 	display: none;
 	max-width: fit-content;
+	max-width: -moz-fit-content;
 }
 
 .scm-view .monaco-list .monaco-list-row:hover .resource-group > .actions,
@@ -140,27 +165,19 @@
 	display: block;
 }
 
-.scm-view .scm-status.show-actions .scm-provider > .actions,
-.scm-view .scm-status.show-actions > .monaco-list .monaco-list-row .resource-group > .actions,
-.scm-view .scm-status.show-actions > .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions {
+.scm-view.show-actions .scm-provider > .actions,
+.scm-view.show-actions > .monaco-list .monaco-list-row .resource-group > .actions,
+.scm-view.show-actions > .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions {
 	display: block;
 }
 
-.scm-view .monaco-list-row .resource > .name > .monaco-icon-label > .actions .action-label,
-.scm-view .monaco-list-row .resource-group > .actions .action-label {
-	width: 16px;
-	height: 100%;
-	background-position: 50% 50%;
-	background-repeat: no-repeat;
-}
-
-.scm-view .monaco-list-row .resource > .name > .monaco-icon-label > .actions .action-label.codicon {
-	line-height: 22px;
+.scm-view .monaco-list-row .actions .action-label {
+	padding: 2px;
 }
 
 .scm-view .scm-input {
 	height: 100%;
-	margin-left: 9px;
+	padding-left: 8px;
 }
 
 .scm-view .scm-editor {
@@ -213,4 +230,15 @@
 .scm-view .scm-editor-container .monaco-editor,
 .scm-view .scm-editor-container .mtk1 {
 	color: inherit;
+}
+
+/* Repositories */
+
+.scm-repositories-view .scm-provider {
+	margin: 0 12px 0 20px;
+	overflow: hidden;
+}
+
+.scm-repositories-view .scm-provider > .label > .name {
+	font-weight: normal;
 }

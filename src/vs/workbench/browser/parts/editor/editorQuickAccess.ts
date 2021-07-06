@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { IQuickPickSeparator, quickPickItemScorerAccessor, IQuickPickItemWithResource, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
 import { PickerQuickAccessProvider, IPickerQuickAccessItem, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IEditorGroupsService, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorsOrder, IEditorIdentifier, toResource, SideBySideEditor, GroupIdentifier } from 'vs/workbench/common/editor';
+import { EditorsOrder, IEditorIdentifier, EditorResourceAccessor, SideBySideEditor, GroupIdentifier } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -59,7 +59,7 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 		);
 	}
 
-	provide(picker: IQuickPick<IEditorQuickPickItem>, token: CancellationToken): IDisposable {
+	override provide(picker: IQuickPick<IEditorQuickPickItem>, token: CancellationToken): IDisposable {
 
 		// Reset the pick state for this run
 		this.pickState.reset(!!picker.quickNavigate);
@@ -68,7 +68,7 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 		return super.provide(picker, token);
 	}
 
-	protected getPicks(filter: string): Array<IEditorQuickPickItem | IQuickPickSeparator> {
+	protected _getPicks(filter: string): Array<IEditorQuickPickItem | IQuickPickSeparator> {
 		const query = prepareQuery(filter);
 
 		// Filtering
@@ -137,7 +137,7 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 		}
 
 		return this.doGetEditors().map(({ editor, groupId }): IEditorQuickPickItem => {
-			const resource = toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+			const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 			const isDirty = editor.isDirty() && !editor.isSaving();
 			const description = editor.getDescription();
 			const nameAndDescription = description ? `${editor.getName()} ${description}` : editor.getName();
@@ -156,7 +156,7 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 					return isDirty ? localize('entryAriaLabelDirty', "{0}, dirty", nameAndDescription) : nameAndDescription;
 				})(),
 				description: editor.getDescription(),
-				iconClasses: getIconClasses(this.modelService, this.modeService, resource),
+				iconClasses: getIconClasses(this.modelService, this.modeService, resource).concat(editor.getLabelExtraClasses()),
 				italic: !this.editorGroupService.getGroup(groupId)?.isPinned(editor),
 				buttons: (() => {
 					return [
@@ -172,7 +172,7 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 					if (group) {
 						await group.closeEditor(editor, { preserveFocus: true });
 
-						if (!group.isOpened(editor)) {
+						if (!group.contains(editor)) {
 							return TriggerAction.REMOVE_ITEM;
 						}
 					}

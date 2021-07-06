@@ -5,24 +5,32 @@
 
 import * as assert from 'assert';
 import * as path from 'vs/base/common/path';
-import * as os from 'os';
+import { tmpdir } from 'os';
 import { extract } from 'vs/base/node/zip';
-import { generateUuid } from 'vs/base/common/uuid';
-import { rimraf, exists } from 'vs/base/node/pfs';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { Promises } from 'vs/base/node/pfs';
 import { createCancelablePromise } from 'vs/base/common/async';
-
-const fixtures = getPathFromAmdModule(require, './fixtures');
+import { getRandomTestPath, getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 
 suite('Zip', () => {
 
-	test('extract should handle directories', () => {
-		const fixture = path.join(fixtures, 'extract.zip');
-		const target = path.join(os.tmpdir(), generateUuid());
+	let testDir: string;
 
-		return createCancelablePromise(token => extract(fixture, target, {}, token)
-			.then(() => exists(path.join(target, 'extension')))
-			.then(exists => assert(exists))
-			.then(() => rimraf(target)));
+	setup(() => {
+		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'zip');
+
+		return Promises.mkdir(testDir, { recursive: true });
+	});
+
+	teardown(() => {
+		return Promises.rm(testDir);
+	});
+
+	test('extract should handle directories', async () => {
+		const fixtures = getPathFromAmdModule(require, './fixtures');
+		const fixture = path.join(fixtures, 'extract.zip');
+
+		await createCancelablePromise(token => extract(fixture, testDir, {}, token));
+		const doesExist = await Promises.exists(path.join(testDir, 'extension'));
+		assert(doesExist);
 	});
 });

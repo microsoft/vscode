@@ -4,86 +4,60 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorInput } from 'vs/workbench/common/editor';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { URI } from 'vs/base/common/uri';
+import { isEditorInput, isResourceDiffEditorInput, isResourceEditorInput, isUntitledResourceEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { TestEditorInput } from 'vs/workbench/test/browser/workbenchTestServices';
 
-class MyEditorInput extends EditorInput {
-	readonly resource = undefined;
+suite('EditorInput', () => {
 
-	getTypeId(): string { return ''; }
-	resolve(): any { return null; }
-}
+	class MyEditorInput extends EditorInput {
+		readonly resource = undefined;
 
-suite('Workbench editor input', () => {
+		override get typeId(): string { return 'myEditorInput'; }
+		override resolve(): any { return null; }
+	}
 
-	test('EditorInput', () => {
+	test('basics', () => {
 		let counter = 0;
 		let input = new MyEditorInput();
 		let otherInput = new MyEditorInput();
+
+		assert.ok(isEditorInput(input));
+		assert.ok(!isEditorInput(undefined));
+		assert.ok(!isEditorInput({ resource: URI.file('/') }));
+		assert.ok(!isEditorInput({}));
+
+		assert.ok(!isResourceEditorInput(input));
+		assert.ok(!isUntitledResourceEditorInput(input));
+		assert.ok(!isResourceDiffEditorInput(input));
 
 		assert(input.matches(input));
 		assert(!input.matches(otherInput));
-		assert(!input.matches(null));
 		assert(input.getName());
 
-		input.onDispose(() => {
+		input.onWillDispose(() => {
 			assert(true);
 			counter++;
 		});
 
 		input.dispose();
-		assert.equal(counter, 1);
+		assert.strictEqual(counter, 1);
 	});
 
-	test('DiffEditorInput', () => {
-		let counter = 0;
-		let input = new MyEditorInput();
-		input.onDispose(() => {
-			assert(true);
-			counter++;
-		});
+	test('untyped matches', () => {
+		const testInputID = 'untypedMatches';
+		const testInputResource = URI.file('/fake');
+		const testInput = new TestEditorInput(testInputResource, testInputID);
+		const testUntypedInput = { resource: testInputResource, options: { override: testInputID } };
+		const tetUntypedInputWrongResource = { resource: URI.file('/incorrectFake'), options: { override: testInputID } };
+		const testUntypedInputWrongId = { resource: testInputResource, options: { override: 'wrongId' } };
+		const testUntypedInputWrong = { resource: URI.file('/incorrectFake'), options: { override: 'wrongId' } };
 
-		let otherInput = new MyEditorInput();
-		otherInput.onDispose(() => {
-			assert(true);
-			counter++;
-		});
+		assert(testInput.matches(testUntypedInput));
+		assert.ok(!testInput.matches(tetUntypedInputWrongResource));
+		assert.ok(!testInput.matches(testUntypedInputWrongId));
+		assert.ok(!testInput.matches(testUntypedInputWrong));
 
-		let diffInput = new DiffEditorInput('name', 'description', input, otherInput);
-
-		assert.equal(diffInput.originalInput, input);
-		assert.equal(diffInput.modifiedInput, otherInput);
-		assert(diffInput.matches(diffInput));
-		assert(!diffInput.matches(otherInput));
-		assert(!diffInput.matches(null));
-
-		diffInput.dispose();
-		assert.equal(counter, 0);
-	});
-
-	test('DiffEditorInput disposes when input inside disposes', function () {
-		let counter = 0;
-		let input = new MyEditorInput();
-		let otherInput = new MyEditorInput();
-
-		let diffInput = new DiffEditorInput('name', 'description', input, otherInput);
-		diffInput.onDispose(() => {
-			counter++;
-			assert(true);
-		});
-
-		input.dispose();
-
-		input = new MyEditorInput();
-		otherInput = new MyEditorInput();
-
-		let diffInput2 = new DiffEditorInput('name', 'description', input, otherInput);
-		diffInput2.onDispose(() => {
-			counter++;
-			assert(true);
-		});
-
-		otherInput.dispose();
-		assert.equal(counter, 2);
 	});
 });

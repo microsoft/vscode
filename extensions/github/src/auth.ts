@@ -34,9 +34,11 @@ let _octokit: Promise<Octokit> | undefined;
 
 export function getOctokit(): Promise<Octokit> {
 	if (!_octokit) {
-		_octokit = getSession().then(session => {
+		_octokit = getSession().then(async session => {
 			const token = session.accessToken;
 			const agent = getAgent();
+
+			const { Octokit } = await import('@octokit/rest');
 
 			return new Octokit({
 				request: { agent },

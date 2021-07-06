@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import * as browser from 'vs/base/browser/browser';
 import { Selection } from 'vs/editor/common/core/selection';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -65,6 +66,7 @@ export class View extends ViewEventHandler {
 
 	private readonly _scrollbar: EditorScrollbar;
 	private readonly _context: ViewContext;
+	private _configPixelRatio: number;
 	private _selections: Selection[];
 
 	// The view lines
@@ -93,7 +95,8 @@ export class View extends ViewEventHandler {
 		configuration: IConfiguration,
 		themeService: IThemeService,
 		model: IViewModel,
-		userInputEvents: ViewUserInputEvents
+		userInputEvents: ViewUserInputEvents,
+		overflowWidgetsDomNode: HTMLElement | undefined
 	) {
 		super();
 		this._selections = [new Selection(1, 1, 1, 1)];
@@ -103,6 +106,7 @@ export class View extends ViewEventHandler {
 
 		// The view context is passed on to most classes (basically to reduce param. counts in ctors)
 		this._context = new ViewContext(configuration, themeService.getColorTheme(), model);
+		this._configPixelRatio = this._context.configuration.options.get(EditorOption.pixelRatio);
 
 		// Ensure the view is the first event handler in order to update the layout
 		this._context.addEventHandler(this);
@@ -209,7 +213,12 @@ export class View extends ViewEventHandler {
 		this._overflowGuardContainer.appendChild(this._overlayWidgets.getDomNode());
 		this._overflowGuardContainer.appendChild(minimap.getDomNode());
 		this.domNode.appendChild(this._overflowGuardContainer);
-		this.domNode.appendChild(this._contentWidgets.overflowingContentWidgetsDomNode);
+
+		if (overflowWidgetsDomNode) {
+			overflowWidgetsDomNode.appendChild(this._contentWidgets.overflowingContentWidgetsDomNode.domNode);
+		} else {
+			this.domNode.appendChild(this._contentWidgets.overflowingContentWidgetsDomNode);
+		}
 
 		this._applyLayout();
 
@@ -228,6 +237,10 @@ export class View extends ViewEventHandler {
 
 			focusTextArea: () => {
 				this.focus();
+			},
+
+			dispatchTextAreaEvent: (event: CustomEvent) => {
+				this._textAreaHandler.textArea.domNode.dispatchEvent(event);
 			},
 
 			getLastRenderData: (): PointerHandlerLastRenderData => {
@@ -287,43 +300,46 @@ export class View extends ViewEventHandler {
 	}
 
 	// --- begin event handlers
-	public handleEvents(events: viewEvents.ViewEvent[]): void {
+	public override handleEvents(events: viewEvents.ViewEvent[]): void {
 		super.handleEvents(events);
 		this._scheduleRender();
 	}
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		this._configPixelRatio = this._context.configuration.options.get(EditorOption.pixelRatio);
 		this.domNode.setClassName(this._getEditorClassName());
 		this._applyLayout();
 		return false;
 	}
-	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		this._selections = e.selections;
 		return false;
 	}
-	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
+	public override onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
 		this.domNode.setClassName(this._getEditorClassName());
 		return false;
 	}
-	public onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
+	public override onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
 		this.domNode.setClassName(this._getEditorClassName());
 		return false;
 	}
 
 	// --- end event handlers
 
-	public dispose(): void {
+	public override dispose(): void {
 		if (this._renderAnimationFrame !== null) {
 			this._renderAnimationFrame.dispose();
 			this._renderAnimationFrame = null;
 		}
+
+		this._contentWidgets.overflowingContentWidgetsDomNode.domNode.remove();
 
 		this._context.removeEventHandler(this);
 
 		this._viewLines.dispose();
 
 		// Destroy view parts
-		for (let i = 0, len = this._viewParts.length; i < len; i++) {
-			this._viewParts[i].dispose();
+		for (const viewPart of this._viewParts) {
+			viewPart.dispose();
 		}
 
 		super.dispose();
@@ -346,8 +362,7 @@ export class View extends ViewEventHandler {
 
 	private _getViewPartsToRender(): ViewPart[] {
 		let result: ViewPart[] = [], resultLen = 0;
-		for (let i = 0, len = this._viewParts.length; i < len; i++) {
-			const viewPart = this._viewParts[i];
+		for (const viewPart of this._viewParts) {
 			if (viewPart.shouldRender()) {
 				result[resultLen++] = viewPart;
 			}
@@ -393,15 +408,19 @@ export class View extends ViewEventHandler {
 		const renderingContext = new RenderingContext(this._context.viewLayout, viewportData, this._viewLines);
 
 		// Render the rest of the parts
-		for (let i = 0, len = viewPartsToRender.length; i < len; i++) {
-			const viewPart = viewPartsToRender[i];
+		for (const viewPart of viewPartsToRender) {
 			viewPart.prepareRender(renderingContext);
 		}
 
-		for (let i = 0, len = viewPartsToRender.length; i < len; i++) {
-			const viewPart = viewPartsToRender[i];
+		for (const viewPart of viewPartsToRender) {
 			viewPart.render(renderingContext);
 			viewPart.onDidRender();
+		}
+
+		// Try to detect browser zooming and paint again if necessary
+		if (Math.abs(browser.getPixelRatio() - this._configPixelRatio) > 0.001) {
+			// looks like the pixel ratio has changed
+			this._context.configuration.updatePixelRatio();
 		}
 	}
 
@@ -454,8 +473,7 @@ export class View extends ViewEventHandler {
 		if (everything) {
 			// Force everything to render...
 			this._viewLines.forceShouldRender();
-			for (let i = 0, len = this._viewParts.length; i < len; i++) {
-				const viewPart = this._viewParts[i];
+			for (const viewPart of this._viewParts) {
 				viewPart.forceShouldRender();
 			}
 		}

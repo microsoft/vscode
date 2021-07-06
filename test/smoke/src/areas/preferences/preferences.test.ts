@@ -3,10 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import minimist = require('minimist');
 import { Application, ActivityBarPosition } from '../../../../automation';
+import { afterSuite, beforeSuite } from '../../utils';
 
-export function setup() {
+export function setup(opts: minimist.ParsedArgs) {
 	describe('Preferences', () => {
+		beforeSuite(opts);
+		afterSuite();
+
 		it('turns off editor line numbers and verifies the live change', async function () {
 			const app = this.app as Application;
 
@@ -22,18 +27,10 @@ export function setup() {
 			const app = this.app as Application;
 			await app.workbench.activitybar.waitForActivityBar(ActivityBarPosition.LEFT);
 
-			await app.workbench.keybindingsEditor.updateKeybinding('workbench.action.toggleSidebarPosition', 'ctrl+u', 'Control+U');
+			await app.workbench.keybindingsEditor.updateKeybinding('workbench.action.toggleSidebarPosition', 'View: Toggle Side Bar Position', 'ctrl+u', 'Control+U');
 
 			await app.code.dispatchKeybinding('ctrl+u');
 			await app.workbench.activitybar.waitForActivityBar(ActivityBarPosition.RIGHT);
-		});
-
-		after(async function () {
-			const app = this.app as Application;
-			await app.workbench.settingsEditor.clearUserSettings();
-
-			// Wait for settings to be applied, which will happen after the settings file is empty
-			await app.workbench.activitybar.waitForActivityBar(ActivityBarPosition.LEFT);
 		});
 	});
 }

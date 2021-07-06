@@ -204,6 +204,7 @@ function migrateOptions(options: IEditorOptions): void {
 		mapping['method'] = 'showMethods';
 		mapping['function'] = 'showFunctions';
 		mapping['constructor'] = 'showConstructors';
+		mapping['deprecated'] = 'showDeprecated';
 		mapping['field'] = 'showFields';
 		mapping['variable'] = 'showVariables';
 		mapping['class'] = 'showClasses';
@@ -272,7 +273,7 @@ function migrateOptions(options: IEditorOptions): void {
 	}
 }
 
-function deepCloneAndMigrateOptions(_options: IEditorOptions): IEditorOptions {
+function deepCloneAndMigrateOptions(_options: Readonly<IEditorOptions>): IEditorOptions {
 	const options = objects.deepClone(_options);
 	migrateOptions(options);
 	return options;
@@ -298,7 +299,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements IC
 	private _readOptions: RawEditorOptions;
 	protected _validatedOptions: ValidatedEditorOptions;
 
-	constructor(isSimpleWidget: boolean, _options: IEditorOptions) {
+	constructor(isSimpleWidget: boolean, _options: Readonly<IEditorOptions>) {
 		super();
 		this.isSimpleWidget = isSimpleWidget;
 
@@ -318,8 +319,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements IC
 	public observeReferenceElement(dimension?: IDimension): void {
 	}
 
-	public dispose(): void {
-		super.dispose();
+	public updatePixelRatio(): void {
 	}
 
 	protected _recomputeOptions(): void {
@@ -348,7 +348,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements IC
 
 	private _computeInternalOptions(): ComputedEditorOptions {
 		const partialEnv = this._getEnvConfiguration();
-		const bareFontInfo = BareFontInfo.createFromValidatedSettings(this._validatedOptions, partialEnv.zoomLevel, this.isSimpleWidget);
+		const bareFontInfo = BareFontInfo.createFromValidatedSettings(this._validatedOptions, partialEnv.zoomLevel, partialEnv.pixelRatio, this.isSimpleWidget);
 		const env: IEnvironmentalOptions = {
 			memory: this._computeOptionsMemory,
 			outerWidth: partialEnv.outerWidth,
@@ -381,7 +381,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements IC
 					}
 					continue;
 				}
-				if (typeof baseValue === 'object' && typeof subsetValue === 'object') {
+				if (baseValue && typeof baseValue === 'object' && subsetValue && typeof subsetValue === 'object') {
 					if (!this._subsetEquals(baseValue, subsetValue)) {
 						return false;
 					}
@@ -394,7 +394,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements IC
 		return true;
 	}
 
-	public updateOptions(_newOptions: IEditorOptions): void {
+	public updateOptions(_newOptions: Readonly<IEditorOptions>): void {
 		if (typeof _newOptions === 'undefined') {
 			return;
 		}
@@ -502,9 +502,24 @@ const editorConfiguration: IConfigurationNode = {
 			default: true,
 			description: nls.localize('wordBasedSuggestions', "Controls whether completions should be computed based on words in the document.")
 		},
+		'editor.wordBasedSuggestionsMode': {
+			enum: ['currentDocument', 'matchingDocuments', 'allDocuments'],
+			default: 'matchingDocuments',
+			enumDescriptions: [
+				nls.localize('wordBasedSuggestionsMode.currentDocument', 'Only suggest words from the active document.'),
+				nls.localize('wordBasedSuggestionsMode.matchingDocuments', 'Suggest words from all open documents of the same language.'),
+				nls.localize('wordBasedSuggestionsMode.allDocuments', 'Suggest words from all open documents.')
+			],
+			description: nls.localize('wordBasedSuggestionsMode', "Controls from which documents word based completions are computed.")
+		},
 		'editor.semanticHighlighting.enabled': {
-			type: 'boolean',
-			default: true,
+			enum: [true, false, 'configuredByTheme'],
+			enumDescriptions: [
+				nls.localize('semanticHighlighting.true', 'Semantic highlighting enabled for all color themes.'),
+				nls.localize('semanticHighlighting.false', 'Semantic highlighting disabled for all color themes.'),
+				nls.localize('semanticHighlighting.configuredByTheme', 'Semantic highlighting is configured by the current color theme\'s `semanticHighlighting` setting.')
+			],
+			default: 'configuredByTheme',
 			description: nls.localize('semanticHighlighting.enabled', "Controls whether the semanticHighlighting is shown for the languages that support it.")
 		},
 		'editor.stablePeek': {
@@ -536,6 +551,21 @@ const editorConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true,
 			description: nls.localize('renderIndicators', "Controls whether the diff editor shows +/- indicators for added/removed changes.")
+		},
+		'diffEditor.codeLens': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('codeLens', "Controls whether the editor shows CodeLens.")
+		},
+		'diffEditor.wordWrap': {
+			type: 'string',
+			enum: ['off', 'on', 'inherit'],
+			default: 'inherit',
+			markdownEnumDescriptions: [
+				nls.localize('wordWrap.off', "Lines will never wrap."),
+				nls.localize('wordWrap.on', "Lines will wrap at the viewport width."),
+				nls.localize('wordWrap.inherit', "Lines will wrap according to the `#editor.wordWrap#` setting."),
+			]
 		}
 	}
 };

@@ -9,7 +9,7 @@ import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewMod
 import { LinePartMetadata } from 'vs/editor/common/viewLayout/viewLineRenderer';
 
 export class LineDecoration {
-	_lineDecorationBrand: void;
+	_lineDecorationBrand: void = undefined;
 
 	constructor(
 		public readonly startColumn: number,
@@ -40,6 +40,24 @@ export class LineDecoration {
 			}
 		}
 		return true;
+	}
+
+	public static extractWrapped(arr: LineDecoration[], startOffset: number, endOffset: number): LineDecoration[] {
+		if (arr.length === 0) {
+			return arr;
+		}
+		const startColumn = startOffset + 1;
+		const endColumn = endOffset + 1;
+		const lineLength = endOffset - startOffset;
+		const r = [];
+		let rLength = 0;
+		for (const dec of arr) {
+			if (dec.endColumn <= startColumn || dec.startColumn >= endColumn) {
+				continue;
+			}
+			r[rLength++] = new LineDecoration(Math.max(1, dec.startColumn - startColumn + 1), Math.min(lineLength + 1, dec.endColumn - startColumn + 1), dec.className, dec.type);
+		}
+		return r;
 	}
 
 	public static filter(lineDecorations: InlineDecoration[], lineNumber: number, minLineColumn: number, maxLineColumn: number): LineDecoration[] {

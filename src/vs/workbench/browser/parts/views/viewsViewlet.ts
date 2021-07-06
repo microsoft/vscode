@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from 'vs/base/common/actions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IViewDescriptor, IViewDescriptorService, IAddedViewDescriptorRef } from 'vs/workbench/common/views';
@@ -12,7 +11,8 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ViewPaneContainer, ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { Event } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -46,6 +46,13 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 			this.onFilterChanged(newFilterValue);
 		}));
 
+		this._register(this.onDidChangeViewVisibility(view => {
+			const descriptorMap = Array.from(this.allViews.entries()).find(entry => entry[1].has(view.id));
+			if (descriptorMap && !this.filterValue?.includes(descriptorMap[0])) {
+				this.setFilter(descriptorMap[1].get(view.id)!);
+			}
+		}));
+
 		this._register(this.viewContainerModel.onDidChangeActiveViewDescriptors(() => {
 			this.updateAllViews(this.viewContainerModel.activeViewDescriptors);
 		}));
@@ -73,24 +80,14 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 
 	protected abstract getFilterOn(viewDescriptor: IViewDescriptor): string | undefined;
 
+	protected abstract setFilter(viewDescriptor: IViewDescriptor): void;
+
 	private onFilterChanged(newFilterValue: string[]) {
 		if (this.allViews.size === 0) {
 			this.updateAllViews(this.viewContainerModel.activeViewDescriptors);
 		}
 		this.getViewsNotForTarget(newFilterValue).forEach(item => this.viewContainerModel.setVisible(item.id, false));
 		this.getViewsForTarget(newFilterValue).forEach(item => this.viewContainerModel.setVisible(item.id, true));
-	}
-
-	getContextMenuActions(): IAction[] {
-		const result: IAction[] = Array.from(this.constantViewDescriptors.values()).map(viewDescriptor => (<IAction>{
-			id: `${viewDescriptor.id}.toggleVisibility`,
-			label: viewDescriptor.name,
-			checked: this.viewContainerModel.isVisible(viewDescriptor.id),
-			enabled: viewDescriptor.canToggleVisibility,
-			run: () => this.toggleViewVisibility(viewDescriptor.id)
-		}));
-
-		return result;
 	}
 
 	private getViewsForTarget(target: string[]): IViewDescriptor[] {
@@ -124,7 +121,7 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 		return views;
 	}
 
-	onDidAddViewDescriptors(added: IAddedViewDescriptorRef[]): ViewPane[] {
+	override onDidAddViewDescriptors(added: IAddedViewDescriptorRef[]): ViewPane[] {
 		const panes: ViewPane[] = super.onDidAddViewDescriptors(added);
 		for (let i = 0; i < added.length; i++) {
 			if (this.constantViewDescriptors.has(added[i].viewDescriptor.id)) {
@@ -138,9 +135,6 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 		return panes;
 	}
 
-	abstract getTitle(): string;
+	abstract override getTitle(): string;
 
-	getViewsVisibilityActions(): IAction[] {
-		return [];
-	}
 }

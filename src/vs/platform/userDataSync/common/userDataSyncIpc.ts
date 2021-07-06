@@ -4,64 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IServerChannel, IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IUserDataSyncService, IUserDataSyncUtilService, IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
+import { Event } from 'vs/base/common/event';
+import { IUserDataSyncUtilService, IUserDataAutoSyncService, IUserDataSyncStoreManagementService, UserDataSyncStoreType, IUserDataSyncStore } from 'vs/platform/userDataSync/common/userDataSync';
 import { URI } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
-import { IStorageKeysSyncRegistryService, IStorageKey } from 'vs/platform/userDataSync/common/storageKeys';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
 import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
-
-export class UserDataSyncChannel implements IServerChannel {
-
-	constructor(private readonly service: IUserDataSyncService, private readonly logService: ILogService) { }
-
-	listen(_: unknown, event: string): Event<any> {
-		switch (event) {
-			case 'onDidChangeStatus': return this.service.onDidChangeStatus;
-			case 'onSynchronizeResource': return this.service.onSynchronizeResource;
-			case 'onDidChangeConflicts': return this.service.onDidChangeConflicts;
-			case 'onDidChangeLocal': return this.service.onDidChangeLocal;
-			case 'onDidChangeLastSyncTime': return this.service.onDidChangeLastSyncTime;
-			case 'onSyncErrors': return this.service.onSyncErrors;
-		}
-		throw new Error(`Event not found: ${event}`);
-	}
-
-	async call(context: any, command: string, args?: any): Promise<any> {
-		try {
-			const result = await this._call(context, command, args);
-			return result;
-		} catch (e) {
-			this.logService.error(e);
-			throw e;
-		}
-	}
-
-	private _call(context: any, command: string, args?: any): Promise<any> {
-		switch (command) {
-			case '_getInitialData': return Promise.resolve([this.service.status, this.service.conflicts, this.service.lastSyncTime]);
-			case 'pull': return this.service.pull();
-			case 'sync': return this.service.sync();
-			case 'stop': this.service.stop(); return Promise.resolve();
-			case 'replace': return this.service.replace(URI.revive(args[0]));
-			case 'reset': return this.service.reset();
-			case 'resetLocal': return this.service.resetLocal();
-			case 'hasPreviouslySynced': return this.service.hasPreviouslySynced();
-			case 'isFirstTimeSyncingWithAnotherMachine': return this.service.isFirstTimeSyncingWithAnotherMachine();
-			case 'acceptConflict': return this.service.acceptConflict(URI.revive(args[0]), args[1]);
-			case 'resolveContent': return this.service.resolveContent(URI.revive(args[0]));
-			case 'getLocalSyncResourceHandles': return this.service.getLocalSyncResourceHandles(args[0]);
-			case 'getRemoteSyncResourceHandles': return this.service.getRemoteSyncResourceHandles(args[0]);
-			case 'getAssociatedResources': return this.service.getAssociatedResources(args[0], { created: args[1].created, uri: URI.revive(args[1].uri) });
-			case 'getMachineId': return this.service.getMachineId(args[0], { created: args[1].created, uri: URI.revive(args[1].uri) });
-		}
-		throw new Error('Invalid call');
-	}
-}
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export class UserDataAutoSyncChannel implements IServerChannel {
 
@@ -69,8 +19,6 @@ export class UserDataAutoSyncChannel implements IServerChannel {
 
 	listen(_: unknown, event: string): Event<any> {
 		switch (event) {
-			case 'onTurnOnSync': return this.service.onTurnOnSync;
-			case 'onDidTurnOnSync': return this.service.onDidTurnOnSync;
 			case 'onError': return this.service.onError;
 		}
 		throw new Error(`Event not found: ${event}`);
@@ -78,8 +26,8 @@ export class UserDataAutoSyncChannel implements IServerChannel {
 
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
-			case 'triggerSync': return this.service.triggerSync(args[0], args[1]);
-			case 'turnOn': return this.service.turnOn(args[0]);
+			case 'triggerSync': return this.service.triggerSync(args[0], args[1], args[2]);
+			case 'turnOn': return this.service.turnOn();
 			case 'turnOff': return this.service.turnOff(args[0]);
 		}
 		throw new Error('Invalid call');
@@ -125,59 +73,14 @@ export class UserDataSyncUtilServiceClient implements IUserDataSyncUtilService {
 
 }
 
-export class StorageKeysSyncRegistryChannel implements IServerChannel {
-
-	constructor(private readonly service: IStorageKeysSyncRegistryService) { }
-
-	listen(_: unknown, event: string): Event<any> {
-		switch (event) {
-			case 'onDidChangeStorageKeys': return this.service.onDidChangeStorageKeys;
-		}
-		throw new Error(`Event not found: ${event}`);
-	}
-
-	call(context: any, command: string, args?: any): Promise<any> {
-		switch (command) {
-			case '_getInitialData': return Promise.resolve(this.service.storageKeys);
-			case 'registerStorageKey': return Promise.resolve(this.service.registerStorageKey(args[0]));
-		}
-		throw new Error('Invalid call');
-	}
-}
-
-export class StorageKeysSyncRegistryChannelClient extends Disposable implements IStorageKeysSyncRegistryService {
-
-	declare readonly _serviceBrand: undefined;
-
-	private _storageKeys: ReadonlyArray<IStorageKey> = [];
-	get storageKeys(): ReadonlyArray<IStorageKey> { return this._storageKeys; }
-	private readonly _onDidChangeStorageKeys: Emitter<ReadonlyArray<IStorageKey>> = this._register(new Emitter<ReadonlyArray<IStorageKey>>());
-	readonly onDidChangeStorageKeys = this._onDidChangeStorageKeys.event;
-
-	constructor(private readonly channel: IChannel) {
-		super();
-		this.channel.call<IStorageKey[]>('_getInitialData').then(storageKeys => {
-			this.updateStorageKeys(storageKeys);
-			this._register(this.channel.listen<ReadonlyArray<IStorageKey>>('onDidChangeStorageKeys')(storageKeys => this.updateStorageKeys(storageKeys)));
-		});
-	}
-
-	private async updateStorageKeys(storageKeys: ReadonlyArray<IStorageKey>): Promise<void> {
-		this._storageKeys = storageKeys;
-		this._onDidChangeStorageKeys.fire(this.storageKeys);
-	}
-
-	registerStorageKey(storageKey: IStorageKey): void {
-		this.channel.call('registerStorageKey', [storageKey]);
-	}
-
-}
-
 export class UserDataSyncMachinesServiceChannel implements IServerChannel {
 
 	constructor(private readonly service: IUserDataSyncMachinesService) { }
 
 	listen(_: unknown, event: string): Event<any> {
+		switch (event) {
+			case 'onDidChange': return this.service.onDidChange;
+		}
 		throw new Error(`Event not found: ${event}`);
 	}
 
@@ -214,3 +117,52 @@ export class UserDataSyncAccountServiceChannel implements IServerChannel {
 	}
 }
 
+export class UserDataSyncStoreManagementServiceChannel implements IServerChannel {
+	constructor(private readonly service: IUserDataSyncStoreManagementService) { }
+
+	listen(_: unknown, event: string): Event<any> {
+		switch (event) {
+			case 'onDidChangeUserDataSyncStore': return this.service.onDidChangeUserDataSyncStore;
+		}
+		throw new Error(`Event not found: ${event}`);
+	}
+
+	call(context: any, command: string, args?: any): Promise<any> {
+		switch (command) {
+			case 'switch': return this.service.switch(args[0]);
+			case 'getPreviousUserDataSyncStore': return this.service.getPreviousUserDataSyncStore();
+		}
+		throw new Error('Invalid call');
+	}
+}
+
+export class UserDataSyncStoreManagementServiceChannelClient extends Disposable {
+
+	readonly onDidChangeUserDataSyncStore: Event<void>;
+
+	constructor(private readonly channel: IChannel) {
+		super();
+		this.onDidChangeUserDataSyncStore = this.channel.listen<void>('onDidChangeUserDataSyncStore');
+	}
+
+	async switch(type: UserDataSyncStoreType): Promise<void> {
+		return this.channel.call('switch', [type]);
+	}
+
+	async getPreviousUserDataSyncStore(): Promise<IUserDataSyncStore> {
+		const userDataSyncStore = await this.channel.call<IUserDataSyncStore>('getPreviousUserDataSyncStore');
+		return this.revive(userDataSyncStore);
+	}
+
+	private revive(userDataSyncStore: IUserDataSyncStore): IUserDataSyncStore {
+		return {
+			url: URI.revive(userDataSyncStore.url),
+			type: userDataSyncStore.type,
+			defaultUrl: URI.revive(userDataSyncStore.defaultUrl),
+			insidersUrl: URI.revive(userDataSyncStore.insidersUrl),
+			stableUrl: URI.revive(userDataSyncStore.stableUrl),
+			canSwitch: userDataSyncStore.canSwitch,
+			authenticationProviders: userDataSyncStore.authenticationProviders,
+		};
+	}
+}

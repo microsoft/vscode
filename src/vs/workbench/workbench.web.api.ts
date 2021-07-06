@@ -6,18 +6,19 @@
 import 'vs/workbench/workbench.web.main';
 import { main } from 'vs/workbench/browser/web.main';
 import { UriComponents, URI } from 'vs/base/common/uri';
-import { IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, FileChangeType } from 'vs/platform/files/common/files';
 import { IWebSocketFactory, IWebSocket } from 'vs/platform/remote/browser/browserSocketFactory';
-import { ICredentialsProvider } from 'vs/workbench/services/credentials/browser/credentialsService';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { IUpdateProvider, IUpdate } from 'vs/workbench/services/update/browser/updateService';
 import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IProductConfiguration } from 'vs/platform/product/common/productService';
+import { IProductConfiguration } from 'vs/base/common/product';
+import { mark } from 'vs/base/common/performance';
+import { ICredentialsProvider } from 'vs/workbench/services/credentials/common/credentials';
+import { TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -25,11 +26,17 @@ interface IResourceUriProvider {
 
 interface IStaticExtension {
 	packageJSON: IExtensionManifest;
-	extensionLocation: URI;
+	extensionLocation: UriComponents;
 	isBuiltin?: boolean;
 }
 
-interface ICommontTelemetryPropertiesResolver {
+/**
+ * The identifier of an extension in the format: `PUBLISHER.NAME`.
+ * For example: `vscode.csharp`
+ */
+type ExtensionId = string;
+
+interface ICommonTelemetryPropertiesResolver {
 	(): { [key: string]: any };
 }
 
@@ -38,21 +45,29 @@ interface IExternalUriResolver {
 }
 
 interface ITunnelProvider {
+
 	/**
 	 * Support for creating tunnels.
 	 */
 	tunnelFactory?: ITunnelFactory;
+
 	/**
-	 * Support for filtering candidate ports
+	 * Support for filtering candidate ports.
 	 */
 	showPortCandidate?: IShowPortCandidate;
+
+	/**
+	 * The features that the tunnel provider supports.
+	 */
+	features?: TunnelProviderFeatures;
 }
 
 interface ITunnelFactory {
-	(tunnelOptions: ITunnelOptions): Promise<ITunnel> | undefined;
+	(tunnelOptions: ITunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<ITunnel> | undefined;
 }
 
 interface ITunnelOptions {
+
 	remoteAddress: { port: number, host: string };
 
 	/**
@@ -61,9 +76,22 @@ interface ITunnelOptions {
 	localAddressPort?: number;
 
 	label?: string;
+
+	public?: boolean;
+
+	protocol?: string;
 }
 
-interface ITunnel extends IDisposable {
+export interface TunnelCreationOptions {
+
+	/**
+	 * True when the local operating system will require elevation to use the requested local port.
+	 */
+	elevationRequired?: boolean;
+}
+
+interface ITunnel {
+
 	remoteAddress: { port: number, host: string };
 
 	/**
@@ -71,10 +99,19 @@ interface ITunnel extends IDisposable {
 	 */
 	localAddress: string;
 
+	public?: boolean;
+
+	/**
+	 * If protocol is not provided, it is assumed to be http, regardless of the localAddress
+	 */
+	protocol?: string;
+
 	/**
 	 * Implementers of Tunnel should fire onDidDispose when dispose is called.
 	 */
 	onDidDispose: Event<void>;
+
+	dispose(): Promise<void> | void;
 }
 
 interface IShowPortCandidate {
@@ -107,11 +144,6 @@ interface IHomeIndicator {
 	href: string;
 
 	/**
-	 * @deprecated use `href` instead.
-	 */
-	command?: string;
-
-	/**
 	 * The icon name for the home indicator. This needs to be one of the existing
 	 * icons from our Codicon icon set. For example `sync`.
 	 */
@@ -123,44 +155,49 @@ interface IHomeIndicator {
 	title: string;
 }
 
-interface IDefaultSideBarLayout {
-	visible?: boolean;
-	containers?: ({
-		id: 'explorer' | 'run' | 'scm' | 'search' | 'extensions' | 'remote' | string;
-		active: true;
-		order?: number;
-		views?: {
-			id: string;
-			order?: number;
-			visible?: boolean;
-			collapsed?: boolean;
-		}[];
-	} | {
-		id: 'explorer' | 'run' | 'scm' | 'search' | 'extensions' | 'remote' | string;
-		active?: false;
-		order?: number;
-		visible?: boolean;
-		views?: {
-			id: string;
-			order?: number;
-			visible?: boolean;
-			collapsed?: boolean;
-		}[];
-	})[];
+interface IWindowIndicator {
+
+	/**
+	 * Triggering this event will cause the window indicator to update.
+	 */
+	onDidChange: Event<void>;
+
+	/**
+	 * Label of the window indicator may include octicons
+	 * e.g. `$(remote) label`
+	 */
+	label: string;
+
+	/**
+	 * Tooltip of the window indicator should not include
+	 * octicons and be descriptive.
+	 */
+	tooltip: string;
+
+	/**
+	 * If provided, overrides the default command that
+	 * is executed when clicking on the window indicator.
+	 */
+	command?: string;
 }
 
-interface IDefaultPanelLayout {
-	visible?: boolean;
-	containers?: ({
-		id: 'terminal' | 'debug' | 'problems' | 'output' | 'comments' | string;
-		order?: number;
-		active: true;
-	} | {
-		id: 'terminal' | 'debug' | 'problems' | 'output' | 'comments' | string;
-		order?: number;
-		active?: false;
-		visible?: boolean;
-	})[];
+enum ColorScheme {
+	DARK = 'dark',
+	LIGHT = 'light',
+	HIGH_CONTRAST = 'hc'
+}
+
+interface IInitialColorTheme {
+
+	/**
+	 * Initial color theme type.
+	 */
+	themeType: ColorScheme;
+
+	/**
+	 * A list of workbench colors to apply initially.
+	 */
+	colors?: { [colorId: string]: string };
 }
 
 interface IDefaultView {
@@ -174,12 +211,41 @@ interface IDefaultEditor {
 }
 
 interface IDefaultLayout {
-	/** @deprecated Use views instead */
-	readonly sidebar?: IDefaultSideBarLayout;
-	/** @deprecated Use views instead */
-	readonly panel?: IDefaultPanelLayout;
 	readonly views?: IDefaultView[];
 	readonly editors?: IDefaultEditor[];
+	/** Forces this layout to be applied even if this isn't the first time the workspace has been opened */
+	readonly force?: boolean;
+}
+
+interface IProductQualityChangeHandler {
+
+	/**
+	 * Handler is being called when the user wants to switch between
+	 * `insider` or `stable` product qualities.
+	 */
+	(newQuality: 'insider' | 'stable'): void;
+}
+
+/**
+ * Settings sync options
+ */
+interface ISettingsSyncOptions {
+
+	/**
+	 * Is settings sync enabled
+	 */
+	readonly enabled: boolean;
+
+	/**
+	 * Version of extensions sync state.
+	 * Extensions sync state will be reset if version is provided and different from previous version.
+	 */
+	readonly extensionsSyncStateVersion?: string;
+
+	/**
+	 * Handler is being called when the user changes Settings Sync enablement.
+	 */
+	enablementHandler?(enablement: boolean): void;
 }
 
 interface IWorkbenchConstructionOptions {
@@ -204,6 +270,19 @@ interface IWorkbenchConstructionOptions {
 	readonly webviewEndpoint?: string;
 
 	/**
+	 * An URL pointing to the web worker extension host <iframe> src.
+	 * @deprecated. This will be removed soon.
+	 */
+	readonly webWorkerExtensionHostIframeSrc?: string;
+
+	/**
+	 * [TEMPORARY]: This will be removed soon.
+	 * Use an unique origin for the web worker extension host.
+	 * Defaults to false.
+	 */
+	readonly __uniqueWebWorkerExtensionHostOrigin?: boolean;
+
+	/**
 	 * A factory for web sockets.
 	 */
 	readonly webSocketFactory?: IWebSocketFactory;
@@ -224,6 +303,11 @@ interface IWorkbenchConstructionOptions {
 	 */
 	readonly tunnelProvider?: ITunnelProvider;
 
+	/**
+	 * Endpoints to be used for proxying authentication code exchange calls in the browser.
+	 */
+	readonly codeExchangeProxyEndpoints?: { [providerId: string]: string }
+
 	//#endregion
 
 
@@ -235,20 +319,18 @@ interface IWorkbenchConstructionOptions {
 	readonly workspaceProvider?: IWorkspaceProvider;
 
 	/**
-	 * The user data provider is used to handle user specific application
-	 * state like settings, keybindings, UI state (e.g. opened editors) and snippets.
-	 */
-	userDataProvider?: IFileSystemProvider;
-
-	/**
-	 * Session id of the current authenticated user
-	 */
-	readonly authenticationSessionId?: string;
-
-	/**
-	 * Enables user data sync by default and syncs into the current authenticated user account using the provided [authenticationSessionId}(#authenticationSessionId).
+	 * Enables Settings Sync by default.
+	 *
+	 * Syncs with the current authenticated user account (provided in [credentialsProvider](#credentialsProvider)) by default.
+	 *
+	 * @deprecated Instead use [settingsSyncOptions](#settingsSyncOptions) to enable/disable settings sync in the workbench.
 	 */
 	readonly enableSyncByDefault?: boolean;
+
+	/**
+	 * Settings sync options
+	 */
+	readonly settingsSyncOptions?: ISettingsSyncOptions;
 
 	/**
 	 * The credentials provider to store and retrieve secrets.
@@ -257,13 +339,24 @@ interface IWorkbenchConstructionOptions {
 
 	/**
 	 * Add static extensions that cannot be uninstalled but only be disabled.
+	 * @deprecated. Use `additionalBuiltinExtensions` instead.
 	 */
-	readonly staticExtensions?: ReadonlyArray<IStaticExtension>;
+	readonly staticExtensions?: readonly IStaticExtension[];
 
 	/**
-	 * Service end-point hosting builtin extensions
+	 * Additional builtin extensions that cannot be uninstalled but only be disabled.
+	 * It can be one of the following:
+	 * 	- `ExtensionId`: id of the extension that is available in Marketplace
+	 * 	- `UriComponents`: location of the extension where it is hosted.
 	 */
-	readonly builtinExtensionsServiceUrl?: string;
+	readonly additionalBuiltinExtensions?: readonly (ExtensionId | UriComponents)[];
+
+	/**
+	 * [TEMPORARY]: This will be removed soon.
+	 * Enable inlined extensions.
+	 * Defaults to true.
+	 */
+	readonly _enableBuiltinExtensions?: boolean;
 
 	/**
 	 * Support for URL callbacks.
@@ -271,14 +364,9 @@ interface IWorkbenchConstructionOptions {
 	readonly urlCallbackProvider?: IURLCallbackProvider;
 
 	/**
-	 * Support for update reporting.
-	 */
-	readonly updateProvider?: IUpdateProvider;
-
-	/**
 	 * Support adding additional properties to telemetry.
 	 */
-	readonly resolveCommonTelemetryProperties?: ICommontTelemetryPropertiesResolver;
+	readonly resolveCommonTelemetryProperties?: ICommonTelemetryPropertiesResolver;
 
 	/**
 	 * A set of optional commands that should be registered with the commands
@@ -289,9 +377,29 @@ interface IWorkbenchConstructionOptions {
 	readonly commands?: readonly ICommand[];
 
 	/**
-	 * Optional default layout to apply on first time the workspace is opened.
+	 * Optional default layout to apply on first time the workspace is opened (uness `force` is specified).
 	 */
 	readonly defaultLayout?: IDefaultLayout;
+
+	/**
+	 * Optional configuration default overrides contributed to the workbench.
+	 */
+	readonly configurationDefaults?: Record<string, any>;
+
+	//#endregion
+
+
+	//#region Update/Quality related
+
+	/**
+	 * Support for update reporting
+	 */
+	readonly updateProvider?: IUpdateProvider;
+
+	/**
+	 * Support for product quality switching
+	 */
+	readonly productQualityChangeHandler?: IProductQualityChangeHandler;
 
 	//#endregion
 
@@ -308,10 +416,32 @@ interface IWorkbenchConstructionOptions {
 	 */
 	readonly productConfiguration?: Partial<IProductConfiguration>;
 
+	/**
+	 * Optional override for properties of the window indicator in the status bar.
+	 */
+	readonly windowIndicator?: IWindowIndicator;
+
+	/**
+	 * Specifies the default theme type (LIGHT, DARK..) and allows to provide initial colors that are shown
+	 * until the color theme that is specified in the settings (`editor.colorTheme`) is loaded and applied.
+	 * Once there are persisted colors from a last run these will be used.
+	 *
+	 * The idea is that the colors match the main colors from the theme defined in the `configurationDefaults`.
+	 */
+	readonly initialColorTheme?: IInitialColorTheme;
+
 	//#endregion
 
 
-	//#region Diagnostics
+	//#region Development options
+
+	readonly developmentOptions?: IDevelopmentOptions;
+
+	//#endregion
+
+}
+
+interface IDevelopmentOptions {
 
 	/**
 	 * Current logging level. Default is `LogLevel.Info`.
@@ -319,17 +449,61 @@ interface IWorkbenchConstructionOptions {
 	readonly logLevel?: LogLevel;
 
 	/**
+	 * Location of a module containing extension tests to run once the workbench is open.
+	 */
+	readonly extensionTestsPath?: UriComponents;
+
+	/**
+	 * Add extensions under development.
+	 */
+	readonly extensions?: readonly UriComponents[];
+
+	/**
 	 * Whether to enable the smoke test driver.
 	 */
-	readonly driver?: boolean;
+	readonly enableSmokeTestDriver?: boolean;
+}
 
-	//#endregion
+interface IPerformanceMark {
+
+	/**
+	 * The name of a performace marker.
+	 */
+	readonly name: string;
+
+	/**
+	 * The UNIX timestamp at which the marker has been set.
+	 */
+	readonly startTime: number;
 }
 
 interface IWorkbench {
+
 	commands: {
+		/**
+		 * @see [executeCommand](#commands.executeCommand)
+		 */
 		executeCommand(command: string, ...args: any[]): Promise<unknown>;
 	}
+
+	env: {
+		readonly uriScheme: string;
+		/**
+		 * @see [retrievePerformanceMarks](#commands.retrievePerformanceMarks)
+		 */
+		retrievePerformanceMarks(): Promise<[string, readonly IPerformanceMark[]][]>;
+		openUri(uri: URI): Promise<boolean>;
+	}
+
+	/**
+	 * Triggers shutdown of the workbench programmatically. After this method is
+	 * called, the workbench is not usable anymore and the page needs to reload
+	 * or closed.
+	 *
+	 * This will also remove any `beforeUnload` handlers that would bring up a
+	 * confirmation dialog.
+	 */
+	shutdown: () => void;
 }
 
 /**
@@ -341,7 +515,10 @@ interface IWorkbench {
 let created = false;
 let workbenchPromiseResolve: Function;
 const workbenchPromise = new Promise<IWorkbench>(resolve => workbenchPromiseResolve = resolve);
-async function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<void> {
+function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): IDisposable {
+
+	// Mark start of workbench
+	mark('code/didLoadWorkbenchMain');
 
 	// Assert that the workbench is not created more than once. We currently
 	// do not support this and require a full context switch to clean-up.
@@ -350,10 +527,6 @@ async function create(domElement: HTMLElement, options: IWorkbenchConstructionOp
 	} else {
 		created = true;
 	}
-
-	// Startup workbench and resolve waiters
-	const workbench = await main(domElement, options);
-	workbenchPromiseResolve(workbench);
 
 	// Register commands if any
 	if (Array.isArray(options.commands)) {
@@ -365,6 +538,21 @@ async function create(domElement: HTMLElement, options: IWorkbenchConstructionOp
 			});
 		}
 	}
+
+	// Startup workbench and resolve waiters
+	let instantiatedWorkbench: IWorkbench | undefined = undefined;
+	main(domElement, options).then(workbench => {
+		instantiatedWorkbench = workbench;
+		workbenchPromiseResolve(workbench);
+	});
+
+	return toDisposable(() => {
+		if (instantiatedWorkbench) {
+			instantiatedWorkbench.shutdown();
+		} else {
+			workbenchPromise.then(instantiatedWorkbench => instantiatedWorkbench.shutdown());
+		}
+	});
 }
 
 
@@ -383,6 +571,36 @@ namespace commands {
 		const workbench = await workbenchPromise;
 
 		return workbench.commands.executeCommand(command, ...args);
+	}
+}
+
+namespace env {
+
+	/**
+	 * Retrieve performance marks that have been collected during startup. This function
+	 * returns tuples of source and marks. A source is a dedicated context, like
+	 * the renderer or an extension host.
+	 *
+	 * *Note* that marks can be collected on different machines and in different processes
+	 * and that therefore "different clocks" are used. So, comparing `startTime`-properties
+	 * across contexts should be taken with a grain of salt.
+	 *
+	 * @returns A promise that resolves to tuples of source and marks.
+	 */
+	export async function retrievePerformanceMarks(): Promise<[string, readonly IPerformanceMark[]][]> {
+		const workbench = await workbenchPromise;
+
+		return workbench.env.retrievePerformanceMarks();
+	}
+
+	export async function getUriScheme(): Promise<string> {
+		const workbench = await workbenchPromise;
+		return workbench.env.uriScheme;
+	}
+
+	export async function openUri(target: URI): Promise<boolean> {
+		const workbench = await workbenchPromise;
+		return workbench.env.openUri(target);
 	}
 }
 
@@ -405,12 +623,6 @@ export {
 	IWorkspace,
 	IWorkspaceProvider,
 
-	// FileSystem
-	IFileSystemProvider,
-	FileSystemProviderCapabilities,
-	IFileChange,
-	FileChangeType,
-
 	// WebSockets
 	IWebSocketFactory,
 	IWebSocket,
@@ -431,12 +643,16 @@ export {
 	// LogLevel
 	LogLevel,
 
-	// Updates
+	// SettingsSync
+	ISettingsSyncOptions,
+
+	// Updates/Quality
 	IUpdateProvider,
 	IUpdate,
+	IProductQualityChangeHandler,
 
 	// Telemetry
-	ICommontTelemetryPropertiesResolver,
+	ICommonTelemetryPropertiesResolver,
 
 	// External Uris
 	IExternalUriResolver,
@@ -457,13 +673,20 @@ export {
 	// Branding
 	IHomeIndicator,
 	IProductConfiguration,
+	IWindowIndicator,
+	IInitialColorTheme,
 
 	// Default layout
 	IDefaultView,
 	IDefaultEditor,
 	IDefaultLayout,
-	IDefaultPanelLayout,
-	IDefaultSideBarLayout
+
+	// Env
+	IPerformanceMark,
+	env,
+
+	// Development
+	IDevelopmentOptions
 };
 
 //#endregion

@@ -8,7 +8,7 @@ import { IContextMenuItem, ISerializableContextMenuItem, CONTEXT_MENU_CLOSE_CHAN
 
 let contextMenuIdPool = 0;
 
-export function popup(items: IContextMenuItem[], options?: IPopupOptions): void {
+export function popup(items: IContextMenuItem[], options?: IPopupOptions, onHide?: () => void): void {
 	const processedItems: IContextMenuItem[] = [];
 
 	const contextMenuId = contextMenuIdPool++;
@@ -28,8 +28,8 @@ export function popup(items: IContextMenuItem[], options?: IPopupOptions): void 
 
 		ipcRenderer.removeListener(onClickChannel, onClickChannelHandler);
 
-		if (options?.onHide) {
-			options.onHide();
+		if (onHide) {
+			onHide();
 		}
 	});
 

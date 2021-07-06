@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IContextViewService, IContextViewDelegate } from './contextView';
-import { ContextView } from 'vs/base/browser/ui/contextview/contextview';
+import { ContextView, ContextViewDOMPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
@@ -21,28 +21,28 @@ export class ContextViewService extends Disposable implements IContextViewServic
 		super();
 
 		this.container = layoutService.container;
-		this.contextView = this._register(new ContextView(this.container, false));
+		this.contextView = this._register(new ContextView(this.container, ContextViewDOMPosition.ABSOLUTE));
 		this.layout();
 
-		this._register(layoutService.onLayout(() => this.layout()));
+		this._register(layoutService.onDidLayout(() => this.layout()));
 	}
 
 	// ContextView
 
-	setContainer(container: HTMLElement, useFixedPosition?: boolean): void {
-		this.contextView.setContainer(container, !!useFixedPosition);
+	setContainer(container: HTMLElement, domPosition?: ContextViewDOMPosition): void {
+		this.contextView.setContainer(container, domPosition || ContextViewDOMPosition.ABSOLUTE);
 	}
 
-	showContextView(delegate: IContextViewDelegate, container?: HTMLElement): IDisposable {
+	showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean): IDisposable {
 		if (container) {
 			if (container !== this.container) {
 				this.container = container;
-				this.setContainer(container, true);
+				this.setContainer(container, shadowRoot ? ContextViewDOMPosition.FIXED_SHADOW : ContextViewDOMPosition.FIXED);
 			}
 		} else {
 			if (this.container !== this.layoutService.container) {
 				this.container = this.layoutService.container;
-				this.setContainer(this.container, false);
+				this.setContainer(this.container, ContextViewDOMPosition.ABSOLUTE);
 			}
 		}
 
@@ -56,6 +56,10 @@ export class ContextViewService extends Disposable implements IContextViewServic
 
 		this.currentViewDisposable = disposable;
 		return disposable;
+	}
+
+	getContextViewElement(): HTMLElement {
+		return this.contextView.getViewElement();
 	}
 
 	layout(): void {

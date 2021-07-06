@@ -5,7 +5,7 @@
 
 import { editorActiveIndentGuides, editorIndentGuides } from 'vs/editor/common/view/editorColorRegistry';
 import { IStandaloneThemeData } from 'vs/editor/standalone/common/standaloneThemeService';
-import { editorBackground, editorForeground, editorInactiveSelection, editorSelectionHighlight } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, editorForeground, editorInactiveSelection, editorSelectionHighlight, listFocusHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 
 /* -------------------------------- Begin vs theme -------------------------------- */
 export const vs: IStandaloneThemeData = {
@@ -65,7 +65,7 @@ export const vs: IStandaloneThemeData = {
 		{ token: 'operator.scss', foreground: '666666' },
 		{ token: 'operator.sql', foreground: '778899' },
 		{ token: 'operator.swift', foreground: '666666' },
-		{ token: 'predefined.sql', foreground: 'FF00FF' },
+		{ token: 'predefined.sql', foreground: 'C700C7' },
 	],
 	colors: {
 		[editorBackground]: '#FFFFFE',
@@ -73,7 +73,8 @@ export const vs: IStandaloneThemeData = {
 		[editorInactiveSelection]: '#E5EBF1',
 		[editorIndentGuides]: '#D3D3D3',
 		[editorActiveIndentGuides]: '#939393',
-		[editorSelectionHighlight]: '#ADD6FF4D'
+		[editorSelectionHighlight]: '#ADD6FF4D',
+		[listFocusHighlightForeground]: '#9DDDFF'
 	}
 };
 /* -------------------------------- End vs theme -------------------------------- */

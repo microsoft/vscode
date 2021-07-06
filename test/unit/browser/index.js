@@ -7,9 +7,10 @@
 
 const path = require('path');
 const glob = require('glob');
-const fs = require('fs');
 const events = require('events');
 const mocha = require('mocha');
+const createStatsCollector = require('../../../node_modules/mocha/lib/stats-collector');
+const MochaJUnitReporter = require('mocha-junit-reporter');
 const url = require('url');
 const minimatch = require('minimatch');
 const playwright = require('playwright');
@@ -37,30 +38,44 @@ if (argv.help) {
 }
 
 const withReporter = (function () {
-	const reporterPath = path.join(path.dirname(require.resolve('mocha')), 'lib', 'reporters', argv.reporter);
-	let ctor;
-
-	try {
-		ctor = require(reporterPath);
-	} catch (err) {
-		try {
-			ctor = require(argv.reporter);
-		} catch (err) {
-			ctor = process.platform === 'win32' ? mocha.reporters.List : mocha.reporters.Spec;
-			console.warn(`could not load reporter: ${argv.reporter}, using ${ctor.name}`);
+	if (argv.tfs) {
+		{
+			return (browserType, runner) => {
+				new mocha.reporters.Spec(runner);
+				new MochaJUnitReporter(runner, {
+					reporterOptions: {
+						testsuitesTitle: `${argv.tfs} ${process.platform}`,
+						mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY ? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${process.arch}-${browserType}-${argv.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
+					}
+				});
+			}
 		}
+	} else {
+		const reporterPath = path.join(path.dirname(require.resolve('mocha')), 'lib', 'reporters', argv.reporter);
+		let ctor;
+
+		try {
+			ctor = require(reporterPath);
+		} catch (err) {
+			try {
+				ctor = require(argv.reporter);
+			} catch (err) {
+				ctor = process.platform === 'win32' ? mocha.reporters.List : mocha.reporters.Spec;
+				console.warn(`could not load reporter: ${argv.reporter}, using ${ctor.name}`);
+			}
+		}
+
+		function parseReporterOption(value) {
+			let r = /^([^=]+)=(.*)$/.exec(value);
+			return r ? { [r[1]]: r[2] } : {};
+		}
+
+		let reporterOptions = argv['reporter-options'];
+		reporterOptions = typeof reporterOptions === 'string' ? [reporterOptions] : reporterOptions;
+		reporterOptions = reporterOptions.reduce((r, o) => Object.assign(r, parseReporterOption(o)), {});
+
+		return (_, runner) => new ctor(runner, { reporterOptions })
 	}
-
-	function parseReporterOption(value) {
-		let r = /^([^=]+)=(.*)$/.exec(value);
-		return r ? { [r[1]]: r[2] } : {};
-	}
-
-	let reporterOptions = argv['reporter-options'];
-	reporterOptions = typeof reporterOptions === 'string' ? [reporterOptions] : reporterOptions;
-	reporterOptions = reporterOptions.reduce((r, o) => Object.assign(r, parseReporterOption(o)), {});
-
-	return (runner) => new ctor(runner, { reporterOptions })
 })()
 
 const outdir = argv.build ? 'out-build' : 'out';
@@ -116,10 +131,22 @@ const testModules = (async function () {
 	})
 })();
 
+function consoleLogFn(msg) {
+	const type = msg.type();
+	const candidate = console[type];
+	if (candidate) {
+		return candidate;
+	}
+
+	if (type === 'warning') {
+		return console.warn;
+	}
+
+	return console.log;
+}
 
 async function runTestsInBrowser(testModules, browserType) {
-	const args = process.platform === 'linux' && browserType === 'chromium' ? ['--no-sandbox'] : undefined; // disable sandbox to run chrome on certain Linux distros
-	const browser = await playwright[browserType].launch({ headless: !Boolean(argv.debug), args });
+	const browser = await playwright[browserType].launch({ headless: !Boolean(argv.debug) });
 	const context = await browser.newContext();
 	const page = await context.newPage();
 	const target = url.pathToFileURL(path.join(__dirname, 'renderer.html'));
@@ -134,10 +161,10 @@ async function runTestsInBrowser(testModules, browserType) {
 	});
 
 	page.on('console', async msg => {
-		console[msg.type()](msg.text(), await Promise.all(msg.args().map(async arg => await arg.jsonValue())));
+		consoleLogFn(msg)(msg.text(), await Promise.all(msg.args().map(async arg => await arg.jsonValue())));
 	});
 
-	withReporter(new EchoRunner(emitter, browserType.toUpperCase()));
+	withReporter(browserType, new EchoRunner(emitter, browserType.toUpperCase()));
 
 	// collection failures for console printing
 	const fails = [];
@@ -171,6 +198,7 @@ class EchoRunner extends events.EventEmitter {
 
 	constructor(event, title = '') {
 		super();
+		createStatsCollector(this);
 		event.on('start', () => this.emit('start'));
 		event.on('end', () => this.emit('end'));
 		event.on('suite', (suite) => this.emit('suite', EchoRunner.deserializeSuite(suite, title)));
@@ -190,10 +218,10 @@ class EchoRunner extends events.EventEmitter {
 			suites: suite.suites,
 			tests: suite.tests,
 			title: titleExtra && suite.title ? `${suite.title} - /${titleExtra}/` : suite.title,
+			titlePath: () => suite.titlePath,
 			fullTitle: () => suite.fullTitle,
 			timeout: () => suite.timeout,
 			retries: () => suite.retries,
-			enableTimeouts: () => suite.enableTimeouts,
 			slow: () => suite.slow,
 			bail: () => suite.bail
 		};
@@ -203,6 +231,7 @@ class EchoRunner extends events.EventEmitter {
 		return {
 			title: runnable.title,
 			fullTitle: () => titleExtra && runnable.fullTitle ? `${runnable.fullTitle} - /${titleExtra}/` : runnable.fullTitle,
+			titlePath: () => runnable.titlePath,
 			async: runnable.async,
 			slow: () => runnable.slow,
 			speed: runnable.speed,

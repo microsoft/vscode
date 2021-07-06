@@ -45,6 +45,10 @@ class LineSequence implements ISequence {
 		return elements;
 	}
 
+	public getStrictElement(index: number): string {
+		return this.lines[index];
+	}
+
 	public getStartLineNumber(i: number): number {
 		return i + 1;
 	}
@@ -313,6 +317,13 @@ export class DiffComputer {
 
 		if (this.original.lines.length === 1 && this.original.lines[0].length === 0) {
 			// empty original => fast path
+			if (this.modified.lines.length === 1 && this.modified.lines[0].length === 0) {
+				return {
+					quitEarly: false,
+					changes: []
+				};
+			}
+
 			return {
 				quitEarly: false,
 				changes: [{

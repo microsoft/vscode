@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEnvironmentVariableInfo, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff, EnvironmentVariableMutatorType } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { EnvironmentVariableMutatorType, IEnvironmentVariableInfo, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { localize } from 'vs/nls';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { Codicon } from 'vs/base/common/codicons';
+import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
 
 export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 	readonly requiresAction = true;
@@ -53,15 +56,15 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 		return info;
 	}
 
-	getIcon(): string {
-		return 'warning';
+	getIcon(): ThemeIcon {
+		return Codicon.warning;
 	}
 
-	getActions(): { label: string, iconClass?: string, run: () => void, commandId: string }[] {
+	getActions(): IHoverAction[] {
 		return [{
 			label: localize('relaunchTerminalLabel', "Relaunch terminal"),
 			run: () => this._terminalService.getInstanceFromId(this._terminalId)?.relaunch(),
-			commandId: TERMINAL_COMMAND_ID.RELAUNCH
+			commandId: TerminalCommandId.Relaunch
 		}];
 	}
 }
@@ -83,8 +86,8 @@ export class EnvironmentVariableInfoChangesActive implements IEnvironmentVariabl
 		return message + '\n\n```\n' + changes.join('\n') + '\n```';
 	}
 
-	getIcon(): string {
-		return 'info';
+	getIcon(): ThemeIcon {
+		return Codicon.info;
 	}
 }
 

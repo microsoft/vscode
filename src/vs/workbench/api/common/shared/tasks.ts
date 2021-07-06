@@ -19,6 +19,7 @@ export interface TaskPresentationOptionsDTO {
 	showReuseMessage?: boolean;
 	clear?: boolean;
 	group?: string;
+	close?: boolean;
 }
 
 export interface RunOptionsDTO {
@@ -113,7 +114,7 @@ export interface TaskProcessStartedDTO {
 
 export interface TaskProcessEndedDTO {
 	id: string;
-	exitCode: number;
+	exitCode: number | undefined;
 }
 
 

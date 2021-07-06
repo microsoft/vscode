@@ -9,7 +9,7 @@ import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { INewScrollPosition, ScrollType } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecorationOptions, TextModelResolvedOptions, ITextModel } from 'vs/editor/common/model';
+import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecorationOptions, TextModelResolvedOptions, ITextModel, InjectedTextOptions } from 'vs/editor/common/model';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IEditorWhitespace, IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
@@ -17,6 +17,7 @@ import { EditorTheme } from 'vs/editor/common/view/viewContext';
 import { ICursorSimpleModel, PartialCursorState, CursorState, IColumnSelectData, EditOperationType, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
+import { LineInjectedText } from 'vs/editor/common/model/textModelEvents';
 
 export interface IViewWhitespaceViewportData {
 	readonly id: string;
@@ -26,7 +27,7 @@ export interface IViewWhitespaceViewportData {
 }
 
 export class Viewport {
-	readonly _viewportBrand: void;
+	readonly _viewportBrand: void = undefined;
 
 	readonly top: number;
 	readonly left: number;
@@ -61,6 +62,8 @@ export interface IViewLayout {
 	getWhitespaces(): IEditorWhitespace[];
 
 	isAfterLines(verticalOffset: number): boolean;
+	isInTopPadding(verticalOffset: number): boolean;
+	isInBottomPadding(verticalOffset: number): boolean;
 	getLineNumberAtVerticalOffset(verticalOffset: number): number;
 	getVerticalOffsetForLineNumber(lineNumber: number): number;
 	getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null;
@@ -82,6 +85,100 @@ export interface ICoordinatesConverter {
 	convertModelPositionToViewPosition(modelPosition: Position): Position;
 	convertModelRangeToViewRange(modelRange: Range): Range;
 	modelPositionIsVisible(modelPosition: Position): boolean;
+	getModelLineViewLineCount(modelLineNumber: number): number;
+}
+
+export class OutputPosition {
+	outputLineIndex: number;
+	outputOffset: number;
+
+	constructor(outputLineIndex: number, outputOffset: number) {
+		this.outputLineIndex = outputLineIndex;
+		this.outputOffset = outputOffset;
+	}
+
+	toString(): string {
+		return `${this.outputLineIndex}:${this.outputOffset}`;
+	}
+}
+
+export class LineBreakData {
+	constructor(
+		public breakOffsets: number[],
+		public breakOffsetsVisibleColumn: number[],
+		public wrappedTextIndentLength: number,
+		public injectionOffsets: number[] | null,
+		public injectionOptions: InjectedTextOptions[] | null
+	) { }
+
+	public getInputOffsetOfOutputPosition(outputLineIndex: number, outputOffset: number): number {
+		let inputOffset = 0;
+		if (outputLineIndex === 0) {
+			inputOffset = outputOffset;
+		} else {
+			inputOffset = this.breakOffsets[outputLineIndex - 1] + outputOffset;
+		}
+
+		if (this.injectionOffsets !== null) {
+			for (let i = 0; i < this.injectionOffsets.length; i++) {
+				if (inputOffset > this.injectionOffsets[i]) {
+					if (inputOffset < this.injectionOffsets[i] + this.injectionOptions![i].content.length) {
+						// `inputOffset` is within injected text
+						inputOffset = this.injectionOffsets[i];
+					} else {
+						inputOffset -= this.injectionOptions![i].content.length;
+					}
+				} else {
+					break;
+				}
+			}
+		}
+
+		return inputOffset;
+	}
+
+	public getOutputPositionOfInputOffset(inputOffset: number): OutputPosition {
+		let delta = 0;
+		if (this.injectionOffsets !== null) {
+			for (let i = 0; i < this.injectionOffsets.length; i++) {
+				if (inputOffset <= this.injectionOffsets[i]) {
+					break;
+				}
+				delta += this.injectionOptions![i].content.length;
+			}
+		}
+		inputOffset += delta;
+
+		let low = 0;
+		let high = this.breakOffsets.length - 1;
+		let mid = 0;
+		let midStart = 0;
+
+		while (low <= high) {
+			mid = low + ((high - low) / 2) | 0;
+
+			const midStop = this.breakOffsets[mid];
+			midStart = mid > 0 ? this.breakOffsets[mid - 1] : 0;
+
+			if (inputOffset < midStart) {
+				high = mid - 1;
+			} else if (inputOffset >= midStop) {
+				low = mid + 1;
+			} else {
+				break;
+			}
+		}
+
+		return new OutputPosition(mid, inputOffset - midStart);
+	}
+}
+
+export interface ILineBreaksComputer {
+	/**
+	 * Pass in `previousLineBreakData` if the only difference is in breaking columns!!!
+	 */
+	addRequest(lineText: string, injectedText: LineInjectedText[] | null, previousLineBreakData: LineBreakData | null): void;
+	finalize(): (LineBreakData | null)[];
 }
 
 export interface IViewModel extends ICursorSimpleModel {
@@ -103,6 +200,8 @@ export interface IViewModel extends ICursorSimpleModel {
 	setViewport(startLineNumber: number, endLineNumber: number, centeredLineNumber: number): void;
 	tokenizeViewport(): void;
 	setHasFocus(hasFocus: boolean): void;
+	onCompositionStart(): void;
+	onCompositionEnd(): void;
 	onDidColorThemeChange(): void;
 
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
@@ -142,6 +241,7 @@ export interface IViewModel extends ICursorSimpleModel {
 
 	//#endregion
 
+	createLineBreaksComputer(): ILineBreaksComputer;
 
 	//#region cursor
 	getPrimaryCursorState(): CursorState;
@@ -149,6 +249,7 @@ export interface IViewModel extends ICursorSimpleModel {
 	getCursorStates(): CursorState[];
 	setCursorStates(source: string | null | undefined, reason: CursorChangeReason, states: PartialCursorState[] | null): void;
 	getCursorColumnSelectData(): IColumnSelectData;
+	getCursorAutoClosedCharacters(): Range[];
 	setCursorColumnSelectData(columnSelectData: IColumnSelectData): void;
 	getPrevEditOperationType(): EditOperationType;
 	setPrevEditOperationType(type: EditOperationType): void;
@@ -183,7 +284,7 @@ export class MinimapLinesRenderingData {
 }
 
 export class ViewLineData {
-	_viewLineDataBrand: void;
+	_viewLineDataBrand: void = undefined;
 
 	/**
 	 * The content at this view line.
@@ -210,13 +311,19 @@ export class ViewLineData {
 	 */
 	public readonly tokens: IViewLineTokens;
 
+	/**
+	 * Additional inline decorations for this line.
+	*/
+	public readonly inlineDecorations: readonly SingleLineInlineDecoration[] | null;
+
 	constructor(
 		content: string,
 		continuesWithWrappedLine: boolean,
 		minColumn: number,
 		maxColumn: number,
 		startVisibleColumn: number,
-		tokens: IViewLineTokens
+		tokens: IViewLineTokens,
+		inlineDecorations: readonly SingleLineInlineDecoration[] | null
 	) {
 		this.content = content;
 		this.continuesWithWrappedLine = continuesWithWrappedLine;
@@ -224,6 +331,7 @@ export class ViewLineData {
 		this.maxColumn = maxColumn;
 		this.startVisibleColumn = startVisibleColumn;
 		this.tokens = tokens;
+		this.inlineDecorations = inlineDecorations;
 	}
 }
 
@@ -279,7 +387,7 @@ export class ViewLineRenderingData {
 		tokens: IViewLineTokens,
 		inlineDecorations: InlineDecoration[],
 		tabSize: number,
-		startVisibleColumn: number
+		startVisibleColumn: number,
 	) {
 		this.minColumn = minColumn;
 		this.maxColumn = maxColumn;
@@ -326,8 +434,25 @@ export class InlineDecoration {
 	}
 }
 
+export class SingleLineInlineDecoration {
+	constructor(
+		public readonly startOffset: number,
+		public readonly endOffset: number,
+		public readonly inlineClassName: string
+	) {
+	}
+
+	toInlineDecoration(lineNumber: number): InlineDecoration {
+		return new InlineDecoration(
+			new Range(lineNumber, this.startOffset + 1, lineNumber, this.endOffset + 1),
+			this.inlineClassName,
+			InlineDecorationType.Regular
+		);
+	}
+}
+
 export class ViewModelDecoration {
-	_viewModelDecorationBrand: void;
+	_viewModelDecorationBrand: void = undefined;
 
 	public readonly range: Range;
 	public readonly options: IModelDecorationOptions;

@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
-import { mock } from 'vs/editor/contrib/suggest/test/suggestModel.test';
+import { mock } from 'vs/base/test/common/mock';
 import { EditorWorkerHost, EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
@@ -54,8 +54,8 @@ suite('suggest, word distance', function () {
 		editor.setPosition({ lineNumber: 2, column: 2 });
 
 		let modelService = new class extends mock<IModelService>() {
-			onModelRemoved = Event.None;
-			getModel(uri: URI) {
+			override onModelRemoved = Event.None;
+			override getModel(uri: URI) {
 				return uri.toString() === model.uri.toString() ? model : null;
 			}
 		};
@@ -74,16 +74,21 @@ suite('suggest, word distance', function () {
 				});
 				model.onDidChangeContent(e => this._worker.acceptModelChanged(model.uri.toString(), e));
 			}
-			computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null> {
+			override computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null> {
 				return this._worker.computeWordRanges(resource.toString(), range, DEFAULT_WORD_REGEXP.source, DEFAULT_WORD_REGEXP.flags);
 			}
 		};
 
 		distance = await WordDistance.create(service, editor);
 
+		disposables.add(service);
 		disposables.add(mode);
 		disposables.add(model);
 		disposables.add(editor);
+	});
+
+	teardown(function () {
+		disposables.clear();
 	});
 
 	function createSuggestItem(label: string, overwriteBefore: number, position: IPosition): CompletionItem {

@@ -6,19 +6,18 @@
 import 'vs/css!./media/peekViewWidget';
 import * as dom from 'vs/base/browser/dom';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { ActionBar, IActionBarOptions } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, ActionsOrientation, IActionBarOptions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import { Color } from 'vs/base/common/color';
 import { Emitter } from 'vs/base/common/event';
 import * as objects from 'vs/base/common/objects';
-import * as strings from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IOptions, IStyles, ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import * as nls from 'vs/nls';
 import { RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor, createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -26,7 +25,7 @@ import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { registerColor, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Codicon } from 'vs/base/common/codicons';
-
+import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 export const IPeekViewService = createDecorator<IPeekViewService>('IPeekViewService');
 export interface IPeekViewService {
@@ -57,7 +56,7 @@ registerSingleton(IPeekViewService, class implements IPeekViewService {
 });
 
 export namespace PeekContext {
-	export const inPeekEditor = new RawContextKey<boolean>('inReferenceSearchEditor', true);
+	export const inPeekEditor = new RawContextKey<boolean>('inReferenceSearchEditor', true, nls.localize('inReferenceSearchEditor', "Whether the current code editor is embedded inside peek"));
 	export const notInPeekEditor = inPeekEditor.toNegated();
 }
 
@@ -107,6 +106,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 
 	private readonly _onDidClose = new Emitter<PeekViewWidget>();
 	readonly onDidClose = this._onDidClose.event;
+	private disposed?: true;
 
 	protected _headElement?: HTMLDivElement;
 	protected _primaryHeading?: HTMLElement;
@@ -115,17 +115,24 @@ export abstract class PeekViewWidget extends ZoneWidget {
 	protected _actionbarWidget?: ActionBar;
 	protected _bodyElement?: HTMLDivElement;
 
-	constructor(editor: ICodeEditor, options: IPeekViewOptions = {}) {
+	constructor(
+		editor: ICodeEditor,
+		options: IPeekViewOptions,
+		@IInstantiationService protected readonly instantiationService: IInstantiationService
+	) {
 		super(editor, options);
 		objects.mixin(this.options, defaultOptions, false);
 	}
 
-	dispose(): void {
-		super.dispose();
-		this._onDidClose.fire(this);
+	override dispose(): void {
+		if (!this.disposed) {
+			this.disposed = true; // prevent consumers who dispose on onDidClose from looping
+			super.dispose();
+			this._onDidClose.fire(this);
+		}
 	}
 
-	style(styles: IPeekViewStyles): void {
+	override style(styles: IPeekViewStyles): void {
 		let options = <IPeekViewOptions>this.options;
 		if (styles.headerBackgroundColor) {
 			options.headerBackgroundColor = styles.headerBackgroundColor;
@@ -139,7 +146,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 		super.style(styles);
 	}
 
-	protected _applyStyles(): void {
+	protected override _applyStyles(): void {
 		super._applyStyles();
 		let options = <IPeekViewOptions>this.options;
 		if (this._headElement && options.headerBackgroundColor) {
@@ -169,7 +176,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 		container.appendChild(this._bodyElement);
 	}
 
-	protected _fillHead(container: HTMLElement): void {
+	protected _fillHead(container: HTMLElement, noCloseAction?: boolean): void {
 		const titleElement = dom.$('.peekview-title');
 		dom.append(this._headElement!, titleElement);
 		dom.addStandardDisposableListener(titleElement, 'click', event => this._onTitleClick(event));
@@ -187,17 +194,22 @@ export abstract class PeekViewWidget extends ZoneWidget {
 		this._actionbarWidget = new ActionBar(actionsContainer, actionBarOptions);
 		this._disposables.add(this._actionbarWidget);
 
-		this._actionbarWidget.push(new Action('peekview.close', nls.localize('label.close', "Close"), Codicon.close.classNames, true, () => {
-			this.dispose();
-			return Promise.resolve();
-		}), { label: false, icon: true });
+		if (!noCloseAction) {
+			this._actionbarWidget.push(new Action('peekview.close', nls.localize('label.close', "Close"), Codicon.close.classNames, true, () => {
+				this.dispose();
+				return Promise.resolve();
+			}), { label: false, icon: true });
+		}
 	}
 
 	protected _fillTitleIcon(container: HTMLElement): void {
 	}
 
 	protected _getActionBarOptions(): IActionBarOptions {
-		return {};
+		return {
+			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService),
+			orientation: ActionsOrientation.HORIZONTAL
+		};
 	}
 
 	protected _onTitleClick(event: IMouseEvent): void {
@@ -206,10 +218,10 @@ export abstract class PeekViewWidget extends ZoneWidget {
 
 	setTitle(primaryHeading: string, secondaryHeading?: string): void {
 		if (this._primaryHeading && this._secondaryHeading) {
-			this._primaryHeading.innerHTML = strings.escape(primaryHeading);
-			this._primaryHeading.setAttribute('aria-label', primaryHeading);
+			this._primaryHeading.innerText = primaryHeading;
+			this._primaryHeading.setAttribute('title', primaryHeading);
 			if (secondaryHeading) {
-				this._secondaryHeading.innerHTML = strings.escape(secondaryHeading);
+				this._secondaryHeading.innerText = secondaryHeading;
 			} else {
 				dom.clearNode(this._secondaryHeading);
 			}
@@ -219,7 +231,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 	setMetaTitle(value: string): void {
 		if (this._metaHeading) {
 			if (value) {
-				this._metaHeading.innerHTML = strings.escape(value);
+				this._metaHeading.innerText = value;
 				dom.show(this._metaHeading);
 			} else {
 				dom.hide(this._metaHeading);
@@ -229,7 +241,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 
 	protected abstract _fillBody(container: HTMLElement): void;
 
-	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
+	protected override _doLayout(heightInPixel: number, widthInPixel: number): void {
 
 		if (!this._isShowing && heightInPixel < 0) {
 			// Looks like the view zone got folded away!

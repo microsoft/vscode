@@ -5,32 +5,32 @@
 
 /* --------------------------------------------------------------------------------------------
  * Includes code from typescript-sublime-plugin project, obtained from
- * https://github.com/Microsoft/TypeScript-Sublime-Plugin/blob/master/TypeScript%20Indent.tmPreferences
+ * https://github.com/microsoft/TypeScript-Sublime-Plugin/blob/master/TypeScript%20Indent.tmPreferences
  * ------------------------------------------------------------------------------------------ */
 
 import * as vscode from 'vscode';
-import { DiagnosticKind } from './features/diagnostics';
-import FileConfigurationManager from './features/fileConfigurationManager';
+import { DiagnosticKind } from './languageFeatures/diagnostics';
+import FileConfigurationManager from './languageFeatures/fileConfigurationManager';
 import LanguageProvider from './languageProvider';
 import * as Proto from './protocol';
 import * as PConst from './protocol.const';
+import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
+import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
+import { TsServerProcessFactory } from './tsServer/server';
+import { ITypeScriptVersionProvider } from './tsServer/versionProvider';
+import VersionStatus from './tsServer/versionStatus';
 import TypeScriptServiceClient from './typescriptServiceClient';
 import { coalesce, flatten } from './utils/arrays';
-import { CommandManager } from './utils/commandManager';
+import { CommandManager } from './commands/commandManager';
 import { Disposable } from './utils/dispose';
 import * as errorCodes from './utils/errorCodes';
 import { DiagnosticLanguage, LanguageDescription } from './utils/languageDescription';
-import LogDirectoryProvider from './utils/logDirectoryProvider';
 import { PluginManager } from './utils/plugins';
 import * as typeConverters from './utils/typeConverters';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
-import VersionStatus from './utils/versionStatus';
-
-namespace Experimental {
-	export interface Diagnostic extends Proto.Diagnostic {
-		readonly reportsDeprecated?: {}
-	}
-}
+import * as ProjectStatus from './utils/largeProjectStatus';
+import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
+import { LogLevelMonitor } from './utils/logLevelMonitor';
 
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = new Set([
@@ -55,21 +55,32 @@ export default class TypeScriptServiceClientHost extends Disposable {
 
 	private reportStyleCheckAsWarnings: boolean = true;
 
+	private readonly commandManager: CommandManager;
+
 	constructor(
 		descriptions: LanguageDescription[],
-		workspaceState: vscode.Memento,
-		pluginManager: PluginManager,
-		private readonly commandManager: CommandManager,
-		logDirectoryProvider: LogDirectoryProvider,
+		context: vscode.ExtensionContext,
+		onCaseInsenitiveFileSystem: boolean,
+		services: {
+			pluginManager: PluginManager,
+			commandManager: CommandManager,
+			logDirectoryProvider: ILogDirectoryProvider,
+			cancellerFactory: OngoingRequestCancellerFactory,
+			versionProvider: ITypeScriptVersionProvider,
+			processFactory: TsServerProcessFactory,
+			activeJsTsEditorTracker: ActiveJsTsEditorTracker,
+		},
 		onCompletionAccepted: (item: vscode.CompletionItem) => void,
 	) {
 		super();
 
-		const allModeIds = this.getAllModeIds(descriptions, pluginManager);
+		this.commandManager = services.commandManager;
+
+		const allModeIds = this.getAllModeIds(descriptions, services.pluginManager);
 		this.client = this._register(new TypeScriptServiceClient(
-			workspaceState,
-			pluginManager,
-			logDirectoryProvider,
+			context,
+			onCaseInsenitiveFileSystem,
+			services,
 			allModeIds));
 
 		this.client.onDiagnosticsReceived(({ kind, resource, diagnostics }) => {
@@ -79,10 +90,12 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		this.client.onConfigDiagnosticsReceived(diag => this.configFileDiagnosticsReceived(diag), null, this._disposables);
 		this.client.onResendModelsRequested(() => this.populateService(), null, this._disposables);
 
-		this._register(new VersionStatus(this.client, commandManager));
+		this._register(new VersionStatus(this.client, services.commandManager, services.activeJsTsEditorTracker));
 		this._register(new AtaProgressReporter(this.client));
 		this.typingsStatus = this._register(new TypingsStatus(this.client));
-		this.fileConfigurationManager = this._register(new FileConfigurationManager(this.client));
+		this._register(ProjectStatus.create(this.client));
+
+		this.fileConfigurationManager = this._register(new FileConfigurationManager(this.client, onCaseInsenitiveFileSystem));
 
 		for (const description of descriptions) {
 			const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus, this.fileConfigurationManager, onCompletionAccepted);
@@ -91,16 +104,16 @@ export default class TypeScriptServiceClientHost extends Disposable {
 			this.languagePerId.set(description.id, manager);
 		}
 
-		import('./features/updatePathsOnRename').then(module =>
+		import('./languageFeatures/updatePathsOnRename').then(module =>
 			this._register(module.register(this.client, this.fileConfigurationManager, uri => this.handles(uri))));
 
-		import('./features/workspaceSymbols').then(module =>
+		import('./languageFeatures/workspaceSymbols').then(module =>
 			this._register(module.register(this.client, allModeIds)));
 
 		this.client.ensureServiceStarted();
 		this.client.onReady(() => {
 			const languages = new Set<string>();
-			for (const plugin of pluginManager.plugins) {
+			for (const plugin of services.pluginManager.plugins) {
 				if (plugin.configNamespace && plugin.languages.length) {
 					this.registerExtensionLanguageProvider({
 						id: plugin.configNamespace,
@@ -135,6 +148,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 
 		vscode.workspace.onDidChangeConfiguration(this.configurationChanged, this, this._disposables);
 		this.configurationChanged();
+		this._register(new LogLevelMonitor(context));
 	}
 
 	private registerExtensionLanguageProvider(description: LanguageDescription, onCompletionAccepted: (item: vscode.CompletionItem) => void) {
@@ -213,7 +227,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 	}
 
 	private configFileDiagnosticsReceived(event: Proto.ConfigFileDiagnosticEvent): void {
-		// See https://github.com/Microsoft/TypeScript/issues/10384
+		// See https://github.com/microsoft/TypeScript/issues/10384
 		const body = event.body;
 		if (!body || !body.diagnostics || !body.configFile) {
 			return;
@@ -240,7 +254,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		return diagnostics.map(tsDiag => this.tsDiagnosticToVsDiagnostic(tsDiag, source));
 	}
 
-	private tsDiagnosticToVsDiagnostic(diagnostic: Experimental.Diagnostic, source: string): vscode.Diagnostic & { reportUnnecessary: any, reportDeprecated: any } {
+	private tsDiagnosticToVsDiagnostic(diagnostic: Proto.Diagnostic, source: string): vscode.Diagnostic & { reportUnnecessary: any, reportDeprecated: any } {
 		const { start, end, text } = diagnostic;
 		const range = new vscode.Range(typeConverters.Position.fromLocation(start), typeConverters.Position.fromLocation(end));
 		const converted = new vscode.Diagnostic(range, text, this.getDiagnosticSeverity(diagnostic));

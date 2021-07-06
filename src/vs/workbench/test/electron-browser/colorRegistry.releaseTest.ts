@@ -5,18 +5,17 @@
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IColorRegistry, Extensions, ColorContribution } from 'vs/platform/theme/common/colorRegistry';
-
 import { asText } from 'vs/platform/request/common/request';
 import * as pfs from 'vs/base/node/pfs';
 import * as path from 'vs/base/common/path';
 import * as assert from 'assert';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { RequestService } from 'vs/platform/request/node/requestService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import 'vs/workbench/workbench.desktop.main';
 import { NullLogService } from 'vs/platform/log/common/log';
-
+import { TestEnvironmentService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 
 interface ColorInfo {
 	description: string;
@@ -34,7 +33,7 @@ export const experimental: string[] = []; // 'settings.modifiedItemForeground', 
 suite('Color Registry', function () {
 
 	test('all colors documented in theme-color.md', async function () {
-		const reqContext = await new RequestService(new TestConfigurationService(), new NullLogService()).request({ url: 'https://raw.githubusercontent.com/microsoft/vscode-docs/vnext/api/references/theme-color.md' }, CancellationToken.None);
+		const reqContext = await new RequestService(new TestConfigurationService(), TestEnvironmentService, new NullLogService()).request({ url: 'https://raw.githubusercontent.com/microsoft/vscode-docs/vnext/api/references/theme-color.md' }, CancellationToken.None);
 		const content = (await asText(reqContext))!;
 
 		const expression = /\-\s*\`([\w\.]+)\`: (.*)/g;
@@ -84,10 +83,10 @@ suite('Color Registry', function () {
 		}
 
 		let undocumentedKeys = Object.keys(missing).map(k => `\`${k}\`: ${missing[k]}`);
-		assert.deepEqual(undocumentedKeys, [], 'Undocumented colors ids');
+		assert.deepStrictEqual(undocumentedKeys, [], 'Undocumented colors ids');
 
 		let superfluousKeys = Object.keys(colorsInDoc);
-		assert.deepEqual(superfluousKeys, [], 'Colors ids in doc that do not exist');
+		assert.deepStrictEqual(superfluousKeys, [], 'Colors ids in doc that do not exist');
 
 	});
 });
@@ -102,11 +101,11 @@ function getDescription(color: ColorContribution) {
 
 async function getColorsFromExtension(): Promise<{ [id: string]: string }> {
 	let extPath = getPathFromAmdModule(require, '../../../../../extensions');
-	let extFolders = await pfs.readDirsInDir(extPath);
+	let extFolders = await pfs.Promises.readDirsInDir(extPath);
 	let result: { [id: string]: string } = Object.create(null);
 	for (let folder of extFolders) {
 		try {
-			let packageJSON = JSON.parse((await pfs.readFile(path.join(extPath, folder, 'package.json'))).toString());
+			let packageJSON = JSON.parse((await pfs.Promises.readFile(path.join(extPath, folder, 'package.json'))).toString());
 			let contributes = packageJSON['contributes'];
 			if (contributes) {
 				let colors = contributes['colors'];

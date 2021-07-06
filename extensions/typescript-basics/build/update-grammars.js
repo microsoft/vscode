@@ -5,7 +5,7 @@
 // @ts-check
 'use strict';
 
-var updateGrammar = require('../../../build/npm/update-grammar');
+var updateGrammar = require('vscode-grammar-updater');
 
 function removeDom(grammar) {
 	grammar.repository['support-objects'].patterns = grammar.repository['support-objects'].patterns.filter(pattern => {
@@ -25,7 +25,10 @@ function removeNodeTypes(grammar) {
 			}
 		}
 		if (pattern.captures) {
-			if (Object.values(pattern.captures).some(capture => capture.name && capture.name.startsWith('support.variable.object.process'))) {
+			if (Object.values(pattern.captures).some(capture =>
+				capture.name && (capture.name.startsWith('support.variable.object.process')
+					|| capture.name.startsWith('support.class.console'))
+			)) {
 				return false;
 			}
 		}
@@ -74,7 +77,7 @@ function adaptToJavaScript(grammar, replacementScope) {
 	}
 }
 
-var tsGrammarRepo = 'Microsoft/TypeScript-TmLanguage';
+var tsGrammarRepo = 'microsoft/TypeScript-TmLanguage';
 updateGrammar.update(tsGrammarRepo, 'TypeScript.tmLanguage', './syntaxes/TypeScript.tmLanguage.json', grammar => patchGrammar(grammar));
 updateGrammar.update(tsGrammarRepo, 'TypeScriptReact.tmLanguage', './syntaxes/TypeScriptReact.tmLanguage.json', grammar => patchGrammar(grammar));
 updateGrammar.update(tsGrammarRepo, 'TypeScriptReact.tmLanguage', '../javascript/syntaxes/JavaScript.tmLanguage.json', grammar => adaptToJavaScript(patchGrammar(grammar), '.js'));

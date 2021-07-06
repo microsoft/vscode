@@ -30,7 +30,7 @@ async function assertRanges(lines: string[], expected: ExpectedIndentRange[], me
 		actualRanges[i] = r(actual[i].startLine, actual[i].endLine, actual[i].kind);
 	}
 	actualRanges = actualRanges.sort((r1, r2) => r1.startLine - r2.startLine);
-	assert.deepEqual(actualRanges, expected, message);
+	assert.deepStrictEqual(actualRanges, expected, message);
 }
 
 function r(startLine: number, endLine: number, kind?: string): ExpectedIndentRange {
@@ -71,7 +71,7 @@ suite('HTML Folding', async () => {
 			/*13*/'</head>',
 			/*14*/'</html>',
 		];
-		await assertRanges(input, [r(0, 13), r(1, 12), r(2, 6), r(3, 6), r(8, 11), r(9, 11)]);
+		await assertRanges(input, [r(0, 13), r(1, 12), r(2, 6), r(3, 6), r(8, 11), r(9, 11), r(9, 11)]);
 	});
 
 	test('Embedded JavaScript - incomplete', async () => {

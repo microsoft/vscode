@@ -39,6 +39,13 @@
 	margin-top: -1px; /* TODO @misolori: figure out a way to not use negative margin for alignment */
 }
 
+/* Do not push text with inline decoration when decoration on start of line */
+.monaco-editor .debug-top-stack-frame-column.start-of-line::before {
+	position: absolute;
+	top: 2px;
+	transform: translateX(-17px);
+}
+
 .monaco-editor .debug-top-stack-frame-column {
 	display: inline-flex;
 	vertical-align: middle;
@@ -95,7 +102,7 @@
 
 /* Links */
 
-.monaco-workbench .monaco-list-row .expression .value a.link {
+.monaco-workbench .monaco-list-row .expression .value a.link:hover {
 	text-decoration: underline;
 }
 

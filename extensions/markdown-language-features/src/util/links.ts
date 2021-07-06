@@ -9,11 +9,11 @@ export const Schemes = {
 	http: 'http:',
 	https: 'https:',
 	file: 'file:',
+	untitled: 'untitled',
 	mailto: 'mailto:',
 	data: 'data:',
 	vscode: 'vscode:',
 	'vscode-insiders': 'vscode-insiders:',
-	'vscode-resource': 'vscode-resource:',
 };
 
 const knownSchemes = [

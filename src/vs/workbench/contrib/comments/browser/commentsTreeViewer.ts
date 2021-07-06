@@ -120,14 +120,14 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 
 	renderElement(node: ITreeNode<CommentNode>, index: number, templateData: ICommentThreadTemplateData, height: number | undefined): void {
 		templateData.userName.textContent = node.element.comment.userName;
-		templateData.commentText.innerHTML = '';
+		templateData.commentText.innerText = '';
 		const disposables = new DisposableStore();
 		templateData.disposables.push(disposables);
 		const renderedComment = renderMarkdown(node.element.comment.body, {
 			inline: true,
 			actionHandler: {
 				callback: (content) => {
-					this.openerService.open(content).catch(onUnexpectedError);
+					this.openerService.open(content, { allowCommands: node.element.comment.body.isTrusted }).catch(onUnexpectedError);
 				},
 				disposeables: disposables
 			}
@@ -142,6 +142,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		}
 
 		templateData.commentText.appendChild(renderedComment);
+		templateData.commentText.title = renderedComment.textContent ?? '';
 	}
 
 	disposeTemplate(templateData: ICommentThreadTemplateData): void {
@@ -182,7 +183,6 @@ export class CommentsList extends WorkbenchAsyncDataTree<any, any> {
 			dataSource,
 			{
 				accessibilityProvider: options.accessibilityProvider,
-				keyboardSupport: true,
 				identityProvider: {
 					getId: (element: any) => {
 						if (element instanceof CommentsModel) {
