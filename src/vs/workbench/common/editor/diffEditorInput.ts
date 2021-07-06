@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AbstractSideBySideEditorInputSerializer, SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { EditorInput, isEditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID, Verbosity, IEditorDescriptor, IEditorPane, GroupIdentifier, IResourceDiffEditorInput, IEditorInput, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, UntypedEditorContext } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
@@ -158,8 +158,8 @@ export class DiffEditorInput extends SideBySideEditorInput {
 			return false;
 		}
 
-		if (otherInput instanceof DiffEditorInput && otherInput.forceOpenAsBinary !== this.forceOpenAsBinary) {
-			return false;
+		if (isEditorInput(otherInput)) {
+			return otherInput instanceof DiffEditorInput && otherInput.forceOpenAsBinary === this.forceOpenAsBinary;
 		}
 
 		return true;
