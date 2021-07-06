@@ -59,7 +59,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._proxy = _extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
 
 		// ITerminalService listeners
-		this._toDispose.add(_terminalService.onInstanceCreated((instance) => {
+		this._toDispose.add(_terminalService.onDidCreateInstance((instance) => {
 			this._onTerminalOpened(instance);
 			this._onInstanceDimensionsChanged(instance);
 		}));
@@ -146,13 +146,16 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		};
 		let terminal: ITerminalInstance | undefined;
 		if (launchConfig.isSplitTerminal) {
-			const activeInstance = this._terminalService.activeInstance;
+			const activeInstance = this._terminalService.getInstanceHost(launchConfig.target).activeInstance;
 			if (activeInstance) {
 				terminal = withNullAsUndefined(this._terminalService.splitInstance(activeInstance, shellLaunchConfig));
 			}
 		}
 		if (!terminal) {
-			terminal = this._terminalService.createTerminal({ config: shellLaunchConfig });
+			terminal = this._terminalService.createTerminal({
+				config: shellLaunchConfig,
+				target: launchConfig.target
+			});
 		}
 		this._extHostTerminalIds.set(extHostTerminalId, terminal.instanceId);
 	}
@@ -215,8 +218,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	public $registerProfileProvider(id: string, extensionIdentifier: string): void {
 		// Proxy profile provider requests through the extension host
 		this._profileProviders.set(id, this._terminalService.registerTerminalProfileProvider(extensionIdentifier, id, {
-			createContributedTerminalProfile: async (isSplitTerminal) => {
-				return this._proxy.$createContributedProfileTerminal(id, isSplitTerminal);
+			createContributedTerminalProfile: async (options) => {
+				return this._proxy.$createContributedProfileTerminal(id, options);
 			}
 		}));
 	}
@@ -384,7 +387,7 @@ class TerminalDataEventTracker extends Disposable {
 		this._register(this._bufferer = new TerminalDataBufferer(this._callback));
 
 		this._terminalService.instances.forEach(instance => this._registerInstance(instance));
-		this._register(this._terminalService.onInstanceCreated(instance => this._registerInstance(instance)));
+		this._register(this._terminalService.onDidCreateInstance(instance => this._registerInstance(instance)));
 		this._register(this._terminalService.onDidDisposeInstance(instance => this._bufferer.stopBuffering(instance.instanceId)));
 	}
 

@@ -36,11 +36,10 @@
 	height: 5px;
 }
 
-/* pointer size * 2 to cover offset and the hover padding */
-.monaco-workbench .workbench-hover-pointer.left   { left: -6px; }
-.monaco-workbench .workbench-hover-pointer.right  { right: 0; }
-.monaco-workbench .workbench-hover-pointer.top    { top: -6px; }
-.monaco-workbench .workbench-hover-pointer.bottom { bottom: 6px; }
+.monaco-workbench .workbench-hover-pointer.left   { left: -3px; }
+.monaco-workbench .workbench-hover-pointer.right  { right: 3px; }
+.monaco-workbench .workbench-hover-pointer.top    { top: -3px; }
+.monaco-workbench .workbench-hover-pointer.bottom { bottom: 3px; }
 
 .monaco-workbench .workbench-hover-pointer.left:after {
 	-moz-transform: rotate(135deg);

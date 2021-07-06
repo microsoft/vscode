@@ -12,21 +12,13 @@ export class GhostText {
 	constructor(
 		public readonly lineNumber: number,
 		public readonly parts: GhostTextPart[],
-		public readonly additionalLines: string[],
 		public readonly additionalReservedLineCount: number = 0
 	) {
-	}
-
-	public get isMultiLine(): boolean {
-		return this.additionalLines.length > 0;
 	}
 }
 
 export interface GhostTextPart {
-	/**
-	 * Single line text.
-	*/
-	readonly text: string;
+	readonly lines: string[];
 	readonly column: number;
 }
 

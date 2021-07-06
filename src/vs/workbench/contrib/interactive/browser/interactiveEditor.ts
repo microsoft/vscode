@@ -11,7 +11,6 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
-import { IModelService } from 'vs/editor/common/services/modelService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -35,6 +34,7 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
 import { IInteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
+import { ComplexNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 
@@ -50,7 +50,6 @@ export class InteractiveEditor extends EditorPane {
 	// #inputLineCount = 1;
 	#notebookWidgetService: INotebookEditorService;
 	#instantiationService: IInstantiationService;
-	#modelService: IModelService;
 	#modeService: IModeService;
 	#contextKeyService: IContextKeyService;
 	#notebookKernelService: INotebookKernelService;
@@ -65,13 +64,12 @@ export class InteractiveEditor extends EditorPane {
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@INotebookEditorService notebookWidgetService: INotebookEditorService,
-		@IModelService modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@INotebookKernelService notebookKernelService: INotebookKernelService,
 		@IModeService modeService: IModeService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInteractiveHistoryService historyService: IInteractiveHistoryService
+		@IInteractiveHistoryService historyService: IInteractiveHistoryService,
 	) {
 		super(
 			InteractiveEditor.ID,
@@ -81,7 +79,6 @@ export class InteractiveEditor extends EditorPane {
 		);
 		this.#instantiationService = instantiationService;
 		this.#notebookWidgetService = notebookWidgetService;
-		this.#modelService = modelService;
 		this.#contextKeyService = contextKeyService;
 		this.#notebookKernelService = notebookKernelService;
 		this.#modeService = modeService;
@@ -159,8 +156,11 @@ export class InteractiveEditor extends EditorPane {
 			isReadOnly: true
 		});
 
-		const editorModel = this.#modelService.getModel(input.inputResource) || this.#modelService.createModel('', null, input.inputResource, false);
-		this.#widgetDisposableStore.add(editorModel);
+		this.#widgetDisposableStore.add(model.notebook.onDidChangeContent(() => {
+			(model as ComplexNotebookEditorModel).setDirty(false);
+		}));
+
+		const editorModel = input.resolveInput(this.#notebookWidget.value?.activeKernel?.supportedLanguages[0] ?? 'plaintext');
 		this.#codeEditorWidget.setModel(editorModel);
 		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidContentSizeChange(e => {
 			if (!e.contentHeightChanged) {
@@ -220,7 +220,7 @@ export class InteractiveEditor extends EditorPane {
 
 		this.#widgetDisposableStore.add(editorModel.onDidChangeContent(() => {
 			if (this.input?.resource) {
-				this.#historyService.replaceLast(this.input.resource, editorModel.getValue());
+				this.#historyService.replaceLast(this.input.resource, editorModel!.getValue());
 			}
 		}));
 

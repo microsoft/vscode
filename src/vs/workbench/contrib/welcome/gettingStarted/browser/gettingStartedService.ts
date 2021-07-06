@@ -34,11 +34,17 @@ import { isLinux, isMacintosh, isWindows, OperatingSystem as OS } from 'vs/base/
 import { localize } from 'vs/nls';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import product from 'vs/platform/product/common/product';
 
 export const WorkspacePlatform = new RawContextKey<'mac' | 'linux' | 'windows' | undefined>('workspacePlatform', undefined, localize('workspacePlatform', "The platform of the current workspace, which in remote contexts may be different from the platform of the UI"));
+export const HasMultipleNewFileEntries = new RawContextKey<boolean>('hasMultipleNewFileEntries', false);
 
 export const IGettingStartedService = createDecorator<IGettingStartedService>('gettingStartedService');
+
 export const hiddenEntriesConfigurationKey = 'workbench.welcomePage.hiddenCategories';
+
+export const walkthroughMetadataConfigurationKey = 'workbench.welcomePage.walkthroughMetadata';
+export type WalkthroughMetaDataType = Map<string, { firstSeen: number; stepIDs: string[]; manaullyOpened: boolean }>;
 
 export const enum GettingStartedCategory {
 	Beginner = 'Beginner',
@@ -62,6 +68,7 @@ export interface IGettingStartedStep {
 	completionEvents: string[]
 	media:
 	| { type: 'image', path: { hc: URI, light: URI, dark: URI }, altText: string }
+	| { type: 'svg', path: URI, altText: string }
 	| { type: 'markdown', path: URI, base: URI, root: URI }
 }
 
@@ -69,6 +76,7 @@ export interface IGettingStartedWalkthroughDescriptor {
 	id: GettingStartedCategory | string
 	title: string
 	description: string
+	isFeatured: boolean
 	order: number
 	next?: string
 	icon:
@@ -115,6 +123,7 @@ export interface IGettingStartedCategory {
 	id: GettingStartedCategory | string
 	title: string
 	description: string
+	isFeatured: boolean
 	order: number
 	next?: string
 	icon:
@@ -135,6 +144,7 @@ export interface IGettingStartedCategoryWithProgress extends Omit<IGettingStarte
 	| {
 		type: 'steps',
 		steps: IGettingStartedStepWithProgress[],
+		accolades: 'newCategory' | 'newContent' | 'featured' | undefined
 		done: boolean;
 		stepsComplete: number
 		stepsTotal: number
@@ -163,8 +173,13 @@ export interface IGettingStartedService {
 
 	selectNewEntry(categories: IGettingStartedNewMenuEntryDescriptorCategory[]): Promise<void>;
 
+	markWalkthroughOpened(id: string): void;
+
 	installedExtensionsRegistered: Promise<void>;
 }
+
+// Show walkthrough as "new" for 7 days after first install
+const NEW_WALKTHROUGH_TIME = 7 * 24 * 60 * 60 * 1000;
 
 export class GettingStartedService extends Disposable implements IGettingStartedService {
 	declare readonly _serviceBrand: undefined;
@@ -208,6 +223,8 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	private triggerInstalledExtensionsRegistered!: () => void;
 	installedExtensionsRegistered: Promise<void>;
 
+	private metadata: WalkthroughMetaDataType;
+
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -227,6 +244,9 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 
 		this.tasExperimentService = tasExperimentService;
 
+		this.metadata = new Map(
+			JSON.parse(
+				this.storageService.get(walkthroughMetadataConfigurationKey, StorageScope.GLOBAL, '[]')));
 
 		const builtinNewMenuItems = [
 			{
@@ -291,6 +311,8 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			e.affectedKeys.forEach(key => { this.progressByEvent('onSettingChanged:' + key); });
 		}));
 
+		HasMultipleNewFileEntries.bindTo(this.contextService).set(false);
+
 		this.remoteAgentService.getEnvironment().then(env => {
 			const remoteOS = env?.os;
 
@@ -353,12 +375,18 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 								altText: step.media.altText,
 								path: convertInternalMediaPathsToBrowserURIs(step.media.path)
 							}
-							: {
-								type: 'markdown',
-								path: convertInternalMediaPathToFileURI(step.media.path).with({ query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcome/gettingStarted/common/media/' + step.media.path }) }),
-								base: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/', require),
-								root: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/', require),
-							},
+							: step.media.type === 'svg'
+								? {
+									type: 'svg',
+									altText: step.media.altText,
+									path: convertInternalMediaPathToFileURI(step.media.path).with({ query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcome/gettingStarted/common/media/' + step.media.path }) })
+								}
+								: {
+									type: 'markdown',
+									path: convertInternalMediaPathToFileURI(step.media.path).with({ query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcome/gettingStarted/common/media/' + step.media.path }) }),
+									base: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/', require),
+									root: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/', require),
+								},
 					});
 				}));
 		});
@@ -371,8 +399,8 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		qp.matchOnDetail = true;
 		qp.matchOnDescription = true;
 
-		if (this.newMenuItems
-			.filter(entry => categories.includes(entry.category)).length === 1) {
+		if (this.newMenuItems.filter(entry => categories.includes(entry.category)).length === 1
+			&& !(categories.length === 1 && categories[0] === IGettingStartedNewMenuEntryDescriptorCategory.folder)) {
 			const selection = this.newMenuItems
 				.filter(entry => categories.includes(entry.category))[0];
 
@@ -383,6 +411,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 					await this.instantiationService.invokeFunction<unknown>(selection.action.invokeFunction);
 				}
 			}
+			return;
 		}
 
 		const refreshQp = () => {
@@ -431,6 +460,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 					await this.instantiationService.invokeFunction<unknown>(selected.action.invokeFunction);
 				}
 			}
+			qp.hide();
 		}));
 
 		disposables.add(qp.onDidHide(() => {
@@ -484,6 +514,10 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	}
 
 	private async registerExtensionNewContributions(extension: IExtensionDescription) {
+		if (product.quality === 'stable' && !this.configurationService.getValue('workbench.welcome.experimental.startEntries')) {
+			console.warn('Warning: ignoring startEntries contributed by', extension.identifier, 'becuase this is a stable build and welcome.experimental.startEntries has not been set');
+			return;
+		}
 		extension.contributes?.startEntries?.forEach(entry => {
 			this.registerNewMenuItem({
 				sourceExtensionId: extension.identifier.value,
@@ -495,6 +529,15 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				from: extension.displayName ?? extension.name,
 			});
 		});
+	}
+
+	markWalkthroughOpened(id: string) {
+		const walkthrough = this.gettingStartedContributions.get(id);
+		const prior = this.metadata.get(id);
+		if (prior && walkthrough && walkthrough.content.type === 'steps') {
+			this.metadata.set(id, { ...prior, manaullyOpened: true, stepIDs: walkthrough.content.steps.map(s => s.id) });
+		}
+		this.storageService.store(walkthroughMetadataConfigurationKey, JSON.stringify([...this.metadata.entries()]), StorageScope.GLOBAL, StorageTarget.USER);
 	}
 
 	private async registerExtensionWalkthroughContributions(extension: IExtensionDescription) {
@@ -528,6 +571,11 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		await Promise.all(extension.contributes?.walkthroughs?.map(async (walkthrough, index) => {
 			const categoryID = extension.identifier.value + '#' + walkthrough.id;
 
+			const isNewlyInstalled = !this.metadata.get(categoryID);
+			if (isNewlyInstalled) {
+				this.metadata.set(categoryID, { firstSeen: +new Date(), stepIDs: walkthrough.steps.map(s => s.id), manaullyOpened: false });
+			}
+
 			const override = await Promise.race([
 				this.tasExperimentService?.getTreatment<string>(`gettingStarted.overrideCategory.${categoryID}.when`),
 				new Promise<string | undefined>(resolve => setTimeout(() => resolve(walkthrough.when), 5000))
@@ -538,17 +586,18 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				&& this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(override ?? walkthrough.when) ?? ContextKeyExpr.true())
 			) {
 				this.sessionInstalledExtensions.delete(extension.identifier.value.toLowerCase());
-				if (index < sectionToOpenIndex) {
+				if (index < sectionToOpenIndex && isNewlyInstalled) {
 					sectionToOpen = categoryID;
 					sectionToOpenIndex = index;
 				}
 			}
 
-			const walkthoughDescriptior = {
+			const walkthoughDescriptior: IGettingStartedWalkthroughDescriptor = {
 				content: { type: 'steps' },
 				description: walkthrough.description,
 				title: walkthrough.title,
 				id: categoryID,
+				isFeatured: false,
 				order: Math.min(),
 				icon: {
 					type: 'image',
@@ -619,6 +668,8 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			this.registerWalkthrough(walkthoughDescriptior, steps);
 		}));
 
+		this.storageService.store(walkthroughMetadataConfigurationKey, JSON.stringify([...this.metadata.entries()]), StorageScope.GLOBAL, StorageTarget.USER);
+
 		this.triggerInstalledExtensionsRegistered();
 
 		if (sectionToOpen && this.configurationService.getValue<string>('workbench.welcomePage.walkthroughs.openOnInstall')) {
@@ -627,9 +678,12 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	}
 
 	private registerNewMenuItem(categoryDescriptor: IGettingStartedNewMenuEntryDescriptor) {
-		let insertIndex = (this.newMenuItems.findIndex(entry => categoryDescriptor.category < entry.category));
-		if (insertIndex === -1) { insertIndex = this.newMenuItems.length; }
-		this.newMenuItems.splice(insertIndex, 0, categoryDescriptor);
+		this.newMenuItems.push(categoryDescriptor);
+		this.newMenuItems.sort((a, b) => b.category - a.category);
+		if (categoryDescriptor.category === IGettingStartedNewMenuEntryDescriptorCategory.file || categoryDescriptor.category === IGettingStartedNewMenuEntryDescriptorCategory.notebook) {
+			HasMultipleNewFileEntries.bindTo(this.contextService).set(true);
+		}
+
 		this._onDidAddNewEntry.fire();
 	}
 
@@ -655,6 +709,11 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		}
 
 		this.newMenuItems = this.newMenuItems.filter(entry => entry.sourceExtensionId !== extension.identifier.value);
+		HasMultipleNewFileEntries.bindTo(this.contextService).set(
+			this.newMenuItems.filter(entry =>
+				entry.category === IGettingStartedNewMenuEntryDescriptorCategory.file
+				|| entry.category === IGettingStartedNewMenuEntryDescriptorCategory.notebook).length > 1
+		);
 	}
 
 	private registerDoneListeners(step: IGettingStartedStep) {
@@ -753,7 +812,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			})
 			.filter(category => category.content.type !== 'steps' || category.content.steps.length)
 			.map(category => this.getCategoryProgress(category))
-			.sort((a, b) => a.priority - b.priority);
+			.sort((a, b) => b.priority - a.priority);
 		return categoriesWithCompletion;
 	}
 
@@ -764,12 +823,47 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		const stepsWithProgress = category.content.steps.map(step => this.getStepProgress(step));
 		const stepsComplete = stepsWithProgress.filter(step => step.done);
 
+		const isFeatured = category.isFeatured;
+
+		const hasOpened = this.metadata.get(category.id)?.manaullyOpened;
+		const firstSeenDate = this.metadata.get(category.id)?.firstSeen;
+		const isNew = firstSeenDate && firstSeenDate > (+new Date() - NEW_WALKTHROUGH_TIME);
+
+		const lastStepIDs = this.metadata.get(category.id)?.stepIDs;
+		const rawCategory = this.gettingStartedContributions.get(category.id);
+		let currentStepIds: string[] = [];
+		if (rawCategory?.content.type === 'steps') {
+			currentStepIds = rawCategory.content.steps.map(s => s.id);
+		}
+		const hasNewSteps = lastStepIDs && (currentStepIds.length !== lastStepIDs.length || currentStepIds.some((id, index) => id !== lastStepIDs[index]));
+
+		let priority = 0;
+
+		if (isFeatured) {
+			priority += 20;
+		}
+
+		if (isNew && firstSeenDate) {
+			priority += 10 + (NEW_WALKTHROUGH_TIME - (+new Date() - firstSeenDate)) / (24 * 60 * 60 * 1000);
+		}
+
+		if (hasNewSteps) {
+			priority += 1;
+		}
+
 		return {
 			...category,
-			priority: 1 - (stepsComplete.length / stepsWithProgress.length),
+			priority,
 			content: {
 				type: 'steps',
 				steps: stepsWithProgress,
+				accolades:
+					isFeatured ? 'featured'
+						: (isNew && !hasOpened) ? 'newCategory'
+							: hasNewSteps ? 'newContent'
+								: undefined,
+
+				// accolades: Math.random() < 0.333 ? 'featured' : Math.random() < 0.5 ? 'newCategory' : 'newContent',
 				stepsComplete: stepsComplete.length,
 				stepsTotal: stepsWithProgress.length,
 				done: stepsComplete.length === stepsWithProgress.length,
@@ -816,7 +910,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			return;
 		}
 
-		const category: IGettingStartedCategory = { ...categoryDescriptor };
+		const category: IGettingStartedCategory = { ...categoryDescriptor, isFeatured: false };
 
 		this.gettingStartedContributions.set(categoryDescriptor.id, category);
 		this._onDidAddCategory.fire();
@@ -830,6 +924,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		}
 
 		const category: IGettingStartedCategory = { ...categoryDescriptor, content: { type: 'steps', steps } };
+
 		this.gettingStartedContributions.set(categoryDescriptor.id, category);
 		steps.forEach(step => {
 			if (this.steps.has(step.id)) { throw Error('Attempting to register step with id ' + step.id + ' twice. Second is dropped.'); }
@@ -873,10 +968,10 @@ const convertInternalMediaPathToFileURI = (path: string) => path.startsWith('htt
 	? URI.parse(path, true)
 	: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/' + path, require);
 
+const convertInternalMediaPathToBrowserURI = (path: string) => path.startsWith('https://')
+	? URI.parse(path, true)
+	: FileAccess.asBrowserUri('vs/workbench/contrib/welcome/gettingStarted/common/media/' + path, require);
 const convertInternalMediaPathsToBrowserURIs = (path: string | { hc: string, dark: string, light: string }): { hc: URI, dark: URI, light: URI } => {
-	const convertInternalMediaPathToBrowserURI = (path: string) => path.startsWith('https://')
-		? URI.parse(path, true)
-		: FileAccess.asBrowserUri('vs/workbench/contrib/welcome/gettingStarted/common/media/' + path, require);
 	if (typeof path === 'string') {
 		const converted = convertInternalMediaPathToBrowserURI(path);
 		return { hc: converted, dark: converted, light: converted };
@@ -894,7 +989,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'resetGettingStartedProgress',
 			category: 'Developer',
-			title: 'Reset Welcome Page Walkthrough Progress',
+			title: 'Reset Welcome Page Getting Started Progress',
 			f1: true
 		});
 	}
@@ -905,6 +1000,12 @@ registerAction2(class extends Action2 {
 
 		storageService.store(
 			hiddenEntriesConfigurationKey,
+			JSON.stringify([]),
+			StorageScope.GLOBAL,
+			StorageTarget.USER);
+
+		storageService.store(
+			walkthroughMetadataConfigurationKey,
 			JSON.stringify([]),
 			StorageScope.GLOBAL,
 			StorageTarget.USER);

@@ -36,7 +36,7 @@ import { updateEditorTopPadding } from 'vs/workbench/contrib/notebook/common/not
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { NotebookEditorDescriptor, NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { ComplexNotebookProviderInfo, INotebookContentProvider, INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { RegisteredEditorInfo, RegisteredEditorPriority, DiffEditorInputFactoryFunction, EditorInputFactoryFunction, IEditorOverrideService, IEditorType } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { RegisteredEditorInfo, RegisteredEditorPriority, DiffEditorInputFactoryFunction, EditorInputFactoryFunction, IEditorOverrideService, IEditorType, UntitledEditorInputFactoryFunction } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
@@ -47,6 +47,8 @@ export class NotebookProviderInfoStore extends Disposable {
 
 	private readonly _memento: Memento;
 	private _handled: boolean = false;
+
+	private _untitledCounter = 1;
 
 	private readonly _contributedEditors = new Map<string, NotebookProviderInfo>();
 	private readonly _contributedEditorDisposables = new DisposableStore();
@@ -154,7 +156,7 @@ export class NotebookProviderInfoStore extends Disposable {
 				canHandleDiff: () => !!this._configurationService.getValue(NotebookTextDiffEditorPreview) && !this._accessibilityService.isScreenReaderOptimized(),
 				canSupportResource: (resource: URI) => resource.scheme === Schemas.untitled || resource.scheme === Schemas.vscodeNotebookCell || this._fileService.canHandleResource(resource)
 			};
-			const notebookEditorInputFactory: EditorInputFactoryFunction = (resource, options, group) => {
+			const notebookEditorInputFactory: EditorInputFactoryFunction = ({ resource, options }) => {
 				const data = CellUri.parse(resource);
 				let notebookUri: URI = resource;
 				let cellOptions: IResourceEditorInput | undefined;
@@ -167,10 +169,17 @@ export class NotebookProviderInfoStore extends Disposable {
 				const notebookOptions: INotebookEditorOptions = { ...options, cellOptions };
 				return { editor: NotebookEditorInput.create(this._instantiationService, notebookUri, notebookProviderInfo.id), options: notebookOptions };
 			};
-			const notebookEditorDiffFactory: DiffEditorInputFactoryFunction = diffEditorInput => {
-				const modifiedInput = diffEditorInput.modifiedInput;
-				const originalInput = diffEditorInput.originalInput;
-				return { editor: NotebookDiffEditorInput.create(this._instantiationService, modifiedInput.resource!, undefined, undefined, originalInput.resource!, notebookProviderInfo.id) };
+			const notebookUntitledEditorFactory: UntitledEditorInputFactoryFunction = ({ resource, options }) => {
+				if (!resource) {
+					resource = URI.from({
+						scheme: Schemas.untitled,
+						path: `Untitled-${this._untitledCounter++}`
+					});
+				}
+				return { editor: NotebookEditorInput.create(this._instantiationService, resource.with({ scheme: Schemas.untitled }), notebookProviderInfo.id), options };
+			};
+			const notebookDiffEditorInputFactory: DiffEditorInputFactoryFunction = ({ modified, original }) => {
+				return { editor: NotebookDiffEditorInput.create(this._instantiationService, modified.resource!, undefined, undefined, original.resource!, notebookProviderInfo.id) };
 			};
 			// Register the notebook editor
 			disposables.add(this._editorOverrideService.registerEditor(
@@ -178,7 +187,8 @@ export class NotebookProviderInfoStore extends Disposable {
 				notebookEditorInfo,
 				notebookEditorOptions,
 				notebookEditorInputFactory,
-				notebookEditorDiffFactory
+				notebookUntitledEditorFactory,
+				notebookDiffEditorInputFactory
 			));
 			// Then register the schema handler as exclusive for that notebook
 			disposables.add(this._editorOverrideService.registerEditor(
@@ -186,7 +196,8 @@ export class NotebookProviderInfoStore extends Disposable {
 				{ ...notebookEditorInfo, priority: RegisteredEditorPriority.exclusive },
 				notebookEditorOptions,
 				notebookEditorInputFactory,
-				notebookEditorDiffFactory
+				undefined,
+				notebookDiffEditorInputFactory
 			));
 		}
 
@@ -600,7 +611,7 @@ export class NotebookService extends Disposable implements INotebookService {
 					orderMimeTypes.push({
 						mimeType: mimeType,
 						rendererId: BUILTIN_RENDERER_ID,
-						isTrusted: mimeTypeIsAlwaysSecure(mimeType) || this.workspaceTrustManagementService.isWorkpaceTrusted()
+						isTrusted: mimeTypeIsAlwaysSecure(mimeType) || this.workspaceTrustManagementService.isWorkspaceTrusted()
 					});
 				}
 			} else {
@@ -608,7 +619,7 @@ export class NotebookService extends Disposable implements INotebookService {
 					orderMimeTypes.push({
 						mimeType: mimeType,
 						rendererId: BUILTIN_RENDERER_ID,
-						isTrusted: mimeTypeIsAlwaysSecure(mimeType) || this.workspaceTrustManagementService.isWorkpaceTrusted()
+						isTrusted: mimeTypeIsAlwaysSecure(mimeType) || this.workspaceTrustManagementService.isWorkspaceTrusted()
 					});
 				} else {
 					orderMimeTypes.push({

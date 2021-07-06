@@ -1,6 +1,6 @@
 {
 	"fileTypes": [],
-	"injectionSelector": "L:meta.paragraph.markdown - (comment, string, markup.math.inline.markdown)",
+	"injectionSelector": "L:meta.paragraph.markdown - (comment, string, markup.math.inline.markdown, markup.fenced_code.block.markdown)",
 	"patterns": [
 		{
 			"include": "#math_inline"

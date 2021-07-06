@@ -9,9 +9,9 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Codicon, CSSIcon } from 'vs/base/common/codicons';
-import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { BaseActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { IAction } from 'vs/base/common/actions';
 
 export interface ICheckboxOpts extends ICheckboxStyles {
 	readonly actionClassName?: string;
@@ -41,21 +41,21 @@ const defaultOpts = {
 
 export class CheckboxActionViewItem extends BaseActionViewItem {
 
-	protected checkbox: Checkbox | undefined;
-	protected readonly disposables = new DisposableStore();
+	protected readonly checkbox: Checkbox;
+
+	constructor(context: any, action: IAction, options: IActionViewItemOptions | undefined) {
+		super(context, action, options);
+		this.checkbox = this._register(new Checkbox({
+			actionClassName: this._action.class,
+			isChecked: this._action.checked,
+			title: (<IActionViewItemOptions>this.options).keybinding ? `${this._action.label} (${(<IActionViewItemOptions>this.options).keybinding})` : this._action.label,
+			notFocusable: true
+		}));
+		this._register(this.checkbox.onChange(() => this._action.checked = !!this.checkbox && this.checkbox.checked));
+	}
 
 	override render(container: HTMLElement): void {
 		this.element = container;
-
-		this.disposables.clear();
-		this.checkbox = new Checkbox({
-			actionClassName: this._action.class,
-			isChecked: this._action.checked,
-			title: this._action.label,
-			notFocusable: true
-		});
-		this.disposables.add(this.checkbox);
-		this.disposables.add(this.checkbox.onChange(() => this._action.checked = !!this.checkbox && this.checkbox.checked, this));
 		this.element.appendChild(this.checkbox.domNode);
 	}
 
@@ -70,35 +70,23 @@ export class CheckboxActionViewItem extends BaseActionViewItem {
 	}
 
 	override updateChecked(): void {
-		if (this.checkbox) {
-			this.checkbox.checked = this._action.checked;
-		}
+		this.checkbox.checked = this._action.checked;
 	}
 
 	override focus(): void {
-		if (this.checkbox) {
-			this.checkbox.domNode.tabIndex = 0;
-			this.checkbox.focus();
-		}
+		this.checkbox.domNode.tabIndex = 0;
+		this.checkbox.focus();
 	}
 
 	override blur(): void {
-		if (this.checkbox) {
-			this.checkbox.domNode.tabIndex = -1;
-			this.checkbox.domNode.blur();
-		}
+		this.checkbox.domNode.tabIndex = -1;
+		this.checkbox.domNode.blur();
 	}
 
 	override setFocusable(focusable: boolean): void {
-		if (this.checkbox) {
-			this.checkbox.domNode.tabIndex = focusable ? 0 : -1;
-		}
+		this.checkbox.domNode.tabIndex = focusable ? 0 : -1;
 	}
 
-	override dispose(): void {
-		this.disposables.dispose();
-		super.dispose();
-	}
 }
 
 export class Checkbox extends Widget {
@@ -216,6 +204,7 @@ export class Checkbox extends Widget {
 	disable(): void {
 		this.domNode.setAttribute('aria-disabled', String(true));
 	}
+
 }
 
 export class SimpleCheckbox extends Widget {

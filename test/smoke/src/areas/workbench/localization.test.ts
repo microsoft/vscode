@@ -36,9 +36,11 @@ export function setup(opts: minimist.ParsedArgs) {
 					throw new Error(`Received wrong localized strings: ${JSON.stringify(result, undefined, 0)}`);
 				}
 				return;
+			} else {
+				if (result.open.toLowerCase() !== 'öffnen' || result.close.toLowerCase() !== 'schließen' || result.find.toLowerCase() !== 'finden') {
+					throw new Error(`Received wrong German localized strings: ${JSON.stringify(result, undefined, 0)}`);
+				}
 			}
-
-			// As soon as strings are translated in the next round we can check for german as well.
 		});
 	});
 }

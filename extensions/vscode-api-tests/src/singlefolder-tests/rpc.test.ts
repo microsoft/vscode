@@ -63,7 +63,6 @@ suite('vscode', function () {
 	});
 
 	test('no rpc, createCommentController(...)', function () {
-		this.skip();
 		const item = vscode.comments.createCommentController('foo', 'Hello');
 		dispo.push(item);
 		assertNoRpcFromEntry([item, 'CommentController']);

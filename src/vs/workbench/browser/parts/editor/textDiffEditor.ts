@@ -76,7 +76,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 	}
 
 	private onDidChangeFileSystemProvider(scheme: string): void {
-		if (this.input instanceof DiffEditorInput && (this.input.originalInput.resource?.scheme === scheme || this.input.modifiedInput.resource?.scheme === scheme)) {
+		if (this.input instanceof DiffEditorInput && (this.input.original.resource?.scheme === scheme || this.input.modified.resource?.scheme === scheme)) {
 			this.updateReadonly(this.input);
 		}
 	}
@@ -91,8 +91,8 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		const control = this.getControl();
 		if (control) {
 			control.updateOptions({
-				readOnly: input.modifiedInput.hasCapability(EditorInputCapabilities.Readonly),
-				originalEditable: !input.originalInput.hasCapability(EditorInputCapabilities.Readonly)
+				readOnly: input.modified.hasCapability(EditorInputCapabilities.Readonly),
+				originalEditable: !input.original.hasCapability(EditorInputCapabilities.Readonly)
 			});
 		}
 	}
@@ -204,19 +204,19 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 	}
 
 	private openAsBinary(input: DiffEditorInput, options: ITextEditorOptions | undefined): void {
-		const originalInput = input.originalInput;
-		const modifiedInput = input.modifiedInput;
+		const original = input.original;
+		const modified = input.modified;
 
-		const binaryDiffInput = this.instantiationService.createInstance(DiffEditorInput, input.getName(), input.getDescription(), originalInput, modifiedInput, true);
+		const binaryDiffInput = this.instantiationService.createInstance(DiffEditorInput, input.getName(), input.getDescription(), original, modified, true);
 
 		// Forward binary flag to input if supported
 		const fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getFileEditorInputFactory();
-		if (fileEditorInputFactory.isFileEditorInput(originalInput)) {
-			originalInput.setForceOpenAsBinary();
+		if (fileEditorInputFactory.isFileEditorInput(original)) {
+			original.setForceOpenAsBinary();
 		}
 
-		if (fileEditorInputFactory.isFileEditorInput(modifiedInput)) {
-			modifiedInput.setForceOpenAsBinary();
+		if (fileEditorInputFactory.isFileEditorInput(modified)) {
+			modified.setForceOpenAsBinary();
 		}
 
 		// Replace this editor with the binary one
@@ -260,8 +260,8 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 	protected override getConfigurationOverrides(): ICodeEditorOptions {
 		const options: IDiffEditorOptions = super.getConfigurationOverrides();
 
-		options.readOnly = this.input instanceof DiffEditorInput && this.input.modifiedInput.hasCapability(EditorInputCapabilities.Readonly);
-		options.originalEditable = this.input instanceof DiffEditorInput && !this.input.originalInput.hasCapability(EditorInputCapabilities.Readonly);
+		options.readOnly = this.input instanceof DiffEditorInput && this.input.modified.hasCapability(EditorInputCapabilities.Readonly);
+		options.originalEditable = this.input instanceof DiffEditorInput && !this.input.original.hasCapability(EditorInputCapabilities.Readonly);
 		options.lineDecorationsWidth = '2ch';
 
 		return options;
@@ -369,8 +369,8 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		let modified: URI | undefined;
 
 		if (modelOrInput instanceof DiffEditorInput) {
-			original = modelOrInput.originalInput.resource;
-			modified = modelOrInput.modifiedInput.resource;
+			original = modelOrInput.original.resource;
+			modified = modelOrInput.modified.resource;
 		} else {
 			original = modelOrInput.original.uri;
 			modified = modelOrInput.modified.uri;

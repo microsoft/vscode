@@ -109,6 +109,9 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 	private readonly _focusDelayer = this._register(new ThrottledDelayer(50));
 
+	private readonly _onDidHtmlChange: Emitter<string> = this._register(new Emitter<string>());
+	protected readonly onDidHtmlChange = this._onDidHtmlChange.event;
+
 	constructor(
 		public readonly id: string,
 		private readonly options: WebviewOptions,
@@ -375,6 +378,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			options: this.content.options,
 			state: this.content.state,
 		});
+		this._onDidHtmlChange.fire(value);
 	}
 
 	protected get webviewRootResourceAuthority(): string {

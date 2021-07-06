@@ -67,7 +67,7 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		throw new Error('Method not implemented.');
 	}
 
-	isWorkpaceTrusted(): boolean {
+	isWorkspaceTrusted(): boolean {
 		return this.trusted;
 	}
 

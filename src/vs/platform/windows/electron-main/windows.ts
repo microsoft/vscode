@@ -62,6 +62,7 @@ export const enum WindowMode {
 
 export interface ILoadEvent {
 	workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined;
+	isReload: boolean;
 }
 
 export interface ICodeWindow extends IDisposable {

@@ -104,12 +104,6 @@ export interface IResourceEditorInput extends IBaseResourceEditorInput {
 	readonly resource: URI;
 }
 
-export function isResourceEditorInput(editor: unknown): editor is IResourceEditorInput {
-	const candidate = editor as IResourceEditorInput | undefined;
-
-	return URI.isUri(candidate?.resource);
-}
-
 export interface ITextResourceEditorInput extends IResourceEditorInput, IBaseTextResourceEditorInput {
 
 	/**
@@ -146,7 +140,7 @@ export enum EditorActivation {
 	 * Activate the editor after it opened. This will automatically restore
 	 * the editor if it is minimized.
 	 */
-	ACTIVATE,
+	ACTIVATE = 1,
 
 	/**
 	 * Only restore the editor if it is minimized but do not activate it.

@@ -191,8 +191,7 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 	$trySetSelections(id: string, ranges: ICellRange[]): void {
 		const editor = this._notebookEditorService.getNotebookEditor(id);
 		if (editor) {
-			// @rebornix how to set an editor selection?
-			// editor.setSelections(ranges)
+			editor.setSelections(ranges);
 		}
 	}
 }
