@@ -359,9 +359,9 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 	) {
 		super(null, action, getTerminalSelectOpenItems(_terminalService, _terminalGroupService), _terminalGroupService.activeGroupIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.'), optionsAsChildren: true });
 		this._register(_terminalService.onDidChangeInstances(() => this._updateItems(), this));
-		this._register(_terminalService.onActiveGroupChanged(() => this._updateItems(), this));
+		this._register(_terminalService.onDidChangeActiveGroup(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeActiveInstance(() => this._updateItems(), this));
-		this._register(_terminalService.onInstanceTitleChanged(() => this._updateItems(), this));
+		this._register(_terminalService.onDidChangeInstanceTitle(() => this._updateItems(), this));
 		this._register(_terminalGroupService.onDidChangeGroups(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeConnectionState(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeAvailableProfiles(() => this._updateItems(), this));
@@ -433,11 +433,11 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		}, keybindingService, notificationService, contextKeyService);
 
 		// Register listeners to update the tab
-		this._register(this._terminalService.onInstancePrimaryStatusChanged(e => this.updateLabel(e)));
+		this._register(this._terminalService.onDidChangeInstancePrimaryStatus(e => this.updateLabel(e)));
 		this._register(this._terminalGroupService.onDidChangeActiveInstance(() => this.updateLabel()));
-		this._register(this._terminalService.onInstanceIconChanged(e => this.updateLabel(e)));
-		this._register(this._terminalService.onInstanceColorChanged(e => this.updateLabel(e)));
-		this._register(this._terminalService.onInstanceTitleChanged(e => {
+		this._register(this._terminalService.onDidChangeInstanceIcon(e => this.updateLabel(e)));
+		this._register(this._terminalService.onDidChangeInstanceColor(e => this.updateLabel(e)));
+		this._register(this._terminalService.onDidChangeInstanceTitle(e => {
 			if (e === this._terminalGroupService.activeInstance) {
 				this._action.tooltip = getSingleTabTooltip(e);
 				this.updateLabel();
@@ -590,8 +590,8 @@ class TerminalThemeIconStyle extends Themable {
 	}
 
 	private _registerListeners(): void {
-		this._register(this._terminalService.onInstanceIconChanged(() => this.updateStyles()));
-		this._register(this._terminalService.onInstanceColorChanged(() => this.updateStyles()));
+		this._register(this._terminalService.onDidChangeInstanceIcon(() => this.updateStyles()));
+		this._register(this._terminalService.onDidChangeInstanceColor(() => this.updateStyles()));
 		this._register(this._terminalService.onDidChangeInstances(() => this.updateStyles()));
 		this._register(this._terminalGroupService.onDidChangeGroups(() => this.updateStyles()));
 	}
