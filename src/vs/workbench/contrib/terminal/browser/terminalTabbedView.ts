@@ -365,7 +365,7 @@ export class TerminalTabbedView extends Disposable {
 
 					// copyPaste: Shift+right click should open context menu
 					if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
-						openContextMenu(event, this._parentElement, this._instanceMenu, this._contextMenuService,);
+						openContextMenu(event, this._parentElement, this._instanceMenu, this._contextMenuService);
 						return;
 					}
 
