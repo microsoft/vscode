@@ -766,7 +766,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 	private createCopyCommandLabelAction(keybinding: IKeybindingItemEntry): IAction {
 		return <IAction>{
 			label: localize('copyCommandLabelLabel', "Copy Command Label"),
-			enabled: true,
+			enabled: !!keybinding.keybindingItem.commandLabel,
 			id: KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_LABEL,
 			run: () => this.copyKeybindingCommandLabel(keybinding)
 		};
