@@ -91,10 +91,6 @@ import 'vs/workbench/services/remote/electron-browser/tunnelServiceImpl';
 
 //#region --- workbench contributions
 
-// Webview
-import 'vs/workbench/contrib/webview/electron-browser/webview.contribution';
-
-
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //
 // NOTE: Please do NOT register services here. Use `registerSingleton()`
