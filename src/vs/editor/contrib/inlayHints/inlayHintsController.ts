@@ -66,11 +66,11 @@ export class InlayHintsController implements IEditorContribution {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@IThemeService private readonly _themeService: IThemeService
+		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		this._disposables.add(InlayHintsProviderRegistry.onDidChange(() => this._update()));
 		this._disposables.add(_themeService.onDidColorThemeChange(() => this._update()));
-		this._disposables.add(_editor.onDidChangeModel((e) => this._update()));
+		this._disposables.add(_editor.onDidChangeModel(() => this._update()));
 		this._disposables.add(_editor.onDidChangeModelLanguage(() => this._update()));
 		this._disposables.add(_editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.inlayHints)) {
