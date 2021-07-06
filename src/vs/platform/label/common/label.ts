@@ -18,10 +18,11 @@ export interface ILabelService {
 
 	/**
 	 * Gets the human readable label for a uri.
-	 * If relative is passed returns a label relative to the workspace root that the uri belongs to.
-	 * If noPrefix is passed does not tildify the label and also does not prepand the root name for relative labels in a multi root scenario.
+	 * If `relative` is passed returns a label relative to the workspace root that the uri belongs to.
+	 * If `noPrefix` is passed does not tildify the label and also does not prepand the root name for relative labels in a multi root scenario.
+	 * If `separator` is passed, will use that over the defined path separator of the formatter.
 	 */
-	getUriLabel(resource: URI, options?: { relative?: boolean, noPrefix?: boolean, endWithSeparator?: boolean }): string;
+	getUriLabel(resource: URI, options?: { relative?: boolean, noPrefix?: boolean, endWithSeparator?: boolean, separator?: '/' | '\\' }): string;
 	getUriBasenameLabel(resource: URI): string;
 	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | IWorkspace), options?: { verbose: boolean }): string;
 	getHostLabel(scheme: string, authority?: string): string;
