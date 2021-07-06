@@ -5,7 +5,7 @@
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceEditorInput, IEditorOptions, EditorActivation, EditorOverride, IResourceEditorInputIdentifier, ITextEditorOptions, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputFactoryRegistry, EditorExtensions, IEditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, EditorInputCapabilities, isResourceDiffEditorInput, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, UntypedEditorContext, isResourceEditorInput, isEditorInput } from 'vs/workbench/common/editor';
+import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputFactoryRegistry, EditorExtensions, IEditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, EditorInputCapabilities, isResourceDiffEditorInput, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, isResourceEditorInput, isEditorInput, isEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
@@ -34,7 +34,7 @@ import { Promises, timeout } from 'vs/base/common/async';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { indexOfPath } from 'vs/base/common/extpath';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { RegisteredEditorPriority, IEditorOverrideService, OverrideStatus, ReturnedOverride } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { RegisteredEditorPriority, IEditorOverrideService, OverrideStatus } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkspaceTrustRequestService, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -524,19 +524,17 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Resolve override unless disabled
 		if (options?.override !== EditorOverride.DISABLED) {
-			const [resolvedEditor, resolvedGroup, resolvedActivation] = await this.doResolveEditor(isEditorInput(editor) ? { editor, options } : editor, preferredGroup);
+			const resolvedEditor = await this.editorOverrideService.resolveEditorInput(isEditorInput(editor) ? { editor, options } : editor, preferredGroup);
 
 			if (resolvedEditor === OverrideStatus.ABORT) {
 				return; // skip editor if override is aborted
 			}
 
-			group = resolvedGroup;
-			activation = resolvedActivation;
-
 			// We resolved an editor to use
-			if (isEditorInputWithOptions(resolvedEditor)) {
+			if (isEditorInputWithOptionsAndGroup(resolvedEditor)) {
 				typedEditor = resolvedEditor.editor;
 				options = resolvedEditor.options;
+				group = resolvedEditor.group;
 			}
 		}
 
@@ -557,55 +555,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		return group.openEditor(typedEditor, options);
-	}
-
-	private async doResolveEditor(editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<[ReturnedOverride, IEditorGroup | undefined, EditorActivation | undefined]> {
-		let untypedEditor: IUntypedEditorInput | undefined = undefined;
-
-		// Typed: convert to untyped to be able to resolve the override
-		if (isEditorInputWithOptions(editor)) {
-			untypedEditor = editor.editor.toUntyped(undefined, UntypedEditorContext.Default);
-
-			if (untypedEditor) {
-				// Preserve original options: specifically it is
-				// possible that a `override` was defined from
-				// the outside and we do not want to loose it.
-				untypedEditor.options = { ...untypedEditor.options, ...editor.options };
-			}
-		}
-
-		// Untyped: take as is
-		else {
-			untypedEditor = editor;
-		}
-
-		// Typed editors that cannot convert to untyped will be taken
-		// as is without override.
-		if (!untypedEditor) {
-			return [OverrideStatus.NONE, undefined, undefined];
-		}
-
-		// We need a `override` for the untyped editor if it is
-		// not there so we call into the editor override service
-		let hasConflictingDefaults = false;
-		if (typeof untypedEditor.options?.override !== 'string') {
-			const populatedInfo = await this.editorOverrideService.populateEditorId(untypedEditor);
-			if (!populatedInfo) {
-				return [OverrideStatus.ABORT, undefined, undefined]; // we could not resolve the editor id
-			}
-
-			hasConflictingDefaults = populatedInfo.conflictingDefault;
-		}
-
-		// If we didn't get an override just return as none and let the editor continue as normal
-		if (!untypedEditor.options?.override) {
-			return [OverrideStatus.NONE, undefined, undefined];
-		}
-
-		// Find the target group for the editor
-		const [group, activation] = this.instantiationService.invokeFunction(findGroup, untypedEditor, preferredGroup);
-
-		return [await this.editorOverrideService.resolveEditorInput(untypedEditor, group, hasConflictingDefaults), group, activation];
 	}
 
 	//#endregion
@@ -634,17 +583,16 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			// Resolve override unless disabled
 			if (editor.options?.override !== EditorOverride.DISABLED) {
-				const [resolvedEditor, resolvedGroup] = await this.doResolveEditor(editor, preferredGroup);
+				const resolvedEditor = await this.editorOverrideService.resolveEditorInput(editor, preferredGroup);
 
 				if (resolvedEditor === OverrideStatus.ABORT) {
 					continue; // skip editor if override is aborted
 				}
 
-				group = resolvedGroup;
-
 				// We resolved an editor to use
-				if (isEditorInputWithOptions(resolvedEditor)) {
+				if (isEditorInputWithOptionsAndGroup(resolvedEditor)) {
 					typedEditor = resolvedEditor;
+					group = resolvedEditor.group;
 				}
 			}
 
@@ -873,7 +821,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			// Resolve override unless disabled
 			if (override !== EditorOverride.DISABLED) {
-				const [resolvedEditor] = await this.doResolveEditor(
+				const resolvedEditor = await this.editorOverrideService.resolveEditorInput(
 					isEditorReplacement(replacement) ? { editor: replacement.replacement, options: replacement.options } : replacement.replacement,
 					targetGroup
 				);
@@ -883,7 +831,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				}
 
 				// We resolved an editor to use
-				if (isEditorInputWithOptions(resolvedEditor)) {
+				if (isEditorInputWithOptionsAndGroup(resolvedEditor)) {
 					typedReplacement = {
 						editor: replacement.editor,
 						replacement: resolvedEditor.editor,
