@@ -9,12 +9,12 @@ import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IShellLaunchConfig, TerminalLocation } from 'vs/platform/terminal/common/terminal';
-import { IEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
 import { ITerminalEditorService, ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { SerializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
-import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class TerminalEditorService extends Disposable implements ITerminalEditorService {
 	declare _serviceBrand: undefined;
@@ -49,7 +49,8 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		this._register(this._editorService.onDidActiveEditorChange(() => {
 			const activeEditor = this._editorService.activeEditor;
 			const instance = activeEditor instanceof TerminalEditorInput ? activeEditor?.terminalInstance : undefined;
-			if (instance) {
+			if (instance && activeEditor instanceof TerminalEditorInput) {
+				activeEditor?.setGroup(this._editorService.activeEditorPane?.group);
 				this._setActiveInstance(instance);
 			}
 		}));
@@ -138,12 +139,13 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 
 	async openEditor(instance: ITerminalInstance): Promise<void> {
 		const input = this.getOrCreateEditorInput(instance);
-		await this._editorService.openEditor(input, {
+		const editorPane: IEditorPane | undefined = await this._editorService.openEditor(input, {
 			pinned: true,
 			forceReload: true
 		},
-			SIDE_GROUP
+			input.group
 		);
+		input.setGroup(editorPane?.group);
 	}
 
 	getOrCreateEditorInput(instance: ITerminalInstance | SerializedTerminalEditorInput, isFutureSplit: boolean = false): TerminalEditorInput {
