@@ -136,9 +136,9 @@ export class LabelService extends Disposable implements ILabelService {
 		return bestResult ? bestResult.formatting : undefined;
 	}
 
-	getUriLabel(resource: URI, options: { relative?: boolean, noPrefix?: boolean, endWithSeparator?: boolean, pathSeparator?: ResourceLabelFormatting['separator'] } = {}): string {
+	getUriLabel(resource: URI, options: { relative?: boolean, noPrefix?: boolean, endWithSeparator?: boolean, pathSeparator?: '/' | '\\' } = {}): string {
 		let formatting = this.findFormatting(resource);
-		if (formatting && options.pathSeparator !== undefined) {
+		if (formatting && options.pathSeparator) {
 			formatting = { ...formatting, separator: options.pathSeparator };
 		}
 

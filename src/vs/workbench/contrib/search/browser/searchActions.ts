@@ -31,7 +31,6 @@ import { SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/sea
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ISearchConfiguration, VIEW_ID } from 'vs/workbench/services/search/common/search';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { sep as defaultSep } from 'vs/base/common/path';
 
 export function isSearchViewFocused(viewsService: IViewsService): boolean {
 	const searchView = getSearchView(viewsService);
@@ -632,12 +631,8 @@ export const copyPathCommand: ICommandHandler = async (accessor, fileMatch: File
 
 	const clipboardService = accessor.get(IClipboardService);
 	const labelService = accessor.get(ILabelService);
-	const configurationService = accessor.get(IConfigurationService);
 
-	const settingsSep = configurationService.getValue<'auto' | typeof defaultSep>('files.copyPathSeparator');
-	const sep = (settingsSep && settingsSep !== 'auto') ? settingsSep : defaultSep;
-
-	const text = labelService.getUriLabel(fileMatch.resource, { noPrefix: true, pathSeparator: sep });
+	const text = labelService.getUriLabel(fileMatch.resource, { noPrefix: true });
 	await clipboardService.writeText(text);
 };
 

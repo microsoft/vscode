@@ -277,22 +277,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('files.simpleDialog.enable', "Enables the simple file dialog. The simple file dialog replaces the system file dialog when enabled."),
 			'default': false
-		},
-		'files.copyPathSeparator': {
-			'type': 'string',
-			'enum': [
-				'/',
-				'\\',
-				'auto'
-			],
-			'enumDescriptions': [
-				nls.localize('copyPathSeparator.forwardSlash', "Use a forward slash / (posix)."),
-				nls.localize('copyPathSeparator.backslash', "Use a backslash \\ (win32)."),
-				nls.localize('copyPathSeparator.auto', "Uses operating system specific path separation character.")
-			],
-			'default': 'auto',
-			'description': nls.localize('copyPathSeparator', "The default path separation character used for copying a path."),
-		},
+		}
 	}
 });
 
@@ -404,6 +389,7 @@ configurationRegistry.registerConfiguration({
 			default: true
 		},
 		'explorer.incrementalNaming': {
+			'type': 'string',
 			enum: ['simple', 'smart'],
 			enumDescriptions: [
 				nls.localize('simple', "Appends the word \"copy\" at the end of the duplicated name potentially followed by a number"),
@@ -417,6 +403,18 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('compressSingleChildFolders', "Controls whether the explorer should render folders in a compact form. In such a form, single child folders will be compressed in a combined tree element. Useful for Java package structures, for example."),
 			'default': true
 		},
+		'explorer.copyRelativePathSeparator': {
+			'type': 'string',
+			'enum': [
+				'/',
+				'\\'
+			],
+			'enumDescriptions': [
+				nls.localize('copyRelativePathSeparator.slash', "Use slash as path separation character."),
+				nls.localize('copyRelativePathSeparator.backslash', "Use backslash as path separation character."),
+			],
+			'description': nls.localize('copyRelativePathSeparator', "The path separation character used when copying relative file paths. Will use the operating system default unless specified."),
+		}
 	}
 });
 
