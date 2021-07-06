@@ -5,7 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 
@@ -35,7 +35,7 @@ export interface IWebviewViewService {
 
 	readonly onNewResolverRegistered: Event<{ readonly viewType: string }>;
 
-	register(type: string, resolver: IWebviewViewResolver): IDisposable;
+	register(type: string, resolver: IWebviewViewResolver): IDisposable2;
 
 	resolve(viewType: string, webview: WebviewView, cancellation: CancellationToken): Promise<void>;
 }
@@ -51,7 +51,7 @@ export class WebviewViewService extends Disposable implements IWebviewViewServic
 	private readonly _onNewResolverRegistered = this._register(new Emitter<{ readonly viewType: string }>());
 	public readonly onNewResolverRegistered = this._onNewResolverRegistered.event;
 
-	register(viewType: string, resolver: IWebviewViewResolver): IDisposable {
+	register(viewType: string, resolver: IWebviewViewResolver): IDisposable2 {
 		if (this._resolvers.has(viewType)) {
 			throw new Error(`View resolver already registered for ${viewType}`);
 		}

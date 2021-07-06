@@ -7,7 +7,7 @@ import { IQuickPick, IQuickPickItem, IQuickNavigateConfiguration } from 'vs/plat
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { coalesce } from 'vs/base/common/arrays';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { ItemActivation } from 'vs/base/parts/quickinput/common/quickInput';
 
 export interface IQuickAccessOptions {
@@ -83,7 +83,7 @@ export interface IQuickAccessProvider {
 	 * @return a disposable that will automatically be disposed when the picker
 	 * closes or is replaced by another picker.
 	 */
-	provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable;
+	provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable2;
 }
 
 export interface IQuickAccessProviderHelp {
@@ -145,7 +145,7 @@ export interface IQuickAccessRegistry {
 	/**
 	 * Registers a quick access provider to the platform.
 	 */
-	registerQuickAccessProvider(provider: IQuickAccessProviderDescriptor): IDisposable;
+	registerQuickAccessProvider(provider: IQuickAccessProviderDescriptor): IDisposable2;
 
 	/**
 	 * Get all registered quick access providers.
@@ -162,7 +162,7 @@ export class QuickAccessRegistry implements IQuickAccessRegistry {
 	private providers: IQuickAccessProviderDescriptor[] = [];
 	private defaultProvider: IQuickAccessProviderDescriptor | undefined = undefined;
 
-	registerQuickAccessProvider(provider: IQuickAccessProviderDescriptor): IDisposable {
+	registerQuickAccessProvider(provider: IQuickAccessProviderDescriptor): IDisposable2 {
 
 		// Extract the default provider when no prefix is present
 		if (provider.prefix.length === 0) {

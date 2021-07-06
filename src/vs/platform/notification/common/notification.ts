@@ -7,7 +7,7 @@ import BaseSeverity from 'vs/base/common/severity';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 
 export import Severity = BaseSeverity;
 
@@ -372,7 +372,7 @@ export interface INotificationService {
 	 *
 	 * @returns a disposable to hide the status message
 	 */
-	status(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable;
+	status(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable2;
 
 	/**
 	 * Allows to configure a filter for notifications.

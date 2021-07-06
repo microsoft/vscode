@@ -25,7 +25,7 @@ import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices'
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { timeout } from 'vs/base/common/async';
 import { BrowserWorkingCopyBackupTracker } from 'vs/workbench/services/workingCopy/browser/workingCopyBackupTracker';
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IDisposable2 } from 'vs/base/common/lifecycle';
 import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { bufferToReadable, VSBuffer } from 'vs/base/common/buffer';
 import { isWindows } from 'vs/base/common/platform';
@@ -188,7 +188,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 		cleanup();
 	});
 
-	async function restoreBackupsInit(): Promise<[TestWorkingCopyBackupTracker, TestServiceAccessor, IDisposable]> {
+	async function restoreBackupsInit(): Promise<[TestWorkingCopyBackupTracker, TestServiceAccessor, IDisposable2]> {
 		const fooFile = URI.file(isWindows ? 'c:\\Foo' : '/Foo');
 		const barFile = URI.file(isWindows ? 'c:\\Bar' : '/Bar');
 		const untitledFile1 = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });

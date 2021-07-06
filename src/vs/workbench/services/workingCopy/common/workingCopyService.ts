@@ -7,7 +7,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { Disposable, IDisposable, toDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, toDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { IWorkingCopy, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
@@ -88,7 +88,7 @@ export interface IWorkingCopyService {
 	 * Overall there can only ever be 1 working copy with the same
 	 * resource.
 	 */
-	registerWorkingCopy(workingCopy: IWorkingCopy): IDisposable;
+	registerWorkingCopy(workingCopy: IWorkingCopy): IDisposable2;
 
 	/**
 	 * Whether a working copy with the given resource or identifier
@@ -134,7 +134,7 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 
 	private readonly mapResourceToWorkingCopies = new ResourceMap<Map<string, IWorkingCopy>>();
 
-	registerWorkingCopy(workingCopy: IWorkingCopy): IDisposable {
+	registerWorkingCopy(workingCopy: IWorkingCopy): IDisposable2 {
 		let workingCopiesForResource = this.mapResourceToWorkingCopies.get(workingCopy.resource);
 		if (workingCopiesForResource?.has(workingCopy.typeId)) {
 			throw new Error(`Cannot register more than one working copy with the same resource ${workingCopy.resource.toString(true)} and type ${workingCopy.typeId}.`);

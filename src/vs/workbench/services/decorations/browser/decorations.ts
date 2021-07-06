@@ -7,7 +7,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
@@ -21,7 +21,7 @@ export interface IDecorationData {
 	readonly bubble?: boolean;
 }
 
-export interface IDecoration extends IDisposable {
+export interface IDecoration extends IDisposable2 {
 	readonly tooltip: string;
 	readonly labelClassName: string;
 	readonly badgeClassName: string;
@@ -44,7 +44,7 @@ export interface IDecorationsService {
 
 	readonly onDidChangeDecorations: Event<IResourceDecorationChangeEvent>;
 
-	registerDecorationsProvider(provider: IDecorationsProvider): IDisposable;
+	registerDecorationsProvider(provider: IDecorationsProvider): IDisposable2;
 
 	getDecoration(uri: URI, includeChildren: boolean): IDecoration | undefined;
 }

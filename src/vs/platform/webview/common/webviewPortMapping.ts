@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IAddress } from 'vs/platform/remote/common/remoteAgentConnection';
@@ -17,7 +17,7 @@ export interface IWebviewPortMapping {
 /**
  * Manages port mappings for a single webview.
  */
-export class WebviewPortMappingManager implements IDisposable {
+export class WebviewPortMappingManager implements IDisposable2 {
 
 	private readonly _tunnels = new Map<number, RemoteTunnel>();
 

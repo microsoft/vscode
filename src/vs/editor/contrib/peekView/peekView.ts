@@ -18,7 +18,7 @@ import { IOptions, IStyles, ZoneWidget } from 'vs/editor/contrib/zoneWidget/zone
 import * as nls from 'vs/nls';
 import { RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor, createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -36,7 +36,7 @@ export interface IPeekViewService {
 registerSingleton(IPeekViewService, class implements IPeekViewService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _widgets = new Map<ICodeEditor, { widget: PeekViewWidget, listener: IDisposable; }>();
+	private readonly _widgets = new Map<ICodeEditor, { widget: PeekViewWidget, listener: IDisposable2; }>();
 
 	addExclusiveWidget(editor: ICodeEditor, widget: PeekViewWidget): void {
 		const existing = this._widgets.get(editor);

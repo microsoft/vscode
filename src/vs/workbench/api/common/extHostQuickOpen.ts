@@ -6,7 +6,7 @@
 import { asPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable2 } from 'vs/base/common/lifecycle';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { IExtHostWorkspaceProvider } from 'vs/workbench/api/common/extHostWorkspace';
 import { InputBox, InputBoxOptions, QuickInput, QuickInputButton, QuickPick, QuickPickItem, QuickPickOptions, WorkspaceFolder, WorkspaceFolderPickOptions } from 'vscode';
@@ -271,7 +271,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		private _pendingUpdate: TransferQuickInput = { id: this._id };
 
 		private _disposed = false;
-		protected _disposables: IDisposable[] = [
+		protected _disposables: IDisposable2[] = [
 			this._onDidTriggerButtonEmitter,
 			this._onDidHideEmitter,
 			this._onDidAcceptEmitter,

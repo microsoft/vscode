@@ -7,7 +7,7 @@ import 'vs/css!./iconlabel';
 import * as dom from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IMatch } from 'vs/base/common/filters';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/base/common/range';
 import { equals } from 'vs/base/common/objects';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
@@ -99,7 +99,7 @@ export class IconLabel extends Disposable {
 	private readonly labelContainer: HTMLElement;
 
 	private readonly hoverDelegate: IHoverDelegate | undefined;
-	private readonly customHovers: Map<HTMLElement, IDisposable> = new Map();
+	private readonly customHovers: Map<HTMLElement, IDisposable2> = new Map();
 
 	constructor(container: HTMLElement, options?: IIconLabelCreationOptions) {
 		super();

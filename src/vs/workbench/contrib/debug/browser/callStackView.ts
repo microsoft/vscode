@@ -27,7 +27,7 @@ import { WorkbenchCompressibleAsyncDataTree } from 'vs/platform/list/browser/lis
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { createMatches, FuzzyScore, IMatch } from 'vs/base/common/filters';
 import { Event } from 'vs/base/common/event';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable2 } from 'vs/base/common/lifecycle';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { isSessionAttach } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { STOP_ID, STOP_LABEL, DISCONNECT_ID, DISCONNECT_LABEL, RESTART_SESSION_ID, RESTART_LABEL, STEP_OVER_ID, STEP_OVER_LABEL, STEP_INTO_LABEL, STEP_INTO_ID, STEP_OUT_LABEL, STEP_OUT_ID, PAUSE_ID, PAUSE_LABEL, CONTINUE_ID, CONTINUE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
@@ -357,7 +357,7 @@ export class CallStackView extends ViewPane {
 		}));
 
 		this._register(this.debugService.onDidNewSession(s => {
-			const sessionListeners: IDisposable[] = [];
+			const sessionListeners: IDisposable2[] = [];
 			sessionListeners.push(s.onDidChangeName(() => this.tree.rerender(s)));
 			sessionListeners.push(s.onDidEndAdapter(() => dispose(sessionListeners)));
 			if (s.parentSession) {
@@ -462,7 +462,7 @@ interface IThreadTemplateData {
 	stateLabel: HTMLSpanElement;
 	label: HighlightedLabel;
 	actionBar: ActionBar;
-	elementDisposable: IDisposable[];
+	elementDisposable: IDisposable2[];
 }
 
 interface ISessionTemplateData {
@@ -471,7 +471,7 @@ interface ISessionTemplateData {
 	stateLabel: HTMLSpanElement;
 	label: HighlightedLabel;
 	actionBar: ActionBar;
-	elementDisposable: IDisposable[];
+	elementDisposable: IDisposable2[];
 }
 
 interface IErrorTemplateData {
@@ -480,7 +480,7 @@ interface IErrorTemplateData {
 
 interface ILabelTemplateData {
 	label: HTMLElement;
-	toDispose: IDisposable;
+	toDispose: IDisposable2;
 }
 
 interface IStackFrameTemplateData {
@@ -602,7 +602,7 @@ class ThreadsRenderer implements ICompressibleTreeRenderer<IThread, FuzzyScore, 
 		const stateLabel = dom.append(thread, $('span.state.label.monaco-count-badge.long'));
 		const label = new HighlightedLabel(name, false);
 		const actionBar = new ActionBar(thread);
-		const elementDisposable: IDisposable[] = [];
+		const elementDisposable: IDisposable2[] = [];
 
 		return { thread, name, stateLabel, label, actionBar, elementDisposable };
 	}

@@ -7,7 +7,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -46,7 +46,7 @@ export class SearchService extends Disposable implements ISearchService {
 		super();
 	}
 
-	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable {
+	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable2 {
 		let list: Map<string, ISearchResultProvider>;
 		let deferredMap: Map<string, DeferredPromise<ISearchResultProvider>>;
 		if (type === SearchProviderType.file) {

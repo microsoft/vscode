@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWindowsConfiguration } from 'vs/platform/windows/common/windows';
@@ -132,7 +132,7 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 	private firstFolderResource?: URI;
 	private extensionHostRestarter: RunOnceScheduler;
 
-	private onDidChangeWorkspaceFoldersUnbind: IDisposable | undefined;
+	private onDidChangeWorkspaceFoldersUnbind: IDisposable2 | undefined;
 
 	constructor(
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,

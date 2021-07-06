@@ -10,11 +10,11 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } fr
 import { IMarkerListProvider, MarkerList, IMarkerNavigationService } from 'vs/editor/contrib/gotoError/markerNavigationService';
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 
 class MarkerListProvider implements IMarkerListProvider {
 
-	private readonly _dispoables: IDisposable;
+	private readonly _dispoables: IDisposable2;
 
 	constructor(
 		@IMarkerService private readonly _markerService: IMarkerService,

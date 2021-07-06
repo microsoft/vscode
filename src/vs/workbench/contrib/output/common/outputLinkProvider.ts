@@ -11,7 +11,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { OUTPUT_MODE_ID, LOG_MODE_ID } from 'vs/workbench/contrib/output/common/output';
 import { MonacoWebWorker, createWebWorker } from 'vs/editor/common/services/webWorker';
 import { ICreateData, OutputLinkComputer } from 'vs/workbench/contrib/output/common/outputLinkComputer';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose } from 'vs/base/common/lifecycle';
 
 export class OutputLinkProvider {
 
@@ -19,7 +19,7 @@ export class OutputLinkProvider {
 
 	private worker?: MonacoWebWorker<OutputLinkComputer>;
 	private disposeWorkerScheduler: RunOnceScheduler;
-	private linkProviderRegistration: IDisposable | undefined;
+	private linkProviderRegistration: IDisposable2 | undefined;
 
 	constructor(
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,

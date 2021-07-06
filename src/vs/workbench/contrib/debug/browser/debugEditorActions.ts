@@ -22,7 +22,7 @@ import { getDomNodePagePosition } from 'vs/base/browser/dom';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { Position } from 'vs/editor/common/core/position';
 import { URI } from 'vs/base/common/uri';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { raceTimeout } from 'vs/base/common/async';
 import { registerAction2, MenuId } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -219,7 +219,7 @@ export class RunToCursorAction extends EditorAction {
 		// If the breakpoint was not initially verified, wait up to 2s for it to become so.
 		// Inherently racey if multiple sessions can verify async, but not solvable...
 		if (!breakpoint.verified) {
-			let listener: IDisposable;
+			let listener: IDisposable2;
 			await raceTimeout(new Promise<void>(resolve => {
 				listener = debugModel.onDidChangeBreakpoints(() => {
 					if (breakpoint.verified) {

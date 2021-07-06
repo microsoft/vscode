@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -19,7 +19,7 @@ import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/com
 
 export class CodeCell extends Disposable {
 	private _outputContainerRenderer: CellOutputContainer;
-	private _untrustedStatusItem: IDisposable | null = null;
+	private _untrustedStatusItem: IDisposable2 | null = null;
 
 	private _renderedInputCollapseState: boolean | undefined;
 	private _renderedOutputCollapseState: boolean | undefined;

@@ -12,7 +12,7 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { HoverWidget } from 'vs/workbench/services/hover/browser/hoverWidget';
 import { IContextViewProvider, IDelegate } from 'vs/base/browser/ui/contextview/contextview';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 
 export class HoverService implements IHoverService {
@@ -28,7 +28,7 @@ export class HoverService implements IHoverService {
 		contextMenuService.onDidShowContextMenu(() => this.hideHover());
 	}
 
-	showHover(options: IHoverOptions, focus?: boolean): IDisposable | undefined {
+	showHover(options: IHoverOptions, focus?: boolean): IDisposable2 | undefined {
 		if (this._currentHoverOptions === options) {
 			return undefined;
 		}
@@ -69,7 +69,7 @@ export class HoverService implements IHoverService {
 		this._contextViewService.hideContextView();
 	}
 
-	private _intersectionChange(entries: IntersectionObserverEntry[], hover: IDisposable): void {
+	private _intersectionChange(entries: IntersectionObserverEntry[], hover: IDisposable2): void {
 		const entry = entries[entries.length - 1];
 		if (!entry.isIntersecting) {
 			hover.dispose();

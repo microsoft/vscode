@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import type * as vscode from 'vscode';
 import { ExtHostSearchShape, MainThreadSearchShape, MainContext } from '../common/extHost.protocol';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -16,8 +16,8 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { TextSearchManager } from 'vs/workbench/services/search/common/textSearchManager';
 
 export interface IExtHostSearch extends ExtHostSearchShape {
-	registerTextSearchProvider(scheme: string, provider: vscode.TextSearchProvider): IDisposable;
-	registerFileSearchProvider(scheme: string, provider: vscode.FileSearchProvider): IDisposable;
+	registerTextSearchProvider(scheme: string, provider: vscode.TextSearchProvider): IDisposable2;
+	registerFileSearchProvider(scheme: string, provider: vscode.FileSearchProvider): IDisposable2;
 }
 
 export const IExtHostSearch = createDecorator<IExtHostSearch>('IExtHostSearch');
@@ -44,7 +44,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		return this._uriTransformer.transformOutgoingScheme(scheme);
 	}
 
-	registerTextSearchProvider(scheme: string, provider: vscode.TextSearchProvider): IDisposable {
+	registerTextSearchProvider(scheme: string, provider: vscode.TextSearchProvider): IDisposable2 {
 		if (this._textSearchUsedSchemes.has(scheme)) {
 			throw new Error(`a text search provider for the scheme '${scheme}' is already registered`);
 		}
@@ -60,7 +60,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		});
 	}
 
-	registerFileSearchProvider(scheme: string, provider: vscode.FileSearchProvider): IDisposable {
+	registerFileSearchProvider(scheme: string, provider: vscode.FileSearchProvider): IDisposable2 {
 		if (this._fileSearchUsedSchemes.has(scheme)) {
 			throw new Error(`a file search provider for the scheme '${scheme}' is already registered`);
 		}

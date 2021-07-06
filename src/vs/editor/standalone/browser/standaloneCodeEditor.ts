@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IDiffEditor, IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -218,13 +218,13 @@ export interface IStandaloneCodeEditor extends ICodeEditor {
 	updateOptions(newOptions: IEditorOptions & IGlobalEditorOptions): void;
 	addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null;
 	createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
-	addAction(descriptor: IActionDescriptor): IDisposable;
+	addAction(descriptor: IActionDescriptor): IDisposable2;
 }
 
 export interface IStandaloneDiffEditor extends IDiffEditor {
 	addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null;
 	createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
-	addAction(descriptor: IActionDescriptor): IDisposable;
+	addAction(descriptor: IActionDescriptor): IDisposable2;
 
 	getOriginalEditor(): IStandaloneCodeEditor;
 	getModifiedEditor(): IStandaloneCodeEditor;
@@ -290,7 +290,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		return this._contextKeyService.createKey(key, defaultValue);
 	}
 
-	public addAction(_descriptor: IActionDescriptor): IDisposable {
+	public addAction(_descriptor: IActionDescriptor): IDisposable2 {
 		if ((typeof _descriptor.id !== 'string') || (typeof _descriptor.label !== 'string') || (typeof _descriptor.run !== 'function')) {
 			throw new Error('Invalid action descriptor, `id`, `label` and `run` are required properties!');
 		}
@@ -391,7 +391,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 	constructor(
 		domElement: HTMLElement,
 		_options: Readonly<IStandaloneEditorConstructionOptions> | undefined,
-		toDispose: IDisposable,
+		toDispose: IDisposable2,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
@@ -483,7 +483,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 	constructor(
 		domElement: HTMLElement,
 		_options: Readonly<IDiffEditorConstructionOptions> | undefined,
-		toDispose: IDisposable,
+		toDispose: IDisposable2,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -554,7 +554,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		return this.getModifiedEditor().createContextKey(key, defaultValue);
 	}
 
-	public addAction(descriptor: IActionDescriptor): IDisposable {
+	public addAction(descriptor: IActionDescriptor): IDisposable2 {
 		return this.getModifiedEditor().addAction(descriptor);
 	}
 }

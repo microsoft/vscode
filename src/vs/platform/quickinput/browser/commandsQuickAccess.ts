@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { PickerQuickAccessProvider, IPickerQuickAccessItem, IPickerQuickAccessProviderOptions } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore, Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { or, matchesPrefix, matchesWords, matchesContiguousSubString } from 'vs/base/common/filters';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { LRUCache } from 'vs/base/common/map';
@@ -32,7 +32,7 @@ export interface ICommandsQuickAccessOptions extends IPickerQuickAccessProviderO
 	showAlias: boolean;
 }
 
-export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAccessProvider<ICommandQuickPick> implements IDisposable {
+export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAccessProvider<ICommandQuickPick> implements IDisposable2 {
 
 	static PREFIX = '>';
 

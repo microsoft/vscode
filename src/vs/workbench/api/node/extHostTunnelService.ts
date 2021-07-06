@@ -6,7 +6,7 @@
 import { MainThreadTunnelServiceShape, MainContext, PortAttributesProviderSelector } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import type * as vscode from 'vscode';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { URI } from 'vs/base/common/uri';
 import { exec } from 'child_process';
@@ -179,7 +179,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	private readonly _proxy: MainThreadTunnelServiceShape;
 	private _forwardPortProvider: ((tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions) => Thenable<vscode.Tunnel> | undefined) | undefined;
 	private _showCandidatePort: (host: string, port: number, detail: string) => Thenable<boolean> = () => { return Promise.resolve(true); };
-	private _extensionTunnels: Map<string, Map<number, { tunnel: vscode.Tunnel, disposeListener: IDisposable }>> = new Map();
+	private _extensionTunnels: Map<string, Map<number, { tunnel: vscode.Tunnel, disposeListener: IDisposable2 }>> = new Map();
 	private _onDidChangeTunnels: Emitter<void> = new Emitter<void>();
 	onDidChangeTunnels: vscode.Event<void> = this._onDidChangeTunnels.event;
 	private _candidateFindingEnabled: boolean = false;
@@ -282,7 +282,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		}
 	}
 
-	async setTunnelExtensionFunctions(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable> {
+	async setTunnelExtensionFunctions(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable2> {
 		// Do not wait for any of the proxy promises here.
 		// It will delay startup and there is nothing that needs to be waited for.
 		if (provider) {

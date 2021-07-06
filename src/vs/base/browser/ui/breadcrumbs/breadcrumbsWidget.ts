@@ -9,7 +9,7 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { commonPrefixLength } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
-import { dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable2, DisposableStore } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { Codicon, registerCodicon } from 'vs/base/common/codicons';
 import 'vs/css!./breadcrumbsWidget';
@@ -60,7 +60,7 @@ export class BreadcrumbsWidget {
 	private _focusedItemIdx: number = -1;
 	private _selectedItemIdx: number = -1;
 
-	private _pendingLayout: IDisposable | undefined;
+	private _pendingLayout: IDisposable2 | undefined;
 	private _dimension: dom.Dimension | undefined;
 
 	constructor(
@@ -120,7 +120,7 @@ export class BreadcrumbsWidget {
 		}
 	}
 
-	private _updateDimensions(dim: dom.Dimension): IDisposable {
+	private _updateDimensions(dim: dom.Dimension): IDisposable2 {
 		const disposables = new DisposableStore();
 		disposables.add(dom.modify(() => {
 			this._dimension = dim;
@@ -131,7 +131,7 @@ export class BreadcrumbsWidget {
 		return disposables;
 	}
 
-	private _updateScrollbar(): IDisposable {
+	private _updateScrollbar(): IDisposable2 {
 		return dom.measure(() => {
 			dom.measure(() => { // double RAF
 				this._scrollable.setRevealOnScroll(false);

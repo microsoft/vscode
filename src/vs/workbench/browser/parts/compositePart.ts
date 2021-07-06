@@ -6,7 +6,7 @@
 import 'vs/css!./media/compositepart';
 import { localize } from 'vs/nls';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
-import { IDisposable, dispose, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
@@ -47,7 +47,7 @@ export interface ICompositeTitleLabel {
 
 interface CompositeItem {
 	composite: Composite;
-	disposable: IDisposable;
+	disposable: IDisposable2;
 	progress: IProgressIndicator;
 }
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { WindowDriverChannel, WindowDriverRegistryChannelClient } from 'vs/platform/driver/common/driverIpc';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
@@ -43,7 +43,7 @@ class WindowDriver extends BaseWindowDriver {
 	}
 }
 
-export async function registerWindowDriver(accessor: ServicesAccessor, windowId: number): Promise<IDisposable> {
+export async function registerWindowDriver(accessor: ServicesAccessor, windowId: number): Promise<IDisposable2> {
 	const instantiationService = accessor.get(IInstantiationService);
 	const mainProcessService = accessor.get(IMainProcessService);
 

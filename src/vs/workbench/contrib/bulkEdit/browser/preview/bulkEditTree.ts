@@ -12,7 +12,7 @@ import { IIdentityProvider, IListVirtualDelegate, IKeyboardNavigationLabelProvid
 import { Range } from 'vs/editor/common/core/range';
 import * as dom from 'vs/base/browser/dom';
 import { ITextModel } from 'vs/editor/common/model';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, DisposableStore } from 'vs/base/common/lifecycle';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { BulkFileOperations, BulkFileOperation, BulkFileOperationType, BulkTextEdit, BulkCategory } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview';
 import { FileKind } from 'vs/platform/files/common/files';
@@ -208,7 +208,7 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 		if (element instanceof FileElement && element.edit.textEdits.length > 0) {
 			// const previewUri = BulkEditPreviewProvider.asPreviewUri(element.edit.resource);
 			let textModel: ITextModel;
-			let textModelDisposable: IDisposable;
+			let textModelDisposable: IDisposable2;
 			try {
 				const ref = await this._textModelService.createModelReference(element.edit.uri);
 				textModel = ref.object.textEditorModel;

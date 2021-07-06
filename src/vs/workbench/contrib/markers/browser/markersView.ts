@@ -50,7 +50,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Codicon } from 'vs/base/common/codicons';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { groupBy } from 'vs/base/common/arrays';
 import { ResourceMap } from 'vs/base/common/map';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
@@ -487,7 +487,7 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		}
 	}
 
-	private reInitialize(): IDisposable[] {
+	private reInitialize(): IDisposable2[] {
 		const disposables = [];
 
 		// Markers Model

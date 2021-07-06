@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { ResourceMap } from 'vs/base/common/map';
 import { parse } from 'vs/base/common/marshalling';
@@ -143,17 +143,17 @@ export class OpenerService implements IOpenerService {
 		this._openers.push(new EditorOpener(editorService));
 	}
 
-	registerOpener(opener: IOpener): IDisposable {
+	registerOpener(opener: IOpener): IDisposable2 {
 		const remove = this._openers.unshift(opener);
 		return { dispose: remove };
 	}
 
-	registerValidator(validator: IValidator): IDisposable {
+	registerValidator(validator: IValidator): IDisposable2 {
 		const remove = this._validators.push(validator);
 		return { dispose: remove };
 	}
 
-	registerExternalUriResolver(resolver: IExternalUriResolver): IDisposable {
+	registerExternalUriResolver(resolver: IExternalUriResolver): IDisposable2 {
 		const remove = this._resolvers.push(resolver);
 		return { dispose: remove };
 	}
@@ -162,7 +162,7 @@ export class OpenerService implements IOpenerService {
 		this._defaultExternalOpener = externalOpener;
 	}
 
-	registerExternalOpener(opener: IExternalOpener): IDisposable {
+	registerExternalOpener(opener: IExternalOpener): IDisposable2 {
 		const remove = this._externalOpeners.push(opener);
 		return { dispose: remove };
 	}

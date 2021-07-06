@@ -5,7 +5,7 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -146,7 +146,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	}
 
 	private createChannel(id: string): OutputChannel {
-		const channelDisposables: IDisposable[] = [];
+		const channelDisposables: IDisposable2[] = [];
 		const channel = this.instantiateChannel(id);
 		channel.model.onDispose(() => {
 			if (this.activeChannel === channel) {
@@ -208,7 +208,7 @@ export class LogContentProvider {
 		const channelId = resource.path;
 		let channelModel = this.channelModels.get(channelId);
 		if (!channelModel) {
-			const channelDisposables: IDisposable[] = [];
+			const channelDisposables: IDisposable2[] = [];
 			const outputChannelDescriptor = this.outputService.getChannelDescriptors().filter(({ id }) => id === channelId)[0];
 			if (outputChannelDescriptor && outputChannelDescriptor.file) {
 				channelModel = this.outputChannelModelService.createOutputChannelModel(channelId, resource, outputChannelDescriptor.log ? LOG_MIME : OUTPUT_MIME, outputChannelDescriptor.file);

@@ -5,7 +5,7 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { Disposable } from 'vs/workbench/api/common/extHostTypes';
 import type * as vscode from 'vscode';
 import { MainContext, ExtHostDocumentContentProvidersShape, MainThreadDocumentContentProvidersShape, IMainContext } from './extHost.protocol';
@@ -42,7 +42,7 @@ export class ExtHostDocumentContentProvider implements ExtHostDocumentContentPro
 		this._documentContentProviders.set(handle, provider);
 		this._proxy.$registerTextContentProvider(handle, scheme);
 
-		let subscription: IDisposable | undefined;
+		let subscription: IDisposable2 | undefined;
 		if (typeof provider.onDidChange === 'function') {
 			subscription = provider.onDidChange(uri => {
 				if (uri.scheme !== scheme) {

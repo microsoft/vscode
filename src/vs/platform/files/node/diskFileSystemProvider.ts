@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Stats } from 'fs';
-import { IDisposable, Disposable, toDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable, toDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, FileSystemProviderErrorCode, createFileSystemProviderError, FileSystemProviderError, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, FileReadStreamOptions, IFileSystemProviderWithFileFolderCopyCapability, isFileOpenForWriteOptions } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -534,9 +534,9 @@ export class DiskFileSystemProvider extends Disposable implements
 	private readonly recursiveFoldersToWatch: { path: string, excludes: string[] }[] = [];
 	private recursiveWatchRequestDelayer = this._register(new ThrottledDelayer<void>(0));
 
-	private recursiveWatcherLogLevelListener: IDisposable | undefined;
+	private recursiveWatcherLogLevelListener: IDisposable2 | undefined;
 
-	watch(resource: URI, opts: IWatchOptions): IDisposable {
+	watch(resource: URI, opts: IWatchOptions): IDisposable2 {
 		if (opts.recursive) {
 			return this.watchRecursive(resource, opts.excludes);
 		}
@@ -544,7 +544,7 @@ export class DiskFileSystemProvider extends Disposable implements
 		return this.watchNonRecursive(resource);
 	}
 
-	private watchRecursive(resource: URI, excludes: string[]): IDisposable {
+	private watchRecursive(resource: URI, excludes: string[]): IDisposable2 {
 
 		// Add to list of folders to watch recursively
 		const folderToWatch = { path: this.toFilePath(resource), excludes };
@@ -648,7 +648,7 @@ export class DiskFileSystemProvider extends Disposable implements
 		}
 	}
 
-	private watchNonRecursive(resource: URI): IDisposable {
+	private watchNonRecursive(resource: URI): IDisposable2 {
 		const watcherService = new NodeJSWatcherService(
 			this.toFilePath(resource),
 			changes => this._onDidChangeFile.fire(toFileChanges(changes)),

@@ -7,25 +7,25 @@ import { join, basename } from 'vs/base/common/path';
 import { watch } from 'fs';
 import { isMacintosh } from 'vs/base/common/platform';
 import { normalizeNFC } from 'vs/base/common/normalization';
-import { toDisposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { toDisposable, IDisposable2, dispose } from 'vs/base/common/lifecycle';
 import { Promises } from 'vs/base/node/pfs';
 
-export function watchFile(path: string, onChange: (type: 'added' | 'changed' | 'deleted', path: string) => void, onError: (error: string) => void): IDisposable {
+export function watchFile(path: string, onChange: (type: 'added' | 'changed' | 'deleted', path: string) => void, onError: (error: string) => void): IDisposable2 {
 	return doWatchNonRecursive({ path, isDirectory: false }, onChange, onError);
 }
 
-export function watchFolder(path: string, onChange: (type: 'added' | 'changed' | 'deleted', path: string) => void, onError: (error: string) => void): IDisposable {
+export function watchFolder(path: string, onChange: (type: 'added' | 'changed' | 'deleted', path: string) => void, onError: (error: string) => void): IDisposable2 {
 	return doWatchNonRecursive({ path, isDirectory: true }, onChange, onError);
 }
 
 export const CHANGE_BUFFER_DELAY = 100;
 
-function doWatchNonRecursive(file: { path: string, isDirectory: boolean }, onChange: (type: 'added' | 'changed' | 'deleted', path: string) => void, onError: (error: string) => void): IDisposable {
+function doWatchNonRecursive(file: { path: string, isDirectory: boolean }, onChange: (type: 'added' | 'changed' | 'deleted', path: string) => void, onError: (error: string) => void): IDisposable2 {
 	const originalFileName = basename(file.path);
-	const mapPathToStatDisposable = new Map<string, IDisposable>();
+	const mapPathToStatDisposable = new Map<string, IDisposable2>();
 
 	let disposed = false;
-	let watcherDisposables: IDisposable[] = [toDisposable(() => {
+	let watcherDisposables: IDisposable2[] = [toDisposable(() => {
 		mapPathToStatDisposable.forEach(disposable => dispose(disposable));
 		mapPathToStatDisposable.clear();
 	})];

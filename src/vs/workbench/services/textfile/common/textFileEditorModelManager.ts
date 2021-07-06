@@ -8,7 +8,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { dispose, IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable2, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ITextFileEditorModel, ITextFileEditorModelManager, ITextFileEditorModelResolveOrCreateOptions, ITextFileResolveEvent, ITextFileSaveEvent, ITextFileSaveParticipant } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceMap } from 'vs/base/common/map';
@@ -50,8 +50,8 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	readonly onDidChangeEncoding = this._onDidChangeEncoding.event;
 
 	private readonly mapResourceToModel = new ResourceMap<TextFileEditorModel>();
-	private readonly mapResourceToModelListeners = new ResourceMap<IDisposable>();
-	private readonly mapResourceToDisposeListener = new ResourceMap<IDisposable>();
+	private readonly mapResourceToModelListeners = new ResourceMap<IDisposable2>();
+	private readonly mapResourceToDisposeListener = new ResourceMap<IDisposable2>();
 	private readonly mapResourceToPendingModelResolvers = new ResourceMap<Promise<void>>();
 
 	private readonly modelResolveQueue = this._register(new ResourceQueue());
@@ -457,7 +457,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 	private readonly saveParticipants = this._register(this.instantiationService.createInstance(TextFileSaveParticipant));
 
-	addSaveParticipant(participant: ITextFileSaveParticipant): IDisposable {
+	addSaveParticipant(participant: ITextFileSaveParticipant): IDisposable2 {
 		return this.saveParticipants.addSaveParticipant(participant);
 	}
 

@@ -15,7 +15,7 @@ import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/cont
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 
 export const SelectionAnchorSet = new RawContextKey('selectionAnchorSet', false);
@@ -30,7 +30,7 @@ class SelectionAnchorController implements IEditorContribution {
 
 	private decorationId: string | undefined;
 	private selectionAnchorSetContextKey: IContextKey<boolean>;
-	private modelChangeListener: IDisposable;
+	private modelChangeListener: IDisposable2;
 
 	constructor(
 		private editor: ICodeEditor,

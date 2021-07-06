@@ -10,7 +10,7 @@ import { IQuickPick, IQuickPickItem, IQuickInputService } from 'vs/platform/quic
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { DisposableStore, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, toDisposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
 import { PickerQuickAccessProvider, FastAndSlowPicks } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 
@@ -39,7 +39,7 @@ suite('QuickAccess', () => {
 
 		constructor(@IQuickInputService private readonly quickInputService: IQuickInputService, disposables: DisposableStore) { }
 
-		provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
+		provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable2 {
 			assert.ok(picker);
 			providerDefaultCalled = true;
 			token.onCancellationRequested(() => providerDefaultCanceled = true);
@@ -52,7 +52,7 @@ suite('QuickAccess', () => {
 	}
 
 	class TestProvider1 implements IQuickAccessProvider {
-		provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
+		provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable2 {
 			assert.ok(picker);
 			provider1Called = true;
 			token.onCancellationRequested(() => provider1Canceled = true);
@@ -62,7 +62,7 @@ suite('QuickAccess', () => {
 	}
 
 	class TestProvider2 implements IQuickAccessProvider {
-		provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
+		provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable2 {
 			assert.ok(picker);
 			provider2Called = true;
 			token.onCancellationRequested(() => provider2Canceled = true);
@@ -72,7 +72,7 @@ suite('QuickAccess', () => {
 	}
 
 	class TestProvider3 implements IQuickAccessProvider {
-		provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
+		provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable2 {
 			assert.ok(picker);
 			provider3Called = true;
 			token.onCancellationRequested(() => provider3Canceled = true);

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 
@@ -30,7 +30,7 @@ export interface IHoverService {
 	 * });
 	 * ```
 	 */
-	showHover(options: IHoverOptions, focus?: boolean): IDisposable | undefined;
+	showHover(options: IHoverOptions, focus?: boolean): IDisposable2 | undefined;
 
 	/**
 	 * Hides the hover if it was visible.
@@ -125,7 +125,7 @@ export interface IHoverAction {
 /**
  * A target for a hover.
  */
-export interface IHoverTarget extends IDisposable {
+export interface IHoverTarget extends IDisposable2 {
 	/**
 	 * A set of target elements used to position the hover. If multiple elements are used the hover
 	 * will try to not overlap any target element. An example use case for this is show a hover for

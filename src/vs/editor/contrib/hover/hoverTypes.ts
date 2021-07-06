@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -87,5 +87,5 @@ export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): T[];
 	computeAsync?(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): Promise<T[]>;
 	createLoadingMessage?(anchor: HoverAnchor): T | null;
-	renderHoverParts(hoverParts: T[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable;
+	renderHoverParts(hoverParts: T[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable2;
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator as createServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable } from 'vs/base/common/lifecycle';
 import { isWindows } from 'vs/base/common/platform';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -30,7 +30,7 @@ export enum LogLevel {
 
 export const DEFAULT_LOG_LEVEL: LogLevel = LogLevel.Info;
 
-export interface ILogger extends IDisposable {
+export interface ILogger extends IDisposable2 {
 	onDidChangeLogLevel: Event<LogLevel>;
 	getLevel(): LogLevel;
 	setLevel(level: LogLevel): void;

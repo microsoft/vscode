@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, IWorkingCopyIdentifier, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -67,7 +67,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 	private readonly mapWorkingCopyToContentVersion = new Map<IWorkingCopy, number>();
 
 	// A map of scheduled pending backups for working copies
-	protected readonly pendingBackups = new Map<IWorkingCopy, IDisposable>();
+	protected readonly pendingBackups = new Map<IWorkingCopy, IDisposable2>();
 
 	// Delay creation of backups when content changes to avoid too much
 	// load on the backup service when the user is typing into the editor

@@ -6,12 +6,12 @@
 import { MainContext, MainThreadLabelServiceShape, IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ResourceLabelFormatter, ILabelService } from 'vs/platform/label/common/label';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose } from 'vs/base/common/lifecycle';
 
 @extHostNamedCustomer(MainContext.MainThreadLabelService)
 export class MainThreadLabelService implements MainThreadLabelServiceShape {
 
-	private readonly _resourceLabelFormatters = new Map<number, IDisposable>();
+	private readonly _resourceLabelFormatters = new Map<number, IDisposable2>();
 
 	constructor(
 		_: IExtHostContext,

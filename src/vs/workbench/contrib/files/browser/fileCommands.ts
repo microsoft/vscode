@@ -34,7 +34,7 @@ import { IEditorService, SIDE_GROUP, ISaveEditorsOptions } from 'vs/workbench/se
 import { IEditorGroupsService, GroupsOrder, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { basename, joinPath, isEqual } from 'vs/base/common/resources';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { UNTITLED_WORKSPACE_NAME } from 'vs/platform/workspaces/common/workspaces';
 import { coalesce } from 'vs/base/common/arrays';
@@ -176,7 +176,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 const COMPARE_WITH_SAVED_SCHEMA = 'showModifications';
-let providerDisposables: IDisposable[] = [];
+let providerDisposables: IDisposable2[] = [];
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: COMPARE_WITH_SAVED_COMMAND_ID,
 	when: undefined,

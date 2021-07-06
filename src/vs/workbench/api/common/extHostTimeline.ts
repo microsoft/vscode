@@ -8,7 +8,7 @@ import { UriComponents, URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ExtHostTimelineShape, MainThreadTimelineShape, IMainContext, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { Timeline, TimelineItem, TimelineOptions, TimelineProvider, InternalTimelineOptions } from 'vs/workbench/contrib/timeline/common/timeline';
-import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ThemeIcon } from 'vs/workbench/api/common/extHostTypes';
@@ -54,12 +54,12 @@ export class ExtHostTimeline implements IExtHostTimeline {
 		return provider?.provideTimeline(URI.revive(uri), options, token, internalOptions);
 	}
 
-	registerTimelineProvider(scheme: string | string[], provider: vscode.TimelineProvider, _extensionId: ExtensionIdentifier, commandConverter: CommandsConverter): IDisposable {
+	registerTimelineProvider(scheme: string | string[], provider: vscode.TimelineProvider, _extensionId: ExtensionIdentifier, commandConverter: CommandsConverter): IDisposable2 {
 		const timelineDisposables = new DisposableStore();
 
 		const convertTimelineItem = this.convertTimelineItem(provider.id, commandConverter, timelineDisposables).bind(this);
 
-		let disposable: IDisposable | undefined;
+		let disposable: IDisposable2 | undefined;
 		if (provider.onDidChange) {
 			disposable = provider.onDidChange(e => this._proxy.$emitTimelineChangeEvent({ uri: undefined, reset: true, ...e, id: provider.id }), this);
 		}
@@ -158,7 +158,7 @@ export class ExtHostTimeline implements IExtHostTimeline {
 		};
 	}
 
-	private registerTimelineProviderCore(provider: TimelineProvider): IDisposable {
+	private registerTimelineProviderCore(provider: TimelineProvider): IDisposable2 {
 		// console.log(`ExtHostTimeline#registerTimelineProvider: id=${provider.id}`);
 
 		const existing = this._providers.get(provider.id);

@@ -9,7 +9,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, IDisposable2, IReference } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
 import { isEqual, isEqualOrParent, toLocalResource } from 'vs/base/common/resources';
@@ -49,7 +49,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 
 	private readonly _proxyCustomEditors: extHostProtocol.ExtHostCustomEditorsShape;
 
-	private readonly _editorProviders = new Map<string, IDisposable>();
+	private readonly _editorProviders = new Map<string, IDisposable2>();
 
 	private readonly _editorRenameBackups = new Map<string, CustomDocumentBackupData>();
 

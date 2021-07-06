@@ -17,7 +17,7 @@ import { Thread, ExpressionContainer, DebugModel } from 'vs/workbench/contrib/de
 import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSession';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler, Queue } from 'vs/base/common/async';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -47,7 +47,7 @@ export class DebugSession implements IDebugSession {
 	private sources = new Map<string, Source>();
 	private threads = new Map<number, Thread>();
 	private cancellationMap = new Map<number, CancellationTokenSource[]>();
-	private rawListeners: IDisposable[] = [];
+	private rawListeners: IDisposable2[] = [];
 	private fetchThreadsScheduler: RunOnceScheduler | undefined;
 	private repl: ReplModel;
 	private stoppedDetails: IRawStoppedDetails[] = [];
@@ -92,7 +92,7 @@ export class DebugSession implements IDebugSession {
 			this.repl = (this.parentSession as DebugSession).repl;
 		}
 
-		const toDispose: IDisposable[] = [];
+		const toDispose: IDisposable2[] = [];
 		toDispose.push(this.repl.onDidChangeElements(() => this._onDidChangeREPLElements.fire()));
 		if (lifecycleService) {
 			toDispose.push(lifecycleService.onWillShutdown(() => {

@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { DisposableStore, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable2, dispose } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -45,7 +45,7 @@ export class TerminalLinkManager extends DisposableStore {
 	private _widgetManager: TerminalWidgetManager | undefined;
 	private _processCwd: string | undefined;
 	private _standardLinkProviders: ILinkProvider[] = [];
-	private _standardLinkProvidersDisposables: IDisposable[] = [];
+	private _standardLinkProvidersDisposables: IDisposable2[] = [];
 
 	constructor(
 		private _xterm: Terminal,
@@ -140,7 +140,7 @@ export class TerminalLinkManager extends DisposableStore {
 		}
 	}
 
-	registerExternalLinkProvider(instance: ITerminalInstance, linkProvider: ITerminalExternalLinkProvider): IDisposable {
+	registerExternalLinkProvider(instance: ITerminalInstance, linkProvider: ITerminalExternalLinkProvider): IDisposable2 {
 		const wrappedLinkProvider = this._instantiationService.createInstance(TerminalExternalLinkProviderAdapter, this._xterm, instance, linkProvider, this._wrapLinkHandler.bind(this), this._tooltipCallback.bind(this));
 		const newLinkProvider = this._xterm.registerLinkProvider(wrappedLinkProvider);
 		// Re-register the standard link providers so they are a lower priority that the new one

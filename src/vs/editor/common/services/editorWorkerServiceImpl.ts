@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IntervalTimer, timeout } from 'vs/base/common/async';
-import { Disposable, IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { SimpleWorkerClient, logOnceWebWorkerWarning, IWorkerClient } from 'vs/base/common/worker/simpleWorker';
 import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
@@ -277,7 +277,7 @@ class EditorModelManager extends Disposable {
 
 	private readonly _proxy: EditorSimpleWorker;
 	private readonly _modelService: IModelService;
-	private _syncedModels: { [modelUrl: string]: IDisposable; } = Object.create(null);
+	private _syncedModels: { [modelUrl: string]: IDisposable2; } = Object.create(null);
 	private _syncedModelsLastUsedTime: { [modelUrl: string]: number; } = Object.create(null);
 
 	constructor(proxy: EditorSimpleWorker, modelService: IModelService, keepIdleModels: boolean) {
@@ -370,7 +370,7 @@ class EditorModelManager extends Disposable {
 	}
 }
 
-class SynchronousWorkerClient<T extends IDisposable> implements IWorkerClient<T> {
+class SynchronousWorkerClient<T extends IDisposable2> implements IWorkerClient<T> {
 	private readonly _instance: T;
 	private readonly _proxyObj: Promise<T>;
 

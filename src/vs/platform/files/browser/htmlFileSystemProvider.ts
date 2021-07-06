@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IFileSystemProviderWithFileReadWriteCapability, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileOverwriteOptions, FileType, FileDeleteOptions, FileWriteOptions } from 'vs/platform/files/common/files';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { extUri } from 'vs/base/common/resources';
 
@@ -70,7 +70,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 		await writable.close();
 	}
 
-	watch(resource: URI, opts: IWatchOptions): IDisposable {
+	watch(resource: URI, opts: IWatchOptions): IDisposable2 {
 		return Disposable.None;
 	}
 

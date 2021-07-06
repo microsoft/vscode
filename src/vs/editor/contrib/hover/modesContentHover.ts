@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -201,7 +201,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 	private _isChangingDecorations: boolean;
 	private _shouldFocus: boolean;
 	private _colorPicker: ColorPickerWidget | null;
-	private _renderDisposable: IDisposable | null;
+	private _renderDisposable: IDisposable2 | null;
 
 	constructor(
 		editor: ICodeEditor,

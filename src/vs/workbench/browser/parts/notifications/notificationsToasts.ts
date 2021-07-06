@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/notificationsToasts';
 import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemContentChangeKind } from 'vs/workbench/common/notifications';
-import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isAncestor, addDisposableListener, EventType, Dimension, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
@@ -66,7 +66,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 	private isNotificationsCenterVisible: boolean | undefined;
 
 	private readonly mapNotificationToToast = new Map<INotificationViewItem, INotificationToast>();
-	private readonly mapNotificationToDisposable = new Map<INotificationViewItem, IDisposable>();
+	private readonly mapNotificationToDisposable = new Map<INotificationViewItem, IDisposable2>();
 
 	private readonly notificationsToastsVisibleContextKey = NotificationsToastsVisibleContext.bindTo(this.contextKeyService);
 
@@ -268,7 +268,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 
 		// Install Timers to Purge Notification
 		let purgeTimeoutHandle: any;
-		let listener: IDisposable;
+		let listener: IDisposable2;
 
 		const hideAfterTimeout = () => {
 

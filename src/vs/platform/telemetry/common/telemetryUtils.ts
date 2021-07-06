@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { IConfigurationService, ConfigurationTarget, ConfigurationTargetToString } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService, ITelemetryInfo, ITelemetryData, ICustomEndpointTelemetryService, ITelemetryEndpoint } from 'vs/platform/telemetry/common/telemetry';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
@@ -83,7 +83,7 @@ export interface URIDescriptor {
 	path?: string;
 }
 
-export function configurationTelemetry(telemetryService: ITelemetryService, configurationService: IConfigurationService): IDisposable {
+export function configurationTelemetry(telemetryService: ITelemetryService, configurationService: IConfigurationService): IDisposable2 {
 	return configurationService.onDidChangeConfiguration(event => {
 		if (event.source !== ConfigurationTarget.DEFAULT) {
 			type UpdateConfigurationClassification = {

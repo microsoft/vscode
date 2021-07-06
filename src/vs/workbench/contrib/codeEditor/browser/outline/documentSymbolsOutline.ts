@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { IBreadcrumbsDataSource, IOutline, IOutlineCreator, IOutlineListConfig, IOutlineService, OutlineChangeEvent, OutlineConfigKeys, OutlineTarget, } from 'vs/workbench/services/outline/browser/outline';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -223,7 +223,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		}, this._editor, sideBySide);
 	}
 
-	preview(entry: DocumentSymbolItem): IDisposable {
+	preview(entry: DocumentSymbolItem): IDisposable2 {
 		if (!(entry instanceof OutlineElement)) {
 			return Disposable.None;
 		}
@@ -241,7 +241,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		return toDisposable(() => this._editor.deltaDecorations(ids, []));
 	}
 
-	captureViewState(): IDisposable {
+	captureViewState(): IDisposable2 {
 		const viewState = this._editor.saveViewState();
 		return toDisposable(() => {
 			if (viewState) {

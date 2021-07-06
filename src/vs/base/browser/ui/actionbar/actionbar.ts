@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./actionbar';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable2 } from 'vs/base/common/lifecycle';
 import { IAction, IActionRunner, ActionRunner, IRunEvent, Separator } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
 import * as types from 'vs/base/common/types';
@@ -13,7 +13,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Emitter } from 'vs/base/common/event';
 import { IActionViewItemOptions, ActionViewItem, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
-export interface IActionViewItem extends IDisposable {
+export interface IActionViewItem extends IDisposable2 {
 	actionRunner: IActionRunner;
 	setActionContext(context: unknown): void;
 	render(element: HTMLElement): void;

@@ -5,7 +5,7 @@
 
 import { diffMaps, diffSets } from 'vs/base/common/collections';
 import { Emitter, Event } from 'vs/base/common/event';
-import { combinedDisposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, DisposableStore, IDisposable2 } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MainThreadNotebookDocuments } from 'vs/workbench/api/browser/mainThreadNotebookDocuments';
@@ -85,7 +85,7 @@ export class MainThreadNotebooksAndEditors {
 	private readonly _proxy: Pick<ExtHostNotebookShape, '$acceptDocumentAndEditorsDelta'>;
 	private readonly _disposables = new DisposableStore();
 
-	private readonly _editorListeners = new Map<string, IDisposable>();
+	private readonly _editorListeners = new Map<string, IDisposable2>();
 
 	private _currentState?: NotebookAndEditorState;
 

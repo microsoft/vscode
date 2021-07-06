@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LayoutPriority, Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable2 } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -44,7 +44,7 @@ export class TerminalTabbedView extends Disposable {
 
 	private _tabList: TerminalTabList;
 	private _findWidget: TerminalFindWidget;
-	private _sashDisposables: IDisposable[] | undefined;
+	private _sashDisposables: IDisposable2[] | undefined;
 
 	private _plusButton: HTMLElement | undefined;
 

@@ -19,7 +19,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { getIconClasses, detectModeId } from 'vs/editor/common/services/getIconClasses';
-import { Disposable, dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable2, DisposableStore } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
@@ -65,7 +65,7 @@ export interface IFileLabelOptions extends IResourceLabelOptions {
 	hidePath?: boolean;
 }
 
-export interface IResourceLabel extends IDisposable {
+export interface IResourceLabel extends IDisposable2 {
 	readonly element: HTMLElement;
 	readonly onDidRender: Event<void>;
 

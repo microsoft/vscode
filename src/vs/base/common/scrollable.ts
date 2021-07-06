@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 
 export const enum ScrollbarVisibility {
 	Auto = 1,
@@ -207,14 +207,14 @@ export class Scrollable extends Disposable {
 	_scrollableBrand: void = undefined;
 
 	private _smoothScrollDuration: number;
-	private readonly _scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable;
+	private readonly _scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable2;
 	private _state: ScrollState;
 	private _smoothScrolling: SmoothScrollingOperation | null;
 
 	private _onScroll = this._register(new Emitter<ScrollEvent>());
 	public readonly onScroll: Event<ScrollEvent> = this._onScroll.event;
 
-	constructor(smoothScrollDuration: number, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
+	constructor(smoothScrollDuration: number, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable2) {
 		super();
 
 		this._smoothScrollDuration = smoothScrollDuration;
@@ -412,7 +412,7 @@ export class SmoothScrollingOperation {
 	public to: ISmoothScrollPosition;
 	public readonly duration: number;
 	public readonly startTime: number;
-	public animationFrameDisposable: IDisposable | null;
+	public animationFrameDisposable: IDisposable2 | null;
 
 	private scrollLeft!: IAnimation;
 	private scrollTop!: IAnimation;

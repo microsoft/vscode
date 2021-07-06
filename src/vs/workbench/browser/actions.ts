@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAction } from 'vs/base/common/actions';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable2, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MenuId, IMenuService, IMenu, SubmenuItemAction, IMenuActionOptions } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -48,7 +48,7 @@ class MenuActions extends Disposable {
 		this._onDidChange.fire();
 	}
 
-	private updateSubmenus(actions: readonly IAction[], submenus: { [id: number]: IMenu }): IDisposable {
+	private updateSubmenus(actions: readonly IAction[], submenus: { [id: number]: IMenu }): IDisposable2 {
 		const disposables = new DisposableStore();
 
 		for (const action of actions) {

@@ -5,7 +5,7 @@
 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 
 export const IURLService = createDecorator<IURLService>('urlService');
 
@@ -39,5 +39,5 @@ export interface IURLService {
 
 	open(url: URI, options?: IOpenURLOptions): Promise<boolean>;
 
-	registerHandler(handler: IURLHandler): IDisposable;
+	registerHandler(handler: IURLHandler): IDisposable2;
 }

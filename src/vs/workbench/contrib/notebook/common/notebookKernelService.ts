@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -64,7 +64,7 @@ export interface INotebookKernelService {
 	readonly onDidChangeSelectedNotebooks: Event<ISelectedNotebooksChangeEvent>;
 	readonly onDidChangeNotebookAffinity: Event<void>
 
-	registerKernel(kernel: INotebookKernel): IDisposable;
+	registerKernel(kernel: INotebookKernel): IDisposable2;
 
 	getMatchingKernel(notebook: INotebookTextModelLike): INotebookKernelMatchResult;
 

@@ -16,7 +16,7 @@ import { ColorThemeData } from 'vs/workbench/services/themes/common/colorThemeDa
 import { IColorTheme, Extensions as ThemingExtensions, IThemingRegistry } from 'vs/platform/theme/common/themeService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { registerFileIconThemeSchemas } from 'vs/workbench/services/themes/common/fileIconThemeSchema';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose } from 'vs/base/common/lifecycle';
 import { FileIconThemeData } from 'vs/workbench/services/themes/browser/fileIconThemeData';
 import { createStyleSheet } from 'vs/base/browser/dom';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -85,7 +85,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	private currentColorTheme: ColorThemeData;
 	private readonly onColorThemeChange: Emitter<IWorkbenchColorTheme>;
 	private readonly colorThemeWatcher: ThemeFileWatcher;
-	private colorThemingParticipantChangeListener: IDisposable | undefined;
+	private colorThemingParticipantChangeListener: IDisposable2 | undefined;
 	private readonly colorThemeSequencer: Sequencer;
 
 	private readonly fileIconThemeRegistry: ThemeRegistry<FileIconThemeData>;
@@ -693,8 +693,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 class ThemeFileWatcher {
 
 	private watchedLocation: URI | undefined;
-	private watcherDisposable: IDisposable | undefined;
-	private fileChangeListener: IDisposable | undefined;
+	private watcherDisposable: IDisposable2 | undefined;
+	private fileChangeListener: IDisposable2 | undefined;
 
 	constructor(private fileService: IFileService, private environmentService: IWorkbenchEnvironmentService, private onUpdate: () => void) {
 	}

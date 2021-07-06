@@ -5,7 +5,7 @@
 
 import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { IDebugService, IDebugSession, IReplElement } from 'vs/workbench/contrib/debug/common/debug';
 
 export class UrlFinder extends Disposable {
@@ -28,7 +28,7 @@ export class UrlFinder extends Disposable {
 
 	private _onDidMatchLocalUrl: Emitter<{ host: string, port: number }> = new Emitter();
 	public readonly onDidMatchLocalUrl = this._onDidMatchLocalUrl.event;
-	private listeners: Map<ITerminalInstance | string, IDisposable> = new Map();
+	private listeners: Map<ITerminalInstance | string, IDisposable2> = new Map();
 
 	constructor(terminalService: ITerminalService, debugService: IDebugService) {
 		super();

@@ -8,7 +8,7 @@ import { IContextKey, RawContextKey, IContextKeyService, ContextKeyExpr, Context
 import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { toDisposable, DisposableStore, Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { toDisposable, DisposableStore, Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { ViewPaneContainer, ViewPaneContainerAction, ViewsSubMenu } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -43,7 +43,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	private readonly _onDidChangeContainerLocation: Emitter<{ viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation }> = this._register(new Emitter<{ viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation }>());
 	readonly onDidChangeContainerLocation: Event<{ viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation }> = this._onDidChangeContainerLocation.event;
 
-	private readonly viewContainerModels: Map<ViewContainer, { viewContainerModel: ViewContainerModel, disposable: IDisposable; }>;
+	private readonly viewContainerModels: Map<ViewContainer, { viewContainerModel: ViewContainerModel, disposable: IDisposable2; }>;
 	private readonly viewsVisibilityActionDisposables: Map<ViewContainer, DisposableStore>;
 	private readonly activeViewContextKeys: Map<string, IContextKey<boolean>>;
 	private readonly movableViewContextKeys: Map<string, IContextKey<boolean>>;
@@ -101,7 +101,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	) {
 		super();
 
-		this.viewContainerModels = new Map<ViewContainer, { viewContainerModel: ViewContainerModel, disposable: IDisposable; }>();
+		this.viewContainerModels = new Map<ViewContainer, { viewContainerModel: ViewContainerModel, disposable: IDisposable2; }>();
 		this.viewsVisibilityActionDisposables = new Map<ViewContainer, DisposableStore>();
 		this.activeViewContextKeys = new Map<string, IContextKey<boolean>>();
 		this.movableViewContextKeys = new Map<string, IContextKey<boolean>>();
@@ -817,7 +817,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		});
 	}
 
-	private registerResetViewContainerAction(viewContainer: ViewContainer): IDisposable {
+	private registerResetViewContainerAction(viewContainer: ViewContainer): IDisposable2 {
 		const that = this;
 		return registerAction2(class ResetViewLocationAction extends Action2 {
 			constructor() {

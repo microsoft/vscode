@@ -10,7 +10,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import * as Types from 'vs/base/common/types';
 import * as Platform from 'vs/base/common/platform';
 import { IStringDictionary, forEach } from 'vs/base/common/collections';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
@@ -404,7 +404,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 
 	private readonly _extHostContext: IExtHostContext | undefined;
 	private readonly _proxy: ExtHostTaskShape;
-	private readonly _providers: Map<number, { disposable: IDisposable, provider: ITaskProvider }>;
+	private readonly _providers: Map<number, { disposable: IDisposable2, provider: ITaskProvider }>;
 
 	constructor(
 		extHostContext: IExtHostContext,

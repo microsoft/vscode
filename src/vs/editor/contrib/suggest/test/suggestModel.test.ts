@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -179,7 +179,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		}
 	};
 
-	let disposables: IDisposable[] = [];
+	let disposables: IDisposable2[] = [];
 	let model: TextModel;
 
 	setup(function () {

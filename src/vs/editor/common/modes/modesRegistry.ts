@@ -9,7 +9,7 @@ import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 
 // Define extension point ids
@@ -32,7 +32,7 @@ export class EditorModesRegistry {
 
 	// --- languages
 
-	public registerLanguage(def: ILanguageExtensionPoint): IDisposable {
+	public registerLanguage(def: ILanguageExtensionPoint): IDisposable2 {
 		this._languages.push(def);
 		this._onDidChangeLanguages.fire(undefined);
 		return {

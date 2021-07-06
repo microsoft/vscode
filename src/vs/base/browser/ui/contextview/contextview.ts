@@ -6,7 +6,7 @@
 import 'vs/css!./contextview';
 import * as DOM from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
-import { IDisposable, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/base/common/range';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
@@ -37,7 +37,7 @@ export const enum AnchorAxisAlignment {
 
 export interface IDelegate {
 	getAnchor(): HTMLElement | IAnchor;
-	render(container: HTMLElement): IDisposable | null;
+	render(container: HTMLElement): IDisposable2 | null;
 	focus?(): void;
 	layout?(): void;
 	anchorAlignment?: AnchorAlignment; // default: left
@@ -125,8 +125,8 @@ export class ContextView extends Disposable {
 	private useFixedPosition: boolean;
 	private useShadowDOM: boolean;
 	private delegate: IDelegate | null = null;
-	private toDisposeOnClean: IDisposable = Disposable.None;
-	private toDisposeOnSetContainer: IDisposable = Disposable.None;
+	private toDisposeOnClean: IDisposable2 = Disposable.None;
+	private toDisposeOnSetContainer: IDisposable2 = Disposable.None;
 	private shadowRoot: ShadowRoot | null = null;
 	private shadowRootHostElement: HTMLElement | null = null;
 

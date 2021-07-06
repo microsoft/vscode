@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable2, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
@@ -97,7 +97,7 @@ class SearchOperation {
 	}
 }
 
-class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
+class RemoteSearchProvider implements ISearchResultProvider, IDisposable2 {
 
 	private readonly _registrations = new DisposableStore();
 	private readonly _searches = new Map<number, SearchOperation>();

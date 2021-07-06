@@ -7,7 +7,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { URI } from 'vs/base/common/uri';
 import { CellUri, IResolvedNotebookEditorModel, NotebookWorkingCopyTypeIdentifier } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ComplexNotebookEditorModel, NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModelFactory, SimpleNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
-import { combinedDisposable, DisposableStore, dispose, IDisposable, IReference, ReferenceCollection, toDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, DisposableStore, dispose, IDisposable2, IReference, ReferenceCollection, toDisposable } from 'vs/base/common/lifecycle';
 import { ComplexNotebookProviderInfo, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -21,7 +21,7 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _workingCopyManagers = new Map<string, IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>>();
-	private readonly _modelListener = new Map<IResolvedNotebookEditorModel, IDisposable>();
+	private readonly _modelListener = new Map<IResolvedNotebookEditorModel, IDisposable2>();
 
 	private readonly _onDidSaveNotebook = new Emitter<URI>();
 	readonly onDidSaveNotebook: Event<URI> = this._onDidSaveNotebook.event;

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./standalone-tokens';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -100,7 +100,7 @@ export function create(domElement: HTMLElement, options?: IStandaloneEditorConst
  * Creating a diff editor might cause this listener to be invoked with the two editors.
  * @event
  */
-export function onDidCreateEditor(listener: (codeEditor: ICodeEditor) => void): IDisposable {
+export function onDidCreateEditor(listener: (codeEditor: ICodeEditor) => void): IDisposable2 {
 	return StaticServices.codeEditorService.get().onCodeEditorAdd((editor) => {
 		listener(<ICodeEditor>editor);
 	});
@@ -186,7 +186,7 @@ export function getModelMarkers(filter: { owner?: string, resource?: URI, take?:
  * Emitted when markers change for a model.
  * @event
  */
-export function onDidChangeMarkers(listener: (e: readonly URI[]) => void): IDisposable {
+export function onDidChangeMarkers(listener: (e: readonly URI[]) => void): IDisposable2 {
 	return StaticServices.markerService.get().onMarkerChanged(listener);
 }
 
@@ -208,7 +208,7 @@ export function getModels(): ITextModel[] {
  * Emitted when a model is created.
  * @event
  */
-export function onDidCreateModel(listener: (model: ITextModel) => void): IDisposable {
+export function onDidCreateModel(listener: (model: ITextModel) => void): IDisposable2 {
 	return StaticServices.modelService.get().onModelAdded(listener);
 }
 
@@ -216,7 +216,7 @@ export function onDidCreateModel(listener: (model: ITextModel) => void): IDispos
  * Emitted right before a model is disposed.
  * @event
  */
-export function onWillDisposeModel(listener: (model: ITextModel) => void): IDisposable {
+export function onWillDisposeModel(listener: (model: ITextModel) => void): IDisposable2 {
 	return StaticServices.modelService.get().onModelRemoved(listener);
 }
 
@@ -224,7 +224,7 @@ export function onWillDisposeModel(listener: (model: ITextModel) => void): IDisp
  * Emitted when a different language is set to a model.
  * @event
  */
-export function onDidChangeModelLanguage(listener: (e: { readonly model: ITextModel; readonly oldLanguage: string; }) => void): IDisposable {
+export function onDidChangeModelLanguage(listener: (e: { readonly model: ITextModel; readonly oldLanguage: string; }) => void): IDisposable2 {
 	return StaticServices.modelService.get().onModelModeChanged((e) => {
 		listener({
 			model: e.model,
@@ -328,7 +328,7 @@ export function remeasureFonts(): void {
 /**
  * Register a command.
  */
-export function registerCommand(id: string, handler: (accessor: any, ...args: any[]) => void): IDisposable {
+export function registerCommand(id: string, handler: (accessor: any, ...args: any[]) => void): IDisposable2 {
 	return CommandsRegistry.registerCommand({ id, handler });
 }
 

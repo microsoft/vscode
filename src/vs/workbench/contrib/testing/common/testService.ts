@@ -5,7 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
@@ -120,7 +120,7 @@ export const getAllTestsInHierarchy = async (collection: IMainThreadTestCollecti
 		return;
 	}
 
-	let l: IDisposable;
+	let l: IDisposable2;
 
 	await Promise.race([
 		Promise.all([...collection.rootItems].map(r => collection.expand(r.item.extId, Infinity))),
@@ -197,7 +197,7 @@ export interface ITestService {
 	/**
 	 * Registers an interface that runs tests for the given provider ID.
 	 */
-	registerTestController(providerId: string, controller: MainTestController): IDisposable;
+	registerTestController(providerId: string, controller: MainTestController): IDisposable2;
 
 	/**
 	 * Requests that tests be executed.

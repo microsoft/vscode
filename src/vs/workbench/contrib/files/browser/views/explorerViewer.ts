@@ -12,7 +12,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IFileService, FileKind, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IDisposable, Disposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IFileLabelOptions, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { ITreeNode, ITreeFilter, TreeVisibility, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
@@ -136,13 +136,13 @@ export interface ICompressedNavigationController {
 	updateCollapsed(collapsed: boolean): void;
 }
 
-export class CompressedNavigationController implements ICompressedNavigationController, IDisposable {
+export class CompressedNavigationController implements ICompressedNavigationController, IDisposable2 {
 
 	static ID = 0;
 
 	private _index: number;
 	private _labels!: HTMLElement[];
-	private _updateLabelDisposable: IDisposable;
+	private _updateLabelDisposable: IDisposable2;
 
 	get index(): number { return this._index; }
 	get count(): number { return this.items.length; }
@@ -234,16 +234,16 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 }
 
 export interface IFileTemplateData {
-	elementDisposable: IDisposable;
+	elementDisposable: IDisposable2;
 	label: IResourceLabel;
 	container: HTMLElement;
 }
 
-export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, FuzzyScore, IFileTemplateData>, IListAccessibilityProvider<ExplorerItem>, IDisposable {
+export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, FuzzyScore, IFileTemplateData>, IListAccessibilityProvider<ExplorerItem>, IDisposable2 {
 	static readonly ID = 'file';
 
 	private config: IFilesConfiguration;
-	private configListener: IDisposable;
+	private configListener: IDisposable2;
 	private compressedNavigationControllers = new Map<ExplorerItem, CompressedNavigationController>();
 
 	private _onDidChangeActiveDescendant = new EventMultiplexer<void>();
@@ -348,7 +348,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		}
 	}
 
-	private renderStat(stat: ExplorerItem, label: string | string[], domId: string | undefined, filterData: FuzzyScore | undefined, templateData: IFileTemplateData): IDisposable {
+	private renderStat(stat: ExplorerItem, label: string | string[], domId: string | undefined, filterData: FuzzyScore | undefined, templateData: IFileTemplateData): IDisposable2 {
 		templateData.label.element.style.display = 'flex';
 		const extraClasses = ['explorer-item'];
 		if (this.explorerService.isCut(stat)) {
@@ -373,7 +373,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		});
 	}
 
-	private renderInputBox(container: HTMLElement, stat: ExplorerItem, editableData: IEditableData): IDisposable {
+	private renderInputBox(container: HTMLElement, stat: ExplorerItem, editableData: IEditableData): IDisposable2 {
 
 		// Use a file label only for the icon next to the input box
 		const label = this.labels.create(container);
@@ -532,7 +532,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	private hiddenExpressionPerRoot = new Map<string, CachedParsedExpression>();
 	private editorsAffectingFilter = new Set<IEditorInput>();
 	private _onDidChange = new Emitter<void>();
-	private toDispose: IDisposable[] = [];
+	private toDispose: IDisposable2[] = [];
 
 	constructor(
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
@@ -755,9 +755,9 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private static readonly CONFIRM_DND_SETTING_KEY = 'explorer.confirmDragAndDrop';
 
 	private compressedDragOverElement: HTMLElement | undefined;
-	private compressedDropTargetDisposable: IDisposable = Disposable.None;
+	private compressedDropTargetDisposable: IDisposable2 = Disposable.None;
 
-	private toDispose: IDisposable[];
+	private toDispose: IDisposable2[];
 	private dropEnabled = false;
 
 	constructor(

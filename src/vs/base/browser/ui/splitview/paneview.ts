@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./paneview';
-import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -425,7 +425,7 @@ export interface IPaneViewOptions {
 
 interface IPaneItem {
 	pane: Pane;
-	disposable: IDisposable;
+	disposable: IDisposable2;
 }
 
 export class PaneView extends Disposable {

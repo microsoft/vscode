@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { mark } from 'vs/base/common/performance';
-import { Disposable, IDisposable, toDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, toDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { IFileService, IResolveFileOptions, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType, toFileSystemProviderErrorCode, FileSystemProviderErrorCode, IStat, IFileStatWithMetadata, IResolveMetadataFileOptions, etag, hasReadWriteCapability, hasFileFolderCopyCapability, hasOpenReadWriteCloseCapability, toFileOperationResult, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IResolveFileResultWithMetadata, IWatchOptions, IWriteFileOptions, IReadFileOptions, IFileStreamContent, IFileContent, ETAG_DISABLED, hasFileReadStreamCapability, IFileSystemProviderWithFileReadStreamCapability, ensureFileSystemProviderError, IFileSystemProviderCapabilitiesChangeEvent, IReadFileStreamOptions, FileDeleteOptions, FilePermission, NotModifiedSinceFileOperationError, IFileChange, IRawFileChangesEvent } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
@@ -44,7 +44,7 @@ export class FileService extends Disposable implements IFileService {
 
 	private readonly provider = new Map<string, IFileSystemProvider>();
 
-	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable {
+	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable2 {
 		if (this.provider.has(scheme)) {
 			throw new Error(`A filesystem provider for the scheme '${scheme}' is already registered.`);
 		}
@@ -985,7 +985,7 @@ export class FileService extends Disposable implements IFileService {
 	private readonly _onDidChangeFilesRaw = this._register(new Emitter<IRawFileChangesEvent>());
 	readonly onDidChangeFilesRaw = this._onDidChangeFilesRaw.event;
 
-	private readonly activeWatchers = new Map<string, { disposable: IDisposable, count: number; }>();
+	private readonly activeWatchers = new Map<string, { disposable: IDisposable2, count: number; }>();
 
 	private readonly caseSensitiveFileEventsWorker = this._register(
 		new ThrottledWorker<IFileChange>(
@@ -1062,7 +1062,7 @@ export class FileService extends Disposable implements IFileService {
 		return false;
 	});
 
-	watch(resource: URI, options: IWatchOptions = { recursive: false, excludes: [] }): IDisposable {
+	watch(resource: URI, options: IWatchOptions = { recursive: false, excludes: [] }): IDisposable2 {
 		const disposables = new DisposableStore();
 
 		// Forward watch request to provider and
@@ -1112,7 +1112,7 @@ export class FileService extends Disposable implements IFileService {
 		return disposables;
 	}
 
-	private async doWatch(resource: URI, options: IWatchOptions): Promise<IDisposable> {
+	private async doWatch(resource: URI, options: IWatchOptions): Promise<IDisposable2> {
 		const provider = await this.withProvider(resource);
 		const key = this.toWatchKey(provider, resource, options);
 

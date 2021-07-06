@@ -50,7 +50,7 @@ import { TestNotificationService } from 'vs/platform/notification/test/common/te
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
-import { IDisposable, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IEditorReplacement, IGroupChangeEvent, IFindGroupScope, EditorGroupLayout, ICloseEditorOptions, GroupOrientation, ICloseAllEditorsOptions, ICloseEditorsFilter } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, ISaveEditorsOptions, IRevertAllEditorsOptions, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -451,7 +451,7 @@ export class TestDecorationsService implements IDecorationsService {
 
 	onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = Event.None;
 
-	registerDecorationsProvider(_provider: IDecorationsProvider): IDisposable { return Disposable.None; }
+	registerDecorationsProvider(_provider: IDecorationsProvider): IDisposable2 { return Disposable.None; }
 	getDecoration(_uri: URI, _includeChildren: boolean, _overwrite?: IDecorationData): IDecoration | undefined { return undefined; }
 }
 
@@ -619,7 +619,7 @@ export class TestPanelService implements IPanelService {
 	getActivePanel(): IPanel { return activeViewlet; }
 	setPanelEnablement(id: string, enabled: boolean): void { }
 	dispose() { }
-	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable { throw new Error('Method not implemented.'); }
+	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable2 { throw new Error('Method not implemented.'); }
 	getProgressIndicator(id: string) { return null!; }
 	hideActivePanel(): void { }
 	getLastActivePanelId(): string { return undefined!; }
@@ -692,7 +692,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	isLayoutCentered(): boolean { return false; }
 
 	partOptions!: IEditorPartOptions;
-	enforcePartOptions(options: IEditorPartOptions): IDisposable { return Disposable.None; }
+	enforcePartOptions(options: IEditorPartOptions): IDisposable2 { return Disposable.None; }
 }
 
 export class TestEditorGroupView implements IEditorGroupView {
@@ -1000,7 +1000,7 @@ export class TestFileService implements IFileService {
 	async del(_resource: URI, _options?: { useTrash?: boolean, recursive?: boolean; }): Promise<void> { }
 
 	readonly watches: URI[] = [];
-	watch(_resource: URI): IDisposable {
+	watch(_resource: URI): IDisposable2 {
 		this.watches.push(_resource);
 
 		return toDisposable(() => this.watches.splice(this.watches.indexOf(_resource), 1));
@@ -1198,7 +1198,7 @@ export class RemoteFileSystemProvider implements IFileSystemProvider {
 			resource: c.resource.with({ scheme: Schemas.vscodeRemote, authority: this.remoteAuthority }),
 		};
 	}));
-	watch(resource: URI, opts: IWatchOptions): IDisposable { return this.diskFileSystemProvider.watch(this.toFileResource(resource), opts); }
+	watch(resource: URI, opts: IWatchOptions): IDisposable2 { return this.diskFileSystemProvider.watch(this.toFileResource(resource), opts); }
 
 	stat(resource: URI): Promise<IStat> { return this.diskFileSystemProvider.stat(this.toFileResource(resource)); }
 	mkdir(resource: URI): Promise<void> { return this.diskFileSystemProvider.mkdir(this.toFileResource(resource)); }
@@ -1329,7 +1329,7 @@ export abstract class TestEditorWithOptions extends EditorPane {
 	}
 }
 
-export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInput>[], serializerInputId?: string): IDisposable {
+export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInput>[], serializerInputId?: string): IDisposable2 {
 	class TestEditor extends TestEditorWithOptions {
 
 		private _scopedContextKeyService: IContextKeyService;
@@ -1392,7 +1392,7 @@ export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInpu
 	return disposables;
 }
 
-export function registerTestFileEditor(): IDisposable {
+export function registerTestFileEditor(): IDisposable2 {
 	const disposables = new DisposableStore();
 
 	disposables.add(Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(
@@ -1407,7 +1407,7 @@ export function registerTestFileEditor(): IDisposable {
 	return disposables;
 }
 
-export function registerTestResourceEditor(): IDisposable {
+export function registerTestResourceEditor(): IDisposable2 {
 	const disposables = new DisposableStore();
 
 	disposables.add(Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(
@@ -1425,7 +1425,7 @@ export function registerTestResourceEditor(): IDisposable {
 	return disposables;
 }
 
-export function registerTestSideBySideEditor(): IDisposable {
+export function registerTestSideBySideEditor(): IDisposable2 {
 	const disposables = new DisposableStore();
 
 	disposables.add(Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(
@@ -1565,7 +1565,7 @@ export class TestListService implements IListService {
 
 	lastFocusedList: any | undefined = undefined;
 
-	register(): IDisposable {
+	register(): IDisposable2 {
 		return Disposable.None;
 	}
 }

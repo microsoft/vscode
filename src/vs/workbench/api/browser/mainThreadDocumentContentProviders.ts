@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
@@ -20,7 +20,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 @extHostNamedCustomer(MainContext.MainThreadDocumentContentProviders)
 export class MainThreadDocumentContentProviders implements MainThreadDocumentContentProvidersShape {
 
-	private readonly _resourceContentProvider = new Map<number, IDisposable>();
+	private readonly _resourceContentProvider = new Map<number, IDisposable2>();
 	private readonly _pendingUpdate = new Map<string, CancellationTokenSource>();
 	private readonly _proxy: ExtHostDocumentContentProvidersShape;
 

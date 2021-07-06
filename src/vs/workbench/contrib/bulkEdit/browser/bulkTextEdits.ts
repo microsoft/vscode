@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable2, IReference } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -22,7 +22,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 
 type ValidationResult = { canApply: true } | { canApply: false, reason: URI };
 
-class ModelEditTask implements IDisposable {
+class ModelEditTask implements IDisposable2 {
 
 	readonly model: ITextModel;
 

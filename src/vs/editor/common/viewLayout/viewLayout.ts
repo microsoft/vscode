@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { IScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility, INewScrollPosition } from 'vs/base/common/scrollable';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IConfiguration, ScrollType } from 'vs/editor/common/editorCommon';
@@ -79,7 +79,7 @@ class EditorScrollable extends Disposable {
 	private readonly _onDidContentSizeChange = this._register(new Emitter<ContentSizeChangedEvent>());
 	public readonly onDidContentSizeChange: Event<ContentSizeChangedEvent> = this._onDidContentSizeChange.event;
 
-	constructor(smoothScrollDuration: number, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
+	constructor(smoothScrollDuration: number, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable2) {
 		super();
 		this._dimensions = new EditorScrollDimensions(0, 0, 0, 0);
 		this._scrollable = this._register(new Scrollable(smoothScrollDuration, scheduleAtNextAnimationFrame));
@@ -153,7 +153,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	public readonly onDidScroll: Event<ScrollEvent>;
 	public readonly onDidContentSizeChange: Event<ContentSizeChangedEvent>;
 
-	constructor(configuration: IConfiguration, lineCount: number, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
+	constructor(configuration: IConfiguration, lineCount: number, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable2) {
 		super();
 
 		this._configuration = configuration;

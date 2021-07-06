@@ -9,7 +9,7 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
-import { dispose, IDisposable, IReference, DisposableStore } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable2, IReference, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -37,7 +37,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeyCode } from 'vs/base/common/keyCodes';
 
 
-class DecorationsManager implements IDisposable {
+class DecorationsManager implements IDisposable2 {
 
 	private static readonly DecorationOptions = ModelDecorationOptions.register({
 		description: 'reference-decoration',

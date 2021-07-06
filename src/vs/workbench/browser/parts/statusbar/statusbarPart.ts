@@ -6,7 +6,7 @@
 import 'vs/css!./media/statusbarpart';
 import { localize } from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { dispose, IDisposable, Disposable, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable2, Disposable, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Part } from 'vs/workbench/browser/part';
@@ -172,7 +172,7 @@ class StatusbarViewModel extends Disposable {
 		}
 	}
 
-	add(entry: IStatusbarViewModelEntry): IDisposable {
+	add(entry: IStatusbarViewModelEntry): IDisposable2 {
 		this._entries.push(entry); // intentionally not using a map here since multiple entries can have the same ID!
 
 		// Update visibility directly
@@ -839,7 +839,7 @@ class StatusbarEntryItem extends Disposable {
 	readonly labelContainer: HTMLElement;
 	private readonly label: StatusBarCodiconLabel;
 
-	private customHover: IDisposable | undefined;
+	private customHover: IDisposable2 | undefined;
 
 	private entry: IStatusbarEntry | undefined = undefined;
 	get name(): string { return assertIsDefined(this.entry).name; }

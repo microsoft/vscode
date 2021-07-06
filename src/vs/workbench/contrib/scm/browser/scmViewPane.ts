@@ -6,7 +6,7 @@
 import 'vs/css!./media/scm';
 import { Event, Emitter } from 'vs/base/common/event';
 import { basename, dirname } from 'vs/base/common/resources';
-import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable, DisposableStore, combinedDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { ViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { append, $, Dimension, asCSSUrl } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
@@ -92,8 +92,8 @@ interface ISCMLayout {
 
 interface InputTemplate {
 	readonly inputWidget: SCMInputWidget;
-	disposable: IDisposable;
-	readonly templateDisposable: IDisposable;
+	disposable: IDisposable2;
+	readonly templateDisposable: IDisposable2;
 }
 
 class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, InputTemplate> {
@@ -223,8 +223,8 @@ interface ResourceGroupTemplate {
 	readonly name: HTMLElement;
 	readonly count: CountBadge;
 	readonly actionBar: ActionBar;
-	elementDisposables: IDisposable;
-	readonly disposables: IDisposable;
+	elementDisposables: IDisposable2;
+	readonly disposables: IDisposable2;
 }
 
 class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGroup, FuzzyScore, ResourceGroupTemplate> {
@@ -291,8 +291,8 @@ interface ResourceTemplate {
 	fileLabel: IResourceLabel;
 	decorationIcon: HTMLElement;
 	actionBar: ActionBar;
-	elementDisposables: IDisposable;
-	disposables: IDisposable;
+	elementDisposables: IDisposable2;
+	disposables: IDisposable2;
 }
 
 class RepositoryPaneActionRunner extends ActionRunner {
@@ -1456,7 +1456,7 @@ class SCMInputWidget extends Disposable {
 	private repositoryDisposables = new DisposableStore();
 
 	private validation: IInputValidation | undefined;
-	private validationDisposable: IDisposable = Disposable.None;
+	private validationDisposable: IDisposable2 = Disposable.None;
 	private _validationTimer: any;
 
 	// This is due to "Setup height change listener on next tick" above
@@ -2099,7 +2099,7 @@ export class SCMViewPane extends ViewPane {
 		const element = e.element;
 		let context: any = element;
 		let actions: IAction[] = [];
-		let disposable: IDisposable = Disposable.None;
+		let disposable: IDisposable2 = Disposable.None;
 
 		if (isSCMRepository(element)) {
 			const menus = this.scmViewService.menus.getRepositoryMenus(element.provider);

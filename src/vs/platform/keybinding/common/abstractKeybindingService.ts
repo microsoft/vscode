@@ -8,7 +8,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, Keybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingEvent, IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
@@ -37,7 +37,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 
 	private _currentChord: CurrentChord | null;
 	private _currentChordChecker: IntervalTimer;
-	private _currentChordStatusMessage: IDisposable | null;
+	private _currentChordStatusMessage: IDisposable2 | null;
 	private _currentSingleModifier: null | string;
 	private _currentSingleModifierClearTimeout: TimeoutTimer;
 

@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IMessagePassingProtocol, IPCClient } from 'vs/base/parts/ipc/common/ipc';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 
 /**
@@ -61,7 +61,7 @@ export class Protocol implements IMessagePassingProtocol {
 /**
  * An implementation of a `IPCClient` on top of MessagePort style IPC communication.
  */
-export class Client extends IPCClient implements IDisposable {
+export class Client extends IPCClient implements IDisposable2 {
 
 	private protocol: Protocol;
 

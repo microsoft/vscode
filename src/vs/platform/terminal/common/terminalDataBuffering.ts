@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { IProcessDataEvent } from 'vs/platform/terminal/common/terminal';
 
-interface TerminalDataBuffer extends IDisposable {
+interface TerminalDataBuffer extends IDisposable2 {
 	data: string[];
 	timeoutId: any;
 }
 
-export class TerminalDataBufferer implements IDisposable {
+export class TerminalDataBufferer implements IDisposable2 {
 	private readonly _terminalBufferMap = new Map<number, TerminalDataBuffer>();
 
 	constructor(private readonly _callback: (id: number, data: string) => void) {
@@ -24,8 +24,8 @@ export class TerminalDataBufferer implements IDisposable {
 		}
 	}
 
-	startBuffering(id: number, event: Event<string | IProcessDataEvent>, throttleBy: number = 5): IDisposable {
-		let disposable: IDisposable;
+	startBuffering(id: number, event: Event<string | IProcessDataEvent>, throttleBy: number = 5): IDisposable2 {
+		let disposable: IDisposable2;
 		disposable = event((e: string | IProcessDataEvent) => {
 			const data = (typeof e === 'string' ? e : e.data);
 			let buffer = this._terminalBufferMap.get(id);

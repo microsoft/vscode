@@ -5,7 +5,7 @@
 
 import { Delayer, disposableTimeout, CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, toDisposable, MutableDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable, MutableDisposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { IUserDataSyncLogService, IUserDataSyncService, IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode, IUserDataSyncResourceEnablementService, IUserDataSyncStoreService, UserDataAutoSyncError, ISyncTask, IUserDataSyncStoreManagementService, IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -425,7 +425,7 @@ class AutoSync extends Disposable {
 
 	private static readonly INTERVAL_SYNCING = 'Interval';
 
-	private readonly intervalHandler = this._register(new MutableDisposable<IDisposable>());
+	private readonly intervalHandler = this._register(new MutableDisposable<IDisposable2>());
 
 	private readonly _onDidStartSync = this._register(new Emitter<void>());
 	readonly onDidStartSync = this._onDidStartSync.event;
@@ -587,7 +587,7 @@ class AutoSync extends Disposable {
 		this._onDidFinishSync.fire(error);
 	}
 
-	register<T extends IDisposable>(t: T): T {
+	register<T extends IDisposable2>(t: T): T {
 		return super._register(t);
 	}
 

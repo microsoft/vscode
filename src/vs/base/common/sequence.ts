@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 
 export interface ISplice<T> {
 	readonly start: number;
@@ -40,7 +40,7 @@ export class SimpleSequence<T> implements ISequence<T> {
 	get elements(): T[] { return this._elements; }
 
 	readonly onDidSplice: Event<ISplice<T>>;
-	private disposable: IDisposable;
+	private disposable: IDisposable2;
 
 	constructor(elements: T[], onDidAdd: Event<T>, onDidRemove: Event<T>) {
 		this._elements = [...elements];

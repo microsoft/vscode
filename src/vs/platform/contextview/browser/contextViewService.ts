@@ -5,13 +5,13 @@
 
 import { IContextViewService, IContextViewDelegate } from './contextView';
 import { ContextView, ContextViewDOMPosition } from 'vs/base/browser/ui/contextview/contextview';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 export class ContextViewService extends Disposable implements IContextViewService {
 	declare readonly _serviceBrand: undefined;
 
-	private currentViewDisposable: IDisposable = Disposable.None;
+	private currentViewDisposable: IDisposable2 = Disposable.None;
 	private contextView: ContextView;
 	private container: HTMLElement;
 
@@ -33,7 +33,7 @@ export class ContextViewService extends Disposable implements IContextViewServic
 		this.contextView.setContainer(container, domPosition || ContextViewDOMPosition.ABSOLUTE);
 	}
 
-	showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean): IDisposable {
+	showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean): IDisposable2 {
 		if (container) {
 			if (container !== this.container) {
 				this.container = container;

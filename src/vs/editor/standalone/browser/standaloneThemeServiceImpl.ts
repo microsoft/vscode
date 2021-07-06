@@ -14,7 +14,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ColorIdentifier, Extensions, IColorRegistry } from 'vs/platform/theme/common/colorRegistry';
 import { Extensions as ThemingExtensions, ICssStyleCollector, IFileIconTheme, IThemingRegistry, ITokenStyle } from 'vs/platform/theme/common/themeService';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable } from 'vs/base/common/lifecycle';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
 
@@ -238,14 +238,14 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 		});
 	}
 
-	public registerEditorContainer(domNode: HTMLElement): IDisposable {
+	public registerEditorContainer(domNode: HTMLElement): IDisposable2 {
 		if (dom.isInShadowDOM(domNode)) {
 			return this._registerShadowDomContainer(domNode);
 		}
 		return this._registerRegularEditorContainer();
 	}
 
-	private _registerRegularEditorContainer(): IDisposable {
+	private _registerRegularEditorContainer(): IDisposable2 {
 		if (!this._globalStyleElement) {
 			this._globalStyleElement = dom.createStyleSheet();
 			this._globalStyleElement.className = 'monaco-colors';
@@ -255,7 +255,7 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 		return Disposable.None;
 	}
 
-	private _registerShadowDomContainer(domNode: HTMLElement): IDisposable {
+	private _registerShadowDomContainer(domNode: HTMLElement): IDisposable2 {
 		const styleElement = dom.createStyleSheet(domNode);
 		styleElement.className = 'monaco-colors';
 		styleElement.textContent = this._allCSS;

@@ -5,7 +5,7 @@
 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IFileSystemProviderWithFileReadWriteCapability, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileOverwriteOptions, FileType, FileDeleteOptions, FileWriteOptions, FileChangeType, createFileSystemProviderError, FileSystemProviderErrorCode } from 'vs/platform/files/common/files';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Throttler } from 'vs/base/common/async';
@@ -247,7 +247,7 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 		}
 	}
 
-	watch(resource: URI, opts: IWatchOptions): IDisposable {
+	watch(resource: URI, opts: IWatchOptions): IDisposable2 {
 		return Disposable.None;
 	}
 

@@ -9,7 +9,7 @@ import { IListOptions, IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable2 } from 'vs/base/common/lifecycle';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -97,7 +97,7 @@ export interface IRenderMainframeOutput {
 	type: RenderOutputType.Mainframe;
 	supportAppend?: boolean;
 	initHeight?: number;
-	disposable?: IDisposable;
+	disposable?: IDisposable2;
 }
 
 export interface IRenderPlainHtmlOutput {
@@ -638,13 +638,13 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	 * An event emitted on a "mouseup".
 	 * @event
 	 */
-	onMouseUp(listener: (e: INotebookEditorMouseEvent) => void): IDisposable;
+	onMouseUp(listener: (e: INotebookEditorMouseEvent) => void): IDisposable2;
 
 	/**
 	 * An event emitted on a "mousedown".
 	 * @event
 	 */
-	onMouseDown(listener: (e: INotebookEditorMouseEvent) => void): IDisposable;
+	onMouseDown(listener: (e: INotebookEditorMouseEvent) => void): IDisposable2;
 
 	/**
 	 * Get a contribution of this editor.

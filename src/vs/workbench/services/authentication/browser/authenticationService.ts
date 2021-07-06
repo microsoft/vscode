@@ -6,7 +6,7 @@
 import { flatten } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { isString } from 'vs/base/common/types';
@@ -155,7 +155,7 @@ export function readAllowedExtensions(storageService: IStorageService, providerI
 }
 
 export interface SessionRequest {
-	disposables: IDisposable[];
+	disposables: IDisposable2[];
 	requestingExtensionIds: string[];
 }
 
@@ -194,9 +194,9 @@ const authenticationExtPoint = ExtensionsRegistry.registerExtensionPoint<Authent
 
 export class AuthenticationService extends Disposable implements IAuthenticationService {
 	declare readonly _serviceBrand: undefined;
-	private _placeholderMenuItem: IDisposable | undefined;
+	private _placeholderMenuItem: IDisposable2 | undefined;
 	private _signInRequestItems = new Map<string, SessionRequestInfo>();
-	private _sessionAccessRequestItems = new Map<string, { [extensionId: string]: { disposables: IDisposable[], possibleSessions: AuthenticationSession[] } }>();
+	private _sessionAccessRequestItems = new Map<string, { [extensionId: string]: { disposables: IDisposable2[], possibleSessions: AuthenticationSession[] } }>();
 	private _accountBadgeDisposable = this._register(new MutableDisposable());
 
 	private _authenticationProviders: Map<string, MainThreadAuthenticationProvider> = new Map<string, MainThreadAuthenticationProvider>();

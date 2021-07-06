@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable2, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as objects from 'vs/base/common/objects';
 import * as json from 'vs/base/common/json';
@@ -57,7 +57,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	private selectedLaunch: ILaunch | undefined;
 	private getSelectedConfig: () => Promise<IConfig | undefined> = () => Promise.resolve(undefined);
 	private selectedType: string | undefined;
-	private toDispose: IDisposable[];
+	private toDispose: IDisposable2[];
 	private readonly _onDidSelectConfigurationName = new Emitter<void>();
 	private configProviders: IDebugConfigurationProvider[];
 	private debugConfigurationTypeContext: IContextKey<string>;
@@ -91,7 +91,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		}
 	}
 
-	registerDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): IDisposable {
+	registerDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): IDisposable2 {
 		this.configProviders.push(debugConfigurationProvider);
 		return {
 			dispose: () => {

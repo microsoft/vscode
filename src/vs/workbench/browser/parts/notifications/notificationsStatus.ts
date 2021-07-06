@@ -5,7 +5,7 @@
 
 import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, IStatusMessageChangeEvent, StatusMessageChangeType, IStatusMessageViewItem } from 'vs/workbench/common/notifications';
 import { IStatusbarService, StatusbarAlignment, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, dispose } from 'vs/base/common/lifecycle';
 import { HIDE_NOTIFICATIONS_CENTER, SHOW_NOTIFICATIONS_CENTER } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { localize } from 'vs/nls';
 
@@ -14,7 +14,7 @@ export class NotificationsStatus extends Disposable {
 	private notificationsCenterStatusItem: IStatusbarEntryAccessor | undefined;
 	private newNotificationsCount = 0;
 
-	private currentStatusMessage: [IStatusMessageViewItem, IDisposable] | undefined;
+	private currentStatusMessage: [IStatusMessageViewItem, IDisposable2] | undefined;
 
 	private isNotificationsCenterVisible: boolean = false;
 	private isNotificationsToastsVisible: boolean = false;

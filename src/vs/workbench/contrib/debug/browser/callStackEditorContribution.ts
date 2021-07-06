@@ -11,7 +11,7 @@ import { registerThemingParticipant, themeColorFromId, ThemeIcon } from 'vs/plat
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose } from 'vs/base/common/lifecycle';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { distinct } from 'vs/base/common/arrays';
@@ -103,7 +103,7 @@ export function createDecorationsForStackFrame(stackFrame: IStackFrame, isFocuse
 }
 
 export class CallStackEditorContribution implements IEditorContribution {
-	private toDispose: IDisposable[] = [];
+	private toDispose: IDisposable2[] = [];
 	private decorationIds: string[] = [];
 
 	constructor(

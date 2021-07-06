@@ -5,7 +5,7 @@
 
 import { coalesce } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -35,7 +35,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 	private readonly _contributedEditors: ContributedCustomEditors;
 	private _untitledCounter = 0;
-	private readonly _editorOverrideDisposables: IDisposable[] = [];
+	private readonly _editorOverrideDisposables: IDisposable2[] = [];
 	private readonly _editorCapabilities = new Map<string, CustomEditorCapabilities>();
 
 	private readonly _models = new CustomEditorModelManager();
@@ -183,7 +183,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		]);
 	}
 
-	public registerCustomEditorCapabilities(viewType: string, options: CustomEditorCapabilities): IDisposable {
+	public registerCustomEditorCapabilities(viewType: string, options: CustomEditorCapabilities): IDisposable2 {
 		if (this._editorCapabilities.has(viewType)) {
 			throw new Error(`Capabilities for ${viewType} already set`);
 		}

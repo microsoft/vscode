@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -89,7 +89,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	private extensionHandlers = new Map<string, IURLHandler>();
 	private uriBuffer = new Map<string, { timestamp: number, uri: URI }[]>();
 	private userTrustedExtensionsStorage: UserTrustedExtensionIdStorage;
-	private disposable: IDisposable;
+	private disposable: IDisposable2;
 
 	constructor(
 		@IURLService urlService: IURLService,
@@ -352,7 +352,7 @@ registerSingleton(IExtensionUrlHandler, ExtensionUrlHandler);
 class ExtensionUrlBootstrapHandler implements IWorkbenchContribution, IURLHandler {
 
 	private static _cache: [URI, IOpenURLOptions | undefined][] = [];
-	private static disposable: IDisposable;
+	private static disposable: IDisposable2;
 
 	static get cache(): [URI, IOpenURLOptions | undefined][] {
 		ExtensionUrlBootstrapHandler.disposable.dispose();

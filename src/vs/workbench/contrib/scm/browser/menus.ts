@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/scm';
 import { Emitter } from 'vs/base/common/event';
-import { IDisposable, Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { IAction } from 'vs/base/common/actions';
@@ -20,7 +20,7 @@ function actionEquals(a: IAction, b: IAction): boolean {
 	return a.id === b.id;
 }
 
-export class SCMTitleMenu implements IDisposable {
+export class SCMTitleMenu implements IDisposable2 {
 
 	private _actions: IAction[] = [];
 	get actions(): IAction[] { return this._actions; }
@@ -32,7 +32,7 @@ export class SCMTitleMenu implements IDisposable {
 	readonly onDidChangeTitle = this._onDidChangeTitle.event;
 
 	readonly menu: IMenu;
-	private listener: IDisposable = Disposable.None;
+	private listener: IDisposable2 = Disposable.None;
 	private disposables = new DisposableStore();
 
 	constructor(
@@ -75,7 +75,7 @@ interface IContextualResourceMenuItem {
 	dispose(): void;
 }
 
-class SCMMenusItem implements IDisposable {
+class SCMMenusItem implements IDisposable2 {
 
 	private _resourceGroupMenu: IMenu | undefined;
 	get resourceGroupMenu(): IMenu {
@@ -147,7 +147,7 @@ class SCMMenusItem implements IDisposable {
 	}
 }
 
-export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
+export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable2 {
 
 	private contextKeyService: IContextKeyService;
 
@@ -230,7 +230,7 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 	}
 }
 
-export class SCMMenus implements ISCMMenus, IDisposable {
+export class SCMMenus implements ISCMMenus, IDisposable2 {
 
 	readonly titleMenu: SCMTitleMenu;
 	private readonly disposables = new DisposableStore();

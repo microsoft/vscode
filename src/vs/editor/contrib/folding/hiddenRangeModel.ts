@@ -6,14 +6,14 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { FoldingModel, CollapseMemento } from 'vs/editor/contrib/folding/foldingModel';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { Selection } from 'vs/editor/common/core/selection';
 import { findFirstInSorted } from 'vs/base/common/arrays';
 
 export class HiddenRangeModel {
 	private readonly _foldingModel: FoldingModel;
 	private _hiddenRanges: IRange[];
-	private _foldingModelListener: IDisposable | null;
+	private _foldingModelListener: IDisposable2 | null;
 	private readonly _updateEventEmitter = new Emitter<IRange[]>();
 
 	public get onDidChange(): Event<IRange[]> { return this._updateEventEmitter.event; }

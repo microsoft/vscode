@@ -9,7 +9,7 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { SyncActionDescriptor, MenuRegistry, MenuId, ICommandAction } from 'vs/platform/actions/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, DisposableStore } from 'vs/base/common/lifecycle';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
@@ -25,16 +25,16 @@ export interface IWorkbenchActionRegistry {
 	 * visible by default and can only be invoked through a keybinding if provided.
 	 * @deprecated Register directly with KeybindingsRegistry and MenuRegistry or use registerAction2 instead.
 	 */
-	registerWorkbenchAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpr): IDisposable;
+	registerWorkbenchAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpr): IDisposable2;
 }
 
 Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionRegistry {
 
-	registerWorkbenchAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpression): IDisposable {
+	registerWorkbenchAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpression): IDisposable2 {
 		return this.registerWorkbenchCommandFromAction(descriptor, alias, category, when);
 	}
 
-	private registerWorkbenchCommandFromAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpression): IDisposable {
+	private registerWorkbenchCommandFromAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpression): IDisposable2 {
 		const registrations = new DisposableStore();
 
 		// command

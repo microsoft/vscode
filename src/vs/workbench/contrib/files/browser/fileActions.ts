@@ -11,7 +11,7 @@ import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Action } from 'vs/base/common/actions';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable2 } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID, IFilesConfiguration, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
 import { IFileService } from 'vs/platform/files/common/files';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
@@ -701,7 +701,7 @@ export class CompareWithClipboardAction extends Action {
 	static readonly ID = 'workbench.files.action.compareWithClipboard';
 	static readonly LABEL = nls.localize('compareWithClipboard', "Compare Active File with Clipboard");
 
-	private registrationDisposal: IDisposable | undefined;
+	private registrationDisposal: IDisposable2 | undefined;
 	private static SCHEME_COUNTER = 0;
 
 	constructor(

@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { disposableTimeout, raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable2, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -22,7 +22,7 @@ import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/com
 import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 
-interface IMarkdownRenderStrategy extends IDisposable {
+interface IMarkdownRenderStrategy extends IDisposable2 {
 	update(): void;
 }
 

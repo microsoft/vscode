@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
-import { IDisposable, toDisposable, IReference, ReferenceCollection, Disposable, AsyncReferenceCollection } from 'vs/base/common/lifecycle';
+import { IDisposable2, toDisposable, IReference, ReferenceCollection, Disposable, AsyncReferenceCollection } from 'vs/base/common/lifecycle';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { TextResourceEditorModel } from 'vs/workbench/common/editor/textResourceEditorModel';
 import { ITextFileService, TextFileResolveReason } from 'vs/workbench/services/textfile/common/textfiles';
@@ -122,7 +122,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 		})();
 	}
 
-	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {
+	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable2 {
 		let providers = this.providers.get(scheme);
 		if (!providers) {
 			providers = [];
@@ -199,7 +199,7 @@ export class TextModelResolverService extends Disposable implements ITextModelSe
 		return result as IReference<IResolvedTextEditorModel>; // TODO@Ben: why is this cast here?
 	}
 
-	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {
+	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable2 {
 		return this.resourceModelCollection.registerTextModelContentProvider(scheme, provider);
 	}
 

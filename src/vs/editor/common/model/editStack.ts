@@ -12,7 +12,7 @@ import { IUndoRedoService, IResourceUndoRedoElement, UndoRedoElementType, IWorks
 import { URI } from 'vs/base/common/uri';
 import { TextChange, compressConsecutiveTextChanges } from 'vs/editor/common/model/textChange';
 import * as buffer from 'vs/base/common/buffer';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/resources';
 
 function uriGetComparisonKey(resource: URI): string {
@@ -141,7 +141,7 @@ export class SingleModelEditStackData {
 }
 
 export interface IUndoRedoDelegate {
-	prepareUndoRedo(element: MultiModelEditStackElement): Promise<IDisposable> | IDisposable | void;
+	prepareUndoRedo(element: MultiModelEditStackElement): Promise<IDisposable2> | IDisposable2 | void;
 }
 
 export class SingleModelEditStackElement implements IResourceUndoRedoElement {
@@ -271,7 +271,7 @@ export class MultiModelEditStackElement implements IWorkspaceUndoRedoElement {
 		this._delegate = delegate;
 	}
 
-	public prepareUndoRedo(): Promise<IDisposable> | IDisposable | void {
+	public prepareUndoRedo(): Promise<IDisposable2> | IDisposable2 | void {
 		if (this._delegate) {
 			return this._delegate.prepareUndoRedo(this);
 		}

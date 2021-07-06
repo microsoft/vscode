@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { IDisposable, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { CodeActionTriggerType } from 'vs/editor/common/modes';
@@ -86,7 +86,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		return result;
 	}
 
-	public renderHoverParts(hoverParts: MarkerHover[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable {
+	public renderHoverParts(hoverParts: MarkerHover[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable2 {
 		if (!hoverParts.length) {
 			return Disposable.None;
 		}

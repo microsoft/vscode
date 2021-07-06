@@ -16,7 +16,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose } from 'vs/base/common/lifecycle';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ViewPaneContainer, ViewsSubMenu } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -37,7 +37,7 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 	private startDebugActionViewItem: StartDebugActionViewItem | undefined;
 	private progressResolve: (() => void) | undefined;
 	private breakpointView: ViewPane | undefined;
-	private paneListeners = new Map<string, IDisposable>();
+	private paneListeners = new Map<string, IDisposable2>();
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,

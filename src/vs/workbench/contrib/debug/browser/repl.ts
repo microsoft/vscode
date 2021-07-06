@@ -22,7 +22,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { memoize } from 'vs/base/common/decorators';
-import { dispose, IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable2, Disposable } from 'vs/base/common/lifecycle';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -97,10 +97,10 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	private model: ITextModel | undefined;
 	private historyNavigationEnablement!: IContextKey<boolean>;
 	private scopedInstantiationService!: IInstantiationService;
-	private replElementsChangeListener: IDisposable | undefined;
+	private replElementsChangeListener: IDisposable2 | undefined;
 	private styleElement: HTMLStyleElement | undefined;
-	private completionItemProvider: IDisposable | undefined;
-	private modelChangeListener: IDisposable = Disposable.None;
+	private completionItemProvider: IDisposable2 | undefined;
+	private modelChangeListener: IDisposable2 = Disposable.None;
 	private filter: ReplFilter;
 	private filterState: ReplFilterState;
 	private filterActionViewItem: ReplFilterActionViewItem | undefined;

@@ -7,7 +7,7 @@ import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickI
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IQuickPickSeparator, IKeyMods, IQuickPickDidAcceptEvent } from 'vs/base/parts/quickinput/common/quickInput';
 import { IQuickAccessProvider } from 'vs/platform/quickinput/common/quickAccess';
-import { IDisposable, DisposableStore, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, DisposableStore, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
 
 export enum TriggerAction {
@@ -97,7 +97,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 		super();
 	}
 
-	provide(picker: IQuickPick<T>, token: CancellationToken): IDisposable {
+	provide(picker: IQuickPick<T>, token: CancellationToken): IDisposable2 {
 		const disposables = new DisposableStore();
 
 		// Apply options if any

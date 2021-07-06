@@ -8,7 +8,7 @@ import * as dom from 'vs/base/browser/dom';
 import * as modes from 'vs/editor/common/modes';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action, IActionRunner, IAction, Separator } from 'vs/base/common/actions';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -50,7 +50,7 @@ export class CommentNode extends Disposable {
 	private _reactionsActionBar?: ActionBar;
 	private _reactionActionsContainer?: HTMLElement;
 	private _commentEditor: SimpleCommentEditor | null = null;
-	private _commentEditorDisposables: IDisposable[] = [];
+	private _commentEditorDisposables: IDisposable2[] = [];
 	private _commentEditorModel: ITextModel | null = null;
 	private _isPendingLabel!: HTMLElement;
 	private _contextKeyService: IContextKeyService;

@@ -5,7 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -102,7 +102,7 @@ export interface ITunnelService {
 	canTunnel(uri: URI): boolean;
 	openTunnel(addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localPort?: number, elevateIfNeeded?: boolean, isPublic?: boolean, protocol?: string): Promise<RemoteTunnel | undefined> | undefined;
 	closeTunnel(remoteHost: string, remotePort: number): Promise<void>;
-	setTunnelProvider(provider: ITunnelProvider | undefined, features: TunnelProviderFeatures): IDisposable;
+	setTunnelProvider(provider: ITunnelProvider | undefined, features: TunnelProviderFeatures): IDisposable2;
 }
 
 export function extractLocalHostUriMetaDataForPortMapping(uri: URI): { address: string, port: number; } | undefined {
@@ -159,7 +159,7 @@ export abstract class AbstractTunnelService implements ITunnelService {
 		return !!this._tunnelProvider;
 	}
 
-	setTunnelProvider(provider: ITunnelProvider | undefined, features: TunnelProviderFeatures): IDisposable {
+	setTunnelProvider(provider: ITunnelProvider | undefined, features: TunnelProviderFeatures): IDisposable2 {
 		this._tunnelProvider = provider;
 		if (!provider) {
 			// clear features

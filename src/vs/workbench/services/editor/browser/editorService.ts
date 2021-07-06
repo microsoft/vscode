@@ -21,7 +21,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection, isEditorReplacement, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { SIDE_GROUP, IUntypedEditorReplacement, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Disposable, IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { coalesce, distinct } from 'vs/base/common/arrays';
 import { isCodeEditor, isDiffEditor, ICodeEditor, IDiffEditor, isCompositeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroupView, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
@@ -203,7 +203,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region Visible Editors Change: Install file watchers for out of workspace resources that became visible
 
-	private readonly activeOutOfWorkspaceWatchers = new ResourceMap<IDisposable>();
+	private readonly activeOutOfWorkspaceWatchers = new ResourceMap<IDisposable2>();
 
 	private handleVisibleEditorsChange(): void {
 		const visibleOutOfWorkspaceResources = new ResourceMap<URI>();

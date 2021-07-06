@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as errors from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
@@ -51,11 +51,11 @@ function computeModelSha1(model: ITextModel): string {
 }
 
 
-class ModelData implements IDisposable {
+class ModelData implements IDisposable2 {
 	public readonly model: TextModel;
 
 	private _languageSelection: ILanguageSelection | null;
-	private _languageSelectionListener: IDisposable | null;
+	private _languageSelectionListener: IDisposable2 | null;
 
 	private readonly _modelEventListeners = new DisposableStore();
 
@@ -719,7 +719,7 @@ export class ModelSemanticColoring extends Disposable {
 	private readonly _fetchDocumentSemanticTokens: RunOnceScheduler;
 	private _currentDocumentResponse: SemanticTokensResponse | null;
 	private _currentDocumentRequestCancellationTokenSource: CancellationTokenSource | null;
-	private _documentProvidersChangeListeners: IDisposable[];
+	private _documentProvidersChangeListeners: IDisposable2[];
 
 	constructor(model: ITextModel, themeService: IThemeService, stylingProvider: SemanticStyling) {
 		super();

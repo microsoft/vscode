@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as glob from 'vs/base/common/glob';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { posix } from 'vs/base/common/path';
 import { basename } from 'vs/base/common/resources';
@@ -137,7 +137,7 @@ export interface IEditorOverrideService {
 		createEditorInput: EditorInputFactoryFunction,
 		createUntitledEditorInput?: UntitledEditorInputFactoryFunction | undefined,
 		createDiffEditorInput?: DiffEditorInputFactoryFunction
-	): IDisposable;
+	): IDisposable2;
 
 	/**
 	 * Populates the override field of the untyped editor input

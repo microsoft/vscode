@@ -18,7 +18,7 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -575,7 +575,7 @@ export interface ICompound {
 	presentation?: IConfigPresentation;
 }
 
-export interface IDebugAdapter extends IDisposable {
+export interface IDebugAdapter extends IDisposable2 {
 	readonly onError: Event<Error>;
 	readonly onExit: Event<number | null>;
 	onRequest(callback: (request: DebugProtocol.Request) => void): void;
@@ -615,7 +615,7 @@ export interface IDebugAdapterNamedPipeServer {
 	readonly path: string;
 }
 
-export interface IDebugAdapterInlineImpl extends IDisposable {
+export interface IDebugAdapterInlineImpl extends IDisposable2 {
 	readonly onDidSendMessage: Event<DebugProtocol.Message>;
 	handleMessage(message: DebugProtocol.Message): void;
 }
@@ -706,7 +706,7 @@ export interface IConfigurationManager {
 	hasDebugConfigurationProvider(debugType: string): boolean;
 	getDynamicProviders(): Promise<{ label: string, type: string, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[]>;
 
-	registerDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): IDisposable;
+	registerDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): IDisposable2;
 	unregisterDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): void;
 
 	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any, token: CancellationToken): Promise<any>;
@@ -722,9 +722,9 @@ export interface IAdapterManager {
 	isDebuggerInterestedInLanguage(language: string): boolean;
 
 	activateDebuggers(activationEvent: string, debugType?: string): Promise<void>;
-	registerDebugAdapterFactory(debugTypes: string[], debugAdapterFactory: IDebugAdapterFactory): IDisposable;
+	registerDebugAdapterFactory(debugTypes: string[], debugAdapterFactory: IDebugAdapterFactory): IDisposable2;
 	createDebugAdapter(session: IDebugSession): IDebugAdapter | undefined;
-	registerDebugAdapterDescriptorFactory(debugAdapterDescriptorFactory: IDebugAdapterDescriptorFactory): IDisposable;
+	registerDebugAdapterDescriptorFactory(debugAdapterDescriptorFactory: IDebugAdapterDescriptorFactory): IDisposable2;
 	unregisterDebugAdapterDescriptorFactory(debugAdapterDescriptorFactory: IDebugAdapterDescriptorFactory): void;
 
 	substituteVariables(debugType: string, folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig>;

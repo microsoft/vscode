@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
@@ -16,7 +16,7 @@ const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsR
 
 export class ViewsWelcomeContribution extends Disposable implements IWorkbenchContribution {
 
-	private viewWelcomeContents = new Map<ViewWelcome, IDisposable>();
+	private viewWelcomeContents = new Map<ViewWelcome, IDisposable2>();
 
 	constructor(extensionPoint: IExtensionPoint<ViewsWelcomeExtensionPoint>) {
 		super();

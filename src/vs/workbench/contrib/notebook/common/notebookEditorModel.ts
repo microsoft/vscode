@@ -25,7 +25,7 @@ import { bufferToReadable, bufferToStream, streamToBuffer, VSBuffer, VSBufferRea
 import { assertType } from 'vs/base/common/types';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { StoredFileWorkingCopyState, IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable2 } from 'vs/base/common/lifecycle';
 import { canceled } from 'vs/base/common/errors';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -560,7 +560,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 export class NotebookFileWorkingCopyModel implements IStoredFileWorkingCopyModel, IUntitledFileWorkingCopyModel {
 
 	private readonly _onDidChangeContent = new Emitter<IStoredFileWorkingCopyModelContentChangedEvent & IUntitledFileWorkingCopyModelContentChangedEvent>();
-	private readonly _changeListener: IDisposable;
+	private readonly _changeListener: IDisposable2;
 
 	readonly onDidChangeContent = this._onDidChangeContent.event;
 	readonly onWillDispose: Event<void>;

@@ -6,7 +6,7 @@
 import 'vs/css!./media/progressService';
 
 import { localize } from 'vs/nls';
-import { IDisposable, dispose, DisposableStore, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose, DisposableStore, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IProgressService, IProgressOptions, IProgressStep, ProgressLocation, IProgress, Progress, IProgressCompositeOptions, IProgressNotificationOptions, IProgressRunner, IProgressIndicator, IProgressWindowOptions, IProgressDialogOptions } from 'vs/platform/progress/common/progress';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
@@ -313,7 +313,7 @@ export class ProgressService extends Disposable implements IProgressService {
 			// changes visibility to hidden and is still ongoing.
 			// Remove that window based progress once the notification
 			// shows again.
-			let windowProgressDisposable: IDisposable | undefined = undefined;
+			let windowProgressDisposable: IDisposable2 | undefined = undefined;
 			const onVisibilityChange = (visible: boolean) => {
 				// Clear any previous running window progress
 				dispose(windowProgressDisposable);
@@ -440,7 +440,7 @@ export class ProgressService extends Disposable implements IProgressService {
 	}
 
 	private showOnActivityBar<P extends Promise<R>, R = unknown>(viewletId: string, options: IProgressCompositeOptions, promise: P): void {
-		let activityProgress: IDisposable;
+		let activityProgress: IDisposable2;
 		let delayHandle: any = setTimeout(() => {
 			delayHandle = undefined;
 			const handle = this.activityService.showViewContainerActivity(viewletId, { badge: new ProgressBadge(() => ''), clazz: 'progress-badge', priority: 100 });

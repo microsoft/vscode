@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import * as nls from 'vs/nls';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, DisposableStore } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { CommentNode, CommentsModel, ResourceWithCommentThreads } from 'vs/workbench/contrib/comments/common/commentModel';
@@ -52,7 +52,7 @@ interface ICommentThreadTemplateData {
 	icon: HTMLImageElement;
 	userName: HTMLSpanElement;
 	commentText: HTMLElement;
-	disposables: IDisposable[];
+	disposables: IDisposable2[];
 }
 
 export class CommentsModelVirualDelegate implements IListVirtualDelegate<any> {

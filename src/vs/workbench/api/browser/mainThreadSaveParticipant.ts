@@ -13,7 +13,7 @@ import { ITextFileSaveParticipant, ITextFileService, ITextFileEditorModel } from
 import { SaveReason } from 'vs/workbench/common/editor';
 import { ExtHostContext, ExtHostDocumentSaveParticipantShape, IExtHostContext } from '../common/extHost.protocol';
 import { canceled } from 'vs/base/common/errors';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 
 class ExtHostSaveParticipant implements ITextFileSaveParticipant {
 
@@ -53,7 +53,7 @@ class ExtHostSaveParticipant implements ITextFileSaveParticipant {
 @extHostCustomer
 export class SaveParticipant {
 
-	private _saveParticipantDisposable: IDisposable;
+	private _saveParticipantDisposable: IDisposable2;
 
 	constructor(
 		extHostContext: IExtHostContext,

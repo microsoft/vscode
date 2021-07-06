@@ -6,7 +6,7 @@
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { MainThreadStorageShape, MainContext, IExtHostContext, ExtHostStorageShape, ExtHostContext } from '../common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { IExtensionIdWithVersion, IExtensionsStorageSyncService } from 'vs/platform/userDataSync/common/extensionsStorageSync';
 
 @extHostNamedCustomer(MainContext.MainThreadStorage)
@@ -15,7 +15,7 @@ export class MainThreadStorage implements MainThreadStorageShape {
 	private readonly _storageService: IStorageService;
 	private readonly _extensionsStorageSyncService: IExtensionsStorageSyncService;
 	private readonly _proxy: ExtHostStorageShape;
-	private readonly _storageListener: IDisposable;
+	private readonly _storageListener: IDisposable2;
 	private readonly _sharedStorageKeysToWatch: Map<string, boolean> = new Map<string, boolean>();
 
 	constructor(

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable2 } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { Promises } from 'vs/base/common/async';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -13,7 +13,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { IFileWorkingCopy, IFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 
-export interface IBaseFileWorkingCopyManager<M extends IFileWorkingCopyModel, W extends IFileWorkingCopy<M>> extends IDisposable {
+export interface IBaseFileWorkingCopyManager<M extends IFileWorkingCopyModel, W extends IFileWorkingCopy<M>> extends IDisposable2 {
 
 	/**
 	 * An event for when a file working copy was created.
@@ -50,7 +50,7 @@ export abstract class BaseFileWorkingCopyManager<M extends IFileWorkingCopyModel
 	readonly onDidCreate = this._onDidCreate.event;
 
 	private readonly mapResourceToWorkingCopy = new ResourceMap<W>();
-	private readonly mapResourceToDisposeListener = new ResourceMap<IDisposable>();
+	private readonly mapResourceToDisposeListener = new ResourceMap<IDisposable2>();
 
 	constructor(
 		@IFileService protected readonly fileService: IFileService,

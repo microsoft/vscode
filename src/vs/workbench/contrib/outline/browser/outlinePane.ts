@@ -7,7 +7,7 @@ import 'vs/css!./outlinePane';
 import * as dom from 'vs/base/browser/dom';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { TimeoutTimer } from 'vs/base/common/async';
-import { IDisposable, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -204,7 +204,7 @@ export class OutlinePane extends ViewPane {
 			return this._showMessage(localize('no-editor', "The active editor cannot provide outline information."));
 		}
 
-		let loadingMessage: IDisposable | undefined;
+		let loadingMessage: IDisposable2 | undefined;
 		if (!didCapture) {
 			loadingMessage = new TimeoutTimer(() => {
 				this._showMessage(localize('loading', "Loading document symbols for '{0}'...", basename(resource)));

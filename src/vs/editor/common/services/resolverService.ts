@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { IDisposable2, IReference } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
@@ -23,7 +23,7 @@ export interface ITextModelService {
 	/**
 	 * Registers a specific `scheme` content provider.
 	 */
-	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable;
+	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable2;
 
 	/**
 	 * Check if the given resource can be resolved to a text model.

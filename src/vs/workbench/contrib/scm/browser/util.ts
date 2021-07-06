@@ -6,7 +6,7 @@
 import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput } from 'vs/workbench/contrib/scm/common/scm';
 import { IMenu } from 'vs/platform/actions/common/actions';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IDisposable, Disposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Action, IAction } from 'vs/base/common/actions';
 import { createActionViewItem, createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { equals } from 'vs/base/common/arrays';
@@ -35,8 +35,8 @@ export function isSCMResource(element: any): element is ISCMResource {
 
 const compareActions = (a: IAction, b: IAction) => a.id === b.id;
 
-export function connectPrimaryMenu(menu: IMenu, callback: (primary: IAction[], secondary: IAction[]) => void, primaryGroup?: string): IDisposable {
-	let cachedDisposable: IDisposable = Disposable.None;
+export function connectPrimaryMenu(menu: IMenu, callback: (primary: IAction[], secondary: IAction[]) => void, primaryGroup?: string): IDisposable2 {
+	let cachedDisposable: IDisposable2 = Disposable.None;
 	let cachedPrimary: IAction[] = [];
 	let cachedSecondary: IAction[] = [];
 
@@ -66,14 +66,14 @@ export function connectPrimaryMenu(menu: IMenu, callback: (primary: IAction[], s
 	);
 }
 
-export function connectPrimaryMenuToInlineActionBar(menu: IMenu, actionBar: ActionBar): IDisposable {
+export function connectPrimaryMenuToInlineActionBar(menu: IMenu, actionBar: ActionBar): IDisposable2 {
 	return connectPrimaryMenu(menu, (primary) => {
 		actionBar.clear();
 		actionBar.push(primary, { icon: true, label: false });
 	}, 'inline');
 }
 
-export function collectContextMenuActions(menu: IMenu): [IAction[], IDisposable] {
+export function collectContextMenuActions(menu: IMenu): [IAction[], IDisposable2] {
 	const primary: IAction[] = [];
 	const actions: IAction[] = [];
 	const disposable = createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, { primary, secondary: actions }, 'inline');

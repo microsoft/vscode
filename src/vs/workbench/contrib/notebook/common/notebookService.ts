@@ -12,7 +12,7 @@ import { INotebookRendererInfo, NotebookData, TransientOptions, IOrderedMimeType
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 
 
@@ -66,8 +66,8 @@ export interface INotebookService {
 	readonly onWillRemoveNotebookDocument: Event<NotebookTextModel>;
 	readonly onDidRemoveNotebookDocument: Event<NotebookTextModel>;
 
-	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: INotebookContentProvider): IDisposable;
-	registerNotebookSerializer(viewType: string, extensionData: NotebookExtensionDescription, serializer: INotebookSerializer): IDisposable;
+	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: INotebookContentProvider): IDisposable2;
+	registerNotebookSerializer(viewType: string, extensionData: NotebookExtensionDescription, serializer: INotebookSerializer): IDisposable2;
 	withNotebookDataProvider(resource: URI, viewType?: string): Promise<ComplexNotebookProviderInfo | SimpleNotebookProviderInfo>;
 
 	getOutputMimeTypeInfo(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined, output: IOutputDto): readonly IOrderedMimeType[];
@@ -83,7 +83,7 @@ export interface INotebookService {
 	getNotebookTextModels(): Iterable<NotebookTextModel>;
 	listNotebookDocuments(): readonly NotebookTextModel[];
 
-	registerContributedNotebookType(viewType: string, data: INotebookContributionData): IDisposable;
+	registerContributedNotebookType(viewType: string, data: INotebookContributionData): IDisposable2;
 	getContributedNotebookType(viewType: string): NotebookProviderInfo | undefined;
 	getContributedNotebookTypes(resource?: URI): readonly NotebookProviderInfo[];
 	getNotebookProviderResourceRoots(): URI[];

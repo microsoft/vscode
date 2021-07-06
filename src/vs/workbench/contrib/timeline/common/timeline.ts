@@ -5,7 +5,7 @@
 
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Command } from 'vs/editor/common/modes';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -63,7 +63,7 @@ export interface Timeline {
 	}
 }
 
-export interface TimelineProvider extends TimelineProviderDescriptor, IDisposable {
+export interface TimelineProvider extends TimelineProviderDescriptor, IDisposable2 {
 	onDidChange?: Event<TimelineChangeEvent>;
 
 	provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: InternalTimelineOptions): Promise<Timeline | undefined>;
@@ -100,7 +100,7 @@ export interface ITimelineService {
 	onDidChangeTimeline: Event<TimelineChangeEvent>;
 	onDidChangeUri: Event<URI>;
 
-	registerTimelineProvider(provider: TimelineProvider): IDisposable;
+	registerTimelineProvider(provider: TimelineProvider): IDisposable2;
 	unregisterTimelineProvider(id: string): void;
 
 	getSources(): TimelineSource[];

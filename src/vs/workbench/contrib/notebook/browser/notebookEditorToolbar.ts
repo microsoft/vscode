@@ -8,7 +8,7 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IAction, Separator } from 'vs/base/common/actions';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IMenu, IMenuService, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -43,7 +43,7 @@ export class NotebookEditorToolbar extends Disposable {
 		return this._useGlobalToolbar;
 	}
 
-	private _pendingLayout: IDisposable | undefined;
+	private _pendingLayout: IDisposable2 | undefined;
 
 	constructor(
 		readonly notebookEditor: INotebookEditor,

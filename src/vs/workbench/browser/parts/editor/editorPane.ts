@@ -19,7 +19,7 @@ import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs
 import { MementoObject } from 'vs/workbench/common/memento';
 import { joinPath, IExtUri, isEqual } from 'vs/base/common/resources';
 import { indexOfPath } from 'vs/base/common/extpath';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
@@ -192,7 +192,7 @@ interface MapGroupToMemento<T> {
 export class EditorMemento<T> implements IEditorMemento<T> {
 	private cache: LRUCache<string, MapGroupToMemento<T>> | undefined;
 	private cleanedUp = false;
-	private editorDisposables: Map<EditorInput, IDisposable> | undefined;
+	private editorDisposables: Map<EditorInput, IDisposable2> | undefined;
 
 	constructor(
 		readonly id: string,
@@ -272,7 +272,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 
 	clearEditorStateOnDispose(resource: URI, editor: EditorInput): void {
 		if (!this.editorDisposables) {
-			this.editorDisposables = new Map<EditorInput, IDisposable>();
+			this.editorDisposables = new Map<EditorInput, IDisposable2>();
 		}
 
 		if (!this.editorDisposables.has(editor)) {

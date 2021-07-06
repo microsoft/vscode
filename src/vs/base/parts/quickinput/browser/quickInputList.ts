@@ -6,7 +6,7 @@
 import 'vs/css!./media/quickInput';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import * as dom from 'vs/base/browser/dom';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable2 } from 'vs/base/common/lifecycle';
 import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator } from 'vs/base/parts/quickinput/common/quickInput';
 import { IMatch } from 'vs/base/common/filters';
 import { matchesFuzzyIconAware, parseLabelWithIcons } from 'vs/base/common/iconLabels';
@@ -47,7 +47,7 @@ interface IListElement {
 	readonly fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
 }
 
-class ListElement implements IListElement, IDisposable {
+class ListElement implements IListElement, IDisposable2 {
 	index!: number;
 	item!: IQuickPickItem;
 	saneLabel!: string;
@@ -92,8 +92,8 @@ interface IListElementTemplateData {
 	separator: HTMLDivElement;
 	actionBar: ActionBar;
 	element: ListElement;
-	toDisposeElement: IDisposable[];
-	toDisposeTemplate: IDisposable[];
+	toDisposeElement: IDisposable2[];
+	toDisposeTemplate: IDisposable2[];
 }
 
 class ListElementRenderer implements IListRenderer<ListElement, IListElementTemplateData> {
@@ -267,8 +267,8 @@ export class QuickInputList {
 	private readonly _onLeave = new Emitter<void>();
 	onLeave: Event<void> = this._onLeave.event;
 	private _fireCheckedEvents = true;
-	private elementDisposables: IDisposable[] = [];
-	private disposables: IDisposable[] = [];
+	private elementDisposables: IDisposable2[] = [];
+	private disposables: IDisposable2[] = [];
 
 	constructor(
 		private parent: HTMLElement,

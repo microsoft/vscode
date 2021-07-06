@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -89,7 +89,7 @@ export interface ITerminalGroup {
 	moveInstance(instance: ITerminalInstance, index: number): void;
 	setVisible(visible: boolean): void;
 	layout(width: number, height: number): void;
-	addDisposable(disposable: IDisposable): void;
+	addDisposable(disposable: IDisposable2): void;
 	split(shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
 	getLayoutInfo(isActive: boolean): ITerminalTabLayoutInfoById;
 }
@@ -167,9 +167,9 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 * for links at that position. This lets the terminal know all links at a given area and also
 	 * labels for what these links are going to do.
 	 */
-	registerLinkProvider(linkProvider: ITerminalExternalLinkProvider): IDisposable;
+	registerLinkProvider(linkProvider: ITerminalExternalLinkProvider): IDisposable2;
 
-	registerTerminalProfileProvider(extensionIdenfifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable;
+	registerTerminalProfileProvider(extensionIdenfifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable2;
 
 	showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined>;
 
@@ -669,7 +669,7 @@ export interface ITerminalInstance {
 
 	setDimensions(dimensions: ITerminalDimensions): void;
 
-	addDisposable(disposable: IDisposable): void;
+	addDisposable(disposable: IDisposable2): void;
 
 	toggleEscapeSequenceLogging(): void;
 
@@ -679,7 +679,7 @@ export interface ITerminalInstance {
 	/**
 	 * @throws when called before xterm.js is ready.
 	 */
-	registerLinkProvider(provider: ITerminalExternalLinkProvider): IDisposable;
+	registerLinkProvider(provider: ITerminalExternalLinkProvider): IDisposable2;
 
 	/**
 	 * Sets the terminal name to the provided title or triggers a quick pick

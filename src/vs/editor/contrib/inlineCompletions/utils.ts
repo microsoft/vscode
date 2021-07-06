@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, IReference, trackDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, IReference, trackDisposable } from 'vs/base/common/lifecycle';
 
-export function createDisposableRef<T>(object: T, disposable?: IDisposable): IReference<T> {
+export function createDisposableRef<T>(object: T, disposable?: IDisposable2): IReference<T> {
 	return {
 		object,
 		dispose: () => disposable?.dispose(),
@@ -19,7 +19,7 @@ export function createDisposableRef<T>(object: T, disposable?: IDisposable): IRe
  * This ensures that when the disposable value is changed, the previously held disposable is disposed of. You can
  * also register a `MutableDisposable` on a `Disposable` to ensure it is automatically cleaned up.
  */
-export class MutableDisposable<T extends IDisposable> implements IDisposable {
+export class MutableDisposable<T extends IDisposable2> implements IDisposable2 {
 	private _value?: T;
 	private _isDisposed = false;
 

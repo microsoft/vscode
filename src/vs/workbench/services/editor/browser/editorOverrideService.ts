@@ -5,7 +5,7 @@
 
 import * as glob from 'vs/base/common/glob';
 import { distinct, firstOrDefault, flatten, insert } from 'vs/base/common/arrays';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { basename, extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -161,7 +161,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		createEditorInput: EditorInputFactoryFunction,
 		createUntitledEditorInput?: UntitledEditorInputFactoryFunction | undefined,
 		createDiffEditorInput?: DiffEditorInputFactoryFunction
-	): IDisposable {
+	): IDisposable2 {
 		let registeredEditor = this._editors.get(globPattern);
 		if (registeredEditor === undefined) {
 			registeredEditor = [];

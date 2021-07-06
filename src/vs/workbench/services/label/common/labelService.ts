@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable } from 'vs/base/common/lifecycle';
 import * as paths from 'vs/base/common/path';
 import { Emitter } from 'vs/base/common/event';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -78,7 +78,7 @@ function hasDriveLetterIgnorePlatform(path: string): boolean {
 }
 
 class ResourceLabelFormattersHandler implements IWorkbenchContribution {
-	private formattersDisposables = new Map<ResourceLabelFormatter, IDisposable>();
+	private formattersDisposables = new Map<ResourceLabelFormatter, IDisposable2>();
 
 	constructor(@ILabelService labelService: ILabelService) {
 		resourceLabelFormattersExtPoint.setHandler((extensions, delta) => {
@@ -264,7 +264,7 @@ export class LabelService extends Disposable implements ILabelService {
 		return formatter?.workspaceTooltip;
 	}
 
-	registerFormatter(formatter: ResourceLabelFormatter): IDisposable {
+	registerFormatter(formatter: ResourceLabelFormatter): IDisposable2 {
 		this.formatters.push(formatter);
 		this._onDidChangeFormatters.fire({ scheme: formatter.scheme });
 

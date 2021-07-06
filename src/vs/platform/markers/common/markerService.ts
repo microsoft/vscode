@@ -5,7 +5,7 @@
 
 import { isFalsyOrEmpty, isNonEmptyArray } from 'vs/base/common/arrays';
 import { Schemas } from 'vs/base/common/network';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { DebounceEmitter } from 'vs/base/common/event';
 import { IMarkerService, IMarkerData, IResourceMarker, IMarker, MarkerStatistics, MarkerSeverity } from './markers';
@@ -76,7 +76,7 @@ class MarkerStats implements MarkerStatistics {
 
 	private readonly _data = new ResourceMap<MarkerStatistics>();
 	private readonly _service: IMarkerService;
-	private readonly _subscription: IDisposable;
+	private readonly _subscription: IDisposable2;
 
 	constructor(service: IMarkerService) {
 		this._service = service;

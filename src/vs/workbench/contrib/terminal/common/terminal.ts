@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
@@ -271,7 +271,7 @@ export interface IDefaultShellAndArgsRequest {
 	callback: (shell: string, args: string[] | string | undefined) => void;
 }
 
-export interface ITerminalProcessManager extends IDisposable {
+export interface ITerminalProcessManager extends IDisposable2 {
 	readonly processState: ProcessState;
 	readonly ptyProcessReady: Promise<void>;
 	readonly shellProcessId: number | undefined;
@@ -333,7 +333,7 @@ export const enum ProcessState {
 	KilledByProcess = 6
 }
 
-export interface ITerminalProcessExtHostProxy extends IDisposable {
+export interface ITerminalProcessExtHostProxy extends IDisposable2 {
 	readonly instanceId: number;
 
 	emitData(data: string): void;

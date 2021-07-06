@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ConfigurationChangedEvent, IComputedEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -149,9 +149,9 @@ export interface ILineChange extends IChange {
 /**
  * @internal
  */
-export interface IConfiguration extends IDisposable {
-	onDidChangeFast(listener: (e: ConfigurationChangedEvent) => void): IDisposable;
-	onDidChange(listener: (e: ConfigurationChangedEvent) => void): IDisposable;
+export interface IConfiguration extends IDisposable2 {
+	onDidChangeFast(listener: (e: ConfigurationChangedEvent) => void): IDisposable2;
+	onDidChange(listener: (e: ConfigurationChangedEvent) => void): IDisposable2;
 
 	readonly options: IComputedEditorOptions;
 
@@ -254,7 +254,7 @@ export interface IEditor {
 	 * An event emitted when the editor has been disposed.
 	 * @event
 	 */
-	onDidDispose(listener: () => void): IDisposable;
+	onDidDispose(listener: () => void): IDisposable2;
 
 	/**
 	 * Dispose the editor.

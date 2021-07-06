@@ -14,7 +14,7 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Dimension, size, clearNode, append, addDisposableListener, EventType, $ } from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable2, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -72,7 +72,7 @@ export class WorkspaceTrustRequiredEditor extends EditorPane {
 		this.inputDisposable.value = this.renderInput();
 	}
 
-	private renderInput(): IDisposable {
+	private renderInput(): IDisposable2 {
 		const [container, scrollbar] = assertAllDefined(this.container, this.scrollbar);
 
 		clearNode(container);

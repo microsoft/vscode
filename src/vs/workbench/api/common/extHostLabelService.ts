@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ResourceLabelFormatter } from 'vs/platform/label/common/label';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { MainThreadLabelServiceShape, ExtHostLabelServiceShape, MainContext, IMainContext } from 'vs/workbench/api/common/extHost.protocol';
 
 export class ExtHostLabelService implements ExtHostLabelServiceShape {
@@ -16,7 +16,7 @@ export class ExtHostLabelService implements ExtHostLabelServiceShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadLabelService);
 	}
 
-	$registerResourceLabelFormatter(formatter: ResourceLabelFormatter): IDisposable {
+	$registerResourceLabelFormatter(formatter: ResourceLabelFormatter): IDisposable2 {
 		const handle = this._handlePool++;
 		this._proxy.$registerResourceLabelFormatter(handle, formatter);
 

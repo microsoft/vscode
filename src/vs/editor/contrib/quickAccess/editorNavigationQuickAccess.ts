@@ -11,7 +11,7 @@ import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
 import { IQuickPick, IQuickPickItem, IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable, DisposableStore, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, DisposableStore, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { isDiffEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -51,7 +51,7 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 
 	//#region Provider methods
 
-	provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
+	provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable2 {
 		const disposables = new DisposableStore();
 
 		// Apply options if any
@@ -77,7 +77,7 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 		return disposables;
 	}
 
-	private doProvide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
+	private doProvide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable2 {
 		const disposables = new DisposableStore();
 
 		// With text control
@@ -133,12 +133,12 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 	/**
 	 * Subclasses to implement to provide picks for the picker when an editor is active.
 	 */
-	protected abstract provideWithTextEditor(context: IQuickAccessTextEditorContext, picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable;
+	protected abstract provideWithTextEditor(context: IQuickAccessTextEditorContext, picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable2;
 
 	/**
 	 * Subclasses to implement to provide picks for the picker when no editor is active.
 	 */
-	protected abstract provideWithoutTextEditor(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable;
+	protected abstract provideWithoutTextEditor(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable2;
 
 	protected gotoLocation({ editor }: IQuickAccessTextEditorContext, options: { range: IRange, keyMods: IKeyMods, forceSideBySide?: boolean, preserveFocus?: boolean }): void {
 		editor.setSelection(options.range);

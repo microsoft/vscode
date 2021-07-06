@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Range } from 'vs/editor/common/core/range';
@@ -156,7 +156,7 @@ class LanguageConfigurationEntries {
 		this._resolved = null;
 	}
 
-	public register(configuration: LanguageConfiguration, priority: number): IDisposable {
+	public register(configuration: LanguageConfiguration, priority: number): IDisposable2 {
 		const entry = new LanguageConfigurationEntry(configuration, priority, ++this._order);
 		this._entries.push(entry);
 		this._resolved = null;
@@ -214,7 +214,7 @@ export class LanguageConfigurationRegistryImpl {
 	/**
 	 * @param priority Use a higher number for higher priority
 	 */
-	public register(languageIdentifier: LanguageIdentifier, configuration: LanguageConfiguration, priority: number = 0): IDisposable {
+	public register(languageIdentifier: LanguageIdentifier, configuration: LanguageConfiguration, priority: number = 0): IDisposable2 {
 		let entries = this._entries2.get(languageIdentifier.id);
 		if (!entries) {
 			entries = new LanguageConfigurationEntries(languageIdentifier);

@@ -7,7 +7,7 @@ import { Dimension } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { equals } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -116,7 +116,7 @@ export interface WebviewMessageReceivedEvent {
 	readonly transfer?: readonly ArrayBuffer[];
 }
 
-export interface Webview extends IDisposable {
+export interface Webview extends IDisposable2 {
 
 	readonly id: string;
 

@@ -9,7 +9,7 @@ import { IURLService } from 'vs/platform/url/common/url';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { app, Event as ElectronEvent } from 'electron';
 import { URI } from 'vs/base/common/uri';
-import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { isWindows } from 'vs/base/common/platform';
 import { disposableTimeout } from 'vs/base/common/async';
@@ -36,7 +36,7 @@ export class ElectronURLListener {
 
 	private uris: { uri: URI, url: string }[] = [];
 	private retryCount = 0;
-	private flushDisposable: IDisposable = Disposable.None;
+	private flushDisposable: IDisposable2 = Disposable.None;
 	private disposables = new DisposableStore();
 
 	constructor(

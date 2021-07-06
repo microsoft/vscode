@@ -8,12 +8,12 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractLifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycleService';
 import { localize } from 'vs/nls';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { addDisposableListener } from 'vs/base/browser/dom';
 
 export class BrowserLifecycleService extends AbstractLifecycleService {
 
-	private beforeUnloadDisposable: IDisposable | undefined = undefined;
+	private beforeUnloadDisposable: IDisposable2 | undefined = undefined;
 	private expectedUnload = false;
 
 	constructor(

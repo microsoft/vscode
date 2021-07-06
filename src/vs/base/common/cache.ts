@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 
-export interface CacheResult<T> extends IDisposable {
+export interface CacheResult<T> extends IDisposable2 {
 	promise: Promise<T>;
 }
 

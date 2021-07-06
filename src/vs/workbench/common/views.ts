@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { RawContextKey, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { getOrSet } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -380,8 +380,8 @@ export interface IViewsRegistry {
 	getViewContainer(id: string): ViewContainer | null;
 
 	readonly onDidChangeViewWelcomeContent: Event<string>;
-	registerViewWelcomeContent(id: string, viewContent: IViewContentDescriptor): IDisposable;
-	registerViewWelcomeContent2<TKey>(id: string, viewContentMap: Map<TKey, IViewContentDescriptor>): Map<TKey, IDisposable>;
+	registerViewWelcomeContent(id: string, viewContent: IViewContentDescriptor): IDisposable2;
+	registerViewWelcomeContent2<TKey>(id: string, viewContentMap: Map<TKey, IViewContentDescriptor>): Map<TKey, IDisposable2>;
 	getViewWelcomeContent(id: string): IViewContentDescriptor[];
 }
 
@@ -464,7 +464,7 @@ class ViewsRegistry extends Disposable implements IViewsRegistry {
 		return null;
 	}
 
-	registerViewWelcomeContent(id: string, viewContent: IViewContentDescriptor): IDisposable {
+	registerViewWelcomeContent(id: string, viewContent: IViewContentDescriptor): IDisposable2 {
 		this._viewWelcomeContents.add(id, viewContent);
 		this._onDidChangeViewWelcomeContent.fire(id);
 
@@ -474,8 +474,8 @@ class ViewsRegistry extends Disposable implements IViewsRegistry {
 		});
 	}
 
-	registerViewWelcomeContent2<TKey>(id: string, viewContentMap: Map<TKey, IViewContentDescriptor>): Map<TKey, IDisposable> {
-		const disposables = new Map<TKey, IDisposable>();
+	registerViewWelcomeContent2<TKey>(id: string, viewContentMap: Map<TKey, IViewContentDescriptor>): Map<TKey, IDisposable2> {
+		const disposables = new Map<TKey, IDisposable2>();
 
 		for (const [key, content] of viewContentMap) {
 			this._viewWelcomeContents.add(id, content);
@@ -626,7 +626,7 @@ export interface IViewDescriptorService {
 
 // Custom views
 
-export interface ITreeView extends IDisposable {
+export interface ITreeView extends IDisposable2 {
 
 	dataProvider: ITreeViewDataProvider | undefined;
 

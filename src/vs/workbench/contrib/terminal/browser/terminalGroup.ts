@@ -5,7 +5,7 @@
 
 import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -233,7 +233,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 	private _groupElement: HTMLElement | undefined;
 	private _panelPosition: Position = Position.BOTTOM;
 	private _terminalLocation: ViewContainerLocation = ViewContainerLocation.Panel;
-	private _instanceDisposables: Map<number, IDisposable[]> = new Map();
+	private _instanceDisposables: Map<number, IDisposable2[]> = new Map();
 
 	private _activeInstanceIndex: number = -1;
 	private _isVisible: boolean = false;
@@ -496,7 +496,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		return instance;
 	}
 
-	addDisposable(disposable: IDisposable): void {
+	addDisposable(disposable: IDisposable2): void {
 		this._register(disposable);
 	}
 

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IProtocolMainService = createDecorator<IProtocolMainService>('protocolMainService');
 
-export interface IIPCObjectUrl<T> extends IDisposable {
+export interface IIPCObjectUrl<T> extends IDisposable2 {
 
 	/**
 	 * A `URI` that a renderer can use to retrieve the
@@ -43,5 +43,5 @@ export interface IProtocolMainService {
 	 *
 	 * @param root the URI to allow for file access
 	 */
-	addValidFileRoot(root: URI): IDisposable;
+	addValidFileRoot(root: URI): IDisposable2;
 }

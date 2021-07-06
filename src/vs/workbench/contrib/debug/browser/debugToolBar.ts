@@ -27,7 +27,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ICommandAction, IMenu, IMenuService, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IContextKeyService, ContextKeyExpression, ContextKeyExpr, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose } from 'vs/base/common/lifecycle';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { debugToolBarBackground, debugToolBarBorder } from 'vs/workbench/contrib/debug/browser/debugColors';
 import { URI } from 'vs/base/common/uri';
@@ -44,7 +44,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 	private activeActions: IAction[];
 	private updateScheduler: RunOnceScheduler;
 	private debugToolBarMenu: IMenu;
-	private disposeOnUpdate: IDisposable | undefined;
+	private disposeOnUpdate: IDisposable2 | undefined;
 	private yCoordinate = 0;
 
 	private isVisible = false;

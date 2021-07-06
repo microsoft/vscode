@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { Disposable, DisposableStore, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable2, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { IFilesConfigurationService, AutoSaveMode, IAutoSaveConfiguration } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { SaveReason, IEditorIdentifier, IEditorInput, GroupIdentifier, ISaveOptions, EditorInputCapabilities } from 'vs/workbench/common/editor';
@@ -19,7 +19,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 
 	// Auto save: after delay
 	private autoSaveAfterDelay: number | undefined;
-	private readonly pendingAutoSavesAfterDelay = new Map<IWorkingCopy, IDisposable>();
+	private readonly pendingAutoSavesAfterDelay = new Map<IWorkingCopy, IDisposable2>();
 
 	// Auto save: focus change & window change
 	private lastActiveEditor: IEditorInput | undefined = undefined;

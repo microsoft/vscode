@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./list';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable } from 'vs/base/common/lifecycle';
 import { range } from 'vs/base/common/arrays';
 import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent } from './list';
 import { List, IListStyles, IListOptions, IListAccessibilityProvider, IListOptionsUpdate } from './listWidget';
@@ -20,7 +20,7 @@ export interface IPagedRenderer<TElement, TTemplateData> extends IListRenderer<T
 
 export interface ITemplateData<T> {
 	data?: T;
-	disposable?: IDisposable;
+	disposable?: IDisposable2;
 }
 
 class PagedRenderer<TElement, TTemplateData> implements IListRenderer<number, ITemplateData<TTemplateData>> {
@@ -120,7 +120,7 @@ function fromPagedListOptions<T>(modelProvider: () => IPagedModel<T>, options: I
 	};
 }
 
-export class PagedList<T> implements IThemable, IDisposable {
+export class PagedList<T> implements IThemable, IDisposable2 {
 
 	private list: List<number>;
 	private _model!: IPagedModel<T>;

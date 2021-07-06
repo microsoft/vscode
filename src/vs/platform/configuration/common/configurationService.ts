@@ -5,7 +5,7 @@
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService, IConfigurationChangeEvent, IConfigurationOverrides, ConfigurationTarget, isConfigurationOverrides, IConfigurationData, IConfigurationValue, IConfigurationChange } from 'vs/platform/configuration/common/configuration';
 import { DefaultConfigurationModel, Configuration, ConfigurationModel, ConfigurationChangeEvent, UserSettings } from 'vs/platform/configuration/common/configurationModels';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -14,7 +14,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 
-export class ConfigurationService extends Disposable implements IConfigurationService, IDisposable {
+export class ConfigurationService extends Disposable implements IConfigurationService, IDisposable2 {
 
 	declare readonly _serviceBrand: undefined;
 

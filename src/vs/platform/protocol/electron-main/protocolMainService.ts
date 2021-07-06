@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -59,7 +59,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 		}));
 	}
 
-	addValidFileRoot(root: URI): IDisposable {
+	addValidFileRoot(root: URI): IDisposable2 {
 		if (!this.validRoots.get(root)) {
 			this.validRoots.set(root, true);
 

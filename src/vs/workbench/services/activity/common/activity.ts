@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
@@ -22,22 +22,22 @@ export interface IActivityService {
 	/**
 	 * Show activity for the given view container
 	 */
-	showViewContainerActivity(viewContainerId: string, badge: IActivity): IDisposable;
+	showViewContainerActivity(viewContainerId: string, badge: IActivity): IDisposable2;
 
 	/**
 	 * Show activity for the given view
 	 */
-	showViewActivity(viewId: string, badge: IActivity): IDisposable;
+	showViewActivity(viewId: string, badge: IActivity): IDisposable2;
 
 	/**
 	 * Show accounts activity
 	 */
-	showAccountsActivity(activity: IActivity): IDisposable;
+	showAccountsActivity(activity: IActivity): IDisposable2;
 
 	/**
 	 * Show global activity
 	 */
-	showGlobalActivity(activity: IActivity): IDisposable;
+	showGlobalActivity(activity: IActivity): IDisposable2;
 }
 
 export interface IBadge {

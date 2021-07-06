@@ -9,7 +9,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
 import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
 import { ITextAreaHandlerHelper, TextAreaHandler } from 'vs/editor/browser/controller/textAreaHandler';
@@ -88,7 +88,7 @@ export class View extends ViewEventHandler {
 	private readonly _overflowGuardContainer: FastDomNode<HTMLElement>;
 
 	// Actual mutable state
-	private _renderAnimationFrame: IDisposable | null;
+	private _renderAnimationFrame: IDisposable2 | null;
 
 	constructor(
 		commandDelegate: ICommandDelegate,

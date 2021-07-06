@@ -41,7 +41,7 @@ import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable2 } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
 import { ColorValue, listDropBackground } from 'vs/platform/theme/common/colorRegistry';
@@ -833,7 +833,7 @@ export class ExplorerView extends ViewPane {
 	}
 }
 
-function createFileIconThemableTreeContainerScope(container: HTMLElement, themeService: IThemeService): IDisposable {
+function createFileIconThemableTreeContainerScope(container: HTMLElement, themeService: IThemeService): IDisposable2 {
 	container.classList.add('file-icon-themable-tree');
 	container.classList.add('show-file-icons');
 

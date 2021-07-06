@@ -8,7 +8,7 @@
  * using regular expressions.
  */
 
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 import * as modes from 'vs/editor/common/modes';
 import { NULL_MODE_ID, NULL_STATE } from 'vs/editor/common/modes/nullMode';
@@ -382,7 +382,7 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 	private readonly _lexer: monarchCommon.ILexer;
 	private readonly _embeddedModes: { [modeId: string]: boolean; };
 	public embeddedLoaded: Promise<void>;
-	private readonly _tokenizationRegistryListener: IDisposable;
+	private readonly _tokenizationRegistryListener: IDisposable2;
 
 	constructor(modeService: IModeService, standaloneThemeService: IStandaloneThemeService, modeId: string, lexer: monarchCommon.ILexer) {
 		this._modeService = modeService;

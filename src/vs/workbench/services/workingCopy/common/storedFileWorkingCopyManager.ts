@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IDisposable2 } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { StoredFileWorkingCopy, StoredFileWorkingCopyState, IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelFactory, IStoredFileWorkingCopyResolveOptions } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { SaveReason } from 'vs/workbench/common/editor';
@@ -138,7 +138,7 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 
 	//#endregion
 
-	private readonly mapResourceToWorkingCopyListeners = new ResourceMap<IDisposable>();
+	private readonly mapResourceToWorkingCopyListeners = new ResourceMap<IDisposable2>();
 	private readonly mapResourceToPendingWorkingCopyResolve = new ResourceMap<Promise<void>>();
 
 	private readonly workingCopyResolveQueue = this._register(new ResourceQueue());

@@ -5,7 +5,7 @@
 
 import 'vs/css!./dropdown';
 import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { append, $, addDisposableListener, EventType } from 'vs/base/browser/dom';
@@ -65,7 +65,7 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 	override render(container: HTMLElement): void {
 		this.actionItem = container;
 
-		const labelRenderer: ILabelRenderer = (el: HTMLElement): IDisposable | null => {
+		const labelRenderer: ILabelRenderer = (el: HTMLElement): IDisposable2 | null => {
 			this.element = append(el, $('a.action-label'));
 
 			let classNames: string[] = [];

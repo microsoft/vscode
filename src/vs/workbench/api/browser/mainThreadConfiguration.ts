@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, getScopes } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -16,7 +16,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 @extHostNamedCustomer(MainContext.MainThreadConfiguration)
 export class MainThreadConfiguration implements MainThreadConfigurationShape {
 
-	private readonly _configurationListener: IDisposable;
+	private readonly _configurationListener: IDisposable2;
 
 	constructor(
 		extHostContext: IExtHostContext,

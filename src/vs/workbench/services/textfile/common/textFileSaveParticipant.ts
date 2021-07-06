@@ -10,7 +10,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { ITextFileSaveParticipant, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { SaveReason } from 'vs/workbench/common/editor';
-import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { insert } from 'vs/base/common/arrays';
 
 export class TextFileSaveParticipant extends Disposable {
@@ -24,7 +24,7 @@ export class TextFileSaveParticipant extends Disposable {
 		super();
 	}
 
-	addSaveParticipant(participant: ITextFileSaveParticipant): IDisposable {
+	addSaveParticipant(participant: ITextFileSaveParticipant): IDisposable2 {
 		const remove = insert(this.saveParticipants, participant);
 
 		return toDisposable(() => remove());

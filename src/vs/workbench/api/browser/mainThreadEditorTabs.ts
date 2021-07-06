@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IDisposable2 } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostContext, IExtHostEditorTabsShape, IExtHostContext, MainContext, IEditorTabDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
@@ -22,7 +22,7 @@ export class MainThreadEditorTabs {
 	private static _GroupEventFilter = new Set([GroupChangeKind.EDITOR_CLOSE, GroupChangeKind.EDITOR_OPEN]);
 
 	private readonly _dispoables = new DisposableStore();
-	private readonly _groups = new Map<IEditorGroup, IDisposable>();
+	private readonly _groups = new Map<IEditorGroup, IDisposable2>();
 	private readonly _proxy: IExtHostEditorTabsShape;
 
 	constructor(

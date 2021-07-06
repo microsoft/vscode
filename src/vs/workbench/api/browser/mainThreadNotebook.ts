@@ -6,7 +6,7 @@
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IDisposable2 } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
@@ -21,9 +21,9 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 	private readonly _disposables = new DisposableStore();
 
 	private readonly _proxy: ExtHostNotebookShape;
-	private readonly _notebookProviders = new Map<string, { controller: INotebookContentProvider, disposable: IDisposable }>();
-	private readonly _notebookSerializer = new Map<number, IDisposable>();
-	private readonly _notebookCellStatusBarRegistrations = new Map<number, IDisposable>();
+	private readonly _notebookProviders = new Map<string, { controller: INotebookContentProvider, disposable: IDisposable2 }>();
+	private readonly _notebookSerializer = new Map<number, IDisposable2>();
+	private readonly _notebookCellStatusBarRegistrations = new Map<number, IDisposable2>();
 
 	constructor(
 		extHostContext: IExtHostContext,

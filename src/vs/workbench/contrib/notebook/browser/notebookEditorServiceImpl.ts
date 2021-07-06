@@ -5,7 +5,7 @@
 
 import { ResourceMap } from 'vs/base/common/map';
 import { getDefaultNotebookCreationOptions, NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable2 } from 'vs/base/common/lifecycle';
 import { IEditorGroupsService, IEditorGroup, GroupChangeKind } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isCompositeNotebookEditorInput, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
@@ -36,10 +36,10 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 	) {
 
-		const groupListener = new Map<number, IDisposable[]>();
+		const groupListener = new Map<number, IDisposable2[]>();
 		const onNewGroup = (group: IEditorGroup) => {
 			const { id } = group;
-			const listeners: IDisposable[] = [];
+			const listeners: IDisposable2[] = [];
 			listeners.push(group.onDidGroupChange(e => {
 				const widgets = this._borrowableEditors.get(group.id);
 				if (!widgets || e.kind !== GroupChangeKind.EDITOR_CLOSE) {

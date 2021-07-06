@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 
 export interface CancellationToken {
 
@@ -21,10 +21,10 @@ export interface CancellationToken {
 	 *
 	 * @event
 	 */
-	readonly onCancellationRequested: (listener: (e: any) => any, thisArgs?: any, disposables?: IDisposable[]) => IDisposable;
+	readonly onCancellationRequested: (listener: (e: any) => any, thisArgs?: any, disposables?: IDisposable2[]) => IDisposable2;
 }
 
-const shortcutEvent: Event<any> = Object.freeze(function (callback, context?): IDisposable {
+const shortcutEvent: Event<any> = Object.freeze(function (callback, context?): IDisposable2 {
 	const handle = setTimeout(callback.bind(context), 0);
 	return { dispose() { clearTimeout(handle); } };
 });
@@ -97,7 +97,7 @@ class MutableToken implements CancellationToken {
 export class CancellationTokenSource {
 
 	private _token?: CancellationToken = undefined;
-	private _parentListener?: IDisposable = undefined;
+	private _parentListener?: IDisposable2 = undefined;
 
 	constructor(parent?: CancellationToken) {
 		this._parentListener = parent && parent.onCancellationRequested(this.cancel, this);

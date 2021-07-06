@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { Event, Emitter, AsyncEmitter, IWaitUntil, EventBufferer, EventMultiplexer, PauseableEmitter, Relay, DebounceEmitter } from 'vs/base/common/event';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, DisposableStore } from 'vs/base/common/lifecycle';
 import { errorHandler, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -63,7 +63,7 @@ suite('Event', function () {
 
 	test('Emitter, bucket', function () {
 
-		let bucket: IDisposable[] = [];
+		let bucket: IDisposable2[] = [];
 		let doc = new Samples.Document3();
 		let subscription = doc.onDidChange(counter.onEvent, counter, bucket);
 

@@ -12,7 +12,7 @@ import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platf
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { Rectangle, BrowserWindow, WebContents } from 'electron';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const enum OpenContext {
@@ -65,7 +65,7 @@ export interface ILoadEvent {
 	isReload: boolean;
 }
 
-export interface ICodeWindow extends IDisposable {
+export interface ICodeWindow extends IDisposable2 {
 
 	readonly onWillLoad: Event<ILoadEvent>;
 	readonly onDidSignalReady: Event<void>;

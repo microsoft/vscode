@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as nls from 'vs/nls';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Extensions, IViewContainersRegistry, IViewsRegistry, IViewsService, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { Attributes, AutoTunnelSource, IRemoteExplorerService, makeAddress, mapHasAddressLocalhostOrAllInterfaces, OnPortForward, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_OUTPUT, PORT_AUTO_SOURCE_SETTING_PROCESS, TUNNEL_VIEW_CONTAINER_ID, TUNNEL_VIEW_ID } from 'vs/workbench/services/remote/common/remoteExplorerService';
@@ -35,8 +35,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 export const VIEWLET_ID = 'workbench.view.remote';
 
 export class ForwardedPortsView extends Disposable implements IWorkbenchContribution {
-	private contextKeyListener?: IDisposable;
-	private _activityBadge?: IDisposable;
+	private contextKeyListener?: IDisposable2;
+	private _activityBadge?: IDisposable2;
 	private entryAccessor: IStatusbarEntryAccessor | undefined;
 
 	constructor(
@@ -407,7 +407,7 @@ class OnAutoForwardedAction extends Disposable {
 }
 
 class OutputAutomaticPortForwarding extends Disposable {
-	private portsFeatures?: IDisposable;
+	private portsFeatures?: IDisposable2;
 	private urlFinder?: UrlFinder;
 	private notifier: OnAutoForwardedAction;
 
@@ -482,12 +482,12 @@ class OutputAutomaticPortForwarding extends Disposable {
 }
 
 class ProcAutomaticPortForwarding extends Disposable {
-	private candidateListener: IDisposable | undefined;
+	private candidateListener: IDisposable2 | undefined;
 	private autoForwarded: Set<string> = new Set();
 	private notifiedOnly: Set<string> = new Set();
 	private notifier: OnAutoForwardedAction;
 	private initialCandidates: Set<string> = new Set();
-	private portsFeatures: IDisposable | undefined;
+	private portsFeatures: IDisposable2 | undefined;
 
 	constructor(
 		private readonly configurationService: IConfigurationService,

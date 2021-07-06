@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { IPCClient } from 'vs/base/parts/ipc/common/ipc';
 import { Protocol as ElectronProtocol } from 'vs/base/parts/ipc/common/ipc.electron';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 
@@ -14,7 +14,7 @@ import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
  * An implemention of `IPCClient` on top of Electron `ipcRenderer` IPC communication
  * provided from sandbox globals (via preload script).
  */
-export class Client extends IPCClient implements IDisposable {
+export class Client extends IPCClient implements IDisposable2 {
 
 	private protocol: ElectronProtocol;
 

@@ -5,7 +5,7 @@
 
 import 'vs/css!./ghostText';
 import * as dom from 'vs/base/browser/dom';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -193,7 +193,7 @@ interface InsertedInlineText {
 	text: string;
 }
 
-class DecorationsWidget implements IDisposable {
+class DecorationsWidget implements IDisposable2 {
 	private decorationIds: string[] = [];
 	private disposableStore: DisposableStore = new DisposableStore();
 
@@ -320,7 +320,7 @@ function opaque(color: Color): Color {
 	return new Color(new RGBA(r, g, b, 255));
 }
 
-class AdditionalLinesWidget implements IDisposable {
+class AdditionalLinesWidget implements IDisposable2 {
 	private _viewZoneId: string | undefined = undefined;
 	public get viewZoneId(): string | undefined { return this._viewZoneId; }
 

@@ -10,7 +10,7 @@ import { IExpression } from 'vs/base/common/glob';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { startsWithIgnoreCase } from 'vs/base/common/strings';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { ReadableStreamEvents } from 'vs/base/common/stream';
@@ -44,7 +44,7 @@ export interface IFileService {
 	/**
 	 * Registers a file system provider for a certain scheme.
 	 */
-	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable;
+	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable2;
 
 	/**
 	 * Returns a file system provider for a certain scheme.
@@ -199,7 +199,7 @@ export interface IFileService {
 	 *
 	 * Note: watching a folder does not report events recursively for child folders yet.
 	 */
-	watch(resource: URI): IDisposable;
+	watch(resource: URI): IDisposable2;
 
 	/**
 	 * Frees up any resources occupied by this service.
@@ -425,7 +425,7 @@ export interface IFileSystemProvider {
 	readonly onDidErrorOccur?: Event<string>;
 
 	readonly onDidChangeFile: Event<readonly IFileChange[]>;
-	watch(resource: URI, opts: IWatchOptions): IDisposable;
+	watch(resource: URI, opts: IWatchOptions): IDisposable2;
 
 	stat(resource: URI): Promise<IStat>;
 	mkdir(resource: URI): Promise<void>;

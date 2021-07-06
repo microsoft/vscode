@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, IReference } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -108,7 +108,7 @@ export abstract class BaseCellViewModel extends Disposable {
 	get editorAttached(): boolean {
 		return !!this._textEditor;
 	}
-	private _cursorChangeListener: IDisposable | null = null;
+	private _cursorChangeListener: IDisposable2 | null = null;
 	private _editorViewStates: editorCommon.ICodeEditorViewState | null = null;
 	private _resolvedCellDecorations = new Map<string, INotebookCellDecorationOptions>();
 	private _cellDecorationsChanged = new Emitter<{ added: INotebookCellDecorationOptions[], removed: INotebookCellDecorationOptions[] }>();

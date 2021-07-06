@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable2 } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -26,7 +26,7 @@ export class UntitledTextEditorHintContribution implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.untitledTextEditorHint';
 
-	private toDispose: IDisposable[];
+	private toDispose: IDisposable2[];
 	private untitledTextHintContentWidget: UntitledTextEditorHintContentWidget | undefined;
 
 	constructor(
@@ -66,7 +66,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 	private static readonly ID = 'editor.widget.untitledHint';
 
 	private domNode: HTMLElement | undefined;
-	private toDispose: IDisposable[];
+	private toDispose: IDisposable2[];
 
 	constructor(
 		private readonly editor: ICodeEditor,

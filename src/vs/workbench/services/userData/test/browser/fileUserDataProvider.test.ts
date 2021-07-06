@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { dirname, isEqual, joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { DisposableStore, IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable2, Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { TestProductService } from 'vs/workbench/test/browser/workbenchTestServices';
@@ -281,7 +281,7 @@ class TestFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapa
 
 	readonly onDidChangeCapabilities: Event<void> = Event.None;
 
-	watch(): IDisposable { return Disposable.None; }
+	watch(): IDisposable2 { return Disposable.None; }
 
 	stat(): Promise<IStat> { throw new Error('Not Supported'); }
 

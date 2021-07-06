@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -31,7 +31,7 @@ export class ModesHoverController implements IEditorContribution {
 	public static readonly ID = 'editor.contrib.hover';
 
 	private readonly _toUnhook = new DisposableStore();
-	private readonly _didChangeConfigurationHandler: IDisposable;
+	private readonly _didChangeConfigurationHandler: IDisposable2;
 
 	private _contentWidget: ModesContentHoverWidget | null;
 	private _glyphWidget: ModesGlyphHoverWidget | null;

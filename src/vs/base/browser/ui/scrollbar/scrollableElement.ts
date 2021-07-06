@@ -14,7 +14,7 @@ import { VerticalScrollbar } from 'vs/base/browser/ui/scrollbar/verticalScrollba
 import { Widget } from 'vs/base/browser/ui/widget';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { INewScrollDimensions, INewScrollPosition, IScrollDimensions, IScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { getZoomFactor } from 'vs/base/browser/browser';
@@ -159,7 +159,7 @@ export abstract class AbstractScrollableElement extends Widget {
 
 	private readonly _listenOnDomNode: HTMLElement;
 
-	private _mouseWheelToDispose: IDisposable[];
+	private _mouseWheelToDispose: IDisposable2[];
 
 	private _isDragging: boolean;
 	private _mouseIsOver: boolean;

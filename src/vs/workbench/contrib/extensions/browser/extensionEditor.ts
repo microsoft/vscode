@@ -12,7 +12,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Cache, CacheResult } from 'vs/base/common/cache';
 import { Action, IAction } from 'vs/base/common/actions';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
-import { dispose, toDisposable, Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, toDisposable, Disposable, DisposableStore, IDisposable2 } from 'vs/base/common/lifecycle';
 import { append, $, finalHandler, join, hide, show, addDisposableListener, EventType, setParentFlowTo } from 'vs/base/browser/dom';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -300,7 +300,7 @@ export class ExtensionEditor extends EditorPane {
 		};
 	}
 
-	private onClick(element: HTMLElement, callback: () => void): IDisposable {
+	private onClick(element: HTMLElement, callback: () => void): IDisposable2 {
 		const disposables: DisposableStore = new DisposableStore();
 		disposables.add(addDisposableListener(element, EventType.CLICK, finalHandler(callback)));
 		disposables.add(addDisposableListener(element, EventType.KEY_UP, e => {

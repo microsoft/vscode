@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -1213,55 +1213,55 @@ export interface ITextModel {
 	 * @internal
 	 * @event
 	 */
-	onDidChangeContentOrInjectedText(listener: (e: ModelRawContentChangedEvent | ModelInjectedTextChangedEvent) => void): IDisposable;
+	onDidChangeContentOrInjectedText(listener: (e: ModelRawContentChangedEvent | ModelInjectedTextChangedEvent) => void): IDisposable2;
 	/**
 	 * @deprecated Please use `onDidChangeContent` instead.
 	 * An event emitted when the contents of the model have changed.
 	 * @internal
 	 * @event
 	 */
-	onDidChangeRawContent(listener: (e: ModelRawContentChangedEvent) => void): IDisposable;
+	onDidChangeRawContent(listener: (e: ModelRawContentChangedEvent) => void): IDisposable2;
 	/**
 	 * An event emitted when the contents of the model have changed.
 	 * @event
 	 */
-	onDidChangeContent(listener: (e: IModelContentChangedEvent) => void): IDisposable;
+	onDidChangeContent(listener: (e: IModelContentChangedEvent) => void): IDisposable2;
 	/**
 	 * An event emitted when decorations of the model have changed.
 	 * @event
 	 */
-	onDidChangeDecorations(listener: (e: IModelDecorationsChangedEvent) => void): IDisposable;
+	onDidChangeDecorations(listener: (e: IModelDecorationsChangedEvent) => void): IDisposable2;
 	/**
 	 * An event emitted when the model options have changed.
 	 * @event
 	 */
-	onDidChangeOptions(listener: (e: IModelOptionsChangedEvent) => void): IDisposable;
+	onDidChangeOptions(listener: (e: IModelOptionsChangedEvent) => void): IDisposable2;
 	/**
 	 * An event emitted when the language associated with the model has changed.
 	 * @event
 	 */
-	onDidChangeLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
+	onDidChangeLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable2;
 	/**
 	 * An event emitted when the language configuration associated with the model has changed.
 	 * @event
 	 */
-	onDidChangeLanguageConfiguration(listener: (e: IModelLanguageConfigurationChangedEvent) => void): IDisposable;
+	onDidChangeLanguageConfiguration(listener: (e: IModelLanguageConfigurationChangedEvent) => void): IDisposable2;
 	/**
 	 * An event emitted when the tokens associated with the model have changed.
 	 * @event
 	 * @internal
 	 */
-	onDidChangeTokens(listener: (e: IModelTokensChangedEvent) => void): IDisposable;
+	onDidChangeTokens(listener: (e: IModelTokensChangedEvent) => void): IDisposable2;
 	/**
 	 * An event emitted when the model has been attached to the first editor or detached from the last editor.
 	 * @event
 	 */
-	onDidChangeAttached(listener: () => void): IDisposable;
+	onDidChangeAttached(listener: () => void): IDisposable2;
 	/**
 	 * An event emitted right before disposing the model.
 	 * @event
 	 */
-	onWillDispose(listener: () => void): IDisposable;
+	onWillDispose(listener: () => void): IDisposable2;
 
 	/**
 	 * Destroy this model. This will unbind the model from the mode
@@ -1330,7 +1330,7 @@ export interface ITextBufferBuilder {
  * @internal
  */
 export interface ITextBufferFactory {
-	create(defaultEOL: DefaultEndOfLine): { textBuffer: ITextBuffer; disposable: IDisposable; };
+	create(defaultEOL: DefaultEndOfLine): { textBuffer: ITextBuffer; disposable: IDisposable2; };
 	getFirstLineText(lengthLimit: number): string;
 }
 

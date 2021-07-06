@@ -9,7 +9,7 @@ import { IRemoteConsoleLog } from 'vs/base/common/console';
 import { SerializedError } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import * as performance from 'vs/base/common/performance';
 import Severity from 'vs/base/common/severity';
@@ -126,12 +126,12 @@ export enum UIKind {
 
 // --- main thread
 
-export interface MainThreadClipboardShape extends IDisposable {
+export interface MainThreadClipboardShape extends IDisposable2 {
 	$readText(): Promise<string>;
 	$writeText(value: string): Promise<void>;
 }
 
-export interface MainThreadCommandsShape extends IDisposable {
+export interface MainThreadCommandsShape extends IDisposable2 {
 	$registerCommand(id: string): void;
 	$unregisterCommand(id: string): void;
 	$executeCommand<T>(id: string, args: any[], retry: boolean): Promise<T | undefined>;
@@ -153,7 +153,7 @@ export type CommentThreadChanges = Partial<{
 	canReply: boolean;
 }>;
 
-export interface MainThreadCommentsShape extends IDisposable {
+export interface MainThreadCommentsShape extends IDisposable2 {
 	$registerCommentController(handle: number, id: string, label: string): void;
 	$unregisterCommentController(handle: number): void;
 	$updateCommentControllerFeatures(handle: number, features: CommentProviderFeatures): void;
@@ -163,7 +163,7 @@ export interface MainThreadCommentsShape extends IDisposable {
 	$onDidCommentThreadsChange(handle: number, event: modes.CommentThreadChangedEvent): void;
 }
 
-export interface MainThreadAuthenticationShape extends IDisposable {
+export interface MainThreadAuthenticationShape extends IDisposable2 {
 	$registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean): void;
 	$unregisterAuthenticationProvider(id: string): void;
 	$ensureProvider(id: string): Promise<void>;
@@ -172,18 +172,18 @@ export interface MainThreadAuthenticationShape extends IDisposable {
 	$removeSession(providerId: string, sessionId: string): Promise<void>;
 }
 
-export interface MainThreadSecretStateShape extends IDisposable {
+export interface MainThreadSecretStateShape extends IDisposable2 {
 	$getPassword(extensionId: string, key: string): Promise<string | undefined>;
 	$setPassword(extensionId: string, key: string, value: string): Promise<void>;
 	$deletePassword(extensionId: string, key: string): Promise<void>;
 }
 
-export interface MainThreadConfigurationShape extends IDisposable {
+export interface MainThreadConfigurationShape extends IDisposable2 {
 	$updateConfigurationOption(target: ConfigurationTarget | null, key: string, value: any, overrides: IConfigurationOverrides | undefined, scopeToLanguage: boolean | undefined): Promise<void>;
 	$removeConfigurationOption(target: ConfigurationTarget | null, key: string, overrides: IConfigurationOverrides | undefined, scopeToLanguage: boolean | undefined): Promise<void>;
 }
 
-export interface MainThreadDiagnosticsShape extends IDisposable {
+export interface MainThreadDiagnosticsShape extends IDisposable2 {
 	$changeMany(owner: string, entries: [UriComponents, IMarkerData[] | undefined][]): void;
 	$clear(owner: string): void;
 }
@@ -205,24 +205,24 @@ export interface MainThreadDialogSaveOptions {
 	title?: string;
 }
 
-export interface MainThreadDiaglogsShape extends IDisposable {
+export interface MainThreadDiaglogsShape extends IDisposable2 {
 	$showOpenDialog(options?: MainThreadDialogOpenOptions): Promise<UriComponents[] | undefined>;
 	$showSaveDialog(options?: MainThreadDialogSaveOptions): Promise<UriComponents | undefined>;
 }
 
-export interface MainThreadDecorationsShape extends IDisposable {
+export interface MainThreadDecorationsShape extends IDisposable2 {
 	$registerDecorationProvider(handle: number, label: string): void;
 	$unregisterDecorationProvider(handle: number): void;
 	$onDidChange(handle: number, resources: UriComponents[] | null): void;
 }
 
-export interface MainThreadDocumentContentProvidersShape extends IDisposable {
+export interface MainThreadDocumentContentProvidersShape extends IDisposable2 {
 	$registerTextContentProvider(handle: number, scheme: string): void;
 	$unregisterTextContentProvider(handle: number): void;
 	$onVirtualDocumentChange(uri: UriComponents, value: string): void;
 }
 
-export interface MainThreadDocumentsShape extends IDisposable {
+export interface MainThreadDocumentsShape extends IDisposable2 {
 	$tryCreateDocument(options?: { language?: string; content?: string; }): Promise<UriComponents>;
 	$tryOpenDocument(uri: UriComponents): Promise<UriComponents>;
 	$trySaveDocument(uri: UriComponents): Promise<boolean>;
@@ -265,11 +265,11 @@ export interface ITextDocumentShowOptions {
 	selection?: IRange;
 }
 
-export interface MainThreadBulkEditsShape extends IDisposable {
+export interface MainThreadBulkEditsShape extends IDisposable2 {
 	$tryApplyWorkspaceEdit(workspaceEditDto: IWorkspaceEditDto, undoRedoGroupId?: number): Promise<boolean>;
 }
 
-export interface MainThreadTextEditorsShape extends IDisposable {
+export interface MainThreadTextEditorsShape extends IDisposable2 {
 	$tryShowTextDocument(resource: UriComponents, options: ITextDocumentShowOptions): Promise<string | undefined>;
 	$registerTextEditorDecorationType(extensionId: ExtensionIdentifier, key: string, options: editorCommon.IDecorationRenderOptions): void;
 	$removeTextEditorDecorationType(key: string): void;
@@ -285,7 +285,7 @@ export interface MainThreadTextEditorsShape extends IDisposable {
 	$getDiffInformation(id: string): Promise<editorCommon.ILineChange[]>;
 }
 
-export interface MainThreadTreeViewsShape extends IDisposable {
+export interface MainThreadTreeViewsShape extends IDisposable2 {
 	$registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean, canSelectMany: boolean, canDragAndDrop: boolean; }): Promise<void>;
 	$refresh(treeViewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem; }): Promise<void>;
 	$reveal(treeViewId: string, itemInfo: { item: ITreeItem, parentChain: ITreeItem[] } | undefined, options: IRevealOptions): Promise<void>;
@@ -293,19 +293,19 @@ export interface MainThreadTreeViewsShape extends IDisposable {
 	$setTitle(treeViewId: string, title: string, description: string | undefined): void;
 }
 
-export interface MainThreadDownloadServiceShape extends IDisposable {
+export interface MainThreadDownloadServiceShape extends IDisposable2 {
 	$download(uri: UriComponents, to: UriComponents): Promise<void>;
 }
 
-export interface MainThreadErrorsShape extends IDisposable {
+export interface MainThreadErrorsShape extends IDisposable2 {
 	$onUnexpectedError(err: any | SerializedError): void;
 }
 
-export interface MainThreadConsoleShape extends IDisposable {
+export interface MainThreadConsoleShape extends IDisposable2 {
 	$logExtensionHostMessage(msg: IRemoteConsoleLog): void;
 }
 
-export interface MainThreadKeytarShape extends IDisposable {
+export interface MainThreadKeytarShape extends IDisposable2 {
 	$getPassword(service: string, account: string): Promise<string | null>;
 	$setPassword(service: string, account: string, password: string): Promise<void>;
 	$deletePassword(service: string, account: string): Promise<boolean>;
@@ -376,7 +376,7 @@ export interface IdentifiableInlineCompletion extends modes.InlineCompletion {
 	idx: number;
 }
 
-export interface MainThreadLanguageFeaturesShape extends IDisposable {
+export interface MainThreadLanguageFeaturesShape extends IDisposable2 {
 	$unregister(handle: number): void;
 	$registerDocumentSymbolProvider(handle: number, selector: IDocumentFilterDto[], label: string): void;
 	$registerCodeLensSupport(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void;
@@ -415,7 +415,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: ILanguageConfigurationDto): void;
 }
 
-export interface MainThreadLanguagesShape extends IDisposable {
+export interface MainThreadLanguagesShape extends IDisposable2 {
 	$getLanguages(): Promise<string[]>;
 	$changeLanguage(resource: UriComponents, languageId: string): Promise<void>;
 	$tokensAtPosition(resource: UriComponents, position: IPosition): Promise<undefined | { type: modes.StandardTokenType, range: IRange }>;
@@ -428,11 +428,11 @@ export interface MainThreadMessageOptions {
 	useCustom?: boolean;
 }
 
-export interface MainThreadMessageServiceShape extends IDisposable {
+export interface MainThreadMessageServiceShape extends IDisposable2 {
 	$showMessage(severity: Severity, message: string, options: MainThreadMessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Promise<number | undefined>;
 }
 
-export interface MainThreadOutputServiceShape extends IDisposable {
+export interface MainThreadOutputServiceShape extends IDisposable2 {
 	$register(label: string, log: boolean, file?: UriComponents, extensionId?: string): Promise<string>;
 	$append(channelId: string, value: string): Promise<void> | undefined;
 	$update(channelId: string): Promise<void> | undefined;
@@ -442,7 +442,7 @@ export interface MainThreadOutputServiceShape extends IDisposable {
 	$dispose(channelId: string): Promise<void> | undefined;
 }
 
-export interface MainThreadProgressShape extends IDisposable {
+export interface MainThreadProgressShape extends IDisposable2 {
 
 	$startProgress(handle: number, options: IProgressOptions, extension?: IExtensionDescription): void;
 	$progressReport(handle: number, message: IProgressStep): void;
@@ -478,7 +478,7 @@ export interface TerminalLaunchConfig {
 	target?: TerminalLocation;
 }
 
-export interface MainThreadTerminalServiceShape extends IDisposable {
+export interface MainThreadTerminalServiceShape extends IDisposable2 {
 	$createTerminal(extHostTerminalId: string, config: TerminalLaunchConfig): Promise<void>;
 	$dispose(id: TerminalIdentifier): void;
 	$hide(id: TerminalIdentifier): void;
@@ -587,7 +587,7 @@ export interface IInputBoxOptions {
 	ignoreFocusOut?: boolean;
 }
 
-export interface MainThreadQuickOpenShape extends IDisposable {
+export interface MainThreadQuickOpenShape extends IDisposable2 {
 	$show(instance: number, options: quickInput.IPickOptions<TransferQuickPickItems>, token: CancellationToken): Promise<number | number[] | undefined>;
 	$setItems(instance: number, items: TransferQuickPickItems[]): Promise<void>;
 	$setError(instance: number, error: Error): Promise<void>;
@@ -596,23 +596,23 @@ export interface MainThreadQuickOpenShape extends IDisposable {
 	$dispose(id: number): Promise<void>;
 }
 
-export interface MainThreadStatusBarShape extends IDisposable {
+export interface MainThreadStatusBarShape extends IDisposable2 {
 	$setEntry(id: number, statusId: string, statusName: string, text: string, tooltip: IMarkdownString | string | undefined, command: ICommandDto | undefined, color: string | ThemeColor | undefined, backgroundColor: string | ThemeColor | undefined, alignment: statusbar.StatusbarAlignment, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): void;
 	$dispose(id: number): void;
 }
 
-export interface MainThreadStorageShape extends IDisposable {
+export interface MainThreadStorageShape extends IDisposable2 {
 	$getValue<T>(shared: boolean, key: string): Promise<T | undefined>;
 	$setValue(shared: boolean, key: string, value: object): Promise<void>;
 	$registerExtensionStorageKeysToSync(extension: IExtensionIdWithVersion, keys: string[]): void;
 }
 
-export interface MainThreadTelemetryShape extends IDisposable {
+export interface MainThreadTelemetryShape extends IDisposable2 {
 	$publicLog(eventName: string, data?: any): void;
 	$publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void;
 }
 
-export interface MainThreadEditorInsetsShape extends IDisposable {
+export interface MainThreadEditorInsetsShape extends IDisposable2 {
 	$createEditorInset(handle: number, id: string, uri: UriComponents, line: number, height: number, options: IWebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): Promise<void>;
 	$disposeEditorInset(handle: number): void;
 
@@ -628,7 +628,7 @@ export interface ExtHostEditorInsetsShape {
 
 //#region --- open editors model
 
-export interface MainThreadEditorTabsShape extends IDisposable {
+export interface MainThreadEditorTabsShape extends IDisposable2 {
 	// manage tabs: move, close, rearrange etc
 }
 
@@ -717,13 +717,13 @@ export interface WebviewMessageArrayBufferReference {
 	};
 }
 
-export interface MainThreadWebviewsShape extends IDisposable {
+export interface MainThreadWebviewsShape extends IDisposable2 {
 	$setHtml(handle: WebviewHandle, value: string): void;
 	$setOptions(handle: WebviewHandle, options: IWebviewOptions): void;
 	$postMessage(handle: WebviewHandle, value: string, ...buffers: VSBuffer[]): Promise<boolean>
 }
 
-export interface MainThreadWebviewPanelsShape extends IDisposable {
+export interface MainThreadWebviewPanelsShape extends IDisposable2 {
 	$createWebviewPanel(
 		extension: WebviewExtensionDescription,
 		handle: WebviewHandle,
@@ -745,7 +745,7 @@ export interface MainThreadWebviewPanelsShape extends IDisposable {
 	$unregisterSerializer(viewType: string): void;
 }
 
-export interface MainThreadCustomEditorsShape extends IDisposable {
+export interface MainThreadCustomEditorsShape extends IDisposable2 {
 	$registerTextEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: IWebviewPanelOptions, capabilities: CustomTextEditorCapabilities, serializeBuffersForPostMessage: boolean): void;
 	$registerCustomEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: IWebviewPanelOptions, supportsMultipleEditorsPerDocument: boolean, serializeBuffersForPostMessage: boolean): void;
 	$unregisterEditorProvider(viewType: string): void;
@@ -754,7 +754,7 @@ export interface MainThreadCustomEditorsShape extends IDisposable {
 	$onContentChange(resource: UriComponents, viewType: string): void;
 }
 
-export interface MainThreadWebviewViewsShape extends IDisposable {
+export interface MainThreadWebviewViewsShape extends IDisposable2 {
 	$registerWebviewViewProvider(extension: WebviewExtensionDescription, viewType: string, options: { retainContextWhenHidden?: boolean, serializeBuffersForPostMessage: boolean }): void;
 	$unregisterWebviewViewProvider(viewType: string): void;
 
@@ -857,7 +857,7 @@ export interface INotebookCellStatusBarListDto {
 	cacheId: number;
 }
 
-export interface MainThreadNotebookShape extends IDisposable {
+export interface MainThreadNotebookShape extends IDisposable2 {
 	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, options: notebookCommon.TransientOptions, registration: notebookCommon.INotebookContributionData | undefined): Promise<void>;
 	$updateNotebookProviderOptions(viewType: string, options?: { transientOutputs: boolean; transientCellMetadata: notebookCommon.TransientCellMetadata; transientDocumentMetadata: notebookCommon.TransientDocumentMetadata; }): Promise<void>;
 	$unregisterNotebookProvider(viewType: string): Promise<void>;
@@ -870,7 +870,7 @@ export interface MainThreadNotebookShape extends IDisposable {
 	$emitCellStatusBarEvent(eventHandle: number): void;
 }
 
-export interface MainThreadNotebookEditorsShape extends IDisposable {
+export interface MainThreadNotebookEditorsShape extends IDisposable2 {
 	$tryShowNotebookDocument(uriComponents: UriComponents, viewType: string, options: INotebookDocumentShowOptions): Promise<string>;
 	$tryRevealRange(id: string, range: ICellRange, revealType: NotebookEditorRevealType): Promise<void>;
 	$registerNotebookEditorDecorationType(key: string, options: notebookCommon.INotebookDecorationRenderOptions): void;
@@ -880,7 +880,7 @@ export interface MainThreadNotebookEditorsShape extends IDisposable {
 	$tryApplyEdits(editorId: string, modelVersionId: number, cellEdits: ICellEditOperationDto[]): Promise<boolean>
 }
 
-export interface MainThreadNotebookDocumentsShape extends IDisposable {
+export interface MainThreadNotebookDocumentsShape extends IDisposable2 {
 	$tryCreateNotebook(options: { viewType: string, content?: NotebookDataDto }): Promise<UriComponents>;
 	$tryOpenNotebook(uriComponents: UriComponents): Promise<UriComponents>;
 	$trySaveNotebook(uri: UriComponents): Promise<boolean>;
@@ -916,7 +916,7 @@ export interface CellExecuteOutputItemEditDto {
 
 export type CellExecuteEditDto = CellExecuteOutputEditDto | CellExecuteOutputItemEditDto | notebookCommon.ICellPartialInternalMetadataEditByHandle;
 
-export interface MainThreadNotebookKernelsShape extends IDisposable {
+export interface MainThreadNotebookKernelsShape extends IDisposable2 {
 	$postMessage(handle: number, editorId: string | undefined, message: any): Promise<boolean>;
 	$addKernel(handle: number, data: INotebookKernelDto2): Promise<void>;
 	$updateKernel(handle: number, data: Partial<INotebookKernelDto2>): void;
@@ -926,14 +926,14 @@ export interface MainThreadNotebookKernelsShape extends IDisposable {
 	$applyExecutionEdits(resource: UriComponents, edits: CellExecuteEditDto[]): Promise<void>;
 }
 
-export interface MainThreadNotebookRenderersShape extends IDisposable {
+export interface MainThreadNotebookRenderersShape extends IDisposable2 {
 	$postMessage(editorId: string, rendererId: string, message: unknown): void;
 }
 
-export interface MainThreadInteractiveShape extends IDisposable {
+export interface MainThreadInteractiveShape extends IDisposable2 {
 }
 
-export interface MainThreadUrlsShape extends IDisposable {
+export interface MainThreadUrlsShape extends IDisposable2 {
 	$registerUriHandler(handle: number, extensionId: ExtensionIdentifier): Promise<void>;
 	$unregisterUriHandler(handle: number): Promise<void>;
 	$createAppUri(uri: UriComponents): Promise<UriComponents>;
@@ -943,7 +943,7 @@ export interface ExtHostUrlsShape {
 	$handleExternalUri(handle: number, uri: UriComponents): Promise<void>;
 }
 
-export interface MainThreadUriOpenersShape extends IDisposable {
+export interface MainThreadUriOpenersShape extends IDisposable2 {
 	$registerUriOpener(id: string, schemes: readonly string[], extensionId: ExtensionIdentifier, label: string): Promise<void>;
 	$unregisterUriOpener(id: string): Promise<void>;
 }
@@ -957,7 +957,7 @@ export interface ITextSearchComplete {
 	limitHit?: boolean;
 }
 
-export interface MainThreadWorkspaceShape extends IDisposable {
+export interface MainThreadWorkspaceShape extends IDisposable2 {
 	$startFileSearch(includePattern: string | null, includeFolder: UriComponents | null, excludePatternOrDisregardExcludes: string | false | null, maxResults: number | null, token: CancellationToken): Promise<UriComponents[] | null>;
 	$startTextSearch(query: search.IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null>;
 	$checkExists(folders: readonly UriComponents[], includes: string[], token: CancellationToken): Promise<boolean>;
@@ -972,7 +972,7 @@ export interface IFileChangeDto {
 	type: files.FileChangeType;
 }
 
-export interface MainThreadFileSystemShape extends IDisposable {
+export interface MainThreadFileSystemShape extends IDisposable2 {
 	$registerFileSystemProvider(handle: number, scheme: string, capabilities: files.FileSystemProviderCapabilities): Promise<void>;
 	$unregisterProvider(handle: number): void;
 	$onFileSystemChange(handle: number, resource: IFileChangeDto[]): void;
@@ -987,12 +987,12 @@ export interface MainThreadFileSystemShape extends IDisposable {
 	$delete(resource: UriComponents, opts: files.FileDeleteOptions): Promise<void>;
 }
 
-export interface MainThreadLabelServiceShape extends IDisposable {
+export interface MainThreadLabelServiceShape extends IDisposable2 {
 	$registerResourceLabelFormatter(handle: number, formatter: ResourceLabelFormatter): void;
 	$unregisterResourceLabelFormatter(handle: number): void;
 }
 
-export interface MainThreadSearchShape extends IDisposable {
+export interface MainThreadSearchShape extends IDisposable2 {
 	$registerFileSearchProvider(handle: number, scheme: string): void;
 	$registerTextSearchProvider(handle: number, scheme: string): void;
 	$unregisterProvider(handle: number): void;
@@ -1001,7 +1001,7 @@ export interface MainThreadSearchShape extends IDisposable {
 	$handleTelemetry(eventName: string, data: any): void;
 }
 
-export interface MainThreadTaskShape extends IDisposable {
+export interface MainThreadTaskShape extends IDisposable2 {
 	$createTaskId(task: tasks.TaskDTO): Promise<string>;
 	$registerTaskProvider(handle: number, type: string): Promise<void>;
 	$unregisterTaskProvider(handle: number): Promise<void>;
@@ -1014,7 +1014,7 @@ export interface MainThreadTaskShape extends IDisposable {
 	$registerSupportedExecutions(custom?: boolean, shell?: boolean, process?: boolean): Promise<void>;
 }
 
-export interface MainThreadExtensionServiceShape extends IDisposable {
+export interface MainThreadExtensionServiceShape extends IDisposable2 {
 	$activateExtension(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void>;
 	$onWillActivateExtension(extensionId: ExtensionIdentifier): Promise<void>;
 	$onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void;
@@ -1057,7 +1057,7 @@ export type SCMRawResourceSplices = [
 	SCMRawResourceSplice[]
 ];
 
-export interface MainThreadSCMShape extends IDisposable {
+export interface MainThreadSCMShape extends IDisposable2 {
 	$registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined): void;
 	$updateSourceControl(handle: number, features: SCMProviderFeatures): void;
 	$unregisterSourceControl(handle: number): void;
@@ -1093,7 +1093,7 @@ export interface IStartDebuggingOptions {
 	compact?: boolean;
 }
 
-export interface MainThreadDebugServiceShape extends IDisposable {
+export interface MainThreadDebugServiceShape extends IDisposable2 {
 	$registerDebugTypes(debugTypes: string[]): void;
 	$sessionCached(sessionID: string): void;
 	$acceptDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): void;
@@ -1119,7 +1119,7 @@ export interface IOpenUriOptions {
 	readonly allowContributedOpeners?: boolean | string;
 }
 
-export interface MainThreadWindowShape extends IDisposable {
+export interface MainThreadWindowShape extends IDisposable2 {
 	$getWindowVisibility(): Promise<boolean>;
 	$openUri(uri: UriComponents, uriString: string | undefined, options: IOpenUriOptions): Promise<boolean>;
 	$asExternalUri(uri: UriComponents, options: IOpenUriOptions): Promise<UriComponents>;
@@ -1137,7 +1137,7 @@ export interface PortAttributesProviderSelector {
 	commandMatcher?: RegExp;
 }
 
-export interface MainThreadTunnelServiceShape extends IDisposable {
+export interface MainThreadTunnelServiceShape extends IDisposable2 {
 	$openTunnel(tunnelOptions: TunnelOptions, source: string | undefined): Promise<TunnelDto | undefined>;
 	$closeTunnel(remote: { host: string, port: number }): Promise<void>;
 	$getTunnels(): Promise<TunnelDescription[]>;
@@ -1150,7 +1150,7 @@ export interface MainThreadTunnelServiceShape extends IDisposable {
 	$unregisterPortsAttributesProvider(providerHandle: number): Promise<void>;
 }
 
-export interface MainThreadTimelineShape extends IDisposable {
+export interface MainThreadTimelineShape extends IDisposable2 {
 	$registerTimelineProvider(provider: TimelineProviderDescriptor): void;
 	$unregisterTimelineProvider(source: string): void;
 	$emitTimelineChangeEvent(e: TimelineChangeEvent | undefined): void;
@@ -1272,7 +1272,7 @@ export interface ExtHostFileSystemShape {
 }
 
 export interface ExtHostLabelServiceShape {
-	$registerResourceLabelFormatter(formatter: ResourceLabelFormatter): IDisposable;
+	$registerResourceLabelFormatter(formatter: ResourceLabelFormatter): IDisposable2;
 }
 
 export interface ExtHostAuthenticationShape {
@@ -2050,7 +2050,7 @@ export interface ExtHostThemingShape {
 	$onColorThemeChange(themeType: string): void;
 }
 
-export interface MainThreadThemingShape extends IDisposable {
+export interface MainThreadThemingShape extends IDisposable2 {
 }
 
 export interface ExtHostTunnelServiceShape {

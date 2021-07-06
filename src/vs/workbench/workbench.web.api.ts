@@ -12,7 +12,7 @@ import { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlServi
 import { LogLevel } from 'vs/platform/log/common/log';
 import { IUpdateProvider, IUpdate } from 'vs/workbench/services/update/browser/updateService';
 import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IProductConfiguration } from 'vs/base/common/product';
@@ -515,7 +515,7 @@ interface IWorkbench {
 let created = false;
 let workbenchPromiseResolve: Function;
 const workbenchPromise = new Promise<IWorkbench>(resolve => workbenchPromiseResolve = resolve);
-function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): IDisposable {
+function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): IDisposable2 {
 
 	// Mark start of workbench
 	mark('code/didLoadWorkbenchMain');
@@ -616,7 +616,7 @@ export {
 	UriComponents,
 	Event,
 	Emitter,
-	IDisposable,
+	IDisposable2 as IDisposable,
 	Disposable,
 
 	// Workspace

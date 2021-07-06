@@ -6,7 +6,7 @@
 import { BreadcrumbsWidget } from 'vs/base/browser/ui/breadcrumbs/breadcrumbsWidget';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IConfigurationOverrides, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions, IConfigurationRegistry, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -21,7 +21,7 @@ export interface IBreadcrumbsService {
 
 	readonly _serviceBrand: undefined;
 
-	register(group: GroupIdentifier, widget: BreadcrumbsWidget): IDisposable;
+	register(group: GroupIdentifier, widget: BreadcrumbsWidget): IDisposable2;
 
 	getWidget(group: GroupIdentifier): BreadcrumbsWidget | undefined;
 }
@@ -33,7 +33,7 @@ export class BreadcrumbsService implements IBreadcrumbsService {
 
 	private readonly _map = new Map<number, BreadcrumbsWidget>();
 
-	register(group: number, widget: BreadcrumbsWidget): IDisposable {
+	register(group: number, widget: BreadcrumbsWidget): IDisposable2 {
 		if (this._map.has(group)) {
 			throw new Error(`group (${group}) has already a widget`);
 		}

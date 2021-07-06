@@ -13,7 +13,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Range } from 'vs/editor/common/core/range';
 import { FuzzyScore } from 'vs/base/common/filters';
-import { isDisposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { isDisposable, DisposableStore, IDisposable2 } from 'vs/base/common/lifecycle';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -187,7 +187,7 @@ export class CompletionItemModel {
 		readonly items: CompletionItem[],
 		readonly needsClipboard: boolean,
 		readonly durations: CompletionDurations,
-		readonly disposable: IDisposable,
+		readonly disposable: IDisposable2,
 	) { }
 }
 

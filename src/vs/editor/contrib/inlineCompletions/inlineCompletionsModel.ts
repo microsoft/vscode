@@ -7,7 +7,7 @@ import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
@@ -362,7 +362,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		}
 	}
 
-	public takeOwnership(disposable: IDisposable): void {
+	public takeOwnership(disposable: IDisposable2): void {
 		this._register(disposable);
 	}
 
@@ -404,7 +404,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	}
 }
 
-class UpdateOperation implements IDisposable {
+class UpdateOperation implements IDisposable2 {
 	constructor(public readonly promise: CancelablePromise<void>, public readonly triggerKind: InlineCompletionTriggerKind) {
 	}
 

@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as errors from 'vs/base/common/errors';
-import { Disposable, IDisposable, dispose, toDisposable, MutableDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, dispose, toDisposable, MutableDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { FileChangeType, FileChangesEvent, IFileService, whenProviderRegistered, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { ConfigurationModel, ConfigurationModelParser, ConfigurationParseOptions, UserSettings } from 'vs/platform/configuration/common/configurationModels';
@@ -318,8 +318,8 @@ class FileServiceBasedRemoteUserConfiguration extends Disposable {
 	protected readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
 	readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
 
-	private fileWatcherDisposable: IDisposable = Disposable.None;
-	private directoryWatcherDisposable: IDisposable = Disposable.None;
+	private fileWatcherDisposable: IDisposable2 = Disposable.None;
+	private directoryWatcherDisposable: IDisposable2 = Disposable.None;
 
 	constructor(
 		private readonly configurationResource: URI,
@@ -594,7 +594,7 @@ class FileServiceBasedWorkspaceConfiguration extends Disposable {
 	workspaceConfigurationModelParser: WorkspaceConfigurationModelParser;
 	workspaceSettings: ConfigurationModel;
 	private _workspaceIdentifier: IWorkspaceIdentifier | null = null;
-	private workspaceConfigWatcher: IDisposable;
+	private workspaceConfigWatcher: IDisposable2;
 	private readonly reloadConfigurationScheduler: RunOnceScheduler;
 
 	protected readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
@@ -666,7 +666,7 @@ class FileServiceBasedWorkspaceConfiguration extends Disposable {
 		this.workspaceSettings = this.workspaceConfigurationModelParser.settingsModel.merge(this.workspaceConfigurationModelParser.launchModel, this.workspaceConfigurationModelParser.tasksModel);
 	}
 
-	private watchWorkspaceConfigurationFile(): IDisposable {
+	private watchWorkspaceConfigurationFile(): IDisposable2 {
 		return this._workspaceIdentifier ? this.fileService.watch(this._workspaceIdentifier.configPath) : Disposable.None;
 	}
 

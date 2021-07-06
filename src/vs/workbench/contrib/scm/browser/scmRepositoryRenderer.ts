@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/scm';
-import { IDisposable, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
 import { append, $ } from 'vs/base/browser/dom';
 import { ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
@@ -30,8 +30,8 @@ interface RepositoryTemplate {
 	readonly countContainer: HTMLElement;
 	readonly count: CountBadge;
 	readonly toolBar: ToolBar;
-	disposable: IDisposable;
-	readonly templateDisposable: IDisposable;
+	disposable: IDisposable2;
+	readonly templateDisposable: IDisposable2;
 }
 
 export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, FuzzyScore, RepositoryTemplate>, IListRenderer<ISCMRepository, RepositoryTemplate> {

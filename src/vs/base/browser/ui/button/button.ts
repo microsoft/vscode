@@ -9,7 +9,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
 import { Event as BaseEvent, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { Gesture, EventType as TouchEventType } from 'vs/base/browser/touch';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { addDisposableListener, IFocusTracker, EventType, EventHelper, trackFocus, reset } from 'vs/base/browser/dom';
@@ -39,7 +39,7 @@ const defaultOptions: IButtonStyles = {
 	buttonForeground: Color.white
 };
 
-export interface IButton extends IDisposable {
+export interface IButton extends IDisposable2 {
 	readonly element: HTMLElement;
 	readonly onDidClick: BaseEvent<Event | undefined>;
 	label: string;

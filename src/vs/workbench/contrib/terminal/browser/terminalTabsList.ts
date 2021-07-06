@@ -26,7 +26,7 @@ import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from 'vs/wor
 import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
 import { IHoverAction, IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import Severity from 'vs/base/common/severity';
-import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { IListDragAndDrop, IListDragOverReaction, IListRenderer, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
 import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
 import { disposableTimeout } from 'vs/base/common/async';
@@ -353,7 +353,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		}
 	}
 
-	private _renderInputBox(container: HTMLElement, instance: ITerminalInstance, editableData: IEditableData): IDisposable {
+	private _renderInputBox(container: HTMLElement, instance: ITerminalInstance, editableData: IEditableData): IDisposable2 {
 
 		const label = this._labels.create(container);
 		const value = instance.title || '';
@@ -522,7 +522,7 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<IT
 
 class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 	private _autoFocusInstance: ITerminalInstance | undefined;
-	private _autoFocusDisposable: IDisposable = Disposable.None;
+	private _autoFocusDisposable: IDisposable2 = Disposable.None;
 
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,

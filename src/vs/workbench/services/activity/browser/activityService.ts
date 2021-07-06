@@ -5,7 +5,7 @@
 
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IActivityService, IActivity } from 'vs/workbench/services/activity/common/activity';
-import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
@@ -16,7 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 class ViewContainerActivityByView extends Disposable {
 
 	private activity: IActivity | undefined = undefined;
-	private activityDisposable: IDisposable = Disposable.None;
+	private activityDisposable: IDisposable2 = Disposable.None;
 
 	constructor(
 		private readonly viewId: string,
@@ -69,7 +69,7 @@ export class ActivityService implements IActivityService {
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
 
-	showViewContainerActivity(viewContainerId: string, { badge, clazz, priority }: IActivity): IDisposable {
+	showViewContainerActivity(viewContainerId: string, { badge, clazz, priority }: IActivity): IDisposable2 {
 		const viewContainer = this.viewDescriptorService.getViewContainerById(viewContainerId);
 		if (viewContainer) {
 			const location = this.viewDescriptorService.getViewContainerLocation(viewContainer);
@@ -83,7 +83,7 @@ export class ActivityService implements IActivityService {
 		return Disposable.None;
 	}
 
-	showViewActivity(viewId: string, activity: IActivity): IDisposable {
+	showViewActivity(viewId: string, activity: IActivity): IDisposable2 {
 		let maybeItem = this.viewActivities.get(viewId);
 
 		if (maybeItem) {
@@ -109,11 +109,11 @@ export class ActivityService implements IActivityService {
 		});
 	}
 
-	showAccountsActivity({ badge, clazz, priority }: IActivity): IDisposable {
+	showAccountsActivity({ badge, clazz, priority }: IActivity): IDisposable2 {
 		return this.activityBarService.showActivity(ACCOUNTS_ACTIVITY_ID, badge, clazz, priority);
 	}
 
-	showGlobalActivity({ badge, clazz, priority }: IActivity): IDisposable {
+	showGlobalActivity({ badge, clazz, priority }: IActivity): IDisposable2 {
 		return this.activityBarService.showActivity(GLOBAL_ACTIVITY_ID, badge, clazz, priority);
 	}
 }

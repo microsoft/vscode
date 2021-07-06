@@ -6,7 +6,7 @@
 import { equals, flatten, isNonEmptyArray, coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { illegalArgument, isPromiseCanceledError, onUnexpectedExternalError } from 'vs/base/common/errors';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable2 } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { TextModelCancellationTokenSource } from 'vs/editor/browser/core/editorState';
 import { Range } from 'vs/editor/common/core/range';
@@ -47,7 +47,7 @@ export class CodeActionItem {
 	}
 }
 
-export interface CodeActionSet extends IDisposable {
+export interface CodeActionSet extends IDisposable2 {
 	readonly validActions: readonly CodeActionItem[];
 	readonly allActions: readonly CodeActionItem[];
 	readonly hasAutoFix: boolean;

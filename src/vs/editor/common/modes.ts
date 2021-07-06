@@ -7,7 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -754,7 +754,7 @@ export interface CodeActionContext {
 	trigger: CodeActionTriggerType;
 }
 
-export interface CodeActionList extends IDisposable {
+export interface CodeActionList extends IDisposable2 {
 	readonly actions: ReadonlyArray<CodeAction>;
 }
 
@@ -853,7 +853,7 @@ export interface SignatureHelp {
 	activeParameter: number;
 }
 
-export interface SignatureHelpResult extends IDisposable {
+export interface SignatureHelpResult extends IDisposable2 {
 	value: SignatureHelp;
 }
 
@@ -1962,12 +1962,12 @@ export interface ITokenizationRegistry {
 	/**
 	 * Register a tokenization support.
 	 */
-	register(language: string, support: ITokenizationSupport): IDisposable;
+	register(language: string, support: ITokenizationSupport): IDisposable2;
 
 	/**
 	 * Register a promise for a tokenization support.
 	 */
-	registerPromise(language: string, promise: Thenable<ITokenizationSupport>): IDisposable;
+	registerPromise(language: string, promise: Thenable<ITokenizationSupport>): IDisposable2;
 
 	/**
 	 * Get the tokenization support for a language.

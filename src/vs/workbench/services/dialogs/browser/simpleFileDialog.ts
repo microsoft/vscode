@@ -26,7 +26,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { isValidBasename } from 'vs/base/common/extpath';
 import { Emitter } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose } from 'vs/base/common/lifecycle';
 import { createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
@@ -122,7 +122,7 @@ export class SimpleFileDialog {
 	private readonly onBusyChangeEmitter = new Emitter<boolean>();
 	private updatingPromise: CancelablePromise<boolean> | undefined;
 
-	protected disposables: IDisposable[] = [
+	protected disposables: IDisposable2[] = [
 		this.onBusyChangeEmitter
 	];
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -35,7 +35,7 @@ suite('Editor Model - Model Modes 1', () => {
 	};
 
 	let thisModel: TextModel;
-	let languageRegistration: IDisposable;
+	let languageRegistration: IDisposable2;
 
 	setup(() => {
 		const TEXT =
@@ -189,7 +189,7 @@ suite('Editor Model - Model Modes 2', () => {
 	};
 
 	let thisModel: TextModel;
-	let languageRegistration: IDisposable;
+	let languageRegistration: IDisposable2;
 
 	setup(() => {
 		const TEXT =

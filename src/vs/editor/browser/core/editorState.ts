@@ -8,7 +8,7 @@ import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser'
 import { Position } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, DisposableStore } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
 import { EditorKeybindingCancellationTokenSource } from 'vs/editor/browser/core/keybindingCancellation';
 
@@ -89,7 +89,7 @@ export class EditorState {
  * by the provided flags
  * @param range If provided, changes in position and selection within this range will not trigger cancellation
  */
-export class EditorStateCancellationTokenSource extends EditorKeybindingCancellationTokenSource implements IDisposable {
+export class EditorStateCancellationTokenSource extends EditorKeybindingCancellationTokenSource implements IDisposable2 {
 
 	private readonly _listener = new DisposableStore();
 
@@ -128,9 +128,9 @@ export class EditorStateCancellationTokenSource extends EditorKeybindingCancella
 /**
  * A cancellation token source that cancels when the provided model changes
  */
-export class TextModelCancellationTokenSource extends CancellationTokenSource implements IDisposable {
+export class TextModelCancellationTokenSource extends CancellationTokenSource implements IDisposable2 {
 
-	private _listener: IDisposable;
+	private _listener: IDisposable2;
 
 	constructor(model: ITextModel, parent?: CancellationToken) {
 		super(parent);

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
 import { hash } from 'vs/base/common/hash';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
 import * as model from 'vs/editor/common/model';
@@ -162,7 +162,7 @@ export class CellSequence implements ISequence {
 	}
 }
 
-export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable {
+export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable2 {
 	_requestHandlerBrand: any;
 
 	private _models: { [uri: string]: MirrorNotebookDocument; };

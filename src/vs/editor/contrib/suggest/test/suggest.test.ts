@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { CompletionProviderRegistry, CompletionItemKind, CompletionItemProvider } from 'vs/editor/common/modes';
 import { provideSuggestionItems, SnippetSortOrder, CompletionOptions } from 'vs/editor/contrib/suggest/suggest';
 import { Position } from 'vs/editor/common/core/position';
@@ -16,7 +16,7 @@ import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 suite('Suggest', function () {
 
 	let model: TextModel;
-	let registration: IDisposable;
+	let registration: IDisposable2;
 
 	setup(function () {
 

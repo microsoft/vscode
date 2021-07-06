@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable2 } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
@@ -159,7 +159,7 @@ function assertIsBracket(model: TextModel, testPosition: Position, expected: [Ra
 suite('TextModelWithTokens - bracket matching', () => {
 
 	const languageIdentifier = new LanguageIdentifier('bracketMode1', LanguageId.PlainText);
-	let registration: IDisposable;
+	let registration: IDisposable2;
 
 	setup(() => {
 		registration = LanguageConfigurationRegistry.register(languageIdentifier, {

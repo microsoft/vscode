@@ -5,7 +5,7 @@
 
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { Color } from 'vs/base/common/color';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { Position } from 'vs/editor/common/core/position';
 import { IConfiguration } from 'vs/editor/common/editorCommon';
@@ -211,7 +211,7 @@ const enum OverviewRulerLane {
 
 export class DecorationsOverviewRuler extends ViewPart {
 
-	private readonly _tokensColorTrackerListener: IDisposable;
+	private readonly _tokensColorTrackerListener: IDisposable2;
 	private readonly _domNode: FastDomNode<HTMLCanvasElement>;
 	private _settings!: Settings;
 	private _cursorPositions: Position[];

@@ -13,7 +13,7 @@ import { getNotebookEditorFromEditorPane, INotebookEditor, NOTEBOOK_IS_ACTIVE_ED
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IDisposable, Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
 import { configureKernelIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -172,7 +172,7 @@ registerAction2(class extends Action2 {
 });
 
 
-class ImplictKernelSelector implements IDisposable {
+class ImplictKernelSelector implements IDisposable2 {
 
 	readonly dispose: () => void;
 

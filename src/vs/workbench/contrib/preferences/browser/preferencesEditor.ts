@@ -13,7 +13,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { getErrorMessage, isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable2 } from 'vs/base/common/lifecycle';
 import { ArrayNavigator } from 'vs/base/common/navigator';
 import Severity from 'vs/base/common/severity';
 import { assertIsDefined, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
@@ -382,10 +382,10 @@ interface IPreferencesCount {
 class PreferencesRenderersController extends Disposable {
 
 	private _defaultPreferencesRenderer!: IPreferencesRenderer<ISetting>;
-	private _defaultPreferencesRendererDisposables: IDisposable[] = [];
+	private _defaultPreferencesRendererDisposables: IDisposable2[] = [];
 
 	private _editablePreferencesRenderer!: IPreferencesRenderer<ISetting>;
-	private _editablePreferencesRendererDisposables: IDisposable[] = [];
+	private _editablePreferencesRendererDisposables: IDisposable2[] = [];
 
 	private _settingsNavigator: SettingsNavigator | null = null;
 	private _remoteFilterCancelToken: CancellationTokenSource | null = null;

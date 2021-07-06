@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getOrDefault } from 'vs/base/common/objects';
-import { IDisposable, dispose, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Gesture, EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { Event, Emitter } from 'vs/base/common/event';
 import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -34,7 +34,7 @@ interface IItem<T> {
 	lastDynamicHeightWidth: number | undefined;
 	uri: string | undefined;
 	dropTarget: boolean;
-	dragStartDisposable: IDisposable;
+	dragStartDisposable: IDisposable2;
 }
 
 export interface IListViewDragAndDrop<T> extends IListDragAndDrop<T> {
@@ -201,7 +201,7 @@ class ListViewAccessibilityProvider<T> implements Required<IListViewAccessibilit
 	}
 }
 
-export class ListView<T> implements ISpliceable<T>, IDisposable {
+export class ListView<T> implements ISpliceable<T>, IDisposable2 {
 
 	private static InstanceCount = 0;
 	readonly domId = `list_id_${++ListView.InstanceCount}`;
@@ -220,11 +220,11 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private scrollable: Scrollable;
 	private scrollableElement: SmoothScrollableElement;
 	private _scrollHeight: number = 0;
-	private scrollableElementUpdateDisposable: IDisposable | null = null;
+	private scrollableElementUpdateDisposable: IDisposable2 | null = null;
 	private scrollableElementWidthDelayer = new Delayer<void>(50);
 	private splicing = false;
-	private dragOverAnimationDisposable: IDisposable | undefined;
-	private dragOverAnimationStopDisposable: IDisposable = Disposable.None;
+	private dragOverAnimationDisposable: IDisposable2 | undefined;
+	private dragOverAnimationStopDisposable: IDisposable2 = Disposable.None;
 	private dragOverMouseY: number = 0;
 	private setRowLineHeight: boolean;
 	private setRowHeight: boolean;
@@ -237,8 +237,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private canDrop: boolean = false;
 	private currentDragData: IDragAndDropData | undefined;
 	private currentDragFeedback: number[] | undefined;
-	private currentDragFeedbackDisposable: IDisposable = Disposable.None;
-	private onDragLeaveTimeout: IDisposable = Disposable.None;
+	private currentDragFeedbackDisposable: IDisposable2 = Disposable.None;
+	private onDragLeaveTimeout: IDisposable2 = Disposable.None;
 
 	private readonly disposables: DisposableStore = new DisposableStore();
 

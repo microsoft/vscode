@@ -18,7 +18,7 @@ import { mock } from 'vs/base/test/common/mock';
 import { TreeItemCollapsibleState, ITreeItem, IRevealOptions } from 'vs/workbench/common/views';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import type { IDisposable } from 'vs/base/common/lifecycle';
+import type { IDisposable2 } from 'vs/base/common/lifecycle';
 
 suite('ExtHostTreeView', function () {
 
@@ -251,7 +251,7 @@ suite('ExtHostTreeView', function () {
 
 	async function runWithEventMerging(action: (resolve: () => void) => void) {
 		await new Promise<void>((resolve) => {
-			let subscription: IDisposable | undefined = undefined;
+			let subscription: IDisposable2 | undefined = undefined;
 			subscription = target.onRefresh.event(() => {
 				subscription!.dispose();
 				resolve();

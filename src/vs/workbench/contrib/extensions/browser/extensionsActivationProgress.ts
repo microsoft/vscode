@@ -7,13 +7,13 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { localize } from 'vs/nls';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class ExtensionActivationProgress implements IWorkbenchContribution {
 
-	private readonly _listener: IDisposable;
+	private readonly _listener: IDisposable2;
 
 	constructor(
 		@IExtensionService extensionService: IExtensionService,

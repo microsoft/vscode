@@ -5,7 +5,7 @@
 
 import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
-import { IDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { distinct } from 'vs/base/common/objects';
 import { localize } from 'vs/nls';
@@ -96,7 +96,7 @@ class ConfigAwareContextValuesContainer extends Context {
 	private static readonly _keyPrefix = 'config.';
 
 	private readonly _values = TernarySearchTree.forConfigKeys<any>();
-	private readonly _listener: IDisposable;
+	private readonly _listener: IDisposable2;
 
 	constructor(
 		id: number,

@@ -27,7 +27,7 @@ import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose } from 'vs/base/common/lifecycle';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, IMenu, Action2, registerAction2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { OpenEditorsDirtyEditorContext, OpenEditorsGroupContext, OpenEditorsReadonlyEditorContext, SAVE_ALL_LABEL, SAVE_ALL_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
@@ -95,7 +95,7 @@ export class OpenEditorsView extends ViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
 		this.structuralRefreshDelay = 0;
-		let labelChangeListeners: IDisposable[] = [];
+		let labelChangeListeners: IDisposable2[] = [];
 		this.listRefreshScheduler = new RunOnceScheduler(() => {
 			labelChangeListeners = dispose(labelChangeListeners);
 			const previousLength = this.list.length;
@@ -137,7 +137,7 @@ export class OpenEditorsView extends ViewPane {
 			this.listRefreshScheduler.schedule(this.structuralRefreshDelay);
 		};
 
-		const groupDisposables = new Map<number, IDisposable>();
+		const groupDisposables = new Map<number, IDisposable2>();
 		const addGroupListener = (group: IEditorGroup) => {
 			groupDisposables.set(group.id, group.onDidGroupChange(e => {
 				if (this.listRefreshScheduler.isScheduled()) {

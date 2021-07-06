@@ -11,7 +11,7 @@ import { isEqual, joinPath } from 'vs/base/common/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
-import { IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { IDisposable2, IReference } from 'vs/base/common/lifecycle';
 import { IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
@@ -34,7 +34,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 	static readonly ID: string = 'workbench.input.notebook';
 
 	private _editorModelReference: IReference<IResolvedNotebookEditorModel> | null = null;
-	private _sideLoadedListener: IDisposable;
+	private _sideLoadedListener: IDisposable2;
 	private _defaultDirtyState: boolean = false;
 
 	constructor(

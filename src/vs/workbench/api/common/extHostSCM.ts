@@ -6,7 +6,7 @@
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { debounce } from 'vs/base/common/decorators';
-import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable2, MutableDisposable } from 'vs/base/common/lifecycle';
 import { asPromise } from 'vs/base/common/async';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, ICommandDto, MainThreadTelemetryShape, SCMGroupFeatures } from './extHost.protocol';
@@ -294,7 +294,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 
 	private _resourceStatesMap = new Map<ResourceStateHandle, vscode.SourceControlResourceState>();
 	private _resourceStatesCommandsMap = new Map<ResourceStateHandle, vscode.Command>();
-	private _resourceStatesDisposablesMap = new Map<ResourceStateHandle, IDisposable>();
+	private _resourceStatesDisposablesMap = new Map<ResourceStateHandle, IDisposable2>();
 
 	private readonly _onDidUpdateResourceStates = new Emitter<void>();
 	readonly onDidUpdateResourceStates = this._onDidUpdateResourceStates.event;
@@ -552,7 +552,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this._proxy.$registerSourceControl(this.handle, _id, _label, _rootUri);
 	}
 
-	private createdResourceGroups = new Map<ExtHostSourceControlResourceGroup, IDisposable>();
+	private createdResourceGroups = new Map<ExtHostSourceControlResourceGroup, IDisposable2>();
 	private updatedResourceGroups = new Set<ExtHostSourceControlResourceGroup>();
 
 	createResourceGroup(id: string, label: string): ExtHostSourceControlResourceGroup {

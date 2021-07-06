@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IEditorPane } from 'vs/workbench/common/editor';
@@ -38,7 +38,7 @@ class OutlineService implements IOutlineService {
 		return undefined;
 	}
 
-	registerOutlineCreator(creator: IOutlineCreator<any, any>): IDisposable {
+	registerOutlineCreator(creator: IOutlineCreator<any, any>): IDisposable2 {
 		const rm = this._factories.push(creator);
 		this._onDidChange.fire();
 		return toDisposable(() => {

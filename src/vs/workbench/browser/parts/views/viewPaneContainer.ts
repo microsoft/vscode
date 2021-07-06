@@ -10,7 +10,7 @@ import { ColorIdentifier, activeContrastBorder } from 'vs/platform/theme/common/
 import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, PANEL_SECTION_HEADER_FOREGROUND, PANEL_SECTION_HEADER_BACKGROUND, PANEL_SECTION_HEADER_BORDER, PANEL_SECTION_DRAG_AND_DROP_BACKGROUND, PANEL_SECTION_BORDER } from 'vs/workbench/common/theme';
 import { EventType, Dimension, addDisposableListener, isAncestor } from 'vs/base/browser/dom';
-import { IDisposable, combinedDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, combinedDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -62,7 +62,7 @@ export interface IViewPaneContainerOptions extends IPaneViewOptions {
 
 interface IViewPaneItem {
 	pane: ViewPane;
-	disposable: IDisposable;
+	disposable: IDisposable2;
 }
 
 const enum DropDirection {
@@ -329,7 +329,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	private readonly visibleViewsCountFromCache: number | undefined;
 	private readonly visibleViewsStorageId: string;
 	protected readonly viewContainerModel: IViewContainerModel;
-	private viewDisposables: IDisposable[] = [];
+	private viewDisposables: IDisposable2[] = [];
 
 	private readonly _onTitleAreaUpdate: Emitter<void> = this._register(new Emitter<void>());
 	readonly onTitleAreaUpdate: Event<void> = this._onTitleAreaUpdate.event;

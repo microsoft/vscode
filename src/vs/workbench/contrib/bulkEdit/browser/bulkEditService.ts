@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditOptions, IBulkEditResult, IBulkEditService, IBulkEditPreviewHandler, ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -125,7 +125,7 @@ export class BulkEditService implements IBulkEditService {
 		@IDialogService private readonly _dialogService: IDialogService
 	) { }
 
-	setPreviewHandler(handler: IBulkEditPreviewHandler): IDisposable {
+	setPreviewHandler(handler: IBulkEditPreviewHandler): IDisposable2 {
 		this._previewHandler = handler;
 		return toDisposable(() => {
 			if (this._previewHandler === handler) {
@@ -193,7 +193,7 @@ export class BulkEditService implements IBulkEditService {
 			!!options?.confirmBeforeUndo
 		);
 
-		let listener: IDisposable | undefined;
+		let listener: IDisposable2 | undefined;
 		try {
 			listener = this._lifecycleService.onBeforeShutdown(e => e.veto(this.shouldVeto(label, e.reason), 'veto.blukEditService'));
 			await bulkEdit.perform();

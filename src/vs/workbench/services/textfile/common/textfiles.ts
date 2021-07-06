@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { ReadableStream } from 'vs/base/common/stream';
 import { IBaseStatWithMetadata, IFileStatWithMetadata, IWriteFileOptions, FileOperationError, FileOperationResult, IReadFileStreamOptions } from 'vs/platform/files/common/files';
@@ -22,7 +22,7 @@ import { IFileOperationUndoRedoInfo } from 'vs/workbench/services/workingCopy/co
 
 export const ITextFileService = createDecorator<ITextFileService>('textFileService');
 
-export interface ITextFileService extends IDisposable {
+export interface ITextFileService extends IDisposable2 {
 
 	readonly _serviceBrand: undefined;
 
@@ -364,7 +364,7 @@ export interface ITextFileEditorModelManager {
 	/**
 	 * Adds a participant for saving text file models.
 	 */
-	addSaveParticipant(participant: ITextFileSaveParticipant): IDisposable;
+	addSaveParticipant(participant: ITextFileSaveParticipant): IDisposable2;
 
 	/**
 	 * Runs the registered save participants on the provided model.

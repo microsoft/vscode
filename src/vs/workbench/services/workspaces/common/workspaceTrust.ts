@@ -5,7 +5,7 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { splitName } from 'vs/base/common/labels';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
@@ -596,7 +596,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		await this.saveTrustInfo();
 	}
 
-	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable {
+	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable2 {
 		return this._trustTransitionManager.addWorkspaceTrustTransitionParticipant(participant);
 	}
 
@@ -789,7 +789,7 @@ class WorkspaceTrustTransitionManager extends Disposable {
 
 	private readonly participants = new LinkedList<IWorkspaceTrustTransitionParticipant>();
 
-	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable {
+	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable2 {
 		const remove = this.participants.push(participant);
 		return toDisposable(() => remove());
 	}

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { IFileSystemProviderWithFileReadWriteCapability, IFileChange, IWatchOptions, IStat, FileOverwriteOptions, FileType, FileWriteOptions, FileDeleteOptions, FileSystemProviderCapabilities, IFileSystemProviderWithOpenReadWriteCloseCapability, FileOpenOptions, hasReadWriteCapability, hasOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, hasFileReadStreamCapability } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -42,7 +42,7 @@ export class FileUserDataProvider extends Disposable implements
 		this._register(this.fileSystemProvider.onDidChangeFile(e => this.handleFileChanges(e)));
 	}
 
-	watch(resource: URI, opts: IWatchOptions): IDisposable {
+	watch(resource: URI, opts: IWatchOptions): IDisposable2 {
 		this.watchResources.set(resource, resource);
 		const disposable = this.fileSystemProvider.watch(this.toFileSystemResource(resource), opts);
 		return toDisposable(() => {

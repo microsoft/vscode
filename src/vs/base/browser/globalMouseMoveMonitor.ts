@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { IframeUtils } from 'vs/base/browser/iframe';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, DisposableStore } from 'vs/base/common/lifecycle';
 import { isIOS } from 'vs/base/common/platform';
 
 export interface IStandardMouseMoveEventData {
@@ -39,7 +39,7 @@ export function standardMouseMoveMerger(lastEvent: IStandardMouseMoveEventData |
 	};
 }
 
-export class GlobalMouseMoveMonitor<R extends { buttons: number; }> implements IDisposable {
+export class GlobalMouseMoveMonitor<R extends { buttons: number; }> implements IDisposable2 {
 
 	private readonly _hooks = new DisposableStore();
 	private _mouseMoveEventMerger: IEventMerger<R> | null = null;

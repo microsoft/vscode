@@ -22,7 +22,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
-import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable2, IReference, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
 import { count } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -587,7 +587,7 @@ class TestingOutputPeek extends PeekViewWidget {
 	}
 }
 
-interface IPeekOutputRenderer extends IDisposable {
+interface IPeekOutputRenderer extends IDisposable2 {
 	/** Updates the displayed test. Should clear if it cannot display the test. */
 	update(dto: TestDto, message: ITestMessage): void;
 	/** Recalculate content layout. */

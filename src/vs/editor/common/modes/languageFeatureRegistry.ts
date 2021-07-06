@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { MovingAverage } from 'vs/base/common/numbers';
 import { ITextModel } from 'vs/editor/common/model';
@@ -39,7 +39,7 @@ export class LanguageFeatureRegistry<T> {
 		return this._onDidChange.event;
 	}
 
-	register(selector: LanguageSelector, provider: T): IDisposable {
+	register(selector: LanguageSelector, provider: T): IDisposable2 {
 
 		let entry: Entry<T> | undefined = {
 			selector,

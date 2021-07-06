@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor, isCodeEditor, isDiffEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
@@ -112,7 +112,7 @@ const enum ActiveEditorOrder {
 class MainThreadDocumentAndEditorStateComputer {
 
 	private readonly _toDispose = new DisposableStore();
-	private _toDisposeOnEditorRemove = new Map<string, IDisposable>();
+	private _toDisposeOnEditorRemove = new Map<string, IDisposable2>();
 	private _currentState?: DocumentAndEditorState;
 	private _activeEditorOrder: ActiveEditorOrder = ActiveEditorOrder.Editor;
 

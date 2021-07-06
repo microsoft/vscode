@@ -29,7 +29,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IAction, Action } from 'vs/base/common/actions';
 import { deepClone, equals } from 'vs/base/common/objects';
 import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable2 } from 'vs/base/common/lifecycle';
 import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IDebugModel, IEnablement, IBreakpoint, IBreakpointData, ICompound, IStackFrame, getStateLabel, IDebugSessionOptions, CONTEXT_DEBUG_UX, REPL_VIEW_ID, CONTEXT_BREAKPOINTS_EXIST, IGlobalConfig, CALLSTACK_VIEW_ID, IAdapterManager, IExceptionBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
 import { getExtensionHostDebugSession } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -66,7 +66,7 @@ export class DebugService implements IDebugService {
 	private taskRunner: DebugTaskRunner;
 	private configurationManager: ConfigurationManager;
 	private adapterManager: AdapterManager;
-	private toDispose: IDisposable[];
+	private toDispose: IDisposable2[];
 	private debugType!: IContextKey<string>;
 	private debugState!: IContextKey<string>;
 	private inDebugMode!: IContextKey<boolean>;
@@ -76,7 +76,7 @@ export class DebugService implements IDebugService {
 	private initializing = false;
 	private previousState: State | undefined;
 	private sessionCancellationTokens = new Map<string, CancellationTokenSource>();
-	private activity: IDisposable | undefined;
+	private activity: IDisposable2 | undefined;
 	private chosenEnvironments: { [key: string]: string };
 
 	constructor(

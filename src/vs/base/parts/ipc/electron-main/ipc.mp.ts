@@ -5,14 +5,14 @@
 
 import { BrowserWindow, ipcMain, IpcMainEvent, MessagePortMain } from 'electron';
 import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { generateUuid } from 'vs/base/common/uuid';
 import { Client as MessagePortClient } from 'vs/base/parts/ipc/common/ipc.mp';
 
 /**
  * An implementation of a `IPCClient` on top of Electron `MessagePortMain`.
  */
-export class Client extends MessagePortClient implements IDisposable {
+export class Client extends MessagePortClient implements IDisposable2 {
 
 	/**
 	 * @param clientId a way to uniquely identify this client among

@@ -9,7 +9,7 @@ import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { FileAccess, RemoteAuthorities } from 'vs/base/common/network';
@@ -31,7 +31,7 @@ export function isInDOM(node: Node | null): boolean {
 	return node?.isConnected ?? false;
 }
 
-class DomListener implements IDisposable {
+class DomListener implements IDisposable2 {
 
 	private _handler: (e: any) => void;
 	private _node: EventTarget;
@@ -60,20 +60,20 @@ class DomListener implements IDisposable {
 	}
 }
 
-export function addDisposableListener<K extends keyof GlobalEventHandlersEventMap>(node: EventTarget, type: K, handler: (event: GlobalEventHandlersEventMap[K]) => void, useCapture?: boolean): IDisposable;
-export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
-export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, options: AddEventListenerOptions): IDisposable;
-export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, useCaptureOrOptions?: boolean | AddEventListenerOptions): IDisposable {
+export function addDisposableListener<K extends keyof GlobalEventHandlersEventMap>(node: EventTarget, type: K, handler: (event: GlobalEventHandlersEventMap[K]) => void, useCapture?: boolean): IDisposable2;
+export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable2;
+export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, options: AddEventListenerOptions): IDisposable2;
+export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, useCaptureOrOptions?: boolean | AddEventListenerOptions): IDisposable2 {
 	return new DomListener(node, type, handler, useCaptureOrOptions);
 }
 
 export interface IAddStandardDisposableListenerSignature {
-	(node: HTMLElement, type: 'click', handler: (event: IMouseEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: 'mousedown', handler: (event: IMouseEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: 'keydown', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: 'keypress', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: 'keyup', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement, type: 'click', handler: (event: IMouseEvent) => void, useCapture?: boolean): IDisposable2;
+	(node: HTMLElement, type: 'mousedown', handler: (event: IMouseEvent) => void, useCapture?: boolean): IDisposable2;
+	(node: HTMLElement, type: 'keydown', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable2;
+	(node: HTMLElement, type: 'keypress', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable2;
+	(node: HTMLElement, type: 'keyup', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable2;
+	(node: HTMLElement, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable2;
 }
 function _wrapAsStandardMouseEvent(handler: (e: IMouseEvent) => void): (e: MouseEvent) => void {
 	return function (e: MouseEvent) {
@@ -85,7 +85,7 @@ function _wrapAsStandardKeyboardEvent(handler: (e: IKeyboardEvent) => void): (e:
 		return handler(new StandardKeyboardEvent(e));
 	};
 }
-export let addStandardDisposableListener: IAddStandardDisposableListenerSignature = function addStandardDisposableListener(node: HTMLElement, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+export let addStandardDisposableListener: IAddStandardDisposableListenerSignature = function addStandardDisposableListener(node: HTMLElement, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable2 {
 	let wrapHandler = handler;
 
 	if (type === 'click' || type === 'mousedown') {
@@ -97,29 +97,29 @@ export let addStandardDisposableListener: IAddStandardDisposableListenerSignatur
 	return addDisposableListener(node, type, wrapHandler, useCapture);
 };
 
-export let addStandardDisposableGenericMouseDownListner = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+export let addStandardDisposableGenericMouseDownListner = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable2 {
 	let wrapHandler = _wrapAsStandardMouseEvent(handler);
 
 	return addDisposableGenericMouseDownListner(node, wrapHandler, useCapture);
 };
 
-export let addStandardDisposableGenericMouseUpListner = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+export let addStandardDisposableGenericMouseUpListner = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable2 {
 	let wrapHandler = _wrapAsStandardMouseEvent(handler);
 
 	return addDisposableGenericMouseUpListner(node, wrapHandler, useCapture);
 };
-export function addDisposableGenericMouseDownListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+export function addDisposableGenericMouseDownListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable2 {
 	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_DOWN : EventType.MOUSE_DOWN, handler, useCapture);
 }
 
-export function addDisposableGenericMouseMoveListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+export function addDisposableGenericMouseMoveListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable2 {
 	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_MOVE : EventType.MOUSE_MOVE, handler, useCapture);
 }
 
-export function addDisposableGenericMouseUpListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+export function addDisposableGenericMouseUpListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable2 {
 	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_UP : EventType.MOUSE_UP, handler, useCapture);
 }
-export function addDisposableNonBubblingMouseOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
+export function addDisposableNonBubblingMouseOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable2 {
 	return addDisposableListener(node, 'mouseout', (e: MouseEvent) => {
 		// Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
 		let toElement: Node | null = <Node>(e.relatedTarget);
@@ -134,7 +134,7 @@ export function addDisposableNonBubblingMouseOutListener(node: Element, handler:
 	});
 }
 
-export function addDisposableNonBubblingPointerOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
+export function addDisposableNonBubblingPointerOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable2 {
 	return addDisposableListener(node, 'pointerout', (e: MouseEvent) => {
 		// Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
 		let toElement: Node | null = <Node>(e.relatedTarget);
@@ -176,16 +176,16 @@ function doRequestAnimationFrame(callback: (time: number) => void): number {
  * If currently in an animation frame, `runner` will be executed immediately.
  * @return token that can be used to cancel the scheduled runner (only if `runner` was not executed immediately).
  */
-export let runAtThisOrScheduleAtNextAnimationFrame: (runner: () => void, priority?: number) => IDisposable;
+export let runAtThisOrScheduleAtNextAnimationFrame: (runner: () => void, priority?: number) => IDisposable2;
 /**
  * Schedule a callback to be run at the next animation frame.
  * This allows multiple parties to register callbacks that should run at the next animation frame.
  * If currently in an animation frame, `runner` will be executed at the next animation frame.
  * @return token that can be used to cancel the scheduled runner.
  */
-export let scheduleAtNextAnimationFrame: (runner: () => void, priority?: number) => IDisposable;
+export let scheduleAtNextAnimationFrame: (runner: () => void, priority?: number) => IDisposable2;
 
-class AnimationFrameQueueItem implements IDisposable {
+class AnimationFrameQueueItem implements IDisposable2 {
 
 	private _runner: () => void;
 	public priority: number;
@@ -275,11 +275,11 @@ class AnimationFrameQueueItem implements IDisposable {
 	};
 })();
 
-export function measure(callback: () => void): IDisposable {
+export function measure(callback: () => void): IDisposable2 {
 	return scheduleAtNextAnimationFrame(callback, 10000 /* must be early */);
 }
 
-export function modify(callback: () => void): IDisposable {
+export function modify(callback: () => void): IDisposable2 {
 	return scheduleAtNextAnimationFrame(callback, -10000 /* must be late */);
 }
 
@@ -330,7 +330,7 @@ class TimeoutThrottledDomListener<R, E extends DOMEvent> extends Disposable {
 	}
 }
 
-export function addDisposableThrottledListener<R, E extends DOMEvent = DOMEvent>(node: any, type: string, handler: (event: R) => void, eventMerger?: IEventMerger<R, E>, minimumTimeMs?: number): IDisposable {
+export function addDisposableThrottledListener<R, E extends DOMEvent = DOMEvent>(node: any, type: string, handler: (event: R) => void, eventMerger?: IEventMerger<R, E>, minimumTimeMs?: number): IDisposable2 {
 	return new TimeoutThrottledDomListener<R, E>(node, type, handler, eventMerger, minimumTimeMs);
 }
 
@@ -1218,7 +1218,7 @@ export function windowOpenNoOpenerWithSuccess(url: string): boolean {
 	return false;
 }
 
-export function animate(fn: () => void): IDisposable {
+export function animate(fn: () => void): IDisposable2 {
 	const step = () => {
 		fn();
 		stepDisposable = scheduleAtNextAnimationFrame(step);

@@ -7,7 +7,7 @@ import 'vs/css!./notebookDiff';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import * as DOM from 'vs/base/browser/dom';
 import { IListStyles, IStyleController } from 'vs/base/browser/ui/list/listWidget';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable2 } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -274,7 +274,7 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 	}
 }
 
-export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase> implements IDisposable, IStyleController {
+export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase> implements IDisposable2, IStyleController {
 	private styleElement?: HTMLStyleElement;
 
 	get rowsContainer(): HTMLElement {

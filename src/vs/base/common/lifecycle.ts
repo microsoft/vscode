@@ -17,8 +17,8 @@ const TRACK_DISPOSABLES = false;
 let disposableTracker: IDisposableTracker | null = null;
 
 export interface IDisposableTracker {
-	trackDisposable(x: IDisposable): void;
-	markTracked(x: IDisposable): void;
+	trackDisposable(x: IDisposable2): void;
+	markTracked(x: IDisposable2): void;
 }
 
 export function setDisposableTracker(tracker: IDisposableTracker | null): void {
@@ -28,7 +28,7 @@ export function setDisposableTracker(tracker: IDisposableTracker | null): void {
 if (TRACK_DISPOSABLES) {
 	const __is_disposable_tracked__ = '__is_disposable_tracked__';
 	disposableTracker = new class implements IDisposableTracker {
-		trackDisposable(x: IDisposable): void {
+		trackDisposable(x: IDisposable2): void {
 			const stack = new Error('Potentially leaked disposable').stack!;
 			setTimeout(() => {
 				if (!(x as any)[__is_disposable_tracked__]) {
@@ -37,7 +37,7 @@ if (TRACK_DISPOSABLES) {
 			}, 3000);
 		}
 
-		markTracked(x: IDisposable): void {
+		markTracked(x: IDisposable2): void {
 			if (x && x !== Disposable.None) {
 				try {
 					(x as any)[__is_disposable_tracked__] = true;
@@ -49,14 +49,14 @@ if (TRACK_DISPOSABLES) {
 	};
 }
 
-function markTracked<T extends IDisposable>(x: T): void {
+function markTracked<T extends IDisposable2>(x: T): void {
 	if (!disposableTracker) {
 		return;
 	}
 	disposableTracker.markTracked(x);
 }
 
-export function trackDisposable<T extends IDisposable>(x: T): T {
+export function trackDisposable<T extends IDisposable2>(x: T): T {
 	if (!disposableTracker) {
 		return x;
 	}
@@ -72,20 +72,20 @@ export class MultiDisposeError extends Error {
 	}
 }
 
-export interface IDisposable {
+export interface IDisposable2 {
 	dispose(): void;
 }
 
-export function isDisposable<E extends object>(thing: E): thing is E & IDisposable {
-	return typeof (<IDisposable>thing).dispose === 'function' && (<IDisposable>thing).dispose.length === 0;
+export function isDisposable<E extends object>(thing: E): thing is E & IDisposable2 {
+	return typeof (<IDisposable2>thing).dispose === 'function' && (<IDisposable2>thing).dispose.length === 0;
 }
 
-export function dispose<T extends IDisposable>(disposable: T): T;
-export function dispose<T extends IDisposable>(disposable: T | undefined): T | undefined;
-export function dispose<T extends IDisposable, A extends IterableIterator<T> = IterableIterator<T>>(disposables: IterableIterator<T>): A;
-export function dispose<T extends IDisposable>(disposables: Array<T>): Array<T>;
-export function dispose<T extends IDisposable>(disposables: ReadonlyArray<T>): ReadonlyArray<T>;
-export function dispose<T extends IDisposable>(arg: T | IterableIterator<T> | undefined): any {
+export function dispose<T extends IDisposable2>(disposable: T): T;
+export function dispose<T extends IDisposable2>(disposable: T | undefined): T | undefined;
+export function dispose<T extends IDisposable2, A extends IterableIterator<T> = IterableIterator<T>>(disposables: IterableIterator<T>): A;
+export function dispose<T extends IDisposable2>(disposables: Array<T>): Array<T>;
+export function dispose<T extends IDisposable2>(disposables: ReadonlyArray<T>): ReadonlyArray<T>;
+export function dispose<T extends IDisposable2>(arg: T | IterableIterator<T> | undefined): any {
 	if (Iterable.is(arg)) {
 		let errors: any[] = [];
 
@@ -115,12 +115,12 @@ export function dispose<T extends IDisposable>(arg: T | IterableIterator<T> | un
 }
 
 
-export function combinedDisposable(...disposables: IDisposable[]): IDisposable {
+export function combinedDisposable(...disposables: IDisposable2[]): IDisposable2 {
 	disposables.forEach(markTracked);
 	return toDisposable(() => dispose(disposables));
 }
 
-export function toDisposable(fn: () => void): IDisposable {
+export function toDisposable(fn: () => void): IDisposable2 {
 	const self = trackDisposable({
 		dispose: once(() => {
 			markTracked(self);
@@ -130,11 +130,11 @@ export function toDisposable(fn: () => void): IDisposable {
 	return self;
 }
 
-export class DisposableStore implements IDisposable {
+export class DisposableStore implements IDisposable2 {
 
 	static DISABLE_DISPOSED_WARNING = false;
 
-	private _toDispose = new Set<IDisposable>();
+	private _toDispose = new Set<IDisposable2>();
 	private _isDisposed = false;
 
 	/**
@@ -163,7 +163,7 @@ export class DisposableStore implements IDisposable {
 		}
 	}
 
-	public add<T extends IDisposable>(t: T): T {
+	public add<T extends IDisposable2>(t: T): T {
 		if (!t) {
 			return t;
 		}
@@ -184,9 +184,9 @@ export class DisposableStore implements IDisposable {
 	}
 }
 
-export abstract class Disposable implements IDisposable {
+export abstract class Disposable implements IDisposable2 {
 
-	static readonly None = Object.freeze<IDisposable>({ dispose() { } });
+	static readonly None = Object.freeze<IDisposable2>({ dispose() { } });
 
 	private readonly _store = new DisposableStore();
 
@@ -200,7 +200,7 @@ export abstract class Disposable implements IDisposable {
 		this._store.dispose();
 	}
 
-	protected _register<T extends IDisposable>(t: T): T {
+	protected _register<T extends IDisposable2>(t: T): T {
 		if ((t as unknown as Disposable) === this) {
 			throw new Error('Cannot register a disposable on itself!');
 		}
@@ -214,7 +214,7 @@ export abstract class Disposable implements IDisposable {
  * This ensures that when the disposable value is changed, the previously held disposable is disposed of. You can
  * also register a `MutableDisposable` on a `Disposable` to ensure it is automatically cleaned up.
  */
-export class MutableDisposable<T extends IDisposable> implements IDisposable {
+export class MutableDisposable<T extends IDisposable2> implements IDisposable2 {
 	private _value?: T;
 	private _isDisposed = false;
 
@@ -250,7 +250,7 @@ export class MutableDisposable<T extends IDisposable> implements IDisposable {
 	}
 }
 
-export interface IReference<T> extends IDisposable {
+export interface IReference<T> extends IDisposable2 {
 	readonly object: T;
 }
 

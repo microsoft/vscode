@@ -15,12 +15,12 @@ import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { SelectBoxNative } from 'vs/base/browser/ui/selectBox/selectBoxNative';
 import { SelectBoxList } from 'vs/base/browser/ui/selectBox/selectBoxCustom';
 import { isMacintosh } from 'vs/base/common/platform';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 
 
 // Public SelectBox interface - Calls routed to appropriate select implementation class
 
-export interface ISelectBoxDelegate extends IDisposable {
+export interface ISelectBoxDelegate extends IDisposable2 {
 
 	// Public SelectBox Interface
 	readonly onDidSelect: Event<ISelectData>;

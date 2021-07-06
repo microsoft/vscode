@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { equalsIgnoreCase, startsWithIgnoreCase } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
@@ -47,7 +47,7 @@ export type OpenOptions = OpenInternalOptions & OpenExternalOptions;
 
 export type ResolveExternalUriOptions = { readonly allowTunneling?: boolean };
 
-export interface IResolvedExternalUri extends IDisposable {
+export interface IResolvedExternalUri extends IDisposable2 {
 	resolved: URI;
 }
 
@@ -75,18 +75,18 @@ export interface IOpenerService {
 	/**
 	 * Register a participant that can handle the open() call.
 	 */
-	registerOpener(opener: IOpener): IDisposable;
+	registerOpener(opener: IOpener): IDisposable2;
 
 	/**
 	 * Register a participant that can validate if the URI resource be opened.
 	 * Validators are run before openers.
 	 */
-	registerValidator(validator: IValidator): IDisposable;
+	registerValidator(validator: IValidator): IDisposable2;
 
 	/**
 	 * Register a participant that can resolve an external URI resource to be opened.
 	 */
-	registerExternalUriResolver(resolver: IExternalUriResolver): IDisposable;
+	registerExternalUriResolver(resolver: IExternalUriResolver): IDisposable2;
 
 	/**
 	 * Sets the handler for opening externally. If not provided,
@@ -97,7 +97,7 @@ export interface IOpenerService {
 	/**
 	 * Registers a new opener external resources openers.
 	 */
-	registerExternalOpener(opener: IExternalOpener): IDisposable;
+	registerExternalOpener(opener: IExternalOpener): IDisposable2;
 
 	/**
 	 * Opens a resource, like a webaddress, a document uri, or executes command.

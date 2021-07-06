@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./list';
-import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
 import { range, binarySearch, firstOrDefault } from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
@@ -107,7 +107,7 @@ class TraitRenderer<T> implements IListRenderer<T, ITraitTemplateData>
 	}
 }
 
-class Trait<T> implements ISpliceable<boolean>, IDisposable {
+class Trait<T> implements ISpliceable<boolean>, IDisposable2 {
 
 	private length = 0;
 	private indexes: number[] = [];
@@ -257,7 +257,7 @@ export function isMonacoEditor(e: HTMLElement): boolean {
 	return isMonacoEditor(e.parentElement);
 }
 
-class KeyboardController<T> implements IDisposable {
+class KeyboardController<T> implements IDisposable2 {
 
 	private readonly disposables = new DisposableStore();
 	private readonly multipleSelectionDisposables = new DisposableStore();
@@ -374,7 +374,7 @@ export const DefaultKeyboardNavigationDelegate = new class implements IKeyboardN
 	}
 };
 
-class TypeLabelController<T> implements IDisposable {
+class TypeLabelController<T> implements IDisposable2 {
 
 	private enabled = false;
 	private state: TypeLabelControllerState = TypeLabelControllerState.Idle;
@@ -493,7 +493,7 @@ class TypeLabelController<T> implements IDisposable {
 	}
 }
 
-class DOMFocusController<T> implements IDisposable {
+class DOMFocusController<T> implements IDisposable2 {
 
 	private readonly disposables = new DisposableStore();
 
@@ -564,7 +564,7 @@ const DefaultMultipleSelectionController = {
 	isSelectionRangeChangeEvent
 };
 
-export class MouseController<T> implements IDisposable {
+export class MouseController<T> implements IDisposable2 {
 
 	private multipleSelectionController: IMultipleSelectionController<T> | undefined;
 	private mouseSupport: boolean;
@@ -1181,7 +1181,7 @@ class ListViewDragAndDrop<T> implements IListViewDragAndDrop<T> {
 	}
 }
 
-export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
+export class List<T> implements ISpliceable<T>, IThemable, IDisposable2 {
 
 	private focus = new Trait<T>('focused');
 	private selection: Trait<T>;

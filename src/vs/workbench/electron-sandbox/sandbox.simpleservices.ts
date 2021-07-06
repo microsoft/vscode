@@ -13,7 +13,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionService, NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { isWindows } from 'vs/base/common/platform';
 import { ITunnelProvider, ITunnelService, RemoteTunnel, TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { SearchService } from 'vs/workbench/services/search/common/searchService';
@@ -281,7 +281,7 @@ class SimpleTunnelService implements ITunnelService {
 	openTunnel(addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localPort?: number): Promise<RemoteTunnel> | undefined { return undefined; }
 	async changeTunnelPrivacy(remoteHost: string, remotePort: number, isPublic: boolean): Promise<RemoteTunnel | undefined> { return undefined; }
 	async closeTunnel(remoteHost: string, remotePort: number): Promise<void> { }
-	setTunnelProvider(provider: ITunnelProvider | undefined, features: TunnelProviderFeatures): IDisposable { return Disposable.None; }
+	setTunnelProvider(provider: ITunnelProvider | undefined, features: TunnelProviderFeatures): IDisposable2 { return Disposable.None; }
 }
 
 registerSingleton(ITunnelService, SimpleTunnelService);

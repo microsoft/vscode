@@ -9,7 +9,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { mixin } from 'vs/base/common/objects';
 import { isMacintosh } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
@@ -86,7 +86,7 @@ type ISuggestEnabledInputStyles = {
 	[P in keyof ISuggestEnabledInputStyleOverrides]: Color | undefined;
 };
 
-export function attachSuggestEnabledInputBoxStyler(widget: IThemable, themeService: IThemeService, style?: ISuggestEnabledInputStyleOverrides): IDisposable {
+export function attachSuggestEnabledInputBoxStyler(widget: IThemable, themeService: IThemeService, style?: ISuggestEnabledInputStyleOverrides): IDisposable2 {
 	return attachStyler(themeService, {
 		inputBackground: style?.inputBackground || inputBackground,
 		inputForeground: style?.inputForeground || inputForeground,

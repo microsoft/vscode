@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -327,7 +327,7 @@ suite('SplitLinesCollection', () => {
 	];
 
 	let model: TextModel | null = null;
-	let languageRegistration: IDisposable | null = null;
+	let languageRegistration: IDisposable2 | null = null;
 
 	setup(() => {
 		let _lineIndex = 0;

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CellToolbarLocation, CellToolbarVisibility, CompactView, ConsolidatedOutputButton, ConsolidatedRunButton, DragAndDropEnabled, ExperimentalInsertToolbarAlignment, FocusIndicator, GlobalToolbar, InsertToolbarLocation, NotebookCellEditorOptionsCustomizations, NotebookCellInternalMetadata, ShowCellStatusBar, ShowCellStatusBarType, ShowFoldingControls } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
@@ -105,7 +105,7 @@ export class NotebookOptions {
 	private _layoutConfiguration: NotebookLayoutConfiguration;
 	protected readonly _onDidChangeOptions = new Emitter<NotebookOptionsChangeEvent>();
 	readonly onDidChangeOptions = this._onDidChangeOptions.event;
-	private _disposables: IDisposable[];
+	private _disposables: IDisposable2[];
 
 	constructor(private readonly configurationService: IConfigurationService) {
 		const showCellStatusBar = this.configurationService.getValue<ShowCellStatusBarType>(ShowCellStatusBar);

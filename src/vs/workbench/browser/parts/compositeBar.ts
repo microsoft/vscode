@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { IAction, toAction } from 'vs/base/common/actions';
 import { illegalArgument } from 'vs/base/common/errors';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -368,7 +368,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		}
 	}
 
-	showActivity(compositeId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable {
+	showActivity(compositeId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable2 {
 		if (!badge) {
 			throw illegalArgument('badge');
 		}

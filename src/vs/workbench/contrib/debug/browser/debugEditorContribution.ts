@@ -34,7 +34,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { IEditorHoverOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { DebugHoverWidget } from 'vs/workbench/contrib/debug/browser/debugHover';
 import { ITextModel } from 'vs/editor/common/model';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable2 } from 'vs/base/common/lifecycle';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { basename } from 'vs/base/common/path';
 import { ModesHoverController } from 'vs/editor/contrib/hover/hover';
@@ -186,7 +186,7 @@ function getWordToLineNumbersMap(model: ITextModel | null): Map<string, number[]
 
 export class DebugEditorContribution implements IDebugEditorContribution {
 
-	private toDispose: IDisposable[];
+	private toDispose: IDisposable2[];
 	private hoverWidget: DebugHoverWidget;
 	private hoverRange: Range | null = null;
 	private mouseDown = false;
@@ -194,7 +194,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	private exceptionWidget: ExceptionWidget | undefined;
 	private configurationWidget: FloatingClickWidget | undefined;
-	private altListener: IDisposable | undefined;
+	private altListener: IDisposable2 | undefined;
 	private altPressed = false;
 
 	constructor(

@@ -10,7 +10,7 @@ import { foreground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl } from 'vs/base/browser/dom';
-import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -205,7 +205,7 @@ export abstract class ViewPane extends Pane implements IView {
 
 	private bodyContainer!: HTMLElement;
 	private viewWelcomeContainer!: HTMLElement;
-	private viewWelcomeDisposable: IDisposable = Disposable.None;
+	private viewWelcomeDisposable: IDisposable2 = Disposable.None;
 	private viewWelcomeController: ViewWelcomeController;
 
 	constructor(

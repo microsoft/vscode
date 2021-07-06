@@ -5,7 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, IDisposable2 } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IRange } from 'vs/editor/common/core/range';
@@ -360,15 +360,15 @@ const commentsViewIcon = registerIcon('comments-view-icon', Codicon.commentDiscu
 @extHostNamedCustomer(MainContext.MainThreadComments)
 export class MainThreadComments extends Disposable implements MainThreadCommentsShape {
 	private readonly _proxy: ExtHostCommentsShape;
-	private _documentProviders = new Map<number, IDisposable>();
-	private _workspaceProviders = new Map<number, IDisposable>();
+	private _documentProviders = new Map<number, IDisposable2>();
+	private _workspaceProviders = new Map<number, IDisposable2>();
 	private _handlers = new Map<number, string>();
 	private _commentControllers = new Map<number, MainThreadCommentController>();
 
 	private _activeCommentThread?: MainThreadCommentThread;
 	private readonly _activeCommentThreadDisposables = this._register(new DisposableStore());
 
-	private _openViewListener: IDisposable | null = null;
+	private _openViewListener: IDisposable2 | null = null;
 
 
 	constructor(

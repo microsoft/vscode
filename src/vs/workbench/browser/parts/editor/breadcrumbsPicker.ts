@@ -8,7 +8,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import * as glob from 'vs/base/common/glob';
-import { IDisposable, DisposableStore, MutableDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, DisposableStore, MutableDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { posix } from 'vs/base/common/path';
 import { basename, dirname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -150,7 +150,7 @@ export abstract class BreadcrumbsPicker {
 
 	protected abstract _setInput(element: FileElement | OutlineElement2): Promise<void>;
 	protected abstract _createTree(container: HTMLElement, input: any): Tree<any, any>;
-	protected abstract _previewElement(element: any): IDisposable;
+	protected abstract _previewElement(element: any): IDisposable2;
 	protected abstract _revealElement(element: any, options: IEditorOptions, sideBySide: boolean): Promise<boolean>;
 
 }
@@ -422,7 +422,7 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 		tree.domFocus();
 	}
 
-	protected _previewElement(_element: any): IDisposable {
+	protected _previewElement(_element: any): IDisposable2 {
 		return Disposable.None;
 	}
 
@@ -502,7 +502,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 		return Promise.resolve();
 	}
 
-	protected _previewElement(element: any): IDisposable {
+	protected _previewElement(element: any): IDisposable2 {
 		const outline: IOutline<any> = this._tree.getInput();
 		return outline.preview(element);
 	}

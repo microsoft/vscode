@@ -16,7 +16,7 @@ import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/lis
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { append, $, reset, Dimension, clearNode, addDisposableListener } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable2 } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -215,8 +215,8 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 			actionbar: ActionBar;
 			activationTime: HTMLElement;
 			profileTime: HTMLElement;
-			disposables: IDisposable[];
-			elementDisposables: IDisposable[];
+			disposables: IDisposable2[];
+			elementDisposables: IDisposable2[];
 		}
 
 		const renderer: IListRenderer<IRuntimeExtension, IRuntimeExtensionTemplateData> = {

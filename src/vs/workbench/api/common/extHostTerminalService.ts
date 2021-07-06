@@ -9,7 +9,7 @@ import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShap
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType, ThemeColor } from './extHostTypes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { localize } from 'vs/nls';
@@ -23,7 +23,7 @@ import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBu
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { withNullAsUndefined } from 'vs/base/common/types';
 
-export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, IDisposable {
+export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, IDisposable2 {
 
 	readonly _serviceBrand: undefined;
 
@@ -308,7 +308,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	protected _activeTerminal: ExtHostTerminal | undefined;
 	protected _terminals: ExtHostTerminal[] = [];
 	protected _terminalProcesses: Map<number, ITerminalChildProcess> = new Map();
-	protected _terminalProcessDisposables: { [id: number]: IDisposable } = {};
+	protected _terminalProcessDisposables: { [id: number]: IDisposable2 } = {};
 	protected _extensionTerminalAwaitingStart: { [id: number]: { initialDimensions: ITerminalDimensionsDto | undefined } | undefined } = {};
 	protected _getTerminalPromises: { [id: number]: Promise<ExtHostTerminal | undefined> } = {};
 	protected _environmentVariableCollections: Map<string, EnvironmentVariableCollection> = new Map();
@@ -515,7 +515,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		return undefined;
 	}
 
-	protected _setupExtHostProcessListeners(id: number, p: ITerminalChildProcess): IDisposable {
+	protected _setupExtHostProcessListeners(id: number, p: ITerminalChildProcess): IDisposable2 {
 		const disposables = new DisposableStore();
 
 		disposables.add(p.onProcessReady((e: { pid: number, cwd: string }) => this._proxy.$sendProcessReady(id, e.pid, e.cwd)));

@@ -8,7 +8,7 @@ import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHover, 
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable2 } from 'vs/base/common/lifecycle';
 import { commitInlineSuggestionAction, GhostTextController, ShowNextInlineSuggestionAction, ShowPreviousInlineSuggestionAction } from 'vs/editor/contrib/inlineCompletions/ghostTextController';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -80,7 +80,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		return [];
 	}
 
-	renderHoverParts(hoverParts: InlineCompletionsHover[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable {
+	renderHoverParts(hoverParts: InlineCompletionsHover[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable2 {
 		const disposableStore = new DisposableStore();
 
 		const menu = disposableStore.add(this._menuService.createMenu(

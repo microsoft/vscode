@@ -7,7 +7,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { TextEdit, WorkspaceEdit, WorkspaceEditMetadata, WorkspaceFileEdit, WorkspaceFileEditOptions, WorkspaceTextEdit } from 'vs/editor/common/modes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { isObject } from 'vs/base/common/types';
 import { UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
@@ -87,7 +87,7 @@ export interface IBulkEditService {
 
 	hasPreviewHandler(): boolean;
 
-	setPreviewHandler(handler: IBulkEditPreviewHandler): IDisposable;
+	setPreviewHandler(handler: IBulkEditPreviewHandler): IDisposable2;
 
 	apply(edit: ResourceEdit[], options?: IBulkEditOptions): Promise<IBulkEditResult>;
 }

@@ -6,7 +6,7 @@
 import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { first } from 'vs/base/common/async';
-import { toDisposable, IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { toDisposable, IDisposable2, Disposable } from 'vs/base/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 export abstract class AbstractURLService extends Disposable implements IURLService {
@@ -22,7 +22,7 @@ export abstract class AbstractURLService extends Disposable implements IURLServi
 		return first(handlers.map(h => () => h.handleURL(uri, options)), undefined, false).then(val => val || false);
 	}
 
-	registerHandler(handler: IURLHandler): IDisposable {
+	registerHandler(handler: IURLHandler): IDisposable2 {
 		this.handlers.add(handler);
 		return toDisposable(() => this.handlers.delete(handler));
 	}

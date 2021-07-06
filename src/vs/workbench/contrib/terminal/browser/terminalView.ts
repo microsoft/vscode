@@ -38,7 +38,7 @@ import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/termi
 import { createAndFillInContextMenuActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { TerminalTabContextMenuGroup } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
-import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
@@ -400,7 +400,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 	private _color: string | undefined;
 	private _altCommand: string | undefined;
 	private _class: string | undefined;
-	private readonly _elementDisposables: IDisposable[] = [];
+	private readonly _elementDisposables: IDisposable2[] = [];
 
 	constructor(
 		action: IAction,

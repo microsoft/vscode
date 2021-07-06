@@ -7,7 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { IPanel } from 'vs/workbench/common/panel';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 
 export const IPanelService = createDecorator<IPanelService>('panelService');
@@ -58,7 +58,7 @@ export interface IPanelService {
 	/**
 	 * Show an activity in a panel.
 	 */
-	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable;
+	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable2;
 
 	/**
 	 * Hide the currently active panel.

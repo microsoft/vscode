@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { stringDiff } from 'vs/base/common/diff/diff';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { globals } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
@@ -323,7 +323,7 @@ declare const require: any;
 /**
  * @internal
  */
-export class EditorSimpleWorker implements IRequestHandler, IDisposable {
+export class EditorSimpleWorker implements IRequestHandler, IDisposable2 {
 	_requestHandlerBrand: any;
 
 	private readonly _host: EditorWorkerHost;

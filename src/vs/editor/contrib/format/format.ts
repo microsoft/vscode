@@ -23,7 +23,7 @@ import { FormattingEdit } from 'vs/editor/contrib/format/formattingEdit';
 import * as nls from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { assertType } from 'vs/base/common/types';
@@ -103,7 +103,7 @@ export abstract class FormattingConflicts {
 
 	private static readonly _selectors = new LinkedList<IFormattingEditProviderSelector>();
 
-	static setFormatterSelector(selector: IFormattingEditProviderSelector): IDisposable {
+	static setFormatterSelector(selector: IFormattingEditProviderSelector): IDisposable2 {
 		const remove = FormattingConflicts._selectors.unshift(selector);
 		return { dispose: remove };
 	}

@@ -5,7 +5,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 
 export const IUndoRedoService = createDecorator<IUndoRedoService>('undoRedoService');
 
@@ -47,7 +47,7 @@ export interface IWorkspaceUndoRedoElement {
 	 * This is a good place to prepare everything such that the calls to `undo()` or `redo()` are synchronous.
 	 * If a disposable is returned, it will be invoked to clean things up.
 	 */
-	prepareUndoRedo?(): Promise<IDisposable> | IDisposable | void;
+	prepareUndoRedo?(): Promise<IDisposable2> | IDisposable2 | void;
 }
 
 export type IUndoRedoElement = IResourceUndoRedoElement | IWorkspaceUndoRedoElement;
@@ -117,7 +117,7 @@ export interface IUndoRedoService {
 	 * Register an URI -> string hasher.
 	 * This is useful for making multiple URIs share the same undo-redo stack.
 	 */
-	registerUriComparisonKeyComputer(scheme: string, uriComparisonKeyComputer: UriComparisonKeyComputer): IDisposable;
+	registerUriComparisonKeyComputer(scheme: string, uriComparisonKeyComputer: UriComparisonKeyComputer): IDisposable2;
 
 	/**
 	 * Get the hash used internally for a certain URI.

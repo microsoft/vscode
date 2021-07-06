@@ -6,7 +6,7 @@
 import { Action } from 'vs/base/common/actions';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, dispose, MutableDisposable, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, MutableDisposable, toDisposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { isEqual, basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import type { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -168,7 +168,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		this.updateGlobalActivityBadge();
 	}
 
-	private readonly conflictsDisposables = new Map<SyncResource, IDisposable>();
+	private readonly conflictsDisposables = new Map<SyncResource, IDisposable2>();
 	private onDidChangeConflicts(conflicts: [SyncResource, IResourcePreview[]][]) {
 		if (!this.userDataAutoSyncEnablementService.isEnabled()) {
 			return;
@@ -370,7 +370,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		});
 	}
 
-	private readonly invalidContentErrorDisposables = new Map<SyncResource, IDisposable>();
+	private readonly invalidContentErrorDisposables = new Map<SyncResource, IDisposable2>();
 	private onSynchronizerErrors(errors: [SyncResource, UserDataSyncError][]): void {
 		if (errors.length) {
 			for (const [source, error] of errors) {

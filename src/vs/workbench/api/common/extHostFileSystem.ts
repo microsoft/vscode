@@ -7,7 +7,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { MainContext, IMainContext, ExtHostFileSystemShape, MainThreadFileSystemShape, IFileChangeDto } from './extHost.protocol';
 import type * as vscode from 'vscode';
 import * as files from 'vs/platform/files/common/files';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { FileChangeType } from 'vs/workbench/api/common/extHostTypes';
 import * as typeConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/common/extHostLanguageFeatures';
@@ -114,10 +114,10 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	private readonly _linkProvider = new FsLinkProvider();
 	private readonly _fsProvider = new Map<number, vscode.FileSystemProvider>();
 	private readonly _registeredSchemes = new Set<string>();
-	private readonly _watches = new Map<number, IDisposable>();
+	private readonly _watches = new Map<number, IDisposable2>();
 	private readonly _enableProposedApi = new Map<number, boolean>();
 
-	private _linkProviderRegistration?: IDisposable;
+	private _linkProviderRegistration?: IDisposable2;
 	private _handlePool: number = 0;
 
 	constructor(mainContext: IMainContext, private _extHostLanguageFeatures: ExtHostLanguageFeatures) {

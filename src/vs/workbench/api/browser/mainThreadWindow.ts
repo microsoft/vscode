@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable2 } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
@@ -16,7 +16,7 @@ export class MainThreadWindow implements MainThreadWindowShape {
 
 	private readonly proxy: ExtHostWindowShape;
 	private readonly disposables = new DisposableStore();
-	private readonly resolved = new Map<number, IDisposable>();
+	private readonly resolved = new Map<number, IDisposable2>();
 
 	constructor(
 		extHostContext: IExtHostContext,

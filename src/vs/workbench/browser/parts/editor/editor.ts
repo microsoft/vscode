@@ -5,7 +5,7 @@
 
 import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorInput, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent } from 'vs/workbench/common/editor';
 import { IEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions, GroupsOrder, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { Dimension } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -103,7 +103,7 @@ export interface IEditorGroupTitleHeight {
 	offset: number;
 }
 
-export interface IEditorGroupView extends IDisposable, ISerializableView, IEditorGroup {
+export interface IEditorGroupView extends IDisposable2, ISerializableView, IEditorGroup {
 
 	readonly onDidFocus: Event<void>;
 

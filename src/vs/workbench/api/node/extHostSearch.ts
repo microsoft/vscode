@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -48,7 +48,7 @@ export class NativeExtHostSearch extends ExtHostSearch {
 		this.registerInternalFileSearchProvider(Schemas.file, new SearchService());
 	}
 
-	private registerInternalFileSearchProvider(scheme: string, provider: SearchService): IDisposable {
+	private registerInternalFileSearchProvider(scheme: string, provider: SearchService): IDisposable2 {
 		const handle = this._handlePool++;
 		this._internalFileSearchProvider = provider;
 		this._internalFileSearchHandle = handle;

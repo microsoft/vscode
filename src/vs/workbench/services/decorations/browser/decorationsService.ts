@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { Emitter, DebounceEmitter } from 'vs/base/common/event';
 import { IDecorationsService, IDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IDecorationData } from './decorations';
 import { TernarySearchTree } from 'vs/base/common/map';
-import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isThenable } from 'vs/base/common/async';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector } from 'vs/base/browser/dom';
@@ -254,7 +254,7 @@ class DecorationDataRequest {
 class DecorationProviderWrapper {
 
 	readonly data: TernarySearchTree<URI, DecorationDataRequest | IDecorationData | null>;
-	private readonly _dispoable: IDisposable;
+	private readonly _dispoable: IDisposable2;
 
 	constructor(
 		readonly provider: IDecorationsProvider,
@@ -388,7 +388,7 @@ export class DecorationsService implements IDecorationsService {
 		this._onDidChangeDecorationsDelayed.dispose();
 	}
 
-	registerDecorationsProvider(provider: IDecorationsProvider): IDisposable {
+	registerDecorationsProvider(provider: IDecorationsProvider): IDisposable2 {
 
 		const wrapper = new DecorationProviderWrapper(
 			provider,

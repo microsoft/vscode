@@ -9,7 +9,7 @@ import { Event, AsyncEmitter, IWaitUntil } from 'vs/base/common/event';
 import { Promises } from 'vs/base/common/async';
 import { insert } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { IFileService, FileOperation, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -153,7 +153,7 @@ export interface IWorkingCopyFileService {
 	/**
 	 * Adds a participant for file operations on working copies.
 	 */
-	addFileOperationParticipant(participant: IWorkingCopyFileOperationParticipant): IDisposable;
+	addFileOperationParticipant(participant: IWorkingCopyFileOperationParticipant): IDisposable2;
 
 	//#endregion
 
@@ -216,7 +216,7 @@ export interface IWorkingCopyFileService {
 	 *
 	 * @return a disposable that unregisters the provider.
 	 */
-	registerWorkingCopyProvider(provider: WorkingCopyProvider): IDisposable;
+	registerWorkingCopyProvider(provider: WorkingCopyProvider): IDisposable2;
 
 	/**
 	 * Will return all working copies that are dirty matching the provided resource.
@@ -434,7 +434,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 
 	private readonly fileOperationParticipants = this._register(this.instantiationService.createInstance(WorkingCopyFileOperationParticipant));
 
-	addFileOperationParticipant(participant: IWorkingCopyFileOperationParticipant): IDisposable {
+	addFileOperationParticipant(participant: IWorkingCopyFileOperationParticipant): IDisposable2 {
 		return this.fileOperationParticipants.addFileOperationParticipant(participant);
 	}
 
@@ -449,7 +449,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 
 	private readonly workingCopyProviders: WorkingCopyProvider[] = [];
 
-	registerWorkingCopyProvider(provider: WorkingCopyProvider): IDisposable {
+	registerWorkingCopyProvider(provider: WorkingCopyProvider): IDisposable2 {
 		const remove = insert(this.workingCopyProviders, provider);
 
 		return toDisposable(remove);

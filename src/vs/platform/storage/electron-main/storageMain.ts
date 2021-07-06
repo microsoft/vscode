@@ -5,7 +5,7 @@
 
 import { Promises } from 'vs/base/node/pfs';
 import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/base/parts/storage/node/storage';
@@ -29,7 +29,7 @@ export interface IStorageMainOptions {
  * Provides access to global and workspace storage from the
  * electron-main side that is the owner of all storage connections.
  */
-export interface IStorageMain extends IDisposable {
+export interface IStorageMain extends IDisposable2 {
 
 	/**
 	 * Emitted whenever data is updated or deleted.

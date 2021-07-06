@@ -6,7 +6,7 @@
 import 'vs/css!./media/quickInput';
 import * as dom from 'vs/base/browser/dom';
 import { InputBox, IRange, MessageType, IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable } from 'vs/base/common/lifecycle';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import Severity from 'vs/base/common/severity';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -26,19 +26,19 @@ export class QuickInputBox extends Disposable {
 		this.inputBox = this._register(new InputBox(this.container, undefined));
 	}
 
-	onKeyDown = (handler: (event: StandardKeyboardEvent) => void): IDisposable => {
+	onKeyDown = (handler: (event: StandardKeyboardEvent) => void): IDisposable2 => {
 		return dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			handler(new StandardKeyboardEvent(e));
 		});
 	};
 
-	onMouseDown = (handler: (event: StandardMouseEvent) => void): IDisposable => {
+	onMouseDown = (handler: (event: StandardMouseEvent) => void): IDisposable2 => {
 		return dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			handler(new StandardMouseEvent(e));
 		});
 	};
 
-	onDidChange = (handler: (event: string) => void): IDisposable => {
+	onDidChange = (handler: (event: string) => void): IDisposable2 => {
 		return this.inputBox.onDidChange(handler);
 	};
 

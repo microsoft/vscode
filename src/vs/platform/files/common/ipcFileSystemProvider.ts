@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -188,7 +188,7 @@ export abstract class IPCFileSystemProvider extends Disposable implements
 		return this.channel.call('copy', [resource, target, opts]);
 	}
 
-	watch(resource: URI, opts: IWatchOptions): IDisposable {
+	watch(resource: URI, opts: IWatchOptions): IDisposable2 {
 		const req = Math.random();
 		this.channel.call('watch', [this.session, req, resource, opts]);
 

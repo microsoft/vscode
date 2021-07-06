@@ -7,7 +7,7 @@ import { ComposedTreeDelegate, IAbstractTreeOptions, IAbstractTreeOptionsUpdate 
 import { ObjectTree, IObjectTreeOptions, CompressibleObjectTree, ICompressibleTreeRenderer, ICompressibleKeyboardNavigationLabelProvider, ICompressibleObjectTreeOptions, IObjectTreeSetChildrenOptions } from 'vs/base/browser/ui/tree/objectTree';
 import { IListVirtualDelegate, IIdentityProvider, IListDragAndDrop, IListDragOverReaction } from 'vs/base/browser/ui/list/list';
 import { ITreeElement, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeSorter, ICollapseStateChangeEvent, IAsyncDataSource, ITreeDragAndDrop, TreeError, WeakMapper, ITreeFilter, TreeVisibility, TreeFilterResult } from 'vs/base/browser/ui/tree/tree';
-import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { timeout, CancelablePromise, createCancelablePromise, Promises } from 'vs/base/common/async';
 import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
@@ -306,7 +306,7 @@ function dfs<TInput, T>(node: IAsyncDataTreeNode<TInput, T>, fn: (node: IAsyncDa
 	node.children.forEach(child => dfs(child, fn));
 }
 
-export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable, IThemable {
+export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable2, IThemable {
 
 	protected readonly tree: ObjectTree<IAsyncDataTreeNode<TInput, T>, TFilterData>;
 	protected readonly root: IAsyncDataTreeNode<TInput, T>;
@@ -1046,7 +1046,7 @@ class CompressibleAsyncDataTreeRenderer<TInput, T, TFilterData, TTemplateData> i
 
 	readonly templateId: string;
 	private renderedNodes = new Map<IAsyncDataTreeNode<TInput, T>, IDataTreeListTemplateData<TTemplateData>>();
-	private disposables: IDisposable[] = [];
+	private disposables: IDisposable2[] = [];
 
 	constructor(
 		protected renderer: ICompressibleTreeRenderer<T, TFilterData, TTemplateData>,

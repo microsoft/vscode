@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { basename } from 'vs/base/common/resources';
-import { IDisposable, dispose, Disposable, DisposableStore, combinedDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose, Disposable, DisposableStore, combinedDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { VIEW_PANE_ID, ISCMService, ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
@@ -28,12 +28,12 @@ function getCount(repository: ISCMRepository): number {
 
 export class SCMStatusController implements IWorkbenchContribution {
 
-	private statusBarDisposable: IDisposable = Disposable.None;
-	private focusDisposable: IDisposable = Disposable.None;
+	private statusBarDisposable: IDisposable2 = Disposable.None;
+	private focusDisposable: IDisposable2 = Disposable.None;
 	private focusedRepository: ISCMRepository | undefined = undefined;
-	private readonly badgeDisposable = new MutableDisposable<IDisposable>();
+	private readonly badgeDisposable = new MutableDisposable<IDisposable2>();
 	private disposables = new DisposableStore();
-	private repositoryDisposables = new Set<IDisposable>();
+	private repositoryDisposables = new Set<IDisposable2>();
 
 	constructor(
 		@ISCMService private readonly scmService: ISCMService,

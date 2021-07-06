@@ -6,7 +6,7 @@
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IMarkerService, IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IDecorationsService, IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
@@ -55,8 +55,8 @@ class MarkersDecorationsProvider implements IDecorationsProvider {
 
 class MarkersFileDecorations implements IWorkbenchContribution {
 
-	private readonly _disposables: IDisposable[];
-	private _provider?: IDisposable;
+	private readonly _disposables: IDisposable2[];
+	private _provider?: IDisposable2;
 	private _enabled?: boolean;
 
 	constructor(

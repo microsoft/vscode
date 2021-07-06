@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { FileSystemProviderCapabilities, IFileSystemProvider, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileChange } from 'vs/platform/files/common/files';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 
 export class NullFileSystemProvider implements IFileSystemProvider {
@@ -18,7 +18,7 @@ export class NullFileSystemProvider implements IFileSystemProvider {
 	private readonly _onDidChangeFile = new Emitter<readonly IFileChange[]>();
 	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChangeFile.event;
 
-	constructor(private disposableFactory: () => IDisposable = () => Disposable.None) { }
+	constructor(private disposableFactory: () => IDisposable2 = () => Disposable.None) { }
 
 	emitFileChangeEvents(changes: IFileChange[]): void {
 		this._onDidChangeFile.fire(changes);
@@ -30,7 +30,7 @@ export class NullFileSystemProvider implements IFileSystemProvider {
 		this._onDidChangeCapabilities.fire();
 	}
 
-	watch(resource: URI, opts: IWatchOptions): IDisposable { return this.disposableFactory(); }
+	watch(resource: URI, opts: IWatchOptions): IDisposable2 { return this.disposableFactory(); }
 	async stat(resource: URI): Promise<IStat> { return undefined!; }
 	async mkdir(resource: URI): Promise<void> { return undefined; }
 	async readdir(resource: URI): Promise<[string, FileType][]> { return undefined!; }

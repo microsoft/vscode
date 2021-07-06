@@ -8,7 +8,7 @@ import { AutoOpenBarrier, timeout } from 'vs/base/common/async';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { debounce, throttle } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
-import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { equals } from 'vs/base/common/objects';
 import { basename } from 'vs/base/common/path';
@@ -54,11 +54,11 @@ export class TerminalService implements ITerminalService {
 
 	private _isShuttingDown: boolean;
 	private _backgroundedTerminalInstances: ITerminalInstance[] = [];
-	private _backgroundedTerminalDisposables: Map<number, IDisposable[]> = new Map();
+	private _backgroundedTerminalDisposables: Map<number, IDisposable2[]> = new Map();
 	private _findState: FindReplaceState;
 	private readonly _profileProviders: Map</*ext id*/string, Map</*provider id*/string, ITerminalProfileProvider>> = new Map();
 	private _linkProviders: Set<ITerminalExternalLinkProvider> = new Set();
-	private _linkProviderDisposables: Map<ITerminalExternalLinkProvider, IDisposable[]> = new Map();
+	private _linkProviderDisposables: Map<ITerminalExternalLinkProvider, IDisposable2[]> = new Map();
 	private _processSupportContextKey: IContextKey<boolean>;
 	private readonly _localTerminalService?: ILocalTerminalService;
 	private readonly _primaryOffProcessTerminalService?: IOffProcessTerminalService;
@@ -741,8 +741,8 @@ export class TerminalService implements ITerminalService {
 		this._onDidRegisterProcessSupport.fire();
 	}
 
-	registerLinkProvider(linkProvider: ITerminalExternalLinkProvider): IDisposable {
-		const disposables: IDisposable[] = [];
+	registerLinkProvider(linkProvider: ITerminalExternalLinkProvider): IDisposable2 {
+		const disposables: IDisposable2[] = [];
 		this._linkProviders.add(linkProvider);
 		for (const instance of this.instances) {
 			if (instance.areLinksReady) {
@@ -761,7 +761,7 @@ export class TerminalService implements ITerminalService {
 		};
 	}
 
-	registerTerminalProfileProvider(extensionIdenfifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable {
+	registerTerminalProfileProvider(extensionIdenfifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable2 {
 		let extMap = this._profileProviders.get(extensionIdenfifier);
 		if (!extMap) {
 			extMap = new Map();

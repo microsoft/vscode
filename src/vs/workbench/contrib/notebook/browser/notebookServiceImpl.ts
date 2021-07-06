@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
 import { Iterable } from 'vs/base/common/iterator';
 import { Lazy } from 'vs/base/common/lazy';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
@@ -140,7 +140,7 @@ export class NotebookProviderInfoStore extends Disposable {
 
 	}
 
-	private _registerContributionPoint(notebookProviderInfo: NotebookProviderInfo): IDisposable {
+	private _registerContributionPoint(notebookProviderInfo: NotebookProviderInfo): IDisposable2 {
 
 		const disposables = new DisposableStore();
 
@@ -214,7 +214,7 @@ export class NotebookProviderInfoStore extends Disposable {
 		return this._contributedEditors.get(viewType);
 	}
 
-	add(info: NotebookProviderInfo): IDisposable {
+	add(info: NotebookProviderInfo): IDisposable2 {
 		if (this._contributedEditors.has(info.id)) {
 			throw new Error(`notebook type '${info.id}' ALREADY EXISTS`);
 		}
@@ -305,7 +305,7 @@ export class NotebookOutputRendererInfoStore {
 	}
 }
 
-class ModelData implements IDisposable {
+class ModelData implements IDisposable2 {
 	private readonly _modelEventListeners = new DisposableStore();
 
 	constructor(
@@ -471,7 +471,7 @@ export class NotebookService extends Disposable implements INotebookService {
 		return this._notebookProviders.has(viewType);
 	}
 
-	registerContributedNotebookType(viewType: string, data: INotebookContributionData): IDisposable {
+	registerContributedNotebookType(viewType: string, data: INotebookContributionData): IDisposable2 {
 
 		const info = new NotebookProviderInfo({
 			extension: data.extension,
@@ -494,7 +494,7 @@ export class NotebookService extends Disposable implements INotebookService {
 		});
 	}
 
-	private _registerProviderData(viewType: string, data: SimpleNotebookProviderInfo | ComplexNotebookProviderInfo): IDisposable {
+	private _registerProviderData(viewType: string, data: SimpleNotebookProviderInfo | ComplexNotebookProviderInfo): IDisposable2 {
 		if (this._notebookProviders.has(viewType)) {
 			throw new Error(`notebook controller for viewtype '${viewType}' already exists`);
 		}
@@ -505,12 +505,12 @@ export class NotebookService extends Disposable implements INotebookService {
 		});
 	}
 
-	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: INotebookContentProvider): IDisposable {
+	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: INotebookContentProvider): IDisposable2 {
 		this._notebookProviderInfoStore.get(viewType)?.update({ options: controller.options });
 		return this._registerProviderData(viewType, new ComplexNotebookProviderInfo(viewType, controller, extensionData));
 	}
 
-	registerNotebookSerializer(viewType: string, extensionData: NotebookExtensionDescription, serializer: INotebookSerializer): IDisposable {
+	registerNotebookSerializer(viewType: string, extensionData: NotebookExtensionDescription, serializer: INotebookSerializer): IDisposable2 {
 		this._notebookProviderInfoStore.get(viewType)?.update({ options: serializer.options });
 		return this._registerProviderData(viewType, new SimpleNotebookProviderInfo(viewType, serializer, extensionData));
 	}

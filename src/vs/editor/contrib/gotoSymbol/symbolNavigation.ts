@@ -13,7 +13,7 @@ import { registerEditorCommand, EditorCommand } from 'vs/editor/browser/editorEx
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
-import { dispose, IDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable2, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -40,8 +40,8 @@ class SymbolNavigationService implements ISymbolNavigationService {
 
 	private _currentModel?: ReferencesModel = undefined;
 	private _currentIdx: number = -1;
-	private _currentState?: IDisposable;
-	private _currentMessage?: IDisposable;
+	private _currentState?: IDisposable2;
+	private _currentMessage?: IDisposable2;
 	private _ignoreEditorChange: boolean = false;
 
 	constructor(
@@ -183,7 +183,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 class EditorState {
 
-	private readonly _listener = new Map<ICodeEditor, IDisposable>();
+	private readonly _listener = new Map<ICodeEditor, IDisposable2>();
 	private readonly _disposables = new DisposableStore();
 
 	private readonly _onDidChange = new Emitter<{ editor: ICodeEditor }>();

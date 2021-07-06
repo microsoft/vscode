@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { SuggestModel } from 'vs/editor/contrib/suggest/suggestModel';
 
-export class OvertypingCapturer implements IDisposable {
+export class OvertypingCapturer implements IDisposable2 {
 
 	private static readonly _maxSelectionLength = 51200;
 	private readonly _disposables = new DisposableStore();

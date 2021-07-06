@@ -8,7 +8,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { getBaseLabel } from 'vs/base/common/labels';
-import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, DisposableStore } from 'vs/base/common/lifecycle';
 import { ResourceMap, TernarySearchTree } from 'vs/base/common/map';
 import { lcut } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -204,7 +204,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	private _resource: URI;
 	private _fileStat?: IFileStatWithMetadata;
 	private _model: ITextModel | null = null;
-	private _modelListener: IDisposable | null = null;
+	private _modelListener: IDisposable2 | null = null;
 	private _matches: Map<string, Match>;
 	private _removedMatches: Set<string>;
 	private _selectedMatch: Match | null = null;
@@ -1217,7 +1217,7 @@ export interface ISearchWorkbenchService {
  * Can add a range highlight decoration to a model.
  * It will automatically remove it when the model has its decorations changed.
  */
-export class RangeHighlightDecorations implements IDisposable {
+export class RangeHighlightDecorations implements IDisposable2 {
 
 	private _decorationId: string | null = null;
 	private _model: ITextModel | null = null;

@@ -9,7 +9,7 @@ import { IExtensionIdentifier, EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, allSettings } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -37,7 +37,7 @@ export function getDefaultIgnoredSettings(): string[] {
 	return distinct([CONFIGURATION_SYNC_STORE_KEY, ...ignoreSyncSettings, ...machineSettings, ...disallowedSettings]);
 }
 
-export function registerConfiguration(): IDisposable {
+export function registerConfiguration(): IDisposable2 {
 	const ignoredSettingsSchemaId = 'vscode://schemas/ignoredSettings';
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 	configurationRegistry.registerConfiguration({
@@ -422,7 +422,7 @@ export interface ISyncTask {
 	stop(): Promise<void>;
 }
 
-export interface IManualSyncTask extends IDisposable {
+export interface IManualSyncTask extends IDisposable2 {
 	readonly id: string;
 	readonly status: SyncStatus;
 	readonly manifest: IUserDataManifest | null;

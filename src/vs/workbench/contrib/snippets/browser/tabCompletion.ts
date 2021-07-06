@@ -8,7 +8,7 @@ import { RawContextKey, IContextKeyService, ContextKeyExpr, IContextKey } from '
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ISnippetsService } from './snippets.contribution';
 import { getNonWhitespacePrefix } from './snippetsService';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { registerEditorContribution, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
@@ -34,8 +34,8 @@ export class TabCompletionController implements IEditorContribution {
 	private _hasSnippets: IContextKey<boolean>;
 	private _activeSnippets: Snippet[] = [];
 	private _enabled?: boolean;
-	private _selectionListener?: IDisposable;
-	private readonly _configListener: IDisposable;
+	private _selectionListener?: IDisposable2;
+	private readonly _configListener: IDisposable2;
 
 	constructor(
 		private readonly _editor: ICodeEditor,

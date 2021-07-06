@@ -10,7 +10,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
@@ -154,7 +154,7 @@ export class TextAreaInput extends Disposable {
 	private readonly _asyncFocusGainWriteScreenReaderContent: RunOnceScheduler;
 
 	private _textAreaState: TextAreaState;
-	private _selectionChangeListener: IDisposable | null;
+	private _selectionChangeListener: IDisposable2 | null;
 
 	private _hasFocus: boolean;
 	private _isDoingComposition: boolean;
@@ -442,7 +442,7 @@ export class TextAreaInput extends Disposable {
 		}));
 	}
 
-	private _installSelectionChangeListener(): IDisposable {
+	private _installSelectionChangeListener(): IDisposable2 {
 		// See https://github.com/microsoft/vscode/issues/27216 and https://github.com/microsoft/vscode/issues/98256
 		// When using a Braille display, it is possible for users to reposition the
 		// system caret. This is reflected in Chrome as a `selectionchange` event.

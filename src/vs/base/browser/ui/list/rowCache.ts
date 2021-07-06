@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IListRenderer } from './list';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { $ } from 'vs/base/browser/dom';
 
 export interface IRow {
@@ -23,7 +23,7 @@ function removeFromParent(element: HTMLElement): void {
 	}
 }
 
-export class RowCache<T> implements IDisposable {
+export class RowCache<T> implements IDisposable2 {
 
 	private cache = new Map<string, IRow[]>();
 

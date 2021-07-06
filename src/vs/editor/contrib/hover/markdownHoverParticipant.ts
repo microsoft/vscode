@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { IMarkdownString, MarkdownString, isEmptyMarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
@@ -114,7 +114,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		return result;
 	}
 
-	public renderHoverParts(hoverParts: MarkdownHover[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable {
+	public renderHoverParts(hoverParts: MarkdownHover[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable2 {
 		const disposables = new DisposableStore();
 		for (const hoverPart of hoverParts) {
 			for (const contents of hoverPart.contents) {

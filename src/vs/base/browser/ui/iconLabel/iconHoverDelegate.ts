@@ -5,9 +5,9 @@
 
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 
-export interface IHoverDelegateTarget extends IDisposable {
+export interface IHoverDelegateTarget extends IDisposable2 {
 	readonly targetElements: readonly HTMLElement[];
 	x?: number;
 }
@@ -20,7 +20,7 @@ export interface IHoverDelegateOptions {
 }
 
 export interface IHoverDelegate {
-	showHover(options: IHoverDelegateOptions): IDisposable | undefined;
+	showHover(options: IHoverDelegateOptions): IDisposable2 | undefined;
 	delay: number;
 	placement?: 'mouse' | 'element';
 }

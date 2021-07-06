@@ -81,7 +81,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	private selectContainer!: HTMLElement;
 	private inputContainer!: HTMLElement;
 	private input!: IActiveCodeEditor;
-	private toDispose: lifecycle.IDisposable[];
+	private toDispose: lifecycle.IDisposable2[];
 	private conditionInput = '';
 	private hitCountInput = '';
 	private logMessageInput = '';

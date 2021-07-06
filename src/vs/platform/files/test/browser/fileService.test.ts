@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { URI } from 'vs/base/common/uri';
 import { IFileSystemProviderRegistrationEvent, FileSystemProviderCapabilities, IFileSystemProviderCapabilitiesChangeEvent, FileOpenOptions, FileReadStreamOptions, IStat, FileType, IFileChange, FileChangeType } from 'vs/platform/files/common/files';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { timeout } from 'vs/base/common/async';
 import { NullFileSystemProvider } from 'vs/platform/files/test/common/nullFileSystemProvider';
@@ -34,7 +34,7 @@ suite('File Service', () => {
 			capabilityChanges.push(e);
 		});
 
-		let registrationDisposable: IDisposable | undefined;
+		let registrationDisposable: IDisposable2 | undefined;
 		let callCount = 0;
 		service.onWillActivateFileSystemProvider(e => {
 			callCount++;

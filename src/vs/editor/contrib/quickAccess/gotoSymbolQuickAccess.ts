@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { IQuickPick, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { DisposableStore, IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable2, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -44,13 +44,13 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		this.options.canAcceptInBackground = true;
 	}
 
-	protected provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
+	protected provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable2 {
 		this.provideLabelPick(picker, localize('cannotRunGotoSymbolWithoutEditor', "To go to a symbol, first open a text editor with symbol information."));
 
 		return Disposable.None;
 	}
 
-	protected provideWithTextEditor(context: IQuickAccessTextEditorContext, picker: IQuickPick<IGotoSymbolQuickPickItem>, token: CancellationToken): IDisposable {
+	protected provideWithTextEditor(context: IQuickAccessTextEditorContext, picker: IQuickPick<IGotoSymbolQuickPickItem>, token: CancellationToken): IDisposable2 {
 		const editor = context.editor;
 		const model = this.getModel(editor);
 		if (!model) {
@@ -68,7 +68,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		return this.doProvideWithoutEditorSymbols(context, model, picker, token);
 	}
 
-	private doProvideWithoutEditorSymbols(context: IQuickAccessTextEditorContext, model: ITextModel, picker: IQuickPick<IGotoSymbolQuickPickItem>, token: CancellationToken): IDisposable {
+	private doProvideWithoutEditorSymbols(context: IQuickAccessTextEditorContext, model: ITextModel, picker: IQuickPick<IGotoSymbolQuickPickItem>, token: CancellationToken): IDisposable2 {
 		const disposables = new DisposableStore();
 
 		// Generic pick for not having any symbol information
@@ -119,7 +119,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		return symbolProviderRegistryPromise;
 	}
 
-	private doProvideWithEditorSymbols(context: IQuickAccessTextEditorContext, model: ITextModel, picker: IQuickPick<IGotoSymbolQuickPickItem>, token: CancellationToken): IDisposable {
+	private doProvideWithEditorSymbols(context: IQuickAccessTextEditorContext, model: ITextModel, picker: IQuickPick<IGotoSymbolQuickPickItem>, token: CancellationToken): IDisposable2 {
 		const editor = context.editor;
 		const disposables = new DisposableStore();
 

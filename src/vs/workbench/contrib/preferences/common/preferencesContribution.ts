@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IDisposable2 } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
@@ -28,8 +28,8 @@ import { PreferencesEditorInput } from 'vs/workbench/services/preferences/common
 const schemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
 export class PreferencesContribution implements IWorkbenchContribution {
-	private editorOpeningListener: IDisposable | undefined;
-	private settingsListener: IDisposable;
+	private editorOpeningListener: IDisposable2 | undefined;
+	private settingsListener: IDisposable2;
 
 	constructor(
 		@IModelService private readonly modelService: IModelService,

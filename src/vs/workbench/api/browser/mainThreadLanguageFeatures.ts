@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ITextModel, ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
@@ -28,7 +28,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	private readonly _proxy: ExtHostLanguageFeaturesShape;
 	private readonly _modeService: IModeService;
-	private readonly _registrations = new Map<number, IDisposable>();
+	private readonly _registrations = new Map<number, IDisposable2>();
 
 	constructor(
 		extHostContext: IExtHostContext,

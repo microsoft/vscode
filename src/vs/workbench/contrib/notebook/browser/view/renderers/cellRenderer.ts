@@ -13,7 +13,7 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Action, IAction } from 'vs/base/common/actions';
 import * as Codicons from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
-import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, Disposable, DisposableStore, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshalling';
 import * as platform from 'vs/base/common/platform';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -794,7 +794,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		return templateData;
 	}
 
-	private addDoubleClickCollapseHandler(templateData: CodeCellRenderTemplate): IDisposable {
+	private addDoubleClickCollapseHandler(templateData: CodeCellRenderTemplate): IDisposable2 {
 		const dragHandleListener = DOM.addDisposableListener(templateData.dragHandle, DOM.EventType.DBLCLICK, e => {
 			const cell = templateData.currentRenderedCell;
 			if (!cell) {
@@ -1089,7 +1089,7 @@ export class TimerRenderer {
 
 	private intervalTimer: number | undefined;
 
-	start(startTime: number, adjustment: number): IDisposable {
+	start(startTime: number, adjustment: number): IDisposable2 {
 		this.stop();
 		DOM.show(this.container);
 		const intervalTimer = setInterval(() => {

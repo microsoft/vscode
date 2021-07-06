@@ -8,7 +8,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IIconLabelMarkdownString } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IHoverDelegate, IHoverDelegateTarget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { localize } from 'vs/nls';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
@@ -25,16 +25,16 @@ export function setupNativeHover(htmlElement: HTMLElement, tooltip: string | IIc
 	}
 }
 
-export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, markdownTooltip: string | IIconLabelMarkdownString | undefined): IDisposable | undefined {
+export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, markdownTooltip: string | IIconLabelMarkdownString | undefined): IDisposable2 | undefined {
 	if (!markdownTooltip) {
 		return undefined;
 	}
 
 	const tooltip = getTooltipForCustom(markdownTooltip);
 
-	let hoverPreparation: IDisposable | undefined;
+	let hoverPreparation: IDisposable2 | undefined;
 
-	let hoverWidget: IDisposable | undefined;
+	let hoverWidget: IDisposable2 | undefined;
 
 	const mouseEnter = (e: MouseEvent) => {
 		if (hoverPreparation) {
@@ -62,7 +62,7 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 			dispose: () => { }
 		};
 
-		let mouseMoveDomListener: IDisposable | undefined;
+		let mouseMoveDomListener: IDisposable2 | undefined;
 		if (hoverDelegate.placement === undefined || hoverDelegate.placement === 'mouse') {
 			const mouseMove = (e: MouseEvent) => target.x = e.x + 10;
 			mouseMoveDomListener = dom.addDisposableListener(htmlElement, dom.EventType.MOUSE_MOVE, mouseMove, true);

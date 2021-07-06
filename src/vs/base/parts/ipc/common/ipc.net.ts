@@ -5,7 +5,7 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { IMessagePassingProtocol, IPCClient, IIPCLogger } from 'vs/base/parts/ipc/common/ipc';
-import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 import * as platform from 'vs/base/common/platform';
 import * as process from 'vs/base/common/process';
@@ -55,10 +55,10 @@ export interface WebSocketCloseEvent {
 
 export type SocketCloseEvent = NodeSocketCloseEvent | WebSocketCloseEvent | undefined;
 
-export interface ISocket extends IDisposable {
-	onData(listener: (e: VSBuffer) => void): IDisposable;
-	onClose(listener: (e: SocketCloseEvent) => void): IDisposable;
-	onEnd(listener: () => void): IDisposable;
+export interface ISocket extends IDisposable2 {
+	onData(listener: (e: VSBuffer) => void): IDisposable2;
+	onClose(listener: (e: SocketCloseEvent) => void): IDisposable2;
+	onEnd(listener: () => void): IDisposable2;
 	write(buffer: VSBuffer): void;
 	end(): void;
 	drain(): Promise<void>;
@@ -656,7 +656,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	private _socket: ISocket;
 	private _socketWriter: ProtocolWriter;
 	private _socketReader: ProtocolReader;
-	private _socketDisposables: IDisposable[];
+	private _socketDisposables: IDisposable2[];
 
 	private readonly _loadEstimator = LoadEstimator.getInstance();
 

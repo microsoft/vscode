@@ -13,7 +13,7 @@ import { ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { PrefixSumIndexOfResult } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { ICoordinatesConverter, ILineBreaksComputer, IOverviewRulerDecorations, LineBreakData, SingleLineInlineDecoration, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
 import { LineInjectedText } from 'vs/editor/common/model/textModelEvents';
@@ -50,7 +50,7 @@ export interface ISplitLine {
 	normalizePosition(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number, outputPosition: Position, affinity: PositionNormalizationAffinity): Position;
 }
 
-export interface IViewModelLinesCollection extends IDisposable {
+export interface IViewModelLinesCollection extends IDisposable2 {
 	createCoordinatesConverter(): ICoordinatesConverter;
 
 	setWrappingSettings(fontInfo: FontInfo, wrappingStrategy: 'simple' | 'advanced', wrappingColumn: number, wrappingIndent: WrappingIndent): boolean;

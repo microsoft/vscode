@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { disposed } from 'vs/base/common/errors';
-import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { equals as objectEquals } from 'vs/base/common/objects';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IBulkEditService, ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
@@ -55,7 +55,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	private readonly _proxy: ExtHostEditorsShape;
 	private readonly _documentsAndEditors: MainThreadDocumentsAndEditors;
 	private readonly _toDispose = new DisposableStore();
-	private _textEditorsListenersMap: { [editorId: string]: IDisposable[]; };
+	private _textEditorsListenersMap: { [editorId: string]: IDisposable2[]; };
 	private _editorPositionData: ITextEditorPositionData | null;
 	private _registeredDecorationTypes: { [decorationType: string]: boolean; };
 
@@ -98,7 +98,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 	private _onTextEditorAdd(textEditor: MainThreadTextEditor): void {
 		const id = textEditor.getId();
-		const toDispose: IDisposable[] = [];
+		const toDispose: IDisposable2[] = [];
 		toDispose.push(textEditor.onPropertiesChanged((data) => {
 			this._proxy.$acceptEditorPropertiesChanged(id, data);
 		}));

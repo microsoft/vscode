@@ -5,7 +5,7 @@
 
 import 'vs/css!./selectBoxCustom';
 
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -31,7 +31,7 @@ interface ISelectListTemplateData {
 	text: HTMLElement;
 	detail: HTMLElement;
 	decoratorRight: HTMLElement;
-	disposables: IDisposable[];
+	disposables: IDisposable2[];
 }
 
 class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectListTemplateData> {
@@ -484,7 +484,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		this.contextViewProvider.hideContextView();
 	}
 
-	private renderSelectDropDown(container: HTMLElement, preLayoutPosition?: boolean): IDisposable {
+	private renderSelectDropDown(container: HTMLElement, preLayoutPosition?: boolean): IDisposable2 {
 		container.appendChild(this.selectDropDownContainer);
 
 		// Pre-Layout allows us to change position

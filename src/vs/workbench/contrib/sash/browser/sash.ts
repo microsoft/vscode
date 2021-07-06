@@ -6,14 +6,14 @@
 import { clamp } from 'vs/base/common/numbers';
 import { setGlobalSashSize, setGlobalHoverDelay } from 'vs/base/browser/ui/sash/sash';
 import { Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable2 } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 
 export const minSize = 1;
 export const maxSize = 20; // see also https://ux.stackexchange.com/questions/39023/what-is-the-optimum-button-size-of-touch-screen-applications
 
-export class SashSettingsController implements IWorkbenchContribution, IDisposable {
+export class SashSettingsController implements IWorkbenchContribution, IDisposable2 {
 
 	private readonly disposables = new DisposableStore();
 

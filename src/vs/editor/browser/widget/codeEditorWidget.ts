@@ -14,7 +14,7 @@ import { Color } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, dispose } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
@@ -84,9 +84,9 @@ class ModelData {
 	public readonly viewModel: ViewModel;
 	public readonly view: View;
 	public readonly hasRealView: boolean;
-	public readonly listenersToRemove: IDisposable[];
+	public readonly listenersToRemove: IDisposable2[];
 
-	constructor(model: ITextModel, viewModel: ViewModel, view: View, hasRealView: boolean, listenersToRemove: IDisposable[]) {
+	constructor(model: ITextModel, viewModel: ViewModel, view: View, hasRealView: boolean, listenersToRemove: IDisposable2[]) {
 		this.model = model;
 		this.viewModel = viewModel;
 		this.view = view;
@@ -1493,7 +1493,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return;
 		}
 
-		const listenersToRemove: IDisposable[] = [];
+		const listenersToRemove: IDisposable2[] = [];
 
 		this._domElement.setAttribute('data-mode-id', model.getLanguageIdentifier().language);
 		this._configuration.setIsDominatedByLongLines(model.isDominatedByLongLines());

@@ -5,7 +5,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 
 export const IActivityBarService = createDecorator<IActivityBarService>('activityBarService');
 
@@ -15,7 +15,7 @@ export interface IActivityBarService {
 	/**
 	 * Show an activity in a viewlet.
 	 */
-	showActivity(viewletOrActionId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable;
+	showActivity(viewletOrActionId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable2;
 
 	/**
 	 * Returns id of pinned view containers following the visual order.

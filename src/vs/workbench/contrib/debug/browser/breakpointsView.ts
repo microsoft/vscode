@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { Constants } from 'vs/base/common/uint';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable2 } from 'vs/base/common/lifecycle';
 import { IListVirtualDelegate, IListContextMenuEvent, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -337,8 +337,8 @@ interface IBaseBreakpointTemplateData {
 	checkbox: HTMLInputElement;
 	context: BreakpointItem;
 	actionBar: ActionBar;
-	toDispose: IDisposable[];
-	elementDisposable: IDisposable[];
+	toDispose: IDisposable2[];
+	elementDisposable: IDisposable2[];
 }
 
 interface IBaseBreakpointWithIconTemplateData extends IBaseBreakpointTemplateData {
@@ -367,7 +367,7 @@ interface IFunctionBreakpointInputTemplateData {
 	checkbox: HTMLInputElement;
 	icon: HTMLElement;
 	breakpoint: IFunctionBreakpoint;
-	toDispose: IDisposable[];
+	toDispose: IDisposable2[];
 	type: 'hitCount' | 'condition' | 'name';
 }
 
@@ -375,7 +375,7 @@ interface IExceptionBreakpointInputTemplateData {
 	inputBox: InputBox;
 	checkbox: HTMLInputElement;
 	breakpoint: IExceptionBreakpoint;
-	toDispose: IDisposable[];
+	toDispose: IDisposable2[];
 }
 
 const breakpointIdToActionBarDomeNode = new Map<string, HTMLElement>();
@@ -704,7 +704,7 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 
 		const inputBox = new InputBox(inputBoxContainer, this.contextViewService);
 		const styler = attachInputBoxStyler(inputBox, this.themeService);
-		const toDispose: IDisposable[] = [inputBox, styler];
+		const toDispose: IDisposable2[] = [inputBox, styler];
 
 		const wrapUp = (success: boolean) => {
 			this.view.breakpointInputFocused.set(false);
@@ -817,7 +817,7 @@ class ExceptionBreakpointInputRenderer implements IListRenderer<IExceptionBreakp
 			ariaLabel: localize('exceptionBreakpointAriaLabel', "Type exception breakpoint condition")
 		});
 		const styler = attachInputBoxStyler(inputBox, this.themeService);
-		const toDispose: IDisposable[] = [inputBox, styler];
+		const toDispose: IDisposable2[] = [inputBox, styler];
 
 		const wrapUp = (success: boolean) => {
 			this.view.breakpointInputFocused.set(false);

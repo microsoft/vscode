@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { DeferredPromise, RunOnceScheduler } from 'vs/base/common/async';
@@ -17,7 +17,7 @@ export class ExtensionMemento implements vscode.Memento {
 
 	private readonly _init: Promise<ExtensionMemento>;
 	private _value?: { [n: string]: any; };
-	private readonly _storageListener: IDisposable;
+	private readonly _storageListener: IDisposable2;
 
 	private _deferredPromises: Map<string, DeferredPromise<void>> = new Map();
 	private _scheduler: RunOnceScheduler;

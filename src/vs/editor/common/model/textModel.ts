@@ -7,7 +7,7 @@ import { CharCode } from 'vs/base/common/charCode';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
@@ -97,7 +97,7 @@ export function createTextBufferFactoryFromSnapshot(snapshot: model.ITextSnapsho
 	return builder.finish();
 }
 
-export function createTextBuffer(value: string | model.ITextBufferFactory, defaultEOL: model.DefaultEndOfLine): { textBuffer: model.ITextBuffer; disposable: IDisposable; } {
+export function createTextBuffer(value: string | model.ITextBufferFactory, defaultEOL: model.DefaultEndOfLine): { textBuffer: model.ITextBuffer; disposable: IDisposable2; } {
 	const factory = (typeof value === 'string' ? createTextBufferFactory(value) : value);
 	return factory.create(defaultEOL);
 }
@@ -242,13 +242,13 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	public readonly onDidChangeContentOrInjectedText: Event<ModelRawContentChangedEvent | ModelInjectedTextChangedEvent> = this._onDidChangeContentOrInjectedText.event;
 
 	private readonly _eventEmitter: DidChangeContentEmitter = this._register(new DidChangeContentEmitter());
-	public onDidChangeRawContent(listener: (e: ModelRawContentChangedEvent) => void): IDisposable {
+	public onDidChangeRawContent(listener: (e: ModelRawContentChangedEvent) => void): IDisposable2 {
 		return this._eventEmitter.slowEvent((e: InternalModelContentChangeEvent) => listener(e.rawContentChangedEvent));
 	}
-	public onDidChangeContentFast(listener: (e: IModelContentChangedEvent) => void): IDisposable {
+	public onDidChangeContentFast(listener: (e: IModelContentChangedEvent) => void): IDisposable2 {
 		return this._eventEmitter.fastEvent((e: InternalModelContentChangeEvent) => listener(e.contentChangedEvent));
 	}
-	public onDidChangeContent(listener: (e: IModelContentChangedEvent) => void): IDisposable {
+	public onDidChangeContent(listener: (e: IModelContentChangedEvent) => void): IDisposable2 {
 		return this._eventEmitter.slowEvent((e: InternalModelContentChangeEvent) => listener(e.contentChangedEvent));
 	}
 	//#endregion
@@ -259,7 +259,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private readonly _undoRedoService: IUndoRedoService;
 	private _attachedEditorCount: number;
 	private _buffer: model.ITextBuffer;
-	private _bufferDisposable: IDisposable;
+	private _bufferDisposable: IDisposable2;
 	private _options: model.TextModelResolvedOptions;
 
 	private _isDisposed: boolean;
@@ -293,7 +293,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	//#region Tokenization
 	private _languageIdentifier: LanguageIdentifier;
-	private readonly _languageRegistryListener: IDisposable;
+	private readonly _languageRegistryListener: IDisposable2;
 	private readonly _tokens: TokensStore;
 	private readonly _tokens2: TokensStore2;
 	private readonly _tokenization: TextModelTokenization;
@@ -444,7 +444,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		};
 	}
 
-	private _setValueFromTextBuffer(textBuffer: model.ITextBuffer, textBufferDisposable: IDisposable): void {
+	private _setValueFromTextBuffer(textBuffer: model.ITextBuffer, textBufferDisposable: IDisposable2): void {
 		this._assertNotDisposed();
 		const oldFullModelRange = this.getFullModelRange();
 		const oldModelValueLength = this.getValueLengthInRange(oldFullModelRange);

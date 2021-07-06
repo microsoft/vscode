@@ -24,7 +24,7 @@ import { ITMSyntaxExtensionPoint, grammarsExtPoint } from 'vs/workbench/services
 import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
 import { ITextMateThemingRule, IWorkbenchThemeService, IWorkbenchColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import type { IGrammar, StackElement, IOnigLib, IRawTheme } from 'vscode-textmate';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, dispose } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IValidGrammarDefinition, IValidEmbeddedLanguagesMap, IValidTokenTypeMap } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
 import { TMGrammarFactory } from 'vs/workbench/services/textMate/common/TMGrammarFactory';
@@ -46,7 +46,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 
 	private _grammarDefinitions: IValidGrammarDefinition[] | null;
 	private _grammarFactory: TMGrammarFactory | null;
-	private _tokenizersRegistrations: IDisposable[];
+	private _tokenizersRegistrations: IDisposable2[];
 	protected _currentTheme: IRawTheme | null;
 	protected _currentTokenColorMap: string[] | null;
 

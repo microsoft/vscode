@@ -12,14 +12,14 @@ import { RunOnceScheduler, ThrottledDelayer } from 'vs/base/common/async';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { Disposable, toDisposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable, IDisposable2, dispose } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { binarySearch } from 'vs/base/common/arrays';
 import { VSBuffer } from 'vs/base/common/buffer';
 
-export interface IOutputChannelModel extends IDisposable {
+export interface IOutputChannelModel extends IDisposable2 {
 	readonly onDidAppendedContent: Event<void>;
 	readonly onDispose: Event<void>;
 	append(output: string): void;

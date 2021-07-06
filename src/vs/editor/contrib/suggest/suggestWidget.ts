@@ -11,7 +11,7 @@ import * as strings from 'vs/base/common/strings';
 import * as dom from 'vs/base/browser/dom';
 import { Event, Emitter } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, DisposableStore } from 'vs/base/common/lifecycle';
 import { IListEvent, IListMouseEvent, IListGestureEvent } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -94,14 +94,14 @@ class PersistedWidgetSize {
 	}
 }
 
-export class SuggestWidget implements IDisposable {
+export class SuggestWidget implements IDisposable2 {
 
 	private static LOADING_MESSAGE: string = nls.localize('suggestWidget.loading', "Loading...");
 	private static NO_SUGGESTIONS_MESSAGE: string = nls.localize('suggestWidget.noSuggestions', "No suggestions.");
 
 	private _state: State = State.Hidden;
 	private _isAuto: boolean = false;
-	private _loadingTimeout?: IDisposable;
+	private _loadingTimeout?: IDisposable2;
 	private _currentSuggestionDetails?: CancelablePromise<void>;
 	private _focusedItem?: CompletionItem;
 	private _ignoreFocusEvents: boolean = false;

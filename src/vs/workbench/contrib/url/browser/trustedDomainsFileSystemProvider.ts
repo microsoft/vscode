@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { parse } from 'vs/base/common/json';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, IFileService, IStat, IWatchOptions, IFileSystemProviderWithFileReadWriteCapability } from 'vs/platform/files/common/files';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -146,7 +146,7 @@ export class TrustedDomainsFileSystemProvider implements IFileSystemProviderWith
 		return Promise.resolve();
 	}
 
-	watch(resource: URI, opts: IWatchOptions): IDisposable {
+	watch(resource: URI, opts: IWatchOptions): IDisposable2 {
 		return {
 			dispose() {
 				return;

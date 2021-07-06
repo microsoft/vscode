@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, IDisposable2 } from 'vs/base/common/lifecycle';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CATEGORIES } from 'vs/workbench/common/actions';
@@ -15,7 +15,7 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 	static id: string = 'workbench.notebook.troubleshoot';
 
 	private readonly _localStore = this._register(new DisposableStore());
-	private _cellStateListeners: IDisposable[] = [];
+	private _cellStateListeners: IDisposable2[] = [];
 	private _logging: boolean = false;
 
 	constructor(private readonly _notebookEditor: INotebookEditor) {

@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { IDisposable, dispose, Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose, Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Action } from 'vs/base/common/actions';
 import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
 import { Event } from 'vs/base/common/event';
@@ -86,7 +86,7 @@ export interface IExtensionTemplateData {
 	name: HTMLElement;
 	identifier: HTMLElement;
 	author: HTMLElement;
-	extensionDisposables: IDisposable[];
+	extensionDisposables: IDisposable2[];
 	extensionData: IExtensionData;
 }
 

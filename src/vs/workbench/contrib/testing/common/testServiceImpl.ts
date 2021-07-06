@@ -7,7 +7,7 @@ import { groupBy } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -190,7 +190,7 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
-	public registerTestController(id: string, controller: MainTestController): IDisposable {
+	public registerTestController(id: string, controller: MainTestController): IDisposable2 {
 		this.testControllers.set(id, controller);
 		this.providerCount.set(this.testControllers.size);
 

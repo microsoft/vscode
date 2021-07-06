@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/tree';
-import { IDisposable, dispose, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IListStyles, MouseController, DefaultKeyboardNavigationDelegate, isInputElement, isMonacoEditor } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IKeyboardNavigationLabelProvider, IIdentityProvider, IKeyboardNavigationDelegate } from 'vs/base/browser/ui/list/list';
 import { append, $, getDomNodePagePosition, hasParentWithClass, createStyleSheet, clearNode, addDisposableListener } from 'vs/base/browser/dom';
@@ -53,7 +53,7 @@ function asTreeDragAndDropData<T, TFilterData>(data: IDragAndDropData): IDragAnd
 class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<ITreeNode<T, TFilterData>> {
 
 	private autoExpandNode: ITreeNode<T, TFilterData> | undefined;
-	private autoExpandDisposable: IDisposable = Disposable.None;
+	private autoExpandDisposable: IDisposable2 = Disposable.None;
 
 	constructor(private modelProvider: () => ITreeModel<T, TFilterData, TRef>, private dnd: ITreeDragAndDrop<T>) { }
 
@@ -230,7 +230,7 @@ interface ITreeListTemplateData<T> {
 	readonly container: HTMLElement;
 	readonly indent: HTMLElement;
 	readonly twistie: HTMLElement;
-	indentGuidesDisposable: IDisposable;
+	indentGuidesDisposable: IDisposable2;
 	readonly templateData: T;
 }
 
@@ -283,7 +283,7 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 	private shouldRenderIndentGuides: boolean = false;
 	private renderedIndentGuides = new SetMap<ITreeNode<T, TFilterData>, HTMLDivElement>();
 	private activeIndentNodes = new Set<ITreeNode<T, TFilterData>>();
-	private indentGuidesDisposable: IDisposable = Disposable.None;
+	private indentGuidesDisposable: IDisposable2 = Disposable.None;
 
 	private readonly disposables = new DisposableStore();
 
@@ -517,7 +517,7 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 
 export type LabelFuzzyScore = { label: string; score: FuzzyScore };
 
-class TypeFilter<T> implements ITreeFilter<T, FuzzyScore | LabelFuzzyScore>, IDisposable {
+class TypeFilter<T> implements ITreeFilter<T, FuzzyScore | LabelFuzzyScore>, IDisposable2 {
 	private _totalCount = 0;
 	get totalCount(): number { return this._totalCount; }
 	private _matchCount = 0;
@@ -605,7 +605,7 @@ class TypeFilter<T> implements ITreeFilter<T, FuzzyScore | LabelFuzzyScore>, IDi
 	}
 }
 
-class TypeFilterController<T, TFilterData> implements IDisposable {
+class TypeFilterController<T, TFilterData> implements IDisposable2 {
 
 	private _enabled = false;
 	get enabled(): boolean { return this._enabled; }
@@ -1259,7 +1259,7 @@ class TreeNodeList<T, TFilterData, TRef> extends List<ITreeNode<T, TFilterData>>
 	}
 }
 
-export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable {
+export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable2 {
 
 	protected view: TreeNodeList<T, TFilterData, TRef>;
 	private renderers: TreeRenderer<T, TFilterData, TRef, any>[];

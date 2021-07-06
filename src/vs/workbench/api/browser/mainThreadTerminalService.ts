@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, TerminalLaunchConfig, ITerminalDimensionsDto, TerminalIdentifier } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
@@ -33,7 +33,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private _extHostTerminalIds = new Map<string, number>();
 	private readonly _toDispose = new DisposableStore();
 	private readonly _terminalProcessProxies = new Map<number, ITerminalProcessExtHostProxy>();
-	private readonly _profileProviders = new Map<string, IDisposable>();
+	private readonly _profileProviders = new Map<string, IDisposable2>();
 	private _dataEventTracker: TerminalDataEventTracker | undefined;
 	/**
 	 * A single shared terminal link provider for the exthost. When an ext registers a link
@@ -41,7 +41,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	 * provided through this, even from multiple ext link providers. Xterm should remove lower
 	 * priority intersecting links itself.
 	 */
-	private _linkProvider: IDisposable | undefined;
+	private _linkProvider: IDisposable2 | undefined;
 
 	private _os: OperatingSystem = OS;
 

@@ -28,7 +28,7 @@ import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/composit
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension, trackFocus, EventHelper } from 'vs/base/browser/dom';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, DisposableStore } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -93,7 +93,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private compositeBar: CompositeBar;
 	private readonly compositeActions = new Map<string, { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction; }>();
 
-	private readonly panelDisposables: Map<string, IDisposable> = new Map<string, IDisposable>();
+	private readonly panelDisposables: Map<string, IDisposable2> = new Map<string, IDisposable2>();
 
 	private blockOpeningPanel = false;
 	private contentDimension: Dimension | undefined;
@@ -519,7 +519,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return undefined;
 	}
 
-	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable {
+	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable2 {
 		return this.compositeBar.showActivity(panelId, badge, clazz);
 	}
 

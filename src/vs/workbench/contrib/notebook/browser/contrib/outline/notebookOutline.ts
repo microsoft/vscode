@@ -6,7 +6,7 @@
 import 'vs/css!./notebookOutline';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
-import { combinedDisposable, IDisposable, Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, IDisposable2, Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
@@ -545,7 +545,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		}, sideBySide ? SIDE_GROUP : undefined);
 	}
 
-	preview(entry: OutlineEntry): IDisposable {
+	preview(entry: OutlineEntry): IDisposable2 {
 		const widget = this._editor.getControl();
 		if (!widget) {
 			return Disposable.None;
@@ -559,7 +559,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 
 	}
 
-	captureViewState(): IDisposable {
+	captureViewState(): IDisposable2 {
 		const widget = this._editor.getControl();
 		let viewState = widget?.getEditorViewState();
 		return toDisposable(() => {

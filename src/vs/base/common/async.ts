@@ -6,7 +6,7 @@
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { canceled, } from 'vs/base/common/errors';
 import { Emitter, Event, } from 'vs/base/common/event';
-import { IDisposable, toDisposable, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, toDisposable, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 
@@ -228,7 +228,7 @@ export class SequencerByKey<TKey> {
  * 			delayer.trigger(() => { return makeTheTrip(); });
  * 		}
  */
-export class Delayer<T> implements IDisposable {
+export class Delayer<T> implements IDisposable2 {
 
 	private timeout: any;
 	private completionPromise: Promise<any> | null;
@@ -402,7 +402,7 @@ export function timeout(millis: number, token?: CancellationToken): CancelablePr
 	});
 }
 
-export function disposableTimeout(handler: () => void, timeout = 0): IDisposable {
+export function disposableTimeout(handler: () => void, timeout = 0): IDisposable2 {
 	const timer = setTimeout(handler, timeout);
 	return toDisposable(() => clearTimeout(timer));
 }
@@ -583,7 +583,7 @@ export class Queue<T> extends Limiter<T> {
  * A helper to organize queues per resource. The ResourceQueue makes sure to manage queues per resource
  * by disposing them once the queue is empty.
  */
-export class ResourceQueue implements IDisposable {
+export class ResourceQueue implements IDisposable2 {
 
 	private readonly queues = new Map<string, Queue<void>>();
 
@@ -610,7 +610,7 @@ export class ResourceQueue implements IDisposable {
 	}
 }
 
-export class TimeoutTimer implements IDisposable {
+export class TimeoutTimer implements IDisposable2 {
 	private _token: any;
 
 	constructor();
@@ -654,7 +654,7 @@ export class TimeoutTimer implements IDisposable {
 	}
 }
 
-export class IntervalTimer implements IDisposable {
+export class IntervalTimer implements IDisposable2 {
 
 	private _token: any;
 
@@ -888,7 +888,7 @@ export interface IdleDeadline {
 /**
  * Execute the callback the next time the browser is idle
  */
-export let runWhenIdle: (callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable;
+export let runWhenIdle: (callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable2;
 
 declare function requestIdleCallback(callback: (args: IdleDeadline) => void, options?: { timeout: number }): number;
 declare function cancelIdleCallback(handle: number): void;
@@ -936,7 +936,7 @@ declare function cancelIdleCallback(handle: number): void;
 export class IdleValue<T> {
 
 	private readonly _executor: () => void;
-	private readonly _handle: IDisposable;
+	private readonly _handle: IDisposable2;
 
 	private _didRun: boolean = false;
 	private _value?: T;

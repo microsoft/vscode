@@ -19,7 +19,7 @@ import { toLocalResource, dirname, basenameOrAuthority } from 'vs/base/common/re
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore, IDisposable, toDisposable, MutableDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable2, toDisposable, MutableDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -201,7 +201,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		};
 	}
 
-	override provide(picker: IQuickPick<IAnythingQuickPickItem>, token: CancellationToken): IDisposable {
+	override provide(picker: IQuickPick<IAnythingQuickPickItem>, token: CancellationToken): IDisposable2 {
 		const disposables = new DisposableStore();
 
 		// Update the pick state for this run
@@ -237,7 +237,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		return disposables;
 	}
 
-	private decorateAndRevealSymbolRange(pick: IEditorSymbolAnythingQuickPickItem): IDisposable {
+	private decorateAndRevealSymbolRange(pick: IEditorSymbolAnythingQuickPickItem): IDisposable2 {
 		const activeEditor = this.editorService.activeEditor;
 		if (!this.uriIdentityService.extUri.isEqual(pick.resource, activeEditor?.resource)) {
 			return Disposable.None; // active editor needs to be for resource

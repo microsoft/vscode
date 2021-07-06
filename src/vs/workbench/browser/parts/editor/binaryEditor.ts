@@ -16,7 +16,7 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Dimension, size, clearNode, append, addDisposableListener, EventType, $ } from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable2, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { ByteSize } from 'vs/platform/files/common/files';
@@ -90,7 +90,7 @@ export abstract class BaseBinaryResourceEditor extends EditorPane {
 		this.inputDisposable.value = this.renderInput(input, options, model);
 	}
 
-	private renderInput(input: EditorInput, options: IEditorOptions | undefined, model: BinaryEditorModel): IDisposable {
+	private renderInput(input: EditorInput, options: IEditorOptions | undefined, model: BinaryEditorModel): IDisposable2 {
 		const [binaryContainer, scrollbar] = assertAllDefined(this.binaryContainer, this.scrollbar);
 
 		clearNode(binaryContainer);

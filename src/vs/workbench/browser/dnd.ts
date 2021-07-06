@@ -19,7 +19,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorIdentifier, GroupIdentifier, isEditorIdentifier, UntypedEditorContext } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, DisposableStore } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
@@ -606,7 +606,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 		this.transferData.setData([type === 'view' ? new DraggedViewIdentifier(id) : new DraggedCompositeIdentifier(id)], type === 'view' ? DraggedViewIdentifier.prototype : DraggedCompositeIdentifier.prototype);
 	}
 
-	registerTarget(element: HTMLElement, callbacks: ICompositeDragAndDropObserverCallbacks): IDisposable {
+	registerTarget(element: HTMLElement, callbacks: ICompositeDragAndDropObserverCallbacks): IDisposable2 {
 		const disposableStore = new DisposableStore();
 		disposableStore.add(new DragAndDropObserver(element, {
 			onDragEnd: e => {
@@ -670,7 +670,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 		return this._register(disposableStore);
 	}
 
-	registerDraggable(element: HTMLElement, draggedItemProvider: () => { type: ViewType, id: string }, callbacks: ICompositeDragAndDropObserverCallbacks): IDisposable {
+	registerDraggable(element: HTMLElement, draggedItemProvider: () => { type: ViewType, id: string }, callbacks: ICompositeDragAndDropObserverCallbacks): IDisposable2 {
 		element.draggable = true;
 
 		const disposableStore = new DisposableStore();

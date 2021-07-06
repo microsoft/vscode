@@ -5,7 +5,7 @@
 
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { IExtHostContext, ExtHostContext, MainThreadLogShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { FileLogger } from 'vs/platform/log/common/fileLog';
@@ -16,7 +16,7 @@ import { basename } from 'vs/base/common/path';
 export class MainThreadLogService implements MainThreadLogShape {
 
 	private readonly _loggers = new Map<string, FileLogger>();
-	private readonly _logListener: IDisposable;
+	private readonly _logListener: IDisposable2;
 
 	constructor(
 		extHostContext: IExtHostContext,

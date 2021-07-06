@@ -5,7 +5,7 @@
 
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { ConfigurationChangedEvent, EDITOR_FONT_DEFAULTS, EditorOption, filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -61,7 +61,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		model: ITextModel,
 		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
 		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory,
-		scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable
+		scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable2
 	) {
 		super();
 

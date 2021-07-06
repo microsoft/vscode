@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/extension';
 import { append, $, addDisposableListener } from 'vs/base/browser/dom';
-import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -45,8 +45,8 @@ export interface ITemplateData {
 	description: HTMLElement;
 	workspaceTrustDescription: HTMLElement;
 	extension: IExtension | null;
-	disposables: IDisposable[];
-	extensionDisposables: IDisposable[];
+	disposables: IDisposable2[];
+	extensionDisposables: IDisposable2[];
 	actionbar: ActionBar;
 }
 

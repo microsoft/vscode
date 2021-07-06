@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { TypeConstraint, validateConstraints } from 'vs/base/common/types';
 import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -51,9 +51,9 @@ export interface ICommandHandlerDescription {
 
 export interface ICommandRegistry {
 	onDidRegisterCommand: Event<string>;
-	registerCommand(id: string, command: ICommandHandler): IDisposable;
-	registerCommand(command: ICommand): IDisposable;
-	registerCommandAlias(oldId: string, newId: string): IDisposable;
+	registerCommand(id: string, command: ICommandHandler): IDisposable2;
+	registerCommand(command: ICommand): IDisposable2;
+	registerCommandAlias(oldId: string, newId: string): IDisposable2;
 	getCommand(id: string): ICommand | undefined;
 	getCommands(): ICommandsMap;
 }
@@ -65,7 +65,7 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 	private readonly _onDidRegisterCommand = new Emitter<string>();
 	readonly onDidRegisterCommand: Event<string> = this._onDidRegisterCommand.event;
 
-	registerCommand(idOrCommand: string | ICommand, handler?: ICommandHandler): IDisposable {
+	registerCommand(idOrCommand: string | ICommand, handler?: ICommandHandler): IDisposable2 {
 
 		if (!idOrCommand) {
 			throw new Error(`invalid command`);
@@ -116,7 +116,7 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 		return ret;
 	}
 
-	registerCommandAlias(oldId: string, newId: string): IDisposable {
+	registerCommandAlias(oldId: string, newId: string): IDisposable2 {
 		return CommandsRegistry.registerCommand(oldId, (accessor, ...args) => accessor.get(ICommandService).executeCommand(newId, ...args));
 	}
 

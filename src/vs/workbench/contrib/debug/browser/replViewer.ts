@@ -20,7 +20,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IReplElementSource, IDebugService, IExpression, IReplElement, IDebugConfiguration, IDebugSession, IExpressionContainer } from 'vs/workbench/contrib/debug/common/debug';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose } from 'vs/base/common/lifecycle';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { localize } from 'vs/nls';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
@@ -48,8 +48,8 @@ interface ISimpleReplElementTemplateData {
 	value: HTMLElement;
 	source: HTMLElement;
 	getReplElementSource(): IReplElementSource | undefined;
-	toDispose: IDisposable[];
-	elementListener: IDisposable;
+	toDispose: IDisposable2[];
+	elementListener: IDisposable2;
 }
 
 interface IRawObjectReplTemplateData {

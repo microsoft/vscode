@@ -5,13 +5,13 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import type * as WindowsProcessTreeType from 'windows-process-tree';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { debounce } from 'vs/base/common/decorators';
 import { timeout } from 'vs/base/common/async';
 import { isWindows, platform } from 'vs/base/common/platform';
 
-export interface IWindowsShellHelper extends IDisposable {
+export interface IWindowsShellHelper extends IDisposable2 {
 	readonly onShellNameChanged: Event<string>;
 	readonly onShellTypeChanged: Event<TerminalShellType>;
 	getShellType(title: string): TerminalShellType;

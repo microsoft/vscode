@@ -5,7 +5,7 @@
 
 import { flatten } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable2 } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { INotebookTextModel, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, diff, NotebookCellsChangeType, ICellDto2, TransientOptions, NotebookTextModelChangedEvent, NotebookRawContentEvent, IOutputDto, ICellOutput, IOutputItemDto, ISelectionState, NullablePartialNotebookCellMetadata, NotebookCellInternalMetadata, NullablePartialNotebookCellInternalMetadata, NotebookTextModelWillAddRemoveEvent, NotebookCellTextModelSplice, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -203,7 +203,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	readonly onWillAddRemoveCells = this._onWillAddRemoveCells.event;
 	readonly onDidChangeContent = this._onDidChangeContent.event;
 	private _cellhandlePool: number = 0;
-	private _cellListeners: Map<number, IDisposable> = new Map();
+	private _cellListeners: Map<number, IDisposable2> = new Map();
 	private _cells: NotebookCellTextModel[] = [];
 
 	metadata: NotebookDocumentMetadata = {};

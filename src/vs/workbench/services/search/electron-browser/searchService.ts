@@ -6,7 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { URI as uri } from 'vs/base/common/uri';
 import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
@@ -124,7 +124,7 @@ export class DiskSearch implements ISearchResultProvider {
 	static collectResultsFromEvent(event: Event<ISerializedSearchProgressItem | ISerializedSearchComplete>, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete> {
 		let result: IFileMatch[] = [];
 
-		let listener: IDisposable;
+		let listener: IDisposable2;
 		return new Promise<ISearchComplete>((c, e) => {
 			if (token) {
 				token.onCancellationRequested(() => {

@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, IDisposableTracker, setDisposableTracker } from 'vs/base/common/lifecycle';
+import { IDisposable2, IDisposableTracker, setDisposableTracker } from 'vs/base/common/lifecycle';
 
 class DisposableTracker implements IDisposableTracker {
-	allDisposables: [IDisposable, string][] = [];
-	trackDisposable(x: IDisposable): void {
+	allDisposables: [IDisposable2, string][] = [];
+	trackDisposable(x: IDisposable2): void {
 		this.allDisposables.push([x, new Error().stack!]);
 	}
-	markTracked(x: IDisposable): void {
+	markTracked(x: IDisposable2): void {
 		for (let idx = 0; idx < this.allDisposables.length; idx++) {
 			if (this.allDisposables[idx][0] === x) {
 				this.allDisposables.splice(idx, 1);

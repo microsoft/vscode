@@ -8,7 +8,7 @@ import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Keybinding, ResolvedKeybinding, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
-import { IDisposable, IReference, ImmortalReference, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, IReference, ImmortalReference, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { OS, isLinux, isMacintosh } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
@@ -141,7 +141,7 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 		return Promise.resolve(new ImmortalReference(new SimpleModel(model)));
 	}
 
-	public registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {
+	public registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable2 {
 		return {
 			dispose: function () { /* no op */ }
 		};
@@ -258,7 +258,7 @@ export class SimpleNotificationService implements INotificationService {
 		return SimpleNotificationService.NO_OP;
 	}
 
-	public status(message: string | Error, options?: IStatusMessageOptions): IDisposable {
+	public status(message: string | Error, options?: IStatusMessageOptions): IDisposable2 {
 		return Disposable.None;
 	}
 
@@ -334,7 +334,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		}));
 	}
 
-	public addDynamicKeybinding(commandId: string, _keybinding: number, handler: ICommandHandler, when: ContextKeyExpression | undefined): IDisposable {
+	public addDynamicKeybinding(commandId: string, _keybinding: number, handler: ICommandHandler, when: ContextKeyExpression | undefined): IDisposable2 {
 		const keybinding = createKeybinding(_keybinding, OS);
 
 		const toDispose = new DisposableStore();
@@ -692,7 +692,7 @@ export class SimpleBulkEditService implements IBulkEditService {
 		return false;
 	}
 
-	setPreviewHandler(): IDisposable {
+	setPreviewHandler(): IDisposable2 {
 		return Disposable.None;
 	}
 
@@ -761,7 +761,7 @@ export class SimpleUriLabelService implements ILabelService {
 		return '/';
 	}
 
-	public registerFormatter(formatter: ResourceLabelFormatter): IDisposable {
+	public registerFormatter(formatter: ResourceLabelFormatter): IDisposable2 {
 		throw new Error('Not implemented');
 	}
 

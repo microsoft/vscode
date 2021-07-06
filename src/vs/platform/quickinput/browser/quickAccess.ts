@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IQuickInputService, IQuickPick, IQuickPickItem, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { IQuickAccessController, IQuickAccessProvider, IQuickAccessRegistry, Extensions, IQuickAccessProviderDescriptor, IQuickAccessOptions, DefaultQuickAccessFilterValue } from 'vs/platform/quickinput/common/quickAccess';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -173,7 +173,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		picker.valueSelection = valueSelection;
 	}
 
-	private registerPickerListeners(picker: IQuickPick<IQuickPickItem>, provider: IQuickAccessProvider | undefined, descriptor: IQuickAccessProviderDescriptor | undefined, value: string): IDisposable {
+	private registerPickerListeners(picker: IQuickPick<IQuickPickItem>, provider: IQuickAccessProvider | undefined, descriptor: IQuickAccessProviderDescriptor | undefined, value: string): IDisposable2 {
 		const disposables = new DisposableStore();
 
 		// Remember as last visible picker and clean up once picker get's disposed

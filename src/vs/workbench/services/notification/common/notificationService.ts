@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { NotificationsModel, ChoiceAction, NotificationChangeType } from 'vs/workbench/common/notifications';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable2 } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAction, Action } from 'vs/base/common/actions';
@@ -215,7 +215,7 @@ export class NotificationService extends Disposable implements INotificationServ
 		return handle;
 	}
 
-	status(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable {
+	status(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable2 {
 		return this.model.showStatusMessage(message, options);
 	}
 }

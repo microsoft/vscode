@@ -15,7 +15,7 @@ import { ActionRunner, IAction, IActionRunner, SubmenuAction, Separator } from '
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { KeyCode, ResolvedKeybinding, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable2 } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { asArray } from 'vs/base/common/arrays';
 import { ScanCodeUtils, ScanCode } from 'vs/base/common/scanCode';
@@ -92,7 +92,7 @@ export class MenuBar extends Disposable {
 
 	private numMenusShown: number = 0;
 	private menuStyle: IMenuStyles | undefined;
-	private overflowLayoutScheduled: IDisposable | undefined = undefined;
+	private overflowLayoutScheduled: IDisposable2 | undefined = undefined;
 
 	constructor(private container: HTMLElement, private options: IMenuBarOptions = {}) {
 		super();

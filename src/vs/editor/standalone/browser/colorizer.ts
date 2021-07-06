@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TimeoutTimer } from 'vs/base/common/async';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { IViewLineTokens, LineTokens } from 'vs/editor/common/core/lineTokens';
 import { ITextModel } from 'vs/editor/common/model';
@@ -82,7 +82,7 @@ export class Colorizer {
 		}
 
 		return new Promise<string>((resolve, reject) => {
-			let listener: IDisposable | null = null;
+			let listener: IDisposable2 | null = null;
 			let timeout: TimeoutTimer | null = null;
 
 			const execute = () => {

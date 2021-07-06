@@ -15,7 +15,7 @@ import Messages from 'vs/workbench/contrib/markers/browser/messages';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IDisposable, dispose, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { QuickFixAction, QuickFixActionViewItem } from 'vs/workbench/contrib/markers/browser/markersViewActions';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -59,7 +59,7 @@ import { DomEmitter } from 'vs/base/browser/event';
 interface IResourceMarkersTemplateData {
 	resourceLabel: IResourceLabel;
 	count: CountBadge;
-	styler: IDisposable;
+	styler: IDisposable2;
 }
 
 interface IMarkerTemplateData {
@@ -761,7 +761,7 @@ export class MarkersViewModel extends Disposable {
 	private readonly _onDidChange: Emitter<Marker | undefined> = this._register(new Emitter<Marker | undefined>());
 	readonly onDidChange: Event<Marker | undefined> = this._onDidChange.event;
 
-	private readonly markersViewStates: Map<string, { viewModel: MarkerViewModel, disposables: IDisposable[] }> = new Map<string, { viewModel: MarkerViewModel, disposables: IDisposable[] }>();
+	private readonly markersViewStates: Map<string, { viewModel: MarkerViewModel, disposables: IDisposable2[] }> = new Map<string, { viewModel: MarkerViewModel, disposables: IDisposable2[] }>();
 	private readonly markersPerResource: Map<string, Marker[]> = new Map<string, Marker[]>();
 
 	private bulkUpdate: boolean = false;
@@ -780,7 +780,7 @@ export class MarkersViewModel extends Disposable {
 	add(marker: Marker): void {
 		if (!this.markersViewStates.has(marker.id)) {
 			const viewModel = this.instantiationService.createInstance(MarkerViewModel, marker);
-			const disposables: IDisposable[] = [viewModel];
+			const disposables: IDisposable2[] = [viewModel];
 			viewModel.multiline = this.multiline;
 			viewModel.onDidChange(() => {
 				if (!this.bulkUpdate) {

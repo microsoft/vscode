@@ -12,7 +12,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { Schemas } from 'vs/base/common/network';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IDisposable, Disposable, isDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable, isDisposable } from 'vs/base/common/lifecycle';
 
 const DEBUG = false;
 
@@ -469,7 +469,7 @@ export class UndoRedoService implements IUndoRedoService {
 		this._uriComparisonKeyComputers = [];
 	}
 
-	public registerUriComparisonKeyComputer(scheme: string, uriComparisonKeyComputer: UriComparisonKeyComputer): IDisposable {
+	public registerUriComparisonKeyComputer(scheme: string, uriComparisonKeyComputer: UriComparisonKeyComputer): IDisposable2 {
 		this._uriComparisonKeyComputers.push([scheme, uriComparisonKeyComputer]);
 		return {
 			dispose: () => {
@@ -737,7 +737,7 @@ export class UndoRedoService implements IUndoRedoService {
 		};
 	}
 
-	private _safeInvokeWithLocks(element: StackElement, invoke: () => Promise<void> | void, editStackSnapshot: EditStackSnapshot, cleanup: IDisposable, continuation: () => Promise<void> | void): Promise<void> | void {
+	private _safeInvokeWithLocks(element: StackElement, invoke: () => Promise<void> | void, editStackSnapshot: EditStackSnapshot, cleanup: IDisposable2, continuation: () => Promise<void> | void): Promise<void> | void {
 		const releaseLocks = this._acquireLocks(editStackSnapshot);
 
 		let result: Promise<void> | void;
@@ -771,7 +771,7 @@ export class UndoRedoService implements IUndoRedoService {
 		}
 	}
 
-	private async _invokeWorkspacePrepare(element: WorkspaceStackElement): Promise<IDisposable> {
+	private async _invokeWorkspacePrepare(element: WorkspaceStackElement): Promise<IDisposable2> {
 		if (typeof element.actual.prepareUndoRedo === 'undefined') {
 			return Disposable.None;
 		}
@@ -782,7 +782,7 @@ export class UndoRedoService implements IUndoRedoService {
 		return result;
 	}
 
-	private _invokeResourcePrepare(element: ResourceStackElement, callback: (disposable: IDisposable) => Promise<void> | void): void | Promise<void> {
+	private _invokeResourcePrepare(element: ResourceStackElement, callback: (disposable: IDisposable2) => Promise<void> | void): void | Promise<void> {
 		if (element.actual.type !== UndoRedoElementType.Workspace || typeof element.actual.prepareUndoRedo === 'undefined') {
 			// no preparation needed
 			return callback(Disposable.None);
@@ -978,7 +978,7 @@ export class UndoRedoService implements IUndoRedoService {
 		}
 
 		// prepare
-		let cleanup: IDisposable;
+		let cleanup: IDisposable2;
 		try {
 			cleanup = await this._invokeWorkspacePrepare(element);
 		} catch (err) {
@@ -1267,7 +1267,7 @@ export class UndoRedoService implements IUndoRedoService {
 
 	private async _executeWorkspaceRedo(strResource: string, element: WorkspaceStackElement, editStackSnapshot: EditStackSnapshot): Promise<void> {
 		// prepare
-		let cleanup: IDisposable;
+		let cleanup: IDisposable2;
 		try {
 			cleanup = await this._invokeWorkspacePrepare(element);
 		} catch (err) {

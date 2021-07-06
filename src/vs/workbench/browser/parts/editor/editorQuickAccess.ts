@@ -15,7 +15,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { prepareQuery, scoreItemFuzzy, compareItemsByFuzzyScore, FuzzyScorerCache } from 'vs/base/common/fuzzyScorer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { Codicon } from 'vs/base/common/codicons';
 
 interface IEditorQuickPickItem extends IQuickPickItemWithResource, IPickerQuickAccessItem {
@@ -59,7 +59,7 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 		);
 	}
 
-	override provide(picker: IQuickPick<IEditorQuickPickItem>, token: CancellationToken): IDisposable {
+	override provide(picker: IQuickPick<IEditorQuickPickItem>, token: CancellationToken): IDisposable2 {
 
 		// Reset the pick state for this run
 		this.pickState.reset(!!picker.quickNavigate);

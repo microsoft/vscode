@@ -8,7 +8,7 @@ import { IListOptions, IListOptionsUpdate, IListStyles, List } from 'vs/base/bro
 import { ITableColumn, ITableContextMenuEvent, ITableEvent, ITableGestureEvent, ITableMouseEvent, ITableRenderer, ITableTouchEvent, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { IThemable } from 'vs/base/common/styler';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { $, append, clearNode, createStyleSheet, getContentHeight, getContentWidth } from 'vs/base/browser/dom';
 import { ISplitViewDescriptor, IView, Orientation, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -140,7 +140,7 @@ export interface ITableOptions<TRow> extends IListOptions<TRow> { }
 export interface ITableOptionsUpdate extends IListOptionsUpdate { }
 export interface ITableStyles extends IListStyles { }
 
-export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
+export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable2 {
 
 	private static InstanceCount = 0;
 	readonly domId = `table_id_${++Table.InstanceCount}`;
@@ -148,7 +148,7 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 	readonly domNode: HTMLElement;
 	private splitview: SplitView;
 	private list: List<TRow>;
-	private columnLayoutDisposable: IDisposable;
+	private columnLayoutDisposable: IDisposable2;
 	private cachedHeight: number = 0;
 	private styleElement: HTMLStyleElement;
 

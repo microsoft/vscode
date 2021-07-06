@@ -10,7 +10,7 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ITreeNode, ITreeRenderer, ITreeDragAndDrop, ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
 import { IAction } from 'vs/base/common/actions';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, dispose } from 'vs/base/common/lifecycle';
 import * as paths from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import * as nls from 'vs/nls';
@@ -34,7 +34,7 @@ interface IFolderMatchTemplate {
 	label: IResourceLabel;
 	badge: CountBadge;
 	actions: ActionBar;
-	disposables: IDisposable[];
+	disposables: IDisposable2[];
 }
 
 interface IFileMatchTemplate {
@@ -42,7 +42,7 @@ interface IFileMatchTemplate {
 	label: IResourceLabel;
 	badge: CountBadge;
 	actions: ActionBar;
-	disposables: IDisposable[];
+	disposables: IDisposable2[];
 }
 
 interface IMatchTemplate {
@@ -92,7 +92,7 @@ export class FolderMatchRenderer extends Disposable implements ITreeRenderer<Fol
 	}
 
 	renderTemplate(container: HTMLElement): IFolderMatchTemplate {
-		const disposables: IDisposable[] = [];
+		const disposables: IDisposable2[] = [];
 
 		const folderMatchElement = DOM.append(container, DOM.$('.foldermatch'));
 		const label = this.labels.create(folderMatchElement);
@@ -163,7 +163,7 @@ export class FileMatchRenderer extends Disposable implements ITreeRenderer<FileM
 	}
 
 	renderTemplate(container: HTMLElement): IFileMatchTemplate {
-		const disposables: IDisposable[] = [];
+		const disposables: IDisposable2[] = [];
 		const fileMatchElement = DOM.append(container, DOM.$('.filematch'));
 		const label = this.labels.create(fileMatchElement);
 		disposables.push(label);

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { StorageScope, IS_NEW_KEY, AbstractStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
@@ -173,7 +173,7 @@ export class BrowserStorageService extends AbstractStorageService {
 	}
 }
 
-interface IIndexedDBStorageDatabase extends IStorageDatabase, IDisposable {
+interface IIndexedDBStorageDatabase extends IStorageDatabase, IDisposable2 {
 
 	/**
 	 * Whether an update in the DB is currently pending

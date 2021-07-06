@@ -7,7 +7,7 @@ import { renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable2 } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
@@ -223,7 +223,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 	}
 }
 
-interface ITestDecoration extends IDisposable {
+interface ITestDecoration extends IDisposable2 {
 	/**
 	 * ID of the decoration after being added to the editor, set after the
 	 * decoration is applied.

@@ -17,7 +17,7 @@ import { InMemoryStorageService, WillSaveStateReason } from 'vs/platform/storage
 import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkingCopyFileService, IWorkingCopyFileOperationParticipant, WorkingCopyFileEvent, IDeleteOperation, ICopyOperation, IMoveOperation, IFileOperationUndoRedoInfo, ICreateFileOperation, ICreateOperation } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable } from 'vs/base/common/lifecycle';
 import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -188,11 +188,11 @@ export class TestWorkingCopyFileService implements IWorkingCopyFileService {
 	onDidFailWorkingCopyFileOperation: Event<WorkingCopyFileEvent> = Event.None;
 	onDidRunWorkingCopyFileOperation: Event<WorkingCopyFileEvent> = Event.None;
 
-	addFileOperationParticipant(participant: IWorkingCopyFileOperationParticipant): IDisposable { return Disposable.None; }
+	addFileOperationParticipant(participant: IWorkingCopyFileOperationParticipant): IDisposable2 { return Disposable.None; }
 
 	async delete(operations: IDeleteOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<void> { }
 
-	registerWorkingCopyProvider(provider: (resourceOrFolder: URI) => IWorkingCopy[]): IDisposable { return Disposable.None; }
+	registerWorkingCopyProvider(provider: (resourceOrFolder: URI) => IWorkingCopy[]): IDisposable2 { return Disposable.None; }
 
 	getDirty(resource: URI): IWorkingCopy[] { return []; }
 
@@ -218,16 +218,16 @@ export const TestProductService = { _serviceBrand: undefined, ...product };
 
 export class TestActivityService implements IActivityService {
 	_serviceBrand: undefined;
-	showViewContainerActivity(viewContainerId: string, badge: IActivity): IDisposable {
+	showViewContainerActivity(viewContainerId: string, badge: IActivity): IDisposable2 {
 		return this;
 	}
-	showViewActivity(viewId: string, badge: IActivity): IDisposable {
+	showViewActivity(viewId: string, badge: IActivity): IDisposable2 {
 		return this;
 	}
-	showAccountsActivity(activity: IActivity): IDisposable {
+	showAccountsActivity(activity: IActivity): IDisposable2 {
 		return this;
 	}
-	showGlobalActivity(activity: IActivity): IDisposable {
+	showGlobalActivity(activity: IActivity): IDisposable2 {
 		return this;
 	}
 

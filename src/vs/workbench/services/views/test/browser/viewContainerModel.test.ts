@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { IViewsRegistry, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewContainerModel, IViewDescriptorService, ViewContainer } from 'vs/workbench/common/views';
-import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { move } from 'vs/base/common/arrays';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -23,7 +23,7 @@ const ViewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsR
 class ViewDescriptorSequence {
 
 	readonly elements: IViewDescriptor[];
-	private disposables: IDisposable[] = [];
+	private disposables: IDisposable2[] = [];
 
 	constructor(model: IViewContainerModel) {
 		this.elements = [...model.visibleViewDescriptors];

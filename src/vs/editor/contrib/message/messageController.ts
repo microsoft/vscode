@@ -7,7 +7,7 @@ import 'vs/css!./messageController';
 import * as nls from 'vs/nls';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
@@ -34,7 +34,7 @@ export class MessageController implements IEditorContribution {
 	private readonly _visible: IContextKey<boolean>;
 	private readonly _messageWidget = new MutableDisposable<MessageWidget>();
 	private readonly _messageListeners = new DisposableStore();
-	private readonly _editorListener: IDisposable;
+	private readonly _editorListener: IDisposable2;
 
 	constructor(
 		editor: ICodeEditor,
@@ -131,7 +131,7 @@ class MessageWidget implements IContentWidget {
 	private readonly _position: IPosition;
 	private readonly _domNode: HTMLDivElement;
 
-	static fadeOut(messageWidget: MessageWidget): IDisposable {
+	static fadeOut(messageWidget: MessageWidget): IDisposable2 {
 		let handle: any;
 		const dispose = () => {
 			messageWidget.dispose();

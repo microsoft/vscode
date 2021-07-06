@@ -5,7 +5,7 @@
 
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, dispose } from 'vs/base/common/lifecycle';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { IUndoRedoDelegate, MultiModelEditStackElement } from 'vs/editor/common/model/editStack';
 
@@ -35,7 +35,7 @@ export class ModelUndoRedoParticipant extends Disposable implements IUndoRedoDel
 		}));
 	}
 
-	public prepareUndoRedo(element: MultiModelEditStackElement): IDisposable | Promise<IDisposable> {
+	public prepareUndoRedo(element: MultiModelEditStackElement): IDisposable2 | Promise<IDisposable2> {
 		// Load all the needed text models
 		const missingModels = element.getMissingModels();
 		if (missingModels.length === 0) {
@@ -46,7 +46,7 @@ export class ModelUndoRedoParticipant extends Disposable implements IUndoRedoDel
 		const disposablesPromises = missingModels.map(async (uri) => {
 			try {
 				const reference = await this._textModelService.createModelReference(uri);
-				return <IDisposable>reference;
+				return <IDisposable2>reference;
 			} catch (err) {
 				// This model could not be loaded, maybe it was deleted in the meantime?
 				return Disposable.None;

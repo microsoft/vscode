@@ -21,7 +21,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { EditorCommandsContextActionRunner, ITitleControlDimensions, TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IDisposable, dispose, DisposableStore, combinedDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose, DisposableStore, combinedDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { getOrSet } from 'vs/base/common/map';
@@ -90,7 +90,7 @@ export class TabsTitleControl extends TitleControl {
 	private readonly tabResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 	private tabLabels: IEditorInputLabel[] = [];
 	private tabActionBars: ActionBar[] = [];
-	private tabDisposables: IDisposable[] = [];
+	private tabDisposables: IDisposable2[] = [];
 
 	private dimensions: ITitleControlDimensions & { used?: Dimension } = {
 		container: Dimension.None,
@@ -646,7 +646,7 @@ export class TabsTitleControl extends TitleControl {
 		return tabContainer;
 	}
 
-	private registerTabListeners(tab: HTMLElement, index: number, tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): IDisposable {
+	private registerTabListeners(tab: HTMLElement, index: number, tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): IDisposable2 {
 		const disposables = new DisposableStore();
 
 		const handleClickOrTouch = (e: MouseEvent | GestureEvent, preserveFocus: boolean): void => {

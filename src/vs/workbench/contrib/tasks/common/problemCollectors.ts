@@ -6,7 +6,7 @@
 import { IStringDictionary, INumberDictionary } from 'vs/base/common/collections';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, DisposableStore } from 'vs/base/common/lifecycle';
 
 import { IModelService } from 'vs/editor/common/services/modelService';
 
@@ -35,7 +35,7 @@ export interface IProblemMatcher {
 	processLine(line: string): void;
 }
 
-export abstract class AbstractProblemCollector implements IDisposable {
+export abstract class AbstractProblemCollector implements IDisposable2 {
 
 	private matchers: INumberDictionary<ILineMatcher[]>;
 	private activeMatcher: ILineMatcher | null;
@@ -425,7 +425,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 		});
 
 		this.modelListeners.add(this.modelService.onModelRemoved(modelEvent => {
-			let markerChanged: IDisposable | undefined =
+			let markerChanged: IDisposable2 | undefined =
 				Event.debounce(this.markerService.onMarkerChanged, (last: readonly URI[] | undefined, e: readonly URI[]) => {
 					return (last ?? []).concat(e);
 				}, 500)(async (markerEvent) => {

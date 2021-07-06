@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import * as resources from 'vs/base/common/resources';
 import { FileChangeType, FileType, IWatchOptions, IStat, FileSystemProviderErrorCode, FileSystemProviderError, FileWriteOptions, IFileChange, FileDeleteOptions, FileSystemProviderCapabilities, FileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
@@ -210,7 +210,7 @@ export class InMemoryFileSystemProvider extends Disposable implements IFileSyste
 	private _bufferedChanges: IFileChange[] = [];
 	private _fireSoonHandle?: any;
 
-	watch(resource: URI, opts: IWatchOptions): IDisposable {
+	watch(resource: URI, opts: IWatchOptions): IDisposable2 {
 		// ignore, fires for all changes...
 		return Disposable.None;
 	}

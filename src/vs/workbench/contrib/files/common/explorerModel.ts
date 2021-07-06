@@ -11,17 +11,17 @@ import { IFileStat, IFileService, FileSystemProviderCapabilities } from 'vs/plat
 import { rtrim, startsWithIgnoreCase, equalsIgnoreCase } from 'vs/base/common/strings';
 import { coalesce } from 'vs/base/common/arrays';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose } from 'vs/base/common/lifecycle';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { joinPath, isEqualOrParent, basenameOrAuthority } from 'vs/base/common/resources';
 import { SortOrder } from 'vs/workbench/contrib/files/common/files';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
-export class ExplorerModel implements IDisposable {
+export class ExplorerModel implements IDisposable2 {
 
 	private _roots!: ExplorerItem[];
-	private _listener: IDisposable;
+	private _listener: IDisposable2;
 	private readonly _onDidChangeRoots = new Emitter<void>();
 
 	constructor(

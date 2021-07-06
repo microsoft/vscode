@@ -5,7 +5,7 @@
 
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 // import { basename } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -29,7 +29,7 @@ export class TimelineService implements ITimelineService {
 
 	private readonly hasProviderContext: IContextKey<boolean>;
 	private readonly providers = new Map<string, TimelineProvider>();
-	private readonly providerSubscriptions = new Map<string, IDisposable>();
+	private readonly providerSubscriptions = new Map<string, IDisposable2>();
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -206,7 +206,7 @@ export class TimelineService implements ITimelineService {
 		};
 	}
 
-	registerTimelineProvider(provider: TimelineProvider): IDisposable {
+	registerTimelineProvider(provider: TimelineProvider): IDisposable2 {
 		this.logService.trace(`TimelineService#registerTimelineProvider: id=${provider.id}`);
 
 		const id = provider.id;

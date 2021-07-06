@@ -16,7 +16,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { hash } from 'vs/base/common/hash';
 
 export const IDialogMainService = createDecorator<IDialogMainService>('dialogMainService');
@@ -224,7 +224,7 @@ export class DialogMainService implements IDialogMainService {
 		}
 	}
 
-	private acquireFileDialogLock(options: SaveDialogOptions | OpenDialogOptions, window?: BrowserWindow): IDisposable | undefined {
+	private acquireFileDialogLock(options: SaveDialogOptions | OpenDialogOptions, window?: BrowserWindow): IDisposable2 | undefined {
 
 		// if no window is provided, allow as many dialogs as
 		// needed since we consider them not modal per window

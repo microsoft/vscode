@@ -17,7 +17,7 @@ import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/
 import { ICommandService, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Event } from 'vs/base/common/event';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { Disposable, IDisposable, toDisposable, MutableDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, toDisposable, MutableDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
@@ -307,7 +307,7 @@ class PrivacyColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 }
 
 interface IActionBarTemplateData {
-	elementDisposable: IDisposable;
+	elementDisposable: IDisposable2;
 	container: HTMLElement;
 	label: IconLabel;
 	button?: Button;
@@ -353,7 +353,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 			{
 				supportHighlights: true,
 				hoverDelegate: {
-					showHover: (options: IHoverDelegateOptions): IDisposable | undefined => {
+					showHover: (options: IHoverDelegateOptions): IDisposable2 | undefined => {
 						return this.hoverService.showHover(options);
 					},
 					delay: <number>this.configurationService.getValue('workbench.hover.delay')
@@ -453,7 +453,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		}
 	}
 
-	private renderInputBox(container: HTMLElement, editableData: IEditableData): IDisposable {
+	private renderInputBox(container: HTMLElement, editableData: IEditableData): IDisposable2 {
 		// Required for FireFox. The blur event doesn't fire on FireFox when you just mash the "+" button to forward a port.
 		if (this.inputDone) {
 			this.inputDone(false, false);

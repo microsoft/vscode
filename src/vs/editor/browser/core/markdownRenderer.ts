@@ -11,12 +11,12 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Emitter } from 'vs/base/common/event';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, DisposableStore } from 'vs/base/common/lifecycle';
 import { ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { URI } from 'vs/base/common/uri';
 
-export interface IMarkdownRenderResult extends IDisposable {
+export interface IMarkdownRenderResult extends IDisposable2 {
 	element: HTMLElement;
 }
 

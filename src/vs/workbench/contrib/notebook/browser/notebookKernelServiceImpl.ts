@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernel, ISelectedNotebooksChangeEvent, INotebookKernelMatchResult, INotebookKernelService, INotebookTextModelLike } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { LRUCache, ResourceMap } from 'vs/base/common/map';
@@ -104,7 +104,7 @@ export class NotebookKernelService implements INotebookKernelService {
 		this._kernels.clear();
 	}
 
-	private _persistSoonHandle?: IDisposable;
+	private _persistSoonHandle?: IDisposable2;
 
 	private _persistMementos(): void {
 		this._persistSoonHandle?.dispose();
@@ -141,7 +141,7 @@ export class NotebookKernelService implements INotebookKernelService {
 		}
 	}
 
-	registerKernel(kernel: INotebookKernel): IDisposable {
+	registerKernel(kernel: INotebookKernel): IDisposable2 {
 		if (this._kernels.has(kernel.id)) {
 			throw new Error(`NOTEBOOK CONTROLLER with id '${kernel.id}' already exists`);
 		}

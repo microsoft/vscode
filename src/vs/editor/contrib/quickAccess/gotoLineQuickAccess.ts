@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore, IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable2, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IEditor, ScrollType } from 'vs/editor/common/editorCommon';
 import { IRange } from 'vs/editor/common/core/range';
 import { AbstractEditorNavigationQuickAccessProvider, IQuickAccessTextEditorContext } from 'vs/editor/contrib/quickAccess/editorNavigationQuickAccess';
@@ -24,7 +24,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		super({ canAcceptInBackground: true });
 	}
 
-	protected provideWithoutTextEditor(picker: IQuickPick<IGotoLineQuickPickItem>): IDisposable {
+	protected provideWithoutTextEditor(picker: IQuickPick<IGotoLineQuickPickItem>): IDisposable2 {
 		const label = localize('cannotRunGotoLine', "Open a text editor first to go to a line.");
 
 		picker.items = [{ label }];
@@ -33,7 +33,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		return Disposable.None;
 	}
 
-	protected provideWithTextEditor(context: IQuickAccessTextEditorContext, picker: IQuickPick<IGotoLineQuickPickItem>, token: CancellationToken): IDisposable {
+	protected provideWithTextEditor(context: IQuickAccessTextEditorContext, picker: IQuickPick<IGotoLineQuickPickItem>, token: CancellationToken): IDisposable2 {
 		const editor = context.editor;
 		const disposables = new DisposableStore();
 

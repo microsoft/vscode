@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { isEqual } from 'vs/base/common/resources';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -22,7 +22,7 @@ class NotebookBreakpoints extends Disposable implements IWorkbenchContribution {
 	) {
 		super();
 
-		const listeners = new ResourceMap<IDisposable>();
+		const listeners = new ResourceMap<IDisposable2>();
 		this._register(_notebookService.onWillAddNotebookDocument(model => {
 			listeners.set(model.uri, model.onWillAddRemoveCells(e => {
 				// When deleting a cell, remove its breakpoints

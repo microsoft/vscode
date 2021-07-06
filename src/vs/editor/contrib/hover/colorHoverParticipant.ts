@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable2 } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { DocumentColorProvider, IColorInformation } from 'vs/editor/common/modes';
@@ -83,7 +83,7 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		return new ColorHover(this, Range.lift(colorInfo.range), model, provider);
 	}
 
-	public renderHoverParts(hoverParts: ColorHover[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable {
+	public renderHoverParts(hoverParts: ColorHover[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable2 {
 		if (hoverParts.length === 0 || !this._editor.hasModel()) {
 			return Disposable.None;
 		}

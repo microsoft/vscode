@@ -21,7 +21,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { withNullAsUndefined, assertType } from 'vs/base/common/types';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -164,7 +164,7 @@ export class MultiCommand extends Command {
 	/**
 	 * A higher priority gets to be looked at first
 	 */
-	public addImplementation(priority: number, name: string, implementation: CommandImplementation): IDisposable {
+	public addImplementation(priority: number, name: string, implementation: CommandImplementation): IDisposable2 {
 		this._implementations.push({ priority, name, implementation });
 		this._implementations.sort((a, b) => b.priority - a.priority);
 		return {
@@ -358,7 +358,7 @@ export class MultiEditorAction extends EditorAction {
 	/**
 	 * A higher priority gets to be looked at first
 	 */
-	public addImplementation(priority: number, implementation: EditorActionImplementation): IDisposable {
+	public addImplementation(priority: number, implementation: EditorActionImplementation): IDisposable2 {
 		this._implementations.push([priority, implementation]);
 		this._implementations.sort((a, b) => b[0] - a[0]);
 		return {

@@ -17,7 +17,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IRemoteTerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { EnvironmentVariableInfoChangesActive, EnvironmentVariableInfoStale } from 'vs/workbench/contrib/terminal/browser/environmentVariableInfo';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
@@ -71,10 +71,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private _extEnvironmentVariableCollection: IMergedEnvironmentVariableCollection | undefined;
 	private _ackDataBufferer: AckDataBufferer;
 	private _hasWrittenData: boolean = false;
-	private _ptyResponsiveListener: IDisposable | undefined;
+	private _ptyResponsiveListener: IDisposable2 | undefined;
 	private _ptyListenersAttached: boolean = false;
 	private _dataFilter: SeamlessRelaunchDataFilter;
-	private _processListeners?: IDisposable[];
+	private _processListeners?: IDisposable2[];
 
 	private _shellLaunchConfig?: IShellLaunchConfig;
 	private _dimensions: ITerminalDimensions = { cols: 0, rows: 0 };
@@ -619,9 +619,9 @@ const enum SeamlessRelaunchConstants {
 class SeamlessRelaunchDataFilter extends Disposable {
 	private _firstRecorder?: TerminalRecorder;
 	private _secondRecorder?: TerminalRecorder;
-	private _firstDisposable?: IDisposable;
-	private _secondDisposable?: IDisposable;
-	private _dataListener?: IDisposable;
+	private _firstDisposable?: IDisposable2;
+	private _secondDisposable?: IDisposable2;
+	private _dataListener?: IDisposable2;
 	private _activeProcess?: ITerminalChildProcess;
 	private _disableSeamlessRelaunch: boolean = false;
 
@@ -739,7 +739,7 @@ class SeamlessRelaunchDataFilter extends Disposable {
 		this._secondDisposable?.dispose();
 	}
 
-	private _createRecorder(process: ITerminalChildProcess): [TerminalRecorder, IDisposable] {
+	private _createRecorder(process: ITerminalChildProcess): [TerminalRecorder, IDisposable2] {
 		const recorder = new TerminalRecorder(0, 0);
 		const disposable = process.onProcessData(e => recorder.recordData(typeof e === 'string' ? e : e.data));
 		return [recorder, disposable];

@@ -14,7 +14,7 @@ import { AbstractGotoSymbolQuickAccessProvider, IGotoSymbolQuickPickItem } from 
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { ITextModel } from 'vs/editor/common/model';
-import { DisposableStore, IDisposable, toDisposable, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable2, toDisposable, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
@@ -123,7 +123,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 
 	//#endregion
 
-	protected override provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
+	protected override provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable2 {
 		if (this.canPickWithOutlineService()) {
 			return this.doGetOutlinePicks(picker);
 		}
@@ -134,7 +134,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 		return this.editorService.activeEditorPane ? this.outlineService.canCreateOutline(this.editorService.activeEditorPane) : false;
 	}
 
-	private doGetOutlinePicks(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
+	private doGetOutlinePicks(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable2 {
 		const pane = this.editorService.activeEditorPane;
 		if (!pane) {
 			return Disposable.None;

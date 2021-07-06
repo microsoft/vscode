@@ -13,7 +13,7 @@ import { debounce } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { Iterable } from 'vs/base/common/iterator';
-import { DisposableStore, IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable2, Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
@@ -1008,7 +1008,7 @@ export class TimelinePane extends ViewPane {
 	}
 }
 
-export class TimelineElementTemplate implements IDisposable {
+export class TimelineElementTemplate implements IDisposable2 {
 	static readonly id = 'TimelineElementTemplate';
 
 	readonly actionBar: ActionBar;

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
 import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
@@ -63,7 +63,7 @@ export interface IWorkerClient<W> {
 }
 
 export class NotebookEditorModelManager extends Disposable {
-	private _syncedModels: { [modelUrl: string]: IDisposable; } = Object.create(null);
+	private _syncedModels: { [modelUrl: string]: IDisposable2; } = Object.create(null);
 	private _syncedModelsLastUsedTime: { [modelUrl: string]: number; } = Object.create(null);
 
 	constructor(

@@ -17,7 +17,7 @@ import { distinct, coalesce } from 'vs/base/common/arrays';
 import { IEditorGroupsAccessor, IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ISerializedEditorGroupModel, isSerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { EditorDropTarget, IEditorDropTargetDelegate } from 'vs/workbench/browser/parts/editor/editorDropTarget';
@@ -176,7 +176,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	private _partOptions = getEditorPartOptions(this.configurationService, this.themeService);
 	get partOptions(): IEditorPartOptions { return this._partOptions; }
 
-	enforcePartOptions(options: IEditorPartOptions): IDisposable {
+	enforcePartOptions(options: IEditorPartOptions): IDisposable2 {
 		this.enforcedPartOptions.push(options);
 		this.handleChangedPartOptions();
 
@@ -786,7 +786,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	//#region IEditorDropService
 
-	createEditorDropTarget(container: HTMLElement, delegate: IEditorDropTargetDelegate): IDisposable {
+	createEditorDropTarget(container: HTMLElement, delegate: IEditorDropTargetDelegate): IDisposable2 {
 		return this.instantiationService.createInstance(EditorDropTarget, this, container, delegate);
 	}
 
@@ -1150,7 +1150,7 @@ class EditorDropService implements IEditorDropService {
 
 	constructor(@IEditorGroupsService private readonly editorPart: EditorPart) { }
 
-	createEditorDropTarget(container: HTMLElement, delegate: IEditorDropTargetDelegate): IDisposable {
+	createEditorDropTarget(container: HTMLElement, delegate: IEditorDropTargetDelegate): IDisposable2 {
 		return this.editorPart.createEditorDropTarget(container, delegate);
 	}
 }

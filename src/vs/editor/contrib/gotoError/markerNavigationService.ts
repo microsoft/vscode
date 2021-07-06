@@ -6,7 +6,7 @@
 import { IMarkerService, MarkerSeverity, IMarker } from 'vs/platform/markers/common/markers';
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { compare } from 'vs/base/common/strings';
@@ -181,7 +181,7 @@ export const IMarkerNavigationService = createDecorator<IMarkerNavigationService
 
 export interface IMarkerNavigationService {
 	readonly _serviceBrand: undefined;
-	registerProvider(provider: IMarkerListProvider): IDisposable;
+	registerProvider(provider: IMarkerListProvider): IDisposable2;
 	getMarkerList(resource: URI | undefined): MarkerList;
 }
 
@@ -197,7 +197,7 @@ class MarkerNavigationService implements IMarkerNavigationService, IMarkerListPr
 
 	constructor(@IMarkerService private readonly _markerService: IMarkerService) { }
 
-	registerProvider(provider: IMarkerListProvider): IDisposable {
+	registerProvider(provider: IMarkerListProvider): IDisposable2 {
 		const remove = this._provider.unshift(provider);
 		return toDisposable(() => remove());
 	}

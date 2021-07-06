@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable2 } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { MainThreadWebviews, reviveWebviewContentOptions, reviveWebviewExtension } from 'vs/workbench/api/browser/mainThreadWebviews';
@@ -80,9 +80,9 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 
 	private readonly _webviewInputs = new WebviewInputStore();
 
-	private readonly _editorProviders = new Map<string, IDisposable>();
+	private readonly _editorProviders = new Map<string, IDisposable2>();
 
-	private readonly _revivers = new Map<string, IDisposable>();
+	private readonly _revivers = new Map<string, IDisposable2>();
 
 	constructor(
 		context: extHostProtocol.IExtHostContext,

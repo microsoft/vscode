@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { assertType } from 'vs/base/common/types';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -65,7 +65,7 @@ export const CallHierarchyProviderRegistry = new LanguageFeatureRegistry<CallHie
 class RefCountedDisposabled {
 
 	constructor(
-		private readonly _disposable: IDisposable,
+		private readonly _disposable: IDisposable2,
 		private _counter = 1
 	) { }
 
@@ -156,7 +156,7 @@ CommandsRegistry.registerCommand('_executePrepareCallHierarchy', async (accessor
 
 	const modelService = accessor.get(IModelService);
 	let textModel = modelService.getModel(resource);
-	let textModelReference: IDisposable | undefined;
+	let textModelReference: IDisposable2 | undefined;
 	if (!textModel) {
 		const textModelService = accessor.get(ITextModelService);
 		const result = await textModelService.createModelReference(resource);

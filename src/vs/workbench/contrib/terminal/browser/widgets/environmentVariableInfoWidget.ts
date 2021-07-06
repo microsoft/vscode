@@ -10,7 +10,7 @@ import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/w
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import * as dom from 'vs/base/browser/dom';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { IHoverService, IHoverOptions } from 'vs/workbench/services/hover/browser/hover';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
@@ -19,7 +19,7 @@ export class EnvironmentVariableInfoWidget extends Widget implements ITerminalWi
 
 	private _domNode: HTMLElement | undefined;
 	private _container: HTMLElement | undefined;
-	private _mouseMoveListener: IDisposable | undefined;
+	private _mouseMoveListener: IDisposable2 | undefined;
 	private _hoverOptions: IHoverOptions | undefined;
 
 	get requiresAction() { return this._info.requiresAction; }

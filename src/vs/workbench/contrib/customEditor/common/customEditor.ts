@@ -5,7 +5,7 @@
 
 import { distinct } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
-import { IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { IDisposable2, IReference } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -36,7 +36,7 @@ export interface ICustomEditorService {
 	getContributedCustomEditors(resource: URI): CustomEditorInfoCollection;
 	getUserConfiguredCustomEditors(resource: URI): CustomEditorInfoCollection;
 
-	registerCustomEditorCapabilities(viewType: string, options: CustomEditorCapabilities): IDisposable;
+	registerCustomEditorCapabilities(viewType: string, options: CustomEditorCapabilities): IDisposable2;
 	getCustomEditorCapabilities(viewType: string): CustomEditorCapabilities | undefined
 }
 
@@ -52,7 +52,7 @@ export interface ICustomEditorModelManager {
 	disposeAllModelsForView(viewType: string): void;
 }
 
-export interface ICustomEditorModel extends IDisposable {
+export interface ICustomEditorModel extends IDisposable2 {
 	readonly viewType: string;
 	readonly resource: URI;
 	readonly backupId: string | undefined;

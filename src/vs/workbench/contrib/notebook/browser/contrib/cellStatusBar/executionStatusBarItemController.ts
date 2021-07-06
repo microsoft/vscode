@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable2 } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -19,12 +19,12 @@ import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/
 import { CellKind, CellStatusbarAlignment, INotebookCellStatusBarItem, NotebookCellExecutionState, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class NotebookStatusBarController extends Disposable {
-	private readonly _visibleCells = new Map<number, IDisposable>();
+	private readonly _visibleCells = new Map<number, IDisposable2>();
 	private readonly _observer: NotebookVisibleCellObserver;
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
-		private readonly _itemFactory: (vm: NotebookViewModel, cell: CellViewModel) => IDisposable
+		private readonly _itemFactory: (vm: NotebookViewModel, cell: CellViewModel) => IDisposable2
 	) {
 		super();
 		this._observer = this._register(new NotebookVisibleCellObserver(this._notebookEditor));
@@ -81,7 +81,7 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 
 	private _currentItemIds: string[] = [];
 
-	private _currentExecutingStateTimer: IDisposable | undefined;
+	private _currentExecutingStateTimer: IDisposable2 | undefined;
 
 	constructor(
 		private readonly _notebookViewModel: NotebookViewModel,

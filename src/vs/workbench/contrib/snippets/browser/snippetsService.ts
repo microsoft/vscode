@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { combinedDisposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { combinedDisposable, IDisposable2, DisposableStore } from 'vs/base/common/lifecycle';
 import * as resources from 'vs/base/common/resources';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -117,7 +117,7 @@ namespace snippetExt {
 	});
 }
 
-function watch(service: IFileService, resource: URI, callback: () => any): IDisposable {
+function watch(service: IFileService, resource: URI, callback: () => any): IDisposable2 {
 	return combinedDisposable(
 		service.watch(resource),
 		service.onDidFilesChange(e => {
@@ -383,7 +383,7 @@ class SnippetsService implements ISnippetsService {
 		return addFolderSnippets();
 	}
 
-	private _addSnippetFile(uri: URI, source: SnippetSource): IDisposable {
+	private _addSnippetFile(uri: URI, source: SnippetSource): IDisposable2 {
 		const ext = resources.extname(uri);
 		if (source === SnippetSource.User && ext === '.json') {
 			const langName = resources.basename(uri).replace(/\.json/, '');

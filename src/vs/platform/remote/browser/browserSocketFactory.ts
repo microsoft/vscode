@@ -6,7 +6,7 @@
 import { ISocketFactory, IConnectCallback } from 'vs/platform/remote/common/remoteAgentConnection';
 import { ISocket, SocketCloseEvent, SocketCloseEventType } from 'vs/base/parts/ipc/common/ipc.net';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as dom from 'vs/base/browser/dom';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -193,11 +193,11 @@ class BrowserSocket implements ISocket {
 		this.socket.close();
 	}
 
-	public onData(listener: (e: VSBuffer) => void): IDisposable {
+	public onData(listener: (e: VSBuffer) => void): IDisposable2 {
 		return this.socket.onData((data) => listener(VSBuffer.wrap(new Uint8Array(data))));
 	}
 
-	public onClose(listener: (e: SocketCloseEvent) => void): IDisposable {
+	public onClose(listener: (e: SocketCloseEvent) => void): IDisposable2 {
 		const adapter = (e: IWebSocketCloseEvent | void) => {
 			if (typeof e === 'undefined') {
 				listener(e);
@@ -214,7 +214,7 @@ class BrowserSocket implements ISocket {
 		return this.socket.onClose(adapter);
 	}
 
-	public onEnd(listener: () => void): IDisposable {
+	public onEnd(listener: () => void): IDisposable2 {
 		return Disposable.None;
 	}
 

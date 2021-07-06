@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -29,7 +29,7 @@ export interface ILabelService {
 	getHostTooltip(scheme: string, authority?: string): string | undefined;
 	getSeparator(scheme: string, authority?: string): '/' | '\\';
 
-	registerFormatter(formatter: ResourceLabelFormatter): IDisposable;
+	registerFormatter(formatter: ResourceLabelFormatter): IDisposable2;
 	onDidChangeFormatters: Event<IFormatterChangeEvent>;
 }
 

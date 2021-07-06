@@ -8,7 +8,7 @@ import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IListRenderer, IListVirtualDelegate, ListError } from 'vs/base/browser/ui/list/list';
 import { IListStyles, IStyleController } from 'vs/base/browser/ui/list/listWidget';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable2 } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { Range } from 'vs/editor/common/core/range';
@@ -36,7 +36,7 @@ export interface INotebookCellListOptions extends IWorkbenchListOptions<CellView
 	focusNextPreviousDelegate: IFocusNextPreviousDelegate;
 }
 
-export class NotebookCellList extends WorkbenchList<CellViewModel> implements IDisposable, IStyleController, INotebookCellList {
+export class NotebookCellList extends WorkbenchList<CellViewModel> implements IDisposable2, IStyleController, INotebookCellList {
 	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }
 
 	get rowsContainer(): HTMLElement {
@@ -128,8 +128,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const notebookEditorCursorAtBoundaryContext = NOTEBOOK_EDITOR_CURSOR_BOUNDARY.bindTo(contextKeyService);
 		notebookEditorCursorAtBoundaryContext.set('none');
 
-		let cursorSelectionListener: IDisposable | null = null;
-		let textEditorAttachListener: IDisposable | null = null;
+		let cursorSelectionListener: IDisposable2 | null = null;
+		let textEditorAttachListener: IDisposable2 | null = null;
 
 		const recomputeContext = (element: CellViewModel) => {
 			switch (element.cursorAtBoundary()) {

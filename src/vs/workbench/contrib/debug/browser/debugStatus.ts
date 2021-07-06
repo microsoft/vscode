@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose } from 'vs/base/common/lifecycle';
 import { IDebugService, State, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStatusbarEntry, IStatusbarService, StatusbarAlignment, IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/common/statusbar';
@@ -13,7 +13,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 export class DebugStatusContribution implements IWorkbenchContribution {
 
 	private showInStatusBar!: 'never' | 'always' | 'onFirstSessionStart';
-	private toDispose: IDisposable[] = [];
+	private toDispose: IDisposable2[] = [];
 	private entryAccessor: IStatusbarEntryAccessor | undefined;
 
 	constructor(

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator, ISCMInputChangeEvent, SCMInputChangeReason, InputValidationType, IInputValidation } from './scm';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -169,7 +169,7 @@ class SCMRepository implements ISCMRepository {
 
 	constructor(
 		public readonly provider: ISCMProvider,
-		private disposable: IDisposable,
+		private disposable: IDisposable2,
 		@IStorageService private storageService: IStorageService
 	) { }
 

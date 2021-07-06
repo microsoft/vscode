@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { Task, ContributedTask, CustomTask, TaskSet, TaskSorter, TaskEvent, TaskIdentifier, ConfiguringTask, TaskRunSource } from 'vs/workbench/contrib/tasks/common/tasks';
@@ -84,7 +84,7 @@ export interface ITaskService {
 	customize(task: ContributedTask | CustomTask | ConfiguringTask, properties?: {}, openConfig?: boolean): Promise<void>;
 	openConfig(task: CustomTask | ConfiguringTask | undefined): Promise<boolean>;
 
-	registerTaskProvider(taskProvider: ITaskProvider, type: string): IDisposable;
+	registerTaskProvider(taskProvider: ITaskProvider, type: string): IDisposable2;
 
 	registerTaskSystem(scheme: string, taskSystemInfo: TaskSystemInfo): void;
 	onDidChangeTaskSystemInfo: Event<void>;

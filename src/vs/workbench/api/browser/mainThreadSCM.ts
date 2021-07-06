@@ -5,7 +5,7 @@
 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, IExtHostContext } from '../common/extHost.protocol';
 import { Command } from 'vs/editor/common/modes';
@@ -272,7 +272,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 
 	private readonly _proxy: ExtHostSCMShape;
 	private _repositories = new Map<number, ISCMRepository>();
-	private _repositoryDisposables = new Map<number, IDisposable>();
+	private _repositoryDisposables = new Map<number, IDisposable2>();
 	private readonly _disposables = new DisposableStore();
 
 	constructor(

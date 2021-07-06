@@ -9,7 +9,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice, IPromptOptions, IStatusMessageOptions, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { mock } from 'vs/base/test/common/mock';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { Event } from 'vs/base/common/event';
 
@@ -60,7 +60,7 @@ const emptyNotificationService = new class implements INotificationService {
 	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
 		throw new Error('not implemented');
 	}
-	status(message: string | Error, options?: IStatusMessageOptions): IDisposable {
+	status(message: string | Error, options?: IStatusMessageOptions): IDisposable2 {
 		return Disposable.None;
 	}
 	setFilter(filter: NotificationsFilter): void {
@@ -93,7 +93,7 @@ class EmptyNotificationService implements INotificationService {
 	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
 		throw new Error('Method not implemented');
 	}
-	status(message: string, options?: IStatusMessageOptions): IDisposable {
+	status(message: string, options?: IStatusMessageOptions): IDisposable2 {
 		return Disposable.None;
 	}
 	setFilter(filter: NotificationsFilter): void {

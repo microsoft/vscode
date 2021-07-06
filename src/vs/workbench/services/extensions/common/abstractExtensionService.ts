@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Barrier } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import * as perf from 'vs/base/common/performance';
 import { isEqualOrParent } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -59,18 +59,18 @@ export const enum ExtensionRunningPreference {
 }
 
 class LockCustomer {
-	public readonly promise: Promise<IDisposable>;
-	private _resolve!: (value: IDisposable) => void;
+	public readonly promise: Promise<IDisposable2>;
+	private _resolve!: (value: IDisposable2) => void;
 
 	constructor(
 		public readonly name: string
 	) {
-		this.promise = new Promise<IDisposable>((resolve, reject) => {
+		this.promise = new Promise<IDisposable2>((resolve, reject) => {
 			this._resolve = resolve;
 		});
 	}
 
-	resolve(value: IDisposable): void {
+	resolve(value: IDisposable2): void {
 		this._resolve(value);
 	}
 }
@@ -79,7 +79,7 @@ class Lock {
 	private readonly _pendingCustomers: LockCustomer[] = [];
 	private _isLocked = false;
 
-	public async acquire(customerName: string): Promise<IDisposable> {
+	public async acquire(customerName: string): Promise<IDisposable2> {
 		const customer = new LockCustomer(customerName);
 		this._pendingCustomers.push(customer);
 		this._advance();
@@ -264,7 +264,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			return;
 		}
 
-		let lock: IDisposable | null = null;
+		let lock: IDisposable2 | null = null;
 		try {
 			this._inHandleDeltaExtensions = true;
 			lock = await this._registryLock.acquire('handleDeltaExtensions');

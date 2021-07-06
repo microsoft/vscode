@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IDisposable2 } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICellViewModel, INotebookEditor, NOTEBOOK_BREAKPOINT_MARGIN_ACTIVE, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SELECTED, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON, NOTEBOOK_VIEW_TYPE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
@@ -23,8 +23,8 @@ export class NotebookEditorContextKeys {
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _viewModelDisposables = new DisposableStore();
-	private readonly _cellStateListeners: IDisposable[] = [];
-	private readonly _cellOutputsListeners: IDisposable[] = [];
+	private readonly _cellStateListeners: IDisposable2[] = [];
+	private readonly _cellOutputsListeners: IDisposable2[] = [];
 
 	constructor(
 		private readonly _editor: INotebookEditor,

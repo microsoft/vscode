@@ -5,7 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable2 } from 'vs/base/common/lifecycle';
 import { MainThreadWebviews, reviveWebviewExtension } from 'vs/workbench/api/browser/mainThreadWebviews';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { IWebviewViewService, WebviewView } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
@@ -16,7 +16,7 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 	private readonly _proxy: extHostProtocol.ExtHostWebviewViewsShape;
 
 	private readonly _webviewViews = new Map<string, WebviewView>();
-	private readonly _webviewViewProviders = new Map<string, IDisposable>();
+	private readonly _webviewViewProviders = new Map<string, IDisposable2>();
 
 	constructor(
 		context: extHostProtocol.IExtHostContext,

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, DisposableStore } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -173,7 +173,7 @@ export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 	}
 }
 
-interface IModelDecorationOptionsProvider extends IDisposable {
+interface IModelDecorationOptionsProvider extends IDisposable2 {
 	refCount: number;
 	getOptions(codeEditorService: AbstractCodeEditorService, writable: boolean): IModelDecorationOptions;
 	resolveDecorationCSSRules(): CSSRuleList;
@@ -376,7 +376,7 @@ class DecorationCSSRules {
 	private _hasContent: boolean;
 	private _hasLetterSpacing: boolean;
 	private readonly _ruleType: ModelDecorationCSSRuleType;
-	private _themeListener: IDisposable | null;
+	private _themeListener: IDisposable2 | null;
 	private readonly _providerArgs: ProviderArguments;
 	private _usesThemeColors: boolean;
 

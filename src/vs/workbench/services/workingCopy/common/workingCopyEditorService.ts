@@ -8,7 +8,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { EditorsOrder, IEditorIdentifier, IEditorInput } from 'vs/workbench/common/editor';
 import { IWorkingCopy, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export const IWorkingCopyEditorService = createDecorator<IWorkingCopyEditorService>('workingCopyEditorService');
@@ -44,7 +44,7 @@ export interface IWorkingCopyEditorService {
 	/**
 	 * Register a handler to the working copy editor service.
 	 */
-	registerHandler(handler: IWorkingCopyEditorHandler): IDisposable;
+	registerHandler(handler: IWorkingCopyEditorHandler): IDisposable2;
 
 	/**
 	 * Finds the first editor that can handle the provided working copy.
@@ -65,7 +65,7 @@ export class WorkingCopyEditorService extends Disposable implements IWorkingCopy
 		super();
 	}
 
-	registerHandler(handler: IWorkingCopyEditorHandler): IDisposable {
+	registerHandler(handler: IWorkingCopyEditorHandler): IDisposable2 {
 
 		// Add to registry and emit as event
 		this.handlers.add(handler);

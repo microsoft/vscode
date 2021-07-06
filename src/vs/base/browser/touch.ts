@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as arrays from 'vs/base/common/arrays';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable } from 'vs/base/common/lifecycle';
 import * as DomUtils from 'vs/base/browser/dom';
 import { memoize } from 'vs/base/common/decorators';
 
@@ -73,7 +73,7 @@ export class Gesture extends Disposable {
 	private dispatched = false;
 	private targets: HTMLElement[];
 	private ignoreTargets: HTMLElement[];
-	private handle: IDisposable | null;
+	private handle: IDisposable2 | null;
 
 	private activeTouches: { [id: number]: TouchData; };
 
@@ -95,7 +95,7 @@ export class Gesture extends Disposable {
 		this._register(DomUtils.addDisposableListener(document, 'touchmove', (e: TouchEvent) => this.onTouchMove(e), { passive: false }));
 	}
 
-	public static addTarget(element: HTMLElement): IDisposable {
+	public static addTarget(element: HTMLElement): IDisposable2 {
 		if (!Gesture.isTouchDevice()) {
 			return Disposable.None;
 		}
@@ -112,7 +112,7 @@ export class Gesture extends Disposable {
 		};
 	}
 
-	public static ignoreTarget(element: HTMLElement): IDisposable {
+	public static ignoreTarget(element: HTMLElement): IDisposable2 {
 		if (!Gesture.isTouchDevice()) {
 			return Disposable.None;
 		}

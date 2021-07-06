@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { registerDiffEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IDiffEditorContribution } from 'vs/editor/common/editorCommon';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { IDiffComputationResult } from 'vs/editor/common/services/editorWorkerService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -24,7 +24,7 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 	public static readonly ID = 'editor.contrib.diffEditorHelper';
 
 	private _helperWidget: FloatingClickWidget | null;
-	private _helperWidgetListener: IDisposable | null;
+	private _helperWidgetListener: IDisposable2 | null;
 	private _state: WidgetState;
 
 	constructor(

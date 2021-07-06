@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, IFileService } from 'vs/platform/files/common/files';
@@ -17,7 +17,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export class WorkspaceWatcher extends Disposable {
 
-	private readonly watches = new ResourceMap<IDisposable>();
+	private readonly watches = new ResourceMap<IDisposable2>();
 
 	constructor(
 		@IFileService private readonly fileService: FileService,

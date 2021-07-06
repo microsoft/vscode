@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshalling';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { identifyTest, InternalTestItem, ITestIdWithSrc, ITestItemContext } from 'vs/workbench/contrib/testing/common/testCollection';
@@ -20,7 +20,7 @@ import { identifyTest, InternalTestItem, ITestIdWithSrc, ITestItemContext } from
  * using a single IncrementalTestChangeCollector, but this became hairy
  * with status projections.
  */
-export interface ITestTreeProjection extends IDisposable {
+export interface ITestTreeProjection extends IDisposable2 {
 	/**
 	 * Event that fires when the projection changes.
 	 */

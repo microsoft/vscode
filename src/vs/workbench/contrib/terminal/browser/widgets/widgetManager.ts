@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
 
-export class TerminalWidgetManager implements IDisposable {
+export class TerminalWidgetManager implements IDisposable2 {
 	private _container: HTMLElement | undefined;
 	private _attached: Map<string, ITerminalWidget> = new Map();
 
@@ -25,7 +25,7 @@ export class TerminalWidgetManager implements IDisposable {
 		}
 	}
 
-	attachWidget(widget: ITerminalWidget): IDisposable | undefined {
+	attachWidget(widget: ITerminalWidget): IDisposable2 | undefined {
 		if (!this._container) {
 			return;
 		}

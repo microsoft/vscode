@@ -12,7 +12,7 @@ import { GlobalActivityActionViewItem, ViewContainerActivityAction, PlaceHolderT
 import { IBadge, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction, ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/layoutActions';
 import { IThemeService, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER } from 'vs/workbench/common/theme';
@@ -111,7 +111,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	private readonly accountsActivity: ICompositeActivity[] = [];
 
 	private readonly compositeActions = new Map<string, { activityAction: ViewContainerActivityAction, pinnedAction: ToggleCompositePinnedAction; }>();
-	private readonly viewContainerDisposables = new Map<string, IDisposable>();
+	private readonly viewContainerDisposables = new Map<string, IDisposable2>();
 
 	private readonly keyboardNavigationDisposables = this._register(new DisposableStore());
 
@@ -321,7 +321,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		}
 	}
 
-	showActivity(viewContainerOrActionId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable {
+	showActivity(viewContainerOrActionId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable2 {
 		if (this.getViewContainer(viewContainerOrActionId)) {
 			return this.compositeBar.showActivity(viewContainerOrActionId, badge, clazz, priority);
 		}
@@ -337,7 +337,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		return Disposable.None;
 	}
 
-	private showGlobalActivity(activityId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable {
+	private showGlobalActivity(activityId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable2 {
 		if (typeof priority !== 'number') {
 			priority = 0;
 		}

@@ -11,7 +11,7 @@ import { ClientConnectionEvent, IPCServer } from 'vs/base/parts/ipc/common/ipc';
 import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ISocket, Protocol, Client, ChunkStream, SocketCloseEvent, SocketCloseEventType } from 'vs/base/parts/ipc/common/ipc.net';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -46,7 +46,7 @@ export class NodeSocket implements ISocket {
 		this.socket.destroy();
 	}
 
-	public onData(_listener: (e: VSBuffer) => void): IDisposable {
+	public onData(_listener: (e: VSBuffer) => void): IDisposable2 {
 		const listener = (buff: Buffer) => _listener(VSBuffer.wrap(buff));
 		this.socket.on('data', listener);
 		return {
@@ -54,7 +54,7 @@ export class NodeSocket implements ISocket {
 		};
 	}
 
-	public onClose(listener: (e: SocketCloseEvent) => void): IDisposable {
+	public onClose(listener: (e: SocketCloseEvent) => void): IDisposable2 {
 		const adapter = (hadError: boolean) => {
 			listener({
 				type: SocketCloseEventType.NodeSocketCloseEvent,
@@ -68,7 +68,7 @@ export class NodeSocket implements ISocket {
 		};
 	}
 
-	public onEnd(listener: () => void): IDisposable {
+	public onEnd(listener: () => void): IDisposable2 {
 		this.socket.on('end', listener);
 		return {
 			dispose: () => this.socket.off('end', listener)
@@ -293,15 +293,15 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 		}
 	}
 
-	public onData(listener: (e: VSBuffer) => void): IDisposable {
+	public onData(listener: (e: VSBuffer) => void): IDisposable2 {
 		return this._onData.event(listener);
 	}
 
-	public onClose(listener: (e: SocketCloseEvent) => void): IDisposable {
+	public onClose(listener: (e: SocketCloseEvent) => void): IDisposable2 {
 		return this._onClose.event(listener);
 	}
 
-	public onEnd(listener: () => void): IDisposable {
+	public onEnd(listener: () => void): IDisposable2 {
 		return this.socket.onEnd(listener);
 	}
 

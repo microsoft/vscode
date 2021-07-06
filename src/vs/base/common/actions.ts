@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 
 export interface ITelemetryData {
@@ -23,7 +23,7 @@ export type WorkbenchActionExecutedEvent = {
 	from: string;
 };
 
-export interface IAction extends IDisposable {
+export interface IAction extends IDisposable2 {
 	readonly id: string;
 	label: string;
 	tooltip: string;
@@ -33,7 +33,7 @@ export interface IAction extends IDisposable {
 	run(event?: unknown): unknown;
 }
 
-export interface IActionRunner extends IDisposable {
+export interface IActionRunner extends IDisposable2 {
 	readonly onDidRun: Event<IRunEvent>;
 	readonly onBeforeRun: Event<IRunEvent>;
 

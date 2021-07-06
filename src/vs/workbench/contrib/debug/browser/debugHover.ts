@@ -81,7 +81,7 @@ export class DebugHoverWidget implements IContentWidget {
 	private complexValueTitle!: HTMLElement;
 	private valueContainer!: HTMLElement;
 	private treeContainer!: HTMLElement;
-	private toDispose: lifecycle.IDisposable[];
+	private toDispose: lifecycle.IDisposable2[];
 	private scrollbar!: DomScrollableElement;
 
 	constructor(

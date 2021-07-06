@@ -8,7 +8,7 @@ import type * as vscode from 'vscode';
 import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable2 } from 'vs/base/common/lifecycle';
 import { ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol';
 import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions } from 'vs/workbench/common/views';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
@@ -191,7 +191,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 type Root = null | undefined | void;
 type TreeData<T> = { message: boolean, element: T | T[] | Root | false };
 
-interface TreeNode extends IDisposable {
+interface TreeNode extends IDisposable2 {
 	item: ITreeItem;
 	extensionItem: vscode.TreeItem;
 	parent: TreeNode | Root;

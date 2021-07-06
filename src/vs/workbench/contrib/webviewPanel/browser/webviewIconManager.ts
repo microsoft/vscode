@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -14,7 +14,7 @@ export interface WebviewIcons {
 	readonly dark: URI;
 }
 
-export class WebviewIconManager implements IDisposable {
+export class WebviewIconManager implements IDisposable2 {
 
 	private readonly _icons = new Map<string, WebviewIcons>();
 

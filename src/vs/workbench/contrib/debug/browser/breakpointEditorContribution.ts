@@ -19,7 +19,7 @@ import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, Breakpoi
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { BreakpointWidget } from 'vs/workbench/contrib/debug/browser/breakpointWidget';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose } from 'vs/base/common/lifecycle';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { getBreakpointMessageAndIcon } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -152,7 +152,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 	private breakpointHintDecoration: string[] = [];
 	private breakpointWidget: BreakpointWidget | undefined;
 	private breakpointWidgetVisible: IContextKey<boolean>;
-	private toDispose: IDisposable[] = [];
+	private toDispose: IDisposable2[] = [];
 	private ignoreDecorationsChangedEvent = false;
 	private ignoreBreakpointsChangeEvent = false;
 	private breakpointDecorations: IBreakpointDecoration[] = [];
@@ -563,7 +563,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 	}
 }
 
-class InlineBreakpointWidget implements IContentWidget, IDisposable {
+class InlineBreakpointWidget implements IContentWidget, IDisposable2 {
 
 	// editor.IContentWidget.allowEditorOverflow
 	allowEditorOverflow = false;
@@ -571,7 +571,7 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 
 	private domNode!: HTMLElement;
 	private range: Range | null;
-	private toDispose: IDisposable[] = [];
+	private toDispose: IDisposable2[] = [];
 
 	constructor(
 		private readonly editor: IActiveCodeEditor,

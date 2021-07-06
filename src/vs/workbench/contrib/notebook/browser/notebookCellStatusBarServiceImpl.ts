@@ -6,7 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { INotebookCellStatusBarItemList, INotebookCellStatusBarItemProvider } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -25,9 +25,9 @@ export class NotebookCellStatusBarService extends Disposable implements INoteboo
 		super();
 	}
 
-	registerCellStatusBarItemProvider(provider: INotebookCellStatusBarItemProvider): IDisposable {
+	registerCellStatusBarItemProvider(provider: INotebookCellStatusBarItemProvider): IDisposable2 {
 		this._providers.push(provider);
-		let changeListener: IDisposable | undefined;
+		let changeListener: IDisposable2 | undefined;
 		if (provider.onDidChangeStatusBarItems) {
 			changeListener = provider.onDidChangeStatusBarItems(() => this._onDidChangeItems.fire());
 		}

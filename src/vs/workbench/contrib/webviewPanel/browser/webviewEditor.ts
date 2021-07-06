@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable2, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -181,7 +181,7 @@ export class WebviewEditor extends EditorPane {
 		}
 	}
 
-	private trackFocus(webview: WebviewOverlay): IDisposable {
+	private trackFocus(webview: WebviewOverlay): IDisposable2 {
 		const store = new DisposableStore();
 
 		// Track focus in webview content

@@ -19,7 +19,7 @@ import { FuzzyScore } from 'vs/base/common/filters';
 import { splitGlobAware } from 'vs/base/common/glob';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable2, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/testing';
@@ -877,8 +877,8 @@ interface IActionableElementTemplateData {
 	icon: HTMLElement;
 	wrapper: HTMLElement;
 	actionBar: ActionBar;
-	elementDisposable: IDisposable[];
-	templateDisposable: IDisposable[];
+	elementDisposable: IDisposable2[];
+	templateDisposable: IDisposable2[];
 }
 
 abstract class ActionableItemTemplateData<T extends TestItemTreeElement> extends Disposable

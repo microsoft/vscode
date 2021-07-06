@@ -9,7 +9,7 @@ import { ThrottledDelayer } from 'vs/base/common/async';
 import { streamToBuffer } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -333,7 +333,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 	protected abstract createElement(options: WebviewOptions, contentOptions: WebviewContentOptions): T;
 
-	protected abstract on<T = unknown>(channel: string, handler: (data: T) => void): IDisposable;
+	protected abstract on<T = unknown>(channel: string, handler: (data: T) => void): IDisposable2;
 
 	protected abstract doPostMessage(channel: string, data?: any): void;
 

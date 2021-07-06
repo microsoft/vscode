@@ -11,7 +11,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IConstructorSignature0, IInstantiationService, BrandedService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { insert } from 'vs/base/common/arrays';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { Promises } from 'vs/base/common/async';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
@@ -34,7 +34,7 @@ export interface IEditorRegistry {
 	 * @param inputDescriptors A set of constructor functions that return an instance of EditorInput for which the
 	 * registered editor should be used for.
 	 */
-	registerEditor(editorDescriptor: IEditorDescriptor, inputDescriptors: readonly SyncDescriptor<EditorInput>[]): IDisposable;
+	registerEditor(editorDescriptor: IEditorDescriptor, inputDescriptors: readonly SyncDescriptor<EditorInput>[]): IDisposable2;
 
 	/**
 	 * Returns the editor descriptor for the given input or `undefined` if none.
@@ -76,7 +76,7 @@ export class EditorRegistry implements IEditorRegistry {
 	private readonly editors: EditorDescriptor[] = [];
 	private readonly mapEditorToInputs = new Map<EditorDescriptor, readonly SyncDescriptor<EditorInput>[]>();
 
-	registerEditor(descriptor: EditorDescriptor, inputDescriptors: readonly SyncDescriptor<EditorInput>[]): IDisposable {
+	registerEditor(descriptor: EditorDescriptor, inputDescriptors: readonly SyncDescriptor<EditorInput>[]): IDisposable2 {
 		this.mapEditorToInputs.set(descriptor, inputDescriptors);
 
 		const remove = insert(this.editors, descriptor);

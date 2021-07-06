@@ -18,7 +18,7 @@ import * as modes from 'vs/editor/common/modes';
 import * as nls from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/wordSelections';
 import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/bracketSelections';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -55,7 +55,7 @@ class SmartSelectController implements IEditorContribution {
 	}
 
 	private _state?: SelectionRanges[];
-	private _selectionListener?: IDisposable;
+	private _selectionListener?: IDisposable2;
 	private _ignoreSelection: boolean = false;
 
 	constructor(private readonly _editor: ICodeEditor) { }

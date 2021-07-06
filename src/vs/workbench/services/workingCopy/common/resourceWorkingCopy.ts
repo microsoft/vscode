@@ -6,7 +6,7 @@
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
@@ -16,7 +16,7 @@ import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/wo
  * A resource based `IWorkingCopy` is backed by a `URI` from a
  * known file system provider.
  */
-export interface IResourceWorkingCopy extends IWorkingCopy, IDisposable {
+export interface IResourceWorkingCopy extends IWorkingCopy, IDisposable2 {
 
 	/**
 	 * An event for when the orphaned state of the resource working copy changes.

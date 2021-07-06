@@ -5,14 +5,14 @@
 
 import { ITreeNavigator } from 'vs/base/browser/ui/tree/tree';
 import { Emitter } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 
 const someEvent = new Emitter().event;
 
 /**
  * Add stub methods as needed
  */
-export class MockObjectTree<T, TRef> implements IDisposable {
+export class MockObjectTree<T, TRef> implements IDisposable2 {
 
 	get onDidChangeFocus() { return someEvent; }
 	get onDidChangeSelection() { return someEvent; }

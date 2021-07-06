@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { ISearchConfiguration, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import { SymbolKind, Location, ProviderResult, SymbolTag } from 'vs/editor/common/modes';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -35,7 +35,7 @@ export namespace WorkspaceSymbolProviderRegistry {
 
 	const _supports: IWorkspaceSymbolProvider[] = [];
 
-	export function register(provider: IWorkspaceSymbolProvider): IDisposable {
+	export function register(provider: IWorkspaceSymbolProvider): IDisposable2 {
 		let support: IWorkspaceSymbolProvider | undefined = provider;
 		if (support) {
 			_supports.push(support);

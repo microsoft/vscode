@@ -7,7 +7,7 @@ import { ExtHostContext, IExtHostContext, MainContext, MainThreadUrlsShape, ExtH
 import { extHostNamedCustomer } from '../common/extHostCustomers';
 import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { IExtensionUrlHandler } from 'vs/workbench/services/extensions/browser/extensionUrlHandler';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
@@ -32,7 +32,7 @@ class ExtensionUrlHandler implements IURLHandler {
 export class MainThreadUrls implements MainThreadUrlsShape {
 
 	private readonly proxy: ExtHostUrlsShape;
-	private handlers = new Map<number, { extensionId: ExtensionIdentifier, disposable: IDisposable }>();
+	private handlers = new Map<number, { extensionId: ExtensionIdentifier, disposable: IDisposable2 }>();
 
 	constructor(
 		context: IExtHostContext,

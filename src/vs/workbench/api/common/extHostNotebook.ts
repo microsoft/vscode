@@ -8,7 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { hash } from 'vs/base/common/hash';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { MarshalledId } from 'vs/base/common/marshalling';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
@@ -75,7 +75,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	private _onDidChangeVisibleNotebookEditors = new Emitter<vscode.NotebookEditor[]>();
 	onDidChangeVisibleNotebookEditors = this._onDidChangeVisibleNotebookEditors.event;
 
-	private _statusBarCache = new Cache<IDisposable>('NotebookCellStatusBarCache');
+	private _statusBarCache = new Cache<IDisposable2>('NotebookCellStatusBarCache');
 
 	constructor(
 		mainContext: IMainContext,
@@ -162,7 +162,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 		this._notebookContentProviders.set(viewType, { extension, provider });
 
-		let listener: IDisposable | undefined;
+		let listener: IDisposable2 | undefined;
 		if (provider.onDidChangeNotebookContentOptions) {
 			listener = provider.onDidChangeNotebookContentOptions(() => {
 				const internalOptions = typeConverters.NotebookDocumentContentOptions.from(provider.options);

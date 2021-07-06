@@ -9,7 +9,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
@@ -62,7 +62,7 @@ export interface IWebviewWorkbenchService {
 
 	registerResolver(
 		resolver: WebviewResolver
-	): IDisposable;
+	): IDisposable2;
 
 	shouldPersist(
 		input: WebviewInput
@@ -302,7 +302,7 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 
 	public registerResolver(
 		reviver: WebviewResolver
-	): IDisposable {
+	): IDisposable2 {
 		this._revivers.add(reviver);
 
 		const cts = new CancellationTokenSource();

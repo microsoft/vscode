@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, MutableDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { localize } from 'vs/nls';
@@ -32,7 +32,7 @@ export interface IMarkersView extends IView {
 
 export class ActivityUpdater extends Disposable implements IWorkbenchContribution {
 
-	private readonly activity = this._register(new MutableDisposable<IDisposable>());
+	private readonly activity = this._register(new MutableDisposable<IDisposable2>());
 
 	constructor(
 		@IActivityService private readonly activityService: IActivityService,

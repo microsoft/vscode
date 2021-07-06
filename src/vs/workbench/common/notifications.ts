@@ -6,7 +6,7 @@
 import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage, IPromptChoice, IStatusMessageOptions, NotificationsFilter, INotificationProgressProperties, IPromptChoiceWithMenu } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { isErrorWithActions, isPromiseCanceledError } from 'vs/base/common/errors';
 import { Action } from 'vs/base/common/actions';
 import { equals } from 'vs/base/common/arrays';
@@ -34,7 +34,7 @@ export interface INotificationsModel {
 
 	readonly onDidChangeStatusMessage: Event<IStatusMessageChangeEvent>;
 
-	showStatusMessage(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable;
+	showStatusMessage(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable2;
 
 	//#endregion
 }
@@ -253,7 +253,7 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 		return item;
 	}
 
-	showStatusMessage(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable {
+	showStatusMessage(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable2 {
 		const item = StatusMessageViewItem.create(message, options);
 		if (!item) {
 			return Disposable.None;

@@ -7,7 +7,7 @@ import { IQuickPick, IQuickPickItem, IQuickInputService } from 'vs/platform/quic
 import { IQuickAccessProvider, IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { localize } from 'vs/nls';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable2 } from 'vs/base/common/lifecycle';
 
 interface IHelpQuickAccessPickItem extends IQuickPickItem {
 	prefix: string;
@@ -21,7 +21,7 @@ export class HelpQuickAccessProvider implements IQuickAccessProvider {
 
 	constructor(@IQuickInputService private readonly quickInputService: IQuickInputService) { }
 
-	provide(picker: IQuickPick<IHelpQuickAccessPickItem>): IDisposable {
+	provide(picker: IQuickPick<IHelpQuickAccessPickItem>): IDisposable2 {
 		const disposables = new DisposableStore();
 
 		// Open a picker with the selected value if picked

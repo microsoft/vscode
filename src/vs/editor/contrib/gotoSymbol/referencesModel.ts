@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { basename, extUri } from 'vs/base/common/resources';
-import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose, IReference } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
@@ -63,7 +63,7 @@ export class OneReference {
 	}
 }
 
-export class FilePreview implements IDisposable {
+export class FilePreview implements IDisposable2 {
 
 	constructor(
 		private readonly _modelReference: IReference<ITextEditorModel>
@@ -96,7 +96,7 @@ export class FilePreview implements IDisposable {
 	}
 }
 
-export class FileReferences implements IDisposable {
+export class FileReferences implements IDisposable2 {
 
 	readonly children: OneReference[] = [];
 
@@ -144,7 +144,7 @@ export class FileReferences implements IDisposable {
 	}
 }
 
-export class ReferencesModel implements IDisposable {
+export class ReferencesModel implements IDisposable2 {
 
 	private readonly _links: LocationLink[];
 	private readonly _title: string;

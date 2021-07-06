@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 
 import 'vs/css!./media/dirtydiffDecorator';
 import { ThrottledDelayer, first } from 'vs/base/common/async';
-import { IDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as ext from 'vs/workbench/common/contributions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -564,7 +564,7 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 	private widget: DirtyDiffWidget | null = null;
 	private currentIndex: number = -1;
 	private readonly isDirtyDiffVisible!: IContextKey<boolean>;
-	private session: IDisposable = Disposable.None;
+	private session: IDisposable2 = Disposable.None;
 	private mouseDownInfo: { lineNumber: number } | null = null;
 	private enabled = false;
 	private gutterActionDisposables = new DisposableStore();
@@ -1072,7 +1072,7 @@ export class DirtyDiffModel extends Disposable {
 
 	private diffDelayer = new ThrottledDelayer<IChange[] | null>(200);
 	private _originalURIPromise?: Promise<URI | null>;
-	private repositoryDisposables = new Set<IDisposable>();
+	private repositoryDisposables = new Set<IDisposable2>();
 	private readonly originalModelDisposables = this._register(new DisposableStore());
 	private _disposed = false;
 

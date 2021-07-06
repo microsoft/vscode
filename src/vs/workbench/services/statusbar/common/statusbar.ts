@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { Event } from 'vs/base/common/event';
 import { Command } from 'vs/editor/common/modes';
@@ -129,7 +129,7 @@ export interface IStatusbarService {
 	isEntryFocused(): boolean;
 }
 
-export interface IStatusbarEntryAccessor extends IDisposable {
+export interface IStatusbarEntryAccessor extends IDisposable2 {
 
 	/**
 	 * Allows to update an existing status bar entry.

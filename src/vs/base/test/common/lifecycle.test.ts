@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { DisposableStore, dispose, IDisposable, MultiDisposeError, ReferenceCollection, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IDisposable2, MultiDisposeError, ReferenceCollection, toDisposable } from 'vs/base/common/lifecycle';
 
-class Disposable implements IDisposable {
+class Disposable implements IDisposable2 {
 	isDisposed = false;
 	dispose() { this.isDisposed = true; }
 }
@@ -100,7 +100,7 @@ suite('Lifecycle', () => {
 		assert.strictEqual(array2.length, 0);
 		assert.ok(array !== array2);
 
-		let set = new Set<IDisposable>([{ dispose() { } }, { dispose() { } }]);
+		let set = new Set<IDisposable2>([{ dispose() { } }, { dispose() { } }]);
 		let setValues = set.values();
 		let setValues2 = dispose(setValues);
 		assert.ok(setValues === setValues2);

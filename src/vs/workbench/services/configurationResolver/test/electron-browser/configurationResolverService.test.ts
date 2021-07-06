@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { IPath, normalize } from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
@@ -676,7 +676,7 @@ class MockLabelService implements ILabelService {
 	getSeparator(scheme: string, authority?: string): '/' | '\\' {
 		throw new Error('Method not implemented.');
 	}
-	registerFormatter(formatter: ResourceLabelFormatter): IDisposable {
+	registerFormatter(formatter: ResourceLabelFormatter): IDisposable2 {
 		throw new Error('Method not implemented.');
 	}
 	onDidChangeFormatters: Event<IFormatterChangeEvent> = new Emitter<IFormatterChangeEvent>().event;

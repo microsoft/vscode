@@ -7,9 +7,9 @@ import { IDiskFileChange, ILogMessage } from 'vs/platform/files/node/watcher/wat
 import { OutOfProcessWin32FolderWatcher } from 'vs/platform/files/node/watcher/win32/csharpWatcherService';
 import { posix } from 'vs/base/common/path';
 import { rtrim } from 'vs/base/common/strings';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 
-export class FileWatcher implements IDisposable {
+export class FileWatcher implements IDisposable2 {
 
 	private folder: { path: string, excludes: string[] };
 	private service: OutOfProcessWin32FolderWatcher | undefined = undefined;

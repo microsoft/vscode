@@ -5,7 +5,7 @@
 
 import { GestureEvent } from 'vs/base/browser/touch';
 import { Event as BaseEvent, Emitter } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 
 export type EventHandler = HTMLElement | HTMLDocument | Window;
 
@@ -22,7 +22,7 @@ export interface DOMEventMap extends HTMLElementEventMap, DocumentEventMap {
 	'-monaco-gesturecontextmenu': GestureEvent;
 }
 
-export class DomEmitter<K extends keyof DOMEventMap> implements IDisposable {
+export class DomEmitter<K extends keyof DOMEventMap> implements IDisposable2 {
 
 	private emitter: Emitter<DOMEventMap[K]>;
 

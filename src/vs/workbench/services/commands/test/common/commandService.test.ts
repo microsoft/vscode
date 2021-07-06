@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, DisposableStore } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/workbench/services/commands/common/commandService';
 import { NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -12,7 +12,7 @@ import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('CommandService', function () {
 
-	let commandRegistration: IDisposable;
+	let commandRegistration: IDisposable2;
 
 	setup(function () {
 		commandRegistration = CommandsRegistry.registerCommand('foo', function () { });

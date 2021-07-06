@@ -8,7 +8,7 @@ import { IListMouseEvent, IListTouchEvent, IListRenderer, IListVirtualDelegate }
 import { IPagedRenderer, PagedList, IPagedListOptions } from 'vs/base/browser/ui/list/listPaging';
 import { DefaultStyleController, IListOptions, IMultipleSelectionController, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, List, IListAccessibilityProvider, IListOptionsUpdate } from 'vs/base/browser/ui/list/listWidget';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, dispose, IDisposable, toDisposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable2, toDisposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -65,7 +65,7 @@ export class ListService implements IListService {
 	constructor(@IThemeService private readonly _themeService: IThemeService) {
 	}
 
-	register(widget: WorkbenchListWidget, extraContextKeys?: (IContextKey<boolean>)[]): IDisposable {
+	register(widget: WorkbenchListWidget, extraContextKeys?: (IContextKey<boolean>)[]): IDisposable2 {
 		if (!this._hasCreatedStyleController) {
 			this._hasCreatedStyleController = true;
 			// create a shared default tree style sheet for performance reasons
@@ -167,7 +167,7 @@ class MultipleSelectionController<T> extends Disposable implements IMultipleSele
 	}
 }
 
-function toWorkbenchListOptions<T>(options: IListOptions<T>, configurationService: IConfigurationService, keybindingService: IKeybindingService): [IListOptions<T>, IDisposable] {
+function toWorkbenchListOptions<T>(options: IListOptions<T>, configurationService: IConfigurationService, keybindingService: IKeybindingService): [IListOptions<T>, IDisposable2] {
 	const disposables = new DisposableStore();
 	const result = { ...options };
 
@@ -205,7 +205,7 @@ export class WorkbenchList<T> extends List<T> {
 	private listDoubleSelection: IContextKey<boolean>;
 	private listMultiSelection: IContextKey<boolean>;
 	private horizontalScrolling: boolean | undefined;
-	private _styler: IDisposable | undefined;
+	private _styler: IDisposable2 | undefined;
 	private _useAltAsMultipleSelectionModifier: boolean;
 	private navigator: ListResourceNavigator<T>;
 	get onDidOpen(): Event<IOpenEvent<T | undefined>> { return this.navigator.onDidOpen; }
@@ -338,7 +338,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 	private listSupportsMultiSelect: IContextKey<boolean>;
 	private _useAltAsMultipleSelectionModifier: boolean;
 	private horizontalScrolling: boolean | undefined;
-	private _styler: IDisposable | undefined;
+	private _styler: IDisposable2 | undefined;
 	private navigator: ListResourceNavigator<T>;
 	get onDidOpen(): Event<IOpenEvent<T | undefined>> { return this.navigator.onDidOpen; }
 
@@ -461,7 +461,7 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 	private listDoubleSelection: IContextKey<boolean>;
 	private listMultiSelection: IContextKey<boolean>;
 	private horizontalScrolling: boolean | undefined;
-	private _styler: IDisposable | undefined;
+	private _styler: IDisposable2 | undefined;
 	private _useAltAsMultipleSelectionModifier: boolean;
 	private readonly disposables: DisposableStore;
 	private navigator: TableResourceNavigator<TRow>;
@@ -1020,7 +1020,7 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 	configurationService: IConfigurationService,
 	keybindingService: IKeybindingService,
 	accessibilityService: IAccessibilityService,
-): { options: TOptions, getAutomaticKeyboardNavigation: () => boolean | undefined, disposable: IDisposable } {
+): { options: TOptions, getAutomaticKeyboardNavigation: () => boolean | undefined, disposable: IDisposable2 } {
 	WorkbenchListSupportsKeyboardNavigation.bindTo(contextKeyService);
 
 	if (!didBindWorkbenchListAutomaticKeyboardNavigation) {
@@ -1079,8 +1079,8 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 	private hasDoubleSelection: IContextKey<boolean>;
 	private hasMultiSelection: IContextKey<boolean>;
 	private _useAltAsMultipleSelectionModifier: boolean;
-	private disposables: IDisposable[] = [];
-	private styler: IDisposable | undefined;
+	private disposables: IDisposable2[] = [];
+	private styler: IDisposable2 | undefined;
 	private navigator: TreeResourceNavigator<T, TFilterData>;
 
 	get onDidOpen(): Event<IOpenEvent<T | undefined>> { return this.navigator.onDidOpen; }

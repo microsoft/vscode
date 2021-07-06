@@ -7,7 +7,7 @@ import { ExtHostTunnelServiceShape } from 'vs/workbench/api/common/extHost.proto
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import * as vscode from 'vscode';
 import { ProvidedPortAttributes, RemoteTunnel, TunnelCreationOptions, TunnelOptions } from 'vs/platform/remote/common/tunnel';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -47,8 +47,8 @@ export interface IExtHostTunnelService extends ExtHostTunnelServiceShape {
 	openTunnel(extension: IExtensionDescription, forward: TunnelOptions): Promise<vscode.Tunnel | undefined>;
 	getTunnels(): Promise<vscode.TunnelDescription[]>;
 	onDidChangeTunnels: vscode.Event<void>;
-	setTunnelExtensionFunctions(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable>;
-	registerPortsAttributesProvider(portSelector: { pid?: number, portRange?: [number, number], commandMatcher?: RegExp }, provider: vscode.PortAttributesProvider): IDisposable;
+	setTunnelExtensionFunctions(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable2>;
+	registerPortsAttributesProvider(portSelector: { pid?: number, portRange?: [number, number], commandMatcher?: RegExp }, provider: vscode.PortAttributesProvider): IDisposable2;
 }
 
 export const IExtHostTunnelService = createDecorator<IExtHostTunnelService>('IExtHostTunnelService');
@@ -71,7 +71,7 @@ export class ExtHostTunnelService implements IExtHostTunnelService {
 	async getTunnels(): Promise<vscode.TunnelDescription[]> {
 		return [];
 	}
-	async setTunnelExtensionFunctions(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable> {
+	async setTunnelExtensionFunctions(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable2> {
 		return { dispose: () => { } };
 	}
 	registerPortsAttributesProvider(portSelector: { pid?: number, portRange?: [number, number] }, provider: vscode.PortAttributesProvider) {

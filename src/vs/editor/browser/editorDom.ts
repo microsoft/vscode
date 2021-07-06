@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { GlobalMouseMoveMonitor } from 'vs/base/browser/globalMouseMoveMonitor';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 
 /**
  * Coordinates relative to the whole document (e.g. mouse event's pageX and pageY)
@@ -99,31 +99,31 @@ export class EditorMouseEventFactory {
 		return new EditorMouseEvent(e, this._editorViewDomNode);
 	}
 
-	public onContextMenu(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
+	public onContextMenu(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable2 {
 		return dom.addDisposableListener(target, 'contextmenu', (e: MouseEvent) => {
 			callback(this._create(e));
 		});
 	}
 
-	public onMouseUp(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
+	public onMouseUp(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable2 {
 		return dom.addDisposableListener(target, 'mouseup', (e: MouseEvent) => {
 			callback(this._create(e));
 		});
 	}
 
-	public onMouseDown(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
+	public onMouseDown(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable2 {
 		return dom.addDisposableListener(target, 'mousedown', (e: MouseEvent) => {
 			callback(this._create(e));
 		});
 	}
 
-	public onMouseLeave(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
+	public onMouseLeave(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable2 {
 		return dom.addDisposableNonBubblingMouseOutListener(target, (e: MouseEvent) => {
 			callback(this._create(e));
 		});
 	}
 
-	public onMouseMoveThrottled(target: HTMLElement, callback: (e: EditorMouseEvent) => void, merger: EditorMouseEventMerger, minimumTimeMs: number): IDisposable {
+	public onMouseMoveThrottled(target: HTMLElement, callback: (e: EditorMouseEvent) => void, merger: EditorMouseEventMerger, minimumTimeMs: number): IDisposable2 {
 		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent | null, currentEvent: MouseEvent): EditorMouseEvent => {
 			return merger(lastEvent, this._create(currentEvent));
 		};
@@ -143,25 +143,25 @@ export class EditorPointerEventFactory {
 		return new EditorMouseEvent(e, this._editorViewDomNode);
 	}
 
-	public onPointerUp(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
+	public onPointerUp(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable2 {
 		return dom.addDisposableListener(target, 'pointerup', (e: MouseEvent) => {
 			callback(this._create(e));
 		});
 	}
 
-	public onPointerDown(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
+	public onPointerDown(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable2 {
 		return dom.addDisposableListener(target, 'pointerdown', (e: MouseEvent) => {
 			callback(this._create(e));
 		});
 	}
 
-	public onPointerLeave(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
+	public onPointerLeave(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable2 {
 		return dom.addDisposableNonBubblingPointerOutListener(target, (e: MouseEvent) => {
 			callback(this._create(e));
 		});
 	}
 
-	public onPointerMoveThrottled(target: HTMLElement, callback: (e: EditorMouseEvent) => void, merger: EditorMouseEventMerger, minimumTimeMs: number): IDisposable {
+	public onPointerMoveThrottled(target: HTMLElement, callback: (e: EditorMouseEvent) => void, merger: EditorMouseEventMerger, minimumTimeMs: number): IDisposable2 {
 		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent | null, currentEvent: MouseEvent): EditorMouseEvent => {
 			return merger(lastEvent, this._create(currentEvent));
 		};
@@ -173,7 +173,7 @@ export class GlobalEditorMouseMoveMonitor extends Disposable {
 
 	private readonly _editorViewDomNode: HTMLElement;
 	private readonly _globalMouseMoveMonitor: GlobalMouseMoveMonitor<EditorMouseEvent>;
-	private _keydownListener: IDisposable | null;
+	private _keydownListener: IDisposable2 | null;
 
 	constructor(editorViewDomNode: HTMLElement) {
 		super();

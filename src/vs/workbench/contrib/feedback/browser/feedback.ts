@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/feedback';
 import * as nls from 'vs/nls';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, DisposableStore } from 'vs/base/common/lifecycle';
 import { Dropdown } from 'vs/base/browser/ui/dropdown/dropdown';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import * as dom from 'vs/base/browser/dom';
@@ -103,7 +103,7 @@ export class FeedbackWidget extends Dropdown {
 		};
 	}
 
-	protected override renderContents(container: HTMLElement): IDisposable {
+	protected override renderContents(container: HTMLElement): IDisposable2 {
 		const disposables = new DisposableStore();
 
 		container.classList.add('monaco-menu-container');

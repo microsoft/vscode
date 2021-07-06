@@ -63,7 +63,7 @@ import { ShowRuntimeExtensionsAction } from 'vs/workbench/contrib/extensions/bro
 import { ExtensionEnablementWorkspaceTrustTransitionParticipant } from 'vs/workbench/contrib/extensions/browser/extensionEnablementWorkspaceTrustTransitionParticipant';
 import { clearSearchResultsIcon, configureRecommendedIcon, extensionsViewIcon, filterIcon, installWorkspaceRecommendedIcon, refreshIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable2 } from 'vs/base/common/lifecycle';
 import { isArray } from 'vs/base/common/types';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -1348,7 +1348,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 	}
 
-	private registerExtensionAction(extensionActionOptions: IExtensionActionOptions): IDisposable {
+	private registerExtensionAction(extensionActionOptions: IExtensionActionOptions): IDisposable2 {
 		const menus = extensionActionOptions.menu ? isArray(extensionActionOptions.menu) ? extensionActionOptions.menu : [extensionActionOptions.menu] : [];
 		let menusWithOutTitles: ({ id: MenuId } & Omit<IMenuItem, 'command'>)[] = [];
 		const menusWithTitles: { id: MenuId, item: IMenuItem }[] = [];

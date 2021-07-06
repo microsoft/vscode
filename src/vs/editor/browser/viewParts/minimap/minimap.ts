@@ -8,7 +8,7 @@ import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
 import { CharCode } from 'vs/base/common/charCode';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { ILine, RenderedLinesCollection } from 'vs/editor/browser/view/viewLayer';
@@ -1045,13 +1045,13 @@ class InnerMinimap extends Disposable {
 	private readonly _decorationsCanvas: FastDomNode<HTMLCanvasElement>;
 	private readonly _slider: FastDomNode<HTMLElement>;
 	private readonly _sliderHorizontal: FastDomNode<HTMLElement>;
-	private readonly _mouseDownListener: IDisposable;
+	private readonly _mouseDownListener: IDisposable2;
 	private readonly _sliderMouseMoveMonitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
-	private readonly _sliderMouseDownListener: IDisposable;
-	private readonly _gestureDisposable: IDisposable;
-	private readonly _sliderTouchStartListener: IDisposable;
-	private readonly _sliderTouchMoveListener: IDisposable;
-	private readonly _sliderTouchEndListener: IDisposable;
+	private readonly _sliderMouseDownListener: IDisposable2;
+	private readonly _gestureDisposable: IDisposable2;
+	private readonly _sliderTouchStartListener: IDisposable2;
+	private readonly _sliderTouchMoveListener: IDisposable2;
+	private readonly _sliderTouchEndListener: IDisposable2;
 
 	private _lastRenderData: RenderData | null;
 	private _selectionColor: Color | undefined;

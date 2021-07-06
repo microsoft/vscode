@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as strings from 'vs/base/common/strings';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
@@ -157,7 +157,7 @@ export class AdapterManager implements IAdapterManager {
 		});
 	}
 
-	registerDebugAdapterFactory(debugTypes: string[], debugAdapterLauncher: IDebugAdapterFactory): IDisposable {
+	registerDebugAdapterFactory(debugTypes: string[], debugAdapterLauncher: IDebugAdapterFactory): IDisposable2 {
 		debugTypes.forEach(debugType => this.debugAdapterFactories.set(debugType, debugAdapterLauncher));
 		this.debuggersAvailable.set(this.debugAdapterFactories.size > 0);
 		this._onDidRegisterDebugger.fire();
@@ -197,7 +197,7 @@ export class AdapterManager implements IAdapterManager {
 		return Promise.resolve(void 0);
 	}
 
-	registerDebugAdapterDescriptorFactory(debugAdapterProvider: IDebugAdapterDescriptorFactory): IDisposable {
+	registerDebugAdapterDescriptorFactory(debugAdapterProvider: IDebugAdapterDescriptorFactory): IDisposable2 {
 		this.adapterDescriptorFactories.push(debugAdapterProvider);
 		return {
 			dispose: () => {

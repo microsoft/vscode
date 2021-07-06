@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { IEditor, IEditorViewState, IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceEditorInput, IResourceEditorInput, ITextResourceEditorInput, IBaseTextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
@@ -250,7 +250,7 @@ export interface IEditorInputFactoryRegistry {
 	 * @param editorInputTypeId the type identifier of the editor input
 	 * @param serializer the editor input serializer for serialization/deserialization
 	 */
-	registerEditorInputSerializer<Services extends BrandedService[]>(editorInputTypeId: string, ctor: { new(...Services: Services): IEditorInputSerializer }): IDisposable;
+	registerEditorInputSerializer<Services extends BrandedService[]>(editorInputTypeId: string, ctor: { new(...Services: Services): IEditorInputSerializer }): IDisposable2;
 
 	/**
 	 * Returns the editor input serializer for the given editor input.
@@ -466,7 +466,7 @@ export const enum UntypedEditorContext {
 
 export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput;
 
-export interface IEditorInput extends IDisposable {
+export interface IEditorInput extends IDisposable2 {
 
 	/**
 	 * Triggered when this input is about to be disposed.
@@ -1065,7 +1065,7 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 		return assertIsDefined(this.fileEditorInputFactory);
 	}
 
-	registerEditorInputSerializer(editorInputTypeId: string, ctor: IConstructorSignature0<IEditorInputSerializer>): IDisposable {
+	registerEditorInputSerializer(editorInputTypeId: string, ctor: IConstructorSignature0<IEditorInputSerializer>): IDisposable2 {
 		if (this.editorInputSerializerConstructors.has(editorInputTypeId) || this.editorInputSerializerInstances.has(editorInputTypeId)) {
 			throw new Error(`A editor input serializer with type ID '${editorInputTypeId}' was already registered.`);
 		}

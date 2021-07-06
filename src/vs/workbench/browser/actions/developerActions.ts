@@ -10,7 +10,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomEmitter } from 'vs/base/browser/event';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
-import { IDisposable, toDisposable, dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, toDisposable, dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $ } from 'vs/base/browser/dom';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -92,7 +92,7 @@ class InspectContextKeysAction extends Action2 {
 
 class ToggleScreencastModeAction extends Action2 {
 
-	static disposable: IDisposable | undefined;
+	static disposable: IDisposable2 | undefined;
 
 	constructor() {
 		super({
@@ -198,7 +198,7 @@ class ToggleScreencastModeAction extends Action2 {
 		}));
 
 		const onKeyDown = disposables.add(new DomEmitter(window, 'keydown', true));
-		let keyboardTimeout: IDisposable = Disposable.None;
+		let keyboardTimeout: IDisposable2 = Disposable.None;
 		let length = 0;
 
 		disposables.add(onKeyDown.event(e => {

@@ -9,7 +9,7 @@ import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/brow
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorMemento, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -59,7 +59,7 @@ export class WalkThroughPart extends EditorPane {
 	static readonly ID: string = 'workbench.editor.walkThroughPart';
 
 	private readonly disposables = new DisposableStore();
-	private contentDisposables: IDisposable[] = [];
+	private contentDisposables: IDisposable2[] = [];
 	private content!: HTMLDivElement;
 	private scrollbar!: DomScrollableElement;
 	private editorFocus: IContextKey<boolean>;
@@ -124,9 +124,9 @@ export class WalkThroughPart extends EditorPane {
 		this.scrollbar.setScrollPosition({ scrollTop: scrollPosition.scrollTop - event.translationY });
 	}
 
-	private addEventListener<K extends keyof HTMLElementEventMap, E extends HTMLElement>(element: E, type: K, listener: (this: E, ev: HTMLElementEventMap[K]) => any, useCapture?: boolean): IDisposable;
-	private addEventListener<E extends HTMLElement>(element: E, type: string, listener: EventListenerOrEventListenerObject, useCapture?: boolean): IDisposable;
-	private addEventListener<E extends HTMLElement>(element: E, type: string, listener: EventListenerOrEventListenerObject, useCapture?: boolean): IDisposable {
+	private addEventListener<K extends keyof HTMLElementEventMap, E extends HTMLElement>(element: E, type: K, listener: (this: E, ev: HTMLElementEventMap[K]) => any, useCapture?: boolean): IDisposable2;
+	private addEventListener<E extends HTMLElement>(element: E, type: string, listener: EventListenerOrEventListenerObject, useCapture?: boolean): IDisposable2;
+	private addEventListener<E extends HTMLElement>(element: E, type: string, listener: EventListenerOrEventListenerObject, useCapture?: boolean): IDisposable2 {
 		element.addEventListener(type, listener, useCapture);
 		return toDisposable(() => { element.removeEventListener(type, listener, useCapture); });
 	}

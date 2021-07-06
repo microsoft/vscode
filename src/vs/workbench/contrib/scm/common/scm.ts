@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { Command } from 'vs/editor/common/modes';
 import { ISequence } from 'vs/base/common/sequence';
 import { IAction } from 'vs/base/common/actions';
@@ -47,7 +47,7 @@ export interface ISCMResourceGroup extends ISequence<ISCMResource> {
 	readonly onDidChange: Event<void>;
 }
 
-export interface ISCMProvider extends IDisposable {
+export interface ISCMProvider extends IDisposable2 {
 	readonly label: string;
 	readonly id: string;
 	readonly contextValue: string;
@@ -120,7 +120,7 @@ export interface ISCMInput {
 	showPreviousHistoryValue(): void;
 }
 
-export interface ISCMRepository extends IDisposable {
+export interface ISCMRepository extends IDisposable2 {
 	readonly provider: ISCMProvider;
 	readonly input: ISCMInput;
 }

@@ -5,12 +5,12 @@
 
 import { Button } from 'vs/base/browser/ui/button/button';
 import { IAction } from 'vs/base/common/actions';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable2 } from 'vs/base/common/lifecycle';
 import { IMenu } from 'vs/platform/actions/common/actions';
 import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
-export class CommentFormActions implements IDisposable {
+export class CommentFormActions implements IDisposable2 {
 	private _buttonElements: HTMLElement[] = [];
 	private readonly _toDispose = new DisposableStore();
 	private _actions: IAction[] = [];

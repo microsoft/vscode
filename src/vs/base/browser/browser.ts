@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 
 class WindowManager {
 
@@ -84,7 +84,7 @@ export function getZoomLevel(): number {
 export function getTimeSinceLastZoomLevelChanged(): number {
 	return WindowManager.INSTANCE.getTimeSinceLastZoomLevelChanged();
 }
-export function onDidChangeZoomLevel(callback: (zoomLevel: number) => void): IDisposable {
+export function onDidChangeZoomLevel(callback: (zoomLevel: number) => void): IDisposable2 {
 	return WindowManager.INSTANCE.onDidChangeZoomLevel(callback);
 }
 

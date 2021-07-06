@@ -8,7 +8,7 @@ import { IAction, SubmenuAction } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { Position } from 'vs/editor/common/core/position';
@@ -42,7 +42,7 @@ import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
 import { ResourceMap } from 'vs/base/common/map';
 import { Selection } from 'vs/editor/common/core/selection';
 
-export interface IPreferencesRenderer<T> extends IDisposable {
+export interface IPreferencesRenderer<T> extends IDisposable2 {
 	readonly preferencesModel: IPreferencesEditorModel<T>;
 
 	getAssociatedPreferencesModel(): IPreferencesEditorModel<T>;

@@ -6,7 +6,7 @@
 import 'vs/css!./dropdown';
 import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { IContextViewProvider, IAnchor, AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -16,7 +16,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Emitter } from 'vs/base/common/event';
 
 export interface ILabelRenderer {
-	(container: HTMLElement): IDisposable | null;
+	(container: HTMLElement): IDisposable2 | null;
 }
 
 export interface IBaseDropdownOptions {
@@ -43,7 +43,7 @@ export class BaseDropdown extends ActionRunner {
 
 		let labelRenderer = options.labelRenderer;
 		if (!labelRenderer) {
-			labelRenderer = (container: HTMLElement): IDisposable | null => {
+			labelRenderer = (container: HTMLElement): IDisposable2 | null => {
 				container.textContent = options.label || '';
 
 				return null;
@@ -195,7 +195,7 @@ export class Dropdown extends BaseDropdown {
 		}
 	}
 
-	protected renderContents(container: HTMLElement): IDisposable | null {
+	protected renderContents(container: HTMLElement): IDisposable2 | null {
 		return null;
 	}
 }

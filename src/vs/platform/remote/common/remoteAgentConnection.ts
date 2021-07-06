@@ -6,7 +6,7 @@
 import { Client, PersistentProtocol, ISocket, SocketCloseEventType } from 'vs/base/parts/ipc/common/ipc.net';
 import { generateUuid } from 'vs/base/common/uuid';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable2 } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter } from 'vs/base/common/event';
 import { RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -129,7 +129,7 @@ class PromiseWithTimeout<T> {
 		}
 	}
 
-	public registerDisposable(disposable: IDisposable): void {
+	public registerDisposable(disposable: IDisposable2): void {
 		if (this._state === 'pending') {
 			this._disposables.add(disposable);
 		} else {

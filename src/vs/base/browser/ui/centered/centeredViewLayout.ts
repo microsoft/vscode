@@ -7,7 +7,7 @@ import { SplitView, Orientation, ISplitViewStyles, IView as ISplitViewView } fro
 import { $ } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { IView, IViewSize } from 'vs/base/browser/ui/grid/grid';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, DisposableStore } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
 import { IBoundarySashes } from 'vs/base/browser/ui/grid/gridview';
 
@@ -51,7 +51,7 @@ export interface ICenteredViewStyles extends ISplitViewStyles {
 	background: Color;
 }
 
-export class CenteredViewLayout implements IDisposable {
+export class CenteredViewLayout implements IDisposable2 {
 
 	private splitView?: SplitView;
 	private width: number = 0;

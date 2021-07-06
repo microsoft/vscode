@@ -11,7 +11,7 @@ import * as json from 'vs/base/common/json';
 import { URI } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Action } from 'vs/base/common/actions';
-import { IDisposable, Disposable, IReference } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable, IReference } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as Types from 'vs/base/common/types';
 import { TerminateResponseCode } from 'vs/base/common/processes';
@@ -222,7 +222,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	protected _workspaceTasksPromise?: Promise<Map<string, WorkspaceFolderTaskResult>>;
 
 	protected _taskSystem?: ITaskSystem;
-	protected _taskSystemListener?: IDisposable;
+	protected _taskSystemListener?: IDisposable2;
 	private _recentlyUsedTasksV1: LRUCache<string, string> | undefined;
 	private _recentlyUsedTasks: LRUCache<string, string> | undefined;
 
@@ -536,7 +536,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	public registerTaskProvider(provider: ITaskProvider, type: string): IDisposable {
+	public registerTaskProvider(provider: ITaskProvider, type: string): IDisposable2 {
 		if (!provider) {
 			return {
 				dispose: () => { }

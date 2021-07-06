@@ -9,7 +9,7 @@ import { IEditorInput, IEditorPane, GroupIdentifier, IEditorInputWithOptions, Cl
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDimension } from 'vs/editor/common/editorCommon';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 
@@ -363,7 +363,7 @@ export interface IEditorGroupsService {
 	/**
 	 * Enforce editor part options temporarily.
 	 */
-	enforcePartOptions(options: IEditorPartOptions): IDisposable;
+	enforcePartOptions(options: IEditorPartOptions): IDisposable2;
 }
 
 export const enum GroupChangeKind {

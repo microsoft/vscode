@@ -6,7 +6,7 @@
 import { TimeoutTimer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { Position, IPosition } from 'vs/editor/common/core/position';
@@ -111,7 +111,7 @@ function shouldPreventSuggestOnTriggerCharacters(contextKeyService: IContextKeyS
 	);
 }
 
-export class SuggestModel implements IDisposable {
+export class SuggestModel implements IDisposable2 {
 
 	private readonly _toDispose = new DisposableStore();
 	private _quickSuggestDelay: number = 10;

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter, Relay, EventMultiplexer } from 'vs/base/common/event';
-import { IDisposable, toDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, toDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
@@ -286,11 +286,11 @@ interface PendingRequest {
 	timeoutTimer: any;
 }
 
-export class ChannelServer<TContext = string> implements IChannelServer<TContext>, IDisposable {
+export class ChannelServer<TContext = string> implements IChannelServer<TContext>, IDisposable2 {
 
 	private channels = new Map<string, IServerChannel<TContext>>();
-	private activeRequests = new Map<number, IDisposable>();
-	private protocolListener: IDisposable | null;
+	private activeRequests = new Map<number, IDisposable2>();
+	private protocolListener: IDisposable2 | null;
 
 	// Requests might come in for channels which are not yet registered.
 	// They will timeout after `timeoutDelay`.
@@ -504,14 +504,14 @@ export interface IIPCLogger {
 	logOutgoing(msgLength: number, requestId: number, initiator: RequestInitiator, str: string, data?: any): void;
 }
 
-export class ChannelClient implements IChannelClient, IDisposable {
+export class ChannelClient implements IChannelClient, IDisposable2 {
 
 	private isDisposed: boolean = false;
 	private state: State = State.Uninitialized;
-	private activeRequests = new Set<IDisposable>();
+	private activeRequests = new Set<IDisposable2>();
 	private handlers = new Map<number, IHandler>();
 	private lastRequestId: number = 0;
-	private protocolListener: IDisposable | null;
+	private protocolListener: IDisposable2 | null;
 	private logger: IIPCLogger | null;
 
 	private readonly _onDidInitialize = new Emitter<void>();
@@ -550,7 +550,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 			return Promise.reject(errors.canceled());
 		}
 
-		let disposable: IDisposable;
+		let disposable: IDisposable2;
 
 		const result = new Promise((c, e) => {
 			if (cancellationToken.isCancellationRequested) {
@@ -766,7 +766,7 @@ interface Connection<TContext> extends Client<TContext> {
  * and the `IPCClient` classes to get IPC implementations
  * for your protocol.
  */
-export class IPCServer<TContext = string> implements IChannelServer<TContext>, IRoutingChannelClient<TContext>, IConnectionHub<TContext>, IDisposable {
+export class IPCServer<TContext = string> implements IChannelServer<TContext>, IRoutingChannelClient<TContext>, IConnectionHub<TContext>, IDisposable2 {
 
 	private channels = new Map<string, IServerChannel<TContext>>();
 	private _connections = new Set<Connection<TContext>>();
@@ -875,7 +875,7 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 				// client list is dynamic. We need to hook up and disconnection
 				// to/from clients as they come and go.
 				const eventMultiplexer = new EventMultiplexer<T>();
-				const map = new Map<Connection<TContext>, IDisposable>();
+				const map = new Map<Connection<TContext>, IDisposable2>();
 
 				const onDidAddConnection = (connection: Connection<TContext>) => {
 					const channel = connection.channelClient.getChannel(channelName);
@@ -934,7 +934,7 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
  * and the `IPCClient` classes to get IPC implementations
  * for your protocol.
  */
-export class IPCClient<TContext = string> implements IChannelClient, IChannelServer<TContext>, IDisposable {
+export class IPCClient<TContext = string> implements IChannelClient, IChannelServer<TContext>, IDisposable2 {
 
 	private channelClient: ChannelClient;
 	private channelServer: ChannelServer<TContext>;

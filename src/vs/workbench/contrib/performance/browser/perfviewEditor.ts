@@ -14,7 +14,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
 import { LoaderStats } from 'vs/base/common/amd';
@@ -27,7 +27,7 @@ import { isWeb } from 'vs/base/common/platform';
 
 export class PerfviewContrib {
 
-	private readonly _registration: IDisposable;
+	private readonly _registration: IDisposable2;
 
 	constructor(
 		@IInstantiationService instaService: IInstantiationService,
@@ -75,7 +75,7 @@ export class PerfviewInput extends TextResourceEditorInput {
 class PerfModelContentProvider implements ITextModelContentProvider {
 
 	private _model: ITextModel | undefined;
-	private _modelDisposables: IDisposable[] = [];
+	private _modelDisposables: IDisposable2[] = [];
 
 	constructor(
 		@IModelService private readonly _modelService: IModelService,

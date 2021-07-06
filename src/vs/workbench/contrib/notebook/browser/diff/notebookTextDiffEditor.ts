@@ -26,7 +26,7 @@ import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
 import { CellEditState, ICellOutputViewModel, IDisplayOutputLayoutUpdateRequest, IGenericCellViewModel, IInsetRenderOutput, INotebookEditorCreationOptions, INotebookEditorOptions, NotebookLayoutInfo, NOTEBOOK_DIFF_EDITOR_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { DiffSide, DIFF_CELL_MARGIN, IDiffCellInfo, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { CellUri, INotebookDiffEditorModel, INotebookDiffResult } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { URI } from 'vs/base/common/uri';
@@ -623,7 +623,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}, 10);
 	}
 
-	private pendingLayouts = new WeakMap<DiffElementViewModelBase, IDisposable>();
+	private pendingLayouts = new WeakMap<DiffElementViewModelBase, IDisposable2>();
 
 
 	layoutNotebookCell(cell: DiffElementViewModelBase, height: number) {

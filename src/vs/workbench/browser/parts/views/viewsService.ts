@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IViewDescriptorService, ViewContainer, IViewDescriptor, IView, ViewContainerLocation, IViewsService, IViewPaneContainer, getVisbileViewContextKey, getEnabledViewContainerContextKey, FocusedViewContext } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -38,7 +38,7 @@ export class ViewsService extends Disposable implements IViewsService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly viewDisposable: Map<IViewDescriptor, IDisposable>;
+	private readonly viewDisposable: Map<IViewDescriptor, IDisposable2>;
 	private readonly viewPaneContainers: Map<string, ViewPaneContainer>;
 
 	private readonly _onDidChangeViewVisibility: Emitter<{ id: string, visible: boolean }> = this._register(new Emitter<{ id: string, visible: boolean }>());
@@ -59,7 +59,7 @@ export class ViewsService extends Disposable implements IViewsService {
 	) {
 		super();
 
-		this.viewDisposable = new Map<IViewDescriptor, IDisposable>();
+		this.viewDisposable = new Map<IViewDescriptor, IDisposable2>();
 		this.visibleViewContextKeys = new Map<string, IContextKey<boolean>>();
 		this.viewPaneContainers = new Map<string, ViewPaneContainer>();
 
@@ -357,7 +357,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		return this.viewDescriptorService.getViewContainerLocation(viewContainer) === ViewContainerLocation.Sidebar ? this.viewletService.getProgressIndicator(viewContainer.id) : this.panelService.getProgressIndicator(viewContainer.id);
 	}
 
-	private registerOpenViewContainerAction(viewContainer: ViewContainer): IDisposable {
+	private registerOpenViewContainerAction(viewContainer: ViewContainer): IDisposable2 {
 		const disposables = new DisposableStore();
 		if (viewContainer.openCommandActionDescriptor) {
 			let { id, title, mnemonicTitle, keybindings, order } = viewContainer.openCommandActionDescriptor ?? { id: viewContainer.id };
@@ -423,7 +423,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		return disposables;
 	}
 
-	private registerOpenViewAction(viewDescriptor: IViewDescriptor): IDisposable {
+	private registerOpenViewAction(viewDescriptor: IViewDescriptor): IDisposable2 {
 		const disposables = new DisposableStore();
 		if (viewDescriptor.openCommandActionDescriptor) {
 			const title = viewDescriptor.openCommandActionDescriptor.title ?? viewDescriptor.name;
@@ -486,7 +486,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		return disposables;
 	}
 
-	private registerFocusViewAction(viewDescriptor: IViewDescriptor, category?: string | ILocalizedString): IDisposable {
+	private registerFocusViewAction(viewDescriptor: IViewDescriptor, category?: string | ILocalizedString): IDisposable2 {
 		return registerAction2(class FocusViewAction extends Action2 {
 			constructor() {
 				super({
@@ -514,7 +514,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		});
 	}
 
-	private registerResetViewLocationAction(viewDescriptor: IViewDescriptor): IDisposable {
+	private registerResetViewLocationAction(viewDescriptor: IViewDescriptor): IDisposable2 {
 		return registerAction2(class ResetViewLocationAction extends Action2 {
 			constructor() {
 				super({

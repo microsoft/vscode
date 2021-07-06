@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { isUndefinedOrNull } from 'vs/base/common/types';
@@ -41,7 +41,7 @@ export interface IStorageDatabase {
 	close(recovery?: () => Map<string, string>): Promise<void>;
 }
 
-export interface IStorage extends IDisposable {
+export interface IStorage extends IDisposable2 {
 
 	readonly onDidChangeStorage: Event<string>;
 

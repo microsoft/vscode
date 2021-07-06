@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChildProcess, fork, ForkOptions } from 'child_process';
-import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable2, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Delayer, createCancelablePromise } from 'vs/base/common/async';
 import { deepClone } from 'vs/base/common/objects';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -83,10 +83,10 @@ export interface IIPCOptions {
 	useQueue?: boolean;
 }
 
-export class Client implements IChannelClient, IDisposable {
+export class Client implements IChannelClient, IDisposable2 {
 
 	private disposeDelayer: Delayer<void> | undefined;
-	private activeRequests = new Set<IDisposable>();
+	private activeRequests = new Set<IDisposable2>();
 	private child: ChildProcess | null;
 	private _client: IPCClient | null;
 	private channels = new Map<string, IChannel>();
@@ -151,7 +151,7 @@ export class Client implements IChannelClient, IDisposable {
 
 		this.disposeDelayer.cancel();
 
-		let listener: IDisposable;
+		let listener: IDisposable2;
 		const emitter = new Emitter<any>({
 			onFirstListenerAdd: () => {
 				const channel = this.getCachedChannel(channelName);

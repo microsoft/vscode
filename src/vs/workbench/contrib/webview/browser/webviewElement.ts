@@ -5,7 +5,7 @@
 
 import { isFirefox } from 'vs/base/browser/browser';
 import { addDisposableListener } from 'vs/base/browser/dom';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -159,7 +159,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		}
 	}
 
-	protected on<T = unknown>(channel: WebviewMessageChannels, handler: (data: T) => void): IDisposable {
+	protected on<T = unknown>(channel: WebviewMessageChannels, handler: (data: T) => void): IDisposable2 {
 		return addDisposableListener(window, 'message', e => {
 			if (!e || !e.data || e.data.target !== this.id) {
 				return;

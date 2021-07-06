@@ -6,7 +6,7 @@
 import { flatten, isNonEmptyArray } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { combinedDisposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, DisposableStore, IDisposable2 } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -93,10 +93,10 @@ abstract class MainThreadKernel implements INotebookKernel {
 @extHostNamedCustomer(MainContext.MainThreadNotebookKernels)
 export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape {
 
-	private readonly _editors = new Map<INotebookEditor, IDisposable>();
+	private readonly _editors = new Map<INotebookEditor, IDisposable2>();
 	private readonly _disposables = new DisposableStore();
 
-	private readonly _kernels = new Map<number, [kernel: MainThreadKernel, registraion: IDisposable]>();
+	private readonly _kernels = new Map<number, [kernel: MainThreadKernel, registraion: IDisposable2]>();
 	private readonly _proxy: ExtHostNotebookKernelsShape;
 
 	constructor(

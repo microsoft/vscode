@@ -7,7 +7,7 @@ import 'vs/css!./gridview';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 import { SplitView, IView as ISplitView, Sizing, LayoutPriority, ISplitViewStyles } from 'vs/base/browser/ui/splitview/splitview';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { $ } from 'vs/base/browser/dom';
 import { equals as arrayEquals, tail2 as tail } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
@@ -157,7 +157,7 @@ function fromAbsoluteBoundarySashes(sashes: IBoundarySashes, orientation: Orient
 	}
 }
 
-class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
+class BranchNode implements ISplitView<ILayoutContext>, IDisposable2 {
 
 	readonly element: HTMLElement;
 	readonly children: Node[] = [];
@@ -244,15 +244,15 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 	readonly onDidChange: Event<number | undefined> = this._onDidChange.event;
 
 	private _onDidScroll = new Emitter<void>();
-	private onDidScrollDisposable: IDisposable = Disposable.None;
+	private onDidScrollDisposable: IDisposable2 = Disposable.None;
 	readonly onDidScroll: Event<void> = this._onDidScroll.event;
 
-	private childrenChangeDisposable: IDisposable = Disposable.None;
+	private childrenChangeDisposable: IDisposable2 = Disposable.None;
 
 	private readonly _onDidSashReset = new Emitter<number[]>();
 	readonly onDidSashReset: Event<number[]> = this._onDidSashReset.event;
-	private splitviewSashResetDisposable: IDisposable = Disposable.None;
-	private childrenSashResetDisposable: IDisposable = Disposable.None;
+	private splitviewSashResetDisposable: IDisposable2 = Disposable.None;
+	private childrenSashResetDisposable: IDisposable2 = Disposable.None;
 
 	private _boundarySashes: IRelativeBoundarySashes = {};
 	get boundarySashes(): IRelativeBoundarySashes { return this._boundarySashes; }
@@ -585,7 +585,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		this.onDidScrollDisposable = onDidScroll(this._onDidScroll.fire, this._onDidScroll);
 	}
 
-	trySet2x2(other: BranchNode): IDisposable {
+	trySet2x2(other: BranchNode): IDisposable2 {
 		if (this.children.length !== 2 || other.children.length !== 2) {
 			return Disposable.None;
 		}
@@ -673,7 +673,7 @@ function createLatchedOnDidChangeViewEvent(view: IView): Event<IViewSize | undef
 	);
 }
 
-class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
+class LeafNode implements ISplitView<ILayoutContext>, IDisposable2 {
 
 	private _size: number = 0;
 	get size(): number { return this._size; }
@@ -871,7 +871,7 @@ function flipNode<T extends Node>(node: T, size: number, orthogonalSize: number)
 	}
 }
 
-export class GridView implements IDisposable {
+export class GridView implements IDisposable2 {
 
 	readonly element: HTMLElement;
 	private styles: IGridViewStyles;
@@ -881,7 +881,7 @@ export class GridView implements IDisposable {
 	private onDidSashResetRelay = new Relay<number[]>();
 	readonly onDidSashReset: Event<number[]> = this.onDidSashResetRelay.event;
 
-	private disposable2x2: IDisposable = Disposable.None;
+	private disposable2x2: IDisposable2 = Disposable.None;
 
 	private get root(): BranchNode {
 		return this._root;

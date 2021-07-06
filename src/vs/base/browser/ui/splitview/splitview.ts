@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./splitview';
-import { IDisposable, toDisposable, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, toDisposable, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as types from 'vs/base/common/types';
 import { clamp } from 'vs/base/common/numbers';
@@ -120,7 +120,7 @@ abstract class ViewItem<TLayoutContext> {
 		protected container: HTMLElement,
 		private view: IView<TLayoutContext>,
 		size: ViewItemSize,
-		private disposable: IDisposable
+		private disposable: IDisposable2
 	) {
 		if (typeof size === 'number') {
 			this._size = size;
@@ -163,7 +163,7 @@ class HorizontalViewItem<TLayoutContext> extends ViewItem<TLayoutContext> {
 
 interface ISashItem {
 	sash: Sash;
-	disposable: IDisposable;
+	disposable: IDisposable2;
 }
 
 interface ISashDragSnapState {
@@ -182,7 +182,7 @@ interface ISashDragState {
 	alt: boolean;
 	snapBefore: ISashDragSnapState | undefined;
 	snapAfter: ISashDragSnapState | undefined;
-	disposable: IDisposable;
+	disposable: IDisposable2;
 }
 
 enum State {

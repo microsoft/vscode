@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getDomNodePagePosition, hide, show } from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { dispose, toDisposable, MutableDisposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { dispose, toDisposable, MutableDisposable, IDisposable2, DisposableStore } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { TextBadge, NumberBadge, IBadge, IconBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
@@ -149,7 +149,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 	private keybindingLabel: string | undefined | null;
 
 	private readonly hoverDisposables = this._register(new DisposableStore());
-	private readonly hover = this._register(new MutableDisposable<IDisposable>());
+	private readonly hover = this._register(new MutableDisposable<IDisposable2>());
 	private readonly showHoverScheduler = new RunOnceScheduler(() => this.showHover(), 0);
 
 	constructor(

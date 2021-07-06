@@ -6,7 +6,7 @@
 import { mapArrayOrNot } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import * as glob from 'vs/base/common/glob';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as extpath from 'vs/base/common/extpath';
 import { fuzzyContains, getNLines } from 'vs/base/common/strings';
@@ -43,7 +43,7 @@ export interface ISearchService {
 	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete>;
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
 	clearCache(cacheKey: string): Promise<void>;
-	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable;
+	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable2;
 }
 
 /**

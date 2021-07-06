@@ -6,7 +6,7 @@
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { IMatch } from 'vs/base/common/filters';
 import { IItemAccessor } from 'vs/base/common/fuzzyScorer';
 import { Schemas } from 'vs/base/common/network';
@@ -181,7 +181,7 @@ export interface IQuickInputHideEvent {
 	reason: QuickInputHideReason;
 }
 
-export interface IQuickInput extends IDisposable {
+export interface IQuickInput extends IDisposable2 {
 
 	readonly onDidHide: Event<IQuickInputHideEvent>;
 	readonly onDispose: Event<void>;

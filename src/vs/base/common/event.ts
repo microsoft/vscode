@@ -6,7 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { once as onceFn } from 'vs/base/common/functional';
-import { Disposable, IDisposable, toDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, toDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { StopWatch } from 'vs/base/common/stopwatch';
 
@@ -15,7 +15,7 @@ import { StopWatch } from 'vs/base/common/stopwatch';
  * can be subscribed. The event is the subscriber function itself.
  */
 export interface Event<T> {
-	(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[] | DisposableStore): IDisposable;
+	(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable2[] | DisposableStore): IDisposable2;
 }
 
 export namespace Event {
@@ -28,7 +28,7 @@ export namespace Event {
 		return (listener, thisArgs = null, disposables?) => {
 			// we need this, in case the event fires during the listener call
 			let didFire = false;
-			let result: IDisposable;
+			let result: IDisposable2;
 			result = event(e => {
 				if (didFire) {
 					return;
@@ -106,7 +106,7 @@ export namespace Event {
 	 * @deprecated DO NOT use, this leaks memory
 	 */
 	function snapshot<T>(event: Event<T>): Event<T> {
-		let listener: IDisposable;
+		let listener: IDisposable2;
 		const emitter = new Emitter<T>({
 			onFirstListenerAdd() {
 				listener = event(emitter.fire, emitter);
@@ -132,7 +132,7 @@ export namespace Event {
 	 */
 	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay: number = 100, leading = false, leakWarningThreshold?: number): Event<O> {
 
-		let subscription: IDisposable;
+		let subscription: IDisposable2;
 		let output: O | undefined = undefined;
 		let handle: any = undefined;
 		let numDebouncedCalls = 0;
@@ -201,7 +201,7 @@ export namespace Event {
 	export function buffer<T>(event: Event<T>, nextTick = false, _buffer: T[] = []): Event<T> {
 		let buffer: T[] | null = _buffer.slice();
 
-		let listener: IDisposable | null = event(e => {
+		let listener: IDisposable2 | null = event(e => {
 			if (buffer) {
 				buffer.push(e);
 			} else {
@@ -254,8 +254,8 @@ export namespace Event {
 		latch(): IChainableEvent<T>;
 		debounce(merge: (last: T | undefined, event: T) => T, delay?: number, leading?: boolean, leakWarningThreshold?: number): IChainableEvent<T>;
 		debounce<R>(merge: (last: R | undefined, event: T) => R, delay?: number, leading?: boolean, leakWarningThreshold?: number): IChainableEvent<R>;
-		on(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[] | DisposableStore): IDisposable;
-		once(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
+		on(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable2[] | DisposableStore): IDisposable2;
+		once(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable2[]): IDisposable2;
 	}
 
 	class ChainableEvent<T> implements IChainableEvent<T> {
@@ -290,11 +290,11 @@ export namespace Event {
 			return new ChainableEvent(debounce(this.event, merge, delay, leading, leakWarningThreshold));
 		}
 
-		on(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[] | DisposableStore) {
+		on(listener: (e: T) => any, thisArgs: any, disposables: IDisposable2[] | DisposableStore) {
 			return this.event(listener, thisArgs, disposables);
 		}
 
-		once(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[]) {
+		once(listener: (e: T) => any, thisArgs: any, disposables: IDisposable2[]) {
 			return once(this.event)(listener, thisArgs, disposables);
 		}
 	}
@@ -385,7 +385,7 @@ class EventProfiling {
 }
 
 let _globalLeakWarningThreshold = -1;
-export function setGlobalLeakWarningThreshold(n: number): IDisposable {
+export function setGlobalLeakWarningThreshold(n: number): IDisposable2 {
 	const oldValue = _globalLeakWarningThreshold;
 	_globalLeakWarningThreshold = n;
 	return {
@@ -501,7 +501,7 @@ export class Emitter<T> {
 	 */
 	get event(): Event<T> {
 		if (!this._event) {
-			this._event = (listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[] | DisposableStore) => {
+			this._event = (listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable2[] | DisposableStore) => {
 				if (!this._listeners) {
 					this._listeners = new LinkedList();
 				}
@@ -525,7 +525,7 @@ export class Emitter<T> {
 				// check and record this emitter for potential leakage
 				const removeMonitor = this._leakageMon?.check(this._listeners.size);
 
-				let result: IDisposable;
+				let result: IDisposable2;
 				result = {
 					dispose: () => {
 						if (removeMonitor) {
@@ -738,11 +738,11 @@ export class DebounceEmitter<T> extends PauseableEmitter<T> {
 	}
 }
 
-export class EventMultiplexer<T> implements IDisposable {
+export class EventMultiplexer<T> implements IDisposable2 {
 
 	private readonly emitter: Emitter<T>;
 	private hasListeners = false;
-	private events: { event: Event<T>; listener: IDisposable | null; }[] = [];
+	private events: { event: Event<T>; listener: IDisposable2 | null; }[] = [];
 
 	constructor() {
 		this.emitter = new Emitter<T>({
@@ -755,7 +755,7 @@ export class EventMultiplexer<T> implements IDisposable {
 		return this.emitter.event;
 	}
 
-	add(event: Event<T>): IDisposable {
+	add(event: Event<T>): IDisposable2 {
 		const e = { event: event, listener: null };
 		this.events.push(e);
 
@@ -785,11 +785,11 @@ export class EventMultiplexer<T> implements IDisposable {
 		this.events.forEach(e => this.unhook(e));
 	}
 
-	private hook(e: { event: Event<T>; listener: IDisposable | null; }): void {
+	private hook(e: { event: Event<T>; listener: IDisposable2 | null; }): void {
 		e.listener = e.event(r => this.emitter.fire(r));
 	}
 
-	private unhook(e: { event: Event<T>; listener: IDisposable | null; }): void {
+	private unhook(e: { event: Event<T>; listener: IDisposable2 | null; }): void {
 		if (e.listener) {
 			e.listener.dispose();
 		}
@@ -855,11 +855,11 @@ export class EventBufferer {
  * events from that input event through its own `event` property. The `input`
  * can be changed at any point in time.
  */
-export class Relay<T> implements IDisposable {
+export class Relay<T> implements IDisposable2 {
 
 	private listening = false;
 	private inputEvent: Event<T> = Event.None;
-	private inputEventListener: IDisposable = Disposable.None;
+	private inputEventListener: IDisposable2 = Disposable.None;
 
 	private readonly emitter = new Emitter<T>({
 		onFirstListenerDidAdd: () => {

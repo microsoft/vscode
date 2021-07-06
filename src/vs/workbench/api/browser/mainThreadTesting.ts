@@ -5,7 +5,7 @@
 
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
@@ -37,8 +37,8 @@ const reviveDiff = (diff: TestsDiff) => {
 export class MainThreadTesting extends Disposable implements MainThreadTestingShape, ITestRootProvider {
 	private readonly proxy: ExtHostTestingShape;
 	private readonly diffListener = this._register(new MutableDisposable());
-	private readonly testSubscriptions = new Map<string, IDisposable>();
-	private readonly testProviderRegistrations = new Map<string, IDisposable>();
+	private readonly testSubscriptions = new Map<string, IDisposable2>();
+	private readonly testProviderRegistrations = new Map<string, IDisposable2>();
 
 	constructor(
 		extHostContext: IExtHostContext,

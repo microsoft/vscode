@@ -7,19 +7,19 @@ import { Event } from 'vs/base/common/event';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDebugService, VIEWLET_ID, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable2 } from 'vs/base/common/lifecycle';
 import { IViewsService } from 'vs/workbench/common/views';
 
 export class DebugProgressContribution implements IWorkbenchContribution {
 
-	private toDispose: IDisposable[] = [];
+	private toDispose: IDisposable2[] = [];
 
 	constructor(
 		@IDebugService debugService: IDebugService,
 		@IProgressService progressService: IProgressService,
 		@IViewsService viewsService: IViewsService
 	) {
-		let progressListener: IDisposable | undefined;
+		let progressListener: IDisposable2 | undefined;
 		const listenOnProgress = (session: IDebugSession | undefined) => {
 			if (progressListener) {
 				progressListener.dispose();

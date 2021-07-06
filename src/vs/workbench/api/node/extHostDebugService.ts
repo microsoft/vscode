@@ -20,7 +20,7 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ExtHostDebugServiceBase, ExtHostDebugSession, ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/node/signService';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
 import { createCancelablePromise, firstParallel } from 'vs/base/common/async';
 import { hasChildProcesses, prepareCommand, runInExternalTerminal } from 'vs/workbench/contrib/debug/node/terminals';
@@ -31,7 +31,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 	override readonly _serviceBrand: undefined;
 
 	private _integratedTerminalInstances = new DebugTerminalCollection();
-	private _terminalDisposedListener: IDisposable | undefined;
+	private _terminalDisposedListener: IDisposable2 | undefined;
 
 	constructor(
 		@IExtHostRpcService extHostRpcService: IExtHostRpcService,

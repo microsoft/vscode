@@ -7,7 +7,7 @@ import { ipcMain, WebContents } from 'electron';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IPCServer, ClientConnectionEvent } from 'vs/base/parts/ipc/common/ipc';
 import { Protocol as ElectronProtocol } from 'vs/base/parts/ipc/common/ipc.electron';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 
 interface IIPCEvent {
@@ -27,7 +27,7 @@ function createScopedOnMessageEvent(senderId: number, eventName: string): Event<
  */
 export class Server extends IPCServer {
 
-	private static readonly Clients = new Map<number, IDisposable>();
+	private static readonly Clients = new Map<number, IDisposable2>();
 
 	private static getOnDidClientConnect(): Event<ClientConnectionEvent> {
 		const onHello = Event.fromNodeEventEmitter<WebContents>(ipcMain, 'vscode:hello', ({ sender }) => sender);

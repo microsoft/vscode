@@ -14,7 +14,7 @@ import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger } from 'vs/workbench
 import { IExtensionHostDebugService, IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
 import { URI } from 'vs/base/common/uri';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose } from 'vs/base/common/lifecycle';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -38,7 +38,7 @@ interface ILaunchVSCodeArguments {
 /**
  * Encapsulates the DebugAdapter lifecycle and some idiosyncrasies of the Debug Adapter Protocol.
  */
-export class RawDebugSession implements IDisposable {
+export class RawDebugSession implements IDisposable2 {
 
 	private allThreadsContinued = true;
 	private _readyForBreakpoints = false;
@@ -75,7 +75,7 @@ export class RawDebugSession implements IDisposable {
 	private readonly _onDidExitAdapter = new Emitter<AdapterEndEvent>();
 	private debugAdapter: IDebugAdapter | null;
 
-	private toDispose: IDisposable[] = [];
+	private toDispose: IDisposable2[] = [];
 
 	constructor(
 		debugAdapter: IDebugAdapter,
@@ -648,7 +648,7 @@ export class RawDebugSession implements IDisposable {
 				return;
 			}
 
-			let cancelationListener: IDisposable;
+			let cancelationListener: IDisposable2;
 			const requestId = this.debugAdapter.sendRequest(command, args, (response: DebugProtocol.Response) => {
 				if (cancelationListener) {
 					cancelationListener.dispose();

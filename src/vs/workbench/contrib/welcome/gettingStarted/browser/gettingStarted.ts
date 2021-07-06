@@ -7,7 +7,7 @@ import 'vs/css!./gettingStarted';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInputSerializer, IEditorOpenContext } from 'vs/workbench/common/editor';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
 import { $, addDisposableListener, append, clearNode, Dimension, reset } from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -1434,7 +1434,7 @@ class GettingStartedIndexList<T> extends Disposable {
 		this._register(this.onDidChangeEntries(listener));
 	}
 
-	register(d: IDisposable) { if (this.isDisposed) { d.dispose(); } else { this._register(d); } }
+	register(d: IDisposable2) { if (this.isDisposed) { d.dispose(); } else { this._register(d); } }
 
 	override dispose() {
 		this.isDisposed = true;

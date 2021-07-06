@@ -17,7 +17,7 @@ import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/c
 import { selectBorder, selectBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose } from 'vs/base/common/lifecycle';
 import { ADD_CONFIGURATION_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { BaseActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { debugStart } from 'vs/workbench/contrib/debug/browser/debugIcons';
@@ -33,7 +33,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 	private start!: HTMLElement;
 	private selectBox: SelectBox;
 	private debugOptions: { label: string, handler: (() => Promise<boolean>) }[] = [];
-	private toDispose: IDisposable[];
+	private toDispose: IDisposable2[];
 	private selected = 0;
 	private providers: { label: string, type: string, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[] = [];
 
@@ -282,7 +282,7 @@ export class FocusSessionActionViewItem extends SelectActionViewItem {
 		}));
 
 		this._register(this.debugService.onDidNewSession(session => {
-			const sessionListeners: IDisposable[] = [];
+			const sessionListeners: IDisposable2[] = [];
 			sessionListeners.push(session.onDidChangeName(() => this.update()));
 			sessionListeners.push(session.onDidEndAdapter(() => dispose(sessionListeners)));
 			this.update();

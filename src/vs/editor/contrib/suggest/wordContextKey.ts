@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
@@ -13,10 +13,10 @@ export class WordContextKey {
 	static readonly AtEnd = new RawContextKey<boolean>('atEndOfWord', false);
 
 	private readonly _ckAtEnd: IContextKey<boolean>;
-	private readonly _configListener: IDisposable;
+	private readonly _configListener: IDisposable2;
 
 	private _enabled: boolean = false;
-	private _selectionListener?: IDisposable;
+	private _selectionListener?: IDisposable2;
 
 	constructor(
 		private readonly _editor: ICodeEditor,

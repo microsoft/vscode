@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/views';
-import { toDisposable, IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { toDisposable, IDisposable2, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -842,7 +842,7 @@ registerThemingParticipant((theme, collector) => {
 });
 
 interface ITreeExplorerTemplateData {
-	elementDisposable: IDisposable;
+	elementDisposable: IDisposable2;
 	container: HTMLElement;
 	resourceLabel: IResourceLabel;
 	icon: HTMLElement;
@@ -869,7 +869,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	) {
 		super();
 		this._hoverDelegate = {
-			showHover: (options: IHoverDelegateOptions): IDisposable | undefined => {
+			showHover: (options: IHoverDelegateOptions): IDisposable2 | undefined => {
 				return this.hoverService.showHover(options);
 			},
 			delay: <number>this.configurationService.getValue('workbench.hover.delay')
@@ -1116,7 +1116,7 @@ class MultipleSelectionActionRunner extends ActionRunner {
 	}
 }
 
-class TreeMenus extends Disposable implements IDisposable {
+class TreeMenus extends Disposable implements IDisposable2 {
 	private contextKeyService: IContextKeyService | undefined;
 
 	constructor(

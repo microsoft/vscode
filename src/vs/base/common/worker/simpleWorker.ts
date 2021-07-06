@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { transformErrorForSerialization } from 'vs/base/common/errors';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 import * as types from 'vs/base/common/types';
 
 const INITIALIZE = '$initialize';
 
-export interface IWorker extends IDisposable {
+export interface IWorker extends IDisposable2 {
 	getId(): number;
 	postMessage(message: any, transfer: ArrayBuffer[]): void;
 }

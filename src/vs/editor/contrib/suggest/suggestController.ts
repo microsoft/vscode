@@ -7,7 +7,7 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { dispose, IDisposable, DisposableStore, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable2, DisposableStore, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
@@ -492,7 +492,7 @@ export class SuggestController implements IEditorContribution {
 
 		Event.once(this.model.onDidTrigger)(_ => {
 			// wait for trigger because only then the cancel-event is trustworthy
-			let listener: IDisposable[] = [];
+			let listener: IDisposable2[] = [];
 
 			Event.any<any>(this.model.onDidTrigger, this.model.onDidCancel)(() => {
 				// retrigger or cancel -> try to type default text

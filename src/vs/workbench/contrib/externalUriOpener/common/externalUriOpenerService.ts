@@ -6,7 +6,7 @@
 import { firstOrDefault } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Iterable } from 'vs/base/common/iterator';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -44,7 +44,7 @@ export interface IExternalUriOpenerService {
 	/**
 	 * Registers a provider for external resources openers.
 	 */
-	registerExternalOpenerProvider(provider: IExternalOpenerProvider): IDisposable;
+	registerExternalOpenerProvider(provider: IExternalOpenerProvider): IDisposable2;
 
 	/**
 	 * Get the configured IExternalUriOpener for the the uri.
@@ -71,7 +71,7 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 		this._register(openerService.registerExternalOpener(this));
 	}
 
-	registerExternalOpenerProvider(provider: IExternalOpenerProvider): IDisposable {
+	registerExternalOpenerProvider(provider: IExternalOpenerProvider): IDisposable2 {
 		const remove = this._providers.push(provider);
 		return { dispose: remove };
 	}

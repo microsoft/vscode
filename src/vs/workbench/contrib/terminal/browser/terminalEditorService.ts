@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable2, toDisposable } from 'vs/base/common/lifecycle';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -23,7 +23,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	private _activeInstanceIndex: number = -1;
 
 	private _editorInputs: Map</*instanceId*/number, TerminalEditorInput> = new Map();
-	private _instanceDisposables: Map</*instanceId*/number, IDisposable[]> = new Map();
+	private _instanceDisposables: Map</*instanceId*/number, IDisposable2[]> = new Map();
 
 	private readonly _onDidDisposeInstance = new Emitter<ITerminalInstance>();
 	readonly onDidDisposeInstance = this._onDidDisposeInstance.event;

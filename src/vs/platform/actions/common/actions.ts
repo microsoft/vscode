@@ -9,7 +9,7 @@ import { IConstructorSignature2, createDecorator, BrandedService, ServicesAccess
 import { IKeybindings, KeybindingsRegistry, IKeybindingRule } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ContextKeyExpr, IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { IDisposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -191,7 +191,7 @@ export interface IMenuActionOptions {
 	renderShortTitle?: boolean;
 }
 
-export interface IMenu extends IDisposable {
+export interface IMenu extends IDisposable2 {
 	readonly onDidChange: Event<IMenu>;
 	getActions(options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][];
 }
@@ -213,12 +213,12 @@ export interface IMenuRegistryChangeEvent {
 
 export interface IMenuRegistry {
 	readonly onDidChangeMenu: Event<IMenuRegistryChangeEvent>;
-	addCommands(newCommands: Iterable<ICommandAction>): IDisposable;
-	addCommand(userCommand: ICommandAction): IDisposable;
+	addCommands(newCommands: Iterable<ICommandAction>): IDisposable2;
+	addCommand(userCommand: ICommandAction): IDisposable2;
 	getCommand(id: string): ICommandAction | undefined;
 	getCommands(): ICommandsMap;
-	appendMenuItems(items: Iterable<{ id: MenuId, item: IMenuItem | ISubmenuItem }>): IDisposable;
-	appendMenuItem(menu: MenuId, item: IMenuItem | ISubmenuItem): IDisposable;
+	appendMenuItems(items: Iterable<{ id: MenuId, item: IMenuItem | ISubmenuItem }>): IDisposable2;
+	appendMenuItem(menu: MenuId, item: IMenuItem | ISubmenuItem): IDisposable2;
 	getMenuItems(loc: MenuId): Array<IMenuItem | ISubmenuItem>;
 }
 
@@ -230,7 +230,7 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 
 	readonly onDidChangeMenu: Event<IMenuRegistryChangeEvent> = this._onDidChangeMenu.event;
 
-	addCommand(command: ICommandAction): IDisposable {
+	addCommand(command: ICommandAction): IDisposable2 {
 		return this.addCommands(Iterable.single(command));
 	}
 
@@ -238,7 +238,7 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 		has: id => id === MenuId.CommandPalette
 	};
 
-	addCommands(commands: Iterable<ICommandAction>): IDisposable {
+	addCommands(commands: Iterable<ICommandAction>): IDisposable2 {
 		for (const command of commands) {
 			this._commands.set(command.id, command);
 		}
@@ -264,11 +264,11 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 		return map;
 	}
 
-	appendMenuItem(id: MenuId, item: IMenuItem | ISubmenuItem): IDisposable {
+	appendMenuItem(id: MenuId, item: IMenuItem | ISubmenuItem): IDisposable2 {
 		return this.appendMenuItems(Iterable.single({ id, item }));
 	}
 
-	appendMenuItems(items: Iterable<{ id: MenuId, item: IMenuItem | ISubmenuItem }>): IDisposable {
+	appendMenuItems(items: Iterable<{ id: MenuId, item: IMenuItem | ISubmenuItem }>): IDisposable2 {
 
 		const changedIds = new Set<MenuId>();
 		const toRemove = new LinkedList<Function>();
@@ -544,7 +544,7 @@ export abstract class Action2 {
 	abstract run(accessor: ServicesAccessor, ...args: any[]): void;
 }
 
-export function registerAction2(ctor: { new(): Action2 }): IDisposable {
+export function registerAction2(ctor: { new(): Action2 }): IDisposable2 {
 	const disposables = new DisposableStore();
 	const action = new ctor();
 

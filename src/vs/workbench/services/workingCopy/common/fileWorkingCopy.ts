@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { VSBufferReadableStream } from 'vs/base/common/buffer';
@@ -27,7 +27,7 @@ export interface IFileWorkingCopyModelFactory<M extends IFileWorkingCopyModel> {
  * A generic file working copy model to be reused by untitled
  * and stored file working copies.
  */
-export interface IFileWorkingCopyModel extends IDisposable {
+export interface IFileWorkingCopyModel extends IDisposable2 {
 
 	/**
 	 * This event signals ANY changes to the contents, for example:
@@ -73,7 +73,7 @@ export interface IFileWorkingCopyModel extends IDisposable {
 	update(contents: VSBufferReadableStream, token: CancellationToken): Promise<void>;
 }
 
-export interface IFileWorkingCopy<M extends IFileWorkingCopyModel> extends IWorkingCopy, IDisposable {
+export interface IFileWorkingCopy<M extends IFileWorkingCopyModel> extends IWorkingCopy, IDisposable2 {
 
 	/**
 	 * An event for when the file working copy has been reverted.

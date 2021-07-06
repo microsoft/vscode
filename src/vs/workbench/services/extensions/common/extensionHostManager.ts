@@ -5,7 +5,7 @@
 
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -43,7 +43,7 @@ export class ExtensionHostManager extends Disposable {
 	 */
 	private readonly _cachedActivationEvents: Map<string, Promise<void>>;
 	private _rpcProtocol: RPCProtocol | null;
-	private readonly _customers: IDisposable[];
+	private readonly _customers: IDisposable2[];
 	private readonly _extensionHost: IExtensionHost;
 	/**
 	 * winjs believes a proxy is a promise because it has a `then` method, so wrap the result in an object.
@@ -415,7 +415,7 @@ interface ExtHostLatencyProvider {
 }
 
 let providers: ExtHostLatencyProvider[] = [];
-function registerLatencyTestProvider(provider: ExtHostLatencyProvider): IDisposable {
+function registerLatencyTestProvider(provider: ExtHostLatencyProvider): IDisposable2 {
 	providers.push(provider);
 	return {
 		dispose: () => {

@@ -9,7 +9,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import * as nls from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -100,7 +100,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private static _instanceIdCounter = 1;
 
 	private _processManager!: ITerminalProcessManager;
-	private _pressAnyKeyToCloseListener: IDisposable | undefined;
+	private _pressAnyKeyToCloseListener: IDisposable2 | undefined;
 
 	private _instanceId: number;
 	private _latestXtermWriteData: number = 0;
@@ -135,15 +135,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _containerReadyBarrier: AutoOpenBarrier;
 	private _attachBarrier: AutoOpenBarrier;
 
-	private _messageTitleDisposable: IDisposable | undefined;
+	private _messageTitleDisposable: IDisposable2 | undefined;
 
 	private _widgetManager: TerminalWidgetManager = this._instantiationService.createInstance(TerminalWidgetManager);
 	private _linkManager: TerminalLinkManager | undefined;
-	private _environmentInfo: { widget: EnvironmentVariableInfoWidget, disposable: IDisposable } | undefined;
+	private _environmentInfo: { widget: EnvironmentVariableInfoWidget, disposable: IDisposable2 } | undefined;
 	private _webglAddon: WebglAddon | undefined;
 	private _commandTrackerAddon: CommandTrackerAddon | undefined;
 	private _navigationModeAddon: INavigationMode & ITerminalAddon | undefined;
-	private _dndObserver: IDisposable | undefined;
+	private _dndObserver: IDisposable2 | undefined;
 
 	private _lastLayoutDimensions: dom.Dimension | undefined;
 
@@ -365,7 +365,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return undefined;
 	}
 
-	addDisposable(disposable: IDisposable): void {
+	addDisposable(disposable: IDisposable2): void {
 		this._register(disposable);
 	}
 
@@ -1868,7 +1868,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this._processManager.getCwd();
 	}
 
-	registerLinkProvider(provider: ITerminalExternalLinkProvider): IDisposable {
+	registerLinkProvider(provider: ITerminalExternalLinkProvider): IDisposable2 {
 		if (!this._linkManager) {
 			throw new Error('TerminalInstance.registerLinkProvider before link manager was ready');
 		}
@@ -1942,7 +1942,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		quickPick.items = items;
 		quickPick.matchOnDescription = true;
 		quickPick.show();
-		const disposables: IDisposable[] = [];
+		const disposables: IDisposable2[] = [];
 		const result = await new Promise<IQuickPickItem | undefined>(r => {
 			disposables.push(quickPick.onDidHide(() => r(undefined)));
 			disposables.push(quickPick.onDidAccept(() => r(quickPick.selectedItems[0])));

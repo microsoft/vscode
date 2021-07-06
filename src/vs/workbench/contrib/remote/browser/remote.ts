@@ -33,7 +33,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ReconnectionWaitEvent, PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import Severity from 'vs/base/common/severity';
 import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { SwitchRemoteViewItem, SwitchRemoteAction } from 'vs/workbench/contrib/remote/browser/explorerViewItems';
 import { Action } from 'vs/base/common/actions';
@@ -664,7 +664,7 @@ class VisibleProgress {
 	}
 }
 
-class ReconnectionTimer2 implements IDisposable {
+class ReconnectionTimer2 implements IDisposable2 {
 	private readonly _parent: VisibleProgress;
 	private readonly _completionTime: number;
 	private readonly _token: any;
@@ -722,7 +722,7 @@ class RemoteAgentConnectionStatusListener extends Disposable implements IWorkben
 
 			let visibleProgress: VisibleProgress | null = null;
 			let reconnectWaitEvent: ReconnectionWaitEvent | null = null;
-			let disposableListener: IDisposable | null = null;
+			let disposableListener: IDisposable2 | null = null;
 
 			function showProgress(location: ProgressLocation.Dialog | ProgressLocation.Notification | null, buttons: { label: string, callback: () => void }[], initialReport: string | null = null): VisibleProgress {
 				if (visibleProgress) {

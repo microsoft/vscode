@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from 'vs/base/common/network';
-import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { parse } from 'vs/base/common/marshalling';
 import { isEqual } from 'vs/base/common/resources';
 import { assertType } from 'vs/base/common/types';
@@ -220,7 +220,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 
 class CellContentProvider implements ITextModelContentProvider {
 
-	private readonly _registration: IDisposable;
+	private readonly _registration: IDisposable2;
 
 	constructor(
 		@ITextModelService textModelService: ITextModelService,
@@ -283,7 +283,7 @@ class CellContentProvider implements ITextModelContentProvider {
 }
 
 class CellInfoContentProvider {
-	private readonly _disposables: IDisposable[] = [];
+	private readonly _disposables: IDisposable2[] = [];
 
 	constructor(
 		@ITextModelService textModelService: ITextModelService,

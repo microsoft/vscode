@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Event } from 'vs/base/common/event';
-import type { IDisposable } from 'vs/base/common/lifecycle';
+import type { IDisposable2 } from 'vs/base/common/lifecycle';
 import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import type * as webviewMessages from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
 
@@ -424,7 +424,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			},
 			event(fn, thisArg, disposables) {
 				const listenerObj = { fn, thisArg };
-				const disposable: IDisposable = {
+				const disposable: IDisposable2 = {
 					dispose: () => {
 						listeners.delete(listenerObj);
 						listenerChange(listeners);

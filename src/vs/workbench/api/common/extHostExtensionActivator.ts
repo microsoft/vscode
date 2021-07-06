@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
@@ -119,7 +119,7 @@ export class ActivatedExtension {
 	public readonly activationTimes: ExtensionActivationTimes;
 	public readonly module: IExtensionModule;
 	public readonly exports: IExtensionAPI | undefined;
-	public readonly subscriptions: IDisposable[];
+	public readonly subscriptions: IDisposable2[];
 
 	constructor(
 		activationFailed: boolean,
@@ -127,7 +127,7 @@ export class ActivatedExtension {
 		activationTimes: ExtensionActivationTimes,
 		module: IExtensionModule,
 		exports: IExtensionAPI | undefined,
-		subscriptions: IDisposable[]
+		subscriptions: IDisposable2[]
 	) {
 		this.activationFailed = activationFailed;
 		this.activationFailedError = activationFailedError;

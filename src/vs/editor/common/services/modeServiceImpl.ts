@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable2 } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IMode, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { FrankensteinMode } from 'vs/editor/common/modes/abstractMode';
@@ -25,7 +25,7 @@ class LanguageSelection implements ILanguageSelection {
 		this._selector = selector;
 		this.languageIdentifier = this._selector();
 
-		let listener: IDisposable;
+		let listener: IDisposable2;
 		this._onDidChange = new Emitter<LanguageIdentifier>({
 			onFirstListenerAdd: () => {
 				listener = onLanguagesMaybeChanged(() => this._evaluate());

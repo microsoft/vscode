@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2 } from 'vs/base/common/lifecycle';
 
-export interface ITerminalWidget extends IDisposable {
+export interface ITerminalWidget extends IDisposable2 {
 	/**
 	 * Only one widget of each ID can be displayed at once.
 	 */

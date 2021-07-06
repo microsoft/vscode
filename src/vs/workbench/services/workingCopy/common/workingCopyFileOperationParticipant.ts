@@ -5,7 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable2, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkingCopyFileOperationParticipant, SourceTargetPair, IFileOperationUndoRedoInfo } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { FileOperation } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -22,7 +22,7 @@ export class WorkingCopyFileOperationParticipant extends Disposable {
 		super();
 	}
 
-	addFileOperationParticipant(participant: IWorkingCopyFileOperationParticipant): IDisposable {
+	addFileOperationParticipant(participant: IWorkingCopyFileOperationParticipant): IDisposable2 {
 		const remove = this.participants.push(participant);
 		return toDisposable(() => remove());
 	}
