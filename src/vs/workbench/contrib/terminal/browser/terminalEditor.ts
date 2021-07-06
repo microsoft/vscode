@@ -101,6 +101,11 @@ export class TerminalEditor extends EditorPane {
 		}
 	}
 
+	override clearInput(): void {
+		super.clearInput();
+		this._editorInput = undefined;
+	}
+
 	private _setActiveInstance(): void {
 		if (!this._editorInput?.terminalInstance) {
 			return;
@@ -171,20 +176,16 @@ export class TerminalEditor extends EditorPane {
 				}
 			}
 		}));
-		this._register(dom.addDisposableListener(this._parentElement, dom.EventType.CONTEXT_MENU, e => {
-			const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
-			if (e.button === 2 && rightClickBehavior !== 'copyPaste' && rightClickBehavior !== 'paste') {
-				this._openContextMenu(e);
-				e.preventDefault();
-			}
-		}));
 		this._register(dom.addDisposableListener(this._parentElement, 'contextmenu', (event: MouseEvent) => {
-			if (!this._cancelContextMenu) {
-				this._openContextMenu(event);
+			const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
+			if (!this._cancelContextMenu && rightClickBehavior !== 'copyPaste' && rightClickBehavior !== 'paste') {
+				if (!this._cancelContextMenu) {
+					this._openContextMenu(event);
+				}
+				event.preventDefault();
+				event.stopImmediatePropagation();
+				this._cancelContextMenu = false;
 			}
-			event.preventDefault();
-			event.stopImmediatePropagation();
-			this._cancelContextMenu = false;
 		}));
 	}
 

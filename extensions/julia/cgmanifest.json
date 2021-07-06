@@ -6,11 +6,11 @@
 				"git": {
 					"name": "JuliaEditorSupport/atom-language-julia",
 					"repositoryUrl": "https://github.com/JuliaEditorSupport/atom-language-julia",
-					"commitHash": "008e02c5ec9440fa9f0ea8a891712c7238f24706"
+					"commitHash": "63325eb9959b57282e2804e5d7215d240a9a6fd6"
 				}
 			},
 			"license": "MIT",
-			"version": "0.21.0"
+			"version": "0.21.1"
 		}
 	],
 	"version": 1

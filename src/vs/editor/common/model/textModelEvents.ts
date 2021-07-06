@@ -5,7 +5,7 @@
 
 import { IRange } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IModelDecoration } from 'vs/editor/common/model';
+import { IModelDecoration, InjectedTextOptions } from 'vs/editor/common/model';
 
 /**
  * An event describing that the current mode associated with a model has changed.
@@ -141,7 +141,7 @@ export class LineInjectedText {
 		for (const injectedText of injectedTexts) {
 			result += lineText.substring(lastOriginalOffset, injectedText.column - 1);
 			lastOriginalOffset = injectedText.column - 1;
-			result += injectedText.text;
+			result += injectedText.options.content;
 		}
 		result += lineText.substring(lastOriginalOffset);
 		return result;
@@ -155,8 +155,8 @@ export class LineInjectedText {
 					decoration.ownerId,
 					decoration.range.startLineNumber,
 					decoration.range.startColumn,
+					decoration.options.before,
 					0,
-					decoration.options.before.content
 				));
 			}
 			if (decoration.options.after && decoration.options.after.content.length > 0) {
@@ -164,8 +164,8 @@ export class LineInjectedText {
 					decoration.ownerId,
 					decoration.range.endLineNumber,
 					decoration.range.endColumn,
+					decoration.options.after,
 					1,
-					decoration.options.after.content
 				));
 			}
 		}
@@ -185,12 +185,12 @@ export class LineInjectedText {
 		public readonly ownerId: number,
 		public readonly lineNumber: number,
 		public readonly column: number,
-		public readonly order: number,
-		public readonly text: string
+		public readonly options: InjectedTextOptions,
+		public readonly order: number
 	) { }
 
 	public withText(text: string): LineInjectedText {
-		return new LineInjectedText(this.ownerId, this.lineNumber, this.column, this.order, text);
+		return new LineInjectedText(this.ownerId, this.lineNumber, this.column, { ...this.options, content: text }, this.order);
 	}
 }
 

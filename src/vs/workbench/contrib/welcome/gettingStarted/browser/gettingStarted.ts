@@ -307,6 +307,7 @@ export class GettingStartedPage extends EditorPane {
 					this.commandService.executeCommand(selectedCategory.content.command);
 				} else {
 					this.gettingStartedService.markWalkthroughOpened(argument);
+					this.gettingStartedList?.setEntries(this.gettingStartedService.getCategories());
 					this.scrollToCategory(argument);
 				}
 				break;
@@ -384,7 +385,7 @@ export class GettingStartedPage extends EditorPane {
 			id: x.id,
 			label: x.title,
 			detail: x.description,
-		})), { canPickMany: false, title: localize('pickWalkthroughs', "Open a Walkthrough") });
+		})), { canPickMany: false, title: localize('pickWalkthroughs', "Open Getting Started Page...") });
 		if (selection) {
 			this.runDispatchCommand('selectCategory', selection.id);
 		}
@@ -780,7 +781,7 @@ export class GettingStartedPage extends EditorPane {
 
 		this.categoriesSlide = $('.gettingStartedSlideCategories.gettingStartedSlide');
 
-		const prevButton = $('button.prev-button.button-link', { 'x-dispatch': 'scrollPrev' }, $('span.scroll-button.codicon.codicon-chevron-left'), $('span.moreText', {}, localize('more', "More")));
+		const prevButton = $('button.prev-button.button-link', { 'x-dispatch': 'scrollPrev' }, $('span.scroll-button.codicon.codicon-chevron-left'), $('span.moreText', {}, localize('welcome', "Welcome")));
 		this.stepsSlide = $('.gettingStartedSlideDetails.gettingStartedSlide', {}, prevButton);
 
 		this.stepsContent = $('.gettingStartedDetailsContent', {});
@@ -840,7 +841,7 @@ export class GettingStartedPage extends EditorPane {
 				reset(leftColumn, startList.getDomElement());
 				reset(rightColumn, recentList.getDomElement());
 				reset(footer, $('p.showOnStartup', {}, showOnStartupCheckbox, $('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show welcome page on startup"))),
-					$('p.openAWalkthrough', {}, $('button.button-link', { 'x-dispatch': 'seeAllWalkthroughs' }, localize('openAWalkthrough', "Open a Walkthrough"))));
+					$('p.openAWalkthrough', {}, $('button.button-link', { 'x-dispatch': 'seeAllWalkthroughs' }, localize('openAWalkthrough', "Open Getting Started Page..."))));
 				recentList.setLimit(10);
 			}
 			setTimeout(() => this.categoriesPageScrollbar?.scanDomNode(), 50);
@@ -1044,7 +1045,7 @@ export class GettingStartedPage extends EditorPane {
 			5,
 			undefined,
 			undefined,
-			$('button.button-link.see-all-walkthroughs', { 'tabindex': '0', 'x-dispatch': 'seeAllWalkthroughs' }, localize('seeMore', "See More")),
+			$('button.button-link.see-all-walkthroughs', { 'tabindex': '0', 'x-dispatch': 'seeAllWalkthroughs' }, localize('showAll', "Show All...")),
 			renderGetttingStaredWalkthrough);
 
 		gettingStartedList.onDidChange(() => {

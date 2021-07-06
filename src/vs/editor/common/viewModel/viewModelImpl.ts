@@ -660,6 +660,15 @@ export class ViewModel extends Disposable implements IViewModel {
 		let allInlineDecorations = this._decorations.getDecorationsViewportData(visibleRange).inlineDecorations;
 		let inlineDecorations = allInlineDecorations[lineNumber - visibleRange.startLineNumber];
 
+		if (lineData.inlineDecorations) {
+			inlineDecorations = [
+				...inlineDecorations,
+				...lineData.inlineDecorations.map(d =>
+					d.toInlineDecoration(lineNumber)
+				)
+			];
+		}
+
 		return new ViewLineRenderingData(
 			lineData.minColumn,
 			lineData.maxColumn,

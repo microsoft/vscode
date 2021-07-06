@@ -11,6 +11,7 @@ import { ILineBreaksComputerFactory } from 'vs/editor/common/viewModel/splitLine
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { ILineBreaksComputer, LineBreakData } from 'vs/editor/common/viewModel/viewModel';
 import { LineInjectedText } from 'vs/editor/common/model/textModelEvents';
+import { InjectedTextOptions } from 'vs/editor/common/model';
 
 const enum CharacterClass {
 	NONE = 0,
@@ -91,7 +92,7 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 				for (let i = 0, len = requests.length; i < len; i++) {
 					const injectedText = injectedTexts[i];
 					const previousLineBreakData = previousBreakingData[i];
-					if (previousLineBreakData && !previousLineBreakData.injectionTexts && !injectedText) {
+					if (previousLineBreakData && !previousLineBreakData.injectionOptions && !injectedText) {
 						result[i] = createLineBreaksFromPreviousLineBreaks(this.classifier, previousLineBreakData, requests[i], tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent);
 					} else {
 						result[i] = createLineBreaks(this.classifier, requests[i], injectedText, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent);
@@ -360,33 +361,33 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: string, injectedTexts: LineInjectedText[] | null, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent): LineBreakData | null {
 	const lineText = LineInjectedText.applyInjectedText(_lineText, injectedTexts);
 
-	let injectionTexts: string[] | null;
+	let injectionOptions: InjectedTextOptions[] | null;
 	let injectionOffsets: number[] | null;
 	if (injectedTexts && injectedTexts.length > 0) {
-		injectionTexts = injectedTexts.map(t => t.text);
+		injectionOptions = injectedTexts.map(t => t.options);
 		injectionOffsets = injectedTexts.map(text => text.column - 1);
 	} else {
-		injectionTexts = null;
+		injectionOptions = null;
 		injectionOffsets = null;
 	}
 
 	if (firstLineBreakColumn === -1) {
-		if (!injectionTexts) {
+		if (!injectionOptions) {
 			return null;
 		}
 		// creating a `LineBreakData` with an invalid `breakOffsetsVisibleColumn` is OK
 		// because `breakOffsetsVisibleColumn` will never be used because it contains injected text
-		return new LineBreakData([lineText.length], [], 0, injectionTexts, injectionOffsets);
+		return new LineBreakData([lineText.length], [], 0, injectionOffsets, injectionOptions);
 	}
 
 	const len = lineText.length;
 	if (len <= 1) {
-		if (!injectionTexts) {
+		if (!injectionOptions) {
 			return null;
 		}
 		// creating a `LineBreakData` with an invalid `breakOffsetsVisibleColumn` is OK
 		// because `breakOffsetsVisibleColumn` will never be used because it contains injected text
-		return new LineBreakData([lineText.length], [], 0, injectionTexts, injectionOffsets);
+		return new LineBreakData([lineText.length], [], 0, injectionOffsets, injectionOptions);
 	}
 
 	const wrappedTextIndentLength = computeWrappedTextIndentLength(lineText, tabSize, firstLineBreakColumn, columnsForFullWidthChar, wrappingIndent);
@@ -464,7 +465,7 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 	breakingOffsets[breakingOffsetsCount] = len;
 	breakingOffsetsVisibleColumn[breakingOffsetsCount] = visibleColumn;
 
-	return new LineBreakData(breakingOffsets, breakingOffsetsVisibleColumn, wrappedTextIndentLength, injectionTexts, injectionOffsets);
+	return new LineBreakData(breakingOffsets, breakingOffsetsVisibleColumn, wrappedTextIndentLength, injectionOffsets, injectionOptions);
 }
 
 function computeCharWidth(charCode: number, visibleColumn: number, tabSize: number, columnsForFullWidthChar: number): number {

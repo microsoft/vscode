@@ -83,7 +83,8 @@ export function setup(stableCodePath: string, testDataPath: string) {
 			const insidersApp = new Application(insiderOptions);
 			await insidersApp!.start(false /* not expecting walkthrough path */);
 
-			await insidersApp.workbench.editors.waitForActiveTab(readmeMd, true);
+			await insidersApp.workbench.editors.waitForTab(readmeMd, true);
+			await insidersApp.workbench.editors.selectTab(readmeMd);
 			await insidersApp.workbench.editor.waitForEditorContents(readmeMd, c => c.indexOf(textToType) > -1);
 
 			await insidersApp.workbench.editors.waitForTab(untitled, true);

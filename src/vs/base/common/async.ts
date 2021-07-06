@@ -407,10 +407,6 @@ export function disposableTimeout(handler: () => void, timeout = 0): IDisposable
 	return toDisposable(() => clearTimeout(timer));
 }
 
-export function ignoreErrors<T>(promise: Promise<T>): Promise<T | undefined> {
-	return promise.then(undefined, _ => undefined);
-}
-
 /**
  * Runs the provided list of promise factories in sequential order. The returned
  * promise will complete to an array of results from each promise.

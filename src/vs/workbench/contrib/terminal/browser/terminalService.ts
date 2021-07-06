@@ -37,9 +37,8 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { configureTerminalProfileIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
-import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, ITerminalProfileContribution, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, ITerminalProfileContribution, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { formatMessageForTerminal, terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IEditorOverrideService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
@@ -54,9 +53,6 @@ export class TerminalService implements ITerminalService {
 	private _hostActiveTerminals: Map<ITerminalInstanceHost, ITerminalInstance | undefined> = new Map();
 
 	private _isShuttingDown: boolean;
-	private _terminalFocusContextKey: IContextKey<boolean>;
-	private _terminalShellTypeContextKey: IContextKey<string>;
-	private _terminalAltBufferActiveContextKey: IContextKey<boolean>;
 	private _backgroundedTerminalInstances: ITerminalInstance[] = [];
 	private _backgroundedTerminalDisposables: Map<number, IDisposable[]> = new Map();
 	private _findState: FindReplaceState;
@@ -147,7 +143,7 @@ export class TerminalService implements ITerminalService {
 		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
-		@ITerminalInstanceService terminalInstanceService: ITerminalInstanceService,
+		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IEditorOverrideService editorOverrideService: IEditorOverrideService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -156,9 +152,6 @@ export class TerminalService implements ITerminalService {
 		this._localTerminalService = localTerminalService;
 		this._isShuttingDown = false;
 		this._findState = new FindReplaceState();
-		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
-		this._terminalShellTypeContextKey = KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE.bindTo(this._contextKeyService);
-		this._terminalAltBufferActiveContextKey = KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE.bindTo(this._contextKeyService);
 		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
 
 		editorOverrideService.registerEditor(
@@ -181,7 +174,7 @@ export class TerminalService implements ITerminalService {
 						sourceGroup.removeInstance(instance);
 					}
 				} else {
-					instance = this.createInstance({});
+					instance = _terminalInstanceService.createInstance({});
 				}
 				return {
 					editor: this._terminalEditorService.getOrCreateEditorInput(instance),
@@ -197,7 +190,10 @@ export class TerminalService implements ITerminalService {
 		this._forwardInstanceHostEvents(this._terminalGroupService);
 		this._forwardInstanceHostEvents(this._terminalEditorService);
 		this._terminalGroupService.onDidChangeActiveGroup(this._onActiveGroupChanged.fire, this._onActiveGroupChanged);
-		terminalInstanceService.onDidCreateInstance(this._onDidCreateInstance.fire, this._onDidCreateInstance);
+		_terminalInstanceService.onDidCreateInstance(instance => {
+			this._initInstanceListeners(instance);
+			this._onDidCreateInstance.fire(instance);
+		});
 
 		// the below avoids having to poll routinely.
 		// we update detected profiles when an instance is created so that,
@@ -894,7 +890,10 @@ export class TerminalService implements ITerminalService {
 			let instance;
 
 			if ('id' in value.profile) {
-				await this.createContributedTerminalProfile(value.profile.extensionIdentifier, value.profile.id, { isSplitTerminal: !!(keyMods?.alt && activeInstance) });
+				await this.createContributedTerminalProfile(value.profile.extensionIdentifier, value.profile.id, {
+					isSplitTerminal: !!(keyMods?.alt && activeInstance),
+					icon: value.profile.icon
+				});
 				return;
 			} else {
 				if (keyMods?.alt && activeInstance) {
@@ -995,18 +994,6 @@ export class TerminalService implements ITerminalService {
 		return { label, description: profile.path, profile, buttons };
 	}
 
-	createInstance(shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
-		const instance = this._instantiationService.createInstance(TerminalInstance,
-			this._terminalFocusContextKey,
-			this._terminalShellTypeContextKey,
-			this._terminalAltBufferActiveContextKey,
-			this._configHelper,
-			shellLaunchConfig
-		);
-		this._onDidCreateInstance.fire(instance);
-		return instance;
-	}
-
 	private _convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig {
 		// Profile was provided
 		if (shellLaunchConfigOrProfile && 'profileName' in shellLaunchConfigOrProfile) {
@@ -1045,7 +1032,7 @@ export class TerminalService implements ITerminalService {
 			throw new Error('Could not create terminal when process support is not registered');
 		}
 		if (shellLaunchConfig.hideFromUser) {
-			const instance = this.createInstance(shellLaunchConfig);
+			const instance = this._terminalInstanceService.createInstance(shellLaunchConfig);
 			this._backgroundedTerminalInstances.push(instance);
 			this._backgroundedTerminalDisposables.set(instance.instanceId, [
 				instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance)
@@ -1059,7 +1046,7 @@ export class TerminalService implements ITerminalService {
 		let instance: ITerminalInstance;
 		const target = options?.target || this.configHelper.config.defaultLocation;
 		if (target === TerminalLocation.Editor) {
-			instance = this.createInstance(shellLaunchConfig);
+			instance = this._terminalInstanceService.createInstance(shellLaunchConfig);
 			instance.target = TerminalLocation.Editor;
 			this._terminalEditorService.openEditor(instance);
 		} else {

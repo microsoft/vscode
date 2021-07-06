@@ -530,7 +530,7 @@ suite('ExtensionEnablementService Test', () => {
 		assert.ok(!testObject.canChangeEnablement(extension));
 	});
 
-	test('test extension does not support vitrual workspace is enabled in virtual workspace', async () => {
+	test('test extension does not support vitrual workspace is enabled in normal workspace', async () => {
 		const extension = aLocalExtension2('pub.a', { capabilities: { virtualWorkspaces: false } });
 		instantiationService.stub(IWorkspaceContextService, 'getWorkspace', <IWorkspace>{ folders: [{ uri: URI.file('worskapceA') }] });
 		testObject = new TestExtensionEnablementService(instantiationService);
@@ -544,6 +544,41 @@ suite('ExtensionEnablementService Test', () => {
 		testObject = new TestExtensionEnablementService(instantiationService);
 		assert.ok(testObject.isEnabled(extension));
 		assert.deepStrictEqual(testObject.getEnablementState(extension), EnablementState.EnabledGlobally);
+	});
+
+	test('test extension does not support untrusted workspaces is disabled in untrusted workspace', () => {
+		const extension = aLocalExtension2('pub.a', { main: 'main.js', capabilities: { untrustedWorkspaces: { supported: false, description: 'hello' } } });
+		instantiationService.stub(IWorkspaceTrustManagementService, <Partial<IWorkspaceTrustManagementService>>{ isWorkspaceTrusted() { return false; } });
+		testObject = new TestExtensionEnablementService(instantiationService);
+		assert.strictEqual(testObject.getEnablementState(extension), EnablementState.DisabledByTrustRequirement);
+	});
+
+	test('test canChangeEnablement return true when extension is disabled by workspace trust', () => {
+		const extension = aLocalExtension2('pub.a', { main: 'main.js', capabilities: { untrustedWorkspaces: { supported: false, description: 'hello' } } });
+		instantiationService.stub(IWorkspaceTrustManagementService, <Partial<IWorkspaceTrustManagementService>>{ isWorkspaceTrusted() { return false; } });
+		testObject = new TestExtensionEnablementService(instantiationService);
+		assert.ok(testObject.canChangeEnablement(extension));
+	});
+
+	test('test extension supports untrusted workspaces is enabled in untrusted workspace', () => {
+		const extension = aLocalExtension2('pub.a', { main: 'main.js', capabilities: { untrustedWorkspaces: { supported: true } } });
+		instantiationService.stub(IWorkspaceTrustManagementService, <Partial<IWorkspaceTrustManagementService>>{ isWorkspaceTrusted() { return false; } });
+		testObject = new TestExtensionEnablementService(instantiationService);
+		assert.strictEqual(testObject.getEnablementState(extension), EnablementState.EnabledGlobally);
+	});
+
+	test('test extension does not support untrusted workspaces is enabled in trusted workspace', () => {
+		const extension = aLocalExtension2('pub.a', { main: 'main.js', capabilities: { untrustedWorkspaces: { supported: false, description: '' } } });
+		instantiationService.stub(IWorkspaceTrustManagementService, <Partial<IWorkspaceTrustManagementService>>{ isWorkspaceTrusted() { return true; } });
+		testObject = new TestExtensionEnablementService(instantiationService);
+		assert.strictEqual(testObject.getEnablementState(extension), EnablementState.EnabledGlobally);
+	});
+
+	test('test extension supports untrusted workspaces is enabled in trusted workspace', () => {
+		const extension = aLocalExtension2('pub.a', { main: 'main.js', capabilities: { untrustedWorkspaces: { supported: true } } });
+		instantiationService.stub(IWorkspaceTrustManagementService, <Partial<IWorkspaceTrustManagementService>>{ isWorkspaceTrusted() { return true; } });
+		testObject = new TestExtensionEnablementService(instantiationService);
+		assert.strictEqual(testObject.getEnablementState(extension), EnablementState.EnabledGlobally);
 	});
 
 	test('test extension without any value for virtual worksapce is enabled in virtual workspace', async () => {
@@ -715,6 +750,34 @@ suite('ExtensionEnablementService Test', () => {
 		assert.strictEqual(testObject.getEnablementState(installed[1]), EnablementState.DisabledByExtensionDependency);
 	});
 
+	test('test canChangeEnablement return false when extension is disabled by dependency if it has a dependency that is disabled by virtual workspace', async () => {
+		installed.push(...[aLocalExtension2('pub.a', { capabilities: { virtualWorkspaces: false } }), aLocalExtension2('pub.b', { extensionDependencies: ['pub.a'], capabilities: { virtualWorkspaces: true } })]);
+		instantiationService.stub(IWorkspaceContextService, 'getWorkspace', <IWorkspace>{ folders: [{ uri: URI.file('worskapceA').with(({ scheme: 'virtual' })) }] });
+		testObject = new TestExtensionEnablementService(instantiationService);
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+
+		assert.ok(!testObject.canChangeEnablement(installed[1]));
+	});
+
+	test('test extension is disabled by dependency if it has a dependency that is disabled by workspace trust', async () => {
+		installed.push(...[aLocalExtension2('pub.a', { main: 'hello.js', capabilities: { untrustedWorkspaces: { supported: false, description: '' } } }), aLocalExtension2('pub.b', { extensionDependencies: ['pub.a'], capabilities: { untrustedWorkspaces: { supported: true } } })]);
+		instantiationService.stub(IWorkspaceTrustManagementService, <Partial<IWorkspaceTrustManagementService>>{ isWorkspaceTrusted() { return false; } });
+		testObject = new TestExtensionEnablementService(instantiationService);
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+
+		assert.strictEqual(testObject.getEnablementState(installed[0]), EnablementState.DisabledByTrustRequirement);
+		assert.strictEqual(testObject.getEnablementState(installed[1]), EnablementState.DisabledByExtensionDependency);
+	});
+
+	test('test canChangeEnablement return true when extension is disabled by dependency if it has a dependency that is disabled by workspace trust', async () => {
+		installed.push(...[aLocalExtension2('pub.a', { main: 'hello.js', capabilities: { untrustedWorkspaces: { supported: false, description: '' } } }), aLocalExtension2('pub.b', { extensionDependencies: ['pub.a'], capabilities: { untrustedWorkspaces: { supported: true } } })]);
+		instantiationService.stub(IWorkspaceTrustManagementService, <Partial<IWorkspaceTrustManagementService>>{ isWorkspaceTrusted() { return false; } });
+		testObject = new TestExtensionEnablementService(instantiationService);
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+
+		assert.ok(testObject.canChangeEnablement(installed[1]));
+	});
+
 	test('test extension is not disabled by dependency even if it has a dependency that is disabled when installed extensions are not set', async () => {
 		await testObject.setEnablement([aLocalExtension2('pub.a')], EnablementState.DisabledGlobally);
 
@@ -729,6 +792,39 @@ suite('ExtensionEnablementService Test', () => {
 		await testObject.setEnablement([installed[0]], EnablementState.DisabledGlobally);
 
 		assert.deepStrictEqual(testObject.getEnablementStates(installed), [EnablementState.DisabledGlobally, EnablementState.DisabledByExtensionDependency]);
+	});
+
+	test('test override workspace to trusted when getting extensions enablements', async () => {
+		const extension = aLocalExtension2('pub.a', { main: 'main.js', capabilities: { untrustedWorkspaces: { supported: false, description: 'hello' } } });
+		instantiationService.stub(IWorkspaceTrustManagementService, <Partial<IWorkspaceTrustManagementService>>{ isWorkspaceTrusted() { return false; } });
+		testObject = new TestExtensionEnablementService(instantiationService);
+
+		assert.strictEqual(testObject.getEnablementStates([extension], { trusted: true })[0], EnablementState.EnabledGlobally);
+	});
+
+	test('test override workspace to not trusted when getting extensions enablements', async () => {
+		const extension = aLocalExtension2('pub.a', { main: 'main.js', capabilities: { untrustedWorkspaces: { supported: false, description: 'hello' } } });
+		instantiationService.stub(IWorkspaceTrustManagementService, <Partial<IWorkspaceTrustManagementService>>{ isWorkspaceTrusted() { return true; } });
+		testObject = new TestExtensionEnablementService(instantiationService);
+
+		assert.strictEqual(testObject.getEnablementStates([extension], { trusted: false })[0], EnablementState.DisabledByTrustRequirement);
+	});
+
+	test('test update extensions enablements on trust change triggers change events for extensions depending on workspace trust', async () => {
+		installed.push(...[
+			aLocalExtension2('pub.a', { main: 'main.js', capabilities: { untrustedWorkspaces: { supported: false, description: 'hello' } } }),
+			aLocalExtension2('pub.b', { main: 'main.js', capabilities: { untrustedWorkspaces: { supported: true } } }),
+			aLocalExtension2('pub.c', { main: 'main.js', capabilities: { untrustedWorkspaces: { supported: false, description: 'hello' } } }),
+			aLocalExtension2('pub.d', { main: 'main.js', capabilities: { untrustedWorkspaces: { supported: true } } }),
+		]);
+		testObject = new TestExtensionEnablementService(instantiationService);
+		const target = sinon.spy();
+		testObject.onEnablementChanged(target);
+
+		await testObject.updateExtensionsEnablementsWhenWorkspaceTrustChanges();
+		assert.strictEqual(target.args[0][0].length, 2);
+		assert.deepStrictEqual((<IExtension>target.args[0][0][0]).identifier, { id: 'pub.a' });
+		assert.deepStrictEqual((<IExtension>target.args[0][0][1]).identifier, { id: 'pub.c' });
 	});
 
 });

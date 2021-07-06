@@ -123,9 +123,9 @@ class NotebookDiffEditorSerializer implements IEditorInputSerializer {
 		assertType(input instanceof NotebookDiffEditorInput);
 		return JSON.stringify({
 			resource: input.resource,
-			originalResource: input.originalInput.resource,
+			originalResource: input.original.resource,
 			name: input.getName(),
-			originalName: input.originalInput.getName(),
+			originalName: input.original.getName(),
 			textDiffName: input.getName(),
 			viewType: input.viewType,
 		});

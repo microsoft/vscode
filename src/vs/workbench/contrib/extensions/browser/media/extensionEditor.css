@@ -112,6 +112,10 @@
 	line-height: 20px;
 }
 
+.extension-editor > .header > .details > .subtitle .hide {
+	display: none;
+}
+
 .extension-editor > .header > .details > .subtitle .publisher {
 	font-size: 18px;
 }
@@ -192,7 +196,7 @@
 	max-width: 300px;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label.system-disable {
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label.extension-status-icon {
 	margin-right: 0;
 }
 

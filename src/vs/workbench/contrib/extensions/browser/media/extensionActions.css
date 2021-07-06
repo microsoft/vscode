@@ -57,10 +57,14 @@
 .monaco-action-bar .action-item.action-dropdown-item .action-label.extension-action.hide,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.reload,
 .monaco-action-bar .action-item.disabled .action-label.disable-status.hide,
-.monaco-action-bar .action-item.disabled .action-label.system-disable.hide,
+.monaco-action-bar .action-item.disabled .action-label.extension-status-icon.hide,
 .monaco-action-bar .action-item.disabled .action-label.extension-status-label.hide,
 .monaco-action-bar .action-item .action-label.extension-action.manage.hide {
 	display: none;
+}
+
+.monaco-action-bar .action-item.disabled .action-label.extension-status-icon:before {
+	opacity: 1;
 }
 
 .monaco-action-bar .action-item.disabled .action-label.extension-status-label:before {

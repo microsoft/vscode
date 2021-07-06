@@ -43,7 +43,7 @@
 .monaco-editor .debug-top-stack-frame-column.start-of-line::before {
 	position: absolute;
 	top: 2px;
-	transform: translateX(-16px);
+	transform: translateX(-17px);
 }
 
 .monaco-editor .debug-top-stack-frame-column {

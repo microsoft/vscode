@@ -31,14 +31,14 @@ export class ExtensionEnablementWorkspaceTrustTransitionParticipant extends Disp
 					async participate(trusted: boolean): Promise<void> {
 						if (trusted) {
 							// Untrusted -> Trusted
-							await extensionEnablementService.updateEnablementByWorkspaceTrustRequirement();
+							await extensionEnablementService.updateExtensionsEnablementsWhenWorkspaceTrustChanges();
 						} else {
 							// Trusted -> Untrusted
 							if (environmentService.remoteAuthority) {
 								hostService.reload();
 							} else {
 								extensionService.stopExtensionHosts();
-								await extensionEnablementService.updateEnablementByWorkspaceTrustRequirement();
+								await extensionEnablementService.updateExtensionsEnablementsWhenWorkspaceTrustChanges();
 								extensionService.startExtensionHosts();
 							}
 						}
