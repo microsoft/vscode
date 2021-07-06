@@ -29,7 +29,7 @@ import { URI } from 'vs/base/common/uri';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, registerColor, foreground } from 'vs/platform/theme/common/colorRegistry';
+import { buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, registerColor, foreground, editorWarningForeground, editorInfoForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -2036,8 +2036,8 @@ export class ExtensionToolTipAction extends ExtensionAction {
 export class ExtensionStatusIconAction extends ExtensionAction {
 
 	private static readonly CLASS = `${ExtensionAction.ICON_ACTION_CLASS} extension-status-icon`;
-	private static readonly WARNING_CLASS = `${ExtensionStatusIconAction.CLASS} ${ThemeIcon.asClassName(warningIcon)}`;
-	private static readonly INFO_CLASS = `${ExtensionStatusIconAction.CLASS} ${ThemeIcon.asClassName(infoIcon)}`;
+	private static readonly WARNING_CLASS = `${ExtensionStatusIconAction.CLASS} extension-status-icon-warning ${ThemeIcon.asClassName(warningIcon)}`;
+	private static readonly INFO_CLASS = `${ExtensionStatusIconAction.CLASS} extension-status-icon-info ${ThemeIcon.asClassName(infoIcon)}`;
 	private static readonly TRUST_CLASS = `${ExtensionStatusIconAction.CLASS} ${ThemeIcon.asClassName(trustIcon)}`;
 
 	updateWhenCounterExtensionChanges: boolean = true;
@@ -2637,5 +2637,17 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	if (contrastBorderColor) {
 		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action:not(.disabled) { border: 1px solid ${contrastBorderColor}; }`);
 		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action:not(.disabled) { border: 1px solid ${contrastBorderColor}; }`);
+	}
+
+	const warningColor = theme.getColor(editorWarningForeground);
+	if (warningColor) {
+		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.extension-status-icon-warning { color: ${warningColor}; }`);
+		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.extension-status-icon-warning { color: ${warningColor}; }`);
+	}
+
+	const infoColor = theme.getColor(editorInfoForeground);
+	if (infoColor) {
+		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.extension-status-icon-info { color: ${infoColor}; }`);
+		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.extension-status-icon-info { color: ${infoColor}; }`);
 	}
 });
