@@ -769,7 +769,7 @@ export function isEditorInputWithOptions(editor: unknown): editor is IEditorInpu
 export function isEditorInputWithOptionsAndGroup(editor: unknown): editor is IEditorInputWithOptionsAndGroup {
 	const candidate = editor as IEditorInputWithOptionsAndGroup | undefined;
 
-	return isEditorInput(candidate?.editor) && candidate?.group !== undefined;
+	return isEditorInputWithOptions(editor) && candidate?.group !== undefined;
 }
 
 /**

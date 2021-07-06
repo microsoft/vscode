@@ -145,7 +145,7 @@ export interface IEditorOverrideService {
 	 * @param preferredGroup The group you want to open the editor in
 	 * @returns An IEditorInputWithOptionsAndGroup if there is an available override or a status of how to proceed
 	 */
-	resolveEditorInput(editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: IEditorGroup | number | undefined): Promise<ReturnedOverride>;
+	resolveEditor(editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: IEditorGroup | number | undefined): Promise<ReturnedOverride>;
 
 	/**
 	 * Given a resource returns all the editor ids that match that resource

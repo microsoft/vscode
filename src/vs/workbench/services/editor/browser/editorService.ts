@@ -524,7 +524,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Resolve override unless disabled
 		if (options?.override !== EditorOverride.DISABLED) {
-			const resolvedEditor = await this.editorOverrideService.resolveEditorInput(isEditorInput(editor) ? { editor, options } : editor, preferredGroup);
+			const resolvedEditor = await this.editorOverrideService.resolveEditor(isEditorInput(editor) ? { editor, options } : editor, preferredGroup);
 
 			if (resolvedEditor === OverrideStatus.ABORT) {
 				return; // skip editor if override is aborted
@@ -583,7 +583,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			// Resolve override unless disabled
 			if (editor.options?.override !== EditorOverride.DISABLED) {
-				const resolvedEditor = await this.editorOverrideService.resolveEditorInput(editor, preferredGroup);
+				const resolvedEditor = await this.editorOverrideService.resolveEditor(editor, preferredGroup);
 
 				if (resolvedEditor === OverrideStatus.ABORT) {
 					continue; // skip editor if override is aborted
@@ -821,7 +821,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			// Resolve override unless disabled
 			if (override !== EditorOverride.DISABLED) {
-				const resolvedEditor = await this.editorOverrideService.resolveEditorInput(
+				const resolvedEditor = await this.editorOverrideService.resolveEditor(
 					isEditorReplacement(replacement) ? { editor: replacement.replacement, options: replacement.options } : replacement.replacement,
 					targetGroup
 				);

@@ -113,7 +113,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		return [untypedEditor, group, activation];
 	}
 
-	async resolveEditorInput(editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: IEditorGroup | number | undefined): Promise<ReturnedOverride> {
+	async resolveEditor(editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: IEditorGroup | number | undefined): Promise<ReturnedOverride> {
 		const resolvedUntypedAndGroup = await this.resolveUntypedInputAndGroup(editor, preferredGroup);
 		if (!resolvedUntypedAndGroup) {
 			return OverrideStatus.NONE;
@@ -460,7 +460,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 						return;
 					}
 					untypedInput.options = picked;
-					const replacementEditor = await this.resolveEditorInput(untypedInput, group);
+					const replacementEditor = await this.resolveEditor(untypedInput, group);
 					if (replacementEditor === OverrideStatus.ABORT || replacementEditor === OverrideStatus.NONE) {
 						return;
 					}
