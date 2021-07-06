@@ -12,7 +12,7 @@ import { AtomicTabMoveOperations, Direction } from 'vs/editor/common/controller/
 import { PositionNormalizationAffinity } from 'vs/editor/common/model';
 
 export class CursorPosition {
-	_cursorPositionBrand: void;
+	_cursorPositionBrand: void = undefined;
 
 	public readonly lineNumber: number;
 	public readonly column: number;

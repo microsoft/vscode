@@ -23,7 +23,8 @@ import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurati
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorOverride } from 'vs/platform/editor/common/editor';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 
 export * as icons from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedIcons';
@@ -289,6 +290,32 @@ registerAction2(class extends Action2 {
 		if (!arg) { return; }
 		const gettingStartedService = accessor.get(IGettingStartedService);
 		gettingStartedService.deprogressStep(arg);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'welcome.showAllGettingStarted',
+			title: localize('welcome.showAllGettingStarted', "Open Getting Started Page..."),
+			category,
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const commandService = accessor.get(ICommandService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const gettingStartedService = accessor.get(IGettingStartedService);
+		const categories = gettingStartedService.getCategories().filter(x => x.content.type === 'steps');
+		const selection = await quickInputService.pick(categories.map(x => ({
+			id: x.id,
+			label: x.title,
+			detail: x.description,
+		})), { canPickMany: false, title: localize('pickWalkthroughs', "Open Getting Started Page...") });
+		if (selection) {
+			commandService.executeCommand('workbench.action.openWalkthrough', selection.id);
+		}
 	}
 });
 

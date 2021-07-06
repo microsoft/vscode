@@ -1413,8 +1413,9 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		updateDrag(e: DragEvent, cellId: string) {
 			if (cellId !== this.currentDrag?.cellId) {
 				this.currentDrag = undefined;
+			} else {
+				this.currentDrag = { cellId, clientY: e.clientY };
 			}
-			this.currentDrag = { cellId, clientY: e.clientY };
 		}
 
 		endDrag(e: DragEvent, cellId: string) {

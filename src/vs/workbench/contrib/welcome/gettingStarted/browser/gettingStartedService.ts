@@ -989,7 +989,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'resetGettingStartedProgress',
 			category: 'Developer',
-			title: 'Reset Welcome Page Walkthrough Progress',
+			title: 'Reset Welcome Page Getting Started Progress',
 			f1: true
 		});
 	}

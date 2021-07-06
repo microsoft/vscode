@@ -1459,8 +1459,12 @@ declare namespace monaco.editor {
 	export interface InjectedTextOptions {
 		/**
 		 * Sets the text to inject. Must be a single line.
-		*/
+		 */
 		readonly content: string;
+		/**
+		 * If set, the decoration will be rendered inline with the text with this CSS class name.
+		 */
+		readonly inlineClassName?: string | null;
 	}
 
 	/**
@@ -5378,6 +5382,11 @@ declare namespace monaco.languages {
 	 * Register an inline completions provider.
 	 */
 	export function registerInlineCompletionsProvider(languageId: string, provider: InlineCompletionsProvider): IDisposable;
+
+	/**
+	 * Register an inlay hints provider.
+	 */
+	export function registerInlayHintsProvider(languageId: string, provider: InlayHintsProvider): IDisposable;
 
 	/**
 	 * Contains additional diagnostic information about the context in which

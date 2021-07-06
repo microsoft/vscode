@@ -864,4 +864,59 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			});
 		});
 	});
+
+	test('registerCompletionItemProvider with letters as trigger characters block other completion items to show up #127815', async function () {
+
+		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, {
+			provideCompletionItems(doc, pos) {
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Class,
+						label: 'AAAA',
+						insertText: 'WordTriggerA',
+						range: new Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column)
+					}],
+				};
+			}
+		}));
+		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, {
+			triggerCharacters: ['a', '.'],
+			provideCompletionItems(doc, pos) {
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Class,
+						label: 'AAAA',
+						insertText: 'AutoTriggerA',
+						range: new Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column)
+					}],
+				};
+			},
+		}));
+
+		return withOracle(async (model, editor) => {
+
+			await assertEvent(model.onDidSuggest, () => {
+				editor.setValue('');
+				editor.setSelection(new Selection(1, 1, 1, 1));
+				editor.trigger('keyboard', Handler.Type, { text: '.' });
+
+			}, event => {
+				assert.strictEqual(event.auto, true);
+				assert.strictEqual(event.completionModel.items.length, 1);
+			});
+
+
+			editor.getModel().setValue('');
+
+			await assertEvent(model.onDidSuggest, () => {
+				editor.setValue('');
+				editor.setSelection(new Selection(1, 1, 1, 1));
+				editor.trigger('keyboard', Handler.Type, { text: 'a' });
+
+			}, event => {
+				assert.strictEqual(event.auto, true);
+				assert.strictEqual(event.completionModel.items.length, 2);
+			});
+		});
+	});
 });

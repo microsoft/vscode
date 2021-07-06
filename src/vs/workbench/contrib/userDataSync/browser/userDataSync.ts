@@ -685,8 +685,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			const leftResourceName = localize({ key: 'leftResourceName', comment: ['remote as in file in cloud'] }, "{0} (Remote)", basename(conflict.remoteResource));
 			const rightResourceName = localize('merges', "{0} (Merges)", basename(conflict.previewResource));
 			await this.editorService.openEditor({
-				originalInput: { resource: conflict.remoteResource },
-				modifiedInput: { resource: conflict.previewResource },
+				original: { resource: conflict.remoteResource },
+				modified: { resource: conflict.previewResource },
 				label: localize('sideBySideLabels', "{0} ↔ {1}", leftResourceName, rightResourceName),
 				description: localize('sideBySideDescription', "Settings Sync"),
 				options: {

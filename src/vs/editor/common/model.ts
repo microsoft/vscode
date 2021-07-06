@@ -173,8 +173,13 @@ export interface IModelDecorationOptions {
 export interface InjectedTextOptions {
 	/**
 	 * Sets the text to inject. Must be a single line.
-	*/
+	 */
 	readonly content: string;
+
+	/**
+	 * If set, the decoration will be rendered inline with the text with this CSS class name.
+	 */
+	readonly inlineClassName?: string | null;
 }
 
 /**
@@ -419,7 +424,7 @@ export interface ICursorStateComputer {
 }
 
 export class TextModelResolvedOptions {
-	_textModelResolvedOptionsBrand: void;
+	_textModelResolvedOptionsBrand: void = undefined;
 
 	readonly tabSize: number;
 	readonly indentSize: number;
@@ -492,7 +497,7 @@ export interface ITextModelUpdateOptions {
 }
 
 export class FindMatch {
-	_findMatchBrand: void;
+	_findMatchBrand: void = undefined;
 
 	public readonly range: Range;
 	public readonly matches: string[] | null;

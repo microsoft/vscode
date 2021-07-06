@@ -6,7 +6,7 @@
 import { toUint32 } from 'vs/base/common/uint';
 
 export class PrefixSumIndexOfResult {
-	_prefixSumIndexOfResultBrand: void;
+	_prefixSumIndexOfResultBrand: void = undefined;
 
 	index: number;
 	remainder: number;
