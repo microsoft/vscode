@@ -207,7 +207,7 @@ async function setupRepository(): Promise<void> {
 }
 
 async function ensureStableCode(): Promise<void> {
-	if (opts.web || typeof opts['build'] !== 'string') {
+	if (opts.web || !opts['build']) {
 		return;
 	}
 
