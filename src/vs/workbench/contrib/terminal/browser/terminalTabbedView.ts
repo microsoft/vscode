@@ -138,7 +138,7 @@ export class TerminalTabbedView extends Disposable {
 
 		this._attachEventListeners(parentElement, this._terminalContainer);
 
-		this._terminalGroupService.onPanelOrientationChanged((orientation) => {
+		this._terminalGroupService.onDidChangePanelOrientation((orientation) => {
 			this._panelOrientation = orientation;
 		});
 
