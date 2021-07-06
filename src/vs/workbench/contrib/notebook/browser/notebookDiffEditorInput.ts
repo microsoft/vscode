@@ -102,7 +102,7 @@ export class NotebookDiffEditorInput extends DiffEditorInput {
 	}
 
 	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
-		if (super.matches(otherInput)) {
+		if (this === otherInput) {
 			return true;
 		}
 
