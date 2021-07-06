@@ -316,7 +316,7 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 		});
 	}
 
-	if (!opts.web && opts['build']) {
+	if (!opts.web && opts['build'] && !opts['remote']) {
 		describe(`Stable vs Insiders Smoke Tests: This test MUST run before releasing`, () => {
 			setupDataMigrationTests(opts, testDataPath);
 		});
