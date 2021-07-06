@@ -66,7 +66,7 @@ export interface ISubmenuItem {
 	when?: ContextKeyExpression;
 	group?: 'navigation' | string;
 	order?: number;
-	storageKey?: string;	// for dropdown menu: if specified the last executed action is remembered as the default action under this key
+	rememberDefaultAction?: boolean;	// for dropdown menu: if true the last executed action is remembered as the default action
 }
 
 export function isIMenuItem(item: IMenuItem | ISubmenuItem): item is IMenuItem {

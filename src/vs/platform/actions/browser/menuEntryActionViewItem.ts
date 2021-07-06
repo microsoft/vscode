@@ -329,7 +329,7 @@ class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 	) {
 		super(null, submenuAction);
 
-		this._storageKey = submenuAction.item.storageKey || 'lastAction';
+		this._storageKey = `${submenuAction.item.submenu._debugName}_lastActionId`;
 
 		// determine default action
 		let defaultAction: IAction | undefined;
@@ -439,7 +439,7 @@ export function createActionViewItem(instaService: IInstantiationService, action
 	if (action instanceof MenuItemAction) {
 		return instaService.createInstance(MenuEntryActionViewItem, action, undefined);
 	} else if (action instanceof SubmenuItemAction) {
-		if (action.item.storageKey) {
+		if (action.item.rememberDefaultAction) {
 			return instaService.createInstance(DropdownWithDefaultActionViewItem, action);
 		} else {
 			return instaService.createInstance(SubmenuEntryActionViewItem, action);
