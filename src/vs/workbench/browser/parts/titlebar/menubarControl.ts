@@ -38,7 +38,6 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IsMacNativeContext, IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { TerminalContextKey } from 'vs/platform/terminal/common/terminalContextKey';
 
 export type IOpenRecentAction = IAction & { uri: URI, remoteAuthority?: string };
 
@@ -100,7 +99,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
 		mnemonicTitle: localize({ key: 'mTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal")
 	},
 	order: 7,
-	when: ContextKeyExpr.has(TerminalContextKey.TerminalProcessSupported)
+	when: ContextKeyExpr.has('terminalProcessSupported')
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
