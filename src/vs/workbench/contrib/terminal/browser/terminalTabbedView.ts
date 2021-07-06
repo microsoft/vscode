@@ -15,9 +15,7 @@ import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { Action, IAction, Separator } from 'vs/base/common/actions';
+import { Action, Separator } from 'vs/base/common/actions';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -25,6 +23,7 @@ import { KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_I
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { localize } from 'vs/nls';
+import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 
 const $ = dom.$;
 
@@ -366,7 +365,7 @@ export class TerminalTabbedView extends Disposable {
 
 					// copyPaste: Shift+right click should open context menu
 					if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
-						this._openContextMenu(event, parentDomElement);
+						openContextMenu(event, this._parentElement, this._instanceMenu, this._contextMenuService);
 						return;
 					}
 
@@ -395,7 +394,7 @@ export class TerminalTabbedView extends Disposable {
 		}));
 		this._register(dom.addDisposableListener(terminalContainer, 'contextmenu', (event: MouseEvent) => {
 			if (!this._cancelContextMenu) {
-				this._openContextMenu(event, terminalContainer);
+				openContextMenu(event, this._parentElement, this._instanceMenu, this._contextMenuService);
 			}
 			event.preventDefault();
 			event.stopImmediatePropagation();
@@ -403,7 +402,8 @@ export class TerminalTabbedView extends Disposable {
 		}));
 		this._register(dom.addDisposableListener(this._tabContainer, 'contextmenu', (event: MouseEvent) => {
 			if (!this._cancelContextMenu) {
-				this._openContextMenu(event, this._tabContainer);
+				const emptyList = this._tabList.getFocus().length === 0;
+				openContextMenu(event, this._parentElement, emptyList ? this._tabsListEmptyMenu : this._tabsListMenu, this._contextMenuService, emptyList ? this._getTabActions() : undefined);
 			}
 			event.preventDefault();
 			event.stopImmediatePropagation();
@@ -427,33 +427,6 @@ export class TerminalTabbedView extends Disposable {
 		this._register(dom.addDisposableListener(this._tabContainer, dom.EventType.FOCUS_OUT, () => {
 			this._terminalTabsFocusContextKey.set(false);
 		}));
-	}
-
-	private _openContextMenu(event: MouseEvent, parent: HTMLElement): void {
-		const standardEvent = new StandardMouseEvent(event);
-
-		const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
-		const actions: IAction[] = [];
-		let menu: IMenu;
-		if (parent === this._terminalContainer) {
-			menu = this._instanceMenu;
-		} else {
-			menu = this._tabList.getFocus().length === 0 ? this._tabsListEmptyMenu : this._tabsListMenu;
-		}
-
-		const actionsDisposable = createAndFillInContextMenuActions(menu, undefined, actions);
-
-		// TODO: Convert to command?
-		if (menu === this._tabsListEmptyMenu) {
-			actions.push(...this._getTabActions());
-		}
-
-		this._contextMenuService.showContextMenu({
-			getAnchor: () => anchor,
-			getActions: () => actions,
-			getActionsContext: () => this._parentElement,
-			onHide: () => actionsDisposable.dispose()
-		});
 	}
 
 	private _getTabActions(): Action[] {
