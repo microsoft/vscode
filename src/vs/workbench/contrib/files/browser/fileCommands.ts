@@ -275,9 +275,9 @@ CommandsRegistry.registerCommand({
 async function resourcesToClipboard(resources: URI[], relative: boolean, clipboardService: IClipboardService, labelService: ILabelService, configurationService: IConfigurationService): Promise<void> {
 	if (resources.length) {
 		const lineDelimiter = isWindows ? '\r\n' : '\n';
-		const pathSeparator = relative ? configurationService.getValue<'/' | '\\' | undefined>('explorer.copyRelativePathSeparator') : undefined;
+		const separator = relative ? configurationService.getValue<'/' | '\\' | undefined>('explorer.copyRelativePathSeparator') : undefined;
 
-		const text = resources.map(resource => labelService.getUriLabel(resource, { relative, noPrefix: true, pathSeparator })).join(lineDelimiter);
+		const text = resources.map(resource => labelService.getUriLabel(resource, { relative, noPrefix: true, separator })).join(lineDelimiter);
 		await clipboardService.writeText(text);
 	}
 }
