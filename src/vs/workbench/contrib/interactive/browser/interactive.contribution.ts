@@ -41,7 +41,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IInteractiveDocumentService, InteractiveDocumentService } from 'vs/workbench/contrib/interactive/browser/interactiveDocumentService';
-import { IEditorOverrideService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 
@@ -60,7 +60,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 export class InteractiveDocumentContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@INotebookService notebookService: INotebookService,
-		@IEditorOverrideService editorOverrideService: IEditorOverrideService,
+		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IEditorService editorService: IEditorService,
 	) {
 		super();
@@ -174,7 +174,7 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 			}));
 		}
 
-		editorOverrideService.registerEditor(
+		editorResolverService.registerEditor(
 			`${Schemas.vscodeInteractiveInput}:/**`,
 			{
 				id: InteractiveEditor.ID,
@@ -191,7 +191,7 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 			}
 		);
 
-		editorOverrideService.registerEditor(
+		editorResolverService.registerEditor(
 			`*.interactive`,
 			{
 				id: InteractiveEditor.ID,

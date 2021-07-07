@@ -19,7 +19,7 @@ import { IContentDecorationRenderOptions, IDecorationOptions, IDecorationRenderO
 import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import * as languageSelector from 'vs/editor/common/modes/languageSelector';
-import { EditorOverride, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { EditorResolution, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IMarkerData, IRelatedInformation, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
 import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
@@ -1301,7 +1301,7 @@ export namespace TextEditorOpenOptions {
 				inactive: options.background,
 				preserveFocus: options.preserveFocus,
 				selection: typeof options.selection === 'object' ? Range.from(options.selection) : undefined,
-				override: typeof options.override === 'boolean' ? EditorOverride.DISABLED : undefined
+				override: typeof options.override === 'boolean' ? EditorResolution.DISABLED : undefined
 			};
 		}
 

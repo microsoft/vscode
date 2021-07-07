@@ -19,7 +19,7 @@ import { IEditorInputWithOptions, IEditorInputWithOptionsAndGroup, IResourceDiff
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { PreferredGroup } from 'vs/workbench/services/editor/common/editorService';
 
-export const IEditorOverrideService = createDecorator<IEditorOverrideService>('editorOverrideService');
+export const IEditorResolverService = createDecorator<IEditorResolverService>('editorResolverService');
 
 //#region Editor Associations
 
@@ -67,16 +67,16 @@ export enum RegisteredEditorPriority {
 }
 
 /**
- * If we didn't resolve an override dictates what to do with the opening state
+ * If we didn't resolve an editor dictates what to do with the opening state
  * ABORT = Do not continue with opening the editor
  * NONE = Continue as if the override has been disabled as the service could not resolve one
  */
-export const enum OverrideStatus {
+export const enum ResolvedStatus {
 	ABORT = 1,
 	NONE = 2,
 }
 
-export type ReturnedOverride = IEditorInputWithOptionsAndGroup | OverrideStatus;
+export type ResolvedEditor = IEditorInputWithOptionsAndGroup | ResolvedStatus;
 
 export type RegisteredEditorOptions = {
 	/**
@@ -108,7 +108,7 @@ export type UntitledEditorInputFactoryFunction = (untitledEditorInput: IUntitled
 
 export type DiffEditorInputFactoryFunction = (diffEditorInput: IResourceDiffEditorInput, group: IEditorGroup) => IEditorInputWithOptions;
 
-export interface IEditorOverrideService {
+export interface IEditorResolverService {
 	readonly _serviceBrand: undefined;
 	/**
 	 * Given a resource finds the editor associations that match it from the user's settings
@@ -141,12 +141,12 @@ export interface IEditorOverrideService {
 	): IDisposable;
 
 	/**
-	 * Given an editor determines if there's a suitable override for it, if so returns an IEditorInputWithOptions for opening
-	 * @param editor The editor to override
+	 * Given an editor resolves it to the suitable IEditorInputWithOptionsAndGroup based on user extensions, settings, and built-in editors
+	 * @param editor The editor to resolve
 	 * @param preferredGroup The group you want to open the editor in
-	 * @returns An IEditorInputWithOptionsAndGroup if there is an available override or a status of how to proceed
+	 * @returns An IEditorInputWithOptionsAndGroup if there is an available editor or a status of how to proceed
 	 */
-	resolveEditor(editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<ReturnedOverride>;
+	resolveEditor(editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<ResolvedEditor>;
 
 	/**
 	 * Given a resource returns all the editor ids that match that resource

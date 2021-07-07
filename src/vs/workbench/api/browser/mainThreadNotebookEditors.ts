@@ -12,7 +12,7 @@ import { INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { ILogService } from 'vs/platform/log/common/log';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { EditorActivation, EditorOverride } from 'vs/platform/editor/common/editor';
+import { EditorActivation, EditorResolution } from 'vs/platform/editor/common/editor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -131,7 +131,7 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 			// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
 			// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
 			activation: options.preserveFocus ? EditorActivation.RESTORE : undefined,
-			override: EditorOverride.DISABLED
+			override: EditorResolution.DISABLED
 		};
 
 		const input = NotebookEditorInput.create(this._instantiationService, URI.revive(resource), viewType);

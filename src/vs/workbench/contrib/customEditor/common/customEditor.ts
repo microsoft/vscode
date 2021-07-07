@@ -11,7 +11,7 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import * as nls from 'vs/nls';
 import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
-import { RegisteredEditorPriority, globMatchesResource, priorityToRank } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { RegisteredEditorPriority, globMatchesResource, priorityToRank } from 'vs/workbench/services/editor/common/editorResolverService';
 
 export const ICustomEditorService = createDecorator<ICustomEditorService>('customEditorService');
 

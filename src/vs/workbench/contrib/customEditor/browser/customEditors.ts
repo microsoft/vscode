@@ -24,7 +24,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { CONTEXT_ACTIVE_CUSTOM_EDITOR_ID, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorInfo, CustomEditorInfoCollection, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { RegisteredEditorPriority, IEditorOverrideService, IEditorType } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { RegisteredEditorPriority, IEditorResolverService, IEditorType } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { ContributedCustomEditors } from '../common/contributedCustomEditors';
@@ -56,7 +56,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IEditorOverrideService private readonly extensionContributedEditorService: IEditorOverrideService,
+		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 	) {
 		super();
 
@@ -114,7 +114,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 				if (!globPattern.filenamePattern) {
 					continue;
 				}
-				this._editorOverrideDisposables.push(this._register(this.extensionContributedEditorService.registerEditor(
+				this._editorOverrideDisposables.push(this._register(this.editorResolverService.registerEditor(
 					globPattern.filenamePattern,
 					{
 						id: contributedEditor.id,
@@ -170,7 +170,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	}
 
 	public getUserConfiguredCustomEditors(resource: URI): CustomEditorInfoCollection {
-		const resourceAssocations = this.extensionContributedEditorService.getAssociationsForResource(resource);
+		const resourceAssocations = this.editorResolverService.getAssociationsForResource(resource);
 		return new CustomEditorInfoCollection(
 			coalesce(resourceAssocations
 				.map(association => this._contributedEditors.get(association.viewType))));

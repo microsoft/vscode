@@ -19,7 +19,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { EditorOverride, IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { EditorResolution, IResourceEditorInput } from 'vs/platform/editor/common/editor';
 
 suite('Workbench editor utils', () => {
 
@@ -337,13 +337,13 @@ suite('Workbench editor utils', () => {
 		assert.strictEqual(isEditorInputWithOptions(editorInput), false);
 		assert.strictEqual(isEditorInputWithOptionsAndGroup(editorInput), false);
 
-		const editorInputWithOptions: IEditorInputWithOptions = { editor: editorInput, options: { override: EditorOverride.PICK } };
+		const editorInputWithOptions: IEditorInputWithOptions = { editor: editorInput, options: { override: EditorResolution.PICK } };
 		assert.strictEqual(isEditorInput(editorInputWithOptions), false);
 		assert.strictEqual(isEditorInputWithOptions(editorInputWithOptions), true);
 		assert.strictEqual(isEditorInputWithOptionsAndGroup(editorInputWithOptions), false);
 
 		const service = accessor.editorGroupService;
-		const editorInputWithOptionsAndGroup: IEditorInputWithOptionsAndGroup = { editor: editorInput, options: { override: EditorOverride.PICK }, group: service.activeGroup };
+		const editorInputWithOptionsAndGroup: IEditorInputWithOptionsAndGroup = { editor: editorInput, options: { override: EditorResolution.PICK }, group: service.activeGroup };
 		assert.strictEqual(isEditorInput(editorInputWithOptionsAndGroup), false);
 		assert.strictEqual(isEditorInputWithOptions(editorInputWithOptionsAndGroup), true);
 		assert.strictEqual(isEditorInputWithOptionsAndGroup(editorInputWithOptionsAndGroup), true);
@@ -378,9 +378,9 @@ suite('Workbench editor utils', () => {
 
 		for (const resource of resources) {
 			if (custom) {
-				await accessor.editorService.openEditor(new TestFileEditorInput(resource, 'testTypeId'), { pinned: true, override: EditorOverride.DISABLED });
+				await accessor.editorService.openEditor(new TestFileEditorInput(resource, 'testTypeId'), { pinned: true, override: EditorResolution.DISABLED });
 			} else if (sideBySide) {
-				await accessor.editorService.openEditor(new SideBySideEditorInput('testSideBySideEditor', undefined, new TestFileEditorInput(resource, 'testTypeId'), new TestFileEditorInput(resource, 'testTypeId')), { pinned: true, override: EditorOverride.DISABLED });
+				await accessor.editorService.openEditor(new SideBySideEditorInput('testSideBySideEditor', undefined, new TestFileEditorInput(resource, 'testTypeId'), new TestFileEditorInput(resource, 'testTypeId')), { pinned: true, override: EditorResolution.DISABLED });
 			} else {
 				await accessor.editorService.openEditor({ resource, options: { pinned: true } });
 			}

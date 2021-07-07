@@ -161,7 +161,7 @@ export enum EditorActivation {
 	PRESERVE
 }
 
-export enum EditorOverride {
+export enum EditorResolution {
 
 	/**
 	 * Displays a picker and allows the user to decide which editor to use
@@ -275,7 +275,7 @@ export interface IEditorOptions {
 	 * - `string`: specific override by id
 	 * - `EditorOverride`: specific override handling
 	 */
-	override?: string | EditorOverride;
+	override?: string | EditorResolution;
 
 	/**
 	 * A optional hint to signal in which context the editor opens.
