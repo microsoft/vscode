@@ -17,11 +17,6 @@
 	align-items: center;
 }
 
-.monaco-action-bar .actions-container .label-text{
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
 .monaco-action-bar.vertical .actions-container {
 	display: inline-block;
 }

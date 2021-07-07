@@ -33,7 +33,7 @@ import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TerminalTabbedView } from 'vs/workbench/contrib/terminal/browser/terminalTabbedView';
 import { Codicon } from 'vs/base/common/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { renderLabelWithIcons, renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { createAndFillInContextMenuActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { TerminalTabContextMenuGroup } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
@@ -41,11 +41,10 @@ import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/d
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
+import { getColorClass, getUriClasses, separateIconAndText } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { DataTransfers } from 'vs/base/browser/dnd';
-import { separateIconAndText } from 'vs/base/common/iconLabels';
 
 export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
@@ -412,7 +411,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@ICommandService private readonly _commandService: ICommandService,
+		@ICommandService private readonly _commandService: ICommandService
 	) {
 		super(new MenuItemAction(
 			{
@@ -507,13 +506,13 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			label.style.color = colorStyle;
 
 			const elements = new Array<HTMLSpanElement | string>();
-			const [[, codicon], labelText] = separateIconAndText(getSingleTabLabel(instance));
+			const [[, codicon], labelText] = separateIconAndText(getSingleTabLabel(instance, ThemeIcon.isThemeIcon(this._commandAction.item.icon) ? this._commandAction.item.icon : undefined));
 			elements.push(renderIcon({ id: codicon }));
 			const node = dom.$(`span`);
-			node.classList.add('label-text');
+			node.classList.add('terminal-label-text');
 			node.innerText = labelText;
 			elements.push(node);
-			dom.reset(label, ...renderLabelWithIcons(getSingleTabLabel(instance, ThemeIcon.isThemeIcon(this._commandAction.item.icon) ? this._commandAction.item.icon : undefined)));
+			dom.reset(label, ...elements);
 
 			if (this._altCommand) {
 				label.classList.remove(this._altCommand);

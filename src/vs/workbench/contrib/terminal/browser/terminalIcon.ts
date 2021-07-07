@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
+import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { hash } from 'vs/base/common/hash';
 import { URI } from 'vs/base/common/uri';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
@@ -54,4 +54,19 @@ export function getIconId(terminal: ITerminalInstance): string {
 		return Codicon.terminal.id;
 	}
 	return terminal.icon.id;
+}
+
+const labelWithIconsRegex = new RegExp(`(\\\\)?\\$\\((${CSSIcon.iconNameExpression}(?:${CSSIcon.iconModifierExpression})?)\\)`, 'g');
+export function separateIconAndText(text: string): [string[], string] {
+	let match: RegExpMatchArray | null;
+	let codicons = new Array<string>();
+	let textStart = 0, textStop = 0;
+	while ((match = labelWithIconsRegex.exec(text)) !== null) {
+		textStop = match.index || 0;
+		codicons.push(text.substring(textStart, textStop));
+		textStart = (match.index || 0) + match[0].length;
+		const [, escaped, codicon] = match;
+		codicons.push(escaped ? `$(${codicon})` : codicon);
+	}
+	return [codicons, text.substring(textStart)];
 }

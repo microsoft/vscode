@@ -46,21 +46,6 @@ export function parseLabelWithIcons(text: string): IParsedLabelWithIcons {
 	return doParseLabelWithIcons(text, firstIconIndex);
 }
 
-const labelWithIconsRegex = new RegExp(`(\\\\)?\\$\\((${CSSIcon.iconNameExpression}(?:${CSSIcon.iconModifierExpression})?)\\)`, 'g');
-export function separateIconAndText(text: string): [string[], string] {
-	let match: RegExpMatchArray | null;
-	let codicons = new Array<string>();
-	let textStart = 0, textStop = 0;
-	while ((match = labelWithIconsRegex.exec(text)) !== null) {
-		textStop = match.index || 0;
-		codicons.push(text.substring(textStart, textStop));
-		textStart = (match.index || 0) + match[0].length;
-		const [, escaped, codicon] = match;
-		codicons.push(escaped ? `$(${codicon})` : codicon);
-	}
-	return [codicons, text.substring(textStart)];
-}
-
 function doParseLabelWithIcons(text: string, firstIconIndex: number): IParsedLabelWithIcons {
 	const iconOffsets: number[] = [];
 	let textWithoutIcons: string = '';
