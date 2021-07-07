@@ -112,6 +112,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 				this.setSelection([i]);
 				this.reveal(i);
 			}
+			this.refresh();
 		});
 
 		this.onMouseDblClick(async e => {
@@ -261,6 +262,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		}
 
 		template.element.classList.toggle('has-text', hasText);
+		template.element.classList.toggle('is-active', this._terminalGroupService.activeInstance === instance);
 
 		let prefix: string = '';
 		if (group.terminalInstances.length > 1) {
