@@ -86,6 +86,7 @@ export class InteractiveEditor extends EditorPane {
 		this.#historyService = historyService;
 
 		codeEditorService.registerDecorationType('interactive-decoration', DECORATION_KEY, {});
+		this._register(this.#keybindingService.onDidUpdateKeybindings(this.#updateInputDecoration, this));
 	}
 
 	protected createEditor(parent: HTMLElement): void {
