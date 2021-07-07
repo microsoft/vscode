@@ -30,22 +30,6 @@ import { TelemetryProperties, TelemetryReporter, VSCodeTelemetryReporter } from 
 import Tracer from './utils/tracer';
 import { inferredProjectCompilerOptions, ProjectType } from './utils/tsconfig';
 
-namespace ExperimentalProto {
-	export interface UserPreferences extends Proto.UserPreferences {
-		includeInlayParameterNameHints?: 'none' | 'literals' | 'all';
-		includeInlayParameterNameHintsWhenArgumentMatchesName?: boolean;
-		includeInlayFunctionParameterTypeHints?: boolean;
-		includeInlayVariableTypeHints?: boolean;
-		includeInlayPropertyDeclarationTypeHints?: boolean;
-		includeInlayFunctionLikeReturnTypeHints?: boolean;
-		includeInlayEnumMemberValueHints?: boolean;
-	}
-
-	export interface ConfigureRequestArguments extends Proto.ConfigureRequestArguments {
-		preferences?: UserPreferences;
-	}
-}
-
 const localize = nls.loadMessageBundle();
 
 export interface TsDiagnostics {
@@ -554,7 +538,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			? this.configuration.watchOptions
 			: undefined;
 
-		const configureOptions: ExperimentalProto.ConfigureRequestArguments = {
+		const configureOptions: Proto.ConfigureRequestArguments = {
 			hostInfo: 'vscode',
 			preferences: {
 				providePrefixAndSuffixTextForRename: true,
