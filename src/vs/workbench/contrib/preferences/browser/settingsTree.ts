@@ -10,7 +10,7 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { alert as ariaAlert } from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
-import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { IInputOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultStyleController, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
@@ -545,6 +545,7 @@ interface IGroupTitleTemplate extends IDisposableTemplate {
 
 const SETTINGS_UNTRUSTED_TEMPLATE_ID = 'settings.untrusted.template';
 const SETTINGS_TEXT_TEMPLATE_ID = 'settings.text.template';
+const SETTINGS_MULTILINE_TEXT_TEMPLATE_ID = 'settings.multilineText.template';
 const SETTINGS_NUMBER_TEMPLATE_ID = 'settings.number.template';
 const SETTINGS_ENUM_TEMPLATE_ID = 'settings.enum.template';
 const SETTINGS_BOOL_TEMPLATE_ID = 'settings.bool.template';
@@ -600,6 +601,11 @@ function addChildrenToTabOrder(node: Element): void {
 	});
 }
 
+export interface HeightChangeParams {
+	element: SettingsTreeElement;
+	height: number;
+}
+
 export abstract class AbstractSettingRenderer extends Disposable implements ITreeRenderer<SettingsTreeElement, never, any> {
 	/** To override */
 	abstract get templateId(): string;
@@ -632,6 +638,9 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	private ignoredSettings: string[];
 	private readonly _onDidChangeIgnoredSettings = this._register(new Emitter<void>());
 	readonly onDidChangeIgnoredSettings: Event<void> = this._onDidChangeIgnoredSettings.event;
+
+	protected readonly _onDidChangeSettingHeight = this._register(new Emitter<HeightChangeParams>());
+	readonly onDidChangeSettingHeight: Event<HeightChangeParams> = this._onDidChangeSettingHeight.event;
 
 	constructor(
 		private readonly settingActions: IAction[],
@@ -1417,14 +1426,19 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 	}
 }
 
-export class SettingTextRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingTextItemTemplate> {
-	templateId = SETTINGS_TEXT_TEMPLATE_ID;
+abstract class AbstractSettingTextRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingTextItemTemplate> {
+	private readonly MULTILINE_MAX_HEIGHT = 150;
 
-	renderTemplate(_container: HTMLElement): ISettingTextItemTemplate {
+	renderTemplate(_container: HTMLElement, useMultiline?: boolean): ISettingTextItemTemplate {
 		const common = this.renderCommonTemplate(null, _container, 'text');
 		const validationErrorMessageElement = DOM.append(common.containerElement, $('.setting-item-validation-message'));
 
-		const inputBox = new InputBox(common.controlElement, this._contextViewService);
+		const inputBoxOptions: IInputOptions = {
+			flexibleHeight: useMultiline,
+			flexibleWidth: false,
+			flexibleMaxHeight: this.MULTILINE_MAX_HEIGHT
+		};
+		const inputBox = new InputBox(common.controlElement, this._contextViewService, inputBoxOptions);
 		common.toDispose.add(inputBox);
 		common.toDispose.add(attachInputBoxStyler(inputBox, this._themeService, {
 			inputBackground: settingsTextInputBackground,
@@ -1440,14 +1454,6 @@ export class SettingTextRenderer extends AbstractSettingRenderer implements ITre
 		common.toDispose.add(inputBox);
 		inputBox.inputElement.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
 		inputBox.inputElement.tabIndex = 0;
-
-		// TODO@9at8: listWidget filters out all key events from input boxes, so we need to come up with a better way
-		// Disable ArrowUp and ArrowDown behaviour in favor of list navigation
-		common.toDispose.add(DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, e => {
-			if (e.equals(KeyCode.UpArrow) || e.equals(KeyCode.DownArrow)) {
-				e.preventDefault();
-			}
-		}));
 
 		const template: ISettingTextItemTemplate = {
 			...common,
@@ -1474,6 +1480,50 @@ export class SettingTextRenderer extends AbstractSettingRenderer implements ITre
 		};
 
 		renderValidations(dataElement, template, true);
+	}
+}
+
+export class SettingTextRenderer extends AbstractSettingTextRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingTextItemTemplate> {
+	templateId = SETTINGS_TEXT_TEMPLATE_ID;
+
+	override renderTemplate(_container: HTMLElement): ISettingTextItemTemplate {
+		const template = super.renderTemplate(_container, false);
+
+		// TODO@9at8: listWidget filters out all key events from input boxes, so we need to come up with a better way
+		// Disable ArrowUp and ArrowDown behaviour in favor of list navigation
+		template.toDispose.add(DOM.addStandardDisposableListener(template.inputBox.inputElement, DOM.EventType.KEY_DOWN, e => {
+			if (e.equals(KeyCode.UpArrow) || e.equals(KeyCode.DownArrow)) {
+				e.preventDefault();
+			}
+		}));
+
+		return template;
+	}
+}
+
+export class SettingMultilineTextRenderer extends AbstractSettingTextRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingTextItemTemplate> {
+	templateId = SETTINGS_MULTILINE_TEXT_TEMPLATE_ID;
+
+	override renderTemplate(_container: HTMLElement): ISettingTextItemTemplate {
+		return super.renderTemplate(_container, true);
+	}
+
+	protected override renderValue(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: string) => void) {
+		super.renderValue(dataElement, template, onChange);
+		template.toDispose.add(
+			template.inputBox.onDidHeightChange(e => {
+				const height = template.containerElement.clientHeight;
+				// Don't fire event if height is reported as 0,
+				// which sometimes happens when clicking onto a new setting.
+				if (height) {
+					this._onDidChangeSettingHeight.fire({
+						element: dataElement,
+						height: template.containerElement.clientHeight
+					});
+				}
+			})
+		);
+		template.inputBox.layout();
 	}
 }
 
@@ -1770,6 +1820,8 @@ export class SettingTreeRenderers {
 
 	readonly onDidFocusSetting: Event<SettingsTreeSettingElement>;
 
+	readonly onDidChangeSettingHeight: Event<HeightChangeParams>;
+
 	readonly allRenderers: ITreeRenderer<SettingsTreeElement, never, any>[];
 
 	private readonly settingActions: IAction[];
@@ -1800,6 +1852,7 @@ export class SettingTreeRenderers {
 			this._instantiationService.createInstance(SettingArrayRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingComplexRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingTextRenderer, this.settingActions, actionFactory),
+			this._instantiationService.createInstance(SettingMultilineTextRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingExcludeRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingEnumRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingObjectRenderer, this.settingActions, actionFactory),
@@ -1815,6 +1868,7 @@ export class SettingTreeRenderers {
 		this.onDidOpenSettings = Event.any(...settingRenderers.map(r => r.onDidOpenSettings));
 		this.onDidClickSettingLink = Event.any(...settingRenderers.map(r => r.onDidClickSettingLink));
 		this.onDidFocusSetting = Event.any(...settingRenderers.map(r => r.onDidFocusSetting));
+		this.onDidChangeSettingHeight = Event.any(...settingRenderers.map(r => r.onDidChangeSettingHeight));
 
 		this.allRenderers = [
 			...settingRenderers,
@@ -2030,6 +2084,10 @@ class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupCh
 
 			if (element.valueType === SettingValueType.Integer || element.valueType === SettingValueType.Number || element.valueType === SettingValueType.NullableInteger || element.valueType === SettingValueType.NullableNumber) {
 				return SETTINGS_NUMBER_TEMPLATE_ID;
+			}
+
+			if (element.valueType === SettingValueType.MultilineString) {
+				return SETTINGS_MULTILINE_TEXT_TEMPLATE_ID;
 			}
 
 			if (element.valueType === SettingValueType.String) {
