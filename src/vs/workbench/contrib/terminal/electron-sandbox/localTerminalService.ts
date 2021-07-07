@@ -45,7 +45,7 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		@INotificationService notificationService: INotificationService,
 		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
-		@IHistoryService historyService: IHistoryService
+		@IHistoryService historyService: IHistoryService,
 	) {
 		super();
 
@@ -106,6 +106,10 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		}
 		if (this._localPtyService.onPtyHostRequestResolveVariables) {
 			this._register(this._localPtyService.onPtyHostRequestResolveVariables(async e => {
+				// Only answer requests for this workspace
+				if (e.workspaceId !== this._workspaceContextService.getWorkspace().id) {
+					return;
+				}
 				const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
 				const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
 				const resolveCalls: Promise<string>[] = e.originalText.map(t => {
@@ -157,7 +161,7 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 	}
 
 	async getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean) {
-		return this._localPtyService.getProfiles?.(profiles, defaultProfile, includeDetectedProfiles) || [];
+		return this._localPtyService.getProfiles?.(this._workspaceContextService.getWorkspace().id, profiles, defaultProfile, includeDetectedProfiles) || [];
 	}
 
 	async getEnvironment(): Promise<IProcessEnvironment> {
