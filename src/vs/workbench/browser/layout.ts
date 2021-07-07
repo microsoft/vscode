@@ -277,21 +277,19 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private registerLayoutListeners(): void {
 
-		// Restore editor if hidden and it changes
-		// The editor service will always trigger this
-		// on startup so we can ignore the first one
-		let firstTimeEditorActivation = true;
+		// Restore editor if hidden
 		const showEditorIfHidden = () => {
-			if (!firstTimeEditorActivation && this.state.editor.hidden) {
+			if (this.state.editor.hidden) {
 				this.toggleMaximizedPanel();
 			}
-
-			firstTimeEditorActivation = false;
 		};
 
-		// Restore editor part on any editor change
-		this._register(this.editorService.onDidVisibleEditorsChange(showEditorIfHidden));
-		this._register(this.editorGroupService.onDidActivateGroup(showEditorIfHidden));
+		// Wait to register these listeners after the editor group service is ready to avoid conflicts on startup
+		this.editorGroupService.whenRestored.then(() => {
+			// Restore editor part on any editor change
+			this._register(this.editorService.onDidVisibleEditorsChange(showEditorIfHidden));
+			this._register(this.editorGroupService.onDidActivateGroup(showEditorIfHidden));
+		});
 
 		// Revalidate center layout when active editor changes: diff editor quits centered mode.
 		this._register(this.editorService.onDidActiveEditorChange(() => this.centerEditorLayout(this.state.editor.centered)));
