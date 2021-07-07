@@ -259,7 +259,6 @@ export class NotebookEditor extends EditorPane {
 			const startTime = perfMarks['startTime'];
 			const extensionActivated = perfMarks['extensionActivated'];
 			const inputLoaded = perfMarks['inputLoaded'];
-			const webviewCommLoaded = perfMarks['webviewCommLoaded'];
 			const customMarkdownLoaded = perfMarks['customMarkdownLoaded'];
 			const editorLoaded = perfMarks['editorLoaded'];
 
@@ -267,7 +266,6 @@ export class NotebookEditor extends EditorPane {
 				startTime !== undefined
 				&& extensionActivated !== undefined
 				&& inputLoaded !== undefined
-				&& webviewCommLoaded !== undefined
 				&& customMarkdownLoaded !== undefined
 				&& editorLoaded !== undefined
 			) {
@@ -277,10 +275,12 @@ export class NotebookEditor extends EditorPane {
 					viewType: model.notebook.viewType,
 					extensionActivated: extensionActivated - startTime,
 					inputLoaded: inputLoaded - startTime,
-					webviewCommLoaded: webviewCommLoaded - startTime,
+					webviewCommLoaded: inputLoaded - startTime,
 					customMarkdownLoaded: customMarkdownLoaded - startTime,
 					editorLoaded: editorLoaded - startTime
 				});
+			} else {
+				console.warn('notebook file open perf marks are broken');
 			}
 		}
 	}
