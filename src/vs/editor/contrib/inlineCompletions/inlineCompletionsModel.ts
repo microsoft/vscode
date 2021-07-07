@@ -7,7 +7,7 @@ import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
@@ -17,7 +17,6 @@ import { InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCom
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { MutableDisposable } from 'vs/editor/contrib/inlineCompletions/utils';
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { IDiffChange, stringDiff } from 'vs/base/common/diff/diff';
@@ -381,7 +380,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	public commit(completion: LiveInlineCompletion): void {
 		// Mark the cache as stale, but don't dispose it yet,
 		// otherwise command args might get disposed.
-		const cache = this.cache.replace(undefined);
+		const cache = this.cache.clearAndLeak();
 
 		this.editor.executeEdits(
 			'inlineSuggestion.accept',
