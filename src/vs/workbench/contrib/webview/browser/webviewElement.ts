@@ -278,11 +278,11 @@ export class IFrameWebview extends Disposable implements Webview {
 		this._register(webviewThemeDataProvider.onThemeDataChanged(this.style, this));
 
 		/* __GDPR__
-		"webview.createWebview" : {
-			"extension": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"s": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-		}
-	*/
+			"webview.createWebview" : {
+				"extension": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"webviewElementType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			}
+		*/
 		telemetryService.publicLog('webview.createWebview', {
 			extension: extension?.id.value,
 			webviewElementType: 'iframe',
