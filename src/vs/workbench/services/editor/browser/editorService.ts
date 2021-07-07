@@ -38,7 +38,7 @@ import { RegisteredEditorPriority, IEditorOverrideService, OverrideStatus } from
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkspaceTrustRequestService, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { findGroup } from 'vs/workbench/services/editor/browser/editorGroupFinder';
+import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder';
 
 type CachedEditorInput = TextResourceEditorInput | IFileEditorInput | UntitledTextEditorInput;
 

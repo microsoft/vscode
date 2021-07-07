@@ -22,7 +22,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorExtensions, EditorsOrder, IEditorInputSerializer, viewColumnToEditorGroup } from 'vs/workbench/common/editor';
+import { EditorExtensions, EditorsOrder, IEditorInputSerializer } from 'vs/workbench/common/editor';
+import { columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { InteractiveEditor } from 'vs/workbench/contrib/interactive/browser/interactiveEditor';
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
 import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
@@ -288,7 +289,7 @@ registerAction2(class extends Action2 {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const historyService = accessor.get(IInteractiveHistoryService);
 		const kernelService = accessor.get(INotebookKernelService);
-		const group = viewColumnToEditorGroup(editorGroupService, column);
+		const group = columnToEditorGroup(editorGroupService, column);
 
 		if (resource && resource.scheme === Schemas.vscodeInteractive) {
 			const resourceUri = URI.revive(resource);

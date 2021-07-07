@@ -12,7 +12,7 @@ import { MainThreadNotebookDocuments } from 'vs/workbench/api/browser/mainThread
 import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 import { MainThreadNotebookEditors } from 'vs/workbench/api/browser/mainThreadNotebookEditors';
 import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { editorGroupToViewColumn } from 'vs/workbench/common/editor';
+import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { getNotebookEditorFromEditorPane, IActiveNotebookEditor, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -240,7 +240,7 @@ export class MainThreadNotebooksAndEditors {
 			documentUri: add.textModel.uri,
 			selections: add.getSelections(),
 			visibleRanges: add.visibleRanges,
-			viewColumn: pane && editorGroupToViewColumn(this._editorGroupService, pane.group)
+			viewColumn: pane && editorGroupToColumn(this._editorGroupService, pane.group)
 		};
 	}
 }

@@ -19,7 +19,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
 import { MainThreadTextEditor } from 'vs/workbench/api/browser/mainThreadEditor';
 import { ExtHostContext, ExtHostEditorsShape, IApplyEditsOptions, IExtHostContext, ITextDocumentShowOptions, ITextEditorConfigurationUpdate, ITextEditorPositionData, IUndoStopOptions, MainThreadTextEditorsShape, TextEditorRevealType, IWorkspaceEditDto, WorkspaceEditType } from 'vs/workbench/api/common/extHost.protocol';
-import { editorGroupToViewColumn, EditorGroupColumn, viewColumnToEditorGroup } from 'vs/workbench/common/editor';
+import { editorGroupToColumn, columnToEditorGroup, EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -126,7 +126,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		for (let editorPane of this._editorService.visibleEditorPanes) {
 			const id = this._documentsAndEditors.findTextEditorIdFor(editorPane);
 			if (id) {
-				result[id] = editorGroupToViewColumn(this._editorGroupService, editorPane.group);
+				result[id] = editorGroupToColumn(this._editorGroupService, editorPane.group);
 			}
 		}
 		return result;
@@ -152,7 +152,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			options: editorOptions
 		};
 
-		const editor = await this._editorService.openEditor(input, viewColumnToEditorGroup(this._editorGroupService, options.position));
+		const editor = await this._editorService.openEditor(input, columnToEditorGroup(this._editorGroupService, options.position));
 		if (!editor) {
 			return undefined;
 		}
@@ -166,7 +166,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			await this._editorService.openEditor({
 				resource: model.uri,
 				options: { preserveFocus: false }
-			}, viewColumnToEditorGroup(this._editorGroupService, position));
+			}, columnToEditorGroup(this._editorGroupService, position));
 			return;
 		}
 	}
