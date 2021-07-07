@@ -271,7 +271,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		for (const [key, editors] of this._editors) {
 			for (const editor of editors) {
 				const foundInSettings = userSettings.find(setting => setting.viewType === editor.editorInfo.id);
-				if (foundInSettings || globMatchesResource(key, resource)) {
+				if ((foundInSettings && editor.editorInfo.priority !== RegisteredEditorPriority.exclusive) || globMatchesResource(key, resource)) {
 					matchingEditors.push(editor);
 				}
 			}
@@ -288,6 +288,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 	public getEditorIds(resource: URI): string[] {
 		const editors = this.findMatchingEditors(resource);
+		if (editors.find(e => e.editorInfo.priority === RegisteredEditorPriority.exclusive)) {
+			return [];
+		}
 		return editors.map(editor => editor.editorInfo.id);
 	}
 

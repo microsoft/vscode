@@ -149,7 +149,7 @@ export interface IEditorResolverService {
 	resolveEditor(editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<ResolvedEditor>;
 
 	/**
-	 * Given a resource returns all the editor ids that match that resource
+	 * Given a resource returns all the editor ids that match that resource. If there is exclusive editor we return an empty array
 	 * @param resource The resource
 	 * @returns A list of editor ids
 	 */
