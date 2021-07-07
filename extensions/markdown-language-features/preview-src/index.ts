@@ -49,9 +49,9 @@ function doAfterImagesLoaded(cb: () => void) {
 				});
 			}
 		});
-		Promise.all(ps).then(() => setImmediate(cb));
+		Promise.all(ps).then(() => setTimeout(cb, 0));
 	} else {
-		setImmediate(cb);
+		setTimeout(cb, 0);
 	}
 }
 

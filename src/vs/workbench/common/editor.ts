@@ -292,7 +292,7 @@ export interface IUntitledTextResourceEditorInput extends IBaseTextResourceEdito
 	 * force use the provided resource as associated path. As such, the resource will be used when saving
 	 * the untitled editor.
 	 */
-	readonly resource?: URI;
+	readonly resource: URI | undefined;
 }
 
 export interface IResourceDiffEditorInput extends IBaseResourceEditorInput {

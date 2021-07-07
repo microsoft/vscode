@@ -1190,7 +1190,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				throw new Error('Notebook output webview object is not created successfully.');
 			}
 
-			await this._webview.createWebview();
+			this._webview.createWebview();
 			if (!this._webview.webview) {
 				throw new Error('Notebook output webview elemented is not created successfully.');
 			}

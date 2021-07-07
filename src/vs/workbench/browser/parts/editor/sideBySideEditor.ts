@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/sidebysideeditor';
 import { Dimension, $, clearNode } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorControl, IEditorPane, IEditorOpenContext, EditorExtensions } from 'vs/workbench/common/editor';
@@ -76,7 +77,7 @@ export class SideBySideEditor extends EditorPane {
 		const splitview = this.splitview = this._register(new SplitView(parent, { orientation: Orientation.HORIZONTAL }));
 		this._register(this.splitview.onDidSashReset(() => splitview.distributeViewSizes()));
 
-		this.secondaryEditorContainer = $('.secondary-editor-container');
+		this.secondaryEditorContainer = $('.side-by-side-editor-container.secondary');
 		this.splitview.addView({
 			element: this.secondaryEditorContainer,
 			layout: size => this.secondaryEditorPane?.layout(new Dimension(size, this.dimension.height)),
@@ -85,7 +86,7 @@ export class SideBySideEditor extends EditorPane {
 			onDidChange: Event.None
 		}, Sizing.Distribute);
 
-		this.primaryEditorContainer = $('.primary-editor-container');
+		this.primaryEditorContainer = $('.side-by-side-editor-container.primary');
 		this.splitview.addView({
 			element: this.primaryEditorContainer,
 			layout: size => this.primaryEditorPane?.layout(new Dimension(size, this.dimension.height)),

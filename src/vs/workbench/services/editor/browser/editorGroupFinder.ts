@@ -6,7 +6,7 @@
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { GroupIdentifier, IEditorInputWithOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IEditorInputWithOptions, isEditorInputWithOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IEditorGroup, GroupsOrder, preferredSideBySideGroupDirection, IEditorGroupsService, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP_TYPE, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 
@@ -23,8 +23,9 @@ export function isPreferredGroup(obj: unknown): obj is PreferredGroup {
  * that is best for the editor and matches the preferred group if
  * posisble.
  */
-export function findGroup(accessor: ServicesAccessor, editor: IEditorInputWithOptions, preferredGroup: PreferredGroup | undefined): [IEditorGroup, EditorActivation | undefined];
 export function findGroup(accessor: ServicesAccessor, editor: IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): [IEditorGroup, EditorActivation | undefined];
+export function findGroup(accessor: ServicesAccessor, editor: IEditorInputWithOptions, preferredGroup: PreferredGroup | undefined): [IEditorGroup, EditorActivation | undefined];
+export function findGroup(accessor: ServicesAccessor, editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): [IEditorGroup, EditorActivation | undefined];
 export function findGroup(accessor: ServicesAccessor, editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): [IEditorGroup, EditorActivation | undefined] {
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	const configurationService = accessor.get(IConfigurationService);
@@ -55,8 +56,10 @@ export function findGroup(accessor: ServicesAccessor, editor: IEditorInputWithOp
 	return [group, activation];
 }
 
-function doFindGroup(editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined, editorGroupService: IEditorGroupsService, configurationService: IConfigurationService): IEditorGroup {
+function doFindGroup(input: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined, editorGroupService: IEditorGroupsService, configurationService: IConfigurationService): IEditorGroup {
 	let group: IEditorGroup | undefined;
+	let editor = isEditorInputWithOptions(input) ? input.editor : input;
+	let options = input.options;
 
 	// Group: Instance of Group
 	if (preferredGroup && typeof preferredGroup !== 'number') {
@@ -74,11 +77,11 @@ function doFindGroup(editor: IEditorInputWithOptions | IUntypedEditorInput, pref
 	}
 
 	// Group: Unspecified without a specific index to open
-	else if (!editor.options || typeof editor.options.index !== 'number') {
+	else if (!options || typeof options.index !== 'number') {
 		const groupsByLastActive = editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 
 		// Respect option to reveal an editor if it is already visible in any group
-		if (editor.options?.revealIfVisible) {
+		if (options?.revealIfVisible) {
 			for (const lastActiveGroup of groupsByLastActive) {
 				if (lastActiveGroup.isActive(editor)) {
 					group = lastActiveGroup;
@@ -90,7 +93,7 @@ function doFindGroup(editor: IEditorInputWithOptions | IUntypedEditorInput, pref
 		// Respect option to reveal an editor if it is open (not necessarily visible)
 		// Still prefer to reveal an editor in a group where the editor is active though.
 		if (!group) {
-			if (editor.options?.revealIfOpened || configurationService.getValue<boolean>('workbench.editor.revealIfOpen')) {
+			if (options?.revealIfOpened || configurationService.getValue<boolean>('workbench.editor.revealIfOpen')) {
 				let groupWithInputActive: IEditorGroup | undefined = undefined;
 				let groupWithInputOpened: IEditorGroup | undefined = undefined;
 

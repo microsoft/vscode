@@ -32,9 +32,8 @@ import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalSt
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 
 const xtermSelector = '.terminal.xterm';
 const findWidgetSelector = '.simple-find-part-wrapper';
@@ -149,7 +148,7 @@ export class TerminalEditor extends EditorPane {
 
 					// copyPaste: Shift+right click should open context menu
 					if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
-						this._openContextMenu(event);
+						openContextMenu(event, this._parentElement!, this._instanceMenu, this._contextMenuService);
 						return;
 					}
 
@@ -180,29 +179,13 @@ export class TerminalEditor extends EditorPane {
 			const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
 			if (!this._cancelContextMenu && rightClickBehavior !== 'copyPaste' && rightClickBehavior !== 'paste') {
 				if (!this._cancelContextMenu) {
-					this._openContextMenu(event);
+					openContextMenu(event, this._parentElement!, this._instanceMenu, this._contextMenuService);
 				}
 				event.preventDefault();
 				event.stopImmediatePropagation();
 				this._cancelContextMenu = false;
 			}
 		}));
-	}
-
-	private _openContextMenu(event: MouseEvent): void {
-		const standardEvent = new StandardMouseEvent(event);
-
-		const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
-		const actions: IAction[] = [];
-
-		const actionsDisposable = createAndFillInContextMenuActions(this._instanceMenu, undefined, actions);
-
-		this._contextMenuService.showContextMenu({
-			getAnchor: () => anchor,
-			getActions: () => actions,
-			getActionsContext: () => this._parentElement,
-			onHide: () => actionsDisposable.dispose()
-		});
 	}
 
 	layout(dimension: dom.Dimension): void {

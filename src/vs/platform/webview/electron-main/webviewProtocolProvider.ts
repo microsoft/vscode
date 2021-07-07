@@ -40,10 +40,7 @@ export class WebviewProtocolProvider extends Disposable {
 			const uri = URI.parse(request.url);
 			const entry = WebviewProtocolProvider.validWebviewFilePaths.get(uri.path);
 			if (typeof entry === 'string') {
-				const relativeResourcePath = uri.path.startsWith('/electron-browser')
-					? `vs/workbench/contrib/webview/electron-browser/pre/${entry}`
-					: `vs/workbench/contrib/webview/browser/pre/${entry}`;
-
+				const relativeResourcePath = `vs/workbench/contrib/webview/browser/pre/${entry}`;
 				const url = FileAccess.asFileUri(relativeResourcePath, require);
 				return callback(decodeURIComponent(url.fsPath));
 			}
