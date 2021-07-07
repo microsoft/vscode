@@ -32,16 +32,13 @@ import { inferredProjectCompilerOptions, ProjectType } from './utils/tsconfig';
 
 namespace ExperimentalProto {
 	export interface UserPreferences extends Proto.UserPreferences {
-		includeInlineParameterNameHints?: boolean;
-		includeInlineFunctionParameterTypeHints?: boolean;
-		includeInlineVariableTypeHints?: boolean;
-		includeInlineNonLiteralParameterNameHints?: boolean;
-		includeInlineDuplicatedParameterNameHints?: boolean;
-		includeInlineRequireAssignedVariableTypeHints?: boolean;
-		includeInlinePropertyDeclarationTypeHints?: boolean;
-		includeInlineFunctionLikeReturnTypeHints?: boolean;
-		includeInlineEnumMemberValueHints?: boolean;
-		includeInlineCallChainsHints?: boolean;
+		includeInlayParameterNameHints?: 'none' | 'literals' | 'all';
+		includeInlayParameterNameHintsWhenArgumentMatchesName?: boolean;
+		includeInlayFunctionParameterTypeHints?: boolean;
+		includeInlayVariableTypeHints?: boolean;
+		includeInlayPropertyDeclarationTypeHints?: boolean;
+		includeInlayFunctionLikeReturnTypeHints?: boolean;
+		includeInlayEnumMemberValueHints?: boolean;
 	}
 
 	export interface ConfigureRequestArguments extends Proto.ConfigureRequestArguments {
