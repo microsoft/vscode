@@ -19,7 +19,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { isNative, isWeb, isWindows } from 'vs/base/common/platform';
 import { ExplorerViewletViewsContribution } from 'vs/workbench/contrib/files/browser/explorerViewlet';
-import { IEditorRegistry, EditorDescriptor } from 'vs/workbench/browser/editor';
+import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -54,8 +54,8 @@ class FileUriLabelContribution implements IWorkbenchContribution {
 registerSingleton(IExplorerService, ExplorerService, true);
 
 // Register file editors
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).registerEditorPane(
+	EditorPaneDescriptor.create(
 		BinaryFileEditor,
 		BinaryFileEditor.ID,
 		nls.localize('binaryFileEditor', "Binary File Editor")

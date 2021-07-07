@@ -14,7 +14,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
-import { IEditorRegistry } from 'vs/workbench/browser/editor';
+import { IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { SplitView, Sizing, Orientation } from 'vs/base/browser/ui/splitview/splitview';
@@ -205,16 +205,16 @@ export class SideBySideEditor extends EditorPane {
 	}
 
 	private doCreateEditor(editorInput: EditorInput, container: HTMLElement): EditorPane {
-		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editorInput);
-		if (!descriptor) {
-			throw new Error('No descriptor for editor found');
+		const editorPaneDescriptor = Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).getEditorPane(editorInput);
+		if (!editorPaneDescriptor) {
+			throw new Error('No editor pane descriptor for editor found');
 		}
 
-		const editor = descriptor.instantiate(this.instantiationService);
-		editor.create(container);
-		editor.setVisible(this.isVisible(), this.group);
+		const editorPane = editorPaneDescriptor.instantiate(this.instantiationService);
+		editorPane.create(container);
+		editorPane.setVisible(this.isVisible(), this.group);
 
-		return editor;
+		return editorPane;
 	}
 
 	override updateStyles(): void {

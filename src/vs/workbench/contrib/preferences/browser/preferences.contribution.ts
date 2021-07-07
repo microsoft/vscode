@@ -23,7 +23,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { RemoteNameContext, WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
-import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
@@ -63,8 +63,8 @@ const SETTINGS_EDITOR_COMMAND_FILTER_UNTRUSTED = 'settings.filterUntrusted';
 
 const SETTINGS_COMMAND_OPEN_SETTINGS = 'workbench.action.openSettings';
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).registerEditorPane(
+	EditorPaneDescriptor.create(
 		PreferencesEditor,
 		PreferencesEditor.ID,
 		nls.localize('defaultPreferencesEditor', "Default Preferences Editor")
@@ -74,8 +74,8 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	]
 );
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).registerEditorPane(
+	EditorPaneDescriptor.create(
 		SettingsEditor2,
 		SettingsEditor2.ID,
 		nls.localize('settingsEditor2', "Settings Editor 2")
@@ -85,8 +85,8 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	]
 );
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).registerEditorPane(
+	EditorPaneDescriptor.create(
 		KeybindingsEditor,
 		KeybindingsEditor.ID,
 		nls.localize('keybindingsEditor', "Keybindings Editor")

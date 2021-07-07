@@ -22,7 +22,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IEditorInput, IEditorInputSerializer, IEditorInputFactoryRegistry, IEditorInputWithOptions, EditorExtensions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -92,8 +92,8 @@ import { editorOptionsRegistry } from 'vs/editor/common/config/editorOptions';
 
 /*--------------------------------------------------------------------------------------------- */
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).registerEditorPane(
+	EditorPaneDescriptor.create(
 		NotebookEditor,
 		NotebookEditor.ID,
 		'Notebook Editor'
@@ -103,8 +103,8 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	]
 );
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).registerEditorPane(
+	EditorPaneDescriptor.create(
 		NotebookTextDiffEditor,
 		NotebookTextDiffEditor.ID,
 		'Notebook Diff Editor'

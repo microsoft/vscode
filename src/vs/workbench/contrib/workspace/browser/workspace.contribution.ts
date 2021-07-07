@@ -22,7 +22,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
-import { IEditorRegistry, EditorDescriptor } from 'vs/workbench/browser/editor';
+import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import { shieldIcon, WorkspaceTrustEditor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustEditor';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
 import { WorkspaceTrustContext, WORKSPACE_TRUST_BANNER, WORKSPACE_TRUST_EMPTY_WINDOW, WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_STARTUP_PROMPT, WORKSPACE_TRUST_UNTRUSTED_FILES } from 'vs/workbench/services/workspaces/common/workspaceTrust';
@@ -576,8 +576,8 @@ class WorkspaceTrustEditorInputSerializer implements IEditorInputSerializer {
 Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories)
 	.registerEditorInputSerializer(WorkspaceTrustEditorInput.ID, WorkspaceTrustEditorInputSerializer);
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).registerEditorPane(
+	EditorPaneDescriptor.create(
 		WorkspaceTrustEditor,
 		WorkspaceTrustEditor.ID,
 		localize('workspaceTrustEditor', "Workspace Trust Editor")

@@ -15,12 +15,12 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWorkbenchActionRegistry, Extensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IEditorRegistry, EditorDescriptor } from 'vs/workbench/browser/editor';
+import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors)
-	.registerEditor(EditorDescriptor.create(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors)
+	.registerEditorPane(EditorPaneDescriptor.create(
 		WalkThroughPart,
 		WalkThroughPart.ID,
 		localize('walkThrough.editor.label', "Interactive Playground"),

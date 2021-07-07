@@ -299,12 +299,12 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		return super.isSaving();
 	}
 
-	override prefersEditor<T extends IEditorDescriptor<IEditorPane>>(editors: T[]): T | undefined {
+	override prefersEditorPane<T extends IEditorDescriptor<IEditorPane>>(editorPanes: T[]): T | undefined {
 		if (this.forceOpenAs === ForceOpenAs.Binary) {
-			return editors.find(editor => editor.typeId === BINARY_FILE_EDITOR_ID);
+			return editorPanes.find(editorPane => editorPane.typeId === BINARY_FILE_EDITOR_ID);
 		}
 
-		return editors.find(editor => editor.typeId === TEXT_FILE_EDITOR_ID);
+		return editorPanes.find(editorPane => editorPane.typeId === TEXT_FILE_EDITOR_ID);
 	}
 
 	override resolve(): Promise<ITextFileEditorModel | BinaryEditorModel> {

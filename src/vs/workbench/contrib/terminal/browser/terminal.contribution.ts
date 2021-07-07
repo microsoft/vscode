@@ -38,7 +38,7 @@ import { setupTerminalMenus } from 'vs/workbench/contrib/terminal/browser/termin
 import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { EditorExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
-import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
@@ -73,8 +73,8 @@ registerTerminalPlatformConfiguration();
 registerTerminalConfiguration();
 
 Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(TerminalEditorInput.ID, TerminalInputSerializer);
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).registerEditorPane(
+	EditorPaneDescriptor.create(
 		TerminalEditor,
 		TerminalEditor.ID,
 		terminalStrings.terminal

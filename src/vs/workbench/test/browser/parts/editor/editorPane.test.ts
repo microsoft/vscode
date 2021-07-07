@@ -16,7 +16,7 @@ import { workbenchInstantiationService, TestEditorGroupView, TestEditorGroupsSer
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { URI } from 'vs/base/common/uri';
-import { EditorDescriptor, EditorRegistry } from 'vs/workbench/browser/editor';
+import { EditorPaneDescriptor, EditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
@@ -31,7 +31,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 const NullThemeService = new TestThemeService();
 
-const editorRegistry: EditorRegistry = Registry.as(EditorExtensions.Editors);
+const editorRegistry: EditorPaneRegistry = Registry.as(EditorExtensions.Editors);
 const editorInputRegistry: IEditorInputFactoryRegistry = Registry.as(EditorExtensions.EditorInputFactories);
 
 class TestEditor extends EditorPane {
@@ -76,7 +76,7 @@ class TestInput extends EditorInput {
 
 	readonly resource = undefined;
 
-	override prefersEditor<T extends IEditorDescriptor<IEditorPane>>(editors: T[]): T | undefined {
+	override prefersEditorPane<T extends IEditorDescriptor<IEditorPane>>(editors: T[]): T | undefined {
 		return editors[1];
 	}
 
@@ -130,61 +130,61 @@ suite('EditorPane', () => {
 		assert(!editor.getControl());
 	});
 
-	test('EditorDescriptor', () => {
-		const editorDescriptor = EditorDescriptor.create(TestEditor, 'id', 'name');
+	test('EditorPaneDescriptor', () => {
+		const editorDescriptor = EditorPaneDescriptor.create(TestEditor, 'id', 'name');
 		assert.strictEqual(editorDescriptor.typeId, 'id');
 		assert.strictEqual(editorDescriptor.name, 'name');
 	});
 
-	test('Editor Registration', function () {
-		const editorDescriptor1 = EditorDescriptor.create(TestEditor, 'id1', 'name');
-		const editorDescriptor2 = EditorDescriptor.create(OtherTestEditor, 'id2', 'name');
+	test('Editor Pane Registration', function () {
+		const editorDescriptor1 = EditorPaneDescriptor.create(TestEditor, 'id1', 'name');
+		const editorDescriptor2 = EditorPaneDescriptor.create(OtherTestEditor, 'id2', 'name');
 
-		const oldEditorsCnt = editorRegistry.getEditors().length;
-		const oldInputCnt = editorRegistry.getEditorInputs().length;
+		const oldEditorsCnt = editorRegistry.getEditorPanes().length;
+		const oldInputCnt = editorRegistry.getEditors().length;
 
-		const dispose1 = editorRegistry.registerEditor(editorDescriptor1, [new SyncDescriptor(TestInput)]);
-		const dispose2 = editorRegistry.registerEditor(editorDescriptor2, [new SyncDescriptor(TestInput), new SyncDescriptor(OtherTestInput)]);
+		const dispose1 = editorRegistry.registerEditorPane(editorDescriptor1, [new SyncDescriptor(TestInput)]);
+		const dispose2 = editorRegistry.registerEditorPane(editorDescriptor2, [new SyncDescriptor(TestInput), new SyncDescriptor(OtherTestInput)]);
 
-		assert.strictEqual(editorRegistry.getEditors().length, oldEditorsCnt + 2);
-		assert.strictEqual(editorRegistry.getEditorInputs().length, oldInputCnt + 3);
+		assert.strictEqual(editorRegistry.getEditorPanes().length, oldEditorsCnt + 2);
+		assert.strictEqual(editorRegistry.getEditors().length, oldInputCnt + 3);
 
-		assert.strictEqual(editorRegistry.getEditor(new TestInput()), editorDescriptor2);
-		assert.strictEqual(editorRegistry.getEditor(new OtherTestInput()), editorDescriptor2);
+		assert.strictEqual(editorRegistry.getEditorPane(new TestInput()), editorDescriptor2);
+		assert.strictEqual(editorRegistry.getEditorPane(new OtherTestInput()), editorDescriptor2);
 
-		assert.strictEqual(editorRegistry.getEditorByType('id1'), editorDescriptor1);
-		assert.strictEqual(editorRegistry.getEditorByType('id2'), editorDescriptor2);
-		assert(!editorRegistry.getEditorByType('id3'));
+		assert.strictEqual(editorRegistry.getEditorPaneByType('id1'), editorDescriptor1);
+		assert.strictEqual(editorRegistry.getEditorPaneByType('id2'), editorDescriptor2);
+		assert(!editorRegistry.getEditorPaneByType('id3'));
 
 		dispose([dispose1, dispose2]);
 	});
 
-	test('Editor Lookup favors specific class over superclass (match on specific class)', function () {
-		const d1 = EditorDescriptor.create(TestEditor, 'id1', 'name');
+	test('Editor Pane Lookup favors specific class over superclass (match on specific class)', function () {
+		const d1 = EditorPaneDescriptor.create(TestEditor, 'id1', 'name');
 
 		const disposables = new DisposableStore();
 
 		disposables.add(registerTestResourceEditor());
-		disposables.add(editorRegistry.registerEditor(d1, [new SyncDescriptor(TestResourceEditorInput)]));
+		disposables.add(editorRegistry.registerEditorPane(d1, [new SyncDescriptor(TestResourceEditorInput)]));
 
 		const inst = workbenchInstantiationService();
 
-		const editor = editorRegistry.getEditor(inst.createInstance(TestResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined))!.instantiate(inst);
+		const editor = editorRegistry.getEditorPane(inst.createInstance(TestResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined))!.instantiate(inst);
 		assert.strictEqual(editor.getId(), 'testEditor');
 
-		const otherEditor = editorRegistry.getEditor(inst.createInstance(TextResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined))!.instantiate(inst);
+		const otherEditor = editorRegistry.getEditorPane(inst.createInstance(TextResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined))!.instantiate(inst);
 		assert.strictEqual(otherEditor.getId(), 'workbench.editors.textResourceEditor');
 
 		disposables.dispose();
 	});
 
-	test('Editor Lookup favors specific class over superclass (match on super class)', function () {
+	test('Editor Pane Lookup favors specific class over superclass (match on super class)', function () {
 		const inst = workbenchInstantiationService();
 
 		const disposables = new DisposableStore();
 
 		disposables.add(registerTestResourceEditor());
-		const editor = editorRegistry.getEditor(inst.createInstance(TestResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined))!.instantiate(inst);
+		const editor = editorRegistry.getEditorPane(inst.createInstance(TestResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined))!.instantiate(inst);
 
 		assert.strictEqual('workbench.editors.textResourceEditor', editor.getId());
 
@@ -445,8 +445,8 @@ suite('EditorPane', () => {
 
 		const group = editorPart.activeGroup;
 
-		const editorDescriptor = EditorDescriptor.create(TrustRequiredTestEditor, 'id1', 'name');
-		disposables.add(editorRegistry.registerEditor(editorDescriptor, [new SyncDescriptor(TrustRequiredTestInput)]));
+		const editorDescriptor = EditorPaneDescriptor.create(TrustRequiredTestEditor, 'id1', 'name');
+		disposables.add(editorRegistry.registerEditorPane(editorDescriptor, [new SyncDescriptor(TrustRequiredTestInput)]));
 
 		const testInput = new TrustRequiredTestInput();
 

@@ -6,7 +6,7 @@
 import { Registry } from 'vs/platform/registry/common/platform';
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { IEditorRegistry, EditorDescriptor } from 'vs/workbench/browser/editor';
+import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import {
 	IEditorInputFactoryRegistry, TextCompareEditorActiveContext, ActiveEditorPinnedContext, EditorExtensions, EditorGroupEditorsCountContext,
 	ActiveEditorStickyContext, ActiveEditorAvailableEditorIdsContext, MultipleEditorGroupsContext, ActiveEditorDirtyContext
@@ -63,8 +63,8 @@ import { UntitledTextEditorInputSerializer, UntitledTextEditorWorkingCopyEditorH
 
 //#region Editor Registrations
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).registerEditorPane(
+	EditorPaneDescriptor.create(
 		TextResourceEditor,
 		TextResourceEditor.ID,
 		localize('textEditor', "Text Editor"),
@@ -75,8 +75,8 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	]
 );
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).registerEditorPane(
+	EditorPaneDescriptor.create(
 		TextDiffEditor,
 		TextDiffEditor.ID,
 		localize('textDiffEditor', "Text Diff Editor")
@@ -86,8 +86,8 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	]
 );
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).registerEditorPane(
+	EditorPaneDescriptor.create(
 		BinaryResourceDiffEditor,
 		BinaryResourceDiffEditor.ID,
 		localize('binaryDiffEditor', "Binary Diff Editor")
@@ -97,8 +97,8 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	]
 );
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).registerEditorPane(
+	EditorPaneDescriptor.create(
 		SideBySideEditor,
 		SideBySideEditor.ID,
 		localize('sideBySideEditor', "Side by Side Editor")

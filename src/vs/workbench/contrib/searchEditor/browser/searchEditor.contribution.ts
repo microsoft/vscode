@@ -19,7 +19,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { ActiveEditorContext, IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { IViewsService } from 'vs/workbench/common/views';
@@ -54,8 +54,8 @@ const SelectAllSearchEditorMatchesCommandId = 'selectAllSearchEditorMatches';
 
 
 //#region Editor Descriptior
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).registerEditorPane(
+	EditorPaneDescriptor.create(
 		SearchEditor,
 		SearchEditor.ID,
 		localize('searchEditor', "Search Editor")

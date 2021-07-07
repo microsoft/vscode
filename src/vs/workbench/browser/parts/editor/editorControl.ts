@@ -8,7 +8,7 @@ import { EditorExtensions, EditorInputCapabilities, IEditorOpenContext, IVisible
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { Dimension, show, hide } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorRegistry, IEditorDescriptor } from 'vs/workbench/browser/editor';
+import { IEditorPaneRegistry, IEditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -46,7 +46,7 @@ export class EditorControl extends Disposable {
 	private readonly activeEditorPaneDisposables = this._register(new DisposableStore());
 	private dimension: Dimension | undefined;
 	private readonly editorOperation = this._register(new LongRunningOperation(this.editorProgressService));
-	private readonly editorsRegistry = Registry.as<IEditorRegistry>(EditorExtensions.Editors);
+	private readonly editorPanesRegistry = Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors);
 
 	constructor(
 		private parent: HTMLElement,
@@ -82,7 +82,7 @@ export class EditorControl extends Disposable {
 	async openEditor(editor: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {
 
 		// Editor descriptor
-		const descriptor = this.getEditorDescriptor(editor);
+		const descriptor = this.getEditorPaneDescriptor(editor);
 
 		// Editor pane
 		const editorPane = this.doShowEditorPane(descriptor);
@@ -92,7 +92,7 @@ export class EditorControl extends Disposable {
 		return { editorPane, editorChanged };
 	}
 
-	private getEditorDescriptor(editor: EditorInput): IEditorDescriptor {
+	private getEditorPaneDescriptor(editor: EditorInput): IEditorPaneDescriptor {
 		if (editor.hasCapability(EditorInputCapabilities.RequiresTrust) && !this.workspaceTrustService.isWorkspaceTrusted()) {
 			// Workspace trust: if an editor signals it needs workspace trust
 			// but the current workspace is untrusted, we fallback to a generic
@@ -101,10 +101,10 @@ export class EditorControl extends Disposable {
 			return WorkspaceTrustRequiredEditor.DESCRIPTOR;
 		}
 
-		return assertIsDefined(this.editorsRegistry.getEditor(editor));
+		return assertIsDefined(this.editorPanesRegistry.getEditorPane(editor));
 	}
 
-	private doShowEditorPane(descriptor: IEditorDescriptor): EditorPane {
+	private doShowEditorPane(descriptor: IEditorPaneDescriptor): EditorPane {
 
 		// Return early if the currently active editor pane can handle the input
 		if (this._activeEditorPane && descriptor.describes(this._activeEditorPane)) {
@@ -136,7 +136,7 @@ export class EditorControl extends Disposable {
 		return editorPane;
 	}
 
-	private doCreateEditorPane(descriptor: IEditorDescriptor): EditorPane {
+	private doCreateEditorPane(descriptor: IEditorPaneDescriptor): EditorPane {
 
 		// Instantiate editor
 		const editorPane = this.doInstantiateEditorPane(descriptor);
@@ -152,7 +152,7 @@ export class EditorControl extends Disposable {
 		return editorPane;
 	}
 
-	private doInstantiateEditorPane(descriptor: IEditorDescriptor): EditorPane {
+	private doInstantiateEditorPane(descriptor: IEditorPaneDescriptor): EditorPane {
 
 		// Return early if already instantiated
 		const existingEditorPane = this.editorPanes.find(editorPane => descriptor.describes(editorPane));

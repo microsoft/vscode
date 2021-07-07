@@ -43,7 +43,7 @@ import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IEditorRegistry } from 'vs/workbench/browser/editor';
+import { IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { EditorExtensions, IEditorControl, IEditorOpenContext } from 'vs/workbench/common/editor';
@@ -938,7 +938,7 @@ class SideBySidePreferencesWidget extends Widget {
 		if (this.editablePreferencesEditor) {
 			return this.editablePreferencesEditor;
 		}
-		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editorInput);
+		const descriptor = Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).getEditorPane(editorInput);
 		const editor = descriptor!.instantiate(this.instantiationService);
 		this.editablePreferencesEditor = editor;
 		this.editablePreferencesEditor.create(this.editablePreferencesEditorContainer);

@@ -6,7 +6,7 @@
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { EditorExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { CustomEditorInputSerializer, ComplexCustomWorkingCopyEditorHandler as ComplexCustomWorkingCopyEditorHandler } from 'vs/workbench/contrib/customEditor/browser/customEditorInputFactory';
@@ -18,9 +18,9 @@ import { CustomEditorService } from './customEditors';
 
 registerSingleton(ICustomEditorService, CustomEditorService);
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors)
-	.registerEditor(
-		EditorDescriptor.create(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors)
+	.registerEditorPane(
+		EditorPaneDescriptor.create(
 			WebviewEditor,
 			WebviewEditor.ID,
 			'Webview Editor',

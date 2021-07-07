@@ -19,7 +19,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorExtensions, EditorsOrder, IEditorInputSerializer, viewColumnToEditorGroup } from 'vs/workbench/common/editor';
@@ -45,8 +45,8 @@ import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).registerEditorPane(
+	EditorPaneDescriptor.create(
 		InteractiveEditor,
 		InteractiveEditor.ID,
 		'Interactive Window'

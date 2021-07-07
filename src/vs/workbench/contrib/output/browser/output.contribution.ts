@@ -14,7 +14,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { OutputService, LogContentProvider } from 'vs/workbench/contrib/output/browser/outputServices';
 import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_SCHEME, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_LOG_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK } from 'vs/workbench/contrib/output/common/output';
 import { OutputViewPane } from 'vs/workbench/contrib/output/browser/outputView';
-import { IEditorRegistry, EditorDescriptor } from 'vs/workbench/browser/editor';
+import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import { LogViewer, LogViewerInput } from 'vs/workbench/contrib/output/browser/logViewer';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -83,8 +83,8 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	}
 }], VIEW_CONTAINER);
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).registerEditorPane(
+	EditorPaneDescriptor.create(
 		LogViewer,
 		LogViewer.LOG_VIEWER_EDITOR_ID,
 		nls.localize('logViewer', "Log Viewer")

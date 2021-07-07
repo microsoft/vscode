@@ -54,7 +54,7 @@ import { IDisposable, toDisposable, Disposable, DisposableStore } from 'vs/base/
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IEditorReplacement, IGroupChangeEvent, IFindGroupScope, EditorGroupLayout, ICloseEditorOptions, GroupOrientation, ICloseAllEditorsOptions, ICloseEditorsFilter } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, ISaveEditorsOptions, IRevertAllEditorsOptions, PreferredGroup } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IEditorRegistry, EditorDescriptor } from 'vs/workbench/browser/editor';
+import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import { Dimension, IDimension } from 'vs/base/browser/dom';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -1356,7 +1356,7 @@ export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInpu
 
 	const disposables = new DisposableStore();
 
-	disposables.add(Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(EditorDescriptor.create(TestEditor, id, 'Test Editor Control'), inputs));
+	disposables.add(Registry.as<IEditorPaneRegistry>(Extensions.Editors).registerEditorPane(EditorPaneDescriptor.create(TestEditor, id, 'Test Editor Control'), inputs));
 
 	if (serializerInputId) {
 
@@ -1395,8 +1395,8 @@ export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInpu
 export function registerTestFileEditor(): IDisposable {
 	const disposables = new DisposableStore();
 
-	disposables.add(Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(
-		EditorDescriptor.create(
+	disposables.add(Registry.as<IEditorPaneRegistry>(Extensions.Editors).registerEditorPane(
+		EditorPaneDescriptor.create(
 			TestTextFileEditor,
 			TestTextFileEditor.ID,
 			'Text File Editor'
@@ -1410,8 +1410,8 @@ export function registerTestFileEditor(): IDisposable {
 export function registerTestResourceEditor(): IDisposable {
 	const disposables = new DisposableStore();
 
-	disposables.add(Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(
-		EditorDescriptor.create(
+	disposables.add(Registry.as<IEditorPaneRegistry>(Extensions.Editors).registerEditorPane(
+		EditorPaneDescriptor.create(
 			TestTextResourceEditor,
 			TestTextResourceEditor.ID,
 			'Text Editor'
@@ -1428,8 +1428,8 @@ export function registerTestResourceEditor(): IDisposable {
 export function registerTestSideBySideEditor(): IDisposable {
 	const disposables = new DisposableStore();
 
-	disposables.add(Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(
-		EditorDescriptor.create(
+	disposables.add(Registry.as<IEditorPaneRegistry>(Extensions.Editors).registerEditorPane(
+		EditorPaneDescriptor.create(
 			SideBySideEditor,
 			SideBySideEditor.ID,
 			'Text Editor'
