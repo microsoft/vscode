@@ -464,6 +464,10 @@ export class TerminalTabbedView extends Disposable {
 		}
 	}
 
+	setFindWidgetVisible(): void {
+		this._findWidgetVisible.set(true);
+	}
+
 	focusFindWidget() {
 		this._findWidgetVisible.set(true);
 		const activeInstance = this._terminalGroupService.activeInstance;
