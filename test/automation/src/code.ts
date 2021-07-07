@@ -174,6 +174,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
 	}
 
+	const spawnOptions: cp.SpawnOptions = { env };
 
 	args.push('--enable-proposed-api=vscode.vscode-notebook-tests');
 
@@ -183,6 +184,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 
 	if (options.verbose) {
 		args.push('--driver-verbose');
+		spawnOptions.stdio = ['ignore', 'inherit', 'inherit'];
 	}
 
 	if (options.log) {
@@ -194,7 +196,6 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 	}
 
 	const electronPath = codePath ? getBuildElectronPath(codePath) : getDevElectronPath();
-	const spawnOptions: cp.SpawnOptions = { env };
 	child = cp.spawn(electronPath, args, spawnOptions);
 	instances.add(child);
 	child.once('exit', () => instances.delete(child!));
