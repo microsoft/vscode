@@ -518,7 +518,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		let typedEditor: IEditorInput | undefined = undefined;
 		let options = isEditorInput(editor) ? optionsOrPreferredGroup as IEditorOptions : editor.options;
 		let group: IEditorGroup | undefined = undefined;
-		let activation: EditorActivation | undefined = undefined;
 
 		if (isPreferredGroup(optionsOrPreferredGroup)) {
 			preferredGroup = optionsOrPreferredGroup;
@@ -547,13 +546,13 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// If group still isn't defined because of a disabled override we resolve it
 		if (!group) {
-			const typedEditorWithOptions: IEditorInputWithOptions = { editor: typedEditor, options };
-			([group, activation] = this.instantiationService.invokeFunction(findGroup, typedEditorWithOptions, preferredGroup));
-		}
+			let activation: EditorActivation | undefined = undefined;
+			([group, activation] = this.instantiationService.invokeFunction(findGroup, { editor: typedEditor, options }, preferredGroup));
 
-		// Mixin editor group activation if any
-		if (activation) {
-			options = { ...options, activation };
+			// Mixin editor group activation if returned
+			if (activation) {
+				options = { ...options, activation };
+			}
 		}
 
 		return group.openEditor(typedEditor, options);
