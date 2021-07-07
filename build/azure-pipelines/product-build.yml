@@ -112,8 +112,6 @@ variables:
     value: ticino
   - name: AZURE_STORAGE_ACCOUNT_2
     value: vscode
-  - name: AZURE_WEBVIEW_STORAGE_ACCOUNT
-    value: vscodewebviewstorage
   - name: MOONCAKE_CDN_URL
     value: https://vscode.cdn.azure.cn
   - name: VSCODE_MIXIN_REPO

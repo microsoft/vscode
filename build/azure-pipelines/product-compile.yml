@@ -12,7 +12,7 @@ steps:
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
-      SecretsFilter: 'github-distro-mixin-password,ticino-storage-key,vscode-webview-storage-key'
+      SecretsFilter: 'github-distro-mixin-password,ticino-storage-key'
 
   - script: |
       set -e
@@ -118,13 +118,6 @@ steps:
       set -
       ./build/azure-pipelines/common/extract-telemetry.sh
     displayName: Extract Telemetry
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
-
-  - script: |
-      set -e
-      AZURE_WEBVIEW_STORAGE_ACCESS_KEY="$(vscode-webview-storage-key)" \
-      ./build/azure-pipelines/common/publish-webview.sh
-    displayName: Publish Webview
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - script: |
