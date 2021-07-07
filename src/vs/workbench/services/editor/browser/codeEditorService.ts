@@ -8,7 +8,7 @@ import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServ
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -45,6 +45,9 @@ export class CodeEditorService extends CodeEditorServiceImpl {
 	}
 
 	async openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
+
+		// Always use the text editor for code editors
+		input.options = { ...input.options, override: DEFAULT_EDITOR_ASSOCIATION.id };
 
 		// Special case: If the active editor is a diff editor and the request to open originates and
 		// targets the modified side of it, we just apply the request there to prevent opening the modified

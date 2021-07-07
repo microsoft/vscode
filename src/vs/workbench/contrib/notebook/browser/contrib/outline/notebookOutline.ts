@@ -541,7 +541,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 	async reveal(entry: OutlineEntry, options: IEditorOptions, sideBySide: boolean): Promise<void> {
 		await this._editorService.openEditor({
 			resource: entry.cell.uri,
-			options,
+			options: { ...options, override: this._editor.input?.editorId },
 		}, sideBySide ? SIDE_GROUP : undefined);
 	}
 
