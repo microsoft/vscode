@@ -193,7 +193,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					enableWebSQL: false,
 					spellcheck: false,
 					nativeWindowOpen: true,
-					webviewTag: true,
 					zoomFactor: zoomLevelToZoomFactor(windowSettings?.zoomLevel),
 					...this.environmentMainService.sandbox ?
 
