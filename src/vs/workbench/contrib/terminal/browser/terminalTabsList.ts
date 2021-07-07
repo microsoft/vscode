@@ -43,6 +43,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { containsDragType } from 'vs/workbench/browser/dnd';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 const $ = DOM.$;
 
@@ -72,7 +73,8 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IDecorationsService decorationsService: IDecorationsService,
-		@IThemeService private readonly _themeService: IThemeService
+		@IThemeService private readonly _themeService: IThemeService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
 		super('TerminalTabsList', container,
 			{
@@ -99,20 +101,29 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			_configurationService,
 			keybindingService,
 		);
-		this._terminalGroupService.onDidChangeInstances(() => this.refresh());
-		this._terminalGroupService.onDidChangeGroups(() => this.refresh());
-		this._terminalService.onDidChangeInstanceTitle(() => this.refresh());
-		this._terminalService.onDidChangeInstanceIcon(() => this.refresh());
-		this._terminalService.onDidChangeInstancePrimaryStatus(() => this.refresh());
-		this._terminalService.onDidChangeConnectionState(() => this.refresh());
-		this._themeService.onDidColorThemeChange(() => this.refresh());
-		this._terminalGroupService.onDidChangeActiveInstance(e => {
-			if (e) {
-				const i = this._terminalGroupService.instances.indexOf(e);
-				this.setSelection([i]);
-				this.reveal(i);
-			}
-			this.refresh();
+
+		const instanceDisposables: IDisposable[] = [
+			this._terminalGroupService.onDidChangeInstances(() => this.refresh()),
+			this._terminalGroupService.onDidChangeGroups(() => this.refresh()),
+			this._terminalService.onDidChangeInstanceTitle(() => this.refresh()),
+			this._terminalService.onDidChangeInstanceIcon(() => this.refresh()),
+			this._terminalService.onDidChangeInstancePrimaryStatus(() => this.refresh()),
+			this._terminalService.onDidChangeConnectionState(() => this.refresh()),
+			this._themeService.onDidColorThemeChange(() => this.refresh()),
+			this._terminalGroupService.onDidChangeActiveInstance(e => {
+				if (e) {
+					const i = this._terminalGroupService.instances.indexOf(e);
+					this.setSelection([i]);
+					this.reveal(i);
+				}
+				this.refresh();
+			})
+		];
+
+		// Dispose of instance listeners on shutdown to avoid extra work and so tabs don't disappear
+		// briefly
+		lifecycleService.onWillShutdown(e => {
+			dispose(instanceDisposables);
 		});
 
 		this.onMouseDblClick(async e => {
