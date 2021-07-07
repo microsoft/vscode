@@ -17,6 +17,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorInputWithOptions, IEditorInputWithOptionsAndGroup, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { PreferredGroup } from 'vs/workbench/services/editor/common/editorService';
 
 export const IEditorOverrideService = createDecorator<IEditorOverrideService>('editorOverrideService');
 
@@ -145,7 +146,7 @@ export interface IEditorOverrideService {
 	 * @param preferredGroup The group you want to open the editor in
 	 * @returns An IEditorInputWithOptionsAndGroup if there is an available override or a status of how to proceed
 	 */
-	resolveEditor(editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: IEditorGroup | number | undefined): Promise<ReturnedOverride>;
+	resolveEditor(editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<ReturnedOverride>;
 
 	/**
 	 * Given a resource returns all the editor ids that match that resource

@@ -24,6 +24,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { ILogService } from 'vs/platform/log/common/log';
 import { findGroup } from 'vs/workbench/services/editor/browser/editorGroupFinder';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { PreferredGroup } from 'vs/workbench/services/editor/common/editorService';
 
 interface RegisteredEditor {
 	globPattern: string | glob.IRelativePattern,
@@ -83,7 +84,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		}));
 	}
 
-	private async resolveUntypedInputAndGroup(editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: IEditorGroup | number | undefined): Promise<[IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined> {
+	private async resolveUntypedInputAndGroup(editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<[IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined> {
 		let untypedEditor: IUntypedEditorInput | undefined = undefined;
 
 		// Typed: convert to untyped to be able to resolve the override
@@ -113,7 +114,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		return [untypedEditor, group, activation];
 	}
 
-	async resolveEditor(editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: IEditorGroup | number | undefined): Promise<ReturnedOverride> {
+	async resolveEditor(editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<ReturnedOverride> {
 		const resolvedUntypedAndGroup = await this.resolveUntypedInputAndGroup(editor, preferredGroup);
 		if (!resolvedUntypedAndGroup) {
 			return OverrideStatus.NONE;
