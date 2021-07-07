@@ -14,7 +14,6 @@
  *   ready?: Promise<void>,
  *   onIframeLoaded?: (iframe: HTMLIFrameElement) => void,
  *   onElectron?: boolean,
- *   useParentPostMessage: boolean,
  * }} WebviewHost
  */
 
@@ -164,20 +163,16 @@ defaultStyles.textContent = `
 
 /**
  * @param {boolean} allowMultipleAPIAcquire
- * @param {boolean} useParentPostMessage
  * @param {*} [state]
  * @return {string}
  */
-function getVsCodeApiScript(allowMultipleAPIAcquire, useParentPostMessage, state) {
+function getVsCodeApiScript(allowMultipleAPIAcquire, state) {
 	const encodedState = state ? encodeURIComponent(state) : undefined;
 	return /* js */`
 			globalThis.acquireVsCodeApi = (function() {
-				const originalPostMessage = window.parent['${useParentPostMessage ? 'postMessage' : vscodePostMessageFuncName}'].bind(window.parent);
+				const originalPostMessage = window.parent['${vscodePostMessageFuncName}'].bind(window.parent);
 				const doPostMessage = (channel, data, transfer) => {
-					${useParentPostMessage
-			? `originalPostMessage({ command: channel, data: data }, '*', transfer);`
-			: `originalPostMessage(channel, data, transfer);`
-		}
+					originalPostMessage(channel, data, transfer);
 				};
 
 				let acquired = false;
@@ -549,7 +544,7 @@ export async function createWebviewManager(host) {
 		if (options.allowScripts) {
 			const defaultScript = newDocument.createElement('script');
 			defaultScript.id = '_vscodeApiScript';
-			defaultScript.textContent = getVsCodeApiScript(options.allowMultipleAPIAcquire, host.useParentPostMessage, data.state);
+			defaultScript.textContent = getVsCodeApiScript(options.allowMultipleAPIAcquire, data.state);
 			newDocument.head.prepend(defaultScript);
 		}
 

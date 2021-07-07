@@ -112,7 +112,6 @@ createWebviewManager({
 	postMessage: hostMessaging.postMessage.bind(hostMessaging),
 	onMessage: hostMessaging.onMessage.bind(hostMessaging),
 	onElectron: onElectron,
-	useParentPostMessage: false,
 	onIframeLoaded: (frame) => {
 		unloadMonitor.onIframeLoaded(frame);
 	}
