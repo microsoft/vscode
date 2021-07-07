@@ -326,7 +326,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		const possibleEditors = editors.filter(editor => priorityToRank(editor.editorInfo.priority) >= priorityToRank(minPriority) && editor.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
 		if (possibleEditors.length === 0) {
 			return {
-				editor: associationsFromSetting[0] ? findMatchingEditor(editors, associationsFromSetting[0].viewType) : undefined,
+				editor: associationsFromSetting[0] && minPriority !== RegisteredEditorPriority.exclusive ? findMatchingEditor(editors, associationsFromSetting[0].viewType) : undefined,
 				conflictingDefault: false
 			};
 		}
