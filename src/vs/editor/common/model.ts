@@ -1293,9 +1293,16 @@ export interface ITextModel {
 	/**
 	 * Among all positions that are projected to the same position in the underlying text model as
 	 * the given position, select a unique position as indicated by the affinity.
+	 *
+	 * PositionAffinity.Left:
+	 * The normalized position must be equal or left to the requested position.
+	 *
+	 * PositionAffinity.Right:
+	 * The normalized position must be equal or right to the requested position.
+	 *
 	 * @internal
 	 */
-	normalizePosition(position: Position, affinity: PositionNormalizationAffinity): Position;
+	normalizePosition(position: Position, affinity: PositionAffinity): Position;
 
 	/**
 	 * Gets the column at which indentation stops at a given line.
@@ -1307,15 +1314,21 @@ export interface ITextModel {
 /**
  * @internal
  */
-export const enum PositionNormalizationAffinity {
+export const enum PositionAffinity {
 	/**
 	 * Prefers the left most position.
 	*/
 	Left = 0,
+
 	/**
 	 * Prefers the right most position.
 	*/
 	Right = 1,
+
+	/**
+	 * No preference.
+	*/
+	None = 2,
 }
 
 /**

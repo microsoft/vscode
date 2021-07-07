@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert = require('assert');
+import { PositionAffinity } from 'vs/editor/common/model';
 import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
 import { LineBreakData } from 'vs/editor/common/viewModel/viewModel';
 
@@ -33,8 +34,8 @@ suite('Editor ViewModel - LineBreakData', () => {
 		return sequence(11).map(i => data.getInputOffsetOfOutputPosition(outputLineIdx, i));
 	}
 
-	function getOutputOffsets(data: LineBreakData): string[] {
-		return sequence(25).map(i => data.getOutputPositionOfInputOffset(i).toString());
+	function getOutputOffsets(data: LineBreakData, affinity: PositionAffinity): string[] {
+		return sequence(25).map(i => data.getOutputPositionOfInputOffset(i, affinity).toString());
 	}
 
 	function mapTextToInjectedTextOptions(arr: string[]): ModelDecorationInjectedTextOptions[] {
@@ -52,9 +53,19 @@ suite('Editor ViewModel - LineBreakData', () => {
 
 		test('getOutputPositionOfInputOffset', () => {
 			data.getOutputPositionOfInputOffset(20);
-			assert.deepStrictEqual(getOutputOffsets(data), [
+			assert.deepStrictEqual(getOutputOffsets(data, PositionAffinity.None), [
 				'0:0', '0:1', '0:2', '0:4', '0:7', '0:8', '0:9',
 				'1:0', '1:1', '1:2', '1:3', '1:7', '1:8', '1:9', '1:10', '1:11', '1:12', '1:13', '1:14', '1:15', '1:16', '1:17', '1:18', '1:19', '1:20',
+			]);
+
+			assert.deepStrictEqual(getOutputOffsets(data, PositionAffinity.Left), [
+				'0:0', '0:1', '0:2', '0:4', '0:7', '0:8', '0:9', '0:10',
+				'1:1', '1:2', '1:3', '1:7', '1:8', '1:9', '1:10', '1:11', '1:12', '1:13', '1:14', '1:15', '1:16', '1:17', '1:18', '1:19', '1:20',
+			]);
+
+			assert.deepStrictEqual(getOutputOffsets(data, PositionAffinity.Right), [
+				'0:0', '0:1', '0:3', '0:6', '0:7', '0:8', '0:9',
+				'1:0', '1:1', '1:2', '1:6', '1:7', '1:8', '1:9', '1:10', '1:11', '1:12', '1:13', '1:14', '1:15', '1:16', '1:17', '1:18', '1:19', '1:20',
 			]);
 		});
 

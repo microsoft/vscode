@@ -9,7 +9,7 @@ import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { INewScrollPosition, ScrollType } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecorationOptions, TextModelResolvedOptions, ITextModel, InjectedTextOptions } from 'vs/editor/common/model';
+import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecorationOptions, TextModelResolvedOptions, ITextModel, InjectedTextOptions, PositionAffinity } from 'vs/editor/common/model';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IEditorWhitespace, IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
@@ -100,6 +100,14 @@ export class OutputPosition {
 	toString(): string {
 		return `${this.outputLineIndex}:${this.outputOffset}`;
 	}
+
+	toPosition(baseLineNumber: number, wrappedTextIndentLength: number): Position {
+		let delta = 0;
+		if (this.outputLineIndex > 0) {
+			delta += wrappedTextIndentLength;
+		}
+		return new Position(baseLineNumber + this.outputLineIndex, this.outputOffset + 1 + delta);
+	}
 }
 
 export class LineBreakData {
@@ -137,18 +145,27 @@ export class LineBreakData {
 		return inputOffset;
 	}
 
-	public getOutputPositionOfInputOffset(inputOffset: number): OutputPosition {
+	public getOutputPositionOfInputOffset(inputOffset: number, affinity: PositionAffinity = PositionAffinity.None): OutputPosition {
 		let delta = 0;
 		if (this.injectionOffsets !== null) {
 			for (let i = 0; i < this.injectionOffsets.length; i++) {
-				if (inputOffset <= this.injectionOffsets[i]) {
+				if (inputOffset < this.injectionOffsets[i]) {
 					break;
 				}
+
+				if (affinity !== PositionAffinity.Right && inputOffset === this.injectionOffsets[i]) {
+					break;
+				}
+
 				delta += this.injectionOptions![i].content.length;
 			}
 		}
 		inputOffset += delta;
 
+		return this.getOutputPositionOfOffsetInUnwrappedLine(inputOffset, affinity);
+	}
+
+	public getOutputPositionOfOffsetInUnwrappedLine(offset: number, affinity: PositionAffinity = PositionAffinity.None): OutputPosition {
 		let low = 0;
 		let high = this.breakOffsets.length - 1;
 		let mid = 0;
@@ -160,16 +177,62 @@ export class LineBreakData {
 			const midStop = this.breakOffsets[mid];
 			midStart = mid > 0 ? this.breakOffsets[mid - 1] : 0;
 
-			if (inputOffset < midStart) {
+			if (affinity === PositionAffinity.Left && offset === midStart) {
+				console.log('foo');
+			}
+			if (affinity !== PositionAffinity.Left && offset === midStop) {
+				console.log('bar');
+			}
+
+			if (offset < midStart || (affinity === PositionAffinity.Left && offset === midStart)) {
 				high = mid - 1;
-			} else if (inputOffset >= midStop) {
+			} else if (offset > midStop || (affinity !== PositionAffinity.Left && offset === midStop)) {
 				low = mid + 1;
 			} else {
 				break;
 			}
 		}
 
-		return new OutputPosition(mid, inputOffset - midStart);
+		return new OutputPosition(mid, offset - midStart);
+	}
+
+	public outputPositionToOffsetInUnwrappedLine(outputLineIndex: number, outputOffset: number): number {
+		let result = (outputLineIndex > 0 ? this.breakOffsets[outputLineIndex - 1] : 0) + outputOffset;
+		if (outputLineIndex > 0) {
+			result -= this.wrappedTextIndentLength;
+		}
+		return result;
+	}
+
+	public getInjectedTextAt(offsetInUnwrappedLine: number): { offsetInUnwrappedLine: number, length: number } | undefined {
+		const injectionOffsets = this.injectionOffsets;
+		const injectionOptions = this.injectionOptions;
+
+		if (injectionOffsets !== null) {
+			let totalInjectedTextLengthBefore = 0;
+			for (let i = 0; i < injectionOffsets.length; i++) {
+				const length = injectionOptions![i].content.length;
+				const injectedTextStartOffsetInUnwrappedLine = injectionOffsets[i] + totalInjectedTextLengthBefore;
+				const injectedTextEndOffsetInUnwrappedLine = injectionOffsets[i] + totalInjectedTextLengthBefore + length;
+
+				if (injectedTextStartOffsetInUnwrappedLine > offsetInUnwrappedLine) {
+					// Injected text starts later.
+					break; // All later injected texts have an even larger offset.
+				}
+
+				if (offsetInUnwrappedLine < injectedTextEndOffsetInUnwrappedLine) {
+					// Injected text ends after or with the given position (but also starts with or before it).
+					return {
+						offsetInUnwrappedLine: injectedTextStartOffsetInUnwrappedLine,
+						length
+					};
+				}
+
+				totalInjectedTextLengthBefore += length;
+			}
+		}
+
+		return undefined;
 	}
 }
 

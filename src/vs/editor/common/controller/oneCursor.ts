@@ -7,7 +7,7 @@ import { CursorContext, CursorState, SingleCursorState } from 'vs/editor/common/
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
-import { TrackedRangeStickiness } from 'vs/editor/common/model';
+import { PositionAffinity, TrackedRangeStickiness } from 'vs/editor/common/model';
 
 /**
  * Represents a single cursor.
@@ -78,6 +78,33 @@ export class Cursor {
 	}
 
 	private _setState(context: CursorContext, modelState: SingleCursorState | null, viewState: SingleCursorState | null): void {
+		if (viewState) {
+			const cache = new Map<string, Position>();
+			function normalize(pos: Position): Position {
+				const existing = cache.get(pos.toString());
+				if (existing) {
+					return existing;
+				}
+				const result = context.viewModel.normalizePosition(pos, PositionAffinity.None);
+				cache.set(pos.toString(), result);
+				return result;
+			}
+			const normalizedPosition = normalize(viewState.position);
+			const columnDelta = viewState.position.column - normalizedPosition.column;
+
+			const updatedState = new SingleCursorState(
+				Selection.fromPositions(
+					normalize(viewState.selectionStart.getStartPosition()),
+					normalize(viewState.selectionStart.getEndPosition())
+				),
+				viewState.selectionStartLeftoverVisibleColumns + columnDelta,
+				normalizedPosition,
+				viewState.leftoverVisibleColumns + columnDelta,
+			);
+
+			viewState = updatedState;
+		}
+
 		if (!modelState) {
 			if (!viewState) {
 				return;
