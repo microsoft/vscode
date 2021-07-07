@@ -1590,6 +1590,11 @@ export enum TextEditorSelectionChangeKind {
 	Command = 3
 }
 
+export enum TextDocumentChangeReason {
+	Undo = 1,
+	Redo = 2,
+}
+
 /**
  * These values match very carefully the values of `TrackedRangeStickiness`
  */
