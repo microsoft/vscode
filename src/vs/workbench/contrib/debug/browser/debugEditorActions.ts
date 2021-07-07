@@ -154,8 +154,7 @@ class OpenDisassemblyViewAction extends EditorAction {
 	}
 
 	async run(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]): Promise<void> {
-		const position = editor.getPosition();
-		if (position && editor.hasModel()) {
+		if (editor.hasModel()) {
 			const editorService = accessor.get(IEditorService);
 			editorService.openEditor(DisassemblyViewInput.instance);
 		}

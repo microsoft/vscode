@@ -1006,7 +1006,7 @@ export class DebugService implements IDebugService {
 			const result: DebugProtocol.DisassembledInstruction[] = [];
 
 			for (let i = 0; i < instructionCount; i++) {
-				result.push({ address: `${i + offset}`, instruction: `debugger is not availible.` });
+				result.push({ address: `${i + offset}`, instruction: `debugger is not available.` });
 			}
 
 			resolve(result);

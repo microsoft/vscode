@@ -47,7 +47,7 @@ export class DisassemblyView extends EditorPane {
 	private _currentInstructionAddress: string | undefined;
 	private _disassembledInstructions: WorkbenchTable<IDisassembledInstructionEntry> | undefined;
 	private _onDidChangeStackFrame: Emitter<void>;
-	private _privousDebuggingState: State;
+	private _previousDebuggingState: State;
 	_disassemblyViewFocus: IContextKey<boolean>;
 
 	constructor(
@@ -81,7 +81,7 @@ export class DisassemblyView extends EditorPane {
 
 		this._disassembledInstructions = undefined;
 		this._onDidChangeStackFrame = new Emitter<void>();
-		this._privousDebuggingState = _debugService.state;
+		this._previousDebuggingState = _debugService.state;
 		this._disassemblyViewFocus = CONTEXT_DISASSEMBLE_VIEW_FOCUS.bindTo(contextKeyService);
 	}
 
@@ -219,11 +219,11 @@ export class DisassemblyView extends EditorPane {
 
 		this._register(this._debugService.onDidChangeState(e => {
 			if ((e === State.Running || e === State.Stopped) &&
-				(this._privousDebuggingState !== State.Running && this._privousDebuggingState !== State.Stopped)) {
+				(this._previousDebuggingState !== State.Running && this._previousDebuggingState !== State.Stopped)) {
 				// Just started debugging, clear the view
 				this._disassembledInstructions?.splice(0, this._disassembledInstructions.length);
 			}
-			this._privousDebuggingState = e;
+			this._previousDebuggingState = e;
 		}));
 	}
 
@@ -593,7 +593,7 @@ class AccessibilityProvider implements IListAccessibilityProvider<IDisassembledI
 
 }
 
-export class DisassemblyVIewContribution implements IWorkbenchContribution {
+export class DisassemblyViewContribution implements IWorkbenchContribution {
 
 	private readonly _onDidActiveEditorChangeListener: IDisposable;
 	private _onDidChangeModelLanguage: IDisposable | undefined;

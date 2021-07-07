@@ -82,7 +82,7 @@ export const CONTEXT_EXCEPTION_WIDGET_VISIBLE = new RawContextKey<boolean>('exce
 export const CONTEXT_MULTI_SESSION_REPL = new RawContextKey<boolean>('multiSessionRepl', false, { type: 'boolean', description: nls.localize('multiSessionRepl', "True when there is more than 1 debug console.") });
 export const CONTEXT_MULTI_SESSION_DEBUG = new RawContextKey<boolean>('multiSessionDebug', false, { type: 'boolean', description: nls.localize('multiSessionDebug', "True when there is more than 1 active debug session.") });
 export const CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED = new RawContextKey<boolean>('disassembleRequestSupported', false, { type: 'boolean', description: nls.localize('disassembleRequestSupported', "True when the focused sessions supports disassemble request.") });
-export const CONTEXT_DISASSEMBLE_VIEW_FOCUS = new RawContextKey<boolean>('disassembleViewFocus', false, { type: 'boolean', description: nls.localize('disassembleViewFocus', "True when the Disassembly View is in focused.") });
+export const CONTEXT_DISASSEMBLE_VIEW_FOCUS = new RawContextKey<boolean>('disassembleViewFocus', false, { type: 'boolean', description: nls.localize('disassembleViewFocus', "True when the Disassembly View is focused.") });
 export const CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST = new RawContextKey<boolean>('languageSupportsDisassembleRequest', false, { type: 'boolean', description: nls.localize('languageSupportsDisassembleRequest', "True when the language in the current editor supports disassemble request.") });
 
 export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.debug';
@@ -439,7 +439,7 @@ export interface IDataBreakpoint extends IBaseBreakpoint {
 }
 
 export interface IInstructionBreakpoint extends IBaseBreakpoint {
-	// instructionReference is from debugProtocal and is address for purposes.
+	// instructionReference is the instruction 'address' from the debugger.
 	readonly instructionReference: string;
 	readonly offset?: number;
 }
