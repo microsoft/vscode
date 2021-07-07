@@ -26,6 +26,7 @@ import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/
 import { EditorOverride } from 'vs/platform/editor/common/editor';
 import { Schemas } from 'vs/base/common/network';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
 
 export class ExecuteCommandAction extends Action {
 
@@ -1922,6 +1923,51 @@ export class ReopenResourcesAction extends Action {
 				replacement: activeInput,
 				forceReplaceDirty: activeInput.resource?.scheme === Schemas.untitled,
 				options: { ...options, override: EditorOverride.PICK }
+			}
+		], group);
+	}
+}
+
+export class ToggleEditorTypeAction extends Action {
+
+	static readonly ID = 'workbench.action.toggleEditorType';
+	static readonly LABEL = localize('workbench.action.toggleEditorType', "Toggle Editor Type");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorService private readonly editorService: IEditorService,
+		@IEditorOverrideService private readonly editorOverrideService: IEditorOverrideService,
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		const activeEditorPane = this.editorService.activeEditorPane;
+		if (!activeEditorPane) {
+			return;
+		}
+
+		const activeEditorResource = activeEditorPane.input.resource;
+		if (!activeEditorResource) {
+			return;
+		}
+
+		const options = activeEditorPane.options;
+		const group = activeEditorPane.group;
+
+		const editorIds = this.editorOverrideService.getEditorIds(activeEditorResource).filter(id => id !== activeEditorPane.input.editorId);
+
+		if (editorIds.length === 0) {
+			return;
+		}
+
+		// Replace the current editor with the next avaiable editor type
+		await this.editorService.replaceEditors([
+			{
+				editor: activeEditorPane.input,
+				replacement: activeEditorPane.input,
+				options: { ...options, override: editorIds[0] },
 			}
 		], group);
 	}

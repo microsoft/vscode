@@ -51,8 +51,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	private readonly _onDidChangeInstances = new Emitter<void>();
 	readonly onDidChangeInstances = this._onDidChangeInstances.event;
 
-	private readonly _onPanelOrientationChanged = new Emitter<Orientation>();
-	readonly onPanelOrientationChanged = this._onPanelOrientationChanged.event;
+	private readonly _onDidChangePanelOrientation = new Emitter<Orientation>();
+	readonly onDidChangePanelOrientation = this._onDidChangePanelOrientation.event;
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
@@ -139,7 +139,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	createGroup(slcOrInstance?: IShellLaunchConfig | ITerminalInstance): ITerminalGroup {
 		const group = this._instantiationService.createInstance(TerminalGroup, this._container, slcOrInstance);
 		// TODO: Move panel orientation change into this file so it's not fired many times
-		group.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
+		group.onPanelOrientationChanged((orientation) => this._onDidChangePanelOrientation.fire(orientation));
 		this.groups.push(group);
 		group.addDisposable(group.onDidDisposeInstance(this._onDidDisposeInstance.fire, this._onDidDisposeInstance));
 		group.addDisposable(group.onDidFocusInstance(this._onDidFocusInstance.fire, this._onDidFocusInstance));

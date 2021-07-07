@@ -11,6 +11,7 @@ import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/plat
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IS_SPLIT_TERMINAL_CONTEXT_KEY, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TerminalCommandId, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalContextKey } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 
 const enum ContextMenuGroup {
@@ -55,7 +56,7 @@ export function setupTerminalMenus(): void {
 					command: {
 						id: TerminalCommandId.Split,
 						title: localize({ key: 'miSplitTerminal', comment: ['&& denotes a mnemonic'] }, "&&Split Terminal"),
-						precondition: ContextKeyExpr.has('terminalIsOpen')
+						precondition: ContextKeyExpr.has(TerminalContextKey.IsOpen)
 					},
 					order: 2,
 					when: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
@@ -260,18 +261,18 @@ export function setupTerminalMenus(): void {
 						ContextKeyExpr.or(
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'singleTerminal'),
-								ContextKeyExpr.equals('terminalCount', 1)
+								ContextKeyExpr.equals(TerminalContextKey.Count, 1)
 							),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'singleTerminalOrNarrow'),
 								ContextKeyExpr.or(
-									ContextKeyExpr.equals('terminalCount', 1),
-									ContextKeyExpr.has('isTerminalTabsNarrow')
+									ContextKeyExpr.equals(TerminalContextKey.Count, 1),
+									ContextKeyExpr.has(TerminalContextKey.TabsNarrow)
 								)
 							),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'singleGroup'),
-								ContextKeyExpr.equals('terminalGroupCount', 1)
+								ContextKeyExpr.equals(TerminalContextKey.GroupCount, 1)
 							),
 							ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'always')
 						)
@@ -294,18 +295,18 @@ export function setupTerminalMenus(): void {
 							ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminal'),
-								ContextKeyExpr.equals('terminalCount', 1)
+								ContextKeyExpr.equals(TerminalContextKey.Count, 1)
 							),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminalOrNarrow'),
 								ContextKeyExpr.or(
-									ContextKeyExpr.equals('terminalCount', 1),
-									ContextKeyExpr.has('isTerminalTabsNarrow')
+									ContextKeyExpr.equals(TerminalContextKey.Count, 1),
+									ContextKeyExpr.has(TerminalContextKey.TabsNarrow)
 								)
 							),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleGroup'),
-								ContextKeyExpr.equals('terminalGroupCount', 1)
+								ContextKeyExpr.equals(TerminalContextKey.GroupCount, 1)
 							),
 							ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'always')
 						)
@@ -328,18 +329,18 @@ export function setupTerminalMenus(): void {
 							ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminal'),
-								ContextKeyExpr.equals('terminalCount', 1)
+								ContextKeyExpr.equals(TerminalContextKey.Count, 1)
 							),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminalOrNarrow'),
 								ContextKeyExpr.or(
-									ContextKeyExpr.equals('terminalCount', 1),
-									ContextKeyExpr.has('isTerminalTabsNarrow')
+									ContextKeyExpr.equals(TerminalContextKey.Count, 1),
+									ContextKeyExpr.has(TerminalContextKey.TabsNarrow)
 								)
 							),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleGroup'),
-								ContextKeyExpr.equals('terminalGroupCount', 1)
+								ContextKeyExpr.equals(TerminalContextKey.GroupCount, 1)
 							),
 							ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'always')
 						)

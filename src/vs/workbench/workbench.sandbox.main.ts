@@ -142,4 +142,7 @@ import 'vs/workbench/contrib/tasks/electron-sandbox/taskService';
 // External terminal
 import 'vs/workbench/contrib/externalTerminal/electron-sandbox/externalTerminal.contribution';
 
+// Webview
+import 'vs/workbench/contrib/webview/electron-sandbox/webview.contribution';
+
 //#endregion

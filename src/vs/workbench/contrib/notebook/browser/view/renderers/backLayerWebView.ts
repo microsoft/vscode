@@ -72,7 +72,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	private readonly _onMessage = this._register(new Emitter<INotebookWebviewMessage>());
 	private readonly _preloadsCache = new Set<string>();
 	public readonly onMessage: Event<INotebookWebviewMessage> = this._onMessage.event;
-	private _initalized?: Promise<void>;
 	private _disposed = false;
 	private _currentKernel?: INotebookKernel;
 
@@ -174,7 +173,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		};
 	}
 
-	private generateContent(coreDependencies: string, baseUrl: string) {
+	private generateContent(baseUrl: string) {
 		const renderersData = this.getRendererData();
 		return html`
 		<html lang="en">
@@ -295,10 +294,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				</style>
 			</head>
 			<body style="overflow: hidden;">
-				<script>
-					self.require = {};
-				</script>
-				${coreDependencies}
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
 				<script type="module">${preloadsScriptStr(this.options, { dragAndDropEnabled: this.options.dragAndDropEnabled }, renderersData)}</script>
 			</body>
@@ -344,70 +339,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		return !!this.webview;
 	}
 
-	async createWebview(): Promise<void> {
+	createWebview(): void {
 		const baseUrl = this.asWebviewUri(dirname(this.documentUri), undefined);
-
-		// Python hasn't moved to use a preload to load require support yet.
-		// For all other notebooks, we no longer want to include our loader.
-		if (!this.documentUri.path.toLowerCase().endsWith('.ipynb')) {
-			const htmlContent = this.generateContent('', baseUrl.toString());
-			this._initialize(htmlContent);
-			return;
-		}
-
-		let coreDependencies = '';
-		let resolveFunc: () => void;
-
-		this._initalized = new Promise<void>((resolve, reject) => {
-			resolveFunc = resolve;
-		});
-
-
-		if (!isWeb) {
-			const loaderUri = FileAccess.asFileUri('vs/loader.js', require);
-			const loader = this.asWebviewUri(loaderUri, undefined);
-
-			coreDependencies = `<script src="${loader}"></script><script>
-			var requirejs = (function() {
-				return require;
-			}());
-			</script>`;
-			const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
-			this._initialize(htmlContent);
-			resolveFunc!();
-		} else {
-			const loaderUri = FileAccess.asBrowserUri('vs/loader.js', require);
-
-			fetch(loaderUri.toString(true)).then(async response => {
-				if (response.status !== 200) {
-					throw new Error(response.statusText);
-				}
-
-				const loaderJs = await response.text();
-
-				coreDependencies = `
-<script>
-${loaderJs}
-</script>
-<script>
-var requirejs = (function() {
-	return require;
-}());
-</script>
-`;
-
-				const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
-				this._initialize(htmlContent);
-				resolveFunc!();
-			}, error => {
-				// the fetch request is rejected
-				const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
-				this._initialize(htmlContent);
-				resolveFunc!();
-			});
-		}
-
-		await this._initalized;
+		const htmlContent = this.generateContent(baseUrl.toString());
+		this._initialize(htmlContent);
+		return;
 	}
 
 	private _initialize(content: string) {

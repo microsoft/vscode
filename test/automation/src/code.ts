@@ -9,7 +9,7 @@ import * as os from 'os';
 import * as fs from 'fs';
 import * as mkdirp from 'mkdirp';
 import { tmpName } from 'tmp';
-import { IDriver, connect as connectElectronDriver, IDisposable, IElement, Thenable, ILocalizedStrings } from './driver';
+import { IDriver, connect as connectElectronDriver, IDisposable, IElement, Thenable, ILocalizedStrings, ILocaleInfo } from './driver';
 import { connect as connectPlaywrightDriver, launch } from './playwrightDriver';
 import { Logger } from './logger';
 import { ncp } from 'ncp';
@@ -358,6 +358,11 @@ export class Code {
 	async writeInTerminal(selector: string, value: string): Promise<void> {
 		const windowId = await this.getActiveWindowId();
 		await poll(() => this.driver.writeInTerminal(windowId, selector, value), () => true, `writeInTerminal '${selector}'`);
+	}
+
+	async getLocaleInfo(): Promise<ILocaleInfo> {
+		const windowId = await this.getActiveWindowId();
+		return await this.driver.getLocaleInfo(windowId);
 	}
 
 	async getLocalizedStrings(): Promise<ILocalizedStrings> {
