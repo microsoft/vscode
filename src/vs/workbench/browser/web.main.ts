@@ -64,6 +64,7 @@ import { WorkspaceTrustManagementService } from 'vs/workbench/services/workspace
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { safeStringify } from 'vs/base/common/objects';
 
 class BrowserMain extends Disposable {
 
@@ -100,7 +101,7 @@ class BrowserMain extends Disposable {
 		this._register(instantiationService.createInstance(BrowserWindow));
 
 		// Logging
-		services.logService.trace('workbench configuration', JSON.stringify(this.configuration));
+		services.logService.trace('workbench configuration', safeStringify(this.configuration));
 
 		// Return API Facade
 		return instantiationService.invokeFunction(accessor => {

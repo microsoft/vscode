@@ -47,6 +47,7 @@ import { NativeLogService } from 'vs/workbench/services/log/electron-sandbox/log
 import { WorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
+import { safeStringify } from 'vs/base/common/objects';
 
 export abstract class SharedDesktopMain extends Disposable {
 
@@ -114,7 +115,7 @@ export abstract class SharedDesktopMain extends Disposable {
 		this._register(instantiationService.createInstance(NativeWindow));
 
 		// Logging
-		services.logService.trace('workbench configuration', JSON.stringify(this.configuration));
+		services.logService.trace('workbench configuration', safeStringify(this.configuration));
 
 		// Driver
 		if (this.configuration.driver) {
