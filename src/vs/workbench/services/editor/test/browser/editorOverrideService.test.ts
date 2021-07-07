@@ -43,7 +43,7 @@ suite('EditorOverrideService', () => {
 			({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
 		);
 
-		const resultingOverride = await service.resolveEditorInput({ resource: URI.file('my://resource-basics.test') }, part.activeGroup);
+		const resultingOverride = await service.resolveEditor({ resource: URI.file('my://resource-basics.test') }, part.activeGroup);
 		assert.ok(resultingOverride);
 		assert.notStrictEqual(typeof resultingOverride, 'number');
 		if (resultingOverride !== OverrideStatus.ABORT && resultingOverride !== OverrideStatus.NONE) {
@@ -69,13 +69,13 @@ suite('EditorOverrideService', () => {
 		);
 
 		// Untyped untitled - no resource
-		let resultingOverride = await service.resolveEditorInput({ resource: undefined }, part.activeGroup);
+		let resultingOverride = await service.resolveEditor({ resource: undefined }, part.activeGroup);
 		assert.ok(resultingOverride);
 		// We don't expect untitled to match the *.test glob
 		assert.strictEqual(typeof resultingOverride, 'number');
 
 		// Untyped untitled - with untitled resource
-		resultingOverride = await service.resolveEditorInput({ resource: URI.from({ scheme: Schemas.untitled, path: 'foo.test' }) }, part.activeGroup);
+		resultingOverride = await service.resolveEditor({ resource: URI.from({ scheme: Schemas.untitled, path: 'foo.test' }) }, part.activeGroup);
 		assert.ok(resultingOverride);
 		assert.notStrictEqual(typeof resultingOverride, 'number');
 		if (resultingOverride !== OverrideStatus.ABORT && resultingOverride !== OverrideStatus.NONE) {
@@ -84,7 +84,7 @@ suite('EditorOverrideService', () => {
 		}
 
 		// Untyped untitled - file resource with forceUntitled
-		resultingOverride = await service.resolveEditorInput({ resource: URI.file('/fake.test'), forceUntitled: true }, part.activeGroup);
+		resultingOverride = await service.resolveEditor({ resource: URI.file('/fake.test'), forceUntitled: true }, part.activeGroup);
 		assert.ok(resultingOverride);
 		assert.notStrictEqual(typeof resultingOverride, 'number');
 		if (resultingOverride !== OverrideStatus.ABORT && resultingOverride !== OverrideStatus.NONE) {

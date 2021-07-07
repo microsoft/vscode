@@ -756,10 +756,20 @@ export interface IEditorInputWithOptions {
 	options?: IEditorOptions;
 }
 
+export interface IEditorInputWithOptionsAndGroup extends IEditorInputWithOptions {
+	group: IEditorGroup;
+}
+
 export function isEditorInputWithOptions(editor: unknown): editor is IEditorInputWithOptions {
 	const candidate = editor as IEditorInputWithOptions | undefined;
 
 	return isEditorInput(candidate?.editor);
+}
+
+export function isEditorInputWithOptionsAndGroup(editor: unknown): editor is IEditorInputWithOptionsAndGroup {
+	const candidate = editor as IEditorInputWithOptionsAndGroup | undefined;
+
+	return isEditorInputWithOptions(editor) && candidate?.group !== undefined;
 }
 
 /**

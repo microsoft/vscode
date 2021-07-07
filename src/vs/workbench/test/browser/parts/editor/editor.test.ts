@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorResourceAccessor, SideBySideEditor, IEditorInputWithPreferredResource, EditorInputCapabilities, isEditorIdentifier, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, isResourceEditorInput, isUntitledResourceEditorInput, isResourceDiffEditorInput } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, SideBySideEditor, IEditorInputWithPreferredResource, EditorInputCapabilities, isEditorIdentifier, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, isResourceEditorInput, isUntitledResourceEditorInput, isResourceDiffEditorInput, isEditorInputWithOptionsAndGroup, IEditorInputWithOptions, isEditorInputWithOptions, isEditorInput, IEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -329,6 +329,24 @@ suite('Workbench editor utils', () => {
 		const testInput1 = new TestFileEditorInput(URI.file('resource1'), 'testTypeId');
 		assert.strictEqual(isEditorIdentifier(testInput1), false);
 		assert.strictEqual(isEditorIdentifier({ editor: testInput1, groupId: 3 }), true);
+	});
+
+	test('isEditorInputWithOptionsAndGroup', () => {
+		const editorInput = new TestFileEditorInput(URI.file('resource1'), 'testTypeId');
+		assert.strictEqual(isEditorInput(editorInput), true);
+		assert.strictEqual(isEditorInputWithOptions(editorInput), false);
+		assert.strictEqual(isEditorInputWithOptionsAndGroup(editorInput), false);
+
+		const editorInputWithOptions: IEditorInputWithOptions = { editor: editorInput, options: { override: EditorOverride.PICK } };
+		assert.strictEqual(isEditorInput(editorInputWithOptions), false);
+		assert.strictEqual(isEditorInputWithOptions(editorInputWithOptions), true);
+		assert.strictEqual(isEditorInputWithOptionsAndGroup(editorInputWithOptions), false);
+
+		const service = accessor.editorGroupService;
+		const editorInputWithOptionsAndGroup: IEditorInputWithOptionsAndGroup = { editor: editorInput, options: { override: EditorOverride.PICK }, group: service.activeGroup };
+		assert.strictEqual(isEditorInput(editorInputWithOptionsAndGroup), false);
+		assert.strictEqual(isEditorInputWithOptions(editorInputWithOptionsAndGroup), true);
+		assert.strictEqual(isEditorInputWithOptionsAndGroup(editorInputWithOptionsAndGroup), true);
 	});
 
 	test('whenEditorClosed (single editor)', async function () {

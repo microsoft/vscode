@@ -15,8 +15,9 @@ import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurati
 import { IResourceEditorInput, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorInputWithOptions, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInputWithOptions, IEditorInputWithOptionsAndGroup, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { PreferredGroup } from 'vs/workbench/services/editor/common/editorService';
 
 export const IEditorOverrideService = createDecorator<IEditorOverrideService>('editorOverrideService');
 
@@ -75,7 +76,7 @@ export const enum OverrideStatus {
 	NONE = 2,
 }
 
-export type ReturnedOverride = IEditorInputWithOptions | OverrideStatus;
+export type ReturnedOverride = IEditorInputWithOptionsAndGroup | OverrideStatus;
 
 export type RegisteredEditorOptions = {
 	/**
@@ -140,21 +141,12 @@ export interface IEditorOverrideService {
 	): IDisposable;
 
 	/**
-	 * Populates the override field of the untyped editor input
-	 * @param editor The editor input
-	 * @returns If one is populated whether or not there was a conflicting default, else undefined
-	 */
-	populateEditorId(editor: IUntypedEditorInput): Promise<{ conflictingDefault: boolean } | undefined>
-
-	/**
 	 * Given an editor determines if there's a suitable override for it, if so returns an IEditorInputWithOptions for opening
 	 * @param editor The editor to override
-	 * @param options The current options for the editor
-	 * @param group The current group
-	 * @param conflictingDefault Whether or not to show the conflicting default prompt
+	 * @param preferredGroup The group you want to open the editor in
 	 * @returns An IEditorInputWithOptionsAndGroup if there is an available override or a status of how to proceed
 	 */
-	resolveEditorInput(editor: IUntypedEditorInput, group: IEditorGroup, conflictingDefault?: boolean): Promise<ReturnedOverride>;
+	resolveEditor(editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<ReturnedOverride>;
 
 	/**
 	 * Given a resource returns all the editor ids that match that resource
