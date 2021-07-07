@@ -52,6 +52,7 @@ import { FileAccess } from 'vs/base/common/network';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { EditorExtensions } from 'vs/workbench/common/editor';
 import { DisassemblyView, DisassemblyViewContribution, DisassemblyViewInput } from 'vs/workbench/contrib/debug/browser/disassemblyView';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 
 const debugCategory = nls.localize('debugCategory', "Debug");
 registerColors();
@@ -377,8 +378,9 @@ viewsRegistry.registerViews([{ id: WelcomeView.ID, name: WelcomeView.LABEL, cont
 viewsRegistry.registerViews([{ id: LOADED_SCRIPTS_VIEW_ID, name: nls.localize('loadedScripts', "Loaded Scripts"), containerIcon: icons.loadedScriptsViewIcon, ctorDescriptor: new SyncDescriptor(LoadedScriptsView), order: 35, weight: 5, canToggleVisibility: true, canMoveView: true, collapsed: true, when: ContextKeyExpr.and(CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_DEBUG_UX.isEqualTo('default')) }], viewContainer);
 
 // Register disassembly editor
-Registry.as<IEditorRegistry>(EditorExtensions.EditorPane).registerEditor(
-	EditorDescriptor.create(DisassemblyView, DISASSEMBLY_VIEW_ID, nls.localize('disassembly', "Disassembly")),
+
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(DisassemblyView, DISASSEMBLY_VIEW_ID, nls.localize('disassembly', "Disassembly")),
 	[new SyncDescriptor(DisassemblyViewInput)]
 );
 
