@@ -91,6 +91,9 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	private readonly _onDidInstallExtension = this._register(new Emitter<DidInstallExtensionEvent>());
 	readonly onDidInstallExtension: Event<DidInstallExtensionEvent> = this._onDidInstallExtension.event;
 
+	private readonly _onDidInstallExtensions = this._register(new Emitter<DidInstallExtensionEvent[]>());
+	readonly onDidInstallExtensions = this._onDidInstallExtensions.event;
+
 	private readonly _onUninstallExtension = this._register(new Emitter<IExtensionIdentifier>());
 	readonly onUninstallExtension: Event<IExtensionIdentifier> = this._onUninstallExtension.event;
 
@@ -294,12 +297,13 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			this.logService.info('Extensions is already requested to install', extension.identifier.id);
 			return (await installExtensionTask.resultPromise).local;
 		} else {
-			installExtensionTask = this.createInstallFromGalleryExtensionTask(extension, options);
-			return (await this.runInstallGalleryExtensionTask(installExtensionTask, options)).local;
+			const isBulkInstall = ['ms-python.python', 'ms-python.vscode-pylance'].includes(extension.identifier.id.toLowerCase());
+			installExtensionTask = this.createInstallFromGalleryExtensionTask(extension, options, isBulkInstall);
+			return (await this.runInstallGalleryExtensionTask(installExtensionTask, options, isBulkInstall)).local;
 		}
 	}
 
-	private createInstallFromGalleryExtensionTask(extension: IGalleryExtension, options: InstallOptions): InstallExtensionTask {
+	private createInstallFromGalleryExtensionTask(extension: IGalleryExtension, options: InstallOptions, isBulkInstall: boolean): InstallExtensionTask {
 		const key = new ExtensionIdentifierWithVersion(extension.identifier, extension.version).key();
 		this._onInstallExtension.fire({ identifier: extension.identifier, gallery: extension });
 		this.logService.info('Installing extension:', extension.identifier.id);
@@ -315,7 +319,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 						try {
 							const result = await this.installGalleryExtension(extension, options, token);
 							this.logService.info(`Extensions installed successfully:`, extension.identifier.id);
-							this._onDidInstallExtension.fire({ identifier: extension.identifier, gallery: result.gallery, local: result.local, operation: result.operation });
+							this._onDidInstallExtension.fire({ identifier: extension.identifier, gallery: result.gallery, local: result.local, operation: result.operation, isBulkInstall });
 							return result;
 						} catch (error) {
 							const errorCode = error && (<ExtensionManagementError>error).code ? (<ExtensionManagementError>error).code : ERROR_UNKNOWN;
@@ -344,7 +348,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		return installExtensionTask;
 	}
 
-	private async runInstallGalleryExtensionTask(installExtensionTask: InstallExtensionTask, options: InstallOptions): Promise<InstallResult> {
+	private async runInstallGalleryExtensionTask(installExtensionTask: InstallExtensionTask, options: InstallOptions, isBulkInstall: boolean): Promise<InstallResult> {
 		if (options.donotIncludePackAndDependencies) {
 			this.logService.info('Installing the extension without checking dependencies and pack', installExtensionTask.extension.identifier.id);
 			return installExtensionTask.run();
@@ -369,7 +373,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				if (this.installingExtensions.has(new ExtensionIdentifierWithVersion(gallery.identifier, gallery.version).key())) {
 					this.logService.info('Extension is already requested to install', gallery.identifier.id);
 				} else {
-					const task = this.createInstallFromGalleryExtensionTask(gallery, { ...options, donotIncludePackAndDependencies: true });
+					const task = this.createInstallFromGalleryExtensionTask(gallery, { ...options, donotIncludePackAndDependencies: true }, isBulkInstall);
 					extensionsToInstallMap.set(gallery.identifier.id.toLowerCase(), { task, manifest });
 				}
 			}
@@ -405,6 +409,10 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				installExtensionTask.cancel();
 			}
 			throw error;
+		} finally {
+			if (installResults.length && isBulkInstall) {
+				this._onDidInstallExtensions.fire(installResults.map(({ gallery, local, operation }) => ({ identifier: local.identifier, gallery, local, operation })));
+			}
 		}
 
 	}
