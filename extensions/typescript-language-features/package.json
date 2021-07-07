@@ -270,6 +270,111 @@
           "description": "%configuration.suggest.includeAutomaticOptionalChainCompletions%",
           "scope": "resource"
         },
+        "typescript.inlayHints.parameterNames.enabled": {
+          "type": "string",
+          "enum": [
+            "none",
+            "literals",
+            "all"
+          ],
+          "enumDescriptions": [
+            "%inlayHints.parameterNames.none%",
+            "%inlayHints.parameterNames.literals%",
+            "%inlayHints.parameterNames.all%"
+          ],
+          "default": "none",
+          "description": "%configuration.inlayHints.parameterNames.enabled%",
+          "scope": "resource"
+        },
+        "typescript.inlayHints.parameterNames.suppressWhenArgumentMatchesName": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.inlayHints.parameterNames.suppressWhenArgumentMatchesName%",
+          "scope": "resource"
+        },
+        "typescript.inlayHints.parameterTypes.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.inlayHints.parameterTypes.enabled%",
+          "scope": "resource"
+        },
+        "typescript.inlayHints.variableTypes.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.inlayHints.variableTypes.enabled%",
+          "scope": "resource"
+        },
+
+        "typescript.inlayHints.propertyDeclarationTypes.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.inlayHints.propertyDeclarationTypes.enabled%",
+          "scope": "resource"
+        },
+        "typescript.inlayHints.functionLikeReturnTypes.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.inlayHints.functionLikeReturnTypes.enabled%",
+          "scope": "resource"
+        },
+        "typescript.inlayHints.enumMemberValues.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.inlayHints.enumMemberValues.enabled%",
+          "scope": "resource"
+        },
+        "javascript.inlayHints.parameterNames.enabled": {
+          "type": "string",
+          "enum": [
+            "none",
+            "literals",
+            "all"
+          ],
+          "enumDescriptions": [
+            "%inlayHints.parameterNames.none%",
+            "%inlayHints.parameterNames.literals%",
+            "%inlayHints.parameterNames.all%"
+          ],
+          "default": "none",
+          "description": "%configuration.inlayHints.parameterNames.enabled%",
+          "scope": "resource"
+        },
+        "javascript.inlayHints.parameterNames.suppressWhenArgumentMatchesName": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.inlayHints.parameterNames.suppressWhenArgumentMatchesName%",
+          "scope": "resource"
+        },
+        "javascript.inlayHints.parameterTypes.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.inlayHints.parameterTypes.enabled%",
+          "scope": "resource"
+        },
+        "javascript.inlayHints.variableTypes.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.inlayHints.variableTypes.enabled%",
+          "scope": "resource"
+        },
+        "javascript.inlayHints.propertyDeclarationTypes.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.inlayHints.propertyDeclarationTypes.enabled%",
+          "scope": "resource"
+        },
+        "javascript.inlayHints.functionLikeReturnTypes.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.inlayHints.functionLikeReturnTypes.enabled%",
+          "scope": "resource"
+        },
+        "javascript.inlayHints.enumMemberValues.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.inlayHints.enumMemberValues.enabled%",
+          "scope": "resource"
+        },
         "javascript.suggest.includeCompletionsForImportStatements": {
           "type": "boolean",
           "default": true,
