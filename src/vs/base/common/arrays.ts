@@ -588,3 +588,52 @@ export function maxIndex<T>(array: readonly T[], fn: (value: T) => number): numb
 
 	return maxIdx;
 }
+
+export class ArrayQueue<T> {
+	private firstIdx = 0;
+	private lastIdx = this.items.length - 1;
+
+	/**
+	 * Constructs a queue that is backed by the given array. Runtime is O(1).
+	*/
+	constructor(private readonly items: T[]) { }
+
+	get length(): number {
+		return this.lastIdx - this.firstIdx + 1;
+	}
+
+	/**
+	 * Consumes elements from the beginning of the queue as long as the predicate returns true.
+	 * If no elements were consumed, `null` is returned. Has a runtime of O(result.length).
+	*/
+	takeWhile(predicate: (value: T) => boolean): T[] | null {
+		// P(k) := k <= this.lastIdx && predicate(this.items[k])
+		// Find s := min { k | k >= this.firstIdx && !P(k) } and return this.data[this.firstIdx...s)
+
+		let startIdx = this.firstIdx;
+		while (startIdx < this.items.length && predicate(this.items[startIdx])) {
+			startIdx++;
+		}
+		const result = startIdx === this.firstIdx ? null : this.items.slice(this.firstIdx, startIdx);
+		this.firstIdx = startIdx;
+		return result;
+	}
+
+	/**
+	 * Consumes elements from the end of the queue as long as the predicate returns true.
+	 * If no elements were consumed, `null` is returned.
+	 * The result has the same order as the underlying array!
+	*/
+	takeFromEndWhile(predicate: (value: T) => boolean): T[] | null {
+		// P(k) := this.firstIdx >= k && predicate(this.items[k])
+		// Find s := max { k | k <= this.lastIdx && !P(k) } and return this.data(s...this.lastIdx]
+
+		let endIdx = this.lastIdx;
+		while (endIdx >= 0 && predicate(this.items[endIdx])) {
+			endIdx--;
+		}
+		const result = endIdx === this.lastIdx ? null : this.items.slice(endIdx + 1, this.lastIdx + 1);
+		this.lastIdx = endIdx;
+		return result;
+	}
+}

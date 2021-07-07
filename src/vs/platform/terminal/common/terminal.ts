@@ -38,6 +38,7 @@ export const enum TerminalSettingId {
 	TabsEnabled = 'terminal.integrated.tabs.enabled',
 	TabsHideCondition = 'terminal.integrated.tabs.hideCondition',
 	TabsShowActiveTerminal = 'terminal.integrated.tabs.showActiveTerminal',
+	TabsShowActions = 'terminal.integrated.tabs.showActions',
 	TabsLocation = 'terminal.integrated.tabs.location',
 	TabsFocusMode = 'terminal.integrated.tabs.focusMode',
 	MacOptionIsMeta = 'terminal.integrated.macOptionIsMeta',
@@ -60,6 +61,7 @@ export const enum TerminalSettingId {
 	CursorWidth = 'terminal.integrated.cursorWidth',
 	Scrollback = 'terminal.integrated.scrollback',
 	DetectLocale = 'terminal.integrated.detectLocale',
+	DefaultLocation = 'terminal.integrated.defaultLocation',
 	GpuAcceleration = 'terminal.integrated.gpuAcceleration',
 	RightClickBehavior = 'terminal.integrated.rightClickBehavior',
 	Cwd = 'terminal.integrated.cwd',
@@ -415,6 +417,34 @@ export interface IShellLaunchConfig {
 	color?: string;
 }
 
+export interface ICreateTerminalOptions {
+	/**
+	 * The shell launch config or profile to launch with, when not specified the default terminal
+	 * profile will be used.
+	 */
+	config?: IShellLaunchConfig | ITerminalProfile;
+	/**
+	 * The current working directory to start with, this will override IShellLaunchConfig.cwd if
+	 * specified.
+	 */
+	cwd?: string | URI;
+	/**
+	 * Where to create the terminal, when not specified the default target will be used.
+	 */
+	target?: TerminalLocation;
+}
+
+export interface ICreateContributedTerminalProfileOptions {
+	isSplitTerminal: boolean;
+	target?: TerminalLocation;
+	icon?: string;
+}
+
+export const enum TerminalLocation {
+	TerminalView = 'view',
+	Editor = 'editor'
+}
+
 export type TerminalIcon = ThemeIcon | URI | { light: URI; dark: URI };
 
 export interface IShellLaunchConfigDto {
@@ -478,7 +508,7 @@ export interface ITerminalChildProcess {
 	/**
 	 * Detach the process from the UI and await reconnect.
 	 */
-	detach?(): void;
+	detach?(): Promise<void>;
 
 	/**
 	 * Shutdown the terminal process.
@@ -592,7 +622,7 @@ export interface IBaseUnresolvedTerminalProfile {
 	args?: string | string[] | undefined;
 	isAutoDetected?: boolean;
 	overrideName?: boolean;
-	icon?: ThemeIcon | URI | { light: URI, dark: URI };
+	icon?: string | ThemeIcon | URI | { light: URI, dark: URI };
 	color?: string;
 	env?: ITerminalEnvironment;
 }

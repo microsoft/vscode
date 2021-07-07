@@ -1,13 +1,11 @@
 {
 	"ban-eval-calls": [
 		"vs/workbench/api/worker/extHostExtensionService.ts",
-		"vs/base/worker/workerMain",
-		"vs/workbench/services/extensions/worker/extensionHostWorkerMain"
+		"vs/base/worker/workerMain"
 	],
 	"ban-function-calls": [
 		"vs/workbench/api/worker/extHostExtensionService.ts",
 		"vs/base/worker/workerMain",
-		"vs/workbench/services/extensions/worker/extensionHostWorkerMain",
 		"vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts",
 		"vs/workbench/services/keybinding/test/electron-browser/keyboardMapperTestUtils.ts"
 	],
@@ -26,8 +24,7 @@
 		"vs/workbench/api/worker/extHostExtensionService.ts",
 		"vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer.ts",
 		"vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts",
-		"vs/workbench/services/extensions/browser/webWorkerExtensionHost.ts",
-		"vs/workbench/services/extensions/worker/extensionHostWorkerMain.ts"
+		"vs/workbench/services/extensions/browser/webWorkerExtensionHost.ts"
 	],
 	"ban-worker-calls": [
 		"vs/base/worker/defaultWorkerFactory.ts",

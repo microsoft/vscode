@@ -92,6 +92,7 @@ export interface NotebookCellInternalMetadata {
 	runStartTime?: number;
 	runStartTimeAdjustment?: number;
 	runEndTime?: number;
+	isPaused?: boolean;
 }
 
 export type TransientCellMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
@@ -238,6 +239,7 @@ export enum NotebookCellsChangeType {
 	ChangeCellContent = 10,
 	ChangeDocumentMetadata = 11,
 	ChangeCellInternalMetadata = 12,
+	ChangeCellMime = 13,
 	Unknown = 100
 }
 
@@ -284,6 +286,12 @@ export interface NotebookCellsChangeLanguageEvent {
 	readonly language: string;
 }
 
+export interface NotebookCellsChangeMimeEvent {
+	readonly kind: NotebookCellsChangeType.ChangeCellMime;
+	readonly index: number;
+	readonly mime: string | undefined;
+}
+
 export interface NotebookCellsChangeMetadataEvent {
 	readonly kind: NotebookCellsChangeType.ChangeCellMetadata;
 	readonly index: number;
@@ -305,14 +313,14 @@ export interface NotebookDocumentUnknownChangeEvent {
 	readonly kind: NotebookCellsChangeType.Unknown;
 }
 
-export type NotebookRawContentEventDto = NotebookCellsInitializeEvent<IMainCellDto> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<IMainCellDto> | NotebookCellsModelMoveEvent<IMainCellDto> | NotebookOutputChangedEvent | NotebookOutputItemChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent | NotebookCellsChangeInternalMetadataEvent | NotebookDocumentUnknownChangeEvent;
+export type NotebookRawContentEventDto = NotebookCellsInitializeEvent<IMainCellDto> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<IMainCellDto> | NotebookCellsModelMoveEvent<IMainCellDto> | NotebookOutputChangedEvent | NotebookOutputItemChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMimeEvent | NotebookCellsChangeMetadataEvent | NotebookCellsChangeInternalMetadataEvent | NotebookDocumentUnknownChangeEvent;
 
 export type NotebookCellsChangedEventDto = {
 	readonly rawEvents: NotebookRawContentEventDto[];
 	readonly versionId: number;
 };
 
-export type NotebookRawContentEvent = (NotebookCellsInitializeEvent<ICell> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<ICell> | NotebookCellsModelMoveEvent<ICell> | NotebookOutputChangedEvent | NotebookOutputItemChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent | NotebookCellsChangeInternalMetadataEvent | NotebookDocumentUnknownChangeEvent) & { transient: boolean; };
+export type NotebookRawContentEvent = (NotebookCellsInitializeEvent<ICell> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<ICell> | NotebookCellsModelMoveEvent<ICell> | NotebookOutputChangedEvent | NotebookOutputItemChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMimeEvent | NotebookCellsChangeMetadataEvent | NotebookCellsChangeInternalMetadataEvent | NotebookDocumentUnknownChangeEvent) & { transient: boolean; };
 
 export enum SelectionStateType {
 	Handle = 0,
@@ -340,6 +348,10 @@ export type NotebookTextModelChangedEvent = {
 	readonly endSelectionState: ISelectionState | undefined;
 };
 
+export type NotebookTextModelWillAddRemoveEvent = {
+	readonly rawEvent: NotebookCellsModelChangedEvent<ICell>;
+};
+
 export const enum CellEditType {
 	Replace = 1,
 	Output = 2,
@@ -355,6 +367,7 @@ export const enum CellEditType {
 export interface ICellDto2 {
 	source: string;
 	language: string;
+	mime: string | undefined;
 	cellKind: CellKind;
 	outputs: IOutputDto[];
 	metadata?: NotebookCellMetadata;
@@ -455,7 +468,7 @@ export interface NotebookData {
 
 
 export interface INotebookContributionData {
-	extension: ExtensionIdentifier,
+	extension?: ExtensionIdentifier,
 	providerDisplayName: string;
 	displayName: string;
 	filenamePattern: (string | glob.IRelativePattern | INotebookExclusiveDocumentFilter)[];
@@ -706,8 +719,6 @@ export interface INotebookEditorModel extends IEditorModel {
 export interface INotebookDiffEditorModel extends IEditorModel {
 	original: IResolvedNotebookEditorModel;
 	modified: IResolvedNotebookEditorModel;
-	resolveOriginalFromDisk(): Promise<void>;
-	resolveModifiedFromDisk(): Promise<void>;
 }
 
 export interface NotebookDocumentBackupData extends IWorkingCopyBackupMeta {

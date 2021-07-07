@@ -29,7 +29,7 @@ export const enum LinePartMetadata {
 }
 
 class LinePart {
-	_linePartBrand: void;
+	_linePartBrand: void = undefined;
 
 	/**
 	 * last char index of this token (not inclusive).
@@ -357,7 +357,7 @@ export const enum ForeignElementType {
 }
 
 export class RenderLineOutput {
-	_renderLineOutputBrand: void;
+	_renderLineOutputBrand: void = undefined;
 
 	readonly characterMapping: CharacterMapping;
 	readonly containsRTL: boolean;
@@ -738,6 +738,8 @@ function _applyRenderWhitespace(input: RenderLineInput, lineContent: string, len
 			if (tokenIndex < tokensLength) {
 				tokenType = tokens[tokenIndex].type;
 				tokenEndIndex = tokens[tokenIndex].endIndex;
+			} else {
+				break;
 			}
 		}
 	}

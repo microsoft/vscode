@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { URI } from 'vs/base/common/uri';
+import { isEditorInput, isResourceDiffEditorInput, isResourceEditorInput, isUntitledResourceEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { TestEditorInput } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('EditorInput', () => {
 
@@ -20,9 +23,17 @@ suite('EditorInput', () => {
 		let input = new MyEditorInput();
 		let otherInput = new MyEditorInput();
 
+		assert.ok(isEditorInput(input));
+		assert.ok(!isEditorInput(undefined));
+		assert.ok(!isEditorInput({ resource: URI.file('/') }));
+		assert.ok(!isEditorInput({}));
+
+		assert.ok(!isResourceEditorInput(input));
+		assert.ok(!isUntitledResourceEditorInput(input));
+		assert.ok(!isResourceDiffEditorInput(input));
+
 		assert(input.matches(input));
 		assert(!input.matches(otherInput));
-		assert(!input.matches(null));
 		assert(input.getName());
 
 		input.onWillDispose(() => {
@@ -32,5 +43,21 @@ suite('EditorInput', () => {
 
 		input.dispose();
 		assert.strictEqual(counter, 1);
+	});
+
+	test('untyped matches', () => {
+		const testInputID = 'untypedMatches';
+		const testInputResource = URI.file('/fake');
+		const testInput = new TestEditorInput(testInputResource, testInputID);
+		const testUntypedInput = { resource: testInputResource, options: { override: testInputID } };
+		const tetUntypedInputWrongResource = { resource: URI.file('/incorrectFake'), options: { override: testInputID } };
+		const testUntypedInputWrongId = { resource: testInputResource, options: { override: 'wrongId' } };
+		const testUntypedInputWrong = { resource: URI.file('/incorrectFake'), options: { override: 'wrongId' } };
+
+		assert(testInput.matches(testUntypedInput));
+		assert.ok(!testInput.matches(tetUntypedInputWrongResource));
+		assert.ok(!testInput.matches(testUntypedInputWrongId));
+		assert.ok(!testInput.matches(testUntypedInputWrong));
+
 	});
 });

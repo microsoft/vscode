@@ -5,6 +5,7 @@
 
 import { IRange } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
+import { IModelDecoration, InjectedTextOptions } from 'vs/editor/common/model';
 
 /**
  * An event describing that the current mode associated with a model has changed.
@@ -127,6 +128,73 @@ export class ModelRawFlush {
 }
 
 /**
+ * Represents text injected on a line
+ * @internal
+ */
+export class LineInjectedText {
+	public static applyInjectedText(lineText: string, injectedTexts: LineInjectedText[] | null): string {
+		if (!injectedTexts || injectedTexts.length === 0) {
+			return lineText;
+		}
+		let result = '';
+		let lastOriginalOffset = 0;
+		for (const injectedText of injectedTexts) {
+			result += lineText.substring(lastOriginalOffset, injectedText.column - 1);
+			lastOriginalOffset = injectedText.column - 1;
+			result += injectedText.options.content;
+		}
+		result += lineText.substring(lastOriginalOffset);
+		return result;
+	}
+
+	public static fromDecorations(decorations: IModelDecoration[]): LineInjectedText[] {
+		const result: LineInjectedText[] = [];
+		for (const decoration of decorations) {
+			if (decoration.options.before && decoration.options.before.content.length > 0) {
+				result.push(new LineInjectedText(
+					decoration.ownerId,
+					decoration.range.startLineNumber,
+					decoration.range.startColumn,
+					decoration.options.before,
+					0,
+				));
+			}
+			if (decoration.options.after && decoration.options.after.content.length > 0) {
+				result.push(new LineInjectedText(
+					decoration.ownerId,
+					decoration.range.endLineNumber,
+					decoration.range.endColumn,
+					decoration.options.after,
+					1,
+				));
+			}
+		}
+		result.sort((a, b) => {
+			if (a.lineNumber === b.lineNumber) {
+				if (a.column === b.column) {
+					return a.order - b.order;
+				}
+				return a.column - b.column;
+			}
+			return a.lineNumber - b.lineNumber;
+		});
+		return result;
+	}
+
+	constructor(
+		public readonly ownerId: number,
+		public readonly lineNumber: number,
+		public readonly column: number,
+		public readonly options: InjectedTextOptions,
+		public readonly order: number
+	) { }
+
+	public withText(text: string): LineInjectedText {
+		return new LineInjectedText(this.ownerId, this.lineNumber, this.column, { ...this.options, content: text }, this.order);
+	}
+}
+
+/**
  * An event describing that a line has changed in a model.
  * @internal
  */
@@ -140,10 +208,15 @@ export class ModelRawLineChanged {
 	 * The new value of the line.
 	 */
 	public readonly detail: string;
+	/**
+	 * The injected text on the line.
+	 */
+	public readonly injectedText: LineInjectedText[] | null;
 
-	constructor(lineNumber: number, detail: string) {
+	constructor(lineNumber: number, detail: string, injectedText: LineInjectedText[] | null) {
 		this.lineNumber = lineNumber;
 		this.detail = detail;
+		this.injectedText = injectedText;
 	}
 }
 
@@ -186,8 +259,13 @@ export class ModelRawLinesInserted {
 	 * The text that was inserted
 	 */
 	public readonly detail: string[];
+	/**
+	 * The injected texts for every inserted line.
+	 */
+	public readonly injectedTexts: (LineInjectedText[] | null)[];
 
-	constructor(fromLineNumber: number, toLineNumber: number, detail: string[]) {
+	constructor(fromLineNumber: number, toLineNumber: number, detail: string[], injectedTexts: (LineInjectedText[] | null)[]) {
+		this.injectedTexts = injectedTexts;
 		this.fromLineNumber = fromLineNumber;
 		this.toLineNumber = toLineNumber;
 		this.detail = detail;
@@ -253,6 +331,19 @@ export class ModelRawContentChangedEvent {
 		const isUndoing = (a.isUndoing || b.isUndoing);
 		const isRedoing = (a.isRedoing || b.isRedoing);
 		return new ModelRawContentChangedEvent(changes, versionId, isUndoing, isRedoing);
+	}
+}
+
+/**
+ * An event describing a change in injected text.
+ * @internal
+ */
+export class ModelInjectedTextChangedEvent {
+
+	public readonly changes: ModelRawLineChanged[];
+
+	constructor(changes: ModelRawLineChanged[]) {
+		this.changes = changes;
 	}
 }
 

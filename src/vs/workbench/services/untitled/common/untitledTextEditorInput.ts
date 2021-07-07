@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GroupIdentifier, IUntitledTextResourceEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, GroupIdentifier, IEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput, UntypedEditorContext, Verbosity } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { EncodingMode, IEncodingSupport, IModeSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -13,7 +13,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { isEqual, toLocalResource } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { EditorOverride } from 'vs/platform/editor/common/editor';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -24,6 +24,10 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 
 	override get typeId(): string {
 		return UntitledTextEditorInput.ID;
+	}
+
+	override get editorId(): string | undefined {
+		return DEFAULT_EDITOR_ASSOCIATION.id;
 	}
 
 	private modelResolve: Promise<void> | undefined = undefined;
@@ -120,21 +124,29 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		return this.model;
 	}
 
-	override asResourceEditorInput(group: GroupIdentifier): IUntitledTextResourceEditorInput {
-		return {
-			resource: this.model.hasAssociatedFilePath ? toLocalResource(this.model.resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme) : undefined,
+	override toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IUntitledTextResourceEditorInput {
+		const untypedInput: IUntitledTextResourceEditorInput & { options: ITextEditorOptions } = {
+			resource: this.model.hasAssociatedFilePath ? toLocalResource(this.model.resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme) : this.resource,
 			forceUntitled: true,
-			encoding: this.getEncoding(),
-			mode: this.getMode(),
-			contents: this.model.isDirty() ? this.model.textEditorModel?.getValue() : undefined,
 			options: {
-				viewState: this.getViewStateFor(group),
-				override: EditorOverride.DISABLED
+				override: this.editorId
 			}
 		};
+
+		if (context === UntypedEditorContext.Full) {
+			untypedInput.encoding = this.getEncoding();
+			untypedInput.mode = this.getMode();
+			untypedInput.contents = this.model.isDirty() ? this.model.textEditorModel?.getValue() : undefined;
+
+			if (typeof group === 'number') {
+				untypedInput.options.viewState = this.getViewStateFor(group);
+			}
+		}
+
+		return untypedInput;
 	}
 
-	override matches(otherInput: unknown): boolean {
+	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
 		if (super.matches(otherInput)) {
 			return true;
 		}

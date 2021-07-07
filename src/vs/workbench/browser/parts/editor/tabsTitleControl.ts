@@ -6,7 +6,7 @@
 import 'vs/css!./media/tabstitlecontrol';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
-import { EditorResourceAccessor, GroupIdentifier, IEditorInput, Verbosity, IEditorPartOptions, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, GroupIdentifier, IEditorInput, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { computeEditorAriaLabel } from 'vs/workbench/browser/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
@@ -49,6 +49,7 @@ import { coalesce, insert } from 'vs/base/common/arrays';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { isSafari } from 'vs/base/browser/browser';
 import { equals } from 'vs/base/common/objects';
+import { EditorActivation } from 'vs/platform/editor/common/editor';
 
 interface IEditorInputLabel {
 	name?: string;
@@ -233,13 +234,14 @@ export class TabsTitleControl extends TitleControl {
 
 				EventHelper.stop(e);
 
-				this.group.openEditor(
-					this.editorService.createEditorInput({ forceUntitled: true }),
-					{
-						pinned: true,			// untitled is always pinned
-						index: this.group.count // always at the end
+				this.editorService.openEditor({
+					forceUntitled: true,
+					options: {
+						pinned: true,
+						index: this.group.count, // always at the end
+						override: DEFAULT_EDITOR_ASSOCIATION.id
 					}
-				);
+				}, this.group.id);
 			}));
 		});
 
@@ -665,7 +667,8 @@ export class TabsTitleControl extends TitleControl {
 			// Open tabs editor
 			const input = this.group.getEditorByIndex(index);
 			if (input) {
-				this.group.openEditor(input, { preserveFocus });
+				// Even if focus is preserved make sure to activate the group.
+				this.group.openEditor(input, { preserveFocus, activation: EditorActivation.ACTIVATE });
 			}
 
 			return undefined;
@@ -1153,7 +1156,7 @@ export class TabsTitleControl extends TitleControl {
 			{ name, description, resource: EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH }) },
 			{
 				title,
-				extraClasses: coalesce(['tab-label', fileDecorationBadges ? 'tab-label-has-badge' : undefined]),
+				extraClasses: coalesce(['tab-label', fileDecorationBadges ? 'tab-label-has-badge' : undefined].concat(editor.getLabelExtraClasses())),
 				italic: !this.group.isPinned(editor),
 				forceLabel,
 				fileDecorations: {

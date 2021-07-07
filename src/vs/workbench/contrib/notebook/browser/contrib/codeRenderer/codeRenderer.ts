@@ -36,7 +36,7 @@ abstract class CodeRendererContrib extends Disposable implements IOutputTransfor
 
 	protected _render(output: ICellOutputViewModel, container: HTMLElement, value: string, modeId: string): IRenderOutput {
 		const disposable = new DisposableStore();
-		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, getOutputSimpleEditorOptions(), { isSimpleWidget: true });
+		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, getOutputSimpleEditorOptions(), { isSimpleWidget: true, contributions: this.notebookEditor.creationOptions.cellEditorContributions });
 
 		const mode = this.modeService.create(modeId);
 		const textModel = this.modelService.createModel(value, mode, undefined, false);

@@ -14,13 +14,13 @@ import { FileAccess } from 'vs/base/common/network';
 
 export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$';
 export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
+export const WEB_EXTENSION_TAG = '__web_extension';
 
 export interface IGalleryExtensionProperties {
 	dependencies?: string[];
 	extensionPack?: string[];
 	engine?: string;
 	localizedLanguages?: string[];
-	webExtension?: boolean;
 }
 
 export interface IGalleryExtensionAsset {
@@ -91,7 +91,7 @@ export interface IGalleryExtension {
 	properties: IGalleryExtensionProperties;
 	telemetryData: any;
 	preview: boolean;
-	webResource?: URI;
+	webExtension: boolean;
 }
 
 export interface IGalleryMetadata {
@@ -199,6 +199,7 @@ export const INSTALL_ERROR_INCOMPATIBLE = 'incompatible';
 export class ExtensionManagementError extends Error {
 	constructor(message: string, readonly code: string) {
 		super(message);
+		this.name = code;
 	}
 }
 

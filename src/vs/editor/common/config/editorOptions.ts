@@ -2484,7 +2484,7 @@ class EditorLineHeight extends EditorFloatOption<EditorOption.lineHeight> {
 			EditorOption.lineHeight, 'lineHeight',
 			EDITOR_FONT_DEFAULTS.lineHeight,
 			x => EditorFloatOption.clamp(x, 0, 150),
-			{ markdownDescription: nls.localize('lineHeight', "Controls the line height. \n - Use 0 to automatically compute the line height from the font size.\n - Values between 0 and 8 will be used as a multiplier with the font size.\n - Values greater than 8 will be used as effective values.") }
+			{ markdownDescription: nls.localize('lineHeight', "Controls the line height. \n - Use 0 to automatically compute the line height from the font size.\n - Values between 0 and 8 will be used as a multiplier with the font size.\n - Values greater than or equal to 8 will be used as effective values.") }
 		);
 	}
 
@@ -3007,6 +3007,7 @@ export interface IEditorScrollbarOptions {
 	/**
 	 * The size of arrows (if displayed).
 	 * Defaults to 11.
+	 * **NOTE**: This option cannot be updated using `updateOptions()`
 	 */
 	arrowSize?: number;
 	/**
@@ -3022,16 +3023,19 @@ export interface IEditorScrollbarOptions {
 	/**
 	 * Cast horizontal and vertical shadows when the content is scrolled.
 	 * Defaults to true.
+	 * **NOTE**: This option cannot be updated using `updateOptions()`
 	 */
 	useShadows?: boolean;
 	/**
 	 * Render arrows at the top and bottom of the vertical scrollbar.
 	 * Defaults to false.
+	 * **NOTE**: This option cannot be updated using `updateOptions()`
 	 */
 	verticalHasArrows?: boolean;
 	/**
 	 * Render arrows at the left and right of the horizontal scrollbar.
 	 * Defaults to false.
+	 * **NOTE**: This option cannot be updated using `updateOptions()`
 	 */
 	horizontalHasArrows?: boolean;
 	/**
@@ -3042,6 +3046,7 @@ export interface IEditorScrollbarOptions {
 	/**
 	 * Always consume mouse wheel events (always call preventDefault() and stopPropagation() on the browser events).
 	 * Defaults to true.
+	 * **NOTE**: This option cannot be updated using `updateOptions()`
 	 */
 	alwaysConsumeMouseWheel?: boolean;
 	/**
@@ -3057,11 +3062,13 @@ export interface IEditorScrollbarOptions {
 	/**
 	 * Width in pixels for the vertical slider.
 	 * Defaults to `verticalScrollbarSize`.
+	 * **NOTE**: This option cannot be updated using `updateOptions()`
 	 */
 	verticalSliderSize?: number;
 	/**
 	 * Height in pixels for the horizontal slider.
 	 * Defaults to `horizontalScrollbarSize`.
+	 * **NOTE**: This option cannot be updated using `updateOptions()`
 	 */
 	horizontalSliderSize?: number;
 	/**
@@ -3101,22 +3108,61 @@ function _scrollbarVisibilityFromString(visibility: string | undefined, defaultV
 class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, InternalEditorScrollbarOptions> {
 
 	constructor() {
+		const defaults: InternalEditorScrollbarOptions = {
+			vertical: ScrollbarVisibility.Auto,
+			horizontal: ScrollbarVisibility.Auto,
+			arrowSize: 11,
+			useShadows: true,
+			verticalHasArrows: false,
+			horizontalHasArrows: false,
+			horizontalScrollbarSize: 12,
+			horizontalSliderSize: 12,
+			verticalScrollbarSize: 14,
+			verticalSliderSize: 14,
+			handleMouseWheel: true,
+			alwaysConsumeMouseWheel: true,
+			scrollByPage: false
+		};
 		super(
-			EditorOption.scrollbar, 'scrollbar',
+			EditorOption.scrollbar, 'scrollbar', defaults,
 			{
-				vertical: ScrollbarVisibility.Auto,
-				horizontal: ScrollbarVisibility.Auto,
-				arrowSize: 11,
-				useShadows: true,
-				verticalHasArrows: false,
-				horizontalHasArrows: false,
-				horizontalScrollbarSize: 12,
-				horizontalSliderSize: 12,
-				verticalScrollbarSize: 14,
-				verticalSliderSize: 14,
-				handleMouseWheel: true,
-				alwaysConsumeMouseWheel: true,
-				scrollByPage: false
+				'editor.scrollbar.vertical': {
+					type: 'string',
+					enum: ['auto', 'visible', 'hidden'],
+					enumDescriptions: [
+						nls.localize('scrollbar.vertical.auto', "The vertical scrollbar will be visible only when necessary."),
+						nls.localize('scrollbar.vertical.visible', "The vertical scrollbar will always be visible."),
+						nls.localize('scrollbar.vertical.fit', "The vertical scrollbar will always be hidden."),
+					],
+					default: 'auto',
+					description: nls.localize('scrollbar.vertical', "Controls the visibility of the vertical scrollbar.")
+				},
+				'editor.scrollbar.horizontal': {
+					type: 'string',
+					enum: ['auto', 'visible', 'hidden'],
+					enumDescriptions: [
+						nls.localize('scrollbar.horizontal.auto', "The horizontal scrollbar will be visible only when necessary."),
+						nls.localize('scrollbar.horizontal.visible', "The horizontal scrollbar will always be visible."),
+						nls.localize('scrollbar.horizontal.fit', "The horizontal scrollbar will always be hidden."),
+					],
+					default: 'auto',
+					description: nls.localize('scrollbar.horizontal', "Controls the visibility of the horizontal scrollbar.")
+				},
+				'editor.scrollbar.verticalScrollbarSize': {
+					type: 'number',
+					default: defaults.verticalScrollbarSize,
+					description: nls.localize('scrollbar.verticalScrollbarSize', "The width of the vertical scrollbar.")
+				},
+				'editor.scrollbar.horizontalScrollbarSize': {
+					type: 'number',
+					default: defaults.horizontalScrollbarSize,
+					description: nls.localize('scrollbar.horizontalScrollbarSize', "The height of the horizontal scrollbar.")
+				},
+				'editor.scrollbar.scrollByPage': {
+					type: 'boolean',
+					default: defaults.scrollByPage,
+					description: nls.localize('scrollbar.scrollByPage', "Controls whether clicks scroll by page or jump to click position.")
+				}
 			}
 		);
 	}
@@ -3155,6 +3201,14 @@ export interface IInlineSuggestOptions {
 	 * Enable or disable the rendering of automatic inline completions.
 	*/
 	enabled?: boolean;
+
+	/**
+	 * Configures the mode.
+	 * Use `prefix` to only show ghost text if the text to replace is a prefix of the suggestion text.
+	 * Use `subwordDiff` to only show ghost text if the replace text is a subword of the suggestion text and diffing should be used to compute the ghost text.
+	 * Defaults to `prefix`.
+	*/
+	mode?: 'prefix' | 'subwordDiff';
 }
 
 export type InternalInlineSuggestOptions = Readonly<Required<IInlineSuggestOptions>>;
@@ -3165,7 +3219,8 @@ export type InternalInlineSuggestOptions = Readonly<Required<IInlineSuggestOptio
 class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, InternalInlineSuggestOptions> {
 	constructor() {
 		const defaults: InternalInlineSuggestOptions = {
-			enabled: false
+			enabled: false,
+			mode: 'subwordDiff'
 		};
 
 		super(
@@ -3175,6 +3230,16 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					type: 'boolean',
 					default: defaults.enabled,
 					description: nls.localize('inlineSuggest.enabled', "Controls whether to automatically show inline suggestions in the editor.")
+				},
+				'editor.inlineSuggest.mode': {
+					type: 'string',
+					enum: ['prefix', 'subwordDiff'],
+					enumDescriptions: [
+						nls.localize('inlineSuggest.mode.prefix', "Only render an inline suggestion if the replace text is a prefix of the insert text."),
+						nls.localize('inlineSuggest.mode.subwordDiff', "Only render an inline suggestion if the replace text is a subword of the insert text."),
+					],
+					default: defaults.mode,
+					description: nls.localize('inlineSuggest.mode', "Controls which mode to use for rendering inline suggestions.")
 				},
 			}
 		);
@@ -3187,6 +3252,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 		const input = _input as IInlineSuggestOptions;
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
+			mode: stringSet(input.mode, this.defaultValue.mode, ['prefix', 'subwordDiff']),
 		};
 	}
 }
@@ -3231,6 +3297,10 @@ export interface ISuggestOptions {
 	 * Enable or disable the rendering of the suggestion preview.
 	 */
 	preview?: boolean;
+	/**
+	 * Configures the mode of the preview. Defaults to `subwordDiff`.
+	*/
+	previewMode?: 'prefix' | 'subwordDiff';
 	/**
 	 * Show details inline with the label. Defaults to true.
 	 */
@@ -3363,6 +3433,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			showIcons: true,
 			showStatusBar: false,
 			preview: false,
+			previewMode: 'prefix',
 			showInlineDetails: true,
 			showMethods: true,
 			showFunctions: true,
@@ -3440,6 +3511,16 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					type: 'boolean',
 					default: defaults.preview,
 					description: nls.localize('suggest.preview', "Controls whether to preview the suggestion outcome in the editor.")
+				},
+				'editor.suggest.previewMode': {
+					type: 'string',
+					enum: ['prefix', 'subwordDiff'],
+					enumDescriptions: [
+						nls.localize('suggest.previewMode.prefix', "Only render a preview if the replace text is a prefix of the insert text."),
+						nls.localize('suggest.previewMode.subwordDiff', "Only render a preview if the replace text is a subword of the insert text."),
+					],
+					default: defaults.previewMode,
+					description: nls.localize('suggest.previewMode', "Controls which mode to use for rendering the suggest preview.")
 				},
 				'editor.suggest.showInlineDetails': {
 					type: 'boolean',
@@ -3617,6 +3698,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			showIcons: boolean(input.showIcons, this.defaultValue.showIcons),
 			showStatusBar: boolean(input.showStatusBar, this.defaultValue.showStatusBar),
 			preview: boolean(input.preview, this.defaultValue.preview),
+			previewMode: stringSet(input.previewMode, this.defaultValue.previewMode, ['prefix', 'subwordDiff']),
 			showInlineDetails: boolean(input.showInlineDetails, this.defaultValue.showInlineDetails),
 			showMethods: boolean(input.showMethods, this.defaultValue.showMethods),
 			showFunctions: boolean(input.showFunctions, this.defaultValue.showFunctions),

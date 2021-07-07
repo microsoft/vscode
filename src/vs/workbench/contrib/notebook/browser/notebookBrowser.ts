@@ -25,7 +25,7 @@ import { CellKind, NotebookCellMetadata, IOrderedMimeType, INotebookRendererInfo
 import { ICellRange, cellRangesToIndexes, reduceRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { IMenu } from 'vs/platform/actions/common/actions';
+import { IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { ITextEditorOptions, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
@@ -33,6 +33,8 @@ import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/
 import { INotebookWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { isCompositeNotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
@@ -52,6 +54,7 @@ export const NOTEBOOK_OUTPUT_FOCUSED = new RawContextKey<boolean>('notebookOutpu
 export const NOTEBOOK_EDITOR_EDITABLE = new RawContextKey<boolean>('notebookEditable', true);
 export const NOTEBOOK_HAS_RUNNING_CELL = new RawContextKey<boolean>('notebookHasRunningCell', false);
 export const NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON = new RawContextKey<boolean>('notebookUseConsolidatedOutputButton', false);
+export const NOTEBOOK_BREAKPOINT_MARGIN_ACTIVE = new RawContextKey<boolean>('notebookBreakpointMargin', false);
 
 // Cell keys
 export const NOTEBOOK_VIEW_TYPE = new RawContextKey<string>('notebookType', undefined);
@@ -172,6 +175,7 @@ export interface IFocusNotebookCellOptions {
 }
 
 export interface ICommonNotebookEditor {
+	readonly creationOptions: INotebookEditorCreationOptions;
 	getCellOutputLayoutInfo(cell: IGenericCellViewModel): INotebookCellOutputLayoutInfo;
 	triggerScroll(event: IMouseWheelEvent): void;
 	getCellByInfo(cellInfo: ICommonCellInfo): IGenericCellViewModel;
@@ -342,7 +346,16 @@ export interface INotebookEditorContributionDescription {
 
 export interface INotebookEditorCreationOptions {
 	readonly isEmbedded?: boolean;
+	readonly isReadOnly?: boolean;
 	readonly contributions?: INotebookEditorContributionDescription[];
+	readonly cellEditorContributions?: IEditorContributionDescription[];
+	readonly menuIds: {
+		notebookToolbar: MenuId;
+		cellTitleToolbar: MenuId;
+		cellInsertToolbar: MenuId;
+		cellTopInsertToolbar: MenuId;
+		cellExecuteToolbar: MenuId;
+	};
 }
 
 export interface IActiveNotebookEditor extends INotebookEditor {
@@ -364,6 +377,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	textModel?: NotebookTextModel;
 	getId(): string;
 	hasEditorFocus(): boolean;
+	readonly creationOptions: INotebookEditorCreationOptions;
 
 	isEmbedded: boolean;
 
@@ -455,7 +469,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	/**
 	 * Focus the container of a cell (the monaco editor inside is not focused).
 	 */
-	focusNotebookCell(cell: ICellViewModel, focus: 'editor' | 'container' | 'output'): void;
+	focusNotebookCell(cell: ICellViewModel, focus: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions): void;
 
 	focusNextNotebookCell(cell: ICellViewModel, focus: 'editor' | 'container' | 'output'): void;
 
@@ -908,7 +922,21 @@ export function getVisibleCells(cells: CellViewModel[], hiddenRanges: ICellRange
 }
 
 export function getNotebookEditorFromEditorPane(editorPane?: IEditorPane): INotebookEditor | undefined {
-	return editorPane?.getId() === NOTEBOOK_EDITOR_ID ? editorPane.getControl() as INotebookEditor | undefined : undefined;
+	if (!editorPane) {
+		return;
+	}
+
+	if (editorPane.getId() === NOTEBOOK_EDITOR_ID) {
+		return editorPane.getControl() as INotebookEditor | undefined;
+	}
+
+	const input = editorPane.input;
+
+	if (input && isCompositeNotebookEditorInput(input)) {
+		return (editorPane.getControl() as { notebookEditor: INotebookEditor | undefined; }).notebookEditor;
+	}
+
+	return undefined;
 }
 
 /**

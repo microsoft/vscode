@@ -131,6 +131,11 @@ export function getContext(focus: ExplorerItem[], selection: ExplorerItem[], res
 	return [focusedStat];
 }
 
+export interface IExplorerViewContainerDelegate {
+	willOpenElement(event?: UIEvent): void;
+	didOpenElement(event?: UIEvent): void;
+}
+
 export class ExplorerView extends ViewPane {
 	static readonly TREE_VIEW_STATE_STORAGE_KEY: string = 'workbench.explorer.treeViewState';
 
@@ -164,6 +169,7 @@ export class ExplorerView extends ViewPane {
 
 	constructor(
 		options: IViewPaneOptions,
+		private readonly delegate: IExplorerViewContainerDelegate,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -439,7 +445,12 @@ export class ExplorerView extends ViewPane {
 					return;
 				}
 				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
-				await this.editorService.openEditor({ resource: element.resource, options: { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned } }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+				try {
+					this.delegate.willOpenElement(e.browserEvent);
+					await this.editorService.openEditor({ resource: element.resource, options: { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned } }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+				} finally {
+					this.delegate.didOpenElement();
+				}
 			}
 		}));
 
@@ -598,30 +609,6 @@ export class ExplorerView extends ViewPane {
 		return this.tree.updateChildren(toRefresh, recursive, false, {
 			diffIdentityProvider: identityProvider
 		});
-	}
-
-	focusNeighbourIfItemFocused(item: ExplorerItem): void {
-		const focus = this.tree.getFocus();
-		if (focus.length !== 1) {
-			return;
-		}
-		const compressedController = this.renderer.getCompressedNavigationController(focus[0]) || this.renderer.getCompressedNavigationController(item);
-		const indexOfItem = compressedController?.items.indexOf(item) || -1;
-		const itemsCompressedTogether = compressedController && (compressedController.items.indexOf(focus[0]) >= 0) && (indexOfItem >= 0);
-
-		if (focus[0] === item || itemsCompressedTogether) {
-			if (itemsCompressedTogether && indexOfItem > 0 && item.parent) {
-				// In case of compact items just focus the parent if it is part of the compact item. So the focus stays
-				this.tree.setFocus([item.parent]);
-			} else {
-				this.tree.focusNext();
-				const newFocus = this.tree.getFocus();
-				if (newFocus.length === 1 && newFocus[0] === item) {
-					// There was no next item to focus, focus the previous one
-					this.tree.focusPrevious();
-				}
-			}
-		}
 	}
 
 	override getOptimalWidth(): number {

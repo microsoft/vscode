@@ -89,7 +89,7 @@ export class StartupTimings implements IWorkbenchContribution {
 		if (this._lifecycleService.startupKind !== StartupKind.NewWindow) {
 			return StartupKindToString(this._lifecycleService.startupKind);
 		}
-		if (!this._workspaceTrustService.isWorkpaceTrusted()) {
+		if (!this._workspaceTrustService.isWorkspaceTrusted()) {
 			return 'Workspace not trusted';
 		}
 		const windowCount = await this._nativeHostService.getWindowCount();
@@ -111,7 +111,8 @@ export class StartupTimings implements IWorkbenchContribution {
 		if (activePanel) {
 			return 'Current active panel : ' + this._panelService.getPanel(activePanel.getId())?.name;
 		}
-		if (!didUseCachedData(this._productService, this._storageService, this._environmentService)) {
+		const noCachedData = this._environmentService.args['no-cached-data'];
+		if (!noCachedData && !didUseCachedData(this._productService, this._storageService, this._environmentService)) {
 			return 'Either cache data is rejected or not created';
 		}
 		if (!await this._updateService.isLatestVersion()) {

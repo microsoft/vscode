@@ -27,6 +27,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { HoverProviderRegistry } from 'vs/editor/common/modes';
 import { Schemas } from 'vs/base/common/network';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -54,6 +55,11 @@ registerAction2(class extends Action2 {
 				),
 				group: 'status',
 				order: -10
+			}, {
+				id: MenuId.InteractiveToolbar,
+				when: NOTEBOOK_KERNEL_COUNT.notEqualsTo(0),
+				group: 'status',
+				order: -10
 			}],
 			description: {
 				description: nls.localize('notebookActions.selectKernel.args', "Notebook Kernel Args"),
@@ -79,14 +85,14 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: { id: string, extension: string; }): Promise<boolean> {
+	async run(accessor: ServicesAccessor, context?: { id: string, extension: string, ui?: boolean, notebookEditor?: NotebookEditorWidget }): Promise<boolean> {
 		const notebookKernelService = accessor.get(INotebookKernelService);
 		const editorService = accessor.get(IEditorService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const labelService = accessor.get(ILabelService);
 		const logService = accessor.get(ILogService);
 
-		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+		const editor = context?.notebookEditor ?? getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 		if (!editor || !editor.hasModel()) {
 			return false;
 		}

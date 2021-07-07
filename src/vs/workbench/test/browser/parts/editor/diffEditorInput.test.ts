@@ -35,11 +35,10 @@ suite('Diff editor input', () => {
 
 		let diffInput = instantiationService.createInstance(DiffEditorInput, 'name', 'description', input, otherInput, undefined);
 
-		assert.strictEqual(diffInput.originalInput, input);
-		assert.strictEqual(diffInput.modifiedInput, otherInput);
+		assert.strictEqual(diffInput.original, input);
+		assert.strictEqual(diffInput.modified, otherInput);
 		assert(diffInput.matches(diffInput));
 		assert(!diffInput.matches(otherInput));
-		assert(!diffInput.matches(null));
 
 		diffInput.dispose();
 		assert.strictEqual(counter, 0);

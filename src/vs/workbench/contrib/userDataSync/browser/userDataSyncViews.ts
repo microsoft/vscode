@@ -578,14 +578,16 @@ class UserDataSyncTroubleshootViewDataProvider implements ITreeViewDataProvider 
 		const result: ITreeItem[] = [];
 		for (const logFolder of logsFolders) {
 			const syncLogResource = this.uriIdentityService.extUri.joinPath(logFolder, this.uriIdentityService.extUri.basename(this.environmentService.userDataSyncLogResource));
-			result.push({
-				handle: syncLogResource.toString(),
-				collapsibleState: TreeItemCollapsibleState.None,
-				resourceUri: syncLogResource,
-				label: { label: this.uriIdentityService.extUri.basename(logFolder) },
-				description: this.uriIdentityService.extUri.isEqual(syncLogResource, this.environmentService.userDataSyncLogResource) ? localize({ key: 'current', comment: ['Represents current log file'] }, "Current") : undefined,
-				command: { id: API_OPEN_EDITOR_COMMAND_ID, title: '', arguments: [syncLogResource, undefined, undefined] },
-			});
+			if (await this.fileService.exists(syncLogResource)) {
+				result.push({
+					handle: syncLogResource.toString(),
+					collapsibleState: TreeItemCollapsibleState.None,
+					resourceUri: syncLogResource,
+					label: { label: this.uriIdentityService.extUri.basename(logFolder) },
+					description: this.uriIdentityService.extUri.isEqual(syncLogResource, this.environmentService.userDataSyncLogResource) ? localize({ key: 'current', comment: ['Represents current log file'] }, "Current") : undefined,
+					command: { id: API_OPEN_EDITOR_COMMAND_ID, title: '', arguments: [syncLogResource, undefined, undefined] },
+				});
+			}
 		}
 		return result;
 	}

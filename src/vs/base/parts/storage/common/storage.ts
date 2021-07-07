@@ -321,7 +321,6 @@ export class Storage extends Disposable implements IStorage {
 	}
 
 	override dispose(): void {
-		this.flushDelayer.cancel(); // workaround https://github.com/microsoft/vscode/issues/116777
 		this.flushDelayer.dispose();
 
 		super.dispose();

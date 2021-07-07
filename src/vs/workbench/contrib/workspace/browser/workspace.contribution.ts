@@ -25,7 +25,7 @@ import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarA
 import { IEditorRegistry, EditorDescriptor } from 'vs/workbench/browser/editor';
 import { shieldIcon, WorkspaceTrustEditor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustEditor';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
-import { WorkspaceTrustContext, WORKSPACE_TRUST_EMPTY_WINDOW, WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_STARTUP_PROMPT, WORKSPACE_TRUST_UNTRUSTED_FILES } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { WorkspaceTrustContext, WORKSPACE_TRUST_BANNER, WORKSPACE_TRUST_EMPTY_WINDOW, WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_STARTUP_PROMPT, WORKSPACE_TRUST_UNTRUSTED_FILES } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -46,6 +46,10 @@ import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browse
 import { isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { WORKSPACE_TRUST_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 const BANNER_RESTRICTED_MODE = 'workbench.banner.restrictedMode';
 const STARTUP_PROMPT_SHOWN_KEY = 'workspace.trust.startupPrompt.shown';
@@ -192,6 +196,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IBannerService private readonly bannerService: IBannerService,
+		@ILabelService private readonly labelService: ILabelService,
 		@IHostService private readonly hostService: IHostService,
 	) {
 		super();
@@ -229,7 +234,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 			if (!this.workspaceTrustManagementService.workspaceTrustEnabled) {
 				return;
 			}
-			const trusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
+			const trusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
 
 			return e.join(new Promise(async resolve => {
 				// Workspace is trusted and there are added/changed folders
@@ -323,7 +328,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 	}
 
 	private async showModalOnStart(): Promise<void> {
-		if (this.workspaceTrustManagementService.isWorkpaceTrusted()) {
+		if (this.workspaceTrustManagementService.isWorkspaceTrusted()) {
 			this.updateWorkbenchIndicators(true);
 			return;
 		}
@@ -377,7 +382,8 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 				!isSingleFolderWorkspace ?
 					localize('workspaceStartupTrustDetails', "{0} provides features that may automatically execute files in this workspace.", product.nameShort) :
 					localize('folderStartupTrustDetails', "{0} provides features that may automatically execute files in this folder.", product.nameShort),
-				localize('startupTrustRequestLearnMore', "If you don't trust the authors of these files, we recommend to continue in restricted mode as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more.")
+				localize('startupTrustRequestLearnMore', "If you don't trust the authors of these files, we recommend to continue in restricted mode as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more."),
+				`\`${this.labelService.getWorkspaceLabel(workspaceIdentifier, { verbose: true })}\``,
 			],
 			checkboxText
 		);
@@ -396,11 +402,15 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 	//#region Banner
 
 	private getBannerItem(restrictedMode: boolean): IBannerItem | undefined {
-
 		const dismissedRestricted = this.storageService.getBoolean(BANNER_RESTRICTED_MODE_DISMISSED_KEY, StorageScope.WORKSPACE, false);
 
+		// never show the banner
+		if (this.bannerSetting === 'never') {
+			return undefined;
+		}
+
 		// info has been dismissed
-		if (dismissedRestricted) {
+		if (this.bannerSetting === 'untilDismissed' && dismissedRestricted) {
 			return undefined;
 		}
 
@@ -452,12 +462,17 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 		}
 	}
 
+
+	private get bannerSetting(): 'always' | 'untilDismissed' | 'never' {
+		return this.configurationService.getValue(WORKSPACE_TRUST_BANNER);
+	}
+
 	//#endregion
 
 	//#region Statusbar
 
 	private createStatusbarEntry(): void {
-		const entry = this.getStatusbarEntry(this.workspaceTrustManagementService.isWorkpaceTrusted());
+		const entry = this.getStatusbarEntry(this.workspaceTrustManagementService.isWorkspaceTrusted());
 		this.statusbarEntryAccessor.value = this.statusbarService.addEntry(entry, this.entryId, StatusbarAlignment.LEFT, 0.99 * Number.MAX_VALUE /* Right of remote indicator */);
 		this.statusbarService.updateEntryVisibility(this.entryId, false);
 	}
@@ -577,18 +592,38 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
  * Actions
  */
 
-const MANAGE_TRUST_COMMAND_ID = 'workbench.trust.manage';
+// Configure Workspace Trust
+
+const CONFIGURE_TRUST_COMMAND_ID = 'workbench.trust.configure';
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: CONFIGURE_TRUST_COMMAND_ID,
+			title: { original: 'Configure Workspace Trust', value: localize('configureWorkspaceTrust', "Configure Workspace Trust") },
+			precondition: ContextKeyExpr.and(WorkspaceTrustContext.IsEnabled, IsWebContext.negate(), ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true)),
+			category: localize('workspacesCategory', "Workspaces"),
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		accessor.get(IPreferencesService).openGlobalSettings(false, { query: `@tag:${WORKSPACE_TRUST_SETTING_TAG}` });
+	}
+});
 
 // Manage Workspace Trust
+
+const MANAGE_TRUST_COMMAND_ID = 'workbench.trust.manage';
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: MANAGE_TRUST_COMMAND_ID,
-			title: {
-				original: 'Manage Workspace Trust',
-				value: localize('manageWorkspaceTrust', "Manage Workspace Trust")
-			},
+			title: { original: 'Manage Workspace Trust', value: localize('manageWorkspaceTrust', "Manage Workspace Trust") },
+			precondition: ContextKeyExpr.and(WorkspaceTrustContext.IsEnabled, IsWebContext.negate(), ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true)),
 			category: localize('workspacesCategory', "Workspaces"),
+			f1: true,
 			menu: {
 				id: MenuId.GlobalActivity,
 				group: '6_workspace_trust',
@@ -626,6 +661,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				default: true,
 				included: !isWeb,
 				description: localize('workspace.trust.description', "Controls whether or not workspace trust is enabled within VS Code."),
+				tags: [WORKSPACE_TRUST_SETTING_TAG],
 				scope: ConfigurationScope.APPLICATION,
 			},
 			[WORKSPACE_TRUST_STARTUP_PROMPT]: {
@@ -633,6 +669,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				default: 'once',
 				included: !isWeb,
 				description: localize('workspace.trust.startupPrompt.description', "Controls when the startup prompt to trust a workspace is shown."),
+				tags: [WORKSPACE_TRUST_SETTING_TAG],
 				scope: ConfigurationScope.APPLICATION,
 				enum: ['always', 'once', 'never'],
 				enumDescriptions: [
@@ -641,11 +678,26 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					localize('workspace.trust.startupPrompt.never', "Do not ask for trust when an untrusted workspace is opened."),
 				]
 			},
+			[WORKSPACE_TRUST_BANNER]: {
+				type: 'string',
+				default: 'untilDismissed',
+				included: !isWeb,
+				description: localize('workspace.trust.banner.description', "Controls when the restricted mode banner is shown."),
+				tags: [WORKSPACE_TRUST_SETTING_TAG],
+				scope: ConfigurationScope.APPLICATION,
+				enum: ['always', 'untilDismissed', 'never'],
+				enumDescriptions: [
+					localize('workspace.trust.banner.always', "Show the banner every time an untrusted workspace is open."),
+					localize('workspace.trust.banner.untilDismissed', "Show the banner when an untrusted workspace is opened until dismissed."),
+					localize('workspace.trust.banner.never', "Do not show the banner when an untrusted workspace is open."),
+				]
+			},
 			[WORKSPACE_TRUST_UNTRUSTED_FILES]: {
 				type: 'string',
 				default: 'prompt',
 				included: !isWeb,
 				markdownDescription: localize('workspace.trust.untrustedFiles.description', "Controls how to handle opening untrusted files in a trusted workspace. This setting also applies to opening files in an empty window which is trusted via `#{0}#`.", WORKSPACE_TRUST_EMPTY_WINDOW),
+				tags: [WORKSPACE_TRUST_SETTING_TAG],
 				scope: ConfigurationScope.APPLICATION,
 				enum: ['prompt', 'open', 'newWindow'],
 				enumDescriptions: [
@@ -659,6 +711,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				default: true,
 				included: !isWeb,
 				markdownDescription: localize('workspace.trust.emptyWindow.description', "Controls whether or not the empty window is trusted by default within VS Code. When used with `#{0}#`, you can enable the full functionality of VS Code without prompting in an empty window.", WORKSPACE_TRUST_UNTRUSTED_FILES),
+				tags: [WORKSPACE_TRUST_SETTING_TAG],
 				scope: ConfigurationScope.APPLICATION
 			}
 		}
@@ -670,6 +723,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
  */
 class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -678,14 +732,31 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 	) {
 		super();
 
-		this._register(this.workspaceTrustManagementService.onDidChangeTrust(isTrusted => this.logWorkspaceTrustChangeEvent(isTrusted)));
-		this._register(this.workspaceTrustRequestService.onDidInitiateWorkspaceTrustRequest(_ => this.logWorkspaceTrustRequest()));
+		this.workspaceTrustManagementService.workspaceTrustInitialized
+			.then(() => {
+				this.logInitialWorkspaceTrustInfo();
+				this.logWorkspaceTrust(this.workspaceTrustManagementService.isWorkspaceTrusted());
 
-		this.logInitialWorkspaceTrustInfo();
+				this._register(this.workspaceTrustManagementService.onDidChangeTrust(isTrusted => this.logWorkspaceTrust(isTrusted)));
+				this._register(this.workspaceTrustRequestService.onDidInitiateWorkspaceTrustRequest(_ => this.logWorkspaceTrustRequest()));
+			});
 	}
 
 	private logInitialWorkspaceTrustInfo(): void {
 		if (!this.workspaceTrustManagementService.workspaceTrustEnabled) {
+			const disabledByCliFlag = this.environmentService.disableWorkspaceTrust;
+
+			type WorkspaceTrustDisabledEventClassification = {
+				reason: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			};
+
+			type WorkspaceTrustDisabledEvent = {
+				reason: 'setting' | 'cli',
+			};
+
+			this.telemetryService.publicLog2<WorkspaceTrustDisabledEvent, WorkspaceTrustDisabledEventClassification>('workspaceTrustDisabled', {
+				reason: disabledByCliFlag ? 'cli' : 'setting'
+			});
 			return;
 		}
 
@@ -702,7 +773,7 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 		});
 	}
 
-	private async logWorkspaceTrustChangeEvent(isTrusted: boolean): Promise<void> {
+	private async logWorkspaceTrust(isTrusted: boolean): Promise<void> {
 		if (!this.workspaceTrustManagementService.workspaceTrustEnabled) {
 			return;
 		}

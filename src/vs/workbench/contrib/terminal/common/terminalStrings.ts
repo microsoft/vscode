@@ -17,6 +17,7 @@ export function formatMessageForTerminal(message: string, excludeLeadingNewLine:
  * An object holding strings shared by multiple parts of the terminal
  */
 export const terminalStrings = {
+	terminal: localize('terminal', "Terminal"),
 	focus: {
 		value: localize('workbench.action.terminal.focus', "Focus Terminal"),
 		original: 'Focus Terminal'
@@ -26,6 +27,23 @@ export const terminalStrings = {
 		original: 'Kill Terminal',
 		short: localize('killTerminal.short', "Kill"),
 	},
+	moveToEditor: {
+		value: localize('moveToEditor', "Move Terminal into Editor Area"),
+		original: 'Move Terminal into Editor Area',
+		short: 'Move into Editor Area'
+	},
+	moveToTerminalPanel: {
+		value: localize('workbench.action.terminal.moveToTerminalPanel', "Move Terminal into Panel"),
+		original: 'Move Terminal into Panel'
+	},
+	changeIcon: {
+		value: localize('workbench.action.terminal.changeIcon', "Change Icon..."),
+		original: 'Change Icon...'
+	},
+	changeColor: {
+		value: localize('workbench.action.terminal.changeColor', "Change Color..."),
+		original: 'Change Color...'
+	},
 	split: {
 		value: localize('splitTerminal', "Split Terminal"),
 		original: 'Split Terminal',
@@ -34,5 +52,10 @@ export const terminalStrings = {
 	unsplit: {
 		value: localize('unsplitTerminal', "Unsplit Terminal"),
 		original: 'Unsplit Terminal'
+	},
+	rename:
+	{
+		value: localize('workbench.action.terminal.rename', "Rename..."),
+		original: 'Rename...'
 	}
 };

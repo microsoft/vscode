@@ -81,7 +81,9 @@ function buildDriver(browser: playwright.Browser, page: playwright.Page): IDrive
 		getElementXY: (windowId, selector, xoffset?, yoffset?) => page.evaluate(`window.driver.getElementXY('${selector}', ${xoffset}, ${yoffset})`),
 		typeInEditor: (windowId, selector, text) => page.evaluate(`window.driver.typeInEditor('${selector}', '${text}')`),
 		getTerminalBuffer: (windowId, selector) => page.evaluate(`window.driver.getTerminalBuffer('${selector}')`),
-		writeInTerminal: (windowId, selector, text) => page.evaluate(`window.driver.writeInTerminal('${selector}', '${text}')`)
+		writeInTerminal: (windowId, selector, text) => page.evaluate(`window.driver.writeInTerminal('${selector}', '${text}')`),
+		getLocaleInfo: (windowId) => page.evaluate(`window.driver.getLocaleInfo()`),
+		getLocalizedStrings: (windowId) => page.evaluate(`window.driver.getLocalizedStrings()`)
 	};
 	return driver;
 }
@@ -90,6 +92,7 @@ function timeout(ms: number): Promise<void> {
 	return new Promise<void>(r => setTimeout(r, ms));
 }
 
+let port = 9000;
 let server: ChildProcess | undefined;
 let endpoint: string | undefined;
 let workspacePath: string | undefined;
@@ -108,21 +111,25 @@ export async function launch(userDataDir: string, _workspacePath: string, codeSe
 	const root = join(__dirname, '..', '..', '..');
 	const logsPath = join(root, '.build', 'logs', 'smoke-tests-browser');
 
-	const args = ['--browser', 'none', '--driver', 'web', '--extensions-dir', extPath];
+	const args = ['--port', `${port++}`, '--browser', 'none', '--driver', 'web', '--extensions-dir', extPath];
 
 	let serverLocation: string | undefined;
 	if (codeServerPath) {
 		serverLocation = join(codeServerPath, `server.${process.platform === 'win32' ? 'cmd' : 'sh'}`);
 		args.push(`--logsPath=${logsPath}`);
 
-		console.log(`Starting built server from '${serverLocation}'`);
-		console.log(`Storing log files into '${logsPath}'`);
+		if (verbose) {
+			console.log(`Starting built server from '${serverLocation}'`);
+			console.log(`Storing log files into '${logsPath}'`);
+		}
 	} else {
 		serverLocation = join(root, `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`);
 		args.push('--logsPath', logsPath);
 
-		console.log(`Starting server out of sources from '${serverLocation}'`);
-		console.log(`Storing log files into '${logsPath}'`);
+		if (verbose) {
+			console.log(`Starting server out of sources from '${serverLocation}'`);
+			console.log(`Storing log files into '${logsPath}'`);
+		}
 	}
 
 	server = spawn(

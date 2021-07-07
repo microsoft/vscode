@@ -7,7 +7,7 @@ import { renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, dispose, IDisposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
@@ -23,7 +23,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
 import { TestMessageSeverity, TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution } from 'vs/workbench/contrib/debug/common/debug';
 import { testingRunAllIcon, testingRunIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
@@ -31,11 +30,11 @@ import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browse
 import { testMessageSeverityColors } from 'vs/workbench/contrib/testing/browser/theme';
 import { DefaultGutterClickAction, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { labelForTestInState } from 'vs/workbench/contrib/testing/common/constants';
-import { IncrementalTestCollectionItem, InternalTestItem, IRichLocation, ITestMessage, TestDiffOpType, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { identifyTest, IncrementalTestCollectionItem, InternalTestItem, IRichLocation, ITestMessage, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { maxPriority } from 'vs/workbench/contrib/testing/common/testingStates';
 import { buildTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { IMainThreadTestCollection, ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { IMainThreadTestCollection, ITestService, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
 
 function isOriginalInDiffEditor(codeEditorService: ICodeEditorService, codeEditor: ICodeEditor): boolean {
 	const diffEditors = codeEditorService.listDiffEditors();
@@ -52,7 +51,6 @@ function isOriginalInDiffEditor(codeEditorService: ICodeEditorService, codeEdito
 const FONT_FAMILY_VAR = `--testMessageDecorationFontFamily`;
 
 export class TestingDecorations extends Disposable implements IEditorContribution {
-	private collection = this._register(new MutableDisposable<IReference<IMainThreadTestCollection>>());
 	private currentUri?: URI;
 	private lastDecorations: ITestDecoration[] = [];
 
@@ -122,7 +120,14 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 				this.setDecorations(this.currentUri);
 			}
 		}));
+
 		this._register(Event.any(this.results.onResultsChanged, this.testService.excludeTests.onDidChange)(() => {
+			if (this.currentUri) {
+				this.setDecorations(this.currentUri);
+			}
+		}));
+
+		this._register(this.testService.onDidProcessDiff(() => {
 			if (this.currentUri) {
 				this.setDecorations(this.currentUri);
 			}
@@ -137,54 +142,37 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 		this.currentUri = uri;
 
 		if (!uri) {
-			this.collection.value = undefined;
 			this.clearDecorations();
 			return;
 		}
 
-		this.collection.value = this.testService.subscribeToDiffs(ExtHostTestingResource.TextDocument, uri, diff => {
-			this.setDecorations(uri!);
-
-			for (const op of diff) {
-				switch (op[0]) {
-					case TestDiffOpType.Add:
-						if (!op[1].parent) {
-							this.collection.value?.object.expand(op[1].item.extId, Infinity);
-						}
-						break;
-					case TestDiffOpType.Remove:
-						TestingOutputPeekController.get(this.editor).removeIfPeekingForTest(op[1]);
-						break;
+		(async () => {
+			for await (const _test of testsInFile(this.testService.collection, uri)) {
+				// consume the iterator so that all tests in the file get expanded. Or
+				// at least until the URI changes. If new items are requested, changes
+				// will be trigged in the `onDidProcessDiff` callback.
+				if (this.currentUri !== uri) {
+					break;
 				}
 			}
-		});
-
-		for (const root of this.collection.value.object.rootIds) {
-			this.collection.value.object.expand(root, Infinity);
-		}
+		})();
 
 		this.setDecorations(uri);
 	}
 
 	private setDecorations(uri: URI): void {
-		const ref = this.collection.value;
-		if (!ref) {
-			return;
-		}
-
 		this.editor.changeDecorations(accessor => {
 			const newDecorations: ITestDecoration[] = [];
-			for (const test of ref.object.all) {
+			for (const test of this.testService.collection.all) {
 				const stateLookup = this.results.getStateById(test.item.extId);
-				if (test.item.range) {
+				if (test.item.range && test.item.uri?.toString() === uri.toString()) {
 					const line = test.item.range.startLineNumber;
 					const resultItem = stateLookup?.[1];
 					const existing = newDecorations.findIndex(d => d instanceof RunTestDecoration && d.line === line);
 					if (existing !== -1) {
-						newDecorations[existing] = (newDecorations[existing] as RunTestDecoration).merge(test, ref.object, resultItem);
+						newDecorations[existing] = (newDecorations[existing] as RunTestDecoration).merge(test, resultItem);
 					} else {
-						newDecorations.push(this.instantiationService.createInstance(
-							RunSingleTestDecoration, test, ref.object, this.editor, stateLookup?.[1]));
+						newDecorations.push(this.instantiationService.createInstance(RunSingleTestDecoration, test, this.editor, stateLookup?.[1]));
 					}
 				}
 
@@ -360,7 +348,7 @@ abstract class RunTestDecoration extends Disposable {
 	/**
 	 * Adds the test to this decoration.
 	 */
-	public abstract merge(other: IncrementalTestCollectionItem, collection: IMainThreadTestCollection, resultItem: TestResultItem | undefined): RunTestDecoration;
+	public abstract merge(other: IncrementalTestCollectionItem, resultItem: TestResultItem | undefined): RunTestDecoration;
 
 	/**
 	 * Called when the decoration is clicked on.
@@ -417,14 +405,14 @@ abstract class RunTestDecoration extends Disposable {
 		if (test.item.runnable) {
 			testActions.push(new Action('testing.gutter.run', localize('run test', 'Run Test'), undefined, undefined, () => this.testService.runTests({
 				debug: false,
-				tests: [{ src: test.src, testId: test.item.extId }],
+				tests: [identifyTest(test)],
 			})));
 		}
 
 		if (test.item.debuggable) {
 			testActions.push(new Action('testing.gutter.debug', localize('debug test', 'Debug Test'), undefined, undefined, () => this.testService.runTests({
 				debug: true,
-				tests: [{ src: test.src, testId: test.item.extId }],
+				tests: [identifyTest(test)],
 			})));
 		}
 
@@ -451,7 +439,6 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 	constructor(
 		private readonly tests: {
 			test: IncrementalTestCollectionItem,
-			collection: IMainThreadTestCollection,
 			resultItem: TestResultItem | undefined,
 		}[],
 		editor: ICodeEditor,
@@ -463,8 +450,8 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 		super(createRunTestDecoration(tests.map(t => t.test), tests.map(t => t.resultItem)), editor, testService, contextMenuService, commandService, configurationService);
 	}
 
-	public override merge(test: IncrementalTestCollectionItem, collection: IMainThreadTestCollection, resultItem: TestResultItem | undefined): RunTestDecoration {
-		this.tests.push({ collection, test, resultItem });
+	public override merge(test: IncrementalTestCollectionItem, resultItem: TestResultItem | undefined): RunTestDecoration {
+		this.tests.push({ test, resultItem });
 		this.editorDecoration = createRunTestDecoration(this.tests.map(t => t.test), this.tests.map(t => t.resultItem));
 		return this;
 	}
@@ -479,8 +466,8 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 			allActions.push(new Action('testing.gutter.debugAll', localize('debug all test', 'Debug All Tests'), undefined, undefined, () => this.defaultDebug()));
 		}
 
-		const testSubmenus = this.tests.map(({ collection, test }) =>
-			new SubmenuAction(test.item.extId, test.item.label, this.getTestContextMenuActions(collection, test)));
+		const testSubmenus = this.tests.map(({ test }) =>
+			new SubmenuAction(test.item.extId, test.item.label, this.getTestContextMenuActions(this.testService.collection, test)));
 
 		return Separator.join(allActions, testSubmenus);
 	}
@@ -489,7 +476,7 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 		return this.testService.runTests({
 			tests: this.tests
 				.filter(({ test }) => test.item.runnable)
-				.map(({ test }) => ({ testId: test.item.extId, src: test.src })),
+				.map(({ test }) => identifyTest(test)),
 			debug: false,
 		});
 	}
@@ -498,7 +485,7 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 		return this.testService.runTests({
 			tests: this.tests
 				.filter(({ test }) => test.item.debuggable)
-				.map(({ test }) => ({ testId: test.item.extId, src: test.src })),
+				.map(({ test }) => identifyTest(test)),
 			debug: true,
 		});
 	}
@@ -507,7 +494,6 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 class RunSingleTestDecoration extends RunTestDecoration implements ITestDecoration {
 	constructor(
 		private readonly test: IncrementalTestCollectionItem,
-		private readonly collection: IMainThreadTestCollection,
 		editor: ICodeEditor,
 		private readonly resultItem: TestResultItem | undefined,
 		@ITestService testService: ITestService,
@@ -518,15 +504,15 @@ class RunSingleTestDecoration extends RunTestDecoration implements ITestDecorati
 		super(createRunTestDecoration([test], [resultItem]), editor, testService, contextMenuService, commandService, configurationService);
 	}
 
-	public override merge(test: IncrementalTestCollectionItem, collection: IMainThreadTestCollection, resultItem: TestResultItem | undefined): RunTestDecoration {
+	public override merge(test: IncrementalTestCollectionItem, resultItem: TestResultItem | undefined): RunTestDecoration {
 		return new MultiRunTestDecoration([
-			{ collection: this.collection, test: this.test, resultItem: this.resultItem },
-			{ collection, test, resultItem },
+			{ test: this.test, resultItem: this.resultItem },
+			{ test, resultItem },
 		], this.editor, this.testService, this.commandService, this.contextMenuService, this.configurationService);
 	}
 
 	protected override getContextMenuActions(e: IEditorMouseEvent) {
-		return this.getTestContextMenuActions(this.collection, this.test);
+		return this.getTestContextMenuActions(this.testService.collection, this.test);
 	}
 
 	protected override defaultRun() {
@@ -535,7 +521,7 @@ class RunSingleTestDecoration extends RunTestDecoration implements ITestDecorati
 		}
 
 		return this.testService.runTests({
-			tests: [{ testId: this.test.item.extId, src: this.test.src }],
+			tests: [identifyTest(this.test)],
 			debug: false,
 		});
 	}
@@ -546,7 +532,7 @@ class RunSingleTestDecoration extends RunTestDecoration implements ITestDecorati
 		}
 
 		return this.testService.runTests({
-			tests: [{ testId: this.test.item.extId, src: this.test.src }],
+			tests: [identifyTest(this.test)],
 			debug: true,
 		});
 	}

@@ -167,6 +167,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			'notebook-markdown-min-height': `${this.options.previewNodePadding * 2}px`,
 			'notebook-cell-output-font-size': `${this.options.fontSize}px`,
 			'notebook-cell-markup-empty-content': nls.localize('notebook.emptyMarkdownPlaceholder', "Empty markdown cell, double click or press enter to edit."),
+			'notebook-cell-renderer-not-found-error': nls.localize({
+				key: 'notebook.error.rendererNotFound',
+				comment: ['$0 is a placeholder for the mime type']
+			}, "No renderer found for '$0' a"),
 		};
 	}
 
@@ -246,7 +250,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					}
 
 					#container > div > div:not(.preview) > div {
-						overflow-x: scroll;
+						overflow-x: auto;
+					}
+
+					#container .no-renderer-error {
+						color: var(--vscode-editorError-foreground);
 					}
 
 					body {
@@ -590,7 +598,7 @@ var requirejs = (function() {
 				case 'toggleMarkupPreview':
 					{
 						const cell = this.notebookEditor.getCellById(data.cellId);
-						if (cell) {
+						if (cell && !this.notebookEditor.creationOptions.isReadOnly) {
 							this.notebookEditor.setMarkupCellEditState(data.cellId, CellEditState.Editing);
 							this.notebookEditor.focusNotebookCell(cell, 'editor', { skipReveal: true });
 						}

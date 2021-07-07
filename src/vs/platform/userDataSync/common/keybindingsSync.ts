@@ -311,10 +311,10 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		} catch (e) {
 			this.logService.error(e);
 		}
-		if (!this.syncKeybindingsPerPlatform()) {
-			parsed.all = keybindingsContent;
-		} else {
+		if (this.syncKeybindingsPerPlatform()) {
 			delete parsed.all;
+		} else {
+			parsed.all = keybindingsContent;
 		}
 		switch (OS) {
 			case OperatingSystem.Macintosh:

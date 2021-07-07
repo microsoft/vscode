@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nsfw from 'nsfw';
-import * as glob from 'vs/base/common/glob';
+import { ParsedPattern, parse } from 'vs/base/common/glob';
 import { join } from 'vs/base/common/path';
 import { isMacintosh } from 'vs/base/common/platform';
 import { isEqualOrParent } from 'vs/base/common/extpath';
@@ -22,15 +22,15 @@ nsfwActionToRawChangeType[nsfw.actions.CREATED] = FileChangeType.ADDED;
 nsfwActionToRawChangeType[nsfw.actions.MODIFIED] = FileChangeType.UPDATED;
 nsfwActionToRawChangeType[nsfw.actions.DELETED] = FileChangeType.DELETED;
 
-interface IWatcherObjet {
+interface IWatcher {
 	start(): void;
 	stop(): void;
 }
 
 interface IPathWatcher {
-	ready: Promise<IWatcherObjet>;
-	watcher?: IWatcherObjet;
-	ignored: glob.ParsedPattern[];
+	readonly ready: Promise<IWatcher>;
+	watcher?: IWatcher;
+	ignored: ParsedPattern[];
 }
 
 export class NsfwWatcherService extends Disposable implements IWatcherService {
@@ -47,8 +47,24 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 	private verboseLogging: boolean | undefined;
 	private enospcErrorLogged: boolean | undefined;
 
+	constructor() {
+		super();
+
+		process.on('uncaughtException', (e: Error | string) => {
+			// Specially handle ENOSPC errors that can happen when
+			// the watcher consumes so many file descriptors that
+			// we are running into a limit. We only want to warn
+			// once in this case to avoid log spam.
+			// See https://github.com/microsoft/vscode/issues/7950
+			if (e === 'Inotify limit reached' && !this.enospcErrorLogged) {
+				this.enospcErrorLogged = true;
+				this.error('Inotify limit reached (ENOSPC)');
+			}
+		});
+	}
+
 	async setRoots(roots: IWatcherRequest[]): Promise<void> {
-		const normalizedRoots = this._normalizeRoots(roots);
+		const normalizedRoots = this.normalizeRoots(roots);
 
 		// Gather roots that are not currently being watched
 		const rootsToStartWatching = normalizedRoots.filter(root => {
@@ -61,47 +77,34 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 		});
 
 		// Logging
-		this.debug(`Start watching: [${rootsToStartWatching.map(root => root.path).join(',')}]\nStop watching: [${rootsToStopWatching.join(',')}]`);
+		this.debug(`Start watching: ${rootsToStartWatching.map(root => `${root.path} (excludes: ${root.excludes})`).join(',')}`);
+		this.debug(`Stop watching: ${rootsToStopWatching.join(',')}`);
 
 		// Stop watching some roots
-		rootsToStopWatching.forEach(root => {
+		for (const root of rootsToStopWatching) {
 			this.pathWatchers[root].ready.then(watcher => watcher.stop());
 			delete this.pathWatchers[root];
-		});
+		}
 
 		// Start watching some roots
-		rootsToStartWatching.forEach(root => this.doWatch(root));
+		for (const root of rootsToStartWatching) {
+			this.doWatch(root);
+		}
 
 		// Refresh ignored arrays in case they changed
-		roots.forEach(root => {
+		for (const root of roots) {
 			if (root.path in this.pathWatchers) {
-				this.pathWatchers[root.path].ignored = Array.isArray(root.excludes) ? root.excludes.map(ignored => glob.parse(ignored)) : [];
+				this.pathWatchers[root.path].ignored = Array.isArray(root.excludes) ? root.excludes.map(ignored => parse(ignored)) : [];
 			}
-		});
+		}
 	}
 
 	private doWatch(request: IWatcherRequest): void {
-		let undeliveredFileEvents: IDiskFileChange[] = [];
-		const fileEventDelayer = new ThrottledDelayer<void>(NsfwWatcherService.FS_EVENT_DELAY);
-
-		let readyPromiseResolve: (watcher: IWatcherObjet) => void;
+		let readyPromiseResolve: (watcher: IWatcher) => void;
 		this.pathWatchers[request.path] = {
-			ready: new Promise<IWatcherObjet>(resolve => readyPromiseResolve = resolve),
-			ignored: Array.isArray(request.excludes) ? request.excludes.map(ignored => glob.parse(ignored)) : []
+			ready: new Promise<IWatcher>(resolve => readyPromiseResolve = resolve),
+			ignored: Array.isArray(request.excludes) ? request.excludes.map(ignored => parse(ignored)) : []
 		};
-
-		process.on('uncaughtException', (e: Error | string) => {
-
-			// Specially handle ENOSPC errors that can happen when
-			// the watcher consumes so many file descriptors that
-			// we are running into a limit. We only want to warn
-			// once in this case to avoid log spam.
-			// See https://github.com/microsoft/vscode/issues/7950
-			if (e === 'Inotify limit reached' && !this.enospcErrorLogged) {
-				this.enospcErrorLogged = true;
-				this.error('Inotify limit reached (ENOSPC)');
-			}
-		});
 
 		// NSFW does not report file changes in the path provided on macOS if
 		// - the path uses wrong casing
@@ -133,25 +136,31 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 
 		this.debug(`Start watching with nsfw: ${request.path}`);
 
+		let undeliveredFileEvents: IDiskFileChange[] = [];
+		const fileEventDelayer = new ThrottledDelayer<void>(NsfwWatcherService.FS_EVENT_DELAY);
+
 		nsfw(request.path, events => {
 			for (const e of events) {
+
 				// Logging
 				if (this.verboseLogging) {
 					const logPath = e.action === nsfw.actions.RENAMED ? join(e.directory, e.oldFile || '') + ' -> ' + e.newFile : join(e.directory, e.file || '');
 					this.log(`${e.action === nsfw.actions.CREATED ? '[CREATED]' : e.action === nsfw.actions.DELETED ? '[DELETED]' : e.action === nsfw.actions.MODIFIED ? '[CHANGED]' : '[RENAMED]'} ${logPath}`);
 				}
 
-				// Convert nsfw event to IRawFileChange and add to queue
+				// Convert nsfw event to `IRawFileChange` and add to queue
 				let absolutePath: string;
 				if (e.action === nsfw.actions.RENAMED) {
-					// Rename fires when a file's name changes within a single directory
-					absolutePath = join(e.directory, e.oldFile || '');
+					absolutePath = join(e.directory, e.oldFile || ''); // Rename fires when a file's name changes within a single directory
+
 					if (!this.isPathIgnored(absolutePath, this.pathWatchers[request.path].ignored)) {
 						undeliveredFileEvents.push({ type: FileChangeType.DELETED, path: absolutePath });
 					} else if (this.verboseLogging) {
 						this.log(` >> ignored ${absolutePath}`);
 					}
+
 					absolutePath = join(e.newDirectory || e.directory, e.newFile || '');
+
 					if (!this.isPathIgnored(absolutePath, this.pathWatchers[request.path].ignored)) {
 						undeliveredFileEvents.push({ type: FileChangeType.ADDED, path: absolutePath });
 					} else if (this.verboseLogging) {
@@ -159,6 +168,7 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 					}
 				} else {
 					absolutePath = join(e.directory, e.file || '');
+
 					if (!this.isPathIgnored(absolutePath, this.pathWatchers[request.path].ignored)) {
 						undeliveredFileEvents.push({
 							type: nsfwActionToRawChangeType[e.action],
@@ -176,7 +186,7 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 				undeliveredFileEvents = [];
 
 				if (isMacintosh) {
-					events.forEach(e => {
+					for (const e of events) {
 
 						// Mac uses NFD unicode form on disk, but we want NFC
 						e.path = normalizeNFC(e.path);
@@ -185,7 +195,7 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 						if (realBasePathDiffers) {
 							e.path = request.path + e.path.substr(realBasePathLength);
 						}
-					});
+					}
 				}
 
 				// Broadcast to clients normalized
@@ -194,9 +204,9 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 
 				// Logging
 				if (this.verboseLogging) {
-					normalizedEvents.forEach(e => {
+					for (const e of normalizedEvents) {
 						this.log(` >> normalized ${e.type === FileChangeType.ADDED ? '[ADDED]' : e.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${e.path}`);
-					});
+					}
 				}
 			});
 		}).then(watcher => {
@@ -216,21 +226,22 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 		for (let path in this.pathWatchers) {
 			let watcher = this.pathWatchers[path];
 			watcher.ready.then(watcher => watcher.stop());
+
 			delete this.pathWatchers[path];
 		}
 
 		this.pathWatchers = Object.create(null);
 	}
 
-	protected _normalizeRoots(roots: IWatcherRequest[]): IWatcherRequest[] {
+	protected normalizeRoots(roots: IWatcherRequest[]): IWatcherRequest[] {
 		// Normalizes a set of root paths by removing any root paths that are
 		// sub-paths of other roots.
-		return roots.filter(r => roots.every(other => {
-			return !(r.path.length > other.path.length && isEqualOrParent(r.path, other.path));
+		return roots.filter(root => roots.every(otherRoot => {
+			return !(root.path.length > otherRoot.path.length && isEqualOrParent(root.path, otherRoot.path));
 		}));
 	}
 
-	private isPathIgnored(absolutePath: string, ignored: glob.ParsedPattern[]): boolean {
+	private isPathIgnored(absolutePath: string, ignored: ParsedPattern[]): boolean {
 		return ignored && ignored.some(ignore => ignore(absolutePath));
 	}
 

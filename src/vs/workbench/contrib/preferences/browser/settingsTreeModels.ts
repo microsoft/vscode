@@ -248,6 +248,8 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			}
 		} else if (isObjectSetting(this.setting)) {
 			this.valueType = SettingValueType.Object;
+		} else if (this.setting.allKeysAreBoolean) {
+			this.valueType = SettingValueType.BooleanObject;
 		} else {
 			this.valueType = SettingValueType.Complex;
 		}

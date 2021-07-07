@@ -30,25 +30,27 @@ export function setup(opts: minimist.ParsedArgs) {
 		it(`starts with 'DE' locale and verifies title and viewlets text is in German`, async function () {
 			const app = this.app as Application;
 
+			const result = await app.workbench.localization.getLocalizedStrings();
 			if (app.quality === Quality.Dev || app.remote) {
-				this.skip();
+				if (result.open !== 'open' || result.close !== 'close' || result.find !== 'find') {
+					throw new Error(`Received wrong localized strings: ${JSON.stringify(result, undefined, 0)}`);
+				}
 				return;
+			} else {
+				// todo@dirkb enable after 1.58 has shipped.
+				// const localeInfo = await app.workbench.localization.getLocaleInfo();
+				// if (localeInfo.locale === undefined || localeInfo.locale.toLowerCase() !== 'de') {
+				// 	throw new Error(`The requested locale for VS Code was not German. The received value is: ${localeInfo.locale === undefined ? 'not set' : localeInfo.locale}`);
+				// }
+
+				// if (localeInfo.language.toLowerCase() !== 'de') {
+				// 	throw new Error(`The UI language is not German. It is ${localeInfo.language}`);
+				// }
+
+				if (result.open.toLowerCase() !== 'öffnen' || result.close.toLowerCase() !== 'schließen' || result.find.toLowerCase() !== 'finden') {
+					throw new Error(`Received wrong German localized strings: ${JSON.stringify(result, undefined, 0)}`);
+				}
 			}
-
-			// await app.workbench.explorer.waitForOpenEditorsViewTitle(title => /geöffnete editoren/i.test(title));
-
-			await app.workbench.search.openSearchViewlet();
-			await app.workbench.search.waitForTitle(title => /suchen/i.test(title));
-
-			// await app.workbench.scm.openSCMViewlet();
-			// await app.workbench.scm.waitForTitle(title => /quellcodeverwaltung/i.test(title));
-
-			// See https://github.com/microsoft/vscode/issues/93462
-			// await app.workbench.debug.openDebugViewlet();
-			// await app.workbench.debug.waitForTitle(title => /starten/i.test(title));
-
-			// await app.workbench.extensions.openExtensionsViewlet();
-			// await app.workbench.extensions.waitForTitle(title => /extensions/i.test(title));
 		});
 	});
 }

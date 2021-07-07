@@ -129,7 +129,7 @@
 }
 
 .scm-view .monaco-list-row .resource > .name > .monaco-icon-label::after {
-	padding-right: 3px;
+	margin-right: 3px;
 }
 
 .scm-view .monaco-list-row .resource > .name.strike-through > .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-name-container > .label-name {

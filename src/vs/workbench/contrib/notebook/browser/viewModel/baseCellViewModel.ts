@@ -48,6 +48,10 @@ export abstract class BaseCellViewModel extends Disposable {
 	}
 
 	get mime(): string {
+		if (typeof this.model.mime === 'string') {
+			return this.model.mime;
+		}
+
 		switch (this.language) {
 			case 'markdown':
 				return Mimes.markdown;

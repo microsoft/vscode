@@ -38,6 +38,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IsMacNativeContext, IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { TerminalContextKey } from 'vs/platform/terminal/common/terminalContextKey';
 
 export type IOpenRecentAction = IAction & { uri: URI, remoteAuthority?: string };
 
@@ -99,7 +100,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
 		mnemonicTitle: localize({ key: 'mTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal")
 	},
 	order: 7,
-	when: ContextKeyExpr.has('terminalProcessSupported')
+	when: ContextKeyExpr.has(TerminalContextKey.TerminalProcessSupported)
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
@@ -133,11 +134,14 @@ export abstract class MenubarControl extends Disposable {
 		'window.nativeTabs'
 	];
 
+	protected mainMenu: IMenu;
 	protected menus: {
 		[index: string]: IMenu | undefined;
 	} = {};
 
 	protected topLevelTitles: { [menu: string]: string } = {};
+
+	protected mainMenuDisposables: DisposableStore;
 
 	protected recentlyOpened: IRecentlyOpened = { files: [], workspaces: [] };
 
@@ -164,29 +168,10 @@ export abstract class MenubarControl extends Disposable {
 
 		super();
 
-		const mainMenu = this._register(this.menuService.createMenu(MenuId.MenubarMainMenu, this.contextKeyService));
-		const mainMenuDisposables = this._register(new DisposableStore());
+		this.mainMenu = this._register(this.menuService.createMenu(MenuId.MenubarMainMenu, this.contextKeyService));
+		this.mainMenuDisposables = this._register(new DisposableStore());
 
-		const setupMenu = () => {
-			mainMenuDisposables.clear();
-			this.menus = {};
-			this.topLevelTitles = {};
-
-			const [, mainMenuActions] = mainMenu.getActions()[0];
-			for (const mainMenuAction of mainMenuActions) {
-				if (mainMenuAction instanceof SubmenuItemAction && typeof mainMenuAction.item.title !== 'string') {
-					this.menus[mainMenuAction.item.title.original] = mainMenuDisposables.add(this.menuService.createMenu(mainMenuAction.item.submenu, this.contextKeyService));
-					this.topLevelTitles[mainMenuAction.item.title.original] = mainMenuAction.item.title.mnemonicTitle ?? mainMenuAction.item.title.value;
-				}
-			}
-		};
-
-		setupMenu();
-
-		mainMenu.onDidChange(() => {
-			setupMenu();
-			this.doUpdateMenubar(true);
-		});
+		this.setupMainMenu();
 
 		this.menuUpdater = this._register(new RunOnceScheduler(() => this.doUpdateMenubar(false), 200));
 
@@ -213,6 +198,23 @@ export abstract class MenubarControl extends Disposable {
 
 		// Update recent menu items on formatter registration
 		this._register(this.labelService.onDidChangeFormatters(() => { this.onDidChangeRecentlyOpened(); }));
+
+		// Listen for changes on the main menu
+		this._register(this.mainMenu.onDidChange(() => { this.setupMainMenu(); this.doUpdateMenubar(true); }));
+	}
+
+	protected setupMainMenu(): void {
+		this.mainMenuDisposables.clear();
+		this.menus = {};
+		this.topLevelTitles = {};
+
+		const [, mainMenuActions] = this.mainMenu.getActions()[0];
+		for (const mainMenuAction of mainMenuActions) {
+			if (mainMenuAction instanceof SubmenuItemAction && typeof mainMenuAction.item.title !== 'string') {
+				this.menus[mainMenuAction.item.title.original] = this.mainMenuDisposables.add(this.menuService.createMenu(mainMenuAction.item.submenu, this.contextKeyService));
+				this.topLevelTitles[mainMenuAction.item.title.original] = mainMenuAction.item.title.mnemonicTitle ?? mainMenuAction.item.title.value;
+			}
+		}
 	}
 
 	protected updateMenubar(): void {
@@ -693,7 +695,7 @@ export class CustomMenubarControl extends MenubarControl {
 					if (action instanceof SubmenuItemAction) {
 						let submenu = this.menus[action.item.submenu.id];
 						if (!submenu) {
-							submenu = this.menus[action.item.submenu.id] = this.menuService.createMenu(action.item.submenu, this.contextKeyService);
+							submenu = this._register(this.menus[action.item.submenu.id] = this.menuService.createMenu(action.item.submenu, this.contextKeyService));
 							this._register(submenu.onDidChange(() => {
 								if (!this.focusInsideMenubar) {
 									const actions: IAction[] = [];

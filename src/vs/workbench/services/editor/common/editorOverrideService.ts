@@ -12,12 +12,11 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorInputWithOptions, IEditorInputWithOptionsAndGroup, IResourceDiffEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInputWithOptions, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 
 export const IEditorOverrideService = createDecorator<IEditorOverrideService>('editorOverrideService');
 
@@ -33,12 +32,6 @@ export type EditorAssociation = {
 export type EditorAssociations = readonly EditorAssociation[];
 
 export const editorsAssociationsSettingId = 'workbench.editorAssociations';
-
-export const DEFAULT_EDITOR_ASSOCIATION: IEditorType = {
-	id: 'default',
-	displayName: localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
-	providerDisplayName: localize('builtinProviderDisplayName', "Built-in")
-};
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -82,7 +75,7 @@ export const enum OverrideStatus {
 	NONE = 2,
 }
 
-export type ReturnedOverride = IEditorInputWithOptionsAndGroup | OverrideStatus;
+export type ReturnedOverride = IEditorInputWithOptions | OverrideStatus;
 
 export type RegisteredEditorOptions = {
 	/**
@@ -108,9 +101,11 @@ export type RegisteredEditorInfo = {
 	priority: RegisteredEditorPriority;
 };
 
-export type EditorInputFactoryFunction = (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup) => IEditorInputWithOptions;
+export type EditorInputFactoryFunction = (editorInput: IResourceEditorInput | ITextResourceEditorInput, group: IEditorGroup) => IEditorInputWithOptions;
 
-export type DiffEditorInputFactoryFunction = (diffEditorInput: IResourceDiffEditorInput, options: IEditorOptions | undefined, group: IEditorGroup) => IEditorInputWithOptions;
+export type UntitledEditorInputFactoryFunction = (untitledEditorInput: IUntitledTextResourceEditorInput, group: IEditorGroup) => IEditorInputWithOptions;
+
+export type DiffEditorInputFactoryFunction = (diffEditorInput: IResourceDiffEditorInput, group: IEditorGroup) => IEditorInputWithOptions;
 
 export interface IEditorOverrideService {
 	readonly _serviceBrand: undefined;
@@ -140,17 +135,26 @@ export interface IEditorOverrideService {
 		editorInfo: RegisteredEditorInfo,
 		options: RegisteredEditorOptions,
 		createEditorInput: EditorInputFactoryFunction,
+		createUntitledEditorInput?: UntitledEditorInputFactoryFunction | undefined,
 		createDiffEditorInput?: DiffEditorInputFactoryFunction
 	): IDisposable;
+
+	/**
+	 * Populates the override field of the untyped editor input
+	 * @param editor The editor input
+	 * @returns If one is populated whether or not there was a conflicting default, else undefined
+	 */
+	populateEditorId(editor: IUntypedEditorInput): Promise<{ conflictingDefault: boolean } | undefined>
 
 	/**
 	 * Given an editor determines if there's a suitable override for it, if so returns an IEditorInputWithOptions for opening
 	 * @param editor The editor to override
 	 * @param options The current options for the editor
 	 * @param group The current group
+	 * @param conflictingDefault Whether or not to show the conflicting default prompt
 	 * @returns An IEditorInputWithOptionsAndGroup if there is an available override or a status of how to proceed
 	 */
-	resolveEditorOverride(editor: IResourceEditorInputType, options: IEditorOptions | undefined, group: IEditorGroup): Promise<ReturnedOverride>;
+	resolveEditorInput(editor: IUntypedEditorInput, group: IEditorGroup, conflictingDefault?: boolean): Promise<ReturnedOverride>;
 
 	/**
 	 * Given a resource returns all the editor ids that match that resource
@@ -183,7 +187,8 @@ export function globMatchesResource(globPattern: string | glob.IRelativePattern,
 		Schemas.extension,
 		Schemas.webviewPanel,
 		Schemas.vscodeWorkspaceTrust,
-		Schemas.walkThrough
+		Schemas.walkThrough,
+		Schemas.vscodeSettings
 	]);
 	// We want to say that the above schemes match no glob patterns
 	if (excludedSchemes.has(resource.scheme)) {

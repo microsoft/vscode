@@ -12,8 +12,17 @@ import { Range } from 'vs/editor/common/core/range';
 import { localize } from 'vs/nls';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
+import { IObservableValue, MutableObservableValue, staticObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { ExtensionRunTestsRequest, ISerializedTestResults, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, RunTestsRequest, TestIdPath, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { maxPriority, statesInOrder } from 'vs/workbench/contrib/testing/common/testingStates';
+
+export interface ITestRunTaskWithCoverage extends ITestRunTask {
+	/**
+	 * Contains test coverage for the result, if it's available.
+	 */
+	readonly coverage: IObservableValue<TestCoverage | undefined>;
+}
 
 export interface ITestResult {
 	/**
@@ -50,7 +59,7 @@ export interface ITestResult {
 	/**
 	 * List of this result's subtasks.
 	 */
-	tasks: ReadonlyArray<ITestRunTask>;
+	tasks: ReadonlyArray<ITestRunTaskWithCoverage>;
 
 	/**
 	 * Gets the state of the test by its extension-assigned ID.
@@ -208,8 +217,9 @@ interface TestResultItemWithChildren extends TestResultItem {
 	children: TestResultItemWithChildren[];
 }
 
-const itemToNode = (item: ITestItem, parent: string | null): TestResultItemWithChildren => ({
+const itemToNode = (controllerId: string, item: ITestItem, parent: string | null): TestResultItemWithChildren => ({
 	parent,
+	controllerId,
 	item: { ...item },
 	children: [],
 	tasks: [],
@@ -242,7 +252,7 @@ export class LiveTestResult implements ITestResult {
 
 	public readonly onChange = this.changeEmitter.event;
 	public readonly onComplete = this.completeEmitter.event;
-	public readonly tasks: ITestRunTask[] = [];
+	public readonly tasks: ITestRunTaskWithCoverage[] = [];
 	public readonly name = localize('runFinished', 'Test run at {0}', new Date().toLocaleString());
 
 	/**
@@ -322,7 +332,7 @@ export class LiveTestResult implements ITestResult {
 	 */
 	public addTask(task: ITestRunTask) {
 		const index = this.tasks.length;
-		this.tasks.push(task);
+		this.tasks.push({ ...task, coverage: new MutableObservableValue(undefined) });
 
 		for (const test of this.tests) {
 			test.tasks.push({ duration: undefined, messages: [], state: TestResultState.Unset });
@@ -334,14 +344,14 @@ export class LiveTestResult implements ITestResult {
 	 * Add the chain of tests to the run. The first test in the chain should
 	 * be either a test root, or a previously-known test.
 	 */
-	public addTestChainToRun(chain: ReadonlyArray<ITestItem>) {
+	public addTestChainToRun(controllerId: string, chain: ReadonlyArray<ITestItem>) {
 		let parent = this.testById.get(chain[0].extId);
 		if (!parent) { // must be a test root
-			parent = this.addTestToRun(chain[0], null);
+			parent = this.addTestToRun(controllerId, chain[0], null);
 		}
 
 		for (let i = 1; i < chain.length; i++) {
-			parent = this.addTestToRun(chain[i], parent.item.extId);
+			parent = this.addTestToRun(controllerId, chain[i], parent.item.extId);
 		}
 
 		for (let i = 0; i < this.tasks.length; i++) {
@@ -492,8 +502,8 @@ export class LiveTestResult implements ITestResult {
 		);
 	}
 
-	private addTestToRun(item: ITestItem, parent: string | null) {
-		const node = itemToNode(item, parent);
+	private addTestToRun(controllerId: string, item: ITestItem, parent: string | null) {
+		const node = itemToNode(controllerId, item, parent);
 		node.direct = this.includedIds.has(item.extId);
 		this.testById.set(item.extId, node);
 		this.counts[TestResultState.Unset]++;
@@ -556,7 +566,7 @@ export class HydratedTestResult implements ITestResult {
 	/**
 	 * @inheritdoc
 	 */
-	public readonly tasks: ITestRunTask[];
+	public readonly tasks: ITestRunTaskWithCoverage[];
 
 	/**
 	 * @inheritdoc
@@ -579,7 +589,7 @@ export class HydratedTestResult implements ITestResult {
 	) {
 		this.id = serialized.id;
 		this.completedAt = serialized.completedAt;
-		this.tasks = serialized.tasks;
+		this.tasks = serialized.tasks.map(task => ({ ...task, coverage: staticObservableValue(undefined) }));
 		this.name = serialized.name;
 
 		for (const item of serialized.items) {

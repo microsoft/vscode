@@ -10,8 +10,8 @@ import { equals } from 'vs/base/common/objects';
 import { EventType, EventHelper, addDisposableListener, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { Separator } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
-import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput } from 'vs/workbench/common/editor';
-import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
+import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WindowMinimumSize, IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
@@ -519,18 +519,20 @@ export class NativeWindow extends Disposable {
 					}
 				}
 
-				// Assume `uri` this is a workspace uri, let's see if we can handle it
-				await this.fileService.activateProvider(uri.scheme);
+				if (!options?.openExternal) {
+					// Assume `uri` this is a workspace uri, let's see if we can handle it
+					await this.fileService.activateProvider(uri.scheme);
 
-				if (this.fileService.canHandleResource(uri)) {
-					return {
-						resolved: URI.from({
-							scheme: this.productService.urlProtocol,
-							path: 'workspace',
-							query: uri.toString()
-						}),
-						dispose() { }
-					};
+					if (this.fileService.canHandleResource(uri)) {
+						return {
+							resolved: URI.from({
+								scheme: this.productService.urlProtocol,
+								path: 'workspace',
+								query: uri.toString()
+							}),
+							dispose() { }
+						};
+					}
 				}
 
 				return undefined;
@@ -629,7 +631,7 @@ export class NativeWindow extends Disposable {
 	}
 
 	private async onOpenFiles(request: INativeOpenFileRequest): Promise<void> {
-		const inputs: IResourceEditorInputType[] = [];
+		const inputs: IUntypedEditorInput[] = [];
 		const diffMode = !!(request.filesToDiff && (request.filesToDiff.length === 2));
 
 		if (!diffMode && request.filesToOpenOrCreate) {
@@ -667,8 +669,8 @@ export class NativeWindow extends Disposable {
 		// In diffMode we open 2 resources as diff
 		if (diffMode && resources.length === 2 && resources[0].resource && resources[1].resource) {
 			const diffEditor: IResourceDiffEditorInput = {
-				originalInput: { resource: resources[0].resource },
-				modifiedInput: { resource: resources[1].resource },
+				original: { resource: resources[0].resource },
+				modified: { resource: resources[1].resource },
 				options: { pinned: true }
 			};
 			editors.push(diffEditor);

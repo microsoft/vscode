@@ -324,7 +324,9 @@ export class StatefulMarkdownCell extends Disposable {
 					height: editorHeight
 				},
 				// overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
-			}, {}));
+			}, {
+				contributions: this.notebookEditor.creationOptions.cellEditorContributions
+			}));
 			this.templateData.currentEditor = this.editor;
 
 			const cts = new CancellationTokenSource();

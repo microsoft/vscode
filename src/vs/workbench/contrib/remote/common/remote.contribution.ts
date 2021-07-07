@@ -133,7 +133,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			'remote.autoForwardPorts': {
 				type: 'boolean',
-				markdownDescription: localize('remote.autoForwardPorts', "When enabled, new running processes are detected and ports that they listen on are automatically forwarded."),
+				markdownDescription: localize('remote.autoForwardPorts', "When enabled, new running processes are detected and ports that they listen on are automatically forwarded. Disabling this setting will not prevent all ports from being forwarded. Even when disabled, extensions will still be able to cause ports to be forwarded, and opening some URLs will still cause ports to forwarded."),
 				default: true
 			},
 			'remote.autoForwardPortsSource': {
@@ -158,10 +158,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 						properties: {
 							'onAutoForward': {
 								type: 'string',
-								enum: ['notify', 'openBrowser', 'openPreview', 'silent', 'ignore'],
+								enum: ['notify', 'openBrowser', 'openBrowserOnce', 'openPreview', 'silent', 'ignore'],
 								enumDescriptions: [
 									localize('remote.portsAttributes.notify', "Shows a notification when a port is automatically forwarded."),
 									localize('remote.portsAttributes.openBrowser', "Opens the browser when the port is automatically forwarded. Depending on your settings, this could open an embedded browser."),
+									localize('remote.portsAttributes.openBrowserOnce', "Opens the browser when the port is automatically forwarded, but only the first time the port is forward during a session. Depending on your settings, this could open an embedded browser."),
 									localize('remote.portsAttributes.openPreview', "Opens a preview in the same window when the port is automatically forwarded."),
 									localize('remote.portsAttributes.silent', "Shows no notification and takes no action when this port is automatically forwarded."),
 									localize('remote.portsAttributes.ignore', "This port will not be automatically forwarded.")

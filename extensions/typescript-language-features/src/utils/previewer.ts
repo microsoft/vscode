@@ -139,10 +139,19 @@ function convertLinkTags(
 								fragment: `L${currentLink.target.start.line},${currentLink.target.start.offset}`
 							});
 
-						out.push(`[${text}](${link.toString(true)})`);
+						out.push(`[${text}](${link.toString()})`);
 					} else {
 						if (text) {
-							out.push(text);
+							if (/^https?:/.test(text)) {
+								const parts = text.split(' ');
+								if (parts.length === 1) {
+									out.push(parts[0]);
+								} else if (parts.length > 1) {
+									out.push(`[${parts.slice(1).join(' ')}](${parts[0]})`);
+								}
+							} else {
+								out.push(text);
+							}
 						}
 					}
 					currentLink = undefined;

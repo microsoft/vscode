@@ -6,6 +6,7 @@
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
 import { InlineCompletionsProvider, InlineCompletion, InlineCompletionContext } from 'vs/editor/common/modes';
@@ -13,16 +14,17 @@ import { GhostText, GhostTextWidgetModel } from 'vs/editor/contrib/inlineComplet
 import { ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
-export function renderGhostTextToText(ghostText: GhostText, text: string): string {
+export function renderGhostTextToText(ghostText: GhostText, text: string): string;
+export function renderGhostTextToText(ghostText: GhostText | undefined, text: string): string | undefined;
+export function renderGhostTextToText(ghostText: GhostText | undefined, text: string): string | undefined {
+	if (!ghostText) {
+		return undefined;
+	}
 	const l = ghostText.lineNumber;
 	const tempModel = createTextModel(text);
 	tempModel.applyEdits(
 		[
-			...ghostText.parts.map(p => ({ range: { startLineNumber: l, endLineNumber: l, startColumn: p.column, endColumn: p.column }, text: `[${p.text}]` })),
-			...(ghostText.additionalLines.length > 0 ? [{
-				range: { startLineNumber: l, endLineNumber: l, startColumn: tempModel.getLineMaxColumn(l), endColumn: tempModel.getLineMaxColumn(l) },
-				text: `{${ghostText.additionalLines.map(s => '\n' + s).join('')}}`
-			}] : [])
+			...ghostText.parts.map(p => ({ range: { startLineNumber: l, endLineNumber: l, startColumn: p.column, endColumn: p.column }, text: `[${p.lines.join('\n')}]` })),
 		]
 	);
 	const value = tempModel.getValue();
@@ -35,6 +37,7 @@ export class MockInlineCompletionsProvider implements InlineCompletionsProvider 
 	private delayMs: number = 0;
 
 	private callHistory = new Array<unknown>();
+	private calledTwiceIn50Ms = false;
 
 	public setReturnValue(value: InlineCompletion | undefined, delayMs: number = 0): void {
 		this.returnValue = value ? [value] : [];
@@ -52,7 +55,21 @@ export class MockInlineCompletionsProvider implements InlineCompletionsProvider 
 		return history;
 	}
 
+	public assertNotCalledTwiceWithin50ms() {
+		if (this.calledTwiceIn50Ms) {
+			throw new Error('provideInlineCompletions has been called at least twice within 50ms. This should not happen.');
+		}
+	}
+
+	private lastTimeMs: number | undefined = undefined;
+
 	async provideInlineCompletions(model: ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken) {
+		const currentTimeMs = new Date().getTime();
+		if (this.lastTimeMs && currentTimeMs - this.lastTimeMs < 50) {
+			this.calledTwiceIn50Ms = true;
+		}
+		this.lastTimeMs = currentTimeMs;
+
 		this.callHistory.push({
 			position: position.toString(),
 			triggerKind: context.triggerKind,
@@ -112,5 +129,9 @@ export class GhostTextContext extends Disposable {
 
 	public keyboardType(text: string): void {
 		this.editor.trigger('keyboard', 'type', { text });
+	}
+
+	public leftDelete(): void {
+		CoreEditingCommands.DeleteLeft.runEditorCommand(null, this.editor, null);
 	}
 }

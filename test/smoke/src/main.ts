@@ -36,7 +36,13 @@ import { setup as setupLaunchTests } from './areas/workbench/launch.test';
 
 const tmpDir = tmp.dirSync({ prefix: 't' }) as { name: string; removeCallback: Function; };
 const testDataPath = tmpDir.name;
-process.once('exit', () => rimraf.sync(testDataPath));
+process.once('exit', () => {
+	try {
+		rimraf.sync(testDataPath);
+	} catch {
+		// noop
+	}
+});
 
 const [, , ...args] = process.argv;
 const opts = minimist(args, {

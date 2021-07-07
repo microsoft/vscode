@@ -16,6 +16,8 @@ import * as performance from 'vs/base/common/performance';
 
 import 'vs/workbench/api/common/extHost.common.services';
 import 'vs/workbench/api/worker/extHost.worker.services';
+import { FileAccess } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
 
 //#region --- Define, capture, and override some globals
 
@@ -55,7 +57,15 @@ if ((<any>self).Worker) {
 	// make sure new Worker(...) always uses blob: (to maintain current origin)
 	const _Worker = (<any>self).Worker;
 	Worker = <any>function (stringUrl: string | URL, options?: WorkerOptions) {
-		const js = `importScripts('${stringUrl}');`;
+		if (/^file:/i.test(stringUrl.toString())) {
+			stringUrl = FileAccess.asBrowserUri(URI.parse(stringUrl.toString())).toString(true);
+		}
+		const js = `(function() {
+	const ttPolicy = self.trustedTypes ? self.trustedTypes.createPolicy('extensionHostWorker', { createScriptURL: (value) => value }) : undefined;
+	const stringUrl = '${stringUrl}';
+	importScripts(ttPolicy ? ttPolicy.createScriptURL(stringUrl) : stringUrl);
+})();
+`;
 		options = options || {};
 		options.name = options.name || path.basename(stringUrl.toString());
 		const blob = new Blob([js], { type: 'application/javascript' });
@@ -150,7 +160,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 
 let onTerminate = (reason: string) => nativeClose();
 
-(function create(): void {
+export function create(): void {
 	const res = new ExtensionWorker();
 	performance.mark(`code/extHost/willConnectToRenderer`);
 	connectToRenderer(res.protocol).then(data => {
@@ -164,4 +174,4 @@ let onTerminate = (reason: string) => nativeClose();
 
 		onTerminate = (reason: string) => extHostMain.terminate(reason);
 	});
-})();
+}

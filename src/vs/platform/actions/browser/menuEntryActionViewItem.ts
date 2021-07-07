@@ -4,20 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./menuEntryActionViewItem';
-import { addDisposableListener, asCSSUrl, ModifierKeyEmitter } from 'vs/base/browser/dom';
-import { IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
+import { addDisposableListener, asCSSUrl, ModifierKeyEmitter, append, EventType, $ } from 'vs/base/browser/dom';
+import { IAction, IRunEvent, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { IDisposable, toDisposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
-import { ICommandAction, IMenu, IMenuActionOptions, MenuItemAction, SubmenuItemAction, Icon } from 'vs/platform/actions/common/actions';
+import { ICommandAction, IMenu, IMenuActionOptions, MenuItemAction, SubmenuItemAction, Icon, IMenuService } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ActionViewItem, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { isWindows, isLinux, OS } from 'vs/base/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { Event } from 'vs/base/common/event';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, primaryGroup?: string): IDisposable {
 	const groups = menu.getActions(options);
@@ -115,6 +120,10 @@ function fillInActions(
 	}
 }
 
+export interface IMenuEntryActionViewItemOptions {
+	draggable?: boolean;
+}
+
 export class MenuEntryActionViewItem extends ActionViewItem {
 
 	private _wantsAltCommand: boolean = false;
@@ -123,10 +132,12 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 
 	constructor(
 		_action: MenuItemAction,
+		options: IMenuEntryActionViewItemOptions | undefined,
 		@IKeybindingService protected readonly _keybindingService: IKeybindingService,
-		@INotificationService protected _notificationService: INotificationService
+		@INotificationService protected _notificationService: INotificationService,
+		@IContextKeyService protected _contextKeyService: IContextKeyService
 	) {
-		super(undefined, _action, { icon: !!(_action.class || _action.item.icon), label: !_action.class && !_action.item.icon });
+		super(undefined, _action, { icon: !!(_action.class || _action.item.icon), label: !_action.class && !_action.item.icon, draggable: options?.draggable });
 		this._altKey = ModifierKeyEmitter.getInstance();
 	}
 
@@ -195,7 +206,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 
 	override updateTooltip(): void {
 		if (this.label) {
-			const keybinding = this._keybindingService.lookupKeybinding(this._commandAction.id);
+			const keybinding = this._keybindingService.lookupKeybinding(this._commandAction.id, this._contextKeyService);
 			const keybindingLabel = keybinding && keybinding.getLabel();
 
 			const tooltip = this._commandAction.tooltip || this._commandAction.label;
@@ -204,7 +215,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 				: tooltip;
 			if (!this._wantsAltCommand && this._menuItemAction.alt) {
 				const altTooltip = this._menuItemAction.alt.tooltip || this._menuItemAction.alt.label;
-				const altKeybinding = this._keybindingService.lookupKeybinding(this._menuItemAction.alt.id);
+				const altKeybinding = this._keybindingService.lookupKeybinding(this._menuItemAction.alt.id, this._contextKeyService);
 				const altKeybindingLabel = altKeybinding && altKeybinding.getLabel();
 				const altTitleSection = altKeybindingLabel
 					? localize('titleAndKb', "{0} ({1})", altTooltip, altKeybindingLabel)
@@ -297,14 +308,142 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 	}
 }
 
+class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
+	private _defaultAction: ActionViewItem;
+	private _dropdown: DropdownMenuActionViewItem;
+	private _container: HTMLElement | null = null;
+	private _storageKey: string;
+
+	get onDidChangeDropdownVisibility(): Event<boolean> {
+		return this._dropdown.onDidChangeVisibility;
+	}
+
+	constructor(
+		submenuAction: SubmenuItemAction,
+		@IKeybindingService protected readonly _keybindingService: IKeybindingService,
+		@INotificationService protected _notificationService: INotificationService,
+		@IContextMenuService protected _contextMenuService: IContextMenuService,
+		@IMenuService protected _menuService: IMenuService,
+		@IInstantiationService protected _instaService: IInstantiationService,
+		@IStorageService protected _storageService: IStorageService
+	) {
+		super(null, submenuAction);
+
+		this._storageKey = `${submenuAction.item.submenu._debugName}_lastActionId`;
+
+		// determine default action
+		let defaultAction: IAction | undefined;
+		let defaultActionId = _storageService.get(this._storageKey, StorageScope.WORKSPACE);
+		if (defaultActionId) {
+			defaultAction = submenuAction.actions.find(a => defaultActionId === a.id);
+		}
+		if (!defaultAction) {
+			defaultAction = submenuAction.actions[0];
+		}
+
+		this._defaultAction = this._instaService.createInstance(MenuEntryActionViewItem, <MenuItemAction>defaultAction, undefined);
+
+		this._dropdown = new DropdownMenuActionViewItem(submenuAction, submenuAction.actions, this._contextMenuService, {
+			menuAsChild: true,
+			classNames: ['codicon', 'codicon-chevron-down']
+		});
+		this._dropdown.actionRunner.onDidRun((e: IRunEvent) => {
+			if (e.action instanceof MenuItemAction) {
+				this.update(e.action);
+			}
+		});
+	}
+
+	private update(lastAction: MenuItemAction): void {
+		this._storageService.store(this._storageKey, lastAction.id, StorageScope.WORKSPACE, StorageTarget.USER);
+
+		this._defaultAction.dispose();
+		this._defaultAction = this._instaService.createInstance(MenuEntryActionViewItem, lastAction, undefined);
+
+		if (this._container) {
+			this.render(this._container);
+		}
+	}
+
+	override setActionContext(newContext: unknown): void {
+		super.setActionContext(newContext);
+		this._defaultAction.setActionContext(newContext);
+		this._dropdown.setActionContext(newContext);
+	}
+
+	override render(container: HTMLElement): void {
+		this._container = container;
+		super.render(this._container);
+
+		this._container.classList.add('monaco-dropdown-with-primary');
+
+		const primaryContainer = $('.action-container');
+		this._defaultAction.render(append(this._container, primaryContainer));
+		this._register(addDisposableListener(primaryContainer, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.RightArrow)) {
+				this._defaultAction.element!.tabIndex = -1;
+				this._dropdown.focus();
+				event.stopPropagation();
+			}
+		}));
+
+		const dropdownContainer = $('.dropdown-action-container');
+		this._dropdown.render(append(this._container, dropdownContainer));
+		this._register(addDisposableListener(dropdownContainer, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.LeftArrow)) {
+				this._defaultAction.element!.tabIndex = 0;
+				this._dropdown.setFocusable(false);
+				this._defaultAction.element?.focus();
+				event.stopPropagation();
+			}
+		}));
+	}
+
+	override focus(fromRight?: boolean): void {
+		if (fromRight) {
+			this._dropdown.focus();
+		} else {
+			this._defaultAction.element!.tabIndex = 0;
+			this._defaultAction.element!.focus();
+		}
+	}
+
+	override blur(): void {
+		this._defaultAction.element!.tabIndex = -1;
+		this._dropdown.blur();
+		this._container!.blur();
+	}
+
+	override setFocusable(focusable: boolean): void {
+		if (focusable) {
+			this._defaultAction.element!.tabIndex = 0;
+		} else {
+			this._defaultAction.element!.tabIndex = -1;
+			this._dropdown.setFocusable(false);
+		}
+	}
+
+	override dispose() {
+		this._defaultAction.dispose();
+		this._dropdown.dispose();
+		super.dispose();
+	}
+}
+
 /**
  * Creates action view items for menu actions or submenu actions.
  */
-export function createActionViewItem(instaService: IInstantiationService, action: IAction): undefined | MenuEntryActionViewItem | SubmenuEntryActionViewItem {
+export function createActionViewItem(instaService: IInstantiationService, action: IAction): undefined | MenuEntryActionViewItem | SubmenuEntryActionViewItem | BaseActionViewItem {
 	if (action instanceof MenuItemAction) {
-		return instaService.createInstance(MenuEntryActionViewItem, action);
+		return instaService.createInstance(MenuEntryActionViewItem, action, undefined);
 	} else if (action instanceof SubmenuItemAction) {
-		return instaService.createInstance(SubmenuEntryActionViewItem, action);
+		if (action.item.rememberDefaultAction) {
+			return instaService.createInstance(DropdownWithDefaultActionViewItem, action);
+		} else {
+			return instaService.createInstance(SubmenuEntryActionViewItem, action);
+		}
 	} else {
 		return undefined;
 	}

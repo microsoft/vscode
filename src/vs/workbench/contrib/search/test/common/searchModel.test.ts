@@ -170,7 +170,7 @@ suite('SearchModel', () => {
 		await testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
 
 		assert.ok(target.calledThrice);
-		const data = target.args[0];
+		const data = target.args[2];
 		data[1].duration = -1;
 		assert.deepStrictEqual(['searchResultsFirstRender', { duration: -1 }], data);
 	});
