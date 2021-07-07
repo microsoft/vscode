@@ -224,6 +224,10 @@ function serializeError(err) {
 function safeStringify(obj) {
 	const seen = new Set();
 	return JSON.stringify(obj, (key, value) => {
+		if (value === undefined) {
+			return '[undefined]';
+		}
+
 		if (isObject(value) || Array.isArray(value)) {
 			if (seen.has(value)) {
 				return '[Circular]';

@@ -3310,7 +3310,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return;
 		}
 
-		if (!this.workspaceTrustManagementService.isWorkpaceTrusted()) {
+		if (!this.workspaceTrustManagementService.isWorkspaceTrusted()) {
 			this._register(Event.once(this.workspaceTrustManagementService.onDidChangeTrust)(isTrusted => {
 				if (isTrusted) {
 					this.upgrade();
@@ -3368,8 +3368,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				run: async () => {
 					for (const upgrade of fileDiffs) {
 						await this.editorService.openEditor({
-							originalInput: { resource: upgrade[0] },
-							modifiedInput: { resource: upgrade[1] }
+							original: { resource: upgrade[0] },
+							modified: { resource: upgrade[1] }
 						});
 					}
 				}

@@ -17,6 +17,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EventType as GestureEventType, Gesture } from 'vs/base/browser/touch';
 
 const $ = dom.$;
 
@@ -115,20 +116,26 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			const thisAgain = $('span');
 			thisAgain.innerText = localize('thisAgain', " this again.");
 			this.domNode.appendChild(thisAgain);
-
-			this.toDispose.push(dom.addDisposableListener(language, 'click', async e => {
+			this.toDispose.push(Gesture.addTarget(this.domNode));
+			const languageOnClickOrTap = async (e: MouseEvent) => {
 				e.stopPropagation();
 				// Need to focus editor before so current editor becomes active and the command is properly executed
 				this.editor.focus();
 				await this.commandService.executeCommand(ChangeModeAction.ID, { from: 'hint' });
 				this.editor.focus();
-			}));
+			};
+			this.toDispose.push(dom.addDisposableListener(language, 'click', languageOnClickOrTap));
+			this.toDispose.push(dom.addDisposableListener(language, GestureEventType.Tap, languageOnClickOrTap));
+			this.toDispose.push(Gesture.addTarget(language));
 
-			this.toDispose.push(dom.addDisposableListener(dontShow, 'click', () => {
+			const dontShowOnClickOrTap = () => {
 				this.configurationService.updateValue(untitledTextEditorHintSetting, 'hidden');
 				this.dispose();
 				this.editor.focus();
-			}));
+			};
+			this.toDispose.push(dom.addDisposableListener(dontShow, 'click', dontShowOnClickOrTap));
+			this.toDispose.push(dom.addDisposableListener(dontShow, GestureEventType.Tap, dontShowOnClickOrTap));
+			this.toDispose.push(Gesture.addTarget(dontShow));
 
 			this.toDispose.push(dom.addDisposableListener(this.domNode, 'click', () => {
 				this.editor.focus();

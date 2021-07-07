@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -82,31 +80,3 @@ CommandsRegistry.registerCommand({
 		args: []
 	}
 });
-
-
-// -----------------------------------------------------------------
-// The following commands are registered on the renderer but as API
-// command. DO NOT USE this unless you have understood what this
-// means
-// -----------------------------------------------------------------
-
-
-class OpenAPICommand {
-	public static readonly ID = 'vscode.open';
-	public static execute(executor: ICommandsExecutor, resource: URI): Promise<any> {
-
-		return executor.executeCommand('_workbench.open', resource);
-	}
-}
-CommandsRegistry.registerCommand(OpenAPICommand.ID, adjustHandler(OpenAPICommand.execute));
-
-class DiffAPICommand {
-	public static readonly ID = 'vscode.diff';
-	public static execute(executor: ICommandsExecutor, left: URI, right: URI, label: string, options?: typeConverters.TextEditorOpenOptions): Promise<any> {
-		return executor.executeCommand('_workbench.diff', [
-			left, right,
-			label,
-		]);
-	}
-}
-CommandsRegistry.registerCommand(DiffAPICommand.ID, adjustHandler(DiffAPICommand.execute));

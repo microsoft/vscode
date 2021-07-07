@@ -49,6 +49,7 @@ import { coalesce, insert } from 'vs/base/common/arrays';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { isSafari } from 'vs/base/browser/browser';
 import { equals } from 'vs/base/common/objects';
+import { EditorActivation } from 'vs/platform/editor/common/editor';
 
 interface IEditorInputLabel {
 	name?: string;
@@ -234,6 +235,7 @@ export class TabsTitleControl extends TitleControl {
 				EventHelper.stop(e);
 
 				this.editorService.openEditor({
+					resource: undefined,
 					forceUntitled: true,
 					options: {
 						pinned: true,
@@ -666,7 +668,8 @@ export class TabsTitleControl extends TitleControl {
 			// Open tabs editor
 			const input = this.group.getEditorByIndex(index);
 			if (input) {
-				this.group.openEditor(input, { preserveFocus });
+				// Even if focus is preserved make sure to activate the group.
+				this.group.openEditor(input, { preserveFocus, activation: EditorActivation.ACTIVATE });
 			}
 
 			return undefined;

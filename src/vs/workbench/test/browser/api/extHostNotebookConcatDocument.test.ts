@@ -334,7 +334,9 @@ suite('NotebookConcatDocument', function () {
 				rangeLength: 6,
 				rangeOffset: 12,
 				text: 'Hi'
-			}]
+			}],
+			isRedoing: false,
+			isUndoing: false,
 		}, false);
 		assertLines(doc, 'Hello', 'World', 'Hi World!', 'Hallo', 'Welt', 'Hallo Welt!');
 		assertLocation(doc, new Position(2, 12), new Location(notebook.apiNotebook.cellAt(0).document.uri, new Position(2, 9)), false);

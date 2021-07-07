@@ -169,8 +169,7 @@ app.on('ready', () => {
 			contextIsolation: false,
 			enableWebSQL: false,
 			spellcheck: false,
-			nativeWindowOpen: true,
-			webviewTag: true
+			nativeWindowOpen: true
 		}
 	});
 

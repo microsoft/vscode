@@ -166,7 +166,7 @@ class DelegatedOutputChannelModel extends Disposable implements IOutputChannelMo
 		let outputChannelModel: IOutputChannelModel;
 		try {
 			const outputDir = await outputDirPromise;
-			const file = resources.joinPath(outputDir, `${id}.log`);
+			const file = resources.joinPath(outputDir, `${id.replace(/[\\/:\*\?"<>\|]/g, '')}.log`);
 			// Make sure file exists before creating the channel
 			await this.fileService.createFile(file);
 			outputChannelModel = this.instantiationService.createInstance(OutputChannelBackedByFile, id, modelUri, mimeType, file);

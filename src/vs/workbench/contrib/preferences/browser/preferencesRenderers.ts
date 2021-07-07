@@ -1059,7 +1059,7 @@ class UnsupportedSettingsRenderer extends Disposable implements modes.CodeAction
 			markerData.push(this.generateUnsupportedMachineSettingMarker(setting));
 		}
 
-		if (!this.workspaceTrustManagementService.isWorkpaceTrusted() && configuration.restricted) {
+		if (!this.workspaceTrustManagementService.isWorkspaceTrusted() && configuration.restricted) {
 			const marker = this.generateUntrustedSettingMarker(setting);
 			markerData.push(marker);
 			const codeActions = this.generateUntrustedSettingCodeActions([marker]);
@@ -1085,7 +1085,7 @@ class UnsupportedSettingsRenderer extends Disposable implements modes.CodeAction
 			});
 		}
 
-		if (!this.workspaceTrustManagementService.isWorkpaceTrusted() && configuration.restricted) {
+		if (!this.workspaceTrustManagementService.isWorkspaceTrusted() && configuration.restricted) {
 			const marker = this.generateUntrustedSettingMarker(setting);
 			markerData.push(marker);
 			const codeActions = this.generateUntrustedSettingCodeActions([marker]);

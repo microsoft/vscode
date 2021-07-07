@@ -160,7 +160,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 
 let onTerminate = (reason: string) => nativeClose();
 
-(function create(): void {
+export function create(): void {
 	const res = new ExtensionWorker();
 	performance.mark(`code/extHost/willConnectToRenderer`);
 	connectToRenderer(res.protocol).then(data => {
@@ -174,4 +174,4 @@ let onTerminate = (reason: string) => nativeClose();
 
 		onTerminate = (reason: string) => extHostMain.terminate(reason);
 	});
-})();
+}

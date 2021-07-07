@@ -167,7 +167,7 @@ export interface IExtensionContributions {
 }
 
 export interface IExtensionCapabilities {
-	readonly virtualWorkspaces?: ExtensionVirtualWorkpaceSupport;
+	readonly virtualWorkspaces?: ExtensionVirtualWorkspaceSupport;
 	readonly untrustedWorkspaces?: ExtensionUntrustedWorkspaceSupport;
 }
 
@@ -175,14 +175,14 @@ export interface IExtensionCapabilities {
 
 export type ExtensionKind = 'ui' | 'workspace' | 'web';
 
-export type LimitedWorkpaceSupportType = 'limited';
-export type ExtensionUntrustedWorkpaceSupportType = boolean | LimitedWorkpaceSupportType;
-export type ExtensionUntrustedWorkspaceSupport = { supported: true; } | { supported: false, description: string } | { supported: LimitedWorkpaceSupportType, description: string, restrictedConfigurations?: string[] };
+export type LimitedWorkspaceSupportType = 'limited';
+export type ExtensionUntrustedWorkspaceSupportType = boolean | LimitedWorkspaceSupportType;
+export type ExtensionUntrustedWorkspaceSupport = { supported: true; } | { supported: false, description: string } | { supported: LimitedWorkspaceSupportType, description: string, restrictedConfigurations?: string[] };
 
-export type ExtensionVirtualWorkpaceSupportType = boolean | LimitedWorkpaceSupportType;
-export type ExtensionVirtualWorkpaceSupport = boolean | { supported: true; } | { supported: false | LimitedWorkpaceSupportType, description: string };
+export type ExtensionVirtualWorkspaceSupportType = boolean | LimitedWorkspaceSupportType;
+export type ExtensionVirtualWorkspaceSupport = boolean | { supported: true; } | { supported: false | LimitedWorkspaceSupportType, description: string };
 
-export function getWorkpaceSupportTypeMessage(supportType: ExtensionUntrustedWorkspaceSupport | ExtensionVirtualWorkpaceSupport | undefined): string | undefined {
+export function getWorkspaceSupportTypeMessage(supportType: ExtensionUntrustedWorkspaceSupport | ExtensionVirtualWorkspaceSupport | undefined): string | undefined {
 	if (typeof supportType === 'object' && supportType !== null) {
 		if (supportType.supported !== true) {
 			return supportType.description;

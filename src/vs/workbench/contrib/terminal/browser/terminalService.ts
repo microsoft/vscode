@@ -37,12 +37,11 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { configureTerminalProfileIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
-import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, ITerminalProfileContribution, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, ITerminalProfileContribution, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { formatMessageForTerminal, terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { IEditorOverrideService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ILifecycleService, ShutdownReason, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -54,9 +53,6 @@ export class TerminalService implements ITerminalService {
 	private _hostActiveTerminals: Map<ITerminalInstanceHost, ITerminalInstance | undefined> = new Map();
 
 	private _isShuttingDown: boolean;
-	private _terminalFocusContextKey: IContextKey<boolean>;
-	private _terminalShellTypeContextKey: IContextKey<string>;
-	private _terminalAltBufferActiveContextKey: IContextKey<boolean>;
 	private _backgroundedTerminalInstances: ITerminalInstance[] = [];
 	private _backgroundedTerminalDisposables: Map<number, IDisposable[]> = new Map();
 	private _findState: FindReplaceState;
@@ -90,40 +86,40 @@ export class TerminalService implements ITerminalService {
 	private _activeInstance: ITerminalInstance | undefined;
 	get activeInstance(): ITerminalInstance | undefined { return this._activeInstance; }
 
-	private readonly _onActiveGroupChanged = new Emitter<ITerminalGroup | undefined>();
-	get onActiveGroupChanged(): Event<ITerminalGroup | undefined> { return this._onActiveGroupChanged.event; }
+	private readonly _onDidChangeActiveGroup = new Emitter<ITerminalGroup | undefined>();
+	get onDidChangeActiveGroup(): Event<ITerminalGroup | undefined> { return this._onDidChangeActiveGroup.event; }
 	private readonly _onDidCreateInstance = new Emitter<ITerminalInstance>();
 	get onDidCreateInstance(): Event<ITerminalInstance> { return this._onDidCreateInstance.event; }
 	private readonly _onDidDisposeInstance = new Emitter<ITerminalInstance>();
 	get onDidDisposeInstance(): Event<ITerminalInstance> { return this._onDidDisposeInstance.event; }
 	private readonly _onDidFocusInstance = new Emitter<ITerminalInstance>();
 	get onDidFocusInstance(): Event<ITerminalInstance> { return this._onDidFocusInstance.event; }
-	private readonly _onInstanceProcessIdReady = new Emitter<ITerminalInstance>();
-	get onInstanceProcessIdReady(): Event<ITerminalInstance> { return this._onInstanceProcessIdReady.event; }
-	private readonly _onInstanceLinksReady = new Emitter<ITerminalInstance>();
-	get onInstanceLinksReady(): Event<ITerminalInstance> { return this._onInstanceLinksReady.event; }
-	private readonly _onInstanceRequestStartExtensionTerminal = new Emitter<IStartExtensionTerminalRequest>();
-	get onInstanceRequestStartExtensionTerminal(): Event<IStartExtensionTerminalRequest> { return this._onInstanceRequestStartExtensionTerminal.event; }
-	private readonly _onInstanceDimensionsChanged = new Emitter<ITerminalInstance>();
-	get onInstanceDimensionsChanged(): Event<ITerminalInstance> { return this._onInstanceDimensionsChanged.event; }
-	private readonly _onInstanceMaximumDimensionsChanged = new Emitter<ITerminalInstance>();
-	get onInstanceMaximumDimensionsChanged(): Event<ITerminalInstance> { return this._onInstanceMaximumDimensionsChanged.event; }
+	private readonly _onDidReceiveProcessId = new Emitter<ITerminalInstance>();
+	get onDidReceiveProcessId(): Event<ITerminalInstance> { return this._onDidReceiveProcessId.event; }
+	private readonly _onDidReceiveInstanceLinks = new Emitter<ITerminalInstance>();
+	get onDidReceiveInstanceLinks(): Event<ITerminalInstance> { return this._onDidReceiveInstanceLinks.event; }
+	private readonly _onDidRequestStartExtensionTerminal = new Emitter<IStartExtensionTerminalRequest>();
+	get onDidRequestStartExtensionTerminal(): Event<IStartExtensionTerminalRequest> { return this._onDidRequestStartExtensionTerminal.event; }
+	private readonly _onDidChangeInstanceDimensions = new Emitter<ITerminalInstance>();
+	get onDidChangeInstanceDimensions(): Event<ITerminalInstance> { return this._onDidChangeInstanceDimensions.event; }
+	private readonly _onDidMaxiumumDimensionsChange = new Emitter<ITerminalInstance>();
+	get onDidMaximumDimensionsChange(): Event<ITerminalInstance> { return this._onDidMaxiumumDimensionsChange.event; }
 	private readonly _onDidChangeInstances = new Emitter<void>();
 	get onDidChangeInstances(): Event<void> { return this._onDidChangeInstances.event; }
-	private readonly _onInstanceTitleChanged = new Emitter<ITerminalInstance | undefined>();
-	get onInstanceTitleChanged(): Event<ITerminalInstance | undefined> { return this._onInstanceTitleChanged.event; }
-	private readonly _onInstanceIconChanged = new Emitter<ITerminalInstance | undefined>();
-	get onInstanceIconChanged(): Event<ITerminalInstance | undefined> { return this._onInstanceIconChanged.event; }
-	private readonly _onInstanceColorChanged = new Emitter<ITerminalInstance | undefined>();
-	get onInstanceColorChanged(): Event<ITerminalInstance | undefined> { return this._onInstanceColorChanged.event; }
+	private readonly _onDidChangeInstanceTitle = new Emitter<ITerminalInstance | undefined>();
+	get onDidChangeInstanceTitle(): Event<ITerminalInstance | undefined> { return this._onDidChangeInstanceTitle.event; }
+	private readonly _onDidChangeInstanceIcon = new Emitter<ITerminalInstance | undefined>();
+	get onDidChangeInstanceIcon(): Event<ITerminalInstance | undefined> { return this._onDidChangeInstanceIcon.event; }
+	private readonly _onDidChangeInstanceColor = new Emitter<ITerminalInstance | undefined>();
+	get onDidChangeInstanceColor(): Event<ITerminalInstance | undefined> { return this._onDidChangeInstanceColor.event; }
 	private readonly _onDidChangeActiveInstance = new Emitter<ITerminalInstance | undefined>();
 	get onDidChangeActiveInstance(): Event<ITerminalInstance | undefined> { return this._onDidChangeActiveInstance.event; }
-	private readonly _onInstancePrimaryStatusChanged = new Emitter<ITerminalInstance>();
-	get onInstancePrimaryStatusChanged(): Event<ITerminalInstance> { return this._onInstancePrimaryStatusChanged.event; }
-	private readonly _onGroupDisposed = new Emitter<ITerminalGroup>();
-	get onGroupDisposed(): Event<ITerminalGroup> { return this._onGroupDisposed.event; }
-	private readonly _onGroupsChanged = new Emitter<void>();
-	get onGroupsChanged(): Event<void> { return this._onGroupsChanged.event; }
+	private readonly _onDidChangeInstancePrimaryStatus = new Emitter<ITerminalInstance>();
+	get onDidChangeInstancePrimaryStatus(): Event<ITerminalInstance> { return this._onDidChangeInstancePrimaryStatus.event; }
+	private readonly _onDidDisposeGroup = new Emitter<ITerminalGroup>();
+	get onDidDisposeGroup(): Event<ITerminalGroup> { return this._onDidDisposeGroup.event; }
+	private readonly _onDidChangeGroups = new Emitter<void>();
+	get onDidChangeGroups(): Event<void> { return this._onDidChangeGroups.event; }
 	private readonly _onDidRegisterProcessSupport = new Emitter<void>();
 	get onDidRegisterProcessSupport(): Event<void> { return this._onDidRegisterProcessSupport.event; }
 	private readonly _onDidChangeConnectionState = new Emitter<void>();
@@ -147,8 +143,8 @@ export class TerminalService implements ITerminalService {
 		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
-		@ITerminalInstanceService terminalInstanceService: ITerminalInstanceService,
-		@IEditorOverrideService editorOverrideService: IEditorOverrideService,
+		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
+		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
@@ -156,12 +152,9 @@ export class TerminalService implements ITerminalService {
 		this._localTerminalService = localTerminalService;
 		this._isShuttingDown = false;
 		this._findState = new FindReplaceState();
-		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
-		this._terminalShellTypeContextKey = KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE.bindTo(this._contextKeyService);
-		this._terminalAltBufferActiveContextKey = KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE.bindTo(this._contextKeyService);
 		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
 
-		editorOverrideService.registerEditor(
+		editorResolverService.registerEditor(
 			`${Schemas.vscodeTerminal}:/**`,
 			{
 				id: TerminalEditor.ID,
@@ -181,7 +174,7 @@ export class TerminalService implements ITerminalService {
 						sourceGroup.removeInstance(instance);
 					}
 				} else {
-					instance = this.createInstance({});
+					instance = _terminalInstanceService.createInstance({});
 				}
 				return {
 					editor: this._terminalEditorService.getOrCreateEditorInput(instance),
@@ -196,14 +189,17 @@ export class TerminalService implements ITerminalService {
 
 		this._forwardInstanceHostEvents(this._terminalGroupService);
 		this._forwardInstanceHostEvents(this._terminalEditorService);
-		this._terminalGroupService.onDidChangeActiveGroup(this._onActiveGroupChanged.fire, this._onActiveGroupChanged);
-		terminalInstanceService.onDidCreateInstance(this._onDidCreateInstance.fire, this._onDidCreateInstance);
+		this._terminalGroupService.onDidChangeActiveGroup(this._onDidChangeActiveGroup.fire, this._onDidChangeActiveGroup);
+		_terminalInstanceService.onDidCreateInstance(instance => {
+			this._initInstanceListeners(instance);
+			this._onDidCreateInstance.fire(instance);
+		});
 
 		// the below avoids having to poll routinely.
 		// we update detected profiles when an instance is created so that,
 		// for example, we detect if you've installed a pwsh
 		this.onDidCreateInstance(() => this._refreshAvailableProfiles());
-		this.onInstanceLinksReady(instance => this._setInstanceLinkProviders(instance));
+		this.onDidReceiveInstanceLinks(instance => this._setInstanceLinkProviders(instance));
 
 		// Hide the panel if there are no more instances, provided that VS Code is not shutting
 		// down. When shutting down the panel is locked in place so that it is restored upon next
@@ -393,14 +389,14 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private _attachProcessLayoutListeners(): void {
-		this.onActiveGroupChanged(() => this._saveState());
+		this.onDidChangeActiveGroup(() => this._saveState());
 		this.onDidChangeActiveInstance(() => this._saveState());
 		this.onDidChangeInstances(() => this._saveState());
 		// The state must be updated when the terminal is relaunched, otherwise the persistent
 		// terminal ID will be stale and the process will be leaked.
-		this.onInstanceProcessIdReady(() => this._saveState());
-		this.onInstanceTitleChanged(instance => this._updateTitle(instance));
-		this.onInstanceIconChanged(instance => this._updateIcon(instance));
+		this.onDidReceiveProcessId(() => this._saveState());
+		this.onDidChangeInstanceTitle(instance => this._updateTitle(instance));
+		this.onDidChangeInstanceIcon(instance => this._updateIcon(instance));
 	}
 
 	private _handleInstanceContextKeys(): void {
@@ -437,7 +433,7 @@ export class TerminalService implements ITerminalService {
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined> {
 		// The initial request came from the extension host, no need to wait for it
 		return new Promise<ITerminalLaunchError | undefined>(callback => {
-			this._onInstanceRequestStartExtensionTerminal.fire({ proxy, cols, rows, callback });
+			this._onDidRequestStartExtensionTerminal.fire({ proxy, cols, rows, callback });
 		});
 	}
 
@@ -539,7 +535,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	refreshActiveGroup(): void {
-		this._onActiveGroupChanged.fire(this._terminalGroupService.activeGroup);
+		this._onDidChangeActiveGroup.fire(this._terminalGroupService.activeGroup);
 	}
 
 	doWithActiveInstance<T>(callback: (terminal: ITerminalInstance) => T): T | void {
@@ -697,24 +693,24 @@ export class TerminalService implements ITerminalService {
 
 		// Fire events
 		this._onDidChangeInstances.fire();
-		this._onActiveGroupChanged.fire(this._terminalGroupService.activeGroup);
+		this._onDidChangeActiveGroup.fire(this._terminalGroupService.activeGroup);
 		this._terminalGroupService.showPanel(true);
 	}
 
 	protected _initInstanceListeners(instance: ITerminalInstance): void {
-		instance.addDisposable(instance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
-		instance.addDisposable(instance.onIconChanged(this._onInstanceIconChanged.fire, this._onInstanceIconChanged));
-		instance.addDisposable(instance.onIconChanged(this._onInstanceColorChanged.fire, this._onInstanceColorChanged));
-		instance.addDisposable(instance.onProcessIdReady(this._onInstanceProcessIdReady.fire, this._onInstanceProcessIdReady));
-		instance.addDisposable(instance.statusList.onDidChangePrimaryStatus(() => this._onInstancePrimaryStatusChanged.fire(instance)));
-		instance.addDisposable(instance.onLinksReady(this._onInstanceLinksReady.fire, this._onInstanceLinksReady));
+		instance.addDisposable(instance.onTitleChanged(this._onDidChangeInstanceTitle.fire, this._onDidChangeInstanceTitle));
+		instance.addDisposable(instance.onIconChanged(this._onDidChangeInstanceIcon.fire, this._onDidChangeInstanceIcon));
+		instance.addDisposable(instance.onIconChanged(this._onDidChangeInstanceColor.fire, this._onDidChangeInstanceColor));
+		instance.addDisposable(instance.onProcessIdReady(this._onDidReceiveProcessId.fire, this._onDidReceiveProcessId));
+		instance.addDisposable(instance.statusList.onDidChangePrimaryStatus(() => this._onDidChangeInstancePrimaryStatus.fire(instance)));
+		instance.addDisposable(instance.onLinksReady(this._onDidReceiveInstanceLinks.fire, this._onDidReceiveInstanceLinks));
 		instance.addDisposable(instance.onDimensionsChanged(() => {
-			this._onInstanceDimensionsChanged.fire(instance);
+			this._onDidChangeInstanceDimensions.fire(instance);
 			if (this.configHelper.config.enablePersistentSessions && this.isProcessSupportRegistered) {
 				this._saveState();
 			}
 		}));
-		instance.addDisposable(instance.onMaximumDimensionsChanged(() => this._onInstanceMaximumDimensionsChanged.fire(instance)));
+		instance.addDisposable(instance.onMaximumDimensionsChanged(() => this._onDidMaxiumumDimensionsChange.fire(instance)));
 		instance.addDisposable(instance.onFocus(this._onDidChangeActiveInstance.fire, this._onDidChangeActiveInstance));
 		instance.addDisposable(instance.onRequestAddInstanceToGroup(e => {
 			const instanceId = this._getInstanceIdFromUri(e.uri);
@@ -894,7 +890,10 @@ export class TerminalService implements ITerminalService {
 			let instance;
 
 			if ('id' in value.profile) {
-				await this.createContributedTerminalProfile(value.profile.extensionIdentifier, value.profile.id, { isSplitTerminal: !!(keyMods?.alt && activeInstance) });
+				await this.createContributedTerminalProfile(value.profile.extensionIdentifier, value.profile.id, {
+					isSplitTerminal: !!(keyMods?.alt && activeInstance),
+					icon: value.profile.icon
+				});
 				return;
 			} else {
 				if (keyMods?.alt && activeInstance) {
@@ -995,18 +994,6 @@ export class TerminalService implements ITerminalService {
 		return { label, description: profile.path, profile, buttons };
 	}
 
-	createInstance(shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
-		const instance = this._instantiationService.createInstance(TerminalInstance,
-			this._terminalFocusContextKey,
-			this._terminalShellTypeContextKey,
-			this._terminalAltBufferActiveContextKey,
-			this._configHelper,
-			shellLaunchConfig
-		);
-		this._onDidCreateInstance.fire(instance);
-		return instance;
-	}
-
 	private _convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig {
 		// Profile was provided
 		if (shellLaunchConfigOrProfile && 'profileName' in shellLaunchConfigOrProfile) {
@@ -1045,7 +1032,7 @@ export class TerminalService implements ITerminalService {
 			throw new Error('Could not create terminal when process support is not registered');
 		}
 		if (shellLaunchConfig.hideFromUser) {
-			const instance = this.createInstance(shellLaunchConfig);
+			const instance = this._terminalInstanceService.createInstance(shellLaunchConfig);
 			this._backgroundedTerminalInstances.push(instance);
 			this._backgroundedTerminalDisposables.set(instance.instanceId, [
 				instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance)
@@ -1059,7 +1046,7 @@ export class TerminalService implements ITerminalService {
 		let instance: ITerminalInstance;
 		const target = options?.target || this.configHelper.config.defaultLocation;
 		if (target === TerminalLocation.Editor) {
-			instance = this.createInstance(shellLaunchConfig);
+			instance = this._terminalInstanceService.createInstance(shellLaunchConfig);
 			instance.target = TerminalLocation.Editor;
 			this._terminalEditorService.openEditor(instance);
 		} else {
@@ -1100,7 +1087,7 @@ export class TerminalService implements ITerminalService {
 		}
 
 		this._onDidChangeInstances.fire();
-		this._onGroupsChanged.fire();
+		this._onDidChangeGroups.fire();
 	}
 
 	async setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): Promise<void> {
@@ -1130,8 +1117,8 @@ class TerminalEditorStyle extends Themable {
 	}
 
 	private _registerListeners(): void {
-		this._register(this._terminalService.onInstanceIconChanged(() => this.updateStyles()));
-		this._register(this._terminalService.onInstanceColorChanged(() => this.updateStyles()));
+		this._register(this._terminalService.onDidChangeInstanceIcon(() => this.updateStyles()));
+		this._register(this._terminalService.onDidChangeInstanceColor(() => this.updateStyles()));
 		this._register(this._terminalService.onDidChangeInstances(() => this.updateStyles()));
 	}
 

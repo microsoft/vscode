@@ -75,13 +75,13 @@ export class GhostTextWidget extends Disposable {
 	}
 
 	private update(): void {
-		if (!this.editor.hasModel() || !this.model.ghostText || this.disposed) {
+		const ghostText = this.model.ghostText;
+
+		if (!this.editor.hasModel() || !ghostText || this.disposed) {
 			this.partsWidget.clear();
 			this.additionalLinesWidget.clear();
 			return;
 		}
-
-		const ghostText = this.model.ghostText;
 
 		const inlineTexts = new Array<InsertedInlineText>();
 		const additionalLines = new Array<LineData>();

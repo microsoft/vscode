@@ -154,7 +154,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this._workspaceTrustInitializedPromise.then(() => {
 				if (this._storedTrustState.isEmptyWorkspaceTrusted === undefined) {
-					this._storedTrustState.isEmptyWorkspaceTrusted = this.isWorkpaceTrusted();
+					this._storedTrustState.isEmptyWorkspaceTrusted = this.isWorkspaceTrusted();
 				}
 			});
 		}
@@ -303,7 +303,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			trusted = this.calculateWorkspaceTrust();
 		}
 
-		if (this.isWorkpaceTrusted() === trusted) { return; }
+		if (this.isWorkspaceTrusted() === trusted) { return; }
 
 		// Update workspace trust
 		this.isTrusted = trusted;
@@ -452,7 +452,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		this._storedTrustState.acceptsOutOfWorkspaceFiles = value;
 	}
 
-	isWorkpaceTrusted(): boolean {
+	isWorkspaceTrusted(): boolean {
 		return this._isTrusted;
 	}
 
@@ -503,14 +503,19 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		}
 
 		// Untrusted workspace
-		if (!this.isWorkpaceTrusted()) {
+		if (!this.isWorkspaceTrusted()) {
 			return true;
 		}
 
-		// Trusted workspace
-		// Can only be trusted explicitly in the single folder scenario
+		// Trusted workspaces
+		// Can only untrusted in the single folder scenario
 		const workspaceIdentifier = toWorkspaceIdentifier(this._canonicalWorkspace);
-		if (!(isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && workspaceIdentifier.uri.scheme === Schemas.file)) {
+		if (!isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
+			return false;
+		}
+
+		// Can only be untrusted in certain schemes
+		if (workspaceIdentifier.uri.scheme !== Schemas.file && workspaceIdentifier.uri.scheme !== 'vscode-vfs') {
 			return false;
 		}
 
@@ -631,7 +636,7 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 		this._ctxWorkspaceTrustState = WorkspaceTrustContext.IsTrusted.bindTo(contextKeyService);
 		this._ctxWorkspaceTrustEnabled.set(this.workspaceTrustManagementService.workspaceTrustEnabled);
 
-		this.trusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
+		this.trusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
 	}
 
 	private get trusted(): boolean {

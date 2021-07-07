@@ -235,6 +235,11 @@ export class SuggestModel implements IDisposable {
 				return;
 			}
 
+			if (LineContext.shouldAutoTrigger(this._editor)) {
+				// don't trigger by trigger characters when this is a case for quick suggest
+				return;
+			}
+
 			if (!text) {
 				// came here from the compositionEnd-event
 				const position = this._editor.getPosition()!;

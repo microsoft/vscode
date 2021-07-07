@@ -7,6 +7,7 @@ import 'vs/css!./media/interactive';
 import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -34,6 +35,7 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
 import { IInteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
+import { ComplexNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 
@@ -56,6 +58,9 @@ export class InteractiveEditor extends EditorPane {
 	#historyService: IInteractiveHistoryService;
 	#widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
 	#dimension?: DOM.Dimension;
+
+	#onDidFocusWidget = this._register(new Emitter<void>());
+	override get onDidFocus(): Event<void> { return this.#onDidFocusWidget.event; }
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -85,6 +90,7 @@ export class InteractiveEditor extends EditorPane {
 		this.#historyService = historyService;
 
 		codeEditorService.registerDecorationType('interactive-decoration', DECORATION_KEY, {});
+		this._register(this.#keybindingService.onDidUpdateKeybindings(this.#updateInputDecoration, this));
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -154,9 +160,14 @@ export class InteractiveEditor extends EditorPane {
 		this.#notebookWidget.value!.setOptions({
 			isReadOnly: true
 		});
+		this.#widgetDisposableStore.add(this.#notebookWidget.value!.onDidFocus(() => this.#onDidFocusWidget.fire()));
+		this.#widgetDisposableStore.add(model.notebook.onDidChangeContent(() => {
+			(model as ComplexNotebookEditorModel).setDirty(false);
+		}));
 
 		const editorModel = input.resolveInput(this.#notebookWidget.value?.activeKernel?.supportedLanguages[0] ?? 'plaintext');
 		this.#codeEditorWidget.setModel(editorModel);
+		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidFocusEditorWidget(() => this.#onDidFocusWidget.fire()));
 		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidContentSizeChange(e => {
 			if (!e.contentHeightChanged) {
 				return;

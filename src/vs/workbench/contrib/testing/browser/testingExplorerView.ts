@@ -252,7 +252,7 @@ export class TestingExplorerViewModel extends Disposable {
 
 
 	public get viewSorting() {
-		return this._viewSorting.get() ?? TestExplorerViewSorting.ByLocation;
+		return this._viewSorting.get() ?? TestExplorerViewSorting.ByStatus;
 	}
 
 	public set viewSorting(newSorting: TestExplorerViewSorting) {
@@ -714,18 +714,15 @@ class TreeSorter implements ITreeSorter<TestExplorerTreeElement> {
 			return (a instanceof TestTreeErrorMessage ? -1 : 0) + (b instanceof TestTreeErrorMessage ? 1 : 0);
 		}
 
-		let delta = cmpPriority(a.state, b.state);
-		if (delta !== 0) {
-			return delta;
+		const stateDelta = cmpPriority(a.state, b.state);
+		if (this.viewModel.viewSorting === TestExplorerViewSorting.ByStatus && stateDelta !== 0) {
+			return stateDelta;
 		}
 
-		if (this.viewModel.viewSorting === TestExplorerViewSorting.ByLocation) {
-			if (a instanceof TestItemTreeElement && b instanceof TestItemTreeElement
-				&& a.test.item.uri && b.test.item.uri && a.test.item.uri.toString() === b.test.item.uri.toString() && a.test.item.range && b.test.item.range) {
-				const delta = a.test.item.range.startLineNumber - b.test.item.range.startLineNumber;
-				if (delta !== 0) {
-					return delta;
-				}
+		if (a instanceof TestItemTreeElement && b instanceof TestItemTreeElement && a.test.item.uri && b.test.item.uri && a.test.item.uri.toString() === b.test.item.uri.toString() && a.test.item.range && b.test.item.range) {
+			const delta = a.test.item.range.startLineNumber - b.test.item.range.startLineNumber;
+			if (delta !== 0) {
+				return delta;
 			}
 		}
 

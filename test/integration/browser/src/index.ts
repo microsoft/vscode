@@ -15,7 +15,7 @@ import * as optimistLib from 'optimist';
 import { StdioOptions } from 'node:child_process';
 
 const optimist = optimistLib
-	.describe('workspacePath', 'path to the workspace to open in the test').string('workspacePath')
+	.describe('workspacePath', 'path to the workspace (folder or *.code-workspace file) to open in the test').string('workspacePath')
 	.describe('extensionDevelopmentPath', 'path to the extension to test').string('extensionDevelopmentPath')
 	.describe('extensionTestsPath', 'path to the extension tests').string('extensionTestsPath')
 	.describe('debug', 'do not run browsers headless').boolean('debug')
@@ -45,10 +45,13 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 	const testExtensionUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.extensionDevelopmentPath)).path, protocol, host, slashes: true });
 	const testFilesUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.extensionTestsPath)).path, protocol, host, slashes: true });
 
-	const folderParam = testWorkspaceUri;
 	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"],["enableProposedApi",""],["webviewExternalEndpointCommit","5319757634f77a050b49c10162939bfe60970c29"],["skipWelcome","true"]]`;
 
-	await page.goto(`${endpoint.href}&folder=${folderParam}&payload=${payloadParam}`);
+	if (path.extname(testWorkspaceUri) === '.code-workspace') {
+		await page.goto(`${endpoint.href}&workspace=${testWorkspaceUri}&payload=${payloadParam}`);
+	} else {
+		await page.goto(`${endpoint.href}&folder=${testWorkspaceUri}&payload=${payloadParam}`);
+	}
 
 	await page.exposeFunction('codeAutomationLog', (type: string, args: any[]) => {
 		console[type](...args);

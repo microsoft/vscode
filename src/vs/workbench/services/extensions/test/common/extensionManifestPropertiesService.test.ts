@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IExtensionManifest, ExtensionUntrustedWorkpaceSupportType } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManifest, ExtensionUntrustedWorkspaceSupportType } from 'vs/platform/extensions/common/extensions';
 import { ExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
@@ -68,7 +68,7 @@ suite('ExtensionManifestPropertiesService - ExtensionKind', () => {
 
 // Workspace Trust is disabled in web at the moment
 if (!isWeb) {
-	suite('ExtensionManifestPropertiesService - ExtensionUntrustedWorkpaceSupportType', () => {
+	suite('ExtensionManifestPropertiesService - ExtensionUntrustedWorkspaceSupportType', () => {
 		let testObject: ExtensionManifestPropertiesService;
 		let instantiationService: TestInstantiationService;
 		let testConfigurationService: TestConfigurationService;
@@ -83,7 +83,7 @@ if (!isWeb) {
 
 		teardown(() => testObject.dispose());
 
-		function assertUntrustedWorkspaceSupport(extensionMaifest: IExtensionManifest, expected: ExtensionUntrustedWorkpaceSupportType): void {
+		function assertUntrustedWorkspaceSupport(extensionMaifest: IExtensionManifest, expected: ExtensionUntrustedWorkspaceSupportType): void {
 			testObject = instantiationService.createInstance(ExtensionManifestPropertiesService);
 			const untrustedWorkspaceSupport = testObject.getExtensionUntrustedWorkspaceSupportType(extensionMaifest);
 

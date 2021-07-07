@@ -29,8 +29,7 @@
           ".ts.map",
           ".har",
           ".jslintrc",
-          ".jsonld",
-          ".ipynb"
+          ".jsonld"
         ],
         "filenames": [
           "composer.lock",

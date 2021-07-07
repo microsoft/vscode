@@ -57,21 +57,21 @@ suite('Workspace Trust', () => {
 			await configurationService.setUserConfiguration('security', getUserSettings(false));
 
 			testObject = await initializeTestObject();
-			assert.strictEqual(true, testObject.isWorkpaceTrusted());
+			assert.strictEqual(true, testObject.isWorkspaceTrusted());
 		});
 
 		test('workspace trust disabled (--disable-workspace-trust)', async () => {
 			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService, disableWorkspaceTrust: true });
 
 			testObject = await initializeTestObject();
-			assert.strictEqual(true, testObject.isWorkpaceTrusted());
+			assert.strictEqual(true, testObject.isWorkspaceTrusted());
 		});
 
 		test('empty workspace - trusted', async () => {
 			workspaceService.setWorkspace(new Workspace('empty-workspace'));
 
 			testObject = await initializeTestObject();
-			assert.strictEqual(true, testObject.isWorkpaceTrusted());
+			assert.strictEqual(true, testObject.isWorkspaceTrusted());
 		});
 
 		test('empty workspace - untrusted', async () => {
@@ -79,7 +79,7 @@ suite('Workspace Trust', () => {
 			await configurationService.setUserConfiguration('security', getUserSettings(true, false));
 
 			testObject = await initializeTestObject();
-			assert.strictEqual(false, testObject.isWorkpaceTrusted());
+			assert.strictEqual(false, testObject.isWorkspaceTrusted());
 		});
 
 		// test('empty workspace - trusted, open trusted file', () => {

@@ -29,7 +29,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { createErrorWithActions } from 'vs/base/common/errors';
-import { EditorActivation, EditorOverride, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { EditorActivation, EditorResolution, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
@@ -226,7 +226,7 @@ export class TextFileEditor extends BaseTextEditor {
 			// and do not control the initial intent that resulted
 			// in us now opening as binary.
 			activation: EditorActivation.PRESERVE,
-			override: EditorOverride.DISABLED
+			override: EditorResolution.DISABLED
 		}, this.group);
 	}
 

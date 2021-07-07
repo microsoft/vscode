@@ -34,8 +34,10 @@ import { isLinux, isMacintosh, isWindows, OperatingSystem as OS } from 'vs/base/
 import { localize } from 'vs/nls';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import product from 'vs/platform/product/common/product';
 
 export const WorkspacePlatform = new RawContextKey<'mac' | 'linux' | 'windows' | undefined>('workspacePlatform', undefined, localize('workspacePlatform', "The platform of the current workspace, which in remote contexts may be different from the platform of the UI"));
+export const HasMultipleNewFileEntries = new RawContextKey<boolean>('hasMultipleNewFileEntries', false);
 
 export const IGettingStartedService = createDecorator<IGettingStartedService>('gettingStartedService');
 
@@ -309,6 +311,8 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			e.affectedKeys.forEach(key => { this.progressByEvent('onSettingChanged:' + key); });
 		}));
 
+		HasMultipleNewFileEntries.bindTo(this.contextService).set(false);
+
 		this.remoteAgentService.getEnvironment().then(env => {
 			const remoteOS = env?.os;
 
@@ -510,6 +514,10 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	}
 
 	private async registerExtensionNewContributions(extension: IExtensionDescription) {
+		if (product.quality === 'stable' && !this.configurationService.getValue('workbench.welcome.experimental.startEntries')) {
+			console.warn('Warning: ignoring startEntries contributed by', extension.identifier, 'becuase this is a stable build and welcome.experimental.startEntries has not been set');
+			return;
+		}
 		extension.contributes?.startEntries?.forEach(entry => {
 			this.registerNewMenuItem({
 				sourceExtensionId: extension.identifier.value,
@@ -670,9 +678,12 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	}
 
 	private registerNewMenuItem(categoryDescriptor: IGettingStartedNewMenuEntryDescriptor) {
-		let insertIndex = (this.newMenuItems.findIndex(entry => categoryDescriptor.category < entry.category));
-		if (insertIndex === -1) { insertIndex = this.newMenuItems.length; }
-		this.newMenuItems.splice(insertIndex, 0, categoryDescriptor);
+		this.newMenuItems.push(categoryDescriptor);
+		this.newMenuItems.sort((a, b) => b.category - a.category);
+		if (categoryDescriptor.category === IGettingStartedNewMenuEntryDescriptorCategory.file || categoryDescriptor.category === IGettingStartedNewMenuEntryDescriptorCategory.notebook) {
+			HasMultipleNewFileEntries.bindTo(this.contextService).set(true);
+		}
+
 		this._onDidAddNewEntry.fire();
 	}
 
@@ -698,6 +709,11 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		}
 
 		this.newMenuItems = this.newMenuItems.filter(entry => entry.sourceExtensionId !== extension.identifier.value);
+		HasMultipleNewFileEntries.bindTo(this.contextService).set(
+			this.newMenuItems.filter(entry =>
+				entry.category === IGettingStartedNewMenuEntryDescriptorCategory.file
+				|| entry.category === IGettingStartedNewMenuEntryDescriptorCategory.notebook).length > 1
+		);
 	}
 
 	private registerDoneListeners(step: IGettingStartedStep) {
@@ -814,7 +830,12 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		const isNew = firstSeenDate && firstSeenDate > (+new Date() - NEW_WALKTHROUGH_TIME);
 
 		const lastStepIDs = this.metadata.get(category.id)?.stepIDs;
-		const hasNewSteps = lastStepIDs && (category.content.steps.length !== lastStepIDs.length || category.content.steps.some(({ id }, index) => id !== lastStepIDs[index]));
+		const rawCategory = this.gettingStartedContributions.get(category.id);
+		let currentStepIds: string[] = [];
+		if (rawCategory?.content.type === 'steps') {
+			currentStepIds = rawCategory.content.steps.map(s => s.id);
+		}
+		const hasNewSteps = lastStepIDs && (currentStepIds.length !== lastStepIDs.length || currentStepIds.some((id, index) => id !== lastStepIDs[index]));
 
 		let priority = 0;
 
@@ -968,7 +989,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'resetGettingStartedProgress',
 			category: 'Developer',
-			title: 'Reset Welcome Page Walkthrough Progress',
+			title: 'Reset Welcome Page Getting Started Progress',
 			f1: true
 		});
 	}

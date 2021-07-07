@@ -244,6 +244,16 @@
 	padding: 4px 0 2px;
 	margin: auto;
 }
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-entry.is-active::before {
+	display: block;
+	position: absolute;
+	content: "";
+	left: 0;
+	top: 0;
+	bottom: 0;
+	width: 1px;
+}
+
 .monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text > .monaco-toolbar {
 	padding: 4px 7px 2px;
 	margin: 0;

@@ -7,7 +7,7 @@ import { Constants } from 'vs/base/common/uint';
 import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
 
 class FloatHorizontalRange {
-	_floatHorizontalRangeBrand: void;
+	_floatHorizontalRangeBrand: void = undefined;
 
 	public readonly left: number;
 	public readonly width: number;

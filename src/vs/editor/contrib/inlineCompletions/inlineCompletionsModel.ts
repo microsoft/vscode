@@ -20,7 +20,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { MutableDisposable } from 'vs/editor/contrib/inlineCompletions/utils';
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
-import { stringDiff } from 'vs/base/common/diff/diff';
+import { IDiffChange, stringDiff } from 'vs/base/common/diff/diff';
 import { GhostTextWidgetModel, GhostText, BaseGhostTextWidgetModel, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/ghostText';
 
 export class InlineCompletionsModel extends Disposable implements GhostTextWidgetModel {
@@ -499,7 +499,7 @@ export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCo
 	// This is a single line string
 	const valueToBeReplaced = textModel.getValueInRange(inlineCompletion.range);
 
-	const changes = stringDiff(valueToBeReplaced, inlineCompletion.text, false);
+	const changes = cachingDiff(valueToBeReplaced, inlineCompletion.text);
 
 	const lineNumber = inlineCompletion.range.startLineNumber;
 
@@ -538,6 +538,21 @@ export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCo
 	}
 
 	return new GhostText(lineNumber, parts, 0);
+}
+
+let lastRequest: { originalValue: string, newValue: string, changes: IDiffChange[] } | undefined = undefined;
+function cachingDiff(originalValue: string, newValue: string): readonly IDiffChange[] {
+	if (lastRequest?.originalValue === originalValue && lastRequest?.newValue === newValue) {
+		return lastRequest?.changes;
+	} else {
+		const changes = stringDiff(originalValue, newValue, false);
+		lastRequest = {
+			originalValue,
+			newValue,
+			changes
+		};
+		return changes;
+	}
 }
 
 export interface LiveInlineCompletion extends NormalizedInlineCompletion {

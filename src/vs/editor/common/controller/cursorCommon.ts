@@ -58,7 +58,7 @@ const autoCloseNever = () => false;
 const autoCloseBeforeWhitespace = (chr: string) => (chr === ' ' || chr === '\t');
 
 export class CursorConfiguration {
-	_cursorMoveConfigurationBrand: void;
+	_cursorMoveConfigurationBrand: void = undefined;
 
 	public readonly readOnly: boolean;
 	public readonly tabSize: number;
@@ -233,7 +233,7 @@ export interface ICursorSimpleModel {
  * Represents the cursor state on either the model or on the view model.
  */
 export class SingleCursorState {
-	_singleCursorStateBrand: void;
+	_singleCursorStateBrand: void = undefined;
 
 	// --- selection can start as a range (think double click and drag)
 	public readonly selectionStart: Range;
@@ -318,7 +318,7 @@ export class SingleCursorState {
 }
 
 export class CursorContext {
-	_cursorContextBrand: void;
+	_cursorContextBrand: void = undefined;
 
 	public readonly model: ITextModel;
 	public readonly coordinatesConverter: ICoordinatesConverter;
@@ -354,7 +354,7 @@ export class PartialViewCursorState {
 export type PartialCursorState = CursorState | PartialModelCursorState | PartialViewCursorState;
 
 export class CursorState {
-	_cursorStateBrand: void;
+	_cursorStateBrand: void = undefined;
 
 	public static fromModelState(modelState: SingleCursorState): PartialModelCursorState {
 		return new PartialModelCursorState(modelState);
@@ -398,7 +398,7 @@ export class CursorState {
 }
 
 export class EditOperationResult {
-	_editOperationResultBrand: void;
+	_editOperationResultBrand: void = undefined;
 
 	readonly type: EditOperationType;
 	readonly commands: Array<ICommand | null>;

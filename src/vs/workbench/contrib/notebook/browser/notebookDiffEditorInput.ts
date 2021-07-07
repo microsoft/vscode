@@ -6,7 +6,6 @@
 import { GroupIdentifier, IEditorInput, IResourceDiffEditorInput, isResourceDiffEditorInput, IUntypedEditorInput, UntypedEditorContext } from 'vs/workbench/common/editor';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { URI } from 'vs/base/common/uri';
-import { isEqual } from 'vs/base/common/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotebookDiffEditorModel, IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -25,9 +24,9 @@ class NotebookDiffEditorModel extends EditorModel implements INotebookDiffEditor
 
 export class NotebookDiffEditorInput extends DiffEditorInput {
 	static create(instantiationService: IInstantiationService, resource: URI, name: string | undefined, description: string | undefined, originalResource: URI, viewType: string) {
-		const originalInput = NotebookEditorInput.create(instantiationService, originalResource, viewType);
-		const modifiedInput = NotebookEditorInput.create(instantiationService, resource, viewType);
-		return instantiationService.createInstance(NotebookDiffEditorInput, name, description, originalInput, modifiedInput, viewType);
+		const original = NotebookEditorInput.create(instantiationService, originalResource, viewType);
+		const modified = NotebookEditorInput.create(instantiationService, resource, viewType);
+		return instantiationService.createInstance(NotebookDiffEditorInput, name, description, original, modified, viewType);
 	}
 
 	static override readonly ID: string = 'workbench.input.diffNotebookInput';
@@ -36,18 +35,20 @@ export class NotebookDiffEditorInput extends DiffEditorInput {
 	private _originalTextModel: IResolvedNotebookEditorModel | null = null;
 
 	override get resource() {
-		return this.modifiedInput.resource;
+		return this.modified.resource;
 	}
 
 	override get editorId() {
 		return this.viewType;
 	}
 
+	private _cachedModel: NotebookDiffEditorModel | undefined = undefined;
+
 	constructor(
 		name: string | undefined,
 		description: string | undefined,
-		override readonly originalInput: NotebookEditorInput,
-		override readonly modifiedInput: NotebookEditorInput,
+		override readonly original: NotebookEditorInput,
+		override readonly modified: NotebookEditorInput,
 		public readonly viewType: string,
 		@IFileService fileService: IFileService,
 		@ILabelService labelService: ILabelService,
@@ -55,8 +56,8 @@ export class NotebookDiffEditorInput extends DiffEditorInput {
 		super(
 			name,
 			description,
-			originalInput,
-			modifiedInput,
+			original,
+			modified,
 			undefined,
 			labelService,
 			fileService
@@ -68,33 +69,32 @@ export class NotebookDiffEditorInput extends DiffEditorInput {
 	}
 
 	override async resolve(): Promise<NotebookDiffEditorModel> {
-
 		const [originalEditorModel, modifiedEditorModel] = await Promise.all([
-			this.originalInput.resolve(),
-			this.modifiedInput.resolve(),
+			this.original.resolve(),
+			this.modified.resolve(),
 		]);
 
-		this._originalTextModel?.dispose();
-		this._modifiedTextModel?.dispose();
+		this._cachedModel?.dispose();
 
 		// TODO@rebornix check how we restore the editor in text diff editor
 		if (!modifiedEditorModel) {
-			throw new Error(`Fail to resolve modified editor model for resource ${this.modifiedInput.resource} with notebookType ${this.viewType}`);
+			throw new Error(`Fail to resolve modified editor model for resource ${this.modified.resource} with notebookType ${this.viewType}`);
 		}
 
 		if (!originalEditorModel) {
-			throw new Error(`Fail to resolve original editor model for resource ${this.originalInput.resource} with notebookType ${this.viewType}`);
+			throw new Error(`Fail to resolve original editor model for resource ${this.original.resource} with notebookType ${this.viewType}`);
 		}
 
 		this._originalTextModel = originalEditorModel;
 		this._modifiedTextModel = modifiedEditorModel;
-		return new NotebookDiffEditorModel(this._originalTextModel, this._modifiedTextModel);
+		this._cachedModel = new NotebookDiffEditorModel(this._originalTextModel, this._modifiedTextModel);
+		return this._cachedModel;
 	}
 
 	override toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IResourceDiffEditorInput {
 		return {
-			originalInput: { resource: this.originalInput.resource },
-			modifiedInput: { resource: this.resource },
+			original: { resource: this.original.resource },
+			modified: { resource: this.resource },
 			options: {
 				override: this.viewType
 			}
@@ -102,26 +102,23 @@ export class NotebookDiffEditorInput extends DiffEditorInput {
 	}
 
 	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
-		if (super.matches(otherInput)) {
+		if (this === otherInput) {
 			return true;
 		}
 
-		if (isResourceDiffEditorInput(otherInput)) {
-			return this.primary.matches(otherInput.modifiedInput) && this.secondary.matches(otherInput.originalInput) && this.editorId !== undefined && this.editorId === otherInput.options?.override;
-		}
-
 		if (otherInput instanceof NotebookDiffEditorInput) {
-			return this.viewType === otherInput.viewType
-				&& isEqual(this.resource, otherInput.resource);
+			return this.modified.matches(otherInput.modified)
+				&& this.original.matches(otherInput.original)
+				&& this.viewType === otherInput.viewType;
 		}
-		return false;
-	}
 
-	override dispose() {
-		this._modifiedTextModel?.dispose();
-		this._modifiedTextModel = null;
-		this._originalTextModel?.dispose();
-		this._originalTextModel = null;
-		super.dispose();
+		if (isResourceDiffEditorInput(otherInput)) {
+			return this.modified.matches(otherInput.modified)
+				&& this.original.matches(otherInput.original)
+				&& this.editorId !== undefined
+				&& this.editorId === otherInput.options?.override;
+		}
+
+		return false;
 	}
 }

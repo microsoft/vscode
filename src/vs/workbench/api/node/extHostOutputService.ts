@@ -17,6 +17,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { createRotatingLogger } from 'vs/platform/log/node/spdlogLog';
 import { Logger } from 'spdlog';
 import { ByteSize } from 'vs/platform/files/common/files';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 class OutputAppender {
 
@@ -43,8 +44,8 @@ class ExtHostOutputChannelBackedByFile extends AbstractExtHostOutputChannel {
 
 	private _appender: OutputAppender;
 
-	constructor(name: string, appender: OutputAppender, proxy: MainThreadOutputServiceShape) {
-		super(name, false, URI.file(appender.file), proxy);
+	constructor(name: string, appender: OutputAppender, extensionId: string, proxy: MainThreadOutputServiceShape) {
+		super(name, false, URI.file(appender.file), extensionId, proxy);
 		this._appender = appender;
 	}
 
@@ -95,17 +96,17 @@ export class ExtHostOutputService2 extends ExtHostOutputService {
 		}
 	}
 
-	override createOutputChannel(name: string): vscode.OutputChannel {
+	override createOutputChannel(name: string, extension: IExtensionDescription): vscode.OutputChannel {
 		name = name.trim();
 		if (!name) {
 			throw new Error('illegal argument `name`. must not be falsy');
 		}
-		const extHostOutputChannel = this._doCreateOutChannel(name);
+		const extHostOutputChannel = this._doCreateOutChannel(name, extension);
 		extHostOutputChannel.then(channel => channel._id.then(id => this._channels.set(id, channel)));
 		return new LazyOutputChannel(name, extHostOutputChannel);
 	}
 
-	private async _doCreateOutChannel(name: string): Promise<AbstractExtHostOutputChannel> {
+	private async _doCreateOutChannel(name: string, extension: IExtensionDescription): Promise<AbstractExtHostOutputChannel> {
 		try {
 			const outputDirPath = join(this._logsLocation.fsPath, `output_logging_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
 			const exists = await SymlinkSupport.existsDirectory(outputDirPath);
@@ -115,11 +116,11 @@ export class ExtHostOutputService2 extends ExtHostOutputService {
 			const fileName = `${this._namePool++}-${name.replace(/[\\/:\*\?"<>\|]/g, '')}`;
 			const file = URI.file(join(outputDirPath, `${fileName}.log`));
 			const appender = await OutputAppender.create(fileName, file.fsPath);
-			return new ExtHostOutputChannelBackedByFile(name, appender, this._proxy);
+			return new ExtHostOutputChannelBackedByFile(name, appender, extension.identifier.value, this._proxy);
 		} catch (error) {
 			// Do not crash if logger cannot be created
 			this.logService.error(error);
-			return new ExtHostPushOutputChannel(name, this._proxy);
+			return new ExtHostPushOutputChannel(name, extension.identifier.value, this._proxy);
 		}
 	}
 }

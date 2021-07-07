@@ -108,7 +108,7 @@ export class CellEditorOptions extends Disposable {
 			... { lineNumbers },
 			...editorOptionsOverride,
 			...{ padding: { top: 12, bottom: 12 } },
-			readonly: this.notebookEditor.viewModel?.options.isReadOnly ?? false,
+			readOnly: this.notebookEditor.viewModel?.options.isReadOnly ?? false,
 			glyphMargin: cellBreakpointMargin
 		};
 

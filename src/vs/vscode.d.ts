@@ -3976,25 +3976,25 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Represents a structured label for completion items.
+	 * A structured label for a {@link CompletionItem completion item}.
 	 */
 	export interface CompletionItemLabel {
 
 		/**
-		 * The label of this completion item. By default
-		 * this is also the text that is inserted when selecting
-		 * this completion.
+		 * The label of this completion item.
+		 *
+		 * By default this is also the text that is inserted when this completion is selected.
 		 */
 		label: string;
 
 		/**
-		 * An optional string which is rendered less prominent and directly after {@link CompletionItemLabel.label name},
+		 * An optional string which is rendered less prominently directly after {@link CompletionItemLabel.label label},
 		 * without any spacing. Should be used for function signatures or type annotations.
 		 */
 		detail?: string;
 
 		/**
-		 * An optional string which is rendered less prominent and after {@link CompletionItemLabel.detail}. Should be used
+		 * An optional string which is rendered less prominently after {@link CompletionItemLabel.detail}. Should be used
 		 * for fully qualified names or file path.
 		 */
 		description?: string;
@@ -6215,9 +6215,11 @@ declare module 'vscode' {
 	export interface Memento {
 
 		/**
-		 * The stored keys.
+		 * Returns the stored keys.
+		 *
+		 * @return The stored keys.
 		 */
-		readonly keys: readonly string[];
+		keys(): readonly string[];
 
 		/**
 		 * Return a value.
@@ -10128,6 +10130,14 @@ declare module 'vscode' {
 		readonly text: string;
 	}
 
+	export enum TextDocumentChangeReason {
+		/** The text change is caused by an undo operation. */
+		Undo = 1,
+
+		/** The text change is caused by an redo operation. */
+		Redo = 2,
+	}
+
 	/**
 	 * An event describing a transactional {@link TextDocument document} change.
 	 */
@@ -10142,6 +10152,12 @@ declare module 'vscode' {
 		 * An array of content changes.
 		 */
 		readonly contentChanges: readonly TextDocumentContentChangeEvent[];
+
+		/**
+		 * The reason why the document was changed.
+		 * Is undefined if the reason is not known.
+		*/
+		readonly reason?: TextDocumentChangeReason;
 	}
 
 	/**

@@ -16,8 +16,8 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { timeout } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
-import { GroupIdentifier, IUntypedEditorInput, UntypedEditorContext } from 'vs/workbench/common/editor';
-import { IResourceEditorInput, isResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { GroupIdentifier, isResourceEditorInput, IUntypedEditorInput, UntypedEditorContext } from 'vs/workbench/common/editor';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 suite('HistoryService', function () {

@@ -1,0 +1,29 @@
+name: Create Prebuild
+on: 
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *'
+jobs:
+  createPrebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - id: create-prebuild-production
+        run: |
+          $splat = @{
+            ErrorAction = 'Stop'
+            Uri = 'https://api.github.com/vscs_internal/user/vscode-triage-bot/codespaces/prebuild'
+            Method = 'POST'   
+            Headers = @{
+              'Content-Type' = 'application/json; charset=utf-8'
+              'Authorization' = 'token ${{ secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT }}'
+            }
+            Body = @{
+              ref = 'main'
+              repository_id = 41881900
+              location = 'WestUs2'
+              vscs_target = 'production'
+            } | ConvertTo-Json
+          }
+
+          Invoke-RestMethod @splat
+        shell: pwsh

@@ -5,12 +5,12 @@
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalIcon, TitleEventSource } from 'vs/platform/terminal/common/terminal';
-import { IEditorInputSerializer } from 'vs/workbench/common/editor';
+import { IEditorSerializer } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITerminalEditorService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 
-export class TerminalInputSerializer implements IEditorInputSerializer {
+export class TerminalInputSerializer implements IEditorSerializer {
 	constructor(
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService
 	) { }
@@ -30,7 +30,6 @@ export class TerminalInputSerializer implements IEditorInputSerializer {
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined {
 		const terminalInstance = JSON.parse(serializedEditorInput);
 		const editor = this._terminalEditorService.getOrCreateEditorInput(terminalInstance);
-		editor.terminalInstance?.onExit(() => editor.dispose());
 		return editor;
 	}
 

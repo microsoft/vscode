@@ -11,7 +11,7 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import * as perf from 'vs/base/common/performance';
 import { isEqualOrParent } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { EnablementState, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWebExtensionsScannerService, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -794,9 +794,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			}
 		}
 
-		const enablementStates = this._extensionEnablementService.getEnablementStates(mappedExtensions);
+		const enablementStates = this._extensionEnablementService.getEnablementStates(mappedExtensions, ignoreWorkspaceTrust ? { trusted: true } : undefined);
 		for (let index = 0; index < enablementStates.length; index++) {
-			if (enablementStates[index] === EnablementState.EnabledGlobally || enablementStates[index] === EnablementState.EnabledWorkspace || (ignoreWorkspaceTrust && enablementStates[index] === EnablementState.DisabledByTrustRequirement)) {
+			if (this._extensionEnablementService.isEnabledEnablementState(enablementStates[index])) {
 				enabledExtensions.push(extensionsToCheck[index]);
 			}
 		}

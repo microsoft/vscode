@@ -9,18 +9,20 @@ import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IShellLaunchConfig, TerminalLocation } from 'vs/platform/terminal/common/terminal';
-import { IEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
 import { ITerminalEditorService, ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { SerializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export class TerminalEditorService extends Disposable implements ITerminalEditorService {
 	declare _serviceBrand: undefined;
 
 	instances: ITerminalInstance[] = [];
 	private _activeInstanceIndex: number = -1;
+	private _isShuttingDown = false;
 
 	private _editorInputs: Map</*instanceId*/number, TerminalEditorInput> = new Map();
 	private _instanceDisposables: Map</*instanceId*/number, IDisposable[]> = new Map();
@@ -38,7 +40,8 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		@ICommandService private readonly _commandService: ICommandService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILifecycleService lifecycleService: ILifecycleService
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -46,10 +49,12 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 				dispose(d);
 			}
 		}));
+		this._register(lifecycleService.onWillShutdown(() => this._isShuttingDown = true));
 		this._register(this._editorService.onDidActiveEditorChange(() => {
 			const activeEditor = this._editorService.activeEditor;
 			const instance = activeEditor instanceof TerminalEditorInput ? activeEditor?.terminalInstance : undefined;
-			if (instance) {
+			if (instance && activeEditor instanceof TerminalEditorInput) {
+				activeEditor?.setGroup(this._editorService.activeEditorPane?.group);
 				this._setActiveInstance(instance);
 			}
 		}));
@@ -64,9 +69,16 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			}
 		}));
 		this._register(this.onDidDisposeInstance(instance => this.detachInstance(instance)));
+
+		// Remove the terminal from the managed instances when the editor closes. This fires when
+		// dragging and dropping to another editor or closing the editor via cmd/ctrl+w.
 		this._register(this._editorService.onDidCloseEditor(e => {
-			if (e.editor instanceof TerminalEditorInput && e.editor.terminalInstance) {
-				this.detachInstance(e.editor.terminalInstance);
+			const instance = e.editor instanceof TerminalEditorInput ? e.editor.terminalInstance : undefined;
+			if (instance) {
+				const instanceIndex = this.instances.findIndex(e => e === instance);
+				if (instanceIndex !== -1) {
+					this.instances.splice(instanceIndex, 1);
+				}
 			}
 		}));
 	}
@@ -131,10 +143,13 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 
 	async openEditor(instance: ITerminalInstance): Promise<void> {
 		const input = this.getOrCreateEditorInput(instance);
-		await this._editorService.openEditor(input, {
+		const editorPane: IEditorPane | undefined = await this._editorService.openEditor(input, {
 			pinned: true,
 			forceReload: true
-		});
+		},
+			input.group
+		);
+		input.setGroup(editorPane?.group);
 	}
 
 	getOrCreateEditorInput(instance: ITerminalInstance | SerializedTerminalEditorInput, isFutureSplit: boolean = false): TerminalEditorInput {
@@ -193,7 +208,10 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		if (instanceIndex !== -1) {
 			this.instances.splice(instanceIndex, 1);
 		}
-		editorInput?.dispose();
+		// Don't dispose the input when shutting down to avoid layouts in the editor area
+		if (!this._isShuttingDown) {
+			editorInput?.dispose();
+		}
 		const disposables = this._instanceDisposables.get(instance.instanceId);
 		this._instanceDisposables.delete(instance.instanceId);
 		if (disposables) {

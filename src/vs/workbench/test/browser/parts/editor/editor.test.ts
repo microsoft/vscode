@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorResourceAccessor, SideBySideEditor, IEditorInputWithPreferredResource, EditorInputCapabilities, isEditorIdentifier, IResourceDiffEditorInput, IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, SideBySideEditor, IEditorInputWithPreferredResource, EditorInputCapabilities, isEditorIdentifier, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, isResourceEditorInput, isUntitledResourceEditorInput, isResourceDiffEditorInput, isEditorInputWithOptionsAndGroup, IEditorInputWithOptions, isEditorInputWithOptions, isEditorInput, IEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -19,7 +19,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { EditorOverride, IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { EditorResolution, IResourceEditorInput } from 'vs/platform/editor/common/editor';
 
 suite('Workbench editor utils', () => {
 
@@ -64,6 +64,23 @@ suite('Workbench editor utils', () => {
 		accessor.untitledTextEditorService.dispose();
 
 		disposables.clear();
+	});
+
+	test('untyped check functions', () => {
+		assert.ok(!isResourceEditorInput(undefined));
+		assert.ok(!isResourceEditorInput({}));
+		assert.ok(!isResourceEditorInput({ original: { resource: URI.file('/') }, modified: { resource: URI.file('/') } }));
+		assert.ok(isResourceEditorInput({ resource: URI.file('/') }));
+
+		assert.ok(!isUntitledResourceEditorInput(undefined));
+		assert.ok(isUntitledResourceEditorInput({}));
+		assert.ok(isUntitledResourceEditorInput({ resource: URI.file('/').with({ scheme: Schemas.untitled }) }));
+		assert.ok(isUntitledResourceEditorInput({ resource: URI.file('/'), forceUntitled: true }));
+
+		assert.ok(!isResourceDiffEditorInput(undefined));
+		assert.ok(!isResourceDiffEditorInput({}));
+		assert.ok(!isResourceDiffEditorInput({ resource: URI.file('/') }));
+		assert.ok(isResourceDiffEditorInput({ original: { resource: URI.file('/') }, modified: { resource: URI.file('/') } }));
 	});
 
 	test('EditorInputCapabilities', () => {
@@ -261,8 +278,8 @@ suite('Workbench editor utils', () => {
 		assert.ok(!EditorResourceAccessor.getOriginalUri(file, { filterByScheme: Schemas.untitled }));
 
 		const diffEditorInput: IResourceDiffEditorInput = {
-			originalInput: untitled,
-			modifiedInput: file
+			original: untitled,
+			modified: file
 		};
 
 		assert.ok(!EditorResourceAccessor.getCanonicalUri(diffEditorInput));
@@ -314,6 +331,24 @@ suite('Workbench editor utils', () => {
 		assert.strictEqual(isEditorIdentifier({ editor: testInput1, groupId: 3 }), true);
 	});
 
+	test('isEditorInputWithOptionsAndGroup', () => {
+		const editorInput = new TestFileEditorInput(URI.file('resource1'), 'testTypeId');
+		assert.strictEqual(isEditorInput(editorInput), true);
+		assert.strictEqual(isEditorInputWithOptions(editorInput), false);
+		assert.strictEqual(isEditorInputWithOptionsAndGroup(editorInput), false);
+
+		const editorInputWithOptions: IEditorInputWithOptions = { editor: editorInput, options: { override: EditorResolution.PICK } };
+		assert.strictEqual(isEditorInput(editorInputWithOptions), false);
+		assert.strictEqual(isEditorInputWithOptions(editorInputWithOptions), true);
+		assert.strictEqual(isEditorInputWithOptionsAndGroup(editorInputWithOptions), false);
+
+		const service = accessor.editorGroupService;
+		const editorInputWithOptionsAndGroup: IEditorInputWithOptionsAndGroup = { editor: editorInput, options: { override: EditorResolution.PICK }, group: service.activeGroup };
+		assert.strictEqual(isEditorInput(editorInputWithOptionsAndGroup), false);
+		assert.strictEqual(isEditorInputWithOptions(editorInputWithOptionsAndGroup), true);
+		assert.strictEqual(isEditorInputWithOptionsAndGroup(editorInputWithOptionsAndGroup), true);
+	});
+
 	test('whenEditorClosed (single editor)', async function () {
 		return testWhenEditorClosed(false, false, toResource.call(this, '/path/index.txt'));
 	});
@@ -343,9 +378,9 @@ suite('Workbench editor utils', () => {
 
 		for (const resource of resources) {
 			if (custom) {
-				await accessor.editorService.openEditor(new TestFileEditorInput(resource, 'testTypeId'), { pinned: true, override: EditorOverride.DISABLED });
+				await accessor.editorService.openEditor(new TestFileEditorInput(resource, 'testTypeId'), { pinned: true, override: EditorResolution.DISABLED });
 			} else if (sideBySide) {
-				await accessor.editorService.openEditor(new SideBySideEditorInput('testSideBySideEditor', undefined, new TestFileEditorInput(resource, 'testTypeId'), new TestFileEditorInput(resource, 'testTypeId')), { pinned: true, override: EditorOverride.DISABLED });
+				await accessor.editorService.openEditor(new SideBySideEditorInput('testSideBySideEditor', undefined, new TestFileEditorInput(resource, 'testTypeId'), new TestFileEditorInput(resource, 'testTypeId')), { pinned: true, override: EditorResolution.DISABLED });
 			} else {
 				await accessor.editorService.openEditor({ resource, options: { pinned: true } });
 			}

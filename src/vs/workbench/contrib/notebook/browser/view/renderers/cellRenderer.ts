@@ -114,9 +114,9 @@ abstract class AbstractCellRenderer {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
 					if (notebookOptions.getLayoutConfiguration().insertToolbarAlignment === 'center') {
-						return new CodiconActionViewItem(action, this.keybindingService, this.notificationService);
+						return this.instantiationService.createInstance(CodiconActionViewItem, action);
 					} else {
-						return new MenuEntryActionViewItem(action, undefined, this.keybindingService, this.notificationService);
+						return this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined);
 					}
 				}
 
@@ -862,14 +862,12 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 					return undefined;
 				}
 
-				const item = new DropdownWithPrimaryActionViewItem(
+				const item = this.instantiationService.createInstance(DropdownWithPrimaryActionViewItem,
 					primary,
 					dropdownAction,
 					actions.secondary,
 					'notebook-cell-run-toolbar',
-					this.contextMenuService,
-					this.keybindingService,
-					this.notificationService);
+					this.contextMenuService);
 				actionViewItemDisposables.add(item.onDidChangeDropdownVisibility(visible => {
 					cellContainer.classList.toggle('cell-run-toolbar-dropdown-active', visible);
 				}));
@@ -1212,9 +1210,7 @@ export class ListTopCellToolbar extends Disposable {
 		insertionIndicatorContainer: HTMLElement,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
-		@IMenuService protected readonly menuService: IMenuService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@INotificationService private readonly notificationService: INotificationService,
+		@IMenuService protected readonly menuService: IMenuService
 	) {
 		super();
 
@@ -1223,7 +1219,7 @@ export class ListTopCellToolbar extends Disposable {
 		this.toolbar = this._register(new ToolBar(this.topCellToolbar, this.contextMenuService, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
-					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService);
+					const item = this.instantiationService.createInstance(CodiconActionViewItem, action);
 					return item;
 				}
 

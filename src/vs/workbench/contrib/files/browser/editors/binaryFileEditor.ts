@@ -12,8 +12,8 @@ import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/file
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorOverride, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorOverrideService, OverrideStatus, ReturnedOverride } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { EditorResolution, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorResolverService, ResolvedStatus, ResolvedEditor } from 'vs/workbench/services/editor/common/editorResolverService';
 
 /**
  * An implementation of editor for binary files that cannot be displayed.
@@ -26,7 +26,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IEditorOverrideService private readonly editorOverrideService: IEditorOverrideService,
+		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 		@IStorageService storageService: IStorageService
 	) {
 		super(
@@ -55,10 +55,10 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 			input.setForceOpenAsText();
 
 			// Try to let the user pick an override if there is one availabe
-			let overridenInput: ReturnedOverride | undefined = await this.editorOverrideService.resolveEditorInput({ resource: editor.resource, options: { ...options, override: EditorOverride.PICK } }, this.group);
-			if (overridenInput === OverrideStatus.NONE) {
+			let overridenInput: ResolvedEditor | undefined = await this.editorResolverService.resolveEditor({ resource: editor.resource, options: { ...options, override: EditorResolution.PICK } }, this.group);
+			if (overridenInput === ResolvedStatus.NONE) {
 				overridenInput = undefined;
-			} else if (overridenInput === OverrideStatus.ABORT) {
+			} else if (overridenInput === ResolvedStatus.ABORT) {
 				return;
 			}
 
@@ -68,7 +68,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 				replacement: overridenInput?.editor ?? input,
 				options: {
 					...overridenInput?.options ?? options,
-					override: EditorOverride.DISABLED
+					override: EditorResolution.DISABLED
 				}
 			}], this.group);
 		}
