@@ -112,7 +112,6 @@
 				"--extensionDevelopmentPath=${workspaceFolder}/extensions/vscode-api-tests",
 				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-api-tests/out/singlefolder-tests",
 				"--disable-extensions",
-				"--disable-workspace-trust",
 				"--enable-proposed-api"
 			],
 			"outFiles": [

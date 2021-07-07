@@ -6781,7 +6781,7 @@ declare module 'vscode' {
 		 * Defaults to undefined meaning that the task doesn't
 		 * belong to any special group.
 		 */
-		group?: TaskGroup2;
+		group?: TaskGroup;
 
 		/**
 		 * The presentation options. Defaults to an empty literal.

@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import vs_code_editor_walkthrough from 'vs/workbench/contrib/welcome/walkThrough/browser/editor/vs_code_editor_walkthrough';
+
 /**
  * This is the place for API experiments and proposals.
  * These API are NOT stable and subject to change. They are only available in the Insiders
@@ -965,6 +967,10 @@ declare module 'vscode' {
 		readonly isDefault?: boolean;
 		readonly id: string;
 		private constructor(id: string, label: string);
+	}
+
+	export class Task2 extends Task {
+		group?: TaskGroup2;
 	}
 
 	//#region Custom editor move https://github.com/microsoft/vscode/issues/86146

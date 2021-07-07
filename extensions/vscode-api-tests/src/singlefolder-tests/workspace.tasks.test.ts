@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomExecution, Pseudoterminal, TaskScope, commands, env, UIKind, ShellExecution, TaskExecution, Terminal, Event, workspace, ConfigurationTarget, TaskProcessStartEvent } from 'vscode';
+import { window, tasks, Disposable, TaskDefinition, Task, Task2, TaskGroup2, EventEmitter, CustomExecution, Pseudoterminal, TaskScope, commands, env, UIKind, ShellExecution, TaskExecution, Terminal, Event, workspace, ConfigurationTarget, TaskProcessStartEvent } from 'vscode';
 import { assertNoRpc } from '../utils';
 
 // Disable tasks tests:
@@ -327,6 +327,34 @@ import { assertNoRpc } from '../utils';
 
 					if (task && task.length > 0) {
 						await tasks.executeTask(task[0]);
+					} else {
+						reject('fetched task can\'t be undefined');
+					}
+				});
+			});
+
+			test('A task can be fetched with default task group information', () => {
+				return new Promise<void>(async (resolve, reject) => {
+					const providedTask = new Task({ type: 'testTask' }, TaskScope.Workspace, 'echo', 'testTask', new ShellExecution('echo', ['hello test']));
+
+					disposables.push(tasks.registerTaskProvider('customTesting', {
+						provideTasks: () => {
+							return [providedTask];
+						},
+						resolveTask(_task: Task): undefined {
+							return undefined;
+						}
+					}));
+
+					// Set the provided task as default.
+					await commands.executeCommand('workbench.action.tasks.configureDefaultBuildTask', `${providedTask.definition.type}: ${providedTask.name}`);
+
+					const task = <Task2[]>(await tasks.fetchTasks());
+
+					if (task && task.length > 0) {
+						const grp = task[0].group;
+						assert.strictEqual(grp?.isDefault, true);
+						resolve();
 					} else {
 						reject('fetched task can\'t be undefined');
 					}
