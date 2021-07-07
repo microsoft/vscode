@@ -14,6 +14,9 @@ import { GhostTextContext, MockInlineCompletionsProvider, renderGhostTextToText 
 import { ITestCodeEditor, TestCodeEditorCreationOptions, withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import sinon = require('sinon');
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+
+ensureNoDisposablesAreLeakedInTestSuite();
 
 suite('inlineCompletionToGhostText', () => {
 	function getOutput(text: string, suggestion: string): unknown {
@@ -497,6 +500,7 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 			const model = instantiationService.createInstance(InlineCompletionsModel, editor);
 			const context = new GhostTextContext(model, editor);
 			await callback({ editor, editorViewModel, model, context });
+			context.dispose();
 			model.dispose();
 		});
 
@@ -508,8 +512,6 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 		if (options.provider instanceof MockInlineCompletionsProvider) {
 			options.provider.assertNotCalledTwiceWithin50ms();
 		}
-
-
 	} finally {
 		clock?.restore();
 		disposableStore.dispose();
