@@ -12,10 +12,10 @@ import { currentSessionDateStorageKey, firstSessionDateStorageKey, instanceStora
 import { IStorageChangeEvent, IStorageMain, IStorageMainOptions } from 'vs/platform/storage/electron-main/storageMain';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
-import { ILifecycleMainService, LifecycleMainPhase, ShutdownEvent, UnloadReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILifecycleMainService, LifecycleMainPhase, ShutdownEvent } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { Emitter, Event } from 'vs/base/common/event';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
+import { ICodeWindow, UnloadReason } from 'vs/platform/windows/electron-main/windows';
 import { Promises } from 'vs/base/common/async';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';

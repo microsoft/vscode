@@ -8,7 +8,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { Event, Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
+import { ICodeWindow, LoadReason, UnloadReason } from 'vs/platform/windows/electron-main/windows';
 import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -19,18 +19,6 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { cwd } from 'vs/base/common/process';
 
 export const ILifecycleMainService = createDecorator<ILifecycleMainService>('lifecycleMainService');
-
-export const enum LoadReason {
-	LOAD = 1,
-	RELOAD = 2
-}
-
-export const enum UnloadReason {
-	CLOSE = 1,
-	QUIT = 2,
-	RELOAD = 3,
-	LOAD = 4
-}
 
 export interface IWindowLoadEvent {
 	window: ICodeWindow;
@@ -363,7 +351,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		this.windowCounter++;
 
 		// Window Will Load
-		windowListeners.add(window.onWillLoad(e => this._onWillLoadWindow.fire({ window, workspace: e.workspace, reason: e.isReload ? LoadReason.RELOAD : LoadReason.LOAD })));
+		windowListeners.add(window.onWillLoad(e => this._onWillLoadWindow.fire({ window, workspace: e.workspace, reason: e.reason })));
 
 		// Window Before Closing: Main -> Renderer
 		const win = assertIsDefined(window.win);
