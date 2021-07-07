@@ -90,7 +90,7 @@ namespace WebviewState {
 
 export class IFrameWebview extends Disposable implements Webview {
 
-	private _confirmBeforeClose: string;
+	protected readonly platform: string = 'browser';
 
 	private readonly _expectedServiceWorkerVersion = 2; // Keep this in sync with the version in service-worker.js
 
@@ -108,13 +108,9 @@ export class IFrameWebview extends Disposable implements Webview {
 
 	private readonly _resourceLoadingCts = this._register(new CancellationTokenSource());
 
-	private readonly _fileService: IFileService;
-	private readonly _logService: ILogService;
-	private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService;
-	private readonly _telemetryService: ITelemetryService;
-	private readonly _tunnelService: ITunnelService;
-	private readonly _environmentService: IWorkbenchEnvironmentService;
 	private _contextKeyService: IContextKeyService | undefined;
+
+	private _confirmBeforeClose: string;
 
 	private readonly _focusDelayer = this._register(new ThrottledDelayer(50));
 
@@ -127,25 +123,18 @@ export class IFrameWebview extends Disposable implements Webview {
 		contentOptions: WebviewContentOptions,
 		public extension: WebviewExtensionDescription | undefined,
 		protected readonly webviewThemeDataProvider: WebviewThemeDataProvider,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IFileService fileService: IFileService,
-		@ILogService logService: ILogService,
 		@IMenuService menuService: IMenuService,
 		@INotificationService notificationService: INotificationService,
-		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@ITunnelService tunnelService: ITunnelService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IFileService private readonly _fileService: IFileService,
+		@ILogService private readonly _logService: ILogService,
+		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ITunnelService private readonly _tunnelService: ITunnelService,
 	) {
 		super();
-
-		this._environmentService = environmentService;
-		this._fileService = fileService;
-		this._logService = logService;
-		this._remoteAuthorityResolverService = remoteAuthorityResolverService;
-		this._telemetryService = telemetryService;
-		this._tunnelService = tunnelService;
 
 		this.content = {
 			html: '',
@@ -283,7 +272,7 @@ export class IFrameWebview extends Disposable implements Webview {
 				"webviewElementType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
-		telemetryService.publicLog('webview.createWebview', {
+		this._telemetryService.publicLog('webview.createWebview', {
 			extension: extension?.id.value,
 			webviewElementType: 'iframe',
 		});
@@ -359,7 +348,7 @@ export class IFrameWebview extends Disposable implements Webview {
 		}
 	}
 
-	protected createElement(options: WebviewOptions, _contentOptions: WebviewContentOptions) {
+	private createElement(options: WebviewOptions, _contentOptions: WebviewContentOptions) {
 		// Do not start loading the webview yet.
 		// Wait the end of the ctor when all listeners have been hooked up.
 		const element = document.createElement('iframe');
@@ -380,13 +369,14 @@ export class IFrameWebview extends Disposable implements Webview {
 		return element;
 	}
 
-	protected initElement(extension: WebviewExtensionDescription | undefined, options: WebviewOptions, extraParams?: { [key: string]: string }) {
+	private initElement(extension: WebviewExtensionDescription | undefined, options: WebviewOptions) {
+		// The extensionId and purpose in the URL are used for filtering in js-debug:
 		const params: { [key: string]: string } = {
 			id: this.id,
 			swVersion: String(this._expectedServiceWorkerVersion),
-			extensionId: extension?.id.value ?? '', // The extensionId and purpose in the URL are used for filtering in js-debug:
-			...extraParams,
-			'vscode-resource-base-authority': this.webviewRootResourceAuthority,
+			extensionId: extension?.id.value ?? '',
+			platform: this.platform,
+			'vscode-resource-base-authority': webviewRootResourceAuthority,
 		};
 
 		if (options.purpose) {
@@ -414,7 +404,7 @@ export class IFrameWebview extends Disposable implements Webview {
 		return endpoint;
 	}
 
-	protected doPostMessage(channel: string, data?: any): void {
+	private doPostMessage(channel: string, data?: any): void {
 		if (this.element) {
 			this.element.contentWindow!.postMessage({ channel, args: data }, '*');
 		}
@@ -473,10 +463,6 @@ export class IFrameWebview extends Disposable implements Webview {
 			state: this.content.state,
 		});
 		this._onDidHtmlChange.fire(value);
-	}
-
-	protected get webviewRootResourceAuthority(): string {
-		return webviewRootResourceAuthority;
 	}
 
 	private rewriteVsCodeResourceUrls(value: string): string {

@@ -43,6 +43,8 @@ export class ElectronIframeWebview extends IFrameWebview implements WebviewFindD
 
 	public readonly checkImeCompletionState = true;
 
+	protected override readonly platform = 'electron';
+
 	constructor(
 		id: string,
 		options: WebviewOptions,
@@ -64,9 +66,8 @@ export class ElectronIframeWebview extends IFrameWebview implements WebviewFindD
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super(id, options, contentOptions, extension, webviewThemeDataProvider,
-			contextMenuService,
-			environmentService,
-			fileService, logService, menuService, notificationService, _remoteAuthorityResolverService, telemetryService, tunnelService, configurationService);
+			configurationService, contextMenuService, menuService, notificationService, environmentService,
+			fileService, logService, _remoteAuthorityResolverService, telemetryService, tunnelService);
 
 		this._webviewKeyboardHandler = new WindowIgnoreMenuShortcutsManager(configurationService, mainProcessService, nativeHostService);
 
@@ -98,12 +99,6 @@ export class ElectronIframeWebview extends IFrameWebview implements WebviewFindD
 		}
 	}
 
-	protected override initElement(extension: WebviewExtensionDescription | undefined, options: WebviewOptions) {
-		super.initElement(extension, options, {
-			platform: 'electron'
-		});
-	}
-
 	public override mountTo(parent: HTMLElement) {
 		if (!this.element) {
 			return;
@@ -117,10 +112,6 @@ export class ElectronIframeWebview extends IFrameWebview implements WebviewFindD
 
 	protected override get webviewContentEndpoint(): string {
 		return `${Schemas.vscodeWebview}://${this.id}`;
-	}
-
-	protected override async doPostMessage(channel: string, data?: any): Promise<void> {
-		this.element?.contentWindow!.postMessage({ channel, args: data }, '*');
 	}
 
 	protected override style(): void {
