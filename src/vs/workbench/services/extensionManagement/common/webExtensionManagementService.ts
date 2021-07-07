@@ -30,6 +30,9 @@ export class WebExtensionManagementService extends Disposable implements IExtens
 	private readonly _onDidInstallExtension = this._register(new Emitter<DidInstallExtensionEvent>());
 	readonly onDidInstallExtension: Event<DidInstallExtensionEvent> = this._onDidInstallExtension.event;
 
+	private readonly _onDidInstallExtensions = this._register(new Emitter<DidInstallExtensionEvent[]>());
+	readonly onDidInstallExtensions = this._onDidInstallExtensions.event;
+
 	private readonly _onUninstallExtension = this._register(new Emitter<IExtensionIdentifier>());
 	readonly onUninstallExtension: Event<IExtensionIdentifier> = this._onUninstallExtension.event;
 
