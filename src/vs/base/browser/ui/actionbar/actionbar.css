@@ -29,10 +29,6 @@
 	position: relative;  /* DO NOT REMOVE - this is the key to preventing the ghosting icon bug in Chrome 42 */
 }
 
-.monaco-action-bar .action-item:first-child {
-	min-width: 0;
-}
-
 .monaco-action-bar .action-item.disabled {
 	cursor: default;
 }
