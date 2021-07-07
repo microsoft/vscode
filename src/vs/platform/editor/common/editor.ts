@@ -114,19 +114,24 @@ export interface ITextResourceEditorInput extends IResourceEditorInput, IBaseTex
 
 /**
  * This identifier allows to uniquely identify an editor with a
- * resource and type identifier.
+ * resource, type and editor identifier.
  */
 export interface IResourceEditorInputIdentifier {
-
-	/**
-	 * The resource URI of the editor.
-	 */
-	readonly resource: URI;
 
 	/**
 	 * The type of the editor.
 	 */
 	readonly typeId: string;
+
+	/**
+	 * The identifier of the editor if provided.
+	 */
+	readonly editorId: string | undefined;
+
+	/**
+	 * The resource URI of the editor.
+	 */
+	readonly resource: URI;
 }
 
 export enum EditorActivation {
@@ -135,7 +140,7 @@ export enum EditorActivation {
 	 * Activate the editor after it opened. This will automatically restore
 	 * the editor if it is minimized.
 	 */
-	ACTIVATE,
+	ACTIVATE = 1,
 
 	/**
 	 * Only restore the editor if it is minimized but do not activate it.
@@ -156,17 +161,22 @@ export enum EditorActivation {
 	PRESERVE
 }
 
-export enum EditorOverride {
+export enum EditorResolution {
 
 	/**
 	 * Displays a picker and allows the user to decide which editor to use
 	 */
-	PICK = 1,
+	PICK,
 
 	/**
 	 * Disables overrides
 	 */
-	DISABLED
+	DISABLED,
+
+	/**
+	 * Only exclusive overrides are considered
+	 */
+	EXCLUSIVE_ONLY
 }
 
 export enum EditorOpenContext {
@@ -265,7 +275,7 @@ export interface IEditorOptions {
 	 * - `string`: specific override by id
 	 * - `EditorOverride`: specific override handling
 	 */
-	override?: string | EditorOverride;
+	override?: string | EditorResolution;
 
 	/**
 	 * A optional hint to signal in which context the editor opens.

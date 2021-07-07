@@ -16,12 +16,12 @@ export class CellOutputViewModel extends Disposable implements ICellOutputViewMo
 		return this._outputRawData;
 	}
 
-	private _pickedMimeType: number = -1;
+	private _pickedMimeType: IOrderedMimeType | undefined;
 	get pickedMimeType() {
 		return this._pickedMimeType;
 	}
 
-	set pickedMimeType(value: number) {
+	set pickedMimeType(value: IOrderedMimeType | undefined) {
 		this._pickedMimeType = value;
 	}
 
@@ -48,13 +48,18 @@ export class CellOutputViewModel extends Disposable implements ICellOutputViewMo
 	}
 
 	resolveMimeTypes(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined): [readonly IOrderedMimeType[], number] {
-		const mimeTypes = this._notebookService.getMimeTypeInfo(textModel, kernelProvides, this.model);
-		if (this._pickedMimeType === -1) {
-			// there is at least one mimetype which is safe and can be rendered by the core
-			this._pickedMimeType = Math.max(mimeTypes.findIndex(mimeType => mimeType.rendererId !== RENDERER_NOT_AVAILABLE && mimeType.isTrusted), 0);
+		const mimeTypes = this._notebookService.getOutputMimeTypeInfo(textModel, kernelProvides, this.model);
+		let index = -1;
+		if (this._pickedMimeType) {
+			index = mimeTypes.findIndex(mimeType => mimeType.rendererId === this._pickedMimeType!.rendererId && mimeType.mimeType === this._pickedMimeType!.mimeType && mimeType.isTrusted);
 		}
 
-		return [mimeTypes, this._pickedMimeType];
+		// there is at least one mimetype which is safe and can be rendered by the core
+		if (index === -1) {
+			index = mimeTypes.findIndex(mimeType => mimeType.rendererId !== RENDERER_NOT_AVAILABLE && mimeType.isTrusted);
+		}
+
+		return [mimeTypes, Math.max(index, 0)];
 	}
 
 	toRawJSON() {

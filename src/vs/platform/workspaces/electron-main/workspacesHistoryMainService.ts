@@ -17,7 +17,7 @@ import { ThrottledDelayer } from 'vs/base/common/async';
 import { originalFSPath, basename, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { exists } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -190,7 +190,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			const loc = location(mru.workspaces[i]);
 			if (loc.scheme === Schemas.file) {
 				const workspacePath = originalFSPath(loc);
-				if (await exists(workspacePath)) {
+				if (await Promises.exists(workspacePath)) {
 					workspaceEntries.push(workspacePath);
 					entries++;
 				}
@@ -210,7 +210,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 					continue;
 				}
 
-				if (await exists(filePath)) {
+				if (await Promises.exists(filePath)) {
 					fileEntries.push(filePath);
 					entries++;
 				}

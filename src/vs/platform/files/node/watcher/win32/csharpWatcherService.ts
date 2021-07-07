@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as cp from 'child_process';
+import { ChildProcess, spawn } from 'child_process';
 import { FileChangeType } from 'vs/platform/files/common/files';
-import * as decoder from 'vs/base/node/decoder';
-import * as glob from 'vs/base/common/glob';
+import { LineDecoder } from 'vs/base/node/decoder';
+import { parse, ParsedPattern } from 'vs/base/common/glob';
 import { IDiskFileChange, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
 import { FileAccess } from 'vs/base/common/network';
 
@@ -14,11 +14,11 @@ export class OutOfProcessWin32FolderWatcher {
 
 	private static readonly MAX_RESTARTS = 5;
 
-	private static changeTypeMap: FileChangeType[] = [FileChangeType.UPDATED, FileChangeType.ADDED, FileChangeType.DELETED];
+	private static readonly changeTypeMap = [FileChangeType.UPDATED, FileChangeType.ADDED, FileChangeType.DELETED];
 
-	private ignored: glob.ParsedPattern[];
+	private readonly ignored: ParsedPattern[];
 
-	private handle: cp.ChildProcess | undefined;
+	private handle: ChildProcess | undefined;
 	private restartCounter: number;
 
 	constructor(
@@ -31,14 +31,14 @@ export class OutOfProcessWin32FolderWatcher {
 		this.restartCounter = 0;
 
 		if (Array.isArray(ignored)) {
-			this.ignored = ignored.map(i => glob.parse(i));
+			this.ignored = ignored.map(ignore => parse(ignore));
 		} else {
 			this.ignored = [];
 		}
 
 		// Logging
 		if (this.verboseLogging) {
-			this.log(`Start watching: ${watchedFolder}`);
+			this.log(`Start watching: ${watchedFolder}, excludes: ${ignored.join(',')}`);
 		}
 
 		this.startWatcher();
@@ -50,16 +50,16 @@ export class OutOfProcessWin32FolderWatcher {
 			args.push('-verbose');
 		}
 
-		this.handle = cp.spawn(FileAccess.asFileUri('vs/platform/files/node/watcher/win32/CodeHelper.exe', require).fsPath, args);
+		this.handle = spawn(FileAccess.asFileUri('vs/platform/files/node/watcher/win32/CodeHelper.exe', require).fsPath, args);
 
-		const stdoutLineDecoder = new decoder.LineDecoder();
+		const stdoutLineDecoder = new LineDecoder();
 
 		// Events over stdout
 		this.handle.stdout!.on('data', (data: Buffer) => {
 
 			// Collect raw events from output
 			const rawEvents: IDiskFileChange[] = [];
-			stdoutLineDecoder.write(data).forEach((line) => {
+			for (const line of stdoutLineDecoder.write(data)) {
 				const eventParts = line.split('|');
 				if (eventParts.length === 2) {
 					const changeType = Number(eventParts[0]);
@@ -74,7 +74,7 @@ export class OutOfProcessWin32FolderWatcher {
 								this.log(absolutePath);
 							}
 
-							return;
+							continue;
 						}
 
 						// Otherwise record as event
@@ -89,7 +89,7 @@ export class OutOfProcessWin32FolderWatcher {
 						this.log(eventParts[1]);
 					}
 				}
-			});
+			}
 
 			// Trigger processing of events through the delayer to batch them up properly
 			if (rawEvents.length > 0) {
@@ -110,7 +110,9 @@ export class OutOfProcessWin32FolderWatcher {
 	}
 
 	private onExit(code: number, signal: string): void {
-		if (this.handle) { // exit while not yet being disposed is unexpected!
+		if (this.handle) {
+
+			// exit while not yet being disposed is unexpected!
 			this.error(`terminated unexpectedly (code: ${code}, signal: ${signal})`);
 
 			if (this.restartCounter <= OutOfProcessWin32FolderWatcher.MAX_RESTARTS) {

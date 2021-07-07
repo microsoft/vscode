@@ -58,7 +58,7 @@ export class ViewContainerActivityAction extends ActivityAction {
 		this.activity = activity;
 	}
 
-	override async run(event: unknown): Promise<void> {
+	override async run(event: any | { preserveFocus: boolean }): Promise<void> {
 		if (event instanceof MouseEvent && event.button === 2) {
 			return; // do not run on right click
 		}
@@ -74,11 +74,12 @@ export class ViewContainerActivityAction extends ActivityAction {
 		const activeViewlet = this.viewletService.getActiveViewlet();
 		const focusBehavior = this.configurationService.getValue<string>('workbench.activityBar.iconClickBehavior');
 
+		const focus = (event && 'preserveFocus' in event) ? !event.preserveFocus : true;
 		if (sideBarVisible && activeViewlet?.getId() === this.activity.id) {
 			switch (focusBehavior) {
 				case 'focus':
 					this.logAction('refocus');
-					this.viewletService.openViewlet(this.activity.id, true);
+					this.viewletService.openViewlet(this.activity.id, focus);
 					break;
 				case 'toggle':
 				default:
@@ -92,7 +93,7 @@ export class ViewContainerActivityAction extends ActivityAction {
 		}
 
 		this.logAction('show');
-		await this.viewletService.openViewlet(this.activity.id, true);
+		await this.viewletService.openViewlet(this.activity.id, focus);
 
 		return this.activate();
 	}

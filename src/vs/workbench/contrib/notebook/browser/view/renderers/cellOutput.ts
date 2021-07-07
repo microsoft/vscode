@@ -9,6 +9,7 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Action, IAction } from 'vs/base/common/actions';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { MarshalledId } from 'vs/base/common/marshalling';
 import { Schemas } from 'vs/base/common/network';
 import * as nls from 'vs/nls';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -26,10 +27,10 @@ import { mimetypeIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcon
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { BUILTIN_RENDERER_ID, CellUri, INotebookKernel, IOrderedMimeType, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { BUILTIN_RENDERER_ID, CellUri, IOrderedMimeType, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
-const OUTPUT_COUNT_LIMIT = 500;
 
 interface IMimeTypeRenderer extends IQuickPickItem {
 	index: number;
@@ -39,18 +40,34 @@ interface IRenderResult {
 	initRenderIsSynchronous: boolean;
 }
 
+// DOM structure
+//
+//  #output
+//  |
+//  |  #output-inner-container
+//  |                        |  #cell-output-toolbar
+//  |                        |  #output-element
+//  |                        |  #output-element
+//  |                        |  #output-element
+//  |  #output-inner-container
+//  |                        |  #cell-output-toolbar
+//  |                        |  #output-element
+//  |  #output-inner-container
+//  |                        |  #cell-output-toolbar
+//  |                        |  #output-element
 export class CellOutputElement extends Disposable {
 	private readonly _renderDisposableStore = this._register(new DisposableStore());
 	private readonly _actionsDisposable = this._register(new MutableDisposable());
 
-	domNode!: HTMLElement;
+	innerContainer!: HTMLElement;
+	renderedOutputContainer!: HTMLElement;
 	renderResult?: IRenderOutput;
 
 	public useDedicatedDOM: boolean = true;
 
 	get domOffsetHeight() {
 		if (this.useDedicatedDOM) {
-			return this.domNode.offsetHeight;
+			return this.innerContainer.offsetHeight;
 		} else {
 			return 0;
 		}
@@ -72,49 +89,122 @@ export class CellOutputElement extends Disposable {
 	) {
 		super();
 
-		this.contextKeyService = this._register(parentContextKeyService.createScoped(this.outputContainer));
+		this.contextKeyService = parentContextKeyService;
 
 		this._register(this.output.model.onDidChangeData(() => {
-			this.updateOutputRendering();
+			this.updateOutputData();
 		}));
 	}
 
 	detach() {
-		if (this.domNode) {
-			this.domNode.parentElement?.removeChild(this.domNode);
+		if (this.renderedOutputContainer) {
+			this.renderedOutputContainer.parentElement?.removeChild(this.renderedOutputContainer);
+		}
+
+		let count = 0;
+		if (this.innerContainer) {
+			for (let i = 0; i < this.innerContainer.childNodes.length; i++) {
+				if ((this.innerContainer.childNodes[i] as HTMLElement).className === 'rendered-output') {
+					count++;
+				}
+
+				if (count > 1) {
+					break;
+				}
+			}
+
+			if (count === 0) {
+				this.innerContainer.parentElement?.removeChild(this.innerContainer);
+			}
+		}
+
+		this.notebookEditor.removeInset(this.output);
+
+		if (this.renderResult && this.renderResult.type === RenderOutputType.Mainframe) {
+			this.renderResult.disposable?.dispose();
 		}
 	}
 
 	updateDOMTop(top: number) {
 		if (this.useDedicatedDOM) {
-			if (this.domNode) {
-				this.domNode.style.top = `${top}px`;
+			if (this.innerContainer) {
+				this.innerContainer.style.top = `${top}px`;
 			}
 		}
 	}
 
-	updateOutputRendering() {
-		if (!this.domNode) {
+	updateOutputData() {
+		// update the content inside the domNode, do not need to worry about streaming
+		if (!this.innerContainer) {
 			return;
 		}
 
 		// user chooses another mimetype
-		const index = this.viewCell.outputsViewModels.indexOf(this.output);
-		const nextElement = this.domNode.nextElementSibling;
+		const nextElement = this.innerContainer.nextElementSibling;
 		this._renderDisposableStore.clear();
-		const element = this.domNode;
+		const element = this.innerContainer;
 		if (element) {
 			element.parentElement?.removeChild(element);
 			this.notebookEditor.removeInset(this.output);
 		}
 
 		// this.output.pickedMimeType = pick;
-		this.render(index, nextElement as HTMLElement);
-		this.relayoutCell();
+		this.render(nextElement as HTMLElement);
+		this._relayoutCell();
 	}
 
-	render(index: number, beforeElement?: HTMLElement): IRenderResult | undefined {
+	// insert after previousSibling
+	private _generateInnerOutputContainer(previousSibling: HTMLElement | undefined, pickedMimeTypeRenderer: IOrderedMimeType) {
+		if (this.output.supportAppend()) {
+			// current output support append
+			if (previousSibling) {
+				if (this._divSupportAppend(previousSibling as HTMLElement | null, pickedMimeTypeRenderer.mimeType)) {
+					this.useDedicatedDOM = false;
+					this.innerContainer = previousSibling as HTMLElement;
+				} else {
+					this.useDedicatedDOM = true;
+					this.innerContainer = DOM.$('.output-inner-container');
+					if (previousSibling.nextElementSibling) {
+						this.outputContainer.insertBefore(this.innerContainer, previousSibling.nextElementSibling);
+					} else {
+						this.outputContainer.appendChild(this.innerContainer);
+					}
+				}
+			} else {
+				// no previousSibling, append it to the very last
+				if (this._divSupportAppend(this.outputContainer.lastChild as HTMLElement | null, pickedMimeTypeRenderer.mimeType)) {
+					// last element allows append
+					this.useDedicatedDOM = false;
+					this.innerContainer = this.outputContainer.lastChild as HTMLElement;
+				} else {
+					this.useDedicatedDOM = true;
+					this.innerContainer = DOM.$('.output-inner-container');
+					this.outputContainer.appendChild(this.innerContainer);
+				}
+			}
+		} else {
+			this.useDedicatedDOM = true;
+			this.innerContainer = DOM.$('.output-inner-container');
+
+			if (previousSibling && previousSibling.nextElementSibling) {
+				this.outputContainer.insertBefore(this.innerContainer, previousSibling.nextElementSibling);
+			} else if (this.useDedicatedDOM) {
+				this.outputContainer.appendChild(this.innerContainer);
+			}
+		}
+
+		this.innerContainer.setAttribute('output-mime-type', pickedMimeTypeRenderer.mimeType);
+	}
+
+	render(previousSibling?: HTMLElement): IRenderResult | undefined {
+		const index = this.viewCell.outputsViewModels.indexOf(this.output);
+
 		if (this.viewCell.metadata.outputCollapsed || !this.notebookEditor.hasModel()) {
+			return undefined;
+		}
+
+		const notebookUri = CellUri.parse(this.viewCell.uri)?.notebook;
+		if (!notebookUri) {
 			return undefined;
 		}
 
@@ -128,46 +218,35 @@ export class CellOutputElement extends Disposable {
 		}
 
 		const pickedMimeTypeRenderer = mimeTypes[pick];
-		// Reuse output item div
-		this.useDedicatedDOM = !(!beforeElement && this.output.supportAppend() && this.previousDivSupportAppend(pickedMimeTypeRenderer.mimeType));
-		this.domNode = this.useDedicatedDOM ? DOM.$('.output-inner-container') : this.outputContainer.lastChild as HTMLElement;
-		this.domNode.setAttribute('output-mime-type', pickedMimeTypeRenderer.mimeType);
 
-		this.attachToolbar(this.domNode, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
+		// generate an innerOutputContainer only when needed, for text streaming, it will reuse the previous element's container
+		this._generateInnerOutputContainer(previousSibling, pickedMimeTypeRenderer);
+		this._attachToolbar(this.innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
 
-		const notebookUri = CellUri.parse(this.viewCell.uri)?.notebook;
-		if (!notebookUri) {
-			return undefined;
-		}
+		this.renderedOutputContainer = DOM.append(this.innerContainer, DOM.$('.rendered-output'));
 
 		if (pickedMimeTypeRenderer.rendererId !== BUILTIN_RENDERER_ID) {
 			const renderer = this.notebookService.getRendererInfo(pickedMimeTypeRenderer.rendererId);
 			this.renderResult = renderer
 				? { type: RenderOutputType.Extension, renderer, source: this.output, mimeType: pickedMimeTypeRenderer.mimeType }
-				: this.notebookEditor.getOutputRenderer().render(this.output, this.domNode, pickedMimeTypeRenderer.mimeType, notebookUri);
+				: this.notebookEditor.getOutputRenderer().render(this.output, this.renderedOutputContainer, pickedMimeTypeRenderer.mimeType, notebookUri);
 		} else {
-			this.renderResult = this.notebookEditor.getOutputRenderer().render(this.output, this.domNode, pickedMimeTypeRenderer.mimeType, notebookUri);
+			this.renderResult = this.notebookEditor.getOutputRenderer().render(this.output, this.renderedOutputContainer, pickedMimeTypeRenderer.mimeType, notebookUri);
 		}
 
-		this.output.pickedMimeType = pick;
+		this.output.pickedMimeType = pickedMimeTypeRenderer;
 
 		if (!this.renderResult) {
 			this.viewCell.updateOutputHeight(index, 0, 'CellOutputElement#renderResultUndefined');
 			return undefined;
 		}
 
-		if (beforeElement) {
-			this.outputContainer.insertBefore(this.domNode, beforeElement);
-		} else if (this.useDedicatedDOM) {
-			this.outputContainer.appendChild(this.domNode);
-		}
-
 		if (this.renderResult.type !== RenderOutputType.Mainframe) {
 			this.notebookEditor.createOutput(this.viewCell, this.renderResult, this.viewCell.getOutputOffset(index));
-			this.domNode.classList.add('background');
+			this.innerContainer.classList.add('background');
 		} else {
-			this.domNode.classList.add('foreground', 'output-element');
-			this.domNode.style.position = 'absolute';
+			this.innerContainer.classList.add('foreground', 'output-element');
+			this.innerContainer.style.position = 'absolute';
 		}
 
 		if (this.renderResult.type === RenderOutputType.Html || this.renderResult.type === RenderOutputType.Extension) {
@@ -182,22 +261,22 @@ export class CellOutputElement extends Disposable {
 		}
 
 		// let's use resize listener for them
-		const offsetHeight = this.renderResult?.initHeight !== undefined ? this.renderResult?.initHeight : Math.ceil(this.domNode.offsetHeight);
+		const offsetHeight = this.renderResult?.initHeight !== undefined ? this.renderResult?.initHeight : Math.ceil(this.innerContainer.offsetHeight);
 		const dimension = {
 			width: this.viewCell.layoutInfo.editorWidth,
 			height: offsetHeight
 		};
-		this.bindResizeListener(dimension);
+		this._bindResizeListener(dimension);
 		this.viewCell.updateOutputHeight(index, offsetHeight, 'CellOutputElement#renderResultInitHeight');
 		const top = this.viewCell.getOutputOffsetInContainer(index);
-		this.domNode.style.top = `${top}px`;
+		this.innerContainer.style.top = `${top}px`;
 		return { initRenderIsSynchronous: true };
 	}
 
-	private bindResizeListener(dimension: DOM.IDimension) {
-		const elementSizeObserver = getResizesObserver(this.domNode, dimension, () => {
+	private _bindResizeListener(dimension: DOM.IDimension) {
+		const elementSizeObserver = getResizesObserver(this.innerContainer, dimension, () => {
 			if (this.outputContainer && document.body.contains(this.outputContainer)) {
-				const height = this.domNode.offsetHeight;
+				const height = this.innerContainer.offsetHeight;
 
 				if (dimension.height === height) {
 					return;
@@ -215,7 +294,7 @@ export class CellOutputElement extends Disposable {
 
 				this._validateFinalOutputHeight(true);
 				this.viewCell.updateOutputHeight(currIndex, height, 'CellOutputElement#outputResize');
-				this.relayoutCell();
+				this._relayoutCell();
 			}
 		});
 
@@ -223,17 +302,15 @@ export class CellOutputElement extends Disposable {
 		this._renderDisposableStore.add(elementSizeObserver);
 	}
 
-	private previousDivSupportAppend(mimeType: string) {
-		const lastChild = this.outputContainer.lastChild as HTMLElement | null;
-
-		if (lastChild) {
-			return lastChild.getAttribute('output-mime-type') === mimeType;
+	private _divSupportAppend(element: HTMLElement | null, mimeType: string) {
+		if (element) {
+			return element.getAttribute('output-mime-type') === mimeType;
 		}
 
 		return false;
 	}
 
-	private async attachToolbar(outputItemDiv: HTMLElement, notebookTextModel: NotebookTextModel, kernel: INotebookKernel | undefined, index: number, mimeTypes: readonly IOrderedMimeType[]) {
+	private async _attachToolbar(outputItemDiv: HTMLElement, notebookTextModel: NotebookTextModel, kernel: INotebookKernel | undefined, index: number, mimeTypes: readonly IOrderedMimeType[]) {
 		const hasMultipleMimeTypes = mimeTypes.filter(mimeType => mimeType.isTrusted).length <= 1;
 		if (index > 0 && hasMultipleMimeTypes) {
 			return;
@@ -258,14 +335,14 @@ export class CellOutputElement extends Disposable {
 			ui: true,
 			cell: this.output.cellViewModel as ICellViewModel,
 			notebookEditor: this.notebookEditor,
-			$mid: 12
+			$mid: MarshalledId.NotebookCellActionContext
 		};
 
 		// TODO: This could probably be a real registered action, but it has to talk to this output element
 		const pickAction = new Action('notebook.output.pickMimetype', nls.localize('pickMimeType', "Choose a different output mimetype"), ThemeIcon.asClassName(mimetypeIcon), undefined,
-			async _context => this.pickActiveMimeTypeRenderer(notebookTextModel, kernel, this.output));
+			async _context => this._pickActiveMimeTypeRenderer(notebookTextModel, kernel, this.output));
 		if (index === 0 && useConsolidatedButton) {
-			const menu = this.menuService.createMenu(MenuId.NotebookOutputToolbar, this.contextKeyService);
+			const menu = this._renderDisposableStore.add(this.menuService.createMenu(MenuId.NotebookOutputToolbar, this.contextKeyService));
 			const updateMenuToolbar = () => {
 				const primary: IAction[] = [];
 				const secondary: IAction[] = [];
@@ -281,7 +358,7 @@ export class CellOutputElement extends Disposable {
 		}
 	}
 
-	private async pickActiveMimeTypeRenderer(notebookTextModel: NotebookTextModel, kernel: INotebookKernel | undefined, viewModel: ICellOutputViewModel) {
+	private async _pickActiveMimeTypeRenderer(notebookTextModel: NotebookTextModel, kernel: INotebookKernel | undefined, viewModel: ICellOutputViewModel) {
 		const [mimeTypes, currIndex] = viewModel.resolveMimeTypes(notebookTextModel, kernel?.preloadProvides);
 
 		let items: IMimeTypeRenderer[] = [];
@@ -292,7 +369,7 @@ export class CellOutputElement extends Disposable {
 					id: mimeType.mimeType,
 					index: index,
 					picked: index === currIndex,
-					detail: this.generateRendererInfo(mimeType.rendererId),
+					detail: this._generateRendererInfo(mimeType.rendererId),
 					description: index === currIndex ? nls.localize('curruentActiveMimeType', "Currently Active") : undefined
 				});
 			}
@@ -318,26 +395,25 @@ export class CellOutputElement extends Disposable {
 		}
 
 		// user chooses another mimetype
-		const index = this.viewCell.outputsViewModels.indexOf(viewModel);
-		const nextElement = this.domNode.nextElementSibling;
+		const nextElement = this.innerContainer.nextElementSibling;
 		this._renderDisposableStore.clear();
-		const element = this.domNode;
+		const element = this.innerContainer;
 		if (element) {
 			element.parentElement?.removeChild(element);
 			this.notebookEditor.removeInset(viewModel);
 		}
 
-		viewModel.pickedMimeType = pick.index;
+		viewModel.pickedMimeType = mimeTypes[pick.index];
 		this.viewCell.updateOutputMinHeight(this.viewCell.layoutInfo.outputTotalHeight);
 
 		const { mimeType, rendererId } = mimeTypes[pick.index];
 		this.notebookService.updateMimePreferredRenderer(mimeType, rendererId);
-		this.render(index, nextElement as HTMLElement);
+		this.render(nextElement as HTMLElement);
 		this._validateFinalOutputHeight(false);
-		this.relayoutCell();
+		this._relayoutCell();
 	}
 
-	private generateRendererInfo(renderId: string | undefined): string {
+	private _generateRendererInfo(renderId: string | undefined): string {
 		if (renderId === undefined || renderId === BUILTIN_RENDERER_ID) {
 			return nls.localize('builtinRenderInfo', "built-in");
 		}
@@ -370,7 +446,7 @@ export class CellOutputElement extends Disposable {
 		}
 	}
 
-	private relayoutCell() {
+	private _relayoutCell() {
 		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 	}
 
@@ -385,28 +461,42 @@ export class CellOutputElement extends Disposable {
 	}
 }
 
+class OutputEntryViewHandler {
+	constructor(
+		readonly model: ICellOutputViewModel,
+		readonly element: CellOutputElement
+	) {
+
+	}
+}
+
 export class CellOutputContainer extends Disposable {
-	private outputEntries = new Map<ICellOutputViewModel, CellOutputElement>();
+	private _outputEntries: OutputEntryViewHandler[] = [];
+
+	get renderedOutputEntries() {
+		return this._outputEntries;
+	}
 
 	constructor(
 		private notebookEditor: INotebookEditor,
 		private viewCell: CodeCellViewModel,
 		private templateData: CodeCellRenderTemplate,
+		private options: { limit: number; },
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
-		this._register(viewCell.onDidChangeOutputs(splices => {
-			this._updateOutputs(splices);
+		this._register(viewCell.onDidChangeOutputs(splice => {
+			this._updateOutputs(splice);
 		}));
 
 		this._register(viewCell.onDidChangeLayout(() => {
-			this.outputEntries.forEach((value, key) => {
-				const index = viewCell.outputsViewModels.indexOf(key);
+			this._outputEntries.forEach(entry => {
+				const index = viewCell.outputsViewModels.indexOf(entry.model);
 				if (index >= 0) {
 					const top = this.viewCell.getOutputOffsetInContainer(index);
-					value.updateDOMTop(top);
+					entry.element.updateDOMTop(top);
 				}
 			});
 		}));
@@ -420,16 +510,15 @@ export class CellOutputContainer extends Disposable {
 			}
 
 			DOM.show(this.templateData.outputContainer);
-			const outputsToRender = this._calcuateOutputsToRender();
-			for (let index = 0; index < outputsToRender.length; index++) {
+			for (let index = 0; index < Math.min(this.options.limit, this.viewCell.outputsViewModels.length); index++) {
 				const currOutput = this.viewCell.outputsViewModels[index];
-
-				// always add to the end
-				this._renderOutput(currOutput, index, undefined);
+				const entry = this.instantiationService.createInstance(CellOutputElement, this.notebookEditor, this.viewCell, this.templateData.outputContainer, currOutput);
+				this._outputEntries.push(new OutputEntryViewHandler(currOutput, entry));
+				entry.render();
 			}
 
 			this.viewCell.editorHeight = editorHeight;
-			if (this.viewCell.outputsViewModels.length > OUTPUT_COUNT_LIMIT) {
+			if (this.viewCell.outputsViewModels.length > this.options.limit) {
 				DOM.show(this.templateData.outputShowMoreContainer);
 				this.viewCell.updateOutputShowMoreContainerHeight(46);
 			}
@@ -444,7 +533,7 @@ export class CellOutputContainer extends Disposable {
 		}
 
 		this.templateData.outputShowMoreContainer.innerText = '';
-		if (this.viewCell.outputsViewModels.length > OUTPUT_COUNT_LIMIT) {
+		if (this.viewCell.outputsViewModels.length > this.options.limit) {
 			this.templateData.outputShowMoreContainer.appendChild(this._generateShowMoreElement());
 		} else {
 			DOM.hide(this.templateData.outputShowMoreContainer);
@@ -453,19 +542,17 @@ export class CellOutputContainer extends Disposable {
 	}
 
 	viewUpdateShowOutputs(): void {
-		for (let index = 0; index < this.viewCell.outputsViewModels.length; index++) {
-			const currOutput = this.viewCell.outputsViewModels[index];
-
-			const renderedOutput = this.outputEntries.get(currOutput);
-			if (renderedOutput && renderedOutput.renderResult) {
-				if (renderedOutput.renderResult.type !== RenderOutputType.Mainframe) {
-					this.notebookEditor.createOutput(this.viewCell, renderedOutput.renderResult as IInsetRenderOutput, this.viewCell.getOutputOffset(index));
+		for (let index = 0; index < this._outputEntries.length; index++) {
+			const viewHandler = this._outputEntries[index];
+			const outputEntry = viewHandler.element;
+			if (outputEntry.renderResult) {
+				if (outputEntry.renderResult.type !== RenderOutputType.Mainframe) {
+					this.notebookEditor.createOutput(this.viewCell, outputEntry.renderResult as IInsetRenderOutput, this.viewCell.getOutputOffset(index));
 				} else {
-					this.viewCell.updateOutputHeight(index, renderedOutput.domOffsetHeight, 'CellOutputContainer#viewUpdateShowOutputs');
+					this.viewCell.updateOutputHeight(index, outputEntry.domOffsetHeight, 'CellOutputContainer#viewUpdateShowOutputs');
 				}
 			} else {
-				// Wasn't previously rendered, render it now
-				this._renderOutput(currOutput, index);
+				outputEntry.render();
 			}
 		}
 
@@ -473,13 +560,9 @@ export class CellOutputContainer extends Disposable {
 	}
 
 	viewUpdateHideOuputs(): void {
-		for (const e of this.outputEntries.keys()) {
-			this.notebookEditor.hideInset(e);
+		for (let index = 0; index < this._outputEntries.length; index++) {
+			this.notebookEditor.hideInset(this._outputEntries[index].model);
 		}
-	}
-
-	private _calcuateOutputsToRender(): ICellOutputViewModel[] {
-		return this.viewCell.outputsViewModels.slice(0, Math.min(OUTPUT_COUNT_LIMIT, this.viewCell.outputsViewModels.length));
 	}
 
 	private _outputHeightTimer: any = null;
@@ -500,11 +583,7 @@ export class CellOutputContainer extends Disposable {
 		}
 	}
 
-	private _updateOutputs(splices: NotebookCellOutputsSplice[]) {
-		if (!splices.length) {
-			return;
-		}
-
+	private _updateOutputs(splice: NotebookCellOutputsSplice) {
 		const previousOutputHeight = this.viewCell.layoutInfo.outputTotalHeight;
 
 		// for cell output update, we make sure the cell does not shrink before the new outputs are rendered.
@@ -516,50 +595,148 @@ export class CellOutputContainer extends Disposable {
 			DOM.hide(this.templateData.outputContainer);
 		}
 
-		const reversedSplices = splices.reverse();
+		this.viewCell.spliceOutputHeights(splice.start, splice.deleteCount, splice.newOutputs.map(_ => 0));
+		this._renderNow(splice);
+	}
 
-		reversedSplices.forEach(splice => {
-			this.viewCell.spliceOutputHeights(splice[0], splice[1], splice[2].map(_ => 0));
-		});
+	private _renderNow(splice: NotebookCellOutputsSplice) {
+		if (splice.start >= this.options.limit) {
+			// splice items out of limit
+			return;
+		}
 
-		const removedOutputs: ICellOutputViewModel[] = [];
-
-		this.outputEntries.forEach((value, key) => {
-			if (this.viewCell.outputsViewModels.indexOf(key) < 0) {
-				removedOutputs.push(key);
-				// remove element from DOM
-				value.detach();
-				this.notebookEditor.removeInset(key);
-			}
-		});
-
-		removedOutputs.forEach(key => {
-			this.outputEntries.get(key)?.dispose();
-			this.outputEntries.delete(key);
-		});
-
-		let prevElement: HTMLElement | undefined = undefined;
-		const outputsToRender = this._calcuateOutputsToRender();
+		const firstGroupEntries = this._outputEntries.slice(0, splice.start);
+		const deletedEntries = this._outputEntries.slice(splice.start, splice.start + splice.deleteCount);
+		const secondGroupEntries = this._outputEntries.slice(splice.start + splice.deleteCount);
+		let newlyInserted = this.viewCell.outputsViewModels.slice(splice.start, splice.start + splice.newOutputs.length);
 
 		let outputHasDynamicHeight = false;
-		outputsToRender.reverse().forEach(output => {
-			if (this.outputEntries.has(output)) {
-				// already exist
-				prevElement = this.outputEntries.get(output)!.domNode;
-				return;
+
+		// [...firstGroup, ...deletedEntries, ...secondGroupEntries]  [...restInModel]
+		// [...firstGroup, ...newlyInserted, ...secondGroupEntries, restInModel]
+		if (firstGroupEntries.length + newlyInserted.length + secondGroupEntries.length > this.options.limit) {
+			// exceeds limit again
+			if (firstGroupEntries.length + newlyInserted.length > this.options.limit) {
+				[...deletedEntries, ...secondGroupEntries].forEach(entry => {
+					entry.element.detach();
+					entry.element.dispose();
+				});
+
+				newlyInserted = newlyInserted.slice(0, this.options.limit - firstGroupEntries.length);
+				const newlyInsertedEntries = newlyInserted.map(insert => {
+					return new OutputEntryViewHandler(insert, this.instantiationService.createInstance(CellOutputElement, this.notebookEditor, this.viewCell, this.templateData.outputContainer, insert));
+				});
+
+				this._outputEntries = [...firstGroupEntries, ...newlyInsertedEntries];
+
+				// render newly inserted outputs
+				for (let i = firstGroupEntries.length; i < this._outputEntries.length; i++) {
+					const renderResult = this._outputEntries[i].element.render();
+					if (renderResult) {
+						outputHasDynamicHeight = outputHasDynamicHeight || !renderResult.initRenderIsSynchronous;
+					}
+				}
+			} else {
+				// part of secondGroupEntries are pushed out of view
+				// now we have to be creative as secondGroupEntries might not use dedicated containers
+				const elementsPushedOutOfView = secondGroupEntries.slice(this.options.limit - firstGroupEntries.length - newlyInserted.length);
+				[...deletedEntries, ...elementsPushedOutOfView].forEach(entry => {
+					entry.element.detach();
+					entry.element.dispose();
+				});
+
+				// exclusive
+				let reRenderRightBoundary = firstGroupEntries.length + newlyInserted.length;
+
+				for (let j = 0; j < secondGroupEntries.length; j++) {
+					const entry = secondGroupEntries[j];
+					if (!entry.element.useDedicatedDOM) {
+						entry.element.detach();
+						entry.element.dispose();
+						secondGroupEntries[j] = new OutputEntryViewHandler(entry.model, this.instantiationService.createInstance(CellOutputElement, this.notebookEditor, this.viewCell, this.templateData.outputContainer, entry.model));
+						reRenderRightBoundary++;
+					} else {
+						break;
+					}
+				}
+
+				const newlyInsertedEntries = newlyInserted.map(insert => {
+					return new OutputEntryViewHandler(insert, this.instantiationService.createInstance(CellOutputElement, this.notebookEditor, this.viewCell, this.templateData.outputContainer, insert));
+				});
+
+				this._outputEntries = [...firstGroupEntries, ...newlyInsertedEntries, ...secondGroupEntries.slice(0, this.options.limit - firstGroupEntries.length - newlyInserted.length)];
+
+				for (let i = firstGroupEntries.length; i < reRenderRightBoundary; i++) {
+					const previousSibling = i - 1 >= 0 && this._outputEntries[i - 1] && this._outputEntries[i - 1].element.innerContainer.parentElement !== null ? this._outputEntries[i - 1].element.innerContainer : undefined;
+					const renderResult = this._outputEntries[i].element.render(previousSibling);
+					if (renderResult) {
+						outputHasDynamicHeight = outputHasDynamicHeight || !renderResult.initRenderIsSynchronous;
+					}
+				}
+			}
+		} else {
+			// after splice, it doesn't exceed
+			deletedEntries.forEach(entry => {
+				entry.element.detach();
+				entry.element.dispose();
+			});
+
+			let reRenderRightBoundary = firstGroupEntries.length + newlyInserted.length;
+
+			for (let j = 0; j < secondGroupEntries.length; j++) {
+				const entry = secondGroupEntries[j];
+				if (!entry.element.useDedicatedDOM) {
+					entry.element.detach();
+					entry.element.dispose();
+					secondGroupEntries[j] = new OutputEntryViewHandler(entry.model, this.instantiationService.createInstance(CellOutputElement, this.notebookEditor, this.viewCell, this.templateData.outputContainer, entry.model));
+					reRenderRightBoundary++;
+				} else {
+					break;
+				}
 			}
 
-			// newly added element
-			const currIndex = this.viewCell.outputsViewModels.indexOf(output);
-			const renderResult = this._renderOutput(output, currIndex, prevElement);
-			if (renderResult) {
-				outputHasDynamicHeight = outputHasDynamicHeight || !renderResult.initRenderIsSynchronous;
+			const newlyInsertedEntries = newlyInserted.map(insert => {
+				return new OutputEntryViewHandler(insert, this.instantiationService.createInstance(CellOutputElement, this.notebookEditor, this.viewCell, this.templateData.outputContainer, insert));
+			});
+
+			let outputsNewlyAvailable: OutputEntryViewHandler[] = [];
+
+			if (firstGroupEntries.length + newlyInsertedEntries.length + secondGroupEntries.length < this.viewCell.outputsViewModels.length) {
+				const last = Math.min(this.options.limit, this.viewCell.outputsViewModels.length);
+				outputsNewlyAvailable = this.viewCell.outputsViewModels.slice(firstGroupEntries.length + newlyInsertedEntries.length + secondGroupEntries.length, last).map(output => {
+					return new OutputEntryViewHandler(output, this.instantiationService.createInstance(CellOutputElement, this.notebookEditor, this.viewCell, this.templateData.outputContainer, output));
+				});
 			}
 
-			prevElement = this.outputEntries.get(output)?.domNode;
-		});
+			this._outputEntries = [...firstGroupEntries, ...newlyInsertedEntries, ...secondGroupEntries, ...outputsNewlyAvailable];
 
-		if (this.viewCell.outputsViewModels.length > OUTPUT_COUNT_LIMIT) {
+			// if (firstGroupEntries.length + newlyInserted.length === this._outputEntries.length) {
+			// 	// inserted at the very end
+			// 	for (let i = firstGroupEntries.length; i < this._outputEntries.length; i++) {
+			// 		const renderResult = this._outputEntries[i].entry.render();
+			// 		if (renderResult) {
+			// 			outputHasDynamicHeight = outputHasDynamicHeight || !renderResult.initRenderIsSynchronous;
+			// 		}
+			// 	}
+			// } else {
+			for (let i = firstGroupEntries.length; i < reRenderRightBoundary; i++) {
+				const previousSibling = i - 1 >= 0 && this._outputEntries[i - 1] && this._outputEntries[i - 1].element.innerContainer.parentElement !== null ? this._outputEntries[i - 1].element.innerContainer : undefined;
+				const renderResult = this._outputEntries[i].element.render(previousSibling);
+				if (renderResult) {
+					outputHasDynamicHeight = outputHasDynamicHeight || !renderResult.initRenderIsSynchronous;
+				}
+			}
+
+			for (let i = 0; i < outputsNewlyAvailable.length; i++) {
+				const renderResult = this._outputEntries[firstGroupEntries.length + newlyInserted.length + secondGroupEntries.length + i].element.render();
+				if (renderResult) {
+					outputHasDynamicHeight = outputHasDynamicHeight || !renderResult.initRenderIsSynchronous;
+				}
+			}
+			// }
+		}
+
+		if (this.viewCell.outputsViewModels.length > this.options.limit) {
 			DOM.show(this.templateData.outputShowMoreContainer);
 			if (!this.templateData.outputShowMoreContainer.hasChildNodes()) {
 				this.templateData.outputShowMoreContainer.appendChild(this._generateShowMoreElement());
@@ -573,23 +750,14 @@ export class CellOutputContainer extends Disposable {
 		this.viewCell.editorHeight = editorHeight;
 
 		this._relayoutCell();
-		// if it's clearing all outputs
-		// or outputs are all rendered synchronously
+		// if it's clearing all outputs, or outputs are all rendered synchronously
 		// shrink immediately as the final output height will be zero.
 		this._validateFinalOutputHeight(!outputHasDynamicHeight || this.viewCell.outputsViewModels.length === 0);
 	}
 
-	private _renderOutput(currOutput: ICellOutputViewModel, index: number, beforeElement?: HTMLElement) {
-		if (!this.outputEntries.has(currOutput)) {
-			this.outputEntries.set(currOutput, this.instantiationService.createInstance(CellOutputElement, this.notebookEditor, this.viewCell, this.templateData.outputContainer, currOutput));
-		}
-
-		return this.outputEntries.get(currOutput)!.render(index, beforeElement);
-	}
-
 	private _generateShowMoreElement(): any {
 		const md: IMarkdownString = {
-			value: `There are more than ${OUTPUT_COUNT_LIMIT} outputs, [show more (open the raw output data in a text editor) ...](command:workbench.action.openLargeOutput)`,
+			value: `There are more than ${this.options.limit} outputs, [show more (open the raw output data in a text editor) ...](command:workbench.action.openLargeOutput)`,
 			isTrusted: true,
 			supportThemeIcons: true
 		};
@@ -622,8 +790,8 @@ export class CellOutputContainer extends Disposable {
 			clearTimeout(this._outputHeightTimer);
 		}
 
-		this.outputEntries.forEach((value) => {
-			value.dispose();
+		this._outputEntries.forEach(entry => {
+			entry.element.dispose();
 		});
 
 		super.dispose();

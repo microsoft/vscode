@@ -4,16 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
+import * as DOM from 'vs/base/browser/dom';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionViewItem, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { IAction } from 'vs/base/common/actions';
-import * as DOM from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 	private _primaryAction: ActionViewItem;
@@ -21,20 +23,32 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 	private _container: HTMLElement | null = null;
 	private _dropdownContainer: HTMLElement | null = null;
 
+	get onDidChangeDropdownVisibility(): Event<boolean> {
+		return this._dropdown.onDidChangeVisibility;
+	}
+
 	constructor(
 		primaryAction: MenuItemAction,
 		dropdownAction: IAction,
 		dropdownMenuActions: IAction[],
 		className: string,
 		private readonly _contextMenuProvider: IContextMenuProvider,
-		_keybindingService: IKeybindingService,
-		_notificationService: INotificationService
+		@IKeybindingService _keybindingService: IKeybindingService,
+		@INotificationService _notificationService: INotificationService,
+		@IContextKeyService _contextKeyService: IContextKeyService
 	) {
 		super(null, primaryAction);
-		this._primaryAction = new MenuEntryActionViewItem(primaryAction, _keybindingService, _notificationService);
+		this._primaryAction = new MenuEntryActionViewItem(primaryAction, undefined, _keybindingService, _notificationService, _contextKeyService);
 		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, this._contextMenuProvider, {
-			menuAsChild: true
+			menuAsChild: true,
+			classNames: ['codicon', 'codicon-chevron-down']
 		});
+	}
+
+	override setActionContext(newContext: unknown): void {
+		super.setActionContext(newContext);
+		this._primaryAction.setActionContext(newContext);
+		this._dropdown.setActionContext(newContext);
 	}
 
 	override render(container: HTMLElement): void {

@@ -45,7 +45,7 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		@INotificationService notificationService: INotificationService,
 		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
-		@IHistoryService historyService: IHistoryService
+		@IHistoryService historyService: IHistoryService,
 	) {
 		super();
 
@@ -63,6 +63,7 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		this._localPtyService.onProcessOverrideDimensions(e => this._ptys.get(e.id)?.handleOverrideDimensions(e.event));
 		this._localPtyService.onProcessResolvedShellLaunchConfig(e => this._ptys.get(e.id)?.handleResolvedShellLaunchConfig(e.event));
 		this._localPtyService.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
+		this._localPtyService.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
 
 		// Attach pty host listeners
 		if (this._localPtyService.onPtyHostExit) {
@@ -105,6 +106,10 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		}
 		if (this._localPtyService.onPtyHostRequestResolveVariables) {
 			this._register(this._localPtyService.onPtyHostRequestResolveVariables(async e => {
+				// Only answer requests for this workspace
+				if (e.workspaceId !== this._workspaceContextService.getWorkspace().id) {
+					return;
+				}
 				const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
 				const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
 				const resolveCalls: Promise<string>[] = e.originalText.map(t => {
@@ -155,8 +160,8 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		return this._localPtyService.getDefaultSystemShell(osOverride);
 	}
 
-	async getProfiles(includeDetectedProfiles?: boolean) {
-		return this._localPtyService.getProfiles?.(includeDetectedProfiles) || [];
+	async getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean) {
+		return this._localPtyService.getProfiles?.(this._workspaceContextService.getWorkspace().id, profiles, defaultProfile, includeDetectedProfiles) || [];
 	}
 
 	async getEnvironment(): Promise<IProcessEnvironment> {

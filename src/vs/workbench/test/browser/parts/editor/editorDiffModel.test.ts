@@ -12,7 +12,7 @@ import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench
 import { ITextModel } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
-suite('Workbench editor model', () => {
+suite('TextDiffEditorModel', () => {
 
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
@@ -22,7 +22,7 @@ suite('Workbench editor model', () => {
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 	});
 
-	test('TextDiffEditorModel', async () => {
+	test('basics', async () => {
 		const dispose = accessor.textModelResolverService.registerTextModelContentProvider('test', {
 			provideTextContent: async function (resource: URI): Promise<ITextModel | null> {
 				if (resource.scheme === 'test') {

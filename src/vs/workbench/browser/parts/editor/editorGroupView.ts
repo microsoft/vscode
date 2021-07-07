@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/editorgroupview';
 import { EditorGroupModel, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroupModel, isSerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
-import { GroupIdentifier, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, EditorResourceAccessor, IEditorMoveEvent, EditorInputCapabilities, IEditorOpenEvent } from 'vs/workbench/common/editor';
+import { GroupIdentifier, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, EditorResourceAccessor, IEditorMoveEvent, EditorInputCapabilities, IEditorOpenEvent, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
@@ -291,7 +291,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			if (this.isEmpty) {
 				EventHelper.stop(e);
 
-				this.openEditor(this.editorService.createEditorInput({ forceUntitled: true }), { pinned: true });
+				this.editorService.openEditor({
+					resource: undefined,
+					forceUntitled: true,
+					options: {
+						pinned: true,
+						override: DEFAULT_EDITOR_ASSOCIATION.id
+					}
+				}, this.id);
 			}
 		}));
 
@@ -504,7 +511,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._register(this.model.onDidCloseEditor(editor => this.handleOnDidCloseEditor(editor)));
 		this._register(this.model.onWillDisposeEditor(editor => this.onWillDisposeEditor(editor)));
 		this._register(this.model.onDidChangeEditorDirty(editor => this.onDidChangeEditorDirty(editor)));
-		this._register(this.model.onDidEditorLabelChange(editor => this.onDidEditorLabelChange(editor)));
+		this._register(this.model.onDidChangeEditorLabel(editor => this.onDidChangeEditorLabel(editor)));
+		this._register(this.model.onDidChangeEditorCapabilities(editor => this.onDidChangeEditorCapabilities(editor)));
 
 		// Option Changes
 		this._register(this.accessor.onDidChangeEditorPartOptions(e => this.onDidChangeEditorPartOptions(e)));
@@ -692,13 +700,22 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_DIRTY, editor });
 	}
 
-	private onDidEditorLabelChange(editor: EditorInput): void {
+	private onDidChangeEditorLabel(editor: EditorInput): void {
 
 		// Forward to title control
 		this.titleAreaControl.updateEditorLabel(editor);
 
 		// Event
 		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_LABEL, editor });
+	}
+
+	private onDidChangeEditorCapabilities(editor: EditorInput): void {
+
+		// Forward to title control
+		this.titleAreaControl.updateEditorCapabilities(editor);
+
+		// Event
+		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_CAPABILITIES, editor });
 	}
 
 	private onDidVisibilityChange(visible: boolean): void {
@@ -810,11 +827,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.model.isSticky(editorOrIndex);
 	}
 
-	isActive(editor: EditorInput): boolean {
+	isActive(editor: EditorInput | IUntypedEditorInput): boolean {
 		return this.model.isActive(editor);
 	}
 
-	contains(candidate: EditorInput): boolean {
+	contains(candidate: EditorInput | IUntypedEditorInput): boolean {
 		return this.model.contains(candidate);
 	}
 
@@ -1552,7 +1569,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Filter: except
 		else if (filter.except) {
-			editorsToClose = editorsToClose.filter(editor => !editor.matches(filter.except));
+			editorsToClose = editorsToClose.filter(editor => filter.except && !editor.matches(filter.except));
 		}
 
 		return editorsToClose;

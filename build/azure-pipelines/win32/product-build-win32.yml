@@ -17,6 +17,7 @@ steps:
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
+      SecretsFilter: 'github-distro-mixin-password,ESRP-SSL-AADAuth,vscode-storage-key,builds-docdb-key-readwrite'
 
   - task: DownloadPipelineArtifact@2
     inputs:
@@ -53,7 +54,7 @@ steps:
 
   - task: Cache@2
     inputs:
-      key: 'nodeModules | $(Agent.OS) | .build/arch, .build/terrapin, .build/yarnlockhash'
+      key: "nodeModules | $(Agent.OS) | .build/arch, .build/terrapin, .build/yarnlockhash"
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
@@ -84,6 +85,7 @@ steps:
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
@@ -155,13 +157,6 @@ steps:
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { yarn --cwd test/integration/browser compile }
-    displayName: Compile integration tests
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
-
-  - powershell: |
       # Figure out the full absolute path of the product we just built
       # including the remote server and configure the integration tests
       # to run with these builds instead of running out of sources.
@@ -201,6 +196,14 @@ steps:
     displayName: "Publish Crash Reports"
     continueOnError: true
     condition: failed()
+
+  - task: PublishPipelineArtifact@0
+    inputs:
+      artifactName: logs-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+      targetPath: .build\logs
+    displayName: "Publish Log Files"
+    continueOnError: true
+    condition: and(succeededOrFailed(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - task: PublishTestResults@2
     displayName: Publish Tests Results

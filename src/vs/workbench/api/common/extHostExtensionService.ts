@@ -204,6 +204,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	public async deactivateAll(): Promise<void> {
+		this._storagePath.onWillDeactivateAll();
+
 		let allPromises: Promise<void>[] = [];
 		try {
 			const allExtensions = this._registry.getAllExtensionDescriptions();
@@ -551,7 +553,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	public async $extensionTestsExecute(): Promise<number> {
 		await this._eagerExtensionsActivated.wait();
 		try {
-			return this._doHandleExtensionTests();
+			return await this._doHandleExtensionTests();
 		} catch (error) {
 			console.error(error); // ensure any error message makes it onto the console
 			throw error;

@@ -13,6 +13,20 @@ import { isTypeScriptDocument } from '../utils/languageModeIds';
 import { equals } from '../utils/objects';
 import { ResourceMap } from '../utils/resourceMap';
 
+namespace ExperimentalProto {
+	export interface UserPreferences extends Proto.UserPreferences {
+		displayPartsForJSDoc: true
+
+		includeInlayParameterNameHints?: 'none' | 'literals' | 'all';
+		includeInlayParameterNameHintsWhenArgumentMatchesName?: boolean;
+		includeInlayFunctionParameterTypeHints?: boolean;
+		includeInlayVariableTypeHints?: boolean;
+		includeInlayPropertyDeclarationTypeHints?: boolean;
+		includeInlayFunctionLikeReturnTypeHints?: boolean;
+		includeInlayEnumMemberValueHints?: boolean;
+	}
+}
+
 interface FileConfiguration {
 	readonly formatOptions: Proto.FormatCodeSettings;
 	readonly preferences: Proto.UserPreferences;
@@ -173,7 +187,7 @@ export default class FileConfigurationManager extends Disposable {
 			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
 			document.uri);
 
-		const preferences: Proto.UserPreferences & { displayPartsForJSDoc: true } = {
+		const preferences: ExperimentalProto.UserPreferences = {
 			quotePreference: this.getQuoteStylePreference(preferencesConfig),
 			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferencesConfig),
 			importModuleSpecifierEnding: getImportModuleSpecifierEndingPreference(preferencesConfig),
@@ -185,7 +199,10 @@ export default class FileConfigurationManager extends Disposable {
 			generateReturnInDocTemplate: config.get<boolean>('suggest.jsdoc.generateReturns', true),
 			includeCompletionsForImportStatements: config.get<boolean>('suggest.includeCompletionsForImportStatements', true),
 			includeCompletionsWithSnippetText: config.get<boolean>('suggest.includeCompletionsWithSnippetText', true),
+			// @ts-expect-error until 4.4
+			allowIncompleteCompletions: true,
 			displayPartsForJSDoc: true,
+			...getInlayHintsPreferences(config),
 		};
 
 		return preferences;
@@ -197,6 +214,27 @@ export default class FileConfigurationManager extends Disposable {
 			case 'double': return 'double';
 			default: return this.client.apiVersion.gte(API.v333) ? 'auto' : undefined;
 		}
+	}
+}
+
+export function getInlayHintsPreferences(config: vscode.WorkspaceConfiguration) {
+	return {
+		includeInlayParameterNameHints: getInlayParameterNameHintsPreference(config),
+		includeInlayParameterNameHintsWhenArgumentMatchesName: !config.get<boolean>('inlayHints.parameterNames.suppressWhenArgumentMatchesName', true),
+		includeInlayFunctionParameterTypeHints: config.get<boolean>('inlayHints.parameterTypes.enabled', false),
+		includeInlayVariableTypeHints: config.get<boolean>('inlayHints.variableTypes.enabled', false),
+		includeInlayPropertyDeclarationTypeHints: config.get<boolean>('inlayHints.propertyDeclarationTypes.enabled', false),
+		includeInlayFunctionLikeReturnTypeHints: config.get<boolean>('inlayHints.functionLikeReturnTypes.enabled', false),
+		includeInlayEnumMemberValueHints: config.get<boolean>('inlayHints.enumMemberValues.enabled', false),
+	} as const;
+}
+
+function getInlayParameterNameHintsPreference(config: vscode.WorkspaceConfiguration) {
+	switch (config.get<string>('inlayHints.parameterNames.enabled')) {
+		case 'none': return 'none';
+		case 'literals': return 'literals';
+		case 'all': return 'all';
+		default: return undefined;
 	}
 }
 

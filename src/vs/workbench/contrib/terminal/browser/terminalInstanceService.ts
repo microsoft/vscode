@@ -3,18 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRemoteTerminalService, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRemoteTerminalService, ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
 import type { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ILocalTerminalService, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { optional } from 'vs/platform/instantiation/common/instantiation';
+import { ILocalTerminalService, IShellLaunchConfig, ITerminalProfile, TerminalLocation, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { basename } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
+import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
+import { KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE } from 'vs/workbench/contrib/terminal/common/terminal';
+import { URI } from 'vs/base/common/uri';
+import { Emitter, Event } from 'vs/base/common/event';
 
 let Terminal: typeof XTermTerminal;
 let SearchAddon: typeof XTermSearchAddon;
@@ -24,12 +30,69 @@ let WebglAddon: typeof XTermWebglAddon;
 export class TerminalInstanceService extends Disposable implements ITerminalInstanceService {
 	declare _serviceBrand: undefined;
 	private readonly _localTerminalService?: ILocalTerminalService;
+	private _terminalFocusContextKey: IContextKey<boolean>;
+	private _terminalShellTypeContextKey: IContextKey<string>;
+	private _terminalAltBufferActiveContextKey: IContextKey<boolean>;
+	private _configHelper: TerminalConfigHelper;
+
+	private readonly _onDidCreateInstance = new Emitter<ITerminalInstance>();
+	get onDidCreateInstance(): Event<ITerminalInstance> { return this._onDidCreateInstance.event; }
+
 	constructor(
 		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
 	) {
 		super();
 		this._localTerminalService = localTerminalService;
+		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
+		this._terminalShellTypeContextKey = KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE.bindTo(this._contextKeyService);
+		this._terminalAltBufferActiveContextKey = KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE.bindTo(this._contextKeyService);
+		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
+	}
+
+	createInstance(profile: ITerminalProfile, target?: TerminalLocation): ITerminalInstance;
+	createInstance(shellLaunchConfig: IShellLaunchConfig, target?: TerminalLocation): ITerminalInstance;
+	createInstance(config: IShellLaunchConfig | ITerminalProfile, target?: TerminalLocation): ITerminalInstance {
+		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(config);
+		const instance = this._instantiationService.createInstance(TerminalInstance,
+			this._terminalFocusContextKey,
+			this._terminalShellTypeContextKey,
+			this._terminalAltBufferActiveContextKey,
+			this._configHelper,
+			shellLaunchConfig
+		);
+		instance.target = target;
+		this._onDidCreateInstance.fire(instance);
+		return instance;
+	}
+
+	private _convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig {
+		// Profile was provided
+		if (shellLaunchConfigOrProfile && 'profileName' in shellLaunchConfigOrProfile) {
+			const profile = shellLaunchConfigOrProfile;
+			return {
+				executable: profile.path,
+				args: profile.args,
+				env: profile.env,
+				icon: profile.icon,
+				color: profile.color,
+				name: profile.overrideName ? profile.profileName : undefined,
+				cwd
+			};
+		}
+
+		// Shell launch config was provided
+		if (shellLaunchConfigOrProfile) {
+			if (cwd) {
+				shellLaunchConfigOrProfile.cwd = cwd;
+			}
+			return shellLaunchConfigOrProfile;
+		}
+
+		// Return empty shell launch config
+		return {};
 	}
 
 	async getXtermConstructor(): Promise<typeof XTermTerminal> {

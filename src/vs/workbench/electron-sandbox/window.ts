@@ -10,8 +10,8 @@ import { equals } from 'vs/base/common/objects';
 import { EventType, EventHelper, addDisposableListener, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { Separator } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
-import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors } from 'vs/workbench/common/editor';
-import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
+import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WindowMinimumSize, IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
@@ -187,15 +187,8 @@ export class NativeWindow extends Disposable {
 		ipcRenderer.on('vscode:showInfoMessage', (event: unknown, message: string) => this.notificationService.info(message));
 
 		// Fullscreen Events
-		ipcRenderer.on('vscode:enterFullScreen', async () => {
-			await this.lifecycleService.when(LifecyclePhase.Ready);
-			setFullscreen(true);
-		});
-
-		ipcRenderer.on('vscode:leaveFullScreen', async () => {
-			await this.lifecycleService.when(LifecyclePhase.Ready);
-			setFullscreen(false);
-		});
+		ipcRenderer.on('vscode:enterFullScreen', async () => setFullscreen(true));
+		ipcRenderer.on('vscode:leaveFullScreen', async () => setFullscreen(false));
 
 		// Proxy Login Dialog
 		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, payload: { authInfo: AuthInfo, username?: string, password?: string, replyChannel: string }) => {
@@ -473,7 +466,7 @@ export class NativeWindow extends Disposable {
 				this.logService.error('Error: There is a dependency cycle in the AMD modules that needs to be resolved!');
 				this.nativeHostService.exit(37); // running on a build machine, just exit without showing a dialog
 			} else {
-				this.dialogService.show(Severity.Error, localize('loaderCycle', "There is a dependency cycle in the AMD modules that needs to be resolved!"), [localize('ok', "OK")]);
+				this.dialogService.show(Severity.Error, localize('loaderCycle', "There is a dependency cycle in the AMD modules that needs to be resolved!"));
 				this.nativeHostService.openDevTools();
 			}
 		}
@@ -526,18 +519,20 @@ export class NativeWindow extends Disposable {
 					}
 				}
 
-				// Assume `uri` this is a workspace uri, let's see if we can handle it
-				await this.fileService.activateProvider(uri.scheme);
+				if (!options?.openExternal) {
+					// Assume `uri` this is a workspace uri, let's see if we can handle it
+					await this.fileService.activateProvider(uri.scheme);
 
-				if (this.fileService.canHandleResource(uri)) {
-					return {
-						resolved: URI.from({
-							scheme: this.productService.urlProtocol,
-							path: 'workspace',
-							query: uri.toString()
-						}),
-						dispose() { }
-					};
+					if (this.fileService.canHandleResource(uri)) {
+						return {
+							resolved: URI.from({
+								scheme: this.productService.urlProtocol,
+								path: 'workspace',
+								query: uri.toString()
+							}),
+							dispose() { }
+						};
+					}
 				}
 
 				return undefined;
@@ -636,7 +631,7 @@ export class NativeWindow extends Disposable {
 	}
 
 	private async onOpenFiles(request: INativeOpenFileRequest): Promise<void> {
-		const inputs: IResourceEditorInputType[] = [];
+		const inputs: Array<IResourceEditorInput | IUntitledTextResourceEditorInput> = [];
 		const diffMode = !!(request.filesToDiff && (request.filesToDiff.length === 2));
 
 		if (!diffMode && request.filesToOpenOrCreate) {
@@ -655,7 +650,7 @@ export class NativeWindow extends Disposable {
 			// In wait mode, listen to changes to the editors and wait until the files
 			// are closed that the user wants to wait for. When this happens we delete
 			// the wait marker file to signal to the outside that editing is done.
-			this.trackClosedWaitFiles(URI.revive(request.filesToWait.waitMarkerFileUri), coalesce(request.filesToWait.paths.map(p => URI.revive(p.fileUri))));
+			this.trackClosedWaitFiles(URI.revive(request.filesToWait.waitMarkerFileUri), coalesce(request.filesToWait.paths.map(path => URI.revive(path.fileUri))));
 		}
 	}
 
@@ -669,18 +664,21 @@ export class NativeWindow extends Disposable {
 	}
 
 	private async openResources(resources: Array<IResourceEditorInput | IUntitledTextResourceEditorInput>, diffMode: boolean): Promise<unknown> {
-		await this.lifecycleService.when(LifecyclePhase.Ready);
+		const editors: IUntypedEditorInput[] = [];
 
 		// In diffMode we open 2 resources as diff
 		if (diffMode && resources.length === 2 && resources[0].resource && resources[1].resource) {
-			return this.editorService.openEditor({
-				originalInput: { resource: resources[0].resource },
-				modifiedInput: { resource: resources[1].resource },
+			const diffEditor: IResourceDiffEditorInput = {
+				original: { resource: resources[0].resource },
+				modified: { resource: resources[1].resource },
 				options: { pinned: true }
-			});
+			};
+			editors.push(diffEditor);
+		} else {
+			editors.push(...resources);
 		}
 
-		// Open resource(s)
-		return this.editorService.openEditors(resources);
+		// Open as editors
+		return this.editorService.openEditors(editors, undefined, { validateTrust: true });
 	}
 }

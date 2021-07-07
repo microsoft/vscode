@@ -12,7 +12,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { Memento } from 'vs/workbench/common/memento';
 import { CustomEditorDescriptor, CustomEditorInfo } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { customEditorsExtensionPoint, ICustomEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/common/extensionPoint';
-import { ContributedEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
 export const defaultCustomEditor = new CustomEditorInfo({
@@ -22,7 +22,7 @@ export const defaultCustomEditor = new CustomEditorInfo({
 	selector: [
 		{ filenamePattern: '*' }
 	],
-	priority: ContributedEditorPriority.default,
+	priority: RegisteredEditorPriority.default,
 });
 
 export class ContributedCustomEditors extends Disposable {
@@ -100,17 +100,17 @@ export class ContributedCustomEditors extends Disposable {
 function getPriorityFromContribution(
 	contribution: ICustomEditorsExtensionPoint,
 	extension: IExtensionDescription,
-): ContributedEditorPriority {
+): RegisteredEditorPriority {
 	switch (contribution.priority) {
-		case ContributedEditorPriority.default:
-		case ContributedEditorPriority.option:
+		case RegisteredEditorPriority.default:
+		case RegisteredEditorPriority.option:
 			return contribution.priority;
 
-		case ContributedEditorPriority.builtin:
+		case RegisteredEditorPriority.builtin:
 			// Builtin is only valid for builtin extensions
-			return extension.isBuiltin ? ContributedEditorPriority.builtin : ContributedEditorPriority.default;
+			return extension.isBuiltin ? RegisteredEditorPriority.builtin : RegisteredEditorPriority.default;
 
 		default:
-			return ContributedEditorPriority.default;
+			return RegisteredEditorPriority.default;
 	}
 }

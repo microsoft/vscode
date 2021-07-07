@@ -133,7 +133,7 @@ export class Gesture extends Disposable {
 	private static isTouchDevice(): boolean {
 		// `'ontouchstart' in window` always evaluates to true with typescript's modern typings. This causes `window` to be
 		// `never` later in `window.navigator`. That's why we need the explicit `window as Window` cast
-		return 'ontouchstart' in window || navigator.maxTouchPoints > 0 || (window as Window).navigator.msMaxTouchPoints > 0;
+		return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 	}
 
 	public override dispose(): void {

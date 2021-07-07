@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
-import { SyncDescriptor0, createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { SyncDescriptor, SyncDescriptor0 } from 'vs/platform/instantiation/common/descriptors';
 import { IConstructorSignature2, createDecorator, BrandedService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindings, KeybindingsRegistry, IKeybindingRule } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ContextKeyExpr, IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
@@ -66,6 +66,7 @@ export interface ISubmenuItem {
 	when?: ContextKeyExpression;
 	group?: 'navigation' | string;
 	order?: number;
+	rememberDefaultAction?: boolean;	// for dropdown menu: if true the last executed action is remembered as the default action
 }
 
 export function isIMenuItem(item: IMenuItem | ISubmenuItem): item is IMenuItem {
@@ -147,8 +148,10 @@ export class MenuId {
 	static readonly CommentThreadActions = new MenuId('CommentThreadActions');
 	static readonly CommentTitle = new MenuId('CommentTitle');
 	static readonly CommentActions = new MenuId('CommentActions');
+	static readonly InteractiveToolbar = new MenuId('InteractiveToolbar');
+	static readonly InteractiveCellTitle = new MenuId('InteractiveCellTitle');
+	static readonly InteractiveCellExecute = new MenuId('InteractiveCellExecute');
 	static readonly NotebookToolbar = new MenuId('NotebookToolbar');
-	static readonly NotebookRightToolbar = new MenuId('NotebookRightToolbar');
 	static readonly NotebookCellTitle = new MenuId('NotebookCellTitle');
 	static readonly NotebookCellInsert = new MenuId('NotebookCellInsert');
 	static readonly NotebookCellBetween = new MenuId('NotebookCellBetween');
@@ -171,6 +174,7 @@ export class MenuId {
 	static readonly TerminalTabEmptyAreaContext = new MenuId('TerminalTabEmptyAreaContext');
 	static readonly TerminalInlineTabContext = new MenuId('TerminalInlineTabContext');
 	static readonly WebviewContext = new MenuId('WebviewContext');
+	static readonly InlineCompletionsActions = new MenuId('InlineCompletionsActions');
 
 	readonly id: number;
 	readonly _debugName: string;
@@ -479,7 +483,7 @@ export class SyncActionDescriptor {
 		this._keybindings = keybindings;
 		this._keybindingContext = keybindingContext;
 		this._keybindingWeight = keybindingWeight;
-		this._descriptor = createSyncDescriptor(ctor, this._id, this._label);
+		this._descriptor = new SyncDescriptor(ctor, [this._id, this._label]) as unknown as SyncDescriptor0<Action>;
 	}
 
 	public get syncDescriptor(): SyncDescriptor0<Action> {

@@ -12,7 +12,7 @@ import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench
 import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
 import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 
-suite('Resource text editors', () => {
+suite('TextResourceEditorInput', () => {
 
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;

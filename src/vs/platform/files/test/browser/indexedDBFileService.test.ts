@@ -14,11 +14,9 @@ import { IIndexedDBFileSystemProvider, IndexedDB, INDEXEDDB_LOGS_OBJECT_STORE, I
 import { assertIsDefined } from 'vs/base/common/types';
 import { basename, joinPath } from 'vs/base/common/resources';
 import { bufferToReadable, bufferToStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { flakySuite } from 'vs/base/test/common/testUtils';
 
-suite('IndexedDB File Service', function () {
-
-	// IDB sometimes under pressure in build machines.
-	this.retries(3);
+flakySuite('IndexedDB File Service', function () {
 
 	const logSchema = 'logs';
 
@@ -69,11 +67,11 @@ suite('IndexedDB File Service', function () {
 		service = new FileService(logService);
 		disposables.add(service);
 
-		logFileProvider = assertIsDefined(await new IndexedDB().createFileSystemProvider(Schemas.file, INDEXEDDB_LOGS_OBJECT_STORE));
+		logFileProvider = assertIsDefined(await new IndexedDB().createFileSystemProvider(Schemas.file, INDEXEDDB_LOGS_OBJECT_STORE, false));
 		disposables.add(service.registerProvider(logSchema, logFileProvider));
 		disposables.add(logFileProvider);
 
-		userdataFileProvider = assertIsDefined(await new IndexedDB().createFileSystemProvider(logSchema, INDEXEDDB_USERDATA_OBJECT_STORE));
+		userdataFileProvider = assertIsDefined(await new IndexedDB().createFileSystemProvider(logSchema, INDEXEDDB_USERDATA_OBJECT_STORE, true));
 		disposables.add(service.registerProvider(Schemas.userData, userdataFileProvider));
 		disposables.add(userdataFileProvider);
 	};

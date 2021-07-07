@@ -429,10 +429,6 @@ export class Menubar {
 			return false;
 		}
 
-		if (this.menubarMenus[menuId] === undefined) {
-			return false;
-		}
-
 		switch (menuId) {
 			case 'File':
 			case 'Help':

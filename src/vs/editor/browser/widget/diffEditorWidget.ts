@@ -2297,7 +2297,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		};
 
 		for (let lineNumber = lineChange.originalStartLineNumber; lineNumber <= lineChange.originalEndLineNumber; lineNumber++) {
-			this._lineBreaksComputer.addRequest(this._originalModel.getLineContent(lineNumber), null);
+			this._lineBreaksComputer.addRequest(this._originalModel.getLineContent(lineNumber), null, null);
 		}
 
 		this._pendingLineChange.push(lineChange);
@@ -2513,8 +2513,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			marginDomNode.appendChild(marginElement);
 		}
 
-		const absoluteOffsets = output.characterMapping.getAbsoluteOffsets();
-		return absoluteOffsets.length > 0 ? absoluteOffsets[absoluteOffsets.length - 1] : 0;
+		return output.characterMapping.getAbsoluteOffset(output.characterMapping.length);
 	}
 }
 

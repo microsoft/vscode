@@ -9,21 +9,24 @@ import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node
 import * as cp from 'child_process';
 import { ILogService } from 'vs/platform/log/common/log';
 import * as pfs from 'vs/base/node/pfs';
-import { ITerminalEnvironment, ITerminalProfile, ITerminalProfileObject, ProfileSource, SafeConfigProvider, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { ITerminalEnvironment, ITerminalProfile, ITerminalProfileObject, ProfileSource, TerminalIcon, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isLinux, isWindows } from 'vs/base/common/platform';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { URI } from 'vs/base/common/uri';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 let profileSources: Map<string, IPotentialTerminalProfile> | undefined;
 
 export function detectAvailableProfiles(
+	profiles: unknown,
+	defaultProfile: unknown,
 	includeDetectedProfiles: boolean,
-	safeConfigProvider: SafeConfigProvider,
+	configurationService: IConfigurationService,
 	fsProvider?: IFsProvider,
 	logService?: ILogService,
 	variableResolver?: (text: string[]) => Promise<string[]>,
-	testPaths?: string[]
+	testPwshSourcePaths?: string[]
 ): Promise<ITerminalProfile[]> {
 	fsProvider = fsProvider || {
 		existsFile: pfs.SymlinkSupport.existsFile,
@@ -34,10 +37,10 @@ export function detectAvailableProfiles(
 			includeDetectedProfiles,
 			fsProvider,
 			logService,
-			safeConfigProvider<boolean>(TerminalSettingId.UseWslProfiles) !== false,
-			safeConfigProvider(TerminalSettingId.ProfilesWindows),
-			safeConfigProvider(TerminalSettingId.DefaultProfileWindows),
-			testPaths,
+			configurationService.getValue<boolean>(TerminalSettingId.UseWslProfiles) !== false,
+			profiles && typeof profiles === 'object' ? { ...profiles } : configurationService.getValue<{ [key: string]: ITerminalProfileObject }>(TerminalSettingId.ProfilesWindows),
+			typeof defaultProfile === 'string' ? defaultProfile : configurationService.getValue<string>(TerminalSettingId.DefaultProfileWindows),
+			testPwshSourcePaths,
 			variableResolver
 		);
 	}
@@ -45,9 +48,9 @@ export function detectAvailableProfiles(
 		fsProvider,
 		logService,
 		includeDetectedProfiles,
-		safeConfigProvider(isMacintosh ? TerminalSettingId.ProfilesMacOs : TerminalSettingId.ProfilesLinux),
-		safeConfigProvider(isMacintosh ? TerminalSettingId.DefaultProfileMacOs : TerminalSettingId.DefaultProfileLinux),
-		testPaths,
+		profiles && typeof profiles === 'object' ? { ...profiles } : configurationService.getValue<{ [key: string]: ITerminalProfileObject }>(isLinux ? TerminalSettingId.ProfilesLinux : TerminalSettingId.ProfilesMacOs),
+		typeof defaultProfile === 'string' ? defaultProfile : configurationService.getValue<string>(isLinux ? TerminalSettingId.DefaultProfileLinux : TerminalSettingId.DefaultProfileMacOs),
+		testPwshSourcePaths,
 		variableResolver
 	);
 }
@@ -59,7 +62,7 @@ async function detectAvailableWindowsProfiles(
 	useWslProfiles?: boolean,
 	configProfiles?: { [key: string]: ITerminalProfileObject },
 	defaultProfileName?: string,
-	testPaths?: string[],
+	testPwshSourcePaths?: string[],
 	variableResolver?: (text: string[]) => Promise<string[]>
 ): Promise<ITerminalProfile[]> {
 	// Determine the correct System32 path. We want to point to Sysnative
@@ -75,7 +78,7 @@ async function detectAvailableWindowsProfiles(
 		useWSLexe = true;
 	}
 
-	await initializeWindowsProfiles(testPaths);
+	await initializeWindowsProfiles(testPwshSourcePaths);
 
 	const detectedProfiles: Map<string, ITerminalProfileObject> = new Map();
 
@@ -153,14 +156,14 @@ async function transformToTerminalProfiles(
 			// if there are configured args, override the default ones
 			args = profile.args || source.args;
 			if (profile.icon) {
-				icon = profile.icon;
+				icon = validateIcon(profile.icon);
 			} else if (source.icon) {
 				icon = source.icon;
 			}
 		} else {
 			originalPaths = Array.isArray(profile.path) ? profile.path : [profile.path];
 			args = isWindows ? profile.args : Array.isArray(profile.args) ? profile.args : undefined;
-			icon = profile.icon || undefined;
+			icon = validateIcon(profile.icon) || undefined;
 		}
 
 		const paths = (await variableResolver?.(originalPaths)) || originalPaths.slice();
@@ -177,8 +180,15 @@ async function transformToTerminalProfiles(
 	return resultProfiles;
 }
 
-async function initializeWindowsProfiles(testPaths?: string[]): Promise<void> {
-	if (profileSources) {
+function validateIcon(icon: string | TerminalIcon | undefined): TerminalIcon | undefined {
+	if (typeof icon === 'string') {
+		return { id: icon };
+	}
+	return icon;
+}
+
+async function initializeWindowsProfiles(testPwshSourcePaths?: string[]): Promise<void> {
+	if (profileSources && !testPwshSourcePaths) {
 		return;
 	}
 
@@ -199,7 +209,7 @@ async function initializeWindowsProfiles(testPaths?: string[]): Promise<void> {
 	});
 	profileSources.set('PowerShell', {
 		profileName: 'PowerShell',
-		paths: testPaths || await getPowershellPaths(),
+		paths: testPwshSourcePaths || await getPowershellPaths(),
 		icon: ThemeIcon.asThemeIcon(Codicon.terminalPowershell)
 	});
 }

@@ -12,6 +12,7 @@ steps:
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
+      SecretsFilter: 'github-distro-mixin-password,ticino-storage-key'
 
   - script: |
       set -e
@@ -38,7 +39,7 @@ steps:
   # using `genericNodeModules` instead of `nodeModules` here to avoid sharing the cache with builds running inside containers
   - task: Cache@2
     inputs:
-      key: 'genericNodeModules | $(Agent.OS) | .build/yarnlockhash'
+      key: "genericNodeModules | $(Agent.OS) | .build/yarnlockhash"
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
@@ -76,6 +77,7 @@ steps:
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
@@ -100,6 +102,13 @@ steps:
 
   - script: |
       set -e
+      yarn --cwd test/smoke compile
+      yarn --cwd test/integration/browser compile
+    displayName: Compile test suites
+    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+  - script: |
+      set -e
       AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
         node build/azure-pipelines/upload-sourcemaps
     displayName: Upload sourcemaps
@@ -113,15 +122,7 @@ steps:
 
   - script: |
       set -e
-      AZURE_WEBVIEW_STORAGE_ACCESS_KEY="$(vscode-webview-storage-key)" \
-      ./build/azure-pipelines/common/publish-webview.sh
-    displayName: Publish Webview
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
-
-  # we gotta tarball everything in order to preserve file permissions
-  - script: |
-      set -e
-      tar -czf $(Build.ArtifactStagingDirectory)/compilation.tar.gz .build out-*
+      tar -cz --ignore-failed-read -f $(Build.ArtifactStagingDirectory)/compilation.tar.gz .build out-* test/integration/browser/out test/smoke/out test/automation/out
     displayName: Compress compilation artifact
 
   - task: PublishPipelineArtifact@1

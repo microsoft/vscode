@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/explorerviewlet';
 import { localize } from 'vs/nls';
-import { VIEWLET_ID, ExplorerViewletVisibleContext, IFilesConfiguration, OpenEditorsVisibleContext, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
+import { VIEWLET_ID, ExplorerViewletVisibleContext, OpenEditorsVisibleContext, VIEW_ID, IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { ExplorerView } from 'vs/workbench/contrib/files/browser/views/explorerView';
@@ -16,7 +16,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewsRegistry, IViewDescriptor, Extensions, ViewContainer, IViewContainersRegistry, ViewContainerLocation, IViewDescriptorService, ViewContentGroups } from 'vs/workbench/common/views';
@@ -24,10 +23,6 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { DelegatingEditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorPane } from 'vs/workbench/common/editor';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { KeyChord, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -35,7 +30,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { WorkbenchStateContext, RemoteNameContext } from 'vs/workbench/browser/contextkeys';
-import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
+import { IsIOSContext, IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { AddRootFolderAction, OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { Codicon } from 'vs/base/common/codicons';
@@ -175,7 +170,6 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -199,53 +193,54 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 
 	protected override createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewPane {
 		if (viewDescriptor.id === VIEW_ID) {
-			// Create a delegating editor service for the explorer to be able to delay the refresh in the opened
-			// editors view above. This is a workaround for being able to double click on a file to make it pinned
-			// without causing the animation in the opened editors view to kick in and change scroll position.
-			// We try to be smart and only use the delay if we recognize that the user action is likely to cause
-			// a new entry in the opened editors view.
-			const delegatingEditorService = this.instantiationService.createInstance(DelegatingEditorService, async (group, delegate): Promise<IEditorPane | undefined> => {
-				let openEditorsView = this.getOpenEditorsView();
-				if (openEditorsView) {
-					let delay = 0;
-
-					const config = this.configurationService.getValue<IFilesConfiguration>();
-					const delayEditorOpeningInOpenedEditors = !!config.workbench?.editor?.enablePreview; // No need to delay if preview is disabled
-
-					const activeGroup = this.editorGroupService.activeGroup;
-					if (delayEditorOpeningInOpenedEditors && group === activeGroup && !activeGroup.previewEditor) {
-						delay = 250; // a new editor entry is likely because there is either no group or no preview in group
+			return this.instantiationService.createInstance(ExplorerView, options, {
+				willOpenElement: e => {
+					if (!(e instanceof MouseEvent)) {
+						return; // only delay when user clicks
 					}
 
-					openEditorsView.setStructuralRefreshDelay(delay);
-				}
+					const openEditorsView = this.getOpenEditorsView();
+					if (openEditorsView) {
+						let delay = 0;
 
-				try {
-					return await delegate();
-				} catch (error) {
-					return undefined; // ignore
-				} finally {
+						const config = this.configurationService.getValue<IFilesConfiguration>();
+						if (!!config.workbench?.editor?.enablePreview) {
+							// delay open editors view when preview is enabled
+							// to accomodate for the user doing a double click
+							// to pin the editor.
+							// without this delay a double click would be not
+							// possible because the next element would move
+							// under the mouse after the first click.
+							delay = 250;
+						}
+
+						openEditorsView.setStructuralRefreshDelay(delay);
+					}
+				},
+				didOpenElement: e => {
+					if (!(e instanceof MouseEvent)) {
+						return; // only delay when user clicks
+					}
+
+					const openEditorsView = this.getOpenEditorsView();
 					if (openEditorsView) {
 						openEditorsView.setStructuralRefreshDelay(0);
 					}
 				}
 			});
-
-			const explorerInstantiator = this.instantiationService.createChild(new ServiceCollection([IEditorService, delegatingEditorService]));
-			return explorerInstantiator.createInstance(ExplorerView, options);
 		}
 		return super.createView(viewDescriptor, options);
 	}
 
-	public getExplorerView(): ExplorerView {
+	getExplorerView(): ExplorerView {
 		return <ExplorerView>this.getView(VIEW_ID);
 	}
 
-	public getOpenEditorsView(): OpenEditorsView {
+	getOpenEditorsView(): OpenEditorsView {
 		return <OpenEditorsView>this.getView(OpenEditorsView.ID);
 	}
 
-	public override setVisible(visible: boolean): void {
+	override setVisible(visible: boolean): void {
 		this.viewletVisibleContextKey.set(visible);
 		super.setVisible(visible);
 	}
@@ -289,7 +284,7 @@ const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
 	content: localize({ key: 'noWorkspaceHelp', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
 		"You have not yet added a folder to the workspace.\n[Add Folder](command:{0})", AddRootFolderAction.ID),
-	when: WorkbenchStateContext.isEqualTo('workspace'),
+	when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), IsIOSContext.toNegated()),
 	group: ViewContentGroups.Open,
 	order: 1
 });

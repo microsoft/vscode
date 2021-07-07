@@ -55,7 +55,6 @@ export interface IExplorerView {
 	setTreeInput(): Promise<void>;
 	itemsCopied(tats: ExplorerItem[], cut: boolean, previousCut: ExplorerItem[] | undefined): void;
 	setEditable(stat: ExplorerItem, isEditing: boolean): Promise<void>;
-	focusNeighbourIfItemFocused(item: ExplorerItem): void;
 	isItemVisible(item: ExplorerItem): boolean;
 	hasFocus(): boolean;
 }

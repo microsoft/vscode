@@ -145,7 +145,9 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		}
 	}
 
-	protected abstract addFileSchemaIfNeeded(schema: string): string[];
+	protected addFileSchemaIfNeeded(schema: string): string[] {
+		return schema === Schemas.untitled ? [Schemas.file] : (schema !== Schemas.file ? [schema, Schemas.file] : [schema]);
+	}
 
 	protected async pickFileFolderAndOpenSimplified(schema: string, options: IPickAndOpenOptions, preferNewWindow: boolean): Promise<any> {
 		const title = nls.localize('openFileOrFolder.title', 'Open File Or Folder');
@@ -259,6 +261,16 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	abstract pickFileAndOpen(options: IPickAndOpenOptions): Promise<void>;
 	abstract pickFolderAndOpen(options: IPickAndOpenOptions): Promise<void>;
 	abstract pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void>;
+	protected getWorkspaceAvailableFileSystems(options: IPickAndOpenOptions): string[] {
+		if (options.availableFileSystems && (options.availableFileSystems.length > 0)) {
+			return options.availableFileSystems;
+		}
+		const availableFileSystems = [Schemas.file];
+		if (this.environmentService.remoteAuthority) {
+			availableFileSystems.unshift(Schemas.vscodeRemote);
+		}
+		return availableFileSystems;
+	}
 	abstract showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined>;
 	abstract showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined>;
 

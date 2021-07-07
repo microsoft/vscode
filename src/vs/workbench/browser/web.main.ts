@@ -60,10 +60,11 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 import { BrowserWindow } from 'vs/workbench/browser/window';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
-import { RemoteWorkspaceTrustManagementService, WorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { WorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { safeStringify } from 'vs/base/common/objects';
 
 class BrowserMain extends Disposable {
 
@@ -100,7 +101,7 @@ class BrowserMain extends Disposable {
 		this._register(instantiationService.createInstance(BrowserWindow));
 
 		// Logging
-		services.logService.trace('workbench configuration', JSON.stringify(this.configuration));
+		services.logService.trace('workbench configuration', safeStringify(this.configuration));
 
 		// Return API Facade
 		return instantiationService.invokeFunction(accessor => {
@@ -210,15 +211,12 @@ class BrowserMain extends Disposable {
 		]);
 
 		// Workspace Trust Service
-		const workspaceTrustManagementService = !environmentService.remoteAuthority ?
-			new WorkspaceTrustManagementService(configurationService, storageService, uriIdentityService, environmentService, configurationService) :
-			new RemoteWorkspaceTrustManagementService(configurationService, storageService, uriIdentityService, environmentService, configurationService, remoteAuthorityResolverService);
-		await workspaceTrustManagementService.initializeWorkspaceTrust();
+		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, storageService, uriIdentityService, environmentService, configurationService, remoteAuthorityResolverService);
 		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
 
 		// Update workspace trust so that configuration is updated accordingly
-		configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkpaceTrusted());
-		this._register(workspaceTrustManagementService.onDidChangeTrust(() => configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkpaceTrusted())));
+		configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkspaceTrusted());
+		this._register(workspaceTrustManagementService.onDidChangeTrust(() => configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkspaceTrusted())));
 
 		// Request Service
 		const requestService = new BrowserRequestService(remoteAgentService, configurationService, logService);
@@ -255,7 +253,7 @@ class BrowserMain extends Disposable {
 		(async () => {
 			let indexedDBLogProvider: IFileSystemProvider | null = null;
 			try {
-				indexedDBLogProvider = await indexedDB.createFileSystemProvider(logsPath.scheme, INDEXEDDB_LOGS_OBJECT_STORE);
+				indexedDBLogProvider = await indexedDB.createFileSystemProvider(logsPath.scheme, INDEXEDDB_LOGS_OBJECT_STORE, false);
 			} catch (error) {
 				onUnexpectedError(error);
 			}
@@ -285,7 +283,7 @@ class BrowserMain extends Disposable {
 		// User data
 		let indexedDBUserDataProvider: IIndexedDBFileSystemProvider | null = null;
 		try {
-			indexedDBUserDataProvider = await indexedDB.createFileSystemProvider(Schemas.userData, INDEXEDDB_USERDATA_OBJECT_STORE);
+			indexedDBUserDataProvider = await indexedDB.createFileSystemProvider(Schemas.userData, INDEXEDDB_USERDATA_OBJECT_STORE, true);
 		} catch (error) {
 			onUnexpectedError(error);
 		}
@@ -316,12 +314,16 @@ class BrowserMain extends Disposable {
 				async run(accessor: ServicesAccessor): Promise<void> {
 					const dialogService = accessor.get(IDialogService);
 					const hostService = accessor.get(IHostService);
+					const storageService = accessor.get(IStorageService);
 					const result = await dialogService.confirm({
 						message: localize('reset user data message', "Would you like to reset your data (settings, keybindings, extensions, snippets and UI State) and reload?")
 					});
 
 					if (result.confirmed) {
 						await indexedDBUserDataProvider?.reset();
+						if (storageService instanceof BrowserStorageService) {
+							await storageService.clear();
+						}
 					}
 
 					hostService.reload();
@@ -334,7 +336,7 @@ class BrowserMain extends Disposable {
 	}
 
 	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService): Promise<BrowserStorageService> {
-		const storageService = new BrowserStorageService(payload, environmentService, fileService);
+		const storageService = new BrowserStorageService(payload, logService, environmentService, fileService);
 
 		try {
 			await storageService.initialize();

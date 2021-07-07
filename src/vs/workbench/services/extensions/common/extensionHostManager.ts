@@ -133,6 +133,10 @@ export class ExtensionHostManager extends Disposable {
 		return p.value;
 	}
 
+	public async ready(): Promise<void> {
+		await this._getProxy();
+	}
+
 	private async _measureLatency(proxy: ExtHostExtensionServiceShape): Promise<number> {
 		const COUNT = 10;
 
@@ -448,7 +452,7 @@ registerAction2(class MeasureExtHostLatencyAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 
 		const measurements = await Promise.all(getLatencyTestProviders().map(provider => provider.measure()));
-		editorService.openEditor({ contents: measurements.map(MeasureExtHostLatencyAction._print).join('\n\n'), options: { pinned: true } });
+		editorService.openEditor({ resource: undefined, contents: measurements.map(MeasureExtHostLatencyAction._print).join('\n\n'), options: { pinned: true } });
 	}
 
 	private static _print(m: ExtHostLatencyResult | null): string {

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as browser from 'vs/base/browser/browser';
-import { domEvent } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TimeoutTimer } from 'vs/base/common/async';
@@ -975,8 +974,8 @@ class FocusTracker extends Disposable implements IFocusTracker {
 			}
 		};
 
-		this._register(domEvent(element, EventType.FOCUS, true)(onFocus));
-		this._register(domEvent(element, EventType.BLUR, true)(onBlur));
+		this._register(addDisposableListener(element, EventType.FOCUS, onFocus, true));
+		this._register(addDisposableListener(element, EventType.BLUR, onBlur, true));
 	}
 
 	refreshState() {
@@ -1480,7 +1479,7 @@ export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 			metaKey: false
 		};
 
-		this._subscriptions.add(domEvent(window, 'keydown', true)(e => {
+		this._subscriptions.add(addDisposableListener(window, 'keydown', e => {
 			if (e.defaultPrevented) {
 				return;
 			}
@@ -1515,9 +1514,9 @@ export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 				this._keyStatus.event = e;
 				this.fire(this._keyStatus);
 			}
-		}));
+		}, true));
 
-		this._subscriptions.add(domEvent(window, 'keyup', true)(e => {
+		this._subscriptions.add(addDisposableListener(window, 'keyup', e => {
 			if (e.defaultPrevented) {
 				return;
 			}
@@ -1547,23 +1546,23 @@ export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 				this._keyStatus.event = e;
 				this.fire(this._keyStatus);
 			}
-		}));
+		}, true));
 
-		this._subscriptions.add(domEvent(document.body, 'mousedown', true)(e => {
+		this._subscriptions.add(addDisposableListener(document.body, 'mousedown', () => {
 			this._keyStatus.lastKeyPressed = undefined;
-		}));
+		}, true));
 
-		this._subscriptions.add(domEvent(document.body, 'mouseup', true)(e => {
+		this._subscriptions.add(addDisposableListener(document.body, 'mouseup', () => {
 			this._keyStatus.lastKeyPressed = undefined;
-		}));
+		}, true));
 
-		this._subscriptions.add(domEvent(document.body, 'mousemove', true)(e => {
+		this._subscriptions.add(addDisposableListener(document.body, 'mousemove', e => {
 			if (e.buttons) {
 				this._keyStatus.lastKeyPressed = undefined;
 			}
-		}));
+		}, true));
 
-		this._subscriptions.add(domEvent(window, 'blur')(e => {
+		this._subscriptions.add(addDisposableListener(window, 'blur', () => {
 			this.resetKeyStatus();
 		}));
 	}

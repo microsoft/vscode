@@ -8,7 +8,7 @@ import * as path from 'vs/base/common/path';
 import { createWriteStream, WriteStream } from 'fs';
 import { Readable } from 'stream';
 import { Sequencer, createCancelablePromise } from 'vs/base/common/async';
-import { Promises, rimraf } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import { open as _openZip, Entry, ZipFile } from 'yauzl';
 import * as yazl from 'yazl';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -218,7 +218,7 @@ export function extract(zipPath: string, targetPath: string, options: IExtractOp
 	let promise = openZip(zipPath, true);
 
 	if (options.overwrite) {
-		promise = promise.then(zipfile => rimraf(targetPath).then(() => zipfile));
+		promise = promise.then(zipfile => Promises.rm(targetPath).then(() => zipfile));
 	}
 
 	return promise.then(zipfile => extractZip(zipfile, targetPath, { sourcePathRegex }, token));

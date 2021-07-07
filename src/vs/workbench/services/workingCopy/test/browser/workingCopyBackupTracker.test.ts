@@ -32,6 +32,7 @@ import { isWindows } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
+import { EditorResolution } from 'vs/platform/editor/common/editor';
 
 suite('WorkingCopyBackupTracker (browser)', function () {
 	let accessor: TestServiceAccessor;
@@ -107,7 +108,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 		return { accessor, part, tracker, workingCopyBackupService: workingCopyBackupService, instantiationService, cleanup: () => disposables.dispose() };
 	}
 
-	async function untitledBackupTest(untitled: IUntitledTextResourceEditorInput = {}): Promise<void> {
+	async function untitledBackupTest(untitled: IUntitledTextResourceEditorInput = { resource: undefined }): Promise<void> {
 		const { accessor, cleanup, workingCopyBackupService } = await createTracker();
 
 		const untitledTextEditor = (await accessor.editorService.openEditor(untitled))?.input as UntitledTextEditorInput;
@@ -136,7 +137,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 	});
 
 	test('Track backups (untitled with initial contents)', function () {
-		return untitledBackupTest({ contents: 'Foo Bar' });
+		return untitledBackupTest({ resource: undefined, contents: 'Foo Bar' });
 	});
 
 	test('Track backups (custom)', async function () {
@@ -355,7 +356,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 		const editor1 = accessor.instantiationService.createInstance(TestUntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' }));
 		const editor2 = accessor.instantiationService.createInstance(TestUntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' }));
 
-		await accessor.editorService.openEditors([{ editor: editor1 }, { editor: editor2 }]);
+		await accessor.editorService.openEditors([{ editor: editor1, options: { override: EditorResolution.DISABLED } }, { editor: editor2, options: { override: EditorResolution.DISABLED } }]);
 
 		editor1.resolved = false;
 		editor2.resolved = false;
@@ -382,7 +383,13 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 
 		for (const editor of accessor.editorService.editors) {
 			assert.ok(editor instanceof TestUntitledTextEditorInput);
-			assert.strictEqual(editor.resolved, true);
+
+			// assert that we only call `resolve` on inactive editors
+			if (accessor.editorService.isVisible(editor)) {
+				assert.strictEqual(editor.resolved, false);
+			} else {
+				assert.strictEqual(editor.resolved, true);
+			}
 		}
 
 		dispose(disposables);

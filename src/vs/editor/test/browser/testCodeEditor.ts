@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IActiveCodeEditor, IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { IEditorContributionCtor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -11,6 +12,7 @@ import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/wi
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { IConfiguration, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { TestCodeEditorService, TestCommandService } from 'vs/editor/test/browser/editorTestServices';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
@@ -115,20 +117,23 @@ export function withTestCodeEditor(text: string | string[] | null, options: Test
 
 export async function withAsyncTestCodeEditor(text: string | string[] | null, options: TestCodeEditorCreationOptions, callback: (editor: ITestCodeEditor, viewModel: ViewModel, instantiationService: IInstantiationService) => Promise<void>): Promise<void> {
 	// create a model if necessary and remember it in order to dispose it.
+	let model: TextModel | undefined;
 	if (!options.model) {
 		if (typeof text === 'string') {
-			options.model = createTextModel(text);
+			model = options.model = createTextModel(text);
 		} else if (text) {
-			options.model = createTextModel(text.join('\n'));
+			model = options.model = createTextModel(text.join('\n'));
 		}
 	}
 
-	const [instantiationService, editor] = doCreateTestCodeEditor(options);
+	const [instantiationService, editor, disposable] = doCreateTestCodeEditor(options);
 	const viewModel = editor.getViewModel()!;
 	viewModel.setHasFocus(true);
 	await callback(<ITestCodeEditor>editor, editor.getViewModel()!, instantiationService);
 
 	editor.dispose();
+	model?.dispose();
+	disposable.dispose();
 }
 
 export function createTestCodeEditor(options: TestCodeEditorCreationOptions): ITestCodeEditor {
@@ -136,7 +141,8 @@ export function createTestCodeEditor(options: TestCodeEditorCreationOptions): IT
 	return editor;
 }
 
-function doCreateTestCodeEditor(options: TestCodeEditorCreationOptions): [IInstantiationService, ITestCodeEditor] {
+function doCreateTestCodeEditor(options: TestCodeEditorCreationOptions): [IInstantiationService, ITestCodeEditor, IDisposable] {
+	const store = new DisposableStore();
 
 	const model = options.model;
 	delete options.model;
@@ -147,10 +153,10 @@ function doCreateTestCodeEditor(options: TestCodeEditorCreationOptions): [IInsta
 	const instantiationService: IInstantiationService = new InstantiationService(services);
 
 	if (!services.has(ICodeEditorService)) {
-		services.set(ICodeEditorService, new TestCodeEditorService());
+		services.set(ICodeEditorService, store.add(new TestCodeEditorService()));
 	}
 	if (!services.has(IContextKeyService)) {
-		services.set(IContextKeyService, new MockContextKeyService());
+		services.set(IContextKeyService, store.add(new MockContextKeyService()));
 	}
 	if (!services.has(INotificationService)) {
 		services.set(INotificationService, new TestNotificationService());
@@ -179,5 +185,5 @@ function doCreateTestCodeEditor(options: TestCodeEditorCreationOptions): [IInsta
 	}
 	editor.setHasTextFocus(options.hasTextFocus);
 	editor.setModel(model);
-	return [instantiationService, <ITestCodeEditor>editor];
+	return [instantiationService, <ITestCodeEditor>editor, store];
 }

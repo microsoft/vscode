@@ -32,6 +32,7 @@ import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { Position } from 'vs/editor/common/core/position';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { getOuterEditor, IPeekViewService, peekViewResultsBackground, peekViewResultsMatchForeground, peekViewResultsSelectionBackground, peekViewResultsSelectionForeground, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground, PeekViewWidget } from 'vs/editor/contrib/peekView/peekView';
@@ -57,13 +58,14 @@ import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/brow
 import { testingPeekBorder } from 'vs/workbench/contrib/testing/browser/theme';
 import { AutoOpenPeekViewWhen, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { IRichLocation, ITestItem, ITestMessage, ITestRunTask, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { IRichLocation, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
-import { buildTestUri, parseTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
-import { getPathForTestInResult, ITestResult, maxCountPriority, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
+import { buildTestUri, ParsedTestUri, parseTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
+import { getPathForTestInResult, ITestResult, maxCountPriority, resultItemParents, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService, ResultChangeEvent } from 'vs/workbench/contrib/testing/common/testResultService';
+import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 class TestDto {
@@ -86,30 +88,79 @@ class TestDto {
 	}
 }
 
+type TestUriWithDocument = ParsedTestUri & { documentUri: URI };
+
 export class TestingPeekOpener extends Disposable implements ITestingPeekOpener {
 	declare _serviceBrand: undefined;
+
+	private lastUri?: TestUriWithDocument;
 
 	constructor(
 		@IConfigurationService private readonly configuration: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@ITestResultService testResults: ITestResultService,
+		@ITestResultService private readonly testResults: ITestResultService,
+		@ITestService private readonly testService: ITestService,
 	) {
 		super();
 		this._register(testResults.onTestChanged(this.openPeekOnFailure, this));
 	}
 
 	/** @inheritdoc */
+	public async open() {
+		let uri: TestUriWithDocument | undefined;
+		const active = this.editorService.activeTextEditorControl;
+		if (isCodeEditor(active) && active.getModel()?.uri) {
+			const modelUri = active.getModel()?.uri;
+			if (modelUri) {
+				uri = await this.getFileCandidateMessage(modelUri, active.getPosition());
+			}
+		}
+
+		if (!uri) {
+			uri = this.lastUri;
+		}
+
+		if (!uri) {
+			uri = this.getAnyCandidateMessage();
+		}
+
+		if (!uri) {
+			return false;
+		}
+
+		return this.showPeekFromUri(uri);
+	}
+
+	/** @inheritdoc */
 	public async tryPeekFirstError(result: ITestResult, test: TestResultItem, options?: Partial<ITextEditorOptions>) {
-		const candidate = this.getCandidateMessage(test);
+		const candidate = this.getFailedCandidateMessage(test);
 		if (!candidate) {
 			return false;
 		}
 
 		const message = candidate.message;
+		return this.showPeekFromUri({
+			type: TestUriType.ResultMessage,
+			documentUri: message.location!.uri,
+			taskIndex: candidate.taskId,
+			messageIndex: candidate.index,
+			resultId: result.id,
+			testExtId: test.item.extId,
+		}, { selection: message.location!.range, ...options });
+	}
+
+	/** @inheritdoc */
+	public closeAllPeeks() {
+		for (const editor of this.codeEditorService.listCodeEditors()) {
+			TestingOutputPeekController.get(editor)?.removePeek();
+		}
+	}
+
+	private async showPeekFromUri(uri: TestUriWithDocument, options?: ITextEditorOptions) {
 		const pane = await this.editorService.openEditor({
-			resource: message.location!.uri,
-			options: { selection: message.location!.range, revealIfOpened: true, ...options }
+			resource: uri.documentUri,
+			options: { revealIfOpened: true, ...options }
 		});
 
 		const control = pane?.getControl();
@@ -117,22 +168,9 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 			return false;
 		}
 
-		TestingOutputPeekController.get(control).show(buildTestUri({
-			type: TestUriType.ResultMessage,
-			taskIndex: candidate.taskId,
-			messageIndex: candidate.index,
-			resultId: result.id,
-			testExtId: test.item.extId,
-		}));
-
+		this.lastUri = uri;
+		TestingOutputPeekController.get(control).show(buildTestUri(this.lastUri));
 		return true;
-	}
-
-	/** @inheritdoc */
-	public closeAllPeeks() {
-		for (const editor of this.codeEditorService.listCodeEditors()) {
-			TestingOutputPeekController.get(editor).removePeek();
-		}
 	}
 
 	/**
@@ -143,7 +181,7 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 			return;
 		}
 
-		const candidate = this.getCandidateMessage(evt.item);
+		const candidate = this.getFailedCandidateMessage(evt.item);
 		if (!candidate) {
 			return;
 		}
@@ -157,9 +195,11 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 
 		// don't show the peek if the user asked to only auto-open peeks for visible tests,
 		// and this test is not in any of the editors' models.
-		const testUri = evt.item.item.uri?.toString();
-		if (cfg === AutoOpenPeekViewWhen.FailureVisible && (!testUri || !editors.some(e => e.getModel()?.uri.toString() === testUri))) {
-			return;
+		if (cfg === AutoOpenPeekViewWhen.FailureVisible) {
+			const editorUris = new Set(editors.map(e => e.getModel()?.uri.toString()));
+			if (!Iterable.some(resultItemParents(evt.result, evt.item), i => i.item.uri && editorUris.has(i.item.uri.toString()))) {
+				return;
+			}
 		}
 
 		const controllers = editors.map(TestingOutputPeekController.get);
@@ -170,24 +210,102 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 		this.tryPeekFirstError(evt.result, evt.item);
 	}
 
-	private getCandidateMessage(test: TestResultItem) {
-		for (let taskId = 0; taskId < test.tasks.length; taskId++) {
-			const { messages, state } = test.tasks[taskId];
-			if (!isFailedState(state)) {
+	/**
+	 * Gets the message closest to the given position from a test in the file.
+	 */
+	private async getFileCandidateMessage(uri: URI, position: Position | null) {
+		let best: TestUriWithDocument | undefined;
+		let bestDistance = Infinity;
+
+		// Get all tests for the document. In those, find one that has a test
+		// message closest to the cursor position.
+		const demandedUriStr = uri.toString();
+		for (const test of this.testService.collection.all) {
+			const result = this.testResults.getStateById(test.item.extId);
+			if (!result) {
 				continue;
 			}
 
-			const index = messages.findIndex(m => !!m.location);
-			if (index === -1) {
-				continue;
-			}
+			mapFindTestMessage(result[1], (_task, message, messageIndex, taskIndex) => {
+				if (!message.location || message.location.uri.toString() !== demandedUriStr) {
+					return;
+				}
 
-			return { taskId, index, message: messages[index] };
+				const distance = position ? Math.abs(position.lineNumber - message.location.range.startLineNumber) : 0;
+				if (!best || distance <= bestDistance) {
+					bestDistance = distance;
+					best = {
+						type: TestUriType.ResultMessage,
+						testExtId: result[1].item.extId,
+						resultId: result[0].id,
+						taskIndex,
+						messageIndex,
+						documentUri: uri,
+					};
+				}
+			});
+		}
+
+		return best;
+	}
+
+	/**
+	 * Gets any possible still-relevant message from the results.
+	 */
+	private getAnyCandidateMessage() {
+		const seen = new Set<string>();
+		for (const result of this.testResults.results) {
+			for (const test of result.tests) {
+				if (seen.has(test.item.extId)) {
+					continue;
+				}
+
+				seen.add(test.item.extId);
+				const found = mapFindTestMessage(test, (task, message, messageIndex, taskIndex) => (
+					message.location && {
+						type: TestUriType.ResultMessage,
+						testExtId: test.item.extId,
+						resultId: result.id,
+						taskIndex,
+						messageIndex,
+						documentUri: message.location.uri,
+					}
+				));
+
+				if (found) {
+					return found;
+				}
+			}
 		}
 
 		return undefined;
 	}
+
+	/**
+	 * Gets the first failed message that can be displayed from the result.
+	 */
+	private getFailedCandidateMessage(test: TestResultItem) {
+		return mapFindTestMessage(test, (task, message, messageIndex, taskId) =>
+			isFailedState(task.state) && message.location
+				? { taskId, index: messageIndex, message }
+				: undefined
+		);
+	}
 }
+
+const mapFindTestMessage = <T>(test: TestResultItem, fn: (task: ITestTaskState, message: ITestMessage, messageIndex: number, taskIndex: number) => T | undefined) => {
+	for (let taskIndex = 0; taskIndex < test.tasks.length; taskIndex++) {
+		const task = test.tasks[taskIndex];
+		for (let messageIndex = 0; messageIndex < task.messages.length; messageIndex++) {
+			const r = fn(task, task.messages[messageIndex], messageIndex, taskIndex);
+			if (r !== undefined) {
+				return r;
+			}
+		}
+	}
+
+	return undefined;
+};
 
 /**
  * Adds output/message peek functionality to code editors.
@@ -789,20 +907,12 @@ export class TestCaseElement implements ITreeElement {
 		private readonly results: ITestResult,
 		public readonly test: TestResultItem,
 	) {
-		for (const parent of this.parents()) {
-			this.description = this.description
-				? parent.item.label + flatTestItemDelimiter + this.description
-				: parent.item.label;
-		}
-	}
-
-	private *parents() {
-		for (
-			let parent = this.test.parent && this.results.getStateById(this.test.parent);
-			parent;
-			parent = parent.parent && this.results.getStateById(parent.parent)
-		) {
-			yield parent;
+		for (const parent of resultItemParents(results, test)) {
+			if (parent !== test) {
+				this.description = this.description
+					? parent.item.label + flatTestItemDelimiter + this.description
+					: parent.item.label;
+			}
 		}
 	}
 }
@@ -1113,7 +1223,7 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 		const actionBar = new ActionBar(wrapper, {
 			actionViewItemProvider: action =>
 				action instanceof MenuItemAction
-					? this.instantiationService.createInstance(MenuEntryActionViewItem, action)
+					? this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined)
 					: undefined
 		});
 

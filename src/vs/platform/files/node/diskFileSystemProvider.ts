@@ -9,7 +9,7 @@ import { FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, File
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isLinux, isWindows } from 'vs/base/common/platform';
-import { SymlinkSupport, move, copy, rimraf, RimRafMode, exists, readdir, IDirent, Promises } from 'vs/base/node/pfs';
+import { SymlinkSupport, RimRafMode, IDirent, Promises } from 'vs/base/node/pfs';
 import { normalize, basename, dirname } from 'vs/base/common/path';
 import { joinPath } from 'vs/base/common/resources';
 import { isEqual } from 'vs/base/common/extpath';
@@ -95,7 +95,7 @@ export class DiskFileSystemProvider extends Disposable implements
 
 	async readdir(resource: URI): Promise<[string, FileType][]> {
 		try {
-			const children = await readdir(this.toFilePath(resource), { withFileTypes: true });
+			const children = await Promises.readdir(this.toFilePath(resource), { withFileTypes: true });
 
 			const result: [string, FileType][] = [];
 			await Promise.all(children.map(async child => {
@@ -175,7 +175,7 @@ export class DiskFileSystemProvider extends Disposable implements
 
 			// Validate target unless { create: true, overwrite: true }
 			if (!opts.create || !opts.overwrite) {
-				const fileExists = await exists(filePath);
+				const fileExists = await Promises.exists(filePath);
 				if (fileExists) {
 					if (!opts.overwrite) {
 						throw createFileSystemProviderError(localize('fileExists', "File already exists"), FileSystemProviderErrorCode.FileExists);
@@ -435,7 +435,7 @@ export class DiskFileSystemProvider extends Disposable implements
 
 	protected async doDelete(filePath: string, opts: FileDeleteOptions): Promise<void> {
 		if (opts.recursive) {
-			await rimraf(filePath, RimRafMode.MOVE);
+			await Promises.rm(filePath, RimRafMode.MOVE);
 		} else {
 			await Promises.unlink(filePath);
 		}
@@ -455,7 +455,7 @@ export class DiskFileSystemProvider extends Disposable implements
 			await this.validateTargetDeleted(from, to, 'move', opts.overwrite);
 
 			// Move
-			await move(fromFilePath, toFilePath);
+			await Promises.move(fromFilePath, toFilePath);
 		} catch (error) {
 
 			// rewrite some typical errors that can happen especially around symlinks
@@ -482,7 +482,7 @@ export class DiskFileSystemProvider extends Disposable implements
 			await this.validateTargetDeleted(from, to, 'copy', opts.overwrite);
 
 			// Copy
-			await copy(fromFilePath, toFilePath, { preserveSymlinks: true });
+			await Promises.copy(fromFilePath, toFilePath, { preserveSymlinks: true });
 		} catch (error) {
 
 			// rewrite some typical errors that can happen especially around symlinks
@@ -510,7 +510,7 @@ export class DiskFileSystemProvider extends Disposable implements
 		}
 
 		// handle existing target (unless this is a case change)
-		if (!isSameResourceWithDifferentPathCase && await exists(toFilePath)) {
+		if (!isSameResourceWithDifferentPathCase && await Promises.exists(toFilePath)) {
 			if (!overwrite) {
 				throw createFileSystemProviderError(localize('fileCopyErrorExists', "File at target already exists"), FileSystemProviderErrorCode.FileExists);
 			}

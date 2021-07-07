@@ -574,6 +574,13 @@ export namespace Codicon {
 	export const wand = new Codicon('wand', { fontCharacter: '\\ebcf' });
 	export const debugLineByLine = new Codicon('debug-line-by-line', { fontCharacter: '\\ebd0' });
 	export const inspect = new Codicon('inspect', { fontCharacter: '\\ebd1' });
+	export const layers = new Codicon('layers', { fontCharacter: '\\ebd2' });
+	export const layersDot = new Codicon('layers-dot', { fontCharacter: '\\ebd3' });
+	export const layersActive = new Codicon('layers-active', { fontCharacter: '\\ebd4' });
+	export const compass = new Codicon('compass', { fontCharacter: '\\ebd5' });
+	export const compassDot = new Codicon('compass-dot', { fontCharacter: '\\ebd6' });
+	export const compassActive = new Codicon('compass-active', { fontCharacter: '\\ebd7' });
+	export const azure = new Codicon('azure', { fontCharacter: '\\ebd8' });
 
 	export const dropDownButton = new Codicon('drop-down-button', Codicon.chevronDown.definition);
 }

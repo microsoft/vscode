@@ -169,25 +169,78 @@ export async function formatDocumentRangesWithProvider(
 		}
 	}
 
-	const allEdits: TextEdit[] = [];
-	for (let range of ranges) {
-		try {
-			const rawEdits = await provider.provideDocumentRangeFormattingEdits(
-				model,
-				range,
-				model.getFormattingOptions(),
-				cts.token
-			);
-			const minEdits = await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
-			if (minEdits) {
-				allEdits.push(...minEdits);
+	const computeEdits = async (range: Range) => {
+		return (await provider.provideDocumentRangeFormattingEdits(
+			model,
+			range,
+			model.getFormattingOptions(),
+			cts.token
+		)) || [];
+	};
+
+	const hasIntersectingEdit = (a: TextEdit[], b: TextEdit[]) => {
+		if (!a.length || !b.length) {
+			return false;
+		}
+		// quick exit if the list of ranges are completely unrelated [O(n)]
+		const mergedA = a.reduce((acc, val) => { return Range.plusRange(acc, val.range); }, a[0].range);
+		if (!b.some(x => { return Range.intersectRanges(mergedA, x.range); })) {
+			return false;
+		}
+		// fallback to a complete check [O(n^2)]
+		for (let edit of a) {
+			for (let otherEdit of b) {
+				if (Range.intersectRanges(edit.range, otherEdit.range)) {
+					return true;
+				}
 			}
+		}
+		return false;
+	};
+
+	const allEdits: TextEdit[] = [];
+	const rawEditsList: TextEdit[][] = [];
+	try {
+		for (let range of ranges) {
 			if (cts.token.isCancellationRequested) {
 				return true;
 			}
-		} finally {
-			cts.dispose();
+			rawEditsList.push(await computeEdits(range));
 		}
+
+		for (let i = 0; i < ranges.length; ++i) {
+			for (let j = i + 1; j < ranges.length; ++j) {
+				if (cts.token.isCancellationRequested) {
+					return true;
+				}
+				if (hasIntersectingEdit(rawEditsList[i], rawEditsList[j])) {
+					// Merge ranges i and j into a single range, recompute the associated edits
+					const mergedRange = Range.plusRange(ranges[i], ranges[j]);
+					const edits = await computeEdits(mergedRange);
+					ranges.splice(j, 1);
+					ranges.splice(i, 1);
+					ranges.push(mergedRange);
+					rawEditsList.splice(j, 1);
+					rawEditsList.splice(i, 1);
+					rawEditsList.push(edits);
+					// Restart scanning
+					i = 0;
+					j = 0;
+				}
+			}
+		}
+
+		for (let rawEdits of rawEditsList) {
+			if (cts.token.isCancellationRequested) {
+				return true;
+			}
+			const minimalEdits = await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
+			if (minimalEdits) {
+				allEdits.push(...minimalEdits);
+			}
+		}
+	} finally {
+		cts.dispose();
 	}
 
 	if (allEdits.length === 0) {

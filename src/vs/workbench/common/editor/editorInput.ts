@@ -5,22 +5,25 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IBaseResourceEditorInput, IEditorModel } from 'vs/platform/editor/common/editor';
+import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { firstOrDefault } from 'vs/base/common/arrays';
-import { IEditorInput, EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane } from 'vs/workbench/common/editor';
+import { IEditorInput, EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane, IUntypedEditorInput, UntypedEditorContext, EditorResourceAccessor, BaseEditorInput, isEditorInput } from 'vs/workbench/common/editor';
+import { isEqual } from 'vs/base/common/resources';
 
 /**
  * Editor inputs are lightweight objects that can be passed to the workbench API to open inside the editor part.
  * Each editor input is mapped to an editor that is capable of opening it through the Platform facade.
  */
-export abstract class EditorInput extends Disposable implements IEditorInput {
+export abstract class EditorInput extends BaseEditorInput implements IEditorInput {
 
 	protected readonly _onDidChangeDirty = this._register(new Emitter<void>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 
 	protected readonly _onDidChangeLabel = this._register(new Emitter<void>());
 	readonly onDidChangeLabel = this._onDidChangeLabel.event;
+
+	protected readonly _onDidChangeCapabilities = this._register(new Emitter<void>());
+	readonly onDidChangeCapabilities = this._onDidChangeCapabilities.event;
 
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
@@ -30,6 +33,10 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	abstract get typeId(): string;
 
 	abstract get resource(): URI | undefined;
+
+	get editorId(): string | undefined {
+		return undefined;
+	}
 
 	get capabilities(): EditorInputCapabilities {
 		return EditorInputCapabilities.Readonly;
@@ -45,6 +52,10 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 
 	getName(): string {
 		return `Editor ${this.typeId}`;
+	}
+
+	getLabelExtraClasses(): string[] {
+		return [];
 	}
 
 	getDescription(verbosity?: Verbosity): string | undefined {
@@ -103,22 +114,39 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return this;
 	}
 
-	matches(otherInput: unknown): boolean {
-		return this === otherInput;
+	matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
+
+		// Typed inputs: via  === check
+		if (isEditorInput(otherInput)) {
+			return this === otherInput;
+		}
+
+		// Untyped inputs: go into properties
+		const otherInputEditorId = otherInput.options?.override;
+
+		if (this.editorId === undefined) {
+			return false; // untyped inputs can only match for editors that have adopted `editorId`
+		}
+
+		if (this.editorId !== otherInputEditorId) {
+			return false; // untyped input uses another `editorId`
+		}
+
+		return isEqual(this.resource, EditorResourceAccessor.getCanonicalUri(otherInput));
 	}
 
 	/**
-	 * If a input was registered onto multiple editors, this method
+	 * If a editor was registered onto multiple editor panes, this method
 	 * will be asked to return the preferred one to use.
 	 *
-	 * @param editors a list of editor descriptors that are candidates
-	 * for the editor input to open in.
+	 * @param editorPanes a list of editor pane descriptors that are candidates
+	 * for the editor to open in.
 	 */
-	prefersEditor<T extends IEditorDescriptor<IEditorPane>>(editors: T[]): T | undefined {
-		return firstOrDefault(editors);
+	prefersEditorPane<T extends IEditorDescriptor<IEditorPane>>(editorPanes: T[]): T | undefined {
+		return firstOrDefault(editorPanes);
 	}
 
-	asResourceEditorInput(groupId: GroupIdentifier): IBaseResourceEditorInput | undefined {
+	toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IUntypedEditorInput | undefined {
 		return undefined;
 	}
 

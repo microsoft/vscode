@@ -168,10 +168,8 @@ app.on('ready', () => {
 			nodeIntegration: true,
 			contextIsolation: false,
 			enableWebSQL: false,
-			enableRemoteModule: false,
 			spellcheck: false,
-			nativeWindowOpen: true,
-			webviewTag: true
+			nativeWindowOpen: true
 		}
 	});
 

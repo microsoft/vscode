@@ -236,8 +236,8 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			this.valueType = SettingValueType.Number;
 		} else if (this.setting.type === 'boolean') {
 			this.valueType = SettingValueType.Boolean;
-		} else if (this.setting.type === 'array' && this.setting.arrayItemType === 'string') {
-			this.valueType = SettingValueType.ArrayOfString;
+		} else if (this.setting.type === 'array' && (this.setting.arrayItemType === 'string' || this.setting.arrayItemType === 'enum')) {
+			this.valueType = SettingValueType.StringOrEnumArray;
 		} else if (isArray(this.setting.type) && this.setting.type.indexOf(SettingValueType.Null) > -1 && this.setting.type.length === 2) {
 			if (this.setting.type.indexOf(SettingValueType.Integer) > -1) {
 				this.valueType = SettingValueType.NullableInteger;
@@ -248,6 +248,8 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			}
 		} else if (isObjectSetting(this.setting)) {
 			this.valueType = SettingValueType.Object;
+		} else if (this.setting.allKeysAreBoolean) {
+			this.valueType = SettingValueType.BooleanObject;
 		} else {
 			this.valueType = SettingValueType.Complex;
 		}

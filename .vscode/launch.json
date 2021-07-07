@@ -71,7 +71,7 @@
 			"name": "VS Code Emmet Tests",
 			"runtimeExecutable": "${execPath}",
 			"args": [
-				"${workspaceFolder}/extensions/emmet/test-fixtures",
+				"${workspaceFolder}/extensions/emmet/test-workspace",
 				"--extensionDevelopmentPath=${workspaceFolder}/extensions/emmet",
 				"--extensionTestsPath=${workspaceFolder}/extensions/emmet/out/test"
 			],
@@ -155,24 +155,6 @@
 			"presentation": {
 				"group": "5_tests",
 				"order": 5
-			}
-		},
-		{
-			"type": "extensionHost",
-			"request": "launch",
-			"name": "VS Code Notebook Tests",
-			"runtimeExecutable": "${execPath}",
-			"args": [
-				"${workspaceFolder}/extensions/vscode-notebook-tests/test",
-				"--extensionDevelopmentPath=${workspaceFolder}/extensions/vscode-notebook-tests",
-				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-notebook-tests/out"
-			],
-			"outFiles": [
-				"${workspaceFolder}/out/**/*.js"
-			],
-			"presentation": {
-				"group": "5_tests",
-				"order": 6
 			}
 		},
 		{

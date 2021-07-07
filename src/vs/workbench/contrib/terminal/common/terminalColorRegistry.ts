@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 
 import { registerColor, ColorIdentifier, ColorDefaults } from 'vs/platform/theme/common/colorRegistry';
-import { EDITOR_DRAG_AND_DROP_BACKGROUND, PANEL_BORDER } from 'vs/workbench/common/theme';
+import { EDITOR_DRAG_AND_DROP_BACKGROUND, PANEL_BORDER, TAB_ACTIVE_BORDER } from 'vs/workbench/common/theme';
 
 /**
  * The color identifiers for the terminal's ansi colors. The index in the array corresponds to the index
@@ -37,6 +37,11 @@ export const TERMINAL_DRAG_AND_DROP_BACKGROUND = registerColor('terminal.dropBac
 	light: EDITOR_DRAG_AND_DROP_BACKGROUND,
 	hc: EDITOR_DRAG_AND_DROP_BACKGROUND
 }, nls.localize('terminal.dragAndDropBackground', "Background color when dragging on top of terminals. The color should have transparency so that the terminal contents can still shine through."));
+export const TERMINAL_TAB_ACTIVE_BORDER = registerColor('terminal.tab.activeBorder', {
+	dark: TAB_ACTIVE_BORDER,
+	light: TAB_ACTIVE_BORDER,
+	hc: TAB_ACTIVE_BORDER
+}, nls.localize('terminal.tab.activeBorder', 'Border on the side of the terminal tab in the panel. This defaults to tab.activeBorder.'));
 
 export const ansiColorMap: { [key: string]: { index: number, defaults: ColorDefaults } } = {
 	'terminal.ansiBlack': {

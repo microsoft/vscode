@@ -9,65 +9,68 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, TerminalShellType, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, TerminalLocation, TerminalShellType, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
+import { TerminalContextKey } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
 /** A context key that is set when there is at least one opened integrated terminal. */
-export const KEYBINDING_CONTEXT_TERMINAL_IS_OPEN = new RawContextKey<boolean>('terminalIsOpen', false, true);
+export const KEYBINDING_CONTEXT_TERMINAL_IS_OPEN = new RawContextKey<boolean>(TerminalContextKey.IsOpen, false, true);
 
 /** A context key that is set when the integrated terminal has focus. */
-export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = new RawContextKey<boolean>('terminalFocus', false, nls.localize('terminalFocusContextKey', "Whether the terminal is focused"));
+export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = new RawContextKey<boolean>(TerminalContextKey.Focus, false, nls.localize('terminalFocusContextKey', "Whether the terminal is focused"));
+
+/** A context key that is set to the current number of integrated terminals in the terminal groups. */
+export const KEYBINDING_CONTEXT_GROUP_TERMINAL_COUNT = new RawContextKey<number>(TerminalContextKey.Count, 0, nls.localize('terminalCountContextKey', "The current number of terminals"));
 
 /** A context key that is set to the current number of integrated terminals. */
-export const KEYBINDING_CONTEXT_TERMINAL_COUNT = new RawContextKey<number>('terminalCount', 0, nls.localize('terminalCountContextKey', "The current number of terminals"));
-
-/** A context key that is set to the current number of integrated terminals. */
-export const KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT = new RawContextKey<number>('terminalGroupCount', 0, nls.localize('terminalGroupCountContextKey', "The current number of terminal groups"));
+export const KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT = new RawContextKey<number>(TerminalContextKey.GroupCount, 0, nls.localize('terminalGroupCountContextKey', "The current number of terminal groups"));
 
 /** A context key that is set when the terminal tabs view is narrow. */
-export const KEYBINDING_CONTEXT_TERMINAL_IS_TABS_NARROW_FOCUS = new RawContextKey<boolean>('isTerminalTabsNarrow', false, true);
+export const KEYBINDING_CONTEXT_TERMINAL_IS_TABS_NARROW_FOCUS = new RawContextKey<boolean>(TerminalContextKey.TabsNarrow, false, true);
 
 /** A context key that is set when the integrated terminal tabs widget has focus. */
-export const KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS = new RawContextKey<boolean>('terminalTabsFocus', false, nls.localize('terminalTabsFocusContextKey', "Whether the terminal tabs widget is focused"));
+export const KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS = new RawContextKey<boolean>(TerminalContextKey.TabsFocus, false, nls.localize('terminalTabsFocusContextKey', "Whether the terminal tabs widget is focused"));
 
 /** A context key that is set when the integrated terminal tabs widget has the mouse focus. */
-export const KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE = new RawContextKey<boolean>('terminalTabsMouse', false, undefined);
+export const KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE = new RawContextKey<boolean>(TerminalContextKey.TabsMouse, false, undefined);
 
 export const KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY = 'terminalShellType';
 /** A context key that is set to the detected shell for the most recently active terminal, this is set to the last known value when no terminals exist. */
 export const KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE = new RawContextKey<string>(KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, undefined, { type: 'string', description: nls.localize('terminalShellTypeContextKey', "The shell type of the active terminal") });
 
-export const KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE = new RawContextKey<boolean>('terminalAltBufferActive', false, true);
+export const KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE = new RawContextKey<boolean>(TerminalContextKey.AltBufferActive, false, true);
 
 /** A context key that is set when the integrated terminal does not have focus. */
 export const KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED = KEYBINDING_CONTEXT_TERMINAL_FOCUS.toNegated();
 
 /** A context key that is set when the user is navigating the accessibility tree */
-export const KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS = new RawContextKey<boolean>('terminalA11yTreeFocus', false, true);
+export const KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS = new RawContextKey<boolean>(TerminalContextKey.A11yTreeFocus, false, true);
 
 /** A keybinding context key that is set when the integrated terminal has text selected. */
-export const KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED = new RawContextKey<boolean>('terminalTextSelected', false, nls.localize('terminalTextSelectedContextKey', "Whether text is selected in the active terminal"));
+export const KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED = new RawContextKey<boolean>(TerminalContextKey.TextSelected, false, nls.localize('terminalTextSelectedContextKey', "Whether text is selected in the active terminal"));
 /** A keybinding context key that is set when the integrated terminal does not have text selected. */
 export const KEYBINDING_CONTEXT_TERMINAL_TEXT_NOT_SELECTED = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.toNegated();
 
 /**  A context key that is set when the find widget in integrated terminal is visible. */
-export const KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE = new RawContextKey<boolean>('terminalFindVisible', false, true);
+export const KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE = new RawContextKey<boolean>(TerminalContextKey.FindVisible, false, true);
 /**  A context key that is set when the find widget in integrated terminal is not visible. */
 export const KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE = KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE.toNegated();
 /**  A context key that is set when the find widget find input in integrated terminal is focused. */
-export const KEYBINDING_CONTEXT_TERMINAL_FIND_INPUT_FOCUSED = new RawContextKey<boolean>('terminalFindInputFocused', false, true);
+export const KEYBINDING_CONTEXT_TERMINAL_FIND_INPUT_FOCUSED = new RawContextKey<boolean>(TerminalContextKey.FindInputFocused, false, true);
 /**  A context key that is set when the find widget in integrated terminal is focused. */
-export const KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED = new RawContextKey<boolean>('terminalFindFocused', false, true);
+export const KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED = new RawContextKey<boolean>(TerminalContextKey.FindFocused, false, true);
 /**  A context key that is set when the find widget find input in integrated terminal is not focused. */
 export const KEYBINDING_CONTEXT_TERMINAL_FIND_INPUT_NOT_FOCUSED = KEYBINDING_CONTEXT_TERMINAL_FIND_INPUT_FOCUSED.toNegated();
 
-export const KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED = new RawContextKey<boolean>('terminalProcessSupported', false, nls.localize('terminalProcessSupportedContextKey', "Whether terminal processes can be launched"));
+export const KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED = new RawContextKey<boolean>(TerminalContextKey.ProcessSupported, false, nls.localize('terminalProcessSupportedContextKey', "Whether terminal processes can be launched"));
 
-export const KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION = new RawContextKey<boolean>('terminalTabsSingularSelection', false, nls.localize('terminalTabsSingularSelectedContextKey', "Whether one terminal tab is selected"));
+export const KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION = new RawContextKey<boolean>(TerminalContextKey.TabsSingularSelection, false, nls.localize('terminalTabsSingularSelectedContextKey', "Whether one terminal tab is selected"));
+
+export const IS_SPLIT_TERMINAL_CONTEXT_KEY = new RawContextKey<boolean>(TerminalContextKey.SplitTerminal, false, nls.localize('isSplitTerminalContextKey', "Whether or not the focused tab's terminal is a split terminal"));
 
 export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverMeasureRenderTime';
 
@@ -110,11 +113,7 @@ export interface ITerminalProfileResolverService {
 	getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string>;
 	getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]>;
 	getEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment>;
-
-	// TODO: Remove when workspace trust is enabled
-	getSafeConfigValue(key: string, os: OperatingSystem): unknown | undefined;
-	getSafeConfigValueFullKey(key: string): unknown | undefined;
-	createProfileFromShellAndShellArgs(shell?: unknown, shellArgs?: unknown): Promise<ITerminalProfile | undefined>;
+	createProfileFromShellAndShellArgs(shell?: unknown, shellArgs?: unknown): Promise<ITerminalProfile | string>;
 }
 
 export interface IShellLaunchConfigResolveOptions {
@@ -157,7 +156,7 @@ export interface ITerminalConfiguration {
 	altClickMovesCursor: boolean;
 	macOptionIsMeta: boolean;
 	macOptionClickForcesSelection: boolean;
-	gpuAcceleration: 'auto' | 'on' | 'off';
+	gpuAcceleration: 'auto' | 'on' | 'canvas' | 'off';
 	rightClickBehavior: 'default' | 'copyPaste' | 'paste' | 'selectWord';
 	cursorBlinking: boolean;
 	cursorStyle: string;
@@ -209,7 +208,7 @@ export interface ITerminalConfiguration {
 		focusMode: 'singleClick' | 'doubleClick';
 	},
 	bellDuration: number;
-	allowWorkspaceConfiguration: boolean;
+	defaultLocation: TerminalLocation;
 }
 
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
@@ -300,7 +299,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onEnvironmentVariableInfoChanged: Event<IEnvironmentVariableInfo>;
 
 	dispose(immediate?: boolean): void;
-	detachFromProcess(): void;
+	detachFromProcess(): Promise<void>;
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<ITerminalLaunchError | undefined>;
 	relaunch(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean, reset: boolean): Promise<ITerminalLaunchError | undefined>;
 	write(data: string): void;
@@ -376,6 +375,7 @@ export const enum TerminalCommandId {
 	FindPrevious = 'workbench.action.terminal.findPrevious',
 	Toggle = 'workbench.action.terminal.toggleTerminal',
 	Kill = 'workbench.action.terminal.kill',
+	KillEditor = 'workbench.action.terminal.killEditor',
 	KillInstance = 'workbench.action.terminal.killInstance',
 	QuickKill = 'workbench.action.terminal.quickKill',
 	ConfigureTerminalSettings = 'workbench.action.terminal.openSettings',
@@ -395,10 +395,12 @@ export const enum TerminalCommandId {
 	SplitInstance = 'workbench.action.terminal.splitInstance',
 	SplitInActiveWorkspace = 'workbench.action.terminal.splitInActiveWorkspace',
 	Unsplit = 'workbench.action.terminal.unsplit',
+	UnsplitInstance = 'workbench.action.terminal.unsplitInstance',
 	JoinInstance = 'workbench.action.terminal.joinInstance',
 	Relaunch = 'workbench.action.terminal.relaunch',
 	FocusPreviousPane = 'workbench.action.terminal.focusPreviousPane',
 	ShowTabs = 'workbench.action.terminal.showTabs',
+	CreateTerminalEditor = 'workbench.action.createTerminalEditor',
 	FocusTabs = 'workbench.action.terminal.focusTabs',
 	FocusNextPane = 'workbench.action.terminal.focusNextPane',
 	ResizePaneLeft = 'workbench.action.terminal.resizePaneLeft',
@@ -449,7 +451,11 @@ export const enum TerminalCommandId {
 	NavigationModeFocusPrevious = 'workbench.action.terminal.navigationModeFocusPrevious',
 	ShowEnvironmentInformation = 'workbench.action.terminal.showEnvironmentInformation',
 	SearchWorkspace = 'workbench.action.terminal.searchWorkspace',
-	AttachToRemoteTerminal = 'workbench.action.terminal.attachToSession'
+	AttachToSession = 'workbench.action.terminal.attachToSession',
+	DetachSession = 'workbench.action.terminal.detachSession',
+	MoveToEditor = 'workbench.action.terminal.moveToEditor',
+	MoveToEditorInstance = 'workbench.action.terminal.moveToEditorInstance',
+	MoveToTerminalPanel = 'workbench.action.terminal.moveToTerminalPanel',
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
@@ -472,8 +478,11 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.FocusPrevious,
 	TerminalCommandId.Focus,
 	TerminalCommandId.Kill,
+	TerminalCommandId.KillEditor,
+	TerminalCommandId.MoveToEditor,
 	TerminalCommandId.MoveToLineEnd,
 	TerminalCommandId.MoveToLineStart,
+	TerminalCommandId.MoveToTerminalPanel,
 	TerminalCommandId.NewInActiveWorkspace,
 	TerminalCommandId.New,
 	TerminalCommandId.Paste,
@@ -575,18 +584,18 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 ];
 
 export interface ITerminalContributions {
-	types?: ITerminalTypeContribution[];
+	profiles?: ITerminalProfileContribution[];
 }
 
-export interface ITerminalTypeContribution {
+export interface ITerminalProfileContribution {
 	title: string;
-	command: string;
+	id: string;
 	icon?: string;
 }
 
 export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
 	extensionPoint: 'terminal',
-	defaultExtensionKind: 'workspace',
+	defaultExtensionKind: ['workspace'],
 	jsonSchema: {
 		description: nls.localize('vscode.extension.contributes.terminal', 'Contributes terminal functionality.'),
 		type: 'object',
@@ -608,6 +617,34 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
 						},
 						icon: {
 							description: nls.localize('vscode.extension.contributes.terminal.types.icon', "A codicon to associate with this terminal type."),
+							type: 'string',
+						},
+					},
+				},
+			},
+			profiles: {
+				type: 'array',
+				description: nls.localize('vscode.extension.contributes.terminal.profiles', "Defines additional terminal profiles that the user can create."),
+				items: {
+					type: 'object',
+					required: ['id', 'title'],
+					defaultSnippets: [{
+						body: {
+							id: '$1',
+							title: '$2'
+						}
+					}],
+					properties: {
+						id: {
+							description: nls.localize('vscode.extension.contributes.terminal.profiles.id', "The ID of the terminal profile provider."),
+							type: 'string',
+						},
+						title: {
+							description: nls.localize('vscode.extension.contributes.terminal.profiles.title', "Title for this terminal profile."),
+							type: 'string',
+						},
+						icon: {
+							description: nls.localize('vscode.extension.contributes.terminal.profiles.icon', "A codicon to associate with this terminal profile."),
 							type: 'string',
 						},
 					},

@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { IMarkdownString, MarkdownString, isEmptyMarkdownString, markedStringsEquals } from 'vs/base/common/htmlContent';
+import { IMarkdownString, MarkdownString, isEmptyMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
@@ -14,11 +14,12 @@ import { asArray } from 'vs/base/common/arrays';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelDecoration } from 'vs/editor/common/model';
-import { IEditorHover, IEditorHoverParticipant, IHoverPart } from 'vs/editor/contrib/hover/modesContentHover';
+import { HoverAnchor, HoverAnchorType, IEditorHover, IEditorHoverParticipant, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
 import { HoverProviderRegistry } from 'vs/editor/common/modes';
 import { getHover } from 'vs/editor/contrib/hover/getHover';
 import { Position } from 'vs/editor/common/core/position';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const $ = dom.$;
 
@@ -30,11 +31,12 @@ export class MarkdownHover implements IHoverPart {
 		public readonly contents: IMarkdownString[]
 	) { }
 
-	public equals(other: IHoverPart): boolean {
-		if (other instanceof MarkdownHover) {
-			return markedStringsEquals(this.contents, other.contents);
-		}
-		return false;
+	public isValidForHoverAnchor(anchor: HoverAnchor): boolean {
+		return (
+			anchor.type === HoverAnchorType.Range
+			&& this.range.startColumn <= anchor.range.startColumn
+			&& this.range.endColumn >= anchor.range.endColumn
+		);
 	}
 }
 
@@ -45,19 +47,20 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		private readonly _hover: IEditorHover,
 		@IModeService private readonly _modeService: IModeService,
 		@IOpenerService private readonly _openerService: IOpenerService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) { }
 
-	public createLoadingMessage(range: Range): MarkdownHover {
-		return new MarkdownHover(this, range, [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))]);
+	public createLoadingMessage(anchor: HoverAnchor): MarkdownHover | null {
+		return new MarkdownHover(this, anchor.range, [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))]);
 	}
 
-	public computeSync(hoverRange: Range, lineDecorations: IModelDecoration[]): MarkdownHover[] {
-		if (!this._editor.hasModel()) {
+	public computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): MarkdownHover[] {
+		if (!this._editor.hasModel() || anchor.type !== HoverAnchorType.Range) {
 			return [];
 		}
 
 		const model = this._editor.getModel();
-		const lineNumber = hoverRange.startLineNumber;
+		const lineNumber = anchor.range.startLineNumber;
 		const maxColumn = model.getLineMaxColumn(lineNumber);
 		const result: MarkdownHover[] = [];
 		for (const d of lineDecorations) {
@@ -69,15 +72,23 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 				continue;
 			}
 
-			const range = new Range(hoverRange.startLineNumber, startColumn, hoverRange.startLineNumber, endColumn);
+			const range = new Range(anchor.range.startLineNumber, startColumn, anchor.range.startLineNumber, endColumn);
 			result.push(new MarkdownHover(this, range, asArray(hoverMessage)));
+		}
+
+		const lineLength = this._editor.getModel().getLineLength(lineNumber);
+		const maxTokenizationLineLength = this._configurationService.getValue<number>('editor.maxTokenizationLineLength');
+		if (lineLength >= maxTokenizationLineLength) {
+			result.push(new MarkdownHover(this, new Range(lineNumber, 1, lineNumber, lineLength + 1), [{
+				value: nls.localize('too many characters', "Tokenization is skipped for long lines for performance reasons. This can be configured via `editor.maxTokenizationLineLength`.")
+			}]));
 		}
 
 		return result;
 	}
 
-	public async computeAsync(range: Range, lineDecorations: IModelDecoration[], token: CancellationToken): Promise<MarkdownHover[]> {
-		if (!this._editor.hasModel() || !range) {
+	public async computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): Promise<MarkdownHover[]> {
+		if (!this._editor.hasModel() || anchor.type !== HoverAnchorType.Range) {
 			return Promise.resolve([]);
 		}
 
@@ -88,8 +99,8 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		}
 
 		const hovers = await getHover(model, new Position(
-			range.startLineNumber,
-			range.startColumn
+			anchor.range.startLineNumber,
+			anchor.range.startColumn
 		), token);
 
 		const result: MarkdownHover[] = [];
@@ -97,13 +108,13 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			if (isEmptyMarkdownString(hover.contents)) {
 				continue;
 			}
-			const rng = hover.range ? Range.lift(hover.range) : range;
+			const rng = hover.range ? Range.lift(hover.range) : anchor.range;
 			result.push(new MarkdownHover(this, rng, hover.contents));
 		}
 		return result;
 	}
 
-	public renderHoverParts(hoverParts: MarkdownHover[], fragment: DocumentFragment): IDisposable {
+	public renderHoverParts(hoverParts: MarkdownHover[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable {
 		const disposables = new DisposableStore();
 		for (const hoverPart of hoverParts) {
 			for (const contents of hoverPart.contents) {

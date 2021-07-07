@@ -52,7 +52,7 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 		data: Proto.QuickInfoResponseBody,
 		source: ServerType | undefined,
 	) {
-		const parts: vscode.MarkedString[] = [];
+		const parts: vscode.MarkdownString[] = [];
 
 		if (data.displayString) {
 			const displayParts: string[] = [];
@@ -66,8 +66,7 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 			}
 
 			displayParts.push(data.displayString);
-
-			parts.push({ language: 'typescript', value: displayParts.join(' ') });
+			parts.push(new vscode.MarkdownString().appendCodeblock(displayParts.join(' '), 'typescript'));
 		}
 		parts.push(markdownDocumentation(data.documentation, data.tags, this.client));
 		return parts;

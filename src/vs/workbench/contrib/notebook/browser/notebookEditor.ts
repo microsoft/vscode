@@ -6,12 +6,12 @@
 import * as DOM from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/notebook';
 import { localize } from 'vs/nls';
 import { extname } from 'vs/base/common/resources';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { EditorOverride } from 'vs/platform/editor/common/editor';
+import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -46,6 +46,8 @@ export class NotebookEditor extends EditorPane {
 	private _rootElement!: HTMLElement;
 	private _dimension?: DOM.Dimension;
 
+	private readonly inputListener = this._register(new MutableDisposable());
+
 	// todo@rebornix is there a reason that `super.fireOnDidFocus` isn't used?
 	private readonly _onDidFocusWidget = this._register(new Emitter<void>());
 	override get onDidFocus(): Event<void> { return this._onDidFocusWidget.event; }
@@ -69,13 +71,25 @@ export class NotebookEditor extends EditorPane {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 		this._editorMemento = this.getEditorMemento<INotebookEditorViewState>(_editorGroupService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 
-		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onDidFileSystemProviderChange(e.scheme)));
-		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onDidFileSystemProviderChange(e.scheme)));
+		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onDidChangeFileSystemProvider(e.scheme)));
+		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onDidChangeFileSystemProvider(e.scheme)));
 	}
 
-	private onDidFileSystemProviderChange(scheme: string): void {
-		if (this.input?.resource?.scheme === scheme && this._widget.value) {
-			this._widget.value.setOptions({ isReadOnly: this.input.hasCapability(EditorInputCapabilities.Readonly) });
+	private onDidChangeFileSystemProvider(scheme: string): void {
+		if (this.input instanceof NotebookEditorInput && this.input.resource?.scheme === scheme) {
+			this.updateReadonly(this.input);
+		}
+	}
+
+	private onDidChangeInputCapabilities(input: NotebookEditorInput): void {
+		if (this.input === input) {
+			this.updateReadonly(input);
+		}
+	}
+
+	private updateReadonly(input: NotebookEditorInput): void {
+		if (this._widget.value) {
+			this._widget.value.setOptions({ isReadOnly: input.hasCapability(EditorInputCapabilities.Readonly) });
 		}
 	}
 
@@ -157,6 +171,8 @@ export class NotebookEditor extends EditorPane {
 		mark(input.resource, 'startTime');
 		const group = this.group!;
 
+		this.inputListener.value = input.onDidChangeCapabilities(() => this.onDidChangeInputCapabilities(input));
+
 		this._saveEditorViewState(this.input);
 
 		this._widgetDisposableStore.clear();
@@ -192,7 +208,7 @@ export class NotebookEditor extends EditorPane {
 				[{
 					label: localize('fail.reOpen', "Reopen file with VS Code standard text editor"),
 					run: async () => {
-						await this._editorService.openEditor({ resource: input.resource, forceFile: true, options: { ...options, override: EditorOverride.DISABLED } });
+						await this._editorService.openEditor({ resource: input.resource, forceFile: true, options: { ...options, override: EditorResolution.DISABLED } });
 					}
 				}]
 			);
@@ -270,6 +286,8 @@ export class NotebookEditor extends EditorPane {
 	}
 
 	override clearInput(): void {
+		this.inputListener.clear();
+
 		if (this._widget.value) {
 			this._saveEditorViewState(this.input);
 			this._widget.value.onWillHide();

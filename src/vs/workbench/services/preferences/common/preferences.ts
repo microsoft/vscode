@@ -12,7 +12,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, IConfigurationExtensionInfo } from 'vs/platform/configuration/common/configurationRegistry';
-import { EditorOverride, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { EditorResolution, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
@@ -29,12 +29,13 @@ export enum SettingValueType {
 	Integer = 'integer',
 	Number = 'number',
 	Boolean = 'boolean',
-	ArrayOfString = 'array-of-string',
+	StringOrEnumArray = 'string-or-enum-array',
 	Exclude = 'exclude',
 	Complex = 'complex',
 	NullableInteger = 'nullable-integer',
 	NullableNumber = 'nullable-number',
-	Object = 'object'
+	Object = 'object',
+	BooleanObject = 'boolean-object'
 }
 
 export interface ISettingsGroup {
@@ -75,12 +76,14 @@ export interface ISetting {
 	enum?: string[];
 	enumDescriptions?: string[];
 	enumDescriptionsAreMarkdown?: boolean;
+	uniqueItems?: boolean;
 	tags?: string[];
 	disallowSyncIgnore?: boolean;
 	restricted?: boolean;
 	extensionInfo?: IConfigurationExtensionInfo;
 	validator?: (value: any) => string | null;
 	enumItemLabels?: string[];
+	allKeysAreBoolean?: boolean;
 }
 
 export interface IExtensionSetting extends ISetting {
@@ -179,7 +182,7 @@ export function validateSettingsEditorOptions(options: ISettingsEditorOptions): 
 		...options,
 
 		// Enforce some options for settings specifically
-		override: EditorOverride.DISABLED,
+		override: EditorResolution.DISABLED,
 		pinned: true
 	};
 }

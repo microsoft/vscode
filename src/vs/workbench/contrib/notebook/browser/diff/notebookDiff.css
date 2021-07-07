@@ -271,3 +271,8 @@
 .monaco-workbench .notebook-text-diff-editor .output-view-container pre {
 	margin: 4px 0;
 }
+
+.monaco-workbench .notebook-text-diff-edito .monaco-list:focus-within .monaco-list-row.focused .codicon,
+.monaco-workbench .notebook-text-diff-editor .monaco-list:focus-within .monaco-list-row.selected .codicon {
+	color: inherit;
+}

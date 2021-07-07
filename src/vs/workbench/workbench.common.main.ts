@@ -147,7 +147,7 @@ registerSingleton(IOpenerService, OpenerService, true);
 //#region --- workbench contributions
 
 // Editor Override
-import 'vs/workbench/services/editor/browser/editorOverrideService';
+import 'vs/workbench/services/editor/browser/editorResolverService';
 
 // Telemetry
 import 'vs/workbench/contrib/telemetry/browser/telemetry.contribution';
@@ -162,6 +162,9 @@ import 'vs/workbench/contrib/performance/browser/performance.contribution';
 
 // Notebook
 import 'vs/workbench/contrib/notebook/browser/notebook.contribution';
+
+// Interactive
+import 'vs/workbench/contrib/interactive/browser/interactive.contribution';
 
 // Testing
 import 'vs/workbench/contrib/testing/browser/testing.contribution';
