@@ -12,7 +12,7 @@ import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/
 import { TextFileEditor } from 'vs/workbench/contrib/files/browser/editors/textFileEditor';
 
 // Register file editor
-Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).registerEditorPane(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
 		TextFileEditor,
 		TextFileEditor.ID,

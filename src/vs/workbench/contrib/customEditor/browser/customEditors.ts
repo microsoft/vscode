@@ -18,7 +18,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { EditorExtensions, GroupIdentifier, IEditorInput, IEditorInputFactoryRegistry, IResourceDiffEditorInput, IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
+import { EditorExtensions, GroupIdentifier, IEditorInput, IEditorFactoryRegistry, IResourceDiffEditorInput, IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { CONTEXT_ACTIVE_CUSTOM_EDITOR_ID, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorInfo, CustomEditorInfoCollection, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
@@ -46,7 +46,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	private readonly _onDidChangeEditorTypes = this._register(new Emitter<void>());
 	public readonly onDidChangeEditorTypes: Event<void> = this._onDidChangeEditorTypes.event;
 
-	private readonly _fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getFileEditorInputFactory();
+	private readonly _fileEditorFactory = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).getFileEditorFactory();
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -226,7 +226,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		const editorsToReplace = new Map<GroupIdentifier, IEditorInput[]>();
 		for (const group of this.editorGroupService.groups) {
 			for (const editor of group.editors) {
-				if (this._fileEditorInputFactory.isFileEditorInput(editor)
+				if (this._fileEditorFactory.isFileEditor(editor)
 					&& !(editor instanceof CustomEditorInput)
 					&& isEqual(editor.resource, newResource)
 				) {

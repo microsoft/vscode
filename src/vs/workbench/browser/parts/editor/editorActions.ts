@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { IEditorInput, IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, EditorInputCapabilities, IEditorInputFactoryRegistry, EditorExtensions, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, EditorInputCapabilities, IEditorFactoryRegistry, EditorExtensions, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -1978,7 +1978,7 @@ export class ReOpenInTextEditorAction extends Action {
 	static readonly ID = 'workbench.action.reopenTextEditor';
 	static readonly LABEL = localize('workbench.action.reopenTextEditor', "Reopen Editor With Text Editor");
 
-	private readonly fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getFileEditorInputFactory();
+	private readonly fileEditorFactory = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).getFileEditorFactory();
 
 	constructor(
 		id: string,
@@ -2002,7 +2002,7 @@ export class ReOpenInTextEditorAction extends Action {
 		const options = activeEditorPane.options;
 		const group = activeEditorPane.group;
 
-		if (this.fileEditorInputFactory.isFileEditorInput(this.editorService.activeEditor)) {
+		if (this.fileEditorFactory.isFileEditor(this.editorService.activeEditor)) {
 			return;
 		}
 

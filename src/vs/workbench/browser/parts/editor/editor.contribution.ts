@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import {
-	IEditorInputFactoryRegistry, TextCompareEditorActiveContext, ActiveEditorPinnedContext, EditorExtensions, EditorGroupEditorsCountContext,
+	IEditorFactoryRegistry, TextCompareEditorActiveContext, ActiveEditorPinnedContext, EditorExtensions, EditorGroupEditorsCountContext,
 	ActiveEditorStickyContext, ActiveEditorAvailableEditorIdsContext, MultipleEditorGroupsContext, ActiveEditorDirtyContext
 } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput, SideBySideEditorInputSerializer } from 'vs/workbench/common/editor/sideBySideEditorInput';
@@ -63,7 +63,7 @@ import { UntitledTextEditorInputSerializer, UntitledTextEditorWorkingCopyEditorH
 
 //#region Editor Registrations
 
-Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).registerEditorPane(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
 		TextResourceEditor,
 		TextResourceEditor.ID,
@@ -75,7 +75,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).registerEditorPane(
 	]
 );
 
-Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).registerEditorPane(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
 		TextDiffEditor,
 		TextDiffEditor.ID,
@@ -86,7 +86,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).registerEditorPane(
 	]
 );
 
-Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).registerEditorPane(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
 		BinaryResourceDiffEditor,
 		BinaryResourceDiffEditor.ID,
@@ -97,7 +97,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).registerEditorPane(
 	]
 );
 
-Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).registerEditorPane(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
 		SideBySideEditor,
 		SideBySideEditor.ID,
@@ -108,9 +108,9 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).registerEditorPane(
 	]
 );
 
-Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(UntitledTextEditorInput.ID, UntitledTextEditorInputSerializer);
-Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(SideBySideEditorInput.ID, SideBySideEditorInputSerializer);
-Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(DiffEditorInput.ID, DiffEditorInputSerializer);
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(UntitledTextEditorInput.ID, UntitledTextEditorInputSerializer);
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(SideBySideEditorInput.ID, SideBySideEditorInputSerializer);
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(DiffEditorInput.ID, DiffEditorInputSerializer);
 
 //#endregion
 

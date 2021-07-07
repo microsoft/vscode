@@ -6,7 +6,7 @@
 import 'vs/css!./gettingStarted';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInputSerializer, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { IEditorSerializer, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
 import { $, addDisposableListener, append, clearNode, Dimension, reset } from 'vs/base/browser/dom';
@@ -1370,7 +1370,7 @@ export class GettingStartedPage extends EditorPane {
 	}
 }
 
-export class GettingStartedInputSerializer implements IEditorInputSerializer {
+export class GettingStartedInputSerializer implements IEditorSerializer {
 	public canSerialize(editorInput: GettingStartedInput): boolean {
 		return true;
 	}

@@ -156,7 +156,7 @@ export class EditorPaneRegistry implements IEditorPaneRegistry {
 	//#endregion
 }
 
-Registry.add(EditorExtensions.Editors, new EditorPaneRegistry());
+Registry.add(EditorExtensions.EditorPane, new EditorPaneRegistry());
 
 //#endregion
 

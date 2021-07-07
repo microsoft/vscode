@@ -22,7 +22,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorExtensions, EditorsOrder, IEditorInputSerializer } from 'vs/workbench/common/editor';
+import { EditorExtensions, EditorsOrder, IEditorSerializer } from 'vs/workbench/common/editor';
 import { columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { InteractiveEditor } from 'vs/workbench/contrib/interactive/browser/interactiveEditor';
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
@@ -46,7 +46,7 @@ import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 
 
-Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).registerEditorPane(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
 		InteractiveEditor,
 		InteractiveEditor.ID,
@@ -213,7 +213,7 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveDocumentContribution, LifecyclePhase.Starting);
 
-export class InteractiveEditorSerializer implements IEditorInputSerializer {
+export class InteractiveEditorSerializer implements IEditorSerializer {
 	canSerialize(): boolean {
 		return true;
 	}

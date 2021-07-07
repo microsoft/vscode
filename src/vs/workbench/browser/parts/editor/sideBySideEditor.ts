@@ -205,7 +205,7 @@ export class SideBySideEditor extends EditorPane {
 	}
 
 	private doCreateEditor(editorInput: EditorInput, container: HTMLElement): EditorPane {
-		const editorPaneDescriptor = Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).getEditorPane(editorInput);
+		const editorPaneDescriptor = Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).getEditorPane(editorInput);
 		if (!editorPaneDescriptor) {
 			throw new Error('No editor pane descriptor for editor found');
 		}

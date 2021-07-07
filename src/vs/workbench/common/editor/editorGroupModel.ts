@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { IEditorInputFactoryRegistry, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, IEditorInput, EditorsOrder, EditorExtensions, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { IEditorFactoryRegistry, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, IEditorInput, EditorsOrder, EditorExtensions, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -751,7 +751,7 @@ export class EditorGroupModel extends Disposable {
 	}
 
 	serialize(): ISerializedEditorGroupModel {
-		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories);
+		const registry = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory);
 
 		// Serialize all editor inputs so that we can store them.
 		// Editors that cannot be serialized need to be ignored
@@ -765,7 +765,7 @@ export class EditorGroupModel extends Disposable {
 			const editor = this.editors[i];
 			let canSerializeEditor = false;
 
-			const editorSerializer = registry.getEditorInputSerializer(editor);
+			const editorSerializer = registry.getEditorSerializer(editor);
 			if (editorSerializer) {
 				const value = editorSerializer.serialize(editor);
 
@@ -805,7 +805,7 @@ export class EditorGroupModel extends Disposable {
 	}
 
 	private deserialize(data: ISerializedEditorGroupModel): number {
-		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories);
+		const registry = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory);
 
 		if (typeof data.id === 'number') {
 			this._id = data.id;
@@ -818,7 +818,7 @@ export class EditorGroupModel extends Disposable {
 		this.editors = coalesce(data.editors.map((e, index) => {
 			let editor: EditorInput | undefined = undefined;
 
-			const editorSerializer = registry.getEditorInputSerializer(e.id);
+			const editorSerializer = registry.getEditorSerializer(e.id);
 			if (editorSerializer) {
 				const deserializedEditor = editorSerializer.deserialize(this.instantiationService, e.value);
 				if (deserializedEditor instanceof EditorInput) {

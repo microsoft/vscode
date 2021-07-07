@@ -10,7 +10,7 @@ import { WalkThroughArrowUp, WalkThroughArrowDown, WalkThroughPageUp, WalkThroug
 import { WalkThroughSnippetContentProvider } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughContentProvider';
 import { EditorWalkThroughAction, EditorWalkThroughInputSerializer } from 'vs/workbench/contrib/welcome/walkThrough/browser/editor/editorWalkThrough';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWorkbenchActionRegistry, Extensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
@@ -19,7 +19,7 @@ import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
-Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors)
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane)
 	.registerEditorPane(EditorPaneDescriptor.create(
 		WalkThroughPart,
 		WalkThroughPart.ID,
@@ -32,7 +32,7 @@ Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
 		SyncActionDescriptor.from(EditorWalkThroughAction),
 		'Help: Interactive Playground', CATEGORIES.Help.value);
 
-Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(EditorWalkThroughInputSerializer.ID, EditorWalkThroughInputSerializer);
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(EditorWalkThroughInputSerializer.ID, EditorWalkThroughInputSerializer);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(WalkThroughSnippetContentProvider, LifecyclePhase.Starting);

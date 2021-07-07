@@ -24,7 +24,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IEditorInput, IEditorInputSerializer, IEditorInputFactoryRegistry, IEditorInputWithOptions, EditorExtensions } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorSerializer, IEditorFactoryRegistry, IEditorInputWithOptions, EditorExtensions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { isCompositeNotebookEditorInput, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
@@ -92,7 +92,7 @@ import { editorOptionsRegistry } from 'vs/editor/common/config/editorOptions';
 
 /*--------------------------------------------------------------------------------------------- */
 
-Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).registerEditorPane(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
 		NotebookEditor,
 		NotebookEditor.ID,
@@ -103,7 +103,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).registerEditorPane(
 	]
 );
 
-Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).registerEditorPane(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
 		NotebookTextDiffEditor,
 		NotebookTextDiffEditor.ID,
@@ -114,7 +114,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors).registerEditorPane(
 	]
 );
 
-class NotebookDiffEditorSerializer implements IEditorInputSerializer {
+class NotebookDiffEditorSerializer implements IEditorSerializer {
 	canSerialize(): boolean {
 		return true;
 	}
@@ -152,7 +152,7 @@ class NotebookDiffEditorSerializer implements IEditorInputSerializer {
 
 }
 type SerializedNotebookEditorData = { resource: URI, viewType: string };
-class NotebookEditorSerializer implements IEditorInputSerializer {
+class NotebookEditorSerializer implements IEditorSerializer {
 	canSerialize(): boolean {
 		return true;
 	}
@@ -179,12 +179,12 @@ class NotebookEditorSerializer implements IEditorInputSerializer {
 	}
 }
 
-Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(
 	NotebookEditorInput.ID,
 	NotebookEditorSerializer
 );
 
-Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(
 	NotebookDiffEditorInput.ID,
 	NotebookDiffEditorSerializer
 );

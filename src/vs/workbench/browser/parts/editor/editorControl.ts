@@ -46,7 +46,7 @@ export class EditorControl extends Disposable {
 	private readonly activeEditorPaneDisposables = this._register(new DisposableStore());
 	private dimension: Dimension | undefined;
 	private readonly editorOperation = this._register(new LongRunningOperation(this.editorProgressService));
-	private readonly editorPanesRegistry = Registry.as<IEditorPaneRegistry>(EditorExtensions.Editors);
+	private readonly editorPanesRegistry = Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane);
 
 	constructor(
 		private parent: HTMLElement,
