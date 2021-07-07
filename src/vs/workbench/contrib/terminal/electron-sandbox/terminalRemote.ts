@@ -11,6 +11,10 @@ import { TERMINAL_ACTION_CATEGORY, TerminalCommandId } from 'vs/workbench/contri
 import { Action } from 'vs/base/common/actions';
 import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { URI } from 'vs/base/common/uri';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { Schemas } from 'vs/base/common/network';
 
 export function registerRemoteContributions() {
 	const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
@@ -25,13 +29,26 @@ export class CreateNewLocalTerminalAction extends Action {
 		id: string, label: string,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
-		@INativeEnvironmentService private readonly _nativeEnvironmentService: INativeEnvironmentService
+		@INativeEnvironmentService private readonly _nativeEnvironmentService: INativeEnvironmentService,
+		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@IHistoryService private readonly _historyService: IHistoryService
 	) {
 		super(id, label);
 	}
 
-	override run(): Promise<any> {
-		const instance = this._terminalService.createTerminal({ cwd: this._nativeEnvironmentService.userHome });
+	override async run(): Promise<any> {
+		let cwd: URI;
+		try {
+			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.vscodeRemote);
+			if (activeWorkspaceRootUri) {
+				cwd = await this._remoteAuthorityResolverService.getCanonicalURI(activeWorkspaceRootUri);
+			} else {
+				cwd = this._nativeEnvironmentService.userHome;
+			}
+		} catch {
+			cwd = this._nativeEnvironmentService.userHome;
+		}
+		const instance = this._terminalService.createTerminal({ cwd });
 		if (!instance) {
 			return Promise.resolve(undefined);
 		}
