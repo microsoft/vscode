@@ -15,9 +15,7 @@ export class WebviewProtocolProvider extends Disposable {
 	private static validWebviewFilePaths = new Map([
 		['/index.html', 'index.html'],
 		['/fake.html', 'fake.html'],
-		['/electron-browser-index.html', 'index.html'],
 		['/main.js', 'main.js'],
-		['/host.js', 'host.js'],
 		['/service-worker.js', 'service-worker.js'],
 	]);
 
