@@ -173,6 +173,7 @@ export class ResourcesDropHandler {
 		const targetGroup = resolveTargetGroup();
 		await this.editorService.openEditors(editors.map(editor => ({
 			...editor,
+			resource: editor.resource,
 			options: {
 				...editor.options,
 				pinned: true,

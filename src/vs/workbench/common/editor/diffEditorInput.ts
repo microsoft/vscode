@@ -141,7 +141,7 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		const originalResourceEditorInput = this.secondary.toUntyped(group, context);
 		const modifiedResourceEditorInput = this.primary.toUntyped(group, context);
 
-		if (originalResourceEditorInput && modifiedResourceEditorInput) {
+		if (originalResourceEditorInput && modifiedResourceEditorInput && !isResourceDiffEditorInput(originalResourceEditorInput) && !isResourceDiffEditorInput(modifiedResourceEditorInput)) {
 			return {
 				label: this.name,
 				description: this.description,

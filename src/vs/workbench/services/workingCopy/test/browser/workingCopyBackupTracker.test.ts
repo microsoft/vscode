@@ -108,7 +108,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 		return { accessor, part, tracker, workingCopyBackupService: workingCopyBackupService, instantiationService, cleanup: () => disposables.dispose() };
 	}
 
-	async function untitledBackupTest(untitled: IUntitledTextResourceEditorInput = {}): Promise<void> {
+	async function untitledBackupTest(untitled: IUntitledTextResourceEditorInput = { resource: undefined }): Promise<void> {
 		const { accessor, cleanup, workingCopyBackupService } = await createTracker();
 
 		const untitledTextEditor = (await accessor.editorService.openEditor(untitled))?.input as UntitledTextEditorInput;
@@ -137,7 +137,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 	});
 
 	test('Track backups (untitled with initial contents)', function () {
-		return untitledBackupTest({ contents: 'Foo Bar' });
+		return untitledBackupTest({ resource: undefined, contents: 'Foo Bar' });
 	});
 
 	test('Track backups (custom)', async function () {

@@ -10,7 +10,7 @@ import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { isWindows, isLinux, isMacintosh, isWeb, isNative, isIOS } from 'vs/base/common/platform';
-import { IResourceDiffEditorInput, IUntypedEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
+import { IUntypedEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
@@ -596,12 +596,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.state.editor.restoreEditors = !!forceRestoreEditors || initialFilesToOpen === undefined;
 
 		// Files to open, diff or create
-		if (initialFilesToOpen !== undefined) {
+		if (initialFilesToOpen) {
 
 			// Files to diff is exclusive
 			return pathsToEditors(initialFilesToOpen.filesToDiff, fileService).then(filesToDiff => {
 				if (filesToDiff.length === 2) {
-					const diffEditorInput: IResourceDiffEditorInput[] = [{
+					const diffEditorInput: IUntypedEditorInput[] = [{
 						original: { resource: filesToDiff[0].resource },
 						modified: { resource: filesToDiff[1].resource },
 						options: { pinned: true },
@@ -627,7 +627,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					return []; // do not open any empty untitled file if we have backups to restore
 				}
 
-				return [Object.create(null)]; // open empty untitled file
+				return [{ resource: undefined }]; // open empty untitled file
 			});
 		}
 

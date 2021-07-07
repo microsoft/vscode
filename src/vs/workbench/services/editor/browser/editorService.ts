@@ -515,6 +515,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	//#region openEditor()
 
 	openEditor(editor: IEditorInput, options?: IEditorOptions, group?: OpenInEditorGroup): Promise<IEditorPane | undefined>;
+	openEditor(editor: IUntypedEditorInput, group?: OpenInEditorGroup): Promise<IEditorPane | undefined>;
 	openEditor(editor: IResourceEditorInput, group?: OpenInEditorGroup): Promise<IEditorPane | undefined>;
 	openEditor(editor: ITextResourceEditorInput | IUntitledTextResourceEditorInput, group?: OpenInEditorGroup): Promise<ITextEditorPane | undefined>;
 	openEditor(editor: IResourceDiffEditorInput, group?: OpenInEditorGroup): Promise<ITextDiffEditorPane | undefined>;
@@ -642,8 +643,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return [group, activation];
 	}
 
-	private doFindTargetGroup(editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: OpenInEditorGroup | undefined): IEditorGroup {
+	private doFindTargetGroup(input: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: OpenInEditorGroup | undefined): IEditorGroup {
 		let group: IEditorGroup | undefined;
+		let editor = isEditorInputWithOptions(input) ? input.editor : input;
+		let options = input.options;
 
 		// Group: Instance of Group
 		if (preferredGroup && typeof preferredGroup !== 'number') {
@@ -661,11 +664,11 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		// Group: Unspecified without a specific index to open
-		else if (!editor.options || typeof editor.options.index !== 'number') {
+		else if (!options || typeof options.index !== 'number') {
 			const groupsByLastActive = this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 
 			// Respect option to reveal an editor if it is already visible in any group
-			if (editor.options?.revealIfVisible) {
+			if (options?.revealIfVisible) {
 				for (const lastActiveGroup of groupsByLastActive) {
 					if (lastActiveGroup.isActive(editor)) {
 						group = lastActiveGroup;
@@ -677,7 +680,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			// Respect option to reveal an editor if it is open (not necessarily visible)
 			// Still prefer to reveal an editor in a group where the editor is active though.
 			if (!group) {
-				if (editor.options?.revealIfOpened || this.configurationService.getValue<boolean>('workbench.editor.revealIfOpen')) {
+				if (options?.revealIfOpened || this.configurationService.getValue<boolean>('workbench.editor.revealIfOpen')) {
 					let groupWithInputActive: IEditorGroup | undefined = undefined;
 					let groupWithInputOpened: IEditorGroup | undefined = undefined;
 
@@ -728,6 +731,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	openEditors(editors: IEditorInputWithOptions[], group?: OpenInEditorGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]>;
 	openEditors(editors: IUntypedEditorInput[], group?: OpenInEditorGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]>;
+	openEditors(editors: Array<IEditorInputWithOptions | IUntypedEditorInput>, group?: OpenInEditorGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]>;
 	async openEditors(editors: Array<IEditorInputWithOptions | IUntypedEditorInput>, preferredGroup?: OpenInEditorGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]> {
 
 		// Pass all editors to trust service to determine if

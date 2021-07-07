@@ -235,6 +235,7 @@ export class TabsTitleControl extends TitleControl {
 				EventHelper.stop(e);
 
 				this.editorService.openEditor({
+					resource: undefined,
 					forceUntitled: true,
 					options: {
 						pinned: true,

@@ -713,7 +713,7 @@ suite('EditorService', () => {
 		{
 			// untyped untitled editor, no options, no group
 			{
-				let untypedEditor: IUntitledTextResourceEditorInput = { options: { override: TEST_EDITOR_INPUT_ID } };
+				let untypedEditor: IUntitledTextResourceEditorInput = { resource: undefined, options: { override: TEST_EDITOR_INPUT_ID } };
 				let pane = await openEditor(untypedEditor);
 
 				assert.strictEqual(pane?.group, rootGroup);
@@ -733,7 +733,7 @@ suite('EditorService', () => {
 
 			// untyped untitled editor, no options, SIDE_GROUP
 			{
-				let untypedEditor: IUntitledTextResourceEditorInput = { options: { override: TEST_EDITOR_INPUT_ID } };
+				let untypedEditor: IUntitledTextResourceEditorInput = { resource: undefined, options: { override: TEST_EDITOR_INPUT_ID } };
 				let pane = await openEditor(untypedEditor, SIDE_GROUP);
 
 				assert.strictEqual(accessor.editorGroupService.groups.length, 2);
@@ -780,7 +780,7 @@ suite('EditorService', () => {
 
 			// untyped untitled editor, options (sticky: true, preserveFocus: true), no group
 			{
-				let untypedEditor: IUntitledTextResourceEditorInput = { options: { sticky: true, preserveFocus: true, override: TEST_EDITOR_INPUT_ID } };
+				let untypedEditor: IUntitledTextResourceEditorInput = { resource: undefined, options: { sticky: true, preserveFocus: true, override: TEST_EDITOR_INPUT_ID } };
 				let pane = await openEditor(untypedEditor);
 
 				assert.strictEqual(pane?.group, rootGroup);
@@ -1301,7 +1301,7 @@ suite('EditorService', () => {
 		assert.strictEqual(contentInput.getPreferredMode(), 'text');
 
 		// Untyped Input (untitled)
-		input = service.createEditorInput({ options: { selection: { startLineNumber: 1, startColumn: 1 } } });
+		input = service.createEditorInput({ resource: undefined, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
 		assert(input instanceof UntitledTextEditorInput);
 
 		// Untyped Input (untitled with contents)
@@ -1313,7 +1313,7 @@ suite('EditorService', () => {
 		assert.strictEqual(model.textEditorModel?.getValue(), 'Hello Untitled');
 
 		// Untyped Input (untitled with mode)
-		input = service.createEditorInput({ mode, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
+		input = service.createEditorInput({ resource: undefined, mode, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
 		assert(input instanceof UntitledTextEditorInput);
 		model = await input.resolve() as UntitledTextEditorModel;
 		assert.strictEqual(model.getMode(), mode);
@@ -1725,7 +1725,7 @@ suite('EditorService', () => {
 		const [, service] = await createEditorService();
 
 		// Open untitled input
-		let editor = await service.openEditor({});
+		let editor = await service.openEditor({ resource: undefined });
 
 		assert.strictEqual(service.activeEditorPane, editor);
 		assert.strictEqual(service.activeTextEditorControl, editor?.getControl());

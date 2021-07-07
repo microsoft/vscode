@@ -19,7 +19,7 @@ import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/work
 import { applyZoom } from 'vs/platform/windows/electron-sandbox/window';
 import { setFullscreen, getZoomLevel } from 'vs/base/browser/browser';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IBaseResourceEditorInput, IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { env } from 'vs/base/common/process';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
@@ -631,7 +631,7 @@ export class NativeWindow extends Disposable {
 	}
 
 	private async onOpenFiles(request: INativeOpenFileRequest): Promise<void> {
-		const inputs: IUntypedEditorInput[] = [];
+		const inputs: Array<IResourceEditorInput | IUntitledTextResourceEditorInput> = [];
 		const diffMode = !!(request.filesToDiff && (request.filesToDiff.length === 2));
 
 		if (!diffMode && request.filesToOpenOrCreate) {
@@ -664,7 +664,7 @@ export class NativeWindow extends Disposable {
 	}
 
 	private async openResources(resources: Array<IResourceEditorInput | IUntitledTextResourceEditorInput>, diffMode: boolean): Promise<unknown> {
-		const editors: IBaseResourceEditorInput[] = [];
+		const editors: IUntypedEditorInput[] = [];
 
 		// In diffMode we open 2 resources as diff
 		if (diffMode && resources.length === 2 && resources[0].resource && resources[1].resource) {
