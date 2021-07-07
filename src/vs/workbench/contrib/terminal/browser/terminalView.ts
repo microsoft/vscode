@@ -53,7 +53,6 @@ export class TerminalViewPane extends ViewPane {
 	private _terminalTabbedView?: TerminalTabbedView;
 	get terminalTabbedView(): TerminalTabbedView | undefined { return this._terminalTabbedView; }
 	private _terminalsInitialized = false;
-	private _bodyDimensions: { width: number, height: number } = { width: 0, height: 0 };
 	private _isWelcomeShowing: boolean = false;
 	private _tabButtons: DropdownWithPrimaryActionViewItem | undefined;
 	private readonly _dropdownMenu: IMenu;
@@ -147,9 +146,6 @@ export class TerminalViewPane extends ViewPane {
 
 				if (hadTerminals) {
 					this._terminalGroupService.activeGroup?.setVisible(visible);
-				} else {
-					// TODO@Tyriar - this call seems unnecessary
-					this.layoutBody(this._bodyDimensions.height, this._bodyDimensions.width);
 				}
 				this._terminalGroupService.showPanel(true);
 			} else {
@@ -169,13 +165,7 @@ export class TerminalViewPane extends ViewPane {
 	// eslint-disable-next-line @typescript-eslint/naming-convention
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
-
-		if (this._terminalTabbedView) {
-			this._bodyDimensions.width = width;
-			this._bodyDimensions.height = height;
-
-			this._terminalTabbedView.layout(width, height);
-		}
+		this._terminalTabbedView?.layout(width, height);
 	}
 
 	override getActionViewItem(action: Action): IActionViewItem | undefined {
