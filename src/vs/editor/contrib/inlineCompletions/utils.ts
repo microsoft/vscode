@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, IReference, trackDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, IReference } from 'vs/base/common/lifecycle';
 
 export function createDisposableRef<T>(object: T, disposable?: IDisposable): IReference<T> {
 	return {
@@ -22,10 +22,6 @@ export function createDisposableRef<T>(object: T, disposable?: IDisposable): IRe
 export class MutableDisposable<T extends IDisposable> implements IDisposable {
 	private _value?: T;
 	private _isDisposed = false;
-
-	constructor() {
-		trackDisposable(this);
-	}
 
 	get value(): T | undefined {
 		return this._isDisposed ? undefined : this._value;
