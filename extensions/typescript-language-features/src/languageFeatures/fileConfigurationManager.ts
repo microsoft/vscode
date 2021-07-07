@@ -218,17 +218,17 @@ export default class FileConfigurationManager extends Disposable {
 export function getInlayHintsPreferences(config: vscode.WorkspaceConfiguration) {
 	return {
 		includeInlayParameterNameHints: getInlayParameterNameHintsPreference(config),
-		includeInlayParameterNameHintsWhenArgumentMatchesName: !config.get<boolean>('inlayHints.suppressInlayParameterNameHintsWhenArgumentMatchesName', true),
-		includeInlayFunctionParameterTypeHints: config.get<boolean>('inlayHints.includeInlayFunctionParameterTypeHints', false),
-		includeInlayVariableTypeHints: config.get<boolean>('inlayHints.includeInlayVariableTypeHints', false),
-		includeInlayPropertyDeclarationTypeHints: config.get<boolean>('inlayHints.includeInlayPropertyDeclarationTypeHints', false),
-		includeInlayFunctionLikeReturnTypeHints: config.get<boolean>('inlayHints.includeInlayFunctionLikeReturnTypeHints', false),
-		includeInlayEnumMemberValueHints: config.get<boolean>('inlayHints.includeInlayEnumMemberValueHints', false),
+		includeInlayParameterNameHintsWhenArgumentMatchesName: !config.get<boolean>('inlayHints.parameterNames.suppressWhenArgumentMatchesName', true),
+		includeInlayFunctionParameterTypeHints: config.get<boolean>('inlayHints.parameterTypes.enabled', false),
+		includeInlayVariableTypeHints: config.get<boolean>('inlayHints.variableTypes.enabled', false),
+		includeInlayPropertyDeclarationTypeHints: config.get<boolean>('inlayHints.propertyDeclarationTypes.enabled', false),
+		includeInlayFunctionLikeReturnTypeHints: config.get<boolean>('inlayHints.functionLikeReturnTypes.enabled', false),
+		includeInlayEnumMemberValueHints: config.get<boolean>('inlayHints.enumMemberValues.enabled', false),
 	} as const;
 }
 
 function getInlayParameterNameHintsPreference(config: vscode.WorkspaceConfiguration) {
-	switch (config.get<string>('inlayHints.includeInlayParameterNameHints')) {
+	switch (config.get<string>('inlayHints.parameterNames.enabled')) {
 		case 'none': return 'none';
 		case 'literals': return 'literals';
 		case 'all': return 'all';
