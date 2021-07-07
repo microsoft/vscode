@@ -410,7 +410,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			}
 			throw error;
 		} finally {
-			if (isBulkInstall) {
+			if (installResults.length && isBulkInstall) {
 				this._onDidInstallExtensions.fire(installResults.map(({ gallery, local, operation }) => ({ identifier: local.identifier, gallery, local, operation })));
 			}
 		}
