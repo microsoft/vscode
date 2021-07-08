@@ -20,10 +20,11 @@ const config = withDefaults({
 		filename: 'jsonClientMain.js',
 		path: path.join(__dirname, 'client', 'dist', 'node')
 	},
-	plugins: [
-		...withDefaults.getNodePlugins(__dirname),
-		new webpack.IgnorePlugin({ contextRegExp: /vertx/})
-	]
+	resolve: {
+		fallback: {
+			vertx: false // indirectly required by request-light
+		}
+	}
 });
 
 

@@ -20,10 +20,11 @@ const config = withDefaults({
 		filename: 'jsonServerMain.js',
 		path: path.join(__dirname, 'dist', 'node'),
 	},
-	plugins: [
-		...withDefaults.getNodePlugins(__dirname), // add plugin, don't replace inherited
-		new webpack.IgnorePlugin({ contextRegExp: /vertx/})
-	]
+	resolve: {
+		fallback: {
+			vertx: false // indirectly required by request-light
+		}
+	}
 });
 
 module.exports = config;
