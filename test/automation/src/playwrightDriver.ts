@@ -154,8 +154,8 @@ async function teardown(): Promise<void> {
 	if (server) {
 		try {
 			await new Promise<void>((c, e) => kill(server!.pid, err => err ? e(err) : c()));
-		} catch (err) {
-			console.warn('Failed to kill server:', err);
+		} catch {
+			// noop
 		}
 
 		server = undefined;
