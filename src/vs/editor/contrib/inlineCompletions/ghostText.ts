@@ -9,17 +9,36 @@ import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export class GhostText {
+	public static equals(a: GhostText | undefined, b: GhostText | undefined): boolean {
+		return a === b || (!!a && !!b && a.equals(b));
+	}
+
 	constructor(
 		public readonly lineNumber: number,
 		public readonly parts: GhostTextPart[],
 		public readonly additionalReservedLineCount: number = 0
 	) {
 	}
+
+	equals(other: GhostText): boolean {
+		return this.lineNumber === other.lineNumber &&
+			this.parts.length === other.parts.length &&
+			this.parts.every((part, index) => part.equals(other.parts[index]));
+	}
 }
 
-export interface GhostTextPart {
-	readonly lines: string[];
-	readonly column: number;
+export class GhostTextPart {
+	constructor(
+		readonly column: number,
+		readonly lines: string[],
+	) {
+	}
+
+	equals(other: GhostTextPart): boolean {
+		return this.column === other.column &&
+			this.lines.length === other.lines.length &&
+			this.lines.every((line, index) => line === other.lines[index]);
+	}
 }
 
 

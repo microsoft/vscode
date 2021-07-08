@@ -150,12 +150,24 @@ export class SuggestWidgetAdapterModel extends BaseGhostTextWidgetModel {
 	private update(): void {
 		const completion = this.currentCompletion;
 		const mode = this.editor.getOptions().get(EditorOption.suggest).previewMode;
-		this.currentGhostText = completion
-			? (
-				inlineCompletionToGhostText(completion, this.editor.getModel(), mode, this.editor.getPosition()) ||
-				// Show an invisible ghost text to reserve space
-				new GhostText(completion.range.endLineNumber, [], this.minReservedLineCount)
-			) : undefined;
+
+		this.setGhostText(
+			completion
+				? (
+					inlineCompletionToGhostText(completion, this.editor.getModel(), mode, this.editor.getPosition()) ||
+					// Show an invisible ghost text to reserve space
+					new GhostText(completion.range.endLineNumber, [], this.minReservedLineCount)
+				)
+				: undefined
+		);
+	}
+
+	private setGhostText(newGhostText: GhostText | undefined): void {
+		if (GhostText.equals(this.currentGhostText, newGhostText)) {
+			return;
+		}
+
+		this.currentGhostText = newGhostText;
 
 		if (this.currentGhostText && this.expanded) {
 			this.minReservedLineCount = Math.max(this.minReservedLineCount, ...this.currentGhostText.parts.map(p => p.lines.length - 1));

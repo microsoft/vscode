@@ -534,7 +534,7 @@ export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCo
 
 		const text = inlineCompletion.text.substr(c.modifiedStart, c.modifiedLength);
 		const lines = strings.splitLines(text);
-		parts.push({ column: insertColumn, lines });
+		parts.push(new GhostTextPart(insertColumn, lines));
 	}
 
 	return new GhostText(lineNumber, parts, 0);
