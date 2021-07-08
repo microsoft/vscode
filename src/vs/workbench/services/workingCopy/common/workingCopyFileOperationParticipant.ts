@@ -28,7 +28,10 @@ export class WorkingCopyFileOperationParticipant extends Disposable {
 	}
 
 	async participate(files: SourceTargetPair[], operation: FileOperation, undoInfo: IFileOperationUndoRedoInfo | undefined, token: CancellationToken): Promise<void> {
-		const timeout = this.configurationService.getValue<number>('files.participants.timeout');
+		const timeout = this.configurationService.getValue('files.participants.timeout');
+		if (typeof timeout !== 'number') {
+			return; // Setting is bad
+		}
 		if (timeout <= 0) {
 			return; // disabled
 		}

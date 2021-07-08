@@ -267,15 +267,15 @@ export class ThemeConfiguration {
 	}
 
 	public get colorTheme(): string {
-		return this.configurationService.getValue<string>(ThemeSettings.COLOR_THEME);
+		return this.configurationService.getValue(ThemeSettings.COLOR_THEME);
 	}
 
 	public get fileIconTheme(): string | null {
-		return this.configurationService.getValue<string | null>(ThemeSettings.FILE_ICON_THEME);
+		return this.configurationService.getValue(ThemeSettings.FILE_ICON_THEME);
 	}
 
 	public get productIconTheme(): string {
-		return this.configurationService.getValue<string>(ThemeSettings.PRODUCT_ICON_THEME);
+		return this.configurationService.getValue(ThemeSettings.PRODUCT_ICON_THEME);
 	}
 
 	public get colorCustomizations(): IColorCustomizations {
