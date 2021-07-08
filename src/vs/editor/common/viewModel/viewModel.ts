@@ -204,7 +204,45 @@ export class LineBreakData {
 		return result;
 	}
 
-	public getInjectedTextAt(offsetInUnwrappedLine: number): { offsetInUnwrappedLine: number, length: number } | undefined {
+	public normalizeOffsetAroundInjections(offsetInUnwrappedLine: number, affinity: PositionAffinity): number {
+		const injectedText = this.getInjectedTextAt(offsetInUnwrappedLine);
+		if (!injectedText) {
+			return offsetInUnwrappedLine;
+		}
+
+		if (affinity === PositionAffinity.None) {
+			if (offsetInUnwrappedLine === injectedText.offsetInUnwrappedLine + injectedText.length) {
+				// go to the end of this injected text
+				return injectedText.offsetInUnwrappedLine + injectedText.length;
+			} else {
+				// go to the start of this injected text
+				return injectedText.offsetInUnwrappedLine;
+			}
+		}
+
+		if (affinity === PositionAffinity.Right) {
+			let result = injectedText.offsetInUnwrappedLine + injectedText.length;
+			let index = injectedText.injectedTextIndex;
+			// traverse all injected text that touch eachother
+			while (index + 1 < this.injectionOffsets!.length && this.injectionOffsets![index + 1] === this.injectionOffsets![index]) {
+				result += this.injectionOptions![index + 1].content.length;
+				index++;
+			}
+			return result;
+		}
+
+		// affinity is left
+		let result = injectedText.offsetInUnwrappedLine;
+		let index = injectedText.injectedTextIndex;
+		// traverse all injected text that touch eachother
+		while (index - 1 >= 0 && this.injectionOffsets![index - 1] === this.injectionOffsets![index]) {
+			result -= this.injectionOptions![index - 1].content.length;
+			index++;
+		}
+		return result;
+	}
+
+	private getInjectedTextAt(offsetInUnwrappedLine: number): { injectedTextIndex: number, offsetInUnwrappedLine: number, length: number } | undefined {
 		const injectionOffsets = this.injectionOffsets;
 		const injectionOptions = this.injectionOptions;
 
@@ -220,9 +258,10 @@ export class LineBreakData {
 					break; // All later injected texts have an even larger offset.
 				}
 
-				if (offsetInUnwrappedLine < injectedTextEndOffsetInUnwrappedLine) {
+				if (offsetInUnwrappedLine <= injectedTextEndOffsetInUnwrappedLine) {
 					// Injected text ends after or with the given position (but also starts with or before it).
 					return {
+						injectedTextIndex: i,
 						offsetInUnwrappedLine: injectedTextStartOffsetInUnwrappedLine,
 						length
 					};

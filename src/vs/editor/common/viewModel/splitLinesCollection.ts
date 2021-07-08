@@ -1430,19 +1430,10 @@ export class SplitLine implements ISplitLine {
 		if (this._lineBreakData.injectionOffsets !== null) {
 			const baseViewLineNumber = outputPosition.lineNumber - outputLineIndex;
 			const offsetInUnwrappedLine = this._lineBreakData.outputPositionToOffsetInUnwrappedLine(outputLineIndex, outputPosition.column - 1);
-			const injectedText = this._lineBreakData.getInjectedTextAt(offsetInUnwrappedLine);
-			if (injectedText) {
-				// we've hit injected text
-				let newOffsetInUnwrappedLine: number;
-				if (affinity === PositionAffinity.Right || (affinity === PositionAffinity.None && offsetInUnwrappedLine === injectedText.offsetInUnwrappedLine + injectedText.length)) {
-					// going right
-					newOffsetInUnwrappedLine = injectedText.offsetInUnwrappedLine + injectedText.length;
-				} else {
-					// going left
-					newOffsetInUnwrappedLine = injectedText.offsetInUnwrappedLine;
-				}
-
-				return this._lineBreakData.getOutputPositionOfOffsetInUnwrappedLine(newOffsetInUnwrappedLine).toPosition(baseViewLineNumber, this._lineBreakData.wrappedTextIndentLength);
+			const normalizedOffsetInUnwrappedLine = this._lineBreakData.normalizeOffsetAroundInjections(offsetInUnwrappedLine, affinity);
+			if (normalizedOffsetInUnwrappedLine !== offsetInUnwrappedLine) {
+				// injected text caused a change
+				return this._lineBreakData.getOutputPositionOfOffsetInUnwrappedLine(normalizedOffsetInUnwrappedLine, affinity).toPosition(baseViewLineNumber, this._lineBreakData.wrappedTextIndentLength);
 			}
 		}
 
