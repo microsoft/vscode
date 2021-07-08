@@ -152,12 +152,14 @@ function isWelcomePageEnabled(configurationService: IConfigurationService, conte
 			return welcomeEnabled.value;
 		}
 	}
-	if (startupEditor.value === 'readme' && startupEditor.userValue !== 'readme') {
-		console.error('Warning: `workbench.startupEditor: readme` setting ignored due to being set somewhere other than user settings');
+
+	if (startupEditor.value === 'readme' && (startupEditor.userValue !== 'readme' || startupEditor.defaultValue !== 'readme')) {
+		console.error(`Warning: 'workbench.startupEditor: readme' setting ignored due to being set somewhere other than user or default settings (user=${startupEditor.userValue}, default=${startupEditor.defaultValue})`);
 	}
 	return startupEditor.value === 'welcomePage'
 		|| startupEditor.value === 'legacy_welcomePage'
 		|| startupEditor.userValue === 'readme'
+		|| startupEditor.defaultValue === 'readme'
 		|| (contextService.getWorkbenchState() === WorkbenchState.EMPTY && (startupEditor.value === 'legacy_welcomePageInEmptyWorkbench' || startupEditor.value === 'welcomePageInEmptyWorkbench'));
 }
 
