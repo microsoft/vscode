@@ -794,9 +794,16 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// preserve that user environment in subsequent loads,
 		// unless the new configuration context was also a CLI
 		// (for https://github.com/microsoft/vscode/issues/108571)
+		// Also, preserve the environment if we're loading from an
+		// extension development host that had its environment set
+		// (for https://github.com/microsoft/vscode/issues/123508)
 		const currentUserEnv = (this.currentConfig ?? this.pendingLoadConfig)?.userEnv;
-		if (currentUserEnv && isLaunchedFromCli(currentUserEnv) && !isLaunchedFromCli(configuration.userEnv)) {
-			configuration.userEnv = { ...currentUserEnv, ...configuration.userEnv }; // still allow to override certain environment as passed in
+		if (currentUserEnv) {
+			const shouldPreserveLaunchCliEnvironment = isLaunchedFromCli(currentUserEnv) && !isLaunchedFromCli(configuration.userEnv);
+			const shouldPreserveDebugEnvironmnet = this.isExtensionDevelopmentHost;
+			if (shouldPreserveLaunchCliEnvironment || shouldPreserveDebugEnvironmnet) {
+				configuration.userEnv = { ...currentUserEnv, ...configuration.userEnv }; // still allow to override certain environment as passed in
+			}
 		}
 
 		// If named pipe was instantiated for the crashpad_handler process, reuse the same
