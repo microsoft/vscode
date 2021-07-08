@@ -80,8 +80,7 @@ export class WorkspaceTrustEnablementService extends Disposable implements IWork
 			return false;
 		}
 
-		const workspaceTrustEnabledSetting = this.configurationService.getValue(WORKSPACE_TRUST_ENABLED);
-		return typeof workspaceTrustEnabledSetting === 'boolean' ? workspaceTrustEnabledSetting : false;
+		return this.configurationService.getValue<boolean>(WORKSPACE_TRUST_ENABLED) ?? false;
 	}
 }
 
@@ -309,8 +308,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			}
 
 			// User setting
-			const emptyWindowSetting = this.configurationService.getValue(WORKSPACE_TRUST_EMPTY_WINDOW);
-			return typeof emptyWindowSetting === 'boolean' ? emptyWindowSetting : false;
+			return this.configurationService.getValue<boolean>(WORKSPACE_TRUST_EMPTY_WINDOW) ?? false;
 		}
 
 		return this.getUrisTrust(this.getWorkspaceUris());
