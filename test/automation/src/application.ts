@@ -141,7 +141,7 @@ export class Application {
 
 		if (this.remote) {
 			try {
-				await this.code.waitForTextContent('.monaco-workbench .statusbar-item[id="status.hdost"]', ' TestResolver', undefined);
+				await this.code.waitForTextContent('.monaco-workbench .statusbar-item[id="status.host"]', ' TestResolver', undefined);
 			} catch (err) {
 				await this.captureScreenshot('no-remote');
 				throw err;
