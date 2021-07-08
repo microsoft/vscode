@@ -1224,10 +1224,8 @@ export class SplitLine implements ISplitLine {
 
 		let r: string;
 		if (this._lineBreakData.injectionOffsets !== null) {
-			// This could be done more performant if required.
-			r = LineInjectedText.applyInjectedText(model.getLineContent(modelLineNumber), this._lineBreakData.injectionOffsets.map((offset, idx) =>
-				new LineInjectedText(0, 0, offset, this._lineBreakData.injectionOptions![idx], 0)
-			)).substring(startOffset, endOffset);
+			const injectedTexts = this._lineBreakData.injectionOffsets.map((offset, idx) => new LineInjectedText(0, 0, offset, this._lineBreakData.injectionOptions![idx], 0));
+			r = LineInjectedText.applyInjectedText(model.getLineContent(modelLineNumber), injectedTexts).substring(startOffset, endOffset);
 		} else {
 			r = model.getValueInRange({
 				startLineNumber: modelLineNumber,
@@ -1329,18 +1327,11 @@ export class SplitLine implements ISplitLine {
 					// Injected text ends after or in this line (but also starts in or before this line).
 					const inlineClassName = injectionOptions![i].inlineClassName;
 					if (inlineClassName) {
-						let offset = 0;
-						if (outputLineIndex > 0) {
-							offset = lineBreakData.wrappedTextIndentLength;
-						}
-						const start = Math.max(injectedTextStartOffsetInUnwrappedLine - lineStartOffsetInUnwrappedLine, 0) + offset;
-						const end = Math.min(injectedTextEndOffsetInUnwrappedLine - lineStartOffsetInUnwrappedLine, lineEndOffsetInUnwrappedLine) + offset;
+						const offset = (outputLineIndex > 0 ? lineBreakData.wrappedTextIndentLength : 0);
+						const start = offset + Math.max(injectedTextStartOffsetInUnwrappedLine - lineStartOffsetInUnwrappedLine, 0);
+						const end = offset + Math.min(injectedTextEndOffsetInUnwrappedLine - lineStartOffsetInUnwrappedLine, lineEndOffsetInUnwrappedLine);
 						if (start !== end) {
-							inlineDecorations.push(new SingleLineInlineDecoration(
-								start,
-								end,
-								inlineClassName
-							));
+							inlineDecorations.push(new SingleLineInlineDecoration(start, end, inlineClassName));
 						}
 					}
 				}

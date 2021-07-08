@@ -102,11 +102,8 @@ export class OutputPosition {
 	}
 
 	toPosition(baseLineNumber: number, wrappedTextIndentLength: number): Position {
-		let delta = 0;
-		if (this.outputLineIndex > 0) {
-			delta += wrappedTextIndentLength;
-		}
-		return new Position(baseLineNumber + this.outputLineIndex, this.outputOffset + 1 + delta);
+		const delta = (this.outputLineIndex > 0 ? wrappedTextIndentLength : 0);
+		return new Position(baseLineNumber + this.outputLineIndex, delta + this.outputOffset + 1);
 	}
 }
 
@@ -165,7 +162,7 @@ export class LineBreakData {
 		return this.getOutputPositionOfOffsetInUnwrappedLine(inputOffset, affinity);
 	}
 
-	public getOutputPositionOfOffsetInUnwrappedLine(offset: number, affinity: PositionAffinity = PositionAffinity.None): OutputPosition {
+	public getOutputPositionOfOffsetInUnwrappedLine(inputOffset: number, affinity: PositionAffinity = PositionAffinity.None): OutputPosition {
 		let low = 0;
 		let high = this.breakOffsets.length - 1;
 		let mid = 0;
@@ -177,23 +174,26 @@ export class LineBreakData {
 			const midStop = this.breakOffsets[mid];
 			midStart = mid > 0 ? this.breakOffsets[mid - 1] : 0;
 
-			if (affinity === PositionAffinity.Left && offset === midStart) {
-				console.log('foo');
-			}
-			if (affinity !== PositionAffinity.Left && offset === midStop) {
-				console.log('bar');
-			}
-
-			if (offset < midStart || (affinity === PositionAffinity.Left && offset === midStart)) {
-				high = mid - 1;
-			} else if (offset > midStop || (affinity !== PositionAffinity.Left && offset === midStop)) {
-				low = mid + 1;
+			if (affinity === PositionAffinity.Left) {
+				if (inputOffset <= midStart) {
+					high = mid - 1;
+				} else if (inputOffset > midStop) {
+					low = mid + 1;
+				} else {
+					break;
+				}
 			} else {
-				break;
+				if (inputOffset < midStart) {
+					high = mid - 1;
+				} else if (inputOffset >= midStop) {
+					low = mid + 1;
+				} else {
+					break;
+				}
 			}
 		}
 
-		return new OutputPosition(mid, offset - midStart);
+		return new OutputPosition(mid, inputOffset - midStart);
 	}
 
 	public outputPositionToOffsetInUnwrappedLine(outputLineIndex: number, outputOffset: number): number {
