@@ -5,6 +5,7 @@
 
 import { deepStrictEqual, strictEqual } from 'assert';
 import Severity from 'vs/base/common/severity';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ITerminalStatus, TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 
 function statusesEqual(list: TerminalStatusList, expected: [string, Severity][]) {
@@ -15,7 +16,7 @@ suite('Workbench - TerminalStatusList', () => {
 	let list: TerminalStatusList;
 
 	setup(() => {
-		list = new TerminalStatusList();
+		list = new TerminalStatusList(new TestConfigurationService());
 	});
 
 	teardown(() => {

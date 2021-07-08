@@ -149,7 +149,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _hasHadInput: boolean;
 
-	readonly statusList: ITerminalStatusList = new TerminalStatusList();
+	readonly statusList: ITerminalStatusList;
 	disableLayout: boolean = false;
 	target?: TerminalLocation;
 	get instanceId(): number { return this._instanceId; }
@@ -296,6 +296,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this.setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
 		}
 
+		this.statusList = this._instantiationService.createInstance(TerminalStatusList);
 		this._initDimensions();
 		this._createProcessManager();
 
