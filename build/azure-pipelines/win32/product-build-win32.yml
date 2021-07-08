@@ -217,7 +217,7 @@ steps:
       $ErrorActionPreference = "Stop"
       $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
       $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-win32-$(VSCODE_ARCH)"
-      exec { yarn smoketest-no-compile --build "$AppRoot" --remote --verbose }
+      exec { yarn smoketest-no-compile --build "$AppRoot" --remote --verbose --screenshots .build\screenshots }
     displayName: Run smoke tests (Remote)
     timeoutInMinutes: 5
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
@@ -231,13 +231,21 @@ steps:
   #   timeoutInMinutes: 5
   #   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
+  # - task: PublishPipelineArtifact@0
+  #   inputs:
+  #     artifactName: crash-dump-windows-$(VSCODE_ARCH)
+  #     targetPath: .build\crashes
+  #   displayName: "Publish Crash Reports"
+  #   continueOnError: true
+  #   condition: failed()
+
   - task: PublishPipelineArtifact@0
     inputs:
-      artifactName: crash-dump-windows-$(VSCODE_ARCH)
-      targetPath: .build\crashes
-    displayName: "Publish Crash Reports"
+      artifactName: screenshots-$(VSCODE_ARCH)
+      targetPath: .build\screenshots
+    displayName: "Publish Screenshots"
     continueOnError: true
-    condition: failed()
+    condition: always()
 
   # - task: PublishPipelineArtifact@0
   #   inputs:
