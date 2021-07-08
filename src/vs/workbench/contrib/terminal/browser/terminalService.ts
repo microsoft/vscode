@@ -24,7 +24,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ICreateContributedTerminalProfileOptions, ICreateTerminalOptions, ILocalTerminalService, IOffProcessTerminalService, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, ICreateTerminalOptions, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
 import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IconDefinition } from 'vs/platform/theme/common/iconRegistry';
@@ -38,7 +38,7 @@ import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEd
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { configureTerminalProfileIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, ITerminalProfileContribution, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ILocalTerminalService, IOffProcessTerminalService, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, ITerminalProfileContribution, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { formatMessageForTerminal, terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';

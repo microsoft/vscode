@@ -9,11 +9,12 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, TerminalLocation, TerminalShellType, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, TerminalLocation, TerminalShellType, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { TerminalContextKey } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -120,6 +121,44 @@ export interface IShellLaunchConfigResolveOptions {
 	remoteAuthority: string | undefined;
 	os: OperatingSystem;
 	allowAutomationShell?: boolean;
+}
+
+export interface IOffProcessTerminalService {
+	readonly _serviceBrand: undefined;
+
+	/**
+	 * Fired when the ptyHost process becomes non-responsive, this should disable stdin for all
+	 * terminals using this pty host connection and mark them as disconnected.
+	 */
+	onPtyHostUnresponsive: Event<void>;
+	/**
+	 * Fired when the ptyHost process becomes responsive after being non-responsive. Allowing
+	 * previously disconnected terminals to reconnect.
+	 */
+	onPtyHostResponsive: Event<void>;
+	/**
+	 * Fired when the ptyHost has been restarted, this is used as a signal for listening terminals
+	 * that its pty has been lost and will remain disconnected.
+	 */
+	onPtyHostRestart: Event<void>;
+
+	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
+	listProcesses(): Promise<IProcessDetails[]>;
+	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
+	getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
+	getWslPath(original: string): Promise<string>;
+	getEnvironment(): Promise<IProcessEnvironment>;
+	getShellEnvironment(): Promise<IProcessEnvironment | undefined>;
+	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
+	updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void>;
+	updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<void>;
+	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
+	reduceConnectionGraceTime(): Promise<void>;
+}
+
+export const ILocalTerminalService = createDecorator<ILocalTerminalService>('localTerminalService');
+export interface ILocalTerminalService extends IOffProcessTerminalService {
+	createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess>;
 }
 
 export type FontWeight = 'normal' | 'bold' | number;
