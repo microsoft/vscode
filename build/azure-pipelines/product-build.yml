@@ -35,35 +35,35 @@ parameters:
   - name: VSCODE_BUILD_LINUX
     displayName: "🎯 Linux x64"
     type: boolean
-    default: false
+    default: true
   - name: VSCODE_BUILD_LINUX_ARM64
     displayName: "🎯 Linux arm64"
     type: boolean
-    default: false
+    default: true
   - name: VSCODE_BUILD_LINUX_ARMHF
     displayName: "🎯 Linux armhf"
     type: boolean
-    default: false
+    default: true
   - name: VSCODE_BUILD_LINUX_ALPINE
     displayName: "🎯 Alpine Linux"
     type: boolean
-    default: false
+    default: true
   - name: VSCODE_BUILD_MACOS
     displayName: "🎯 macOS x64"
     type: boolean
-    default: false
+    default: true
   - name: VSCODE_BUILD_MACOS_ARM64
     displayName: "🎯 macOS arm64"
     type: boolean
-    default: false
+    default: true
   - name: VSCODE_BUILD_MACOS_UNIVERSAL
     displayName: "🎯 macOS universal"
     type: boolean
-    default: false
+    default: true
   - name: VSCODE_BUILD_WEB
     displayName: "🎯 Web"
     type: boolean
-    default: false
+    default: true
   - name: VSCODE_PUBLISH
     displayName: "Publish to builds.code.visualstudio.com"
     type: boolean
