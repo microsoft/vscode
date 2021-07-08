@@ -1277,7 +1277,7 @@ export function registerTerminalActions() {
 			const terminalService = accessor.get(ITerminalService);
 			const instanceHost = terminalService.getFindHost();
 			const state = instanceHost.getFindState();
-			state.change({ matchCase: !state.matchCase }, false);
+			state.change({ isRegex: !state.isRegex }, false);
 		}
 	});
 	registerAction2(class extends Action2 {

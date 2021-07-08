@@ -12,7 +12,7 @@ import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { localize } from 'vs/nls';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { IMenu, IMenuActionOptions, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -26,7 +26,7 @@ import { ITerminalEditorService, ITerminalService } from 'vs/workbench/contrib/t
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { TerminalTabContextMenuGroup } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
-import { ITerminalProfileResolverService, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProfileResolverService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -51,7 +51,6 @@ export class TerminalEditor extends EditorPane {
 	private readonly _dropdownMenu: IMenu;
 
 	private _findWidget: TerminalFindWidget;
-	private _findWidgetVisible: IContextKey<boolean>;
 	private _findState: FindReplaceState;
 
 	private readonly _instanceMenu: IMenu;
@@ -78,7 +77,6 @@ export class TerminalEditor extends EditorPane {
 		super(TerminalEditor.ID, telemetryService, themeService, storageService);
 		this._findState = new FindReplaceState();
 		this._findWidget = instantiationService.createInstance(TerminalFindWidget, this._findState);
-		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE.bindTo(contextKeyService);
 		this._dropdownMenu = this._register(menuService.createMenu(MenuId.TerminalNewDropdownContext, contextKeyService));
 		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalInstanceContext, contextKeyService));
 	}
@@ -288,7 +286,6 @@ export class TerminalEditor extends EditorPane {
 		if (this._overflowGuardElement && !this._overflowGuardElement?.querySelector(findWidgetSelector)) {
 			this._overflowGuardElement.appendChild(this._findWidget.getDomNode());
 		}
-		this._findWidgetVisible.set(true);
 		const activeInstance = this._terminalEditorService.activeInstance;
 		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection!.indexOf('\n') === -1) {
 			this._findWidget.reveal(activeInstance.selection);
@@ -298,7 +295,6 @@ export class TerminalEditor extends EditorPane {
 	}
 
 	hideFindWidget() {
-		this._findWidgetVisible.reset();
 		this.focus();
 		this._findWidget.hide();
 	}
