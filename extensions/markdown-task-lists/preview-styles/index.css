@@ -1,0 +1,22 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+ .contains-task-list {
+	padding-left: 0;
+}
+
+.contains-task-list li {
+	margin-left: 24px;
+}
+
+.contains-task-list .task-list-item {
+	list-style: none;
+	padding-left: 0;
+	margin-left: 0;
+}
+
+.contains-task-list .contains-task-list {
+	padding-left: 20px;
+}
