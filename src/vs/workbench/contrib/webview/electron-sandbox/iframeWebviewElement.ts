@@ -43,7 +43,7 @@ export class ElectronIframeWebview extends IFrameWebview implements WebviewFindD
 
 	public readonly checkImeCompletionState = true;
 
-	protected override readonly platform = 'electron';
+	protected override get platform() { return 'electron'; }
 
 	constructor(
 		id: string,

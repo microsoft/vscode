@@ -90,7 +90,7 @@ namespace WebviewState {
 
 export class IFrameWebview extends Disposable implements Webview {
 
-	protected readonly platform: string = 'browser';
+	protected get platform(): string { return 'browser'; }
 
 	private readonly _expectedServiceWorkerVersion = 2; // Keep this in sync with the version in service-worker.js
 
