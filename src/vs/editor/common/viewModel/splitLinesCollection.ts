@@ -1429,19 +1429,20 @@ export class SplitLine implements ISplitLine {
 	public normalizePosition(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number, outputPosition: Position, affinity: PositionAffinity): Position {
 		if (this._lineBreakData.injectionOffsets !== null) {
 			const baseViewLineNumber = outputPosition.lineNumber - outputLineIndex;
-
-			if (affinity === PositionAffinity.None) {
-				const offsetInUnwrappedLine = this._lineBreakData.outputPositionToOffsetInUnwrappedLine(outputLineIndex, outputPosition.column - 1);
-				const injectedText = this._lineBreakData.getInjectedTextAt(offsetInUnwrappedLine);
-				if (injectedText) {
-					if (offsetInUnwrappedLine === injectedText.offsetInUnwrappedLine + injectedText.length) {
-						return this._lineBreakData.getOutputPositionOfOffsetInUnwrappedLine(injectedText.offsetInUnwrappedLine + injectedText.length).toPosition(baseViewLineNumber, this._lineBreakData.wrappedTextIndentLength);
-					}
-					return this._lineBreakData.getOutputPositionOfOffsetInUnwrappedLine(injectedText.offsetInUnwrappedLine).toPosition(baseViewLineNumber, this._lineBreakData.wrappedTextIndentLength);
+			const offsetInUnwrappedLine = this._lineBreakData.outputPositionToOffsetInUnwrappedLine(outputLineIndex, outputPosition.column - 1);
+			const injectedText = this._lineBreakData.getInjectedTextAt(offsetInUnwrappedLine);
+			if (injectedText) {
+				// we've hit injected text
+				let newOffsetInUnwrappedLine: number;
+				if (affinity === PositionAffinity.Right || (affinity === PositionAffinity.None && offsetInUnwrappedLine === injectedText.offsetInUnwrappedLine + injectedText.length)) {
+					// going right
+					newOffsetInUnwrappedLine = injectedText.offsetInUnwrappedLine + injectedText.length;
+				} else {
+					// going left
+					newOffsetInUnwrappedLine = injectedText.offsetInUnwrappedLine;
 				}
-			} else {
-				const modelColumn = this.getModelColumnOfViewPosition(outputLineIndex, outputPosition.column);
-				return this.getViewPositionOfModelPosition(baseViewLineNumber, modelColumn, affinity);
+
+				return this._lineBreakData.getOutputPositionOfOffsetInUnwrappedLine(newOffsetInUnwrappedLine).toPosition(baseViewLineNumber, this._lineBreakData.wrappedTextIndentLength);
 			}
 		}
 
