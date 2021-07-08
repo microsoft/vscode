@@ -635,20 +635,13 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	}
 
 	private doOpenFolderOrWorkspace(openConfig: IOpenConfiguration, folderOrWorkspace: IWorkspacePathToOpen | ISingleFolderWorkspacePathToOpen, forceNewWindow: boolean, filesToOpen: IFilesToOpen | undefined, windowToUse?: ICodeWindow): ICodeWindow {
-		const contextWindow = typeof openConfig.contextWindowId === 'number' ? this.getWindowById(openConfig.contextWindowId) : undefined;
-		if (!forceNewWindow && !windowToUse && contextWindow) {
-			windowToUse = contextWindow; // fix for https://github.com/microsoft/vscode/issues/49587
-		}
-
-
-		let userEnv = openConfig.userEnv;
-		if (!openConfig.userEnv && contextWindow) {
-			userEnv = contextWindow.config?.userEnv; // fix for https://github.com/microsoft/vscode/issues/123508
+		if (!forceNewWindow && !windowToUse && typeof openConfig.contextWindowId === 'number') {
+			windowToUse = this.getWindowById(openConfig.contextWindowId); // fix for https://github.com/microsoft/vscode/issues/49587
 		}
 
 		return this.openInBrowserWindow({
 			workspace: folderOrWorkspace.workspace,
-			userEnv,
+			userEnv: openConfig.userEnv,
 			cli: openConfig.cli,
 			initialStartup: openConfig.initialStartup,
 			remoteAuthority: folderOrWorkspace.remoteAuthority,
