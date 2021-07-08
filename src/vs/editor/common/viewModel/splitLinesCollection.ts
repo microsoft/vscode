@@ -12,7 +12,7 @@ import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecoration, IModelDe
 import { ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { PrefixSumIndexOfResult } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { ICoordinatesConverter, ILineBreaksComputer, IOverviewRulerDecorations, LineBreakData, SingleLineInlineDecoration, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
+import { ICoordinatesConverter, InjectedText, ILineBreaksComputer, IOverviewRulerDecorations, LineBreakData, SingleLineInlineDecoration, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
@@ -48,6 +48,8 @@ export interface ISplitLine {
 	getViewPositionOfModelPosition(deltaLineNumber: number, inputColumn: number, affinity?: PositionAffinity): Position;
 	getViewLineNumberOfModelPosition(deltaLineNumber: number, inputColumn: number): number;
 	normalizePosition(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number, outputPosition: Position, affinity: PositionAffinity): Position;
+
+	getInjectedTextAt(outputLineIndex: number, column: number): InjectedText | null;
 }
 
 export interface IViewModelLinesCollection extends IDisposable {
@@ -77,6 +79,8 @@ export interface IViewModelLinesCollection extends IDisposable {
 
 	getAllOverviewRulerDecorations(ownerId: number, filterOutValidation: boolean, theme: EditorTheme): IOverviewRulerDecorations;
 	getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean): IModelDecoration[];
+
+	getInjectedTextAt(viewPosition: Position): InjectedText | null;
 
 	normalizePosition(position: Position, affinity: PositionAffinity): Position;
 	/**
@@ -997,6 +1001,15 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		return finalResult;
 	}
 
+	public getInjectedTextAt(position: Position): InjectedText | null {
+		const viewLineNumber = this._toValidViewLineNumber(position.lineNumber);
+		const r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
+		const lineIndex = r.index;
+		const remainder = r.remainder;
+
+		return this.lines[lineIndex].getInjectedTextAt(remainder, position.column);
+	}
+
 	normalizePosition(position: Position, affinity: PositionAffinity): Position {
 		const viewLineNumber = this._toValidViewLineNumber(position.lineNumber);
 		const r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
@@ -1101,6 +1114,10 @@ class VisibleIdentitySplitLine implements ISplitLine {
 	public normalizePosition(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number, outputPosition: Position, affinity: PositionAffinity): Position {
 		return outputPosition;
 	}
+
+	public getInjectedTextAt(_outputLineIndex: number, _outputColumn: number): InjectedText | null {
+		return null;
+	}
 }
 
 class InvisibleIdentitySplitLine implements ISplitLine {
@@ -1165,6 +1182,10 @@ class InvisibleIdentitySplitLine implements ISplitLine {
 	}
 
 	public normalizePosition(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number, outputPosition: Position, affinity: PositionAffinity): Position {
+		throw new Error('Not supported');
+	}
+
+	public getInjectedTextAt(_outputLineIndex: number, _outputColumn: number): InjectedText | null {
 		throw new Error('Not supported');
 	}
 }
@@ -1451,6 +1472,10 @@ export class SplitLine implements ISplitLine {
 
 		return outputPosition;
 	}
+
+	public getInjectedTextAt(outputLineIndex: number, outputColumn: number): InjectedText | null {
+		return this._lineBreakData.getInjectedText(outputLineIndex, outputColumn);
+	}
 }
 
 let _spaces: string[] = [''];
@@ -1693,6 +1718,11 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 
 	public getLineIndentColumn(lineNumber: number): number {
 		return this.model.getLineIndentColumn(lineNumber);
+	}
+
+	public getInjectedTextAt(position: Position): InjectedText | null {
+		// Identity lines collection does not support injected text.
+		return null;
 	}
 }
 

@@ -205,7 +205,7 @@ export class LineBreakData {
 	}
 
 	public normalizeOffsetAroundInjections(offsetInUnwrappedLine: number, affinity: PositionAffinity): number {
-		const injectedText = this.getInjectedTextAt(offsetInUnwrappedLine);
+		const injectedText = this.getInjectedTextAtOffset(offsetInUnwrappedLine);
 		if (!injectedText) {
 			return offsetInUnwrappedLine;
 		}
@@ -242,7 +242,18 @@ export class LineBreakData {
 		return result;
 	}
 
-	private getInjectedTextAt(offsetInUnwrappedLine: number): { injectedTextIndex: number, offsetInUnwrappedLine: number, length: number } | undefined {
+	public getInjectedText(outputLineIndex: number, outputOffset: number): InjectedText | null {
+		const offset = this.outputPositionToOffsetInUnwrappedLine(outputLineIndex, outputOffset);
+		const injectedText = this.getInjectedTextAtOffset(offset);
+		if (!injectedText) {
+			return null;
+		}
+		return {
+			options: this.injectionOptions![injectedText.injectedTextIndex]
+		};
+	}
+
+	private getInjectedTextAtOffset(offsetInUnwrappedLine: number): { injectedTextIndex: number, offsetInUnwrappedLine: number, length: number } | undefined {
 		const injectionOffsets = this.injectionOffsets;
 		const injectionOptions = this.injectionOptions;
 
@@ -328,6 +339,8 @@ export interface IViewModel extends ICursorSimpleModel {
 	invalidateMinimapColorCache(): void;
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 
+	getInjectedTextAt(viewPosition: Position): InjectedText | null;
+
 	getModelLineMaxColumn(modelLineNumber: number): number;
 	validateModelPosition(modelPosition: IPosition): Position;
 	validateModelRange(range: IRange): Range;
@@ -370,6 +383,10 @@ export interface IViewModel extends ICursorSimpleModel {
 	changeWhitespace(callback: (accessor: IWhitespaceChangeAccessor) => void): void;
 	setMaxLineWidth(maxLineWidth: number): void;
 	//#endregion
+}
+
+export class InjectedText {
+	constructor(public readonly options: InjectedTextOptions) { }
 }
 
 export class MinimapLinesRenderingData {
