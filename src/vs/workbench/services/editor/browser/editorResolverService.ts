@@ -601,6 +601,8 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 				resolve(result);
 			});
 
+			editorPicker.onDidHide(() => resolve(undefined));
+
 			editorPicker.onDidTriggerItemButton(e => {
 
 				// Trigger opening and close picker
