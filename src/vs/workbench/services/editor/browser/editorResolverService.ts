@@ -460,9 +460,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}
 
 		const handle = this.notificationService.prompt(Severity.Warning,
-			localize('editorOverride.conflictingDefaults', 'There are multiple default editors available for the resource.'),
+			localize('editorResolver.conflictingDefaults', 'There are multiple default editors available for the resource.'),
 			[{
-				label: localize('editorOverride.configureDefault', 'Configure Default'),
+				label: localize('editorResolver.configureDefault', 'Configure Default'),
 				run: async () => {
 					// Show the picker and tell it to update the setting to whatever the user selected
 					const picked = await this.doPickEditor(untypedInput, true);
@@ -485,7 +485,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 				}
 			},
 			{
-				label: localize('editorOverride.keepDefault', 'Keep {0}', editorName),
+				label: localize('editorResolver.keepDefault', 'Keep {0}', editorName),
 				run: writeCurrentEditorsToStorage
 			}
 			]);

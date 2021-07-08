@@ -496,7 +496,7 @@ export interface IEditorInput extends IDisposable {
 
 	/**
 	 * Identifies the type of editor this input represents
-	 * This ID is registered with the {@link EditorOverrideService} to allow
+	 * This ID is registered with the {@link EditorResolverService} to allow
 	 * for resolving an untyped input to a typed one
 	 */
 	readonly editorId: string | undefined;

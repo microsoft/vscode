@@ -1966,11 +1966,11 @@ suite('EditorService', () => {
 		assert.strictEqual(editorContextKeyService, part.activeGroup.activeEditorPane?.scopedContextKeyService);
 	});
 
-	test('editorOverrideService - openEditor', async function () {
+	test('editorResolverService - openEditor', async function () {
 		const [, service, accessor] = await createEditorService();
-		const editorOverrideService = accessor.editorResolverService;
-		let overrideCount = 0;
-		const registrationDisposable = editorOverrideService.registerEditor(
+		const editorResolverService = accessor.editorResolverService;
+		let editorCount = 0;
+		const registrationDisposable = editorResolverService.registerEditor(
 			'*.md',
 			{
 				id: 'TestEditor',
@@ -1980,33 +1980,33 @@ suite('EditorService', () => {
 			},
 			{},
 			(editorInput) => {
-				overrideCount++;
+				editorCount++;
 				return ({ editor: service.createEditorInput(editorInput) });
 			},
 			undefined,
 			diffEditor => ({ editor: service.createEditorInput(diffEditor) })
 		);
-		assert.strictEqual(overrideCount, 0);
+		assert.strictEqual(editorCount, 0);
 		const input1 = { resource: URI.parse('file://test/path/resource1.txt') };
 		const input2 = { resource: URI.parse('file://test/path/resource1.md') };
 		// Open editor input 1 and it shouln't trigger override as the glob doesn't match
 		await service.openEditor(input1);
-		assert.strictEqual(overrideCount, 0);
+		assert.strictEqual(editorCount, 0);
 		// Open editor input 2 and it should trigger override as the glob doesn match
 		await service.openEditor(input2);
-		assert.strictEqual(overrideCount, 1);
+		assert.strictEqual(editorCount, 1);
 		// Because we specify an override we shouldn't see it triggered even if it matches
 		await service.openEditor({ ...input2, options: { override: 'default' } });
-		assert.strictEqual(overrideCount, 1);
+		assert.strictEqual(editorCount, 1);
 
 		registrationDisposable.dispose();
 	});
 
-	test('editorOverrideService - openEditors', async function () {
+	test('editorResolverService - openEditors', async function () {
 		const [, service, accessor] = await createEditorService();
-		const editorOverrideService = accessor.editorResolverService;
-		let overrideCount = 0;
-		const registrationDisposable = editorOverrideService.registerEditor(
+		const editorResolverService = accessor.editorResolverService;
+		let editorCount = 0;
+		const registrationDisposable = editorResolverService.registerEditor(
 			'*.md',
 			{
 				id: 'TestEditor',
@@ -2016,29 +2016,29 @@ suite('EditorService', () => {
 			},
 			{},
 			(editorInput) => {
-				overrideCount++;
+				editorCount++;
 				return ({ editor: service.createEditorInput(editorInput) });
 			},
 			undefined,
 			diffEditor => ({ editor: service.createEditorInput(diffEditor) })
 		);
-		assert.strictEqual(overrideCount, 0);
+		assert.strictEqual(editorCount, 0);
 		const input1 = new TestFileEditorInput(URI.parse('file://test/path/resource1.txt'), TEST_EDITOR_INPUT_ID);
 		const input2 = new TestFileEditorInput(URI.parse('file://test/path/resource2.txt'), TEST_EDITOR_INPUT_ID);
 		const input3 = new TestFileEditorInput(URI.parse('file://test/path/resource3.md'), TEST_EDITOR_INPUT_ID);
 		const input4 = new TestFileEditorInput(URI.parse('file://test/path/resource4.md'), TEST_EDITOR_INPUT_ID);
 		// Open editor input 1 and it shouln't trigger override as the glob doesn't match
 		await service.openEditors([{ editor: input1 }, { editor: input2 }, { editor: input3 }, { editor: input4 }]);
-		assert.strictEqual(overrideCount, 2);
+		assert.strictEqual(editorCount, 2);
 
 		registrationDisposable.dispose();
 	});
 
-	test('editorOverrideService - replaceEditors', async function () {
+	test('editorResolverService - replaceEditors', async function () {
 		const [part, service, accessor] = await createEditorService();
-		const editorOverrideService = accessor.editorResolverService;
-		let overrideCount = 0;
-		const registrationDisposable = editorOverrideService.registerEditor(
+		const editorResolverService = accessor.editorResolverService;
+		let editorCount = 0;
+		const registrationDisposable = editorResolverService.registerEditor(
 			'*.md',
 			{
 				id: 'TestEditor',
@@ -2048,22 +2048,22 @@ suite('EditorService', () => {
 			},
 			{},
 			(editorInput) => {
-				overrideCount++;
+				editorCount++;
 				return ({ editor: service.createEditorInput(editorInput) });
 			},
 			undefined,
 			diffEditor => ({ editor: service.createEditorInput(diffEditor) })
 		);
-		assert.strictEqual(overrideCount, 0);
+		assert.strictEqual(editorCount, 0);
 		const input1 = new TestFileEditorInput(URI.parse('file://test/path/resource2.md'), TEST_EDITOR_INPUT_ID);
 		// Open editor input 1 and it shouldn't trigger because I've disabled the override logic
 		await service.openEditor(input1, { override: EditorResolution.DISABLED });
-		assert.strictEqual(overrideCount, 0);
+		assert.strictEqual(editorCount, 0);
 		await service.replaceEditors([{
 			editor: input1,
 			replacement: input1,
 		}], part.activeGroup);
-		assert.strictEqual(overrideCount, 1);
+		assert.strictEqual(editorCount, 1);
 		registrationDisposable.dispose();
 	});
 
