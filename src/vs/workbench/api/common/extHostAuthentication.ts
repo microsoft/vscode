@@ -27,9 +27,6 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 
 	private _providers: vscode.AuthenticationProviderInformation[] = [];
 
-	private _onDidChangeAuthenticationProviders = new Emitter<vscode.AuthenticationProvidersChangeEvent>();
-	readonly onDidChangeAuthenticationProviders: Event<vscode.AuthenticationProvidersChangeEvent> = this._onDidChangeAuthenticationProviders.event;
-
 	private _onDidChangeSessions = new Emitter<vscode.AuthenticationSessionsChangeEvent>();
 	readonly onDidChangeSessions: Event<vscode.AuthenticationSessionsChangeEvent> = this._onDidChangeSessions.event;
 
@@ -42,10 +39,6 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	$setProviders(providers: vscode.AuthenticationProviderInformation[]): Promise<void> {
 		this._providers = providers;
 		return Promise.resolve();
-	}
-
-	get providers(): ReadonlyArray<vscode.AuthenticationProviderInformation> {
-		return Object.freeze(this._providers.slice());
 	}
 
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions & { createIfNone: true }): Promise<vscode.AuthenticationSession>;
@@ -162,24 +155,6 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 
 	$onDidChangeAuthenticationSessions(id: string, label: string) {
 		this._onDidChangeSessions.fire({ provider: { id, label } });
-		return Promise.resolve();
-	}
-
-	$onDidChangeAuthenticationProviders(added: modes.AuthenticationProviderInformation[], removed: modes.AuthenticationProviderInformation[]) {
-		added.forEach(provider => {
-			if (!this._providers.some(p => p.id === provider.id)) {
-				this._providers.push(provider);
-			}
-		});
-
-		removed.forEach(p => {
-			const index = this._providers.findIndex(provider => provider.id === p.id);
-			if (index > -1) {
-				this._providers.splice(index);
-			}
-		});
-
-		this._onDidChangeAuthenticationProviders.fire({ added, removed });
 		return Promise.resolve();
 	}
 }

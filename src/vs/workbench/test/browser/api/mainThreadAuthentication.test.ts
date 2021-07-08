@@ -103,7 +103,6 @@ suite('MainThreadAuthentication', () => {
 						},
 						$removeSession(id: string, sessionId: string) { return Promise.resolve(); },
 						$onDidChangeAuthenticationSessions(id: string, label: string) { return Promise.resolve(); },
-						$onDidChangeAuthenticationProviders(added: AuthenticationProviderInformation[], removed: AuthenticationProviderInformation[]) { return Promise.resolve(); },
 						$setProviders(providers: AuthenticationProviderInformation[]) { return Promise.resolve(); }
 					};
 				}
