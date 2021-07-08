@@ -97,11 +97,9 @@ export interface SpawnOptions {
 	verbose?: boolean;
 	extraArgs?: string[];
 	log?: string;
-	/** Run in the test resolver */
 	remote?: boolean;
-	/** Run in the web */
 	web?: boolean;
-	/** A specific browser to use (requires web: true) */
+	headless?: boolean;
 	browser?: 'chromium' | 'webkit' | 'firefox';
 }
 
@@ -124,7 +122,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 
 	if (options.web) {
 		await launch(options.userDataDir, options.workspacePath, options.codePath, options.extensionsPath, Boolean(options.verbose));
-		connectDriver = connectPlaywrightDriver.bind(connectPlaywrightDriver, options.browser);
+		connectDriver = connectPlaywrightDriver.bind(connectPlaywrightDriver, options);
 		return connect(connectDriver, child, '', handle, options.logger);
 	}
 
