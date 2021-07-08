@@ -360,15 +360,12 @@
 	top: 50%;
 }
 
-.monaco-workbench .part > .composite.title > .title-actions {
-	overflow: hidden;
-}
-
-.monaco-action-bar .actions-container[aria-label="Terminal actions"] .action-item:first-child {
-	min-width: 0;
-}
-
-.monaco-action-bar .actions-container[aria-label="Terminal actions"] .terminal-label-text {
+.monaco-workbench .terminal-single-tab .terminal-label-text {
 	overflow: hidden;
 	text-overflow: ellipsis;
+}
+
+.monaco-workbench .terminal-single-tab {
+	min-width: 22px;
+
 }

@@ -447,6 +447,11 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		this._register(toDisposable(() => dispose(this._elementDisposables)));
 	}
 
+	override render(container: HTMLElement): void {
+		super.render(container);
+		container.classList.add('terminal-single-tab');
+	}
+
 	override async onClick(event: MouseEvent): Promise<void> {
 		if (event.altKey && this._menuItemAction.alt) {
 			this._commandService.executeCommand(this._menuItemAction.alt.id, { target: TerminalLocation.TerminalView } as ICreateTerminalOptions);
