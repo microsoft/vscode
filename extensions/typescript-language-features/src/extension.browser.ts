@@ -14,7 +14,7 @@ import { ITypeScriptVersionProvider, TypeScriptVersion, TypeScriptVersionSource 
 import { WorkerServerProcess } from './tsServer/serverProcess.browser';
 import API from './utils/api';
 import { CommandManager } from './commands/commandManager';
-import { TypeScriptServiceConfiguration } from './utils/configuration';
+import { StandardServiceConfigurationProvider, TypeScriptServiceConfiguration } from './utils/configuration';
 import { PluginManager } from './utils/plugins';
 import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
 
@@ -66,7 +66,8 @@ export function activate(
 		cancellerFactory: noopRequestCancellerFactory,
 		versionProvider,
 		processFactory: WorkerServerProcess,
-		activeJsTsEditorTracker
+		activeJsTsEditorTracker,
+		serviceConfigurationProvider: new StandardServiceConfigurationProvider(),
 	}, item => {
 		onCompletionAccepted.fire(item);
 	});

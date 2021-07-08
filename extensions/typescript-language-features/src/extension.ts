@@ -15,6 +15,7 @@ import { NodeLogDirectoryProvider } from './tsServer/logDirectoryProvider.electr
 import { ChildServerProcess } from './tsServer/serverProcess.electron';
 import { DiskTypeScriptVersionProvider } from './tsServer/versionProvider.electron';
 import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
+import { StandardServiceConfigurationProvider } from './utils/configuration';
 import { onCaseInsenitiveFileSystem } from './utils/fileSystem.electron';
 import { PluginManager } from './utils/plugins';
 import * as temp from './utils/temp.electron';
@@ -47,6 +48,7 @@ export function activate(
 		versionProvider,
 		processFactory: ChildServerProcess,
 		activeJsTsEditorTracker,
+		serviceConfigurationProvider: new StandardServiceConfigurationProvider(),
 	}, item => {
 		onCompletionAccepted.fire(item);
 	});

@@ -19,7 +19,7 @@ import { TypeScriptVersionManager } from './tsServer/versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './tsServer/versionProvider';
 import { ClientCapabilities, ClientCapability, ExecConfig, ITypeScriptServiceClient, ServerResponse, TypeScriptRequests } from './typescriptService';
 import API from './utils/api';
-import { areServiceConfigurationsEqual, loadServiceConfigurationFromWorkspace, SeparateSyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
+import { areServiceConfigurationsEqual, ServiceConfigurationProvider, SeparateSyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
 import { Disposable } from './utils/dispose';
 import * as fileSchemes from './utils/fileSchemes';
 import { Logger } from './utils/logger';
@@ -135,6 +135,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			cancellerFactory: OngoingRequestCancellerFactory,
 			versionProvider: ITypeScriptVersionProvider,
 			processFactory: TsServerProcessFactory,
+			serviceConfigurationProvider: ServiceConfigurationProvider,
 		},
 		allModeIds: readonly string[]
 	) {
@@ -161,7 +162,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		this.numberRestarts = 0;
 
-		this._configuration = loadServiceConfigurationFromWorkspace();
+		this._configuration = services.serviceConfigurationProvider.loadFromWorkspace();
 		this.versionProvider.updateConfiguration(this._configuration);
 
 		this.pluginPathsProvider = new TypeScriptPluginPathsProvider(this._configuration);
@@ -185,7 +186,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		vscode.workspace.onDidChangeConfiguration(() => {
 			const oldConfiguration = this._configuration;
-			this._configuration = loadServiceConfigurationFromWorkspace();
+			this._configuration = services.serviceConfigurationProvider.loadFromWorkspace();
 
 			this.versionProvider.updateConfiguration(this._configuration);
 			this._versionManager.updateConfiguration(this._configuration);
