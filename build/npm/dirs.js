@@ -29,6 +29,7 @@ exports.dirs = [
 	'extensions/json-language-features/server',
 	'extensions/markdown-language-features',
 	'extensions/markdown-math',
+	'extensions/markdown-task-lists',
 	'extensions/merge-conflict',
 	'extensions/microsoft-authentication',
 	'extensions/npm',
