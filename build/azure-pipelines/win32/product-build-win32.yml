@@ -157,13 +157,6 @@ steps:
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { yarn --cwd test/integration/browser compile }
-    displayName: Compile integration tests
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
-
-  - powershell: |
       # Figure out the full absolute path of the product we just built
       # including the remote server and configure the integration tests
       # to run with these builds instead of running out of sources.
