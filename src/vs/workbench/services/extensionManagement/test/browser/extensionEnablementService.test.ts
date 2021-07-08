@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { IExtensionManagementService, DidUninstallExtensionEvent, ILocalExtension, DidInstallExtensionEvent, InstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, DidUninstallExtensionEvent, ILocalExtension, InstallExtensionEvent, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/workbench/services/extensionManagement/browser/extensionEnablementService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -61,7 +61,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 				label: 'local',
 				extensionManagementService: <IExtensionManagementService>{
 					onInstallExtension: new Emitter<InstallExtensionEvent>().event,
-					onDidInstallExtension: new Emitter<DidInstallExtensionEvent>().event,
+					onDidInstallExtensions: new Emitter<readonly InstallExtensionResult[]>().event,
 					onUninstallExtension: new Emitter<IExtensionIdentifier>().event,
 					onDidUninstallExtension: new Emitter<DidUninstallExtensionEvent>().event,
 				}
@@ -113,7 +113,7 @@ suite('ExtensionEnablementService Test', () => {
 	let instantiationService: TestInstantiationService;
 	let testObject: IWorkbenchExtensionEnablementService;
 
-	const didInstallEvent = new Emitter<DidInstallExtensionEvent>();
+	const didInstallEvent = new Emitter<readonly InstallExtensionResult[]>();
 	const didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
 	const installed: ILocalExtension[] = [];
 
@@ -125,7 +125,7 @@ suite('ExtensionEnablementService Test', () => {
 			id: 'local',
 			label: 'local',
 			extensionManagementService: <IExtensionManagementService>{
-				onDidInstallExtension: didInstallEvent.event,
+				onDidInstallExtensions: didInstallEvent.event,
 				onDidUninstallExtension: didUninstallEvent.event,
 				getInstalled: () => Promise.resolve(installed)
 			}

@@ -285,11 +285,14 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			installed.forEach(ext => this.progressByEvent(`extensionInstalled:${ext.identifier.id.toLowerCase()}`));
 		});
 
-		this._register(this.extensionManagementService.onDidInstallExtension(async e => {
-			if (await this.hostService.hadLastFocus()) {
-				this.sessionInstalledExtensions.add(e.identifier.id.toLowerCase());
+		this._register(this.extensionManagementService.onDidInstallExtensions(async result => {
+			const hadLastFoucs = await this.hostService.hadLastFocus();
+			for (const e of result) {
+				if (hadLastFoucs) {
+					this.sessionInstalledExtensions.add(e.identifier.id.toLowerCase());
+				}
+				this.progressByEvent(`extensionInstalled:${e.identifier.id.toLowerCase()}`);
 			}
-			this.progressByEvent(`extensionInstalled:${e.identifier.id.toLowerCase()}`);
 		}));
 
 		this._register(this.contextService.onDidChangeContext(event => {
