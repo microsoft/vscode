@@ -73,8 +73,8 @@ suite('Inline Completions', () => {
 		});
 
 		test('Multi Part Diffing', () => {
-			assert.deepStrictEqual(getOutput('foo[()]', '(x);'), { prefix: undefined, subwordDiff: 'foo([x])[;]' });
-			assert.deepStrictEqual(getOutput('[\tfoo]', '\t\tfoobar'), { prefix: undefined, subwordDiff: '\t[\t]foo[bar]' });
+			assert.deepStrictEqual(getOutput('foo[()]', '(x);'), { prefix: undefined, subword: 'foo([x])[;]' });
+			assert.deepStrictEqual(getOutput('[\tfoo]', '\t\tfoobar'), { prefix: undefined, subword: '\t[\t]foo[bar]' });
 		});
 	});
 

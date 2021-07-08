@@ -3435,7 +3435,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			showIcons: true,
 			showStatusBar: false,
 			preview: false,
-			previewMode: 'prefix',
+			previewMode: 'subwordSmart',
 			showInlineDetails: true,
 			showMethods: true,
 			showFunctions: true,
