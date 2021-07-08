@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CursorContext, CursorState, SingleCursorState } from 'vs/editor/common/controller/cursorCommon';
+import { CursorContext, CursorState, ICursorSimpleModel, SingleCursorState } from 'vs/editor/common/controller/cursorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
@@ -77,32 +77,38 @@ export class Cursor {
 		this._setState(context, modelState, viewState);
 	}
 
+	private static _validatePositionWithCache(viewModel: ICursorSimpleModel, position: Position, cacheInput: Position, cacheOutput: Position): Position {
+		if (position.equals(cacheInput)) {
+			return cacheOutput;
+		}
+		return viewModel.normalizePosition(position, PositionAffinity.None);
+	}
+
+	private static _validateViewState(viewModel: ICursorSimpleModel, viewState: SingleCursorState): SingleCursorState {
+		const position = viewState.position;
+		const sStartPosition = viewState.selectionStart.getStartPosition();
+		const sEndPosition = viewState.selectionStart.getEndPosition();
+
+		const validPosition = viewModel.normalizePosition(position, PositionAffinity.None);
+		const validSStartPosition = this._validatePositionWithCache(viewModel, sStartPosition, position, validPosition);
+		const validSEndPosition = this._validatePositionWithCache(viewModel, sEndPosition, sStartPosition, validSStartPosition);
+
+		if (position.equals(validPosition) && sStartPosition.equals(validSStartPosition) && sEndPosition.equals(validSEndPosition)) {
+			// fast path: the state is valid
+			return viewState;
+		}
+
+		return new SingleCursorState(
+			Range.fromPositions(validSStartPosition, validSEndPosition),
+			viewState.selectionStartLeftoverVisibleColumns + sStartPosition.column - validSStartPosition.column,
+			validPosition,
+			viewState.leftoverVisibleColumns + position.column - validPosition.column,
+		);
+	}
+
 	private _setState(context: CursorContext, modelState: SingleCursorState | null, viewState: SingleCursorState | null): void {
 		if (viewState) {
-			const cache = new Map<string, Position>();
-			function normalize(pos: Position): Position {
-				const existing = cache.get(pos.toString());
-				if (existing) {
-					return existing;
-				}
-				const result = context.viewModel.normalizePosition(pos, PositionAffinity.None);
-				cache.set(pos.toString(), result);
-				return result;
-			}
-			const normalizedPosition = normalize(viewState.position);
-			const columnDelta = viewState.position.column - normalizedPosition.column;
-
-			const updatedState = new SingleCursorState(
-				Selection.fromPositions(
-					normalize(viewState.selectionStart.getStartPosition()),
-					normalize(viewState.selectionStart.getEndPosition())
-				),
-				viewState.selectionStartLeftoverVisibleColumns + columnDelta,
-				normalizedPosition,
-				viewState.leftoverVisibleColumns + columnDelta,
-			);
-
-			viewState = updatedState;
+			viewState = Cursor._validateViewState(context.viewModel, viewState);
 		}
 
 		if (!modelState) {
