@@ -22,7 +22,7 @@ export const enum TestExplorerViewMode {
 
 export const enum TestExplorerViewSorting {
 	ByLocation = 'location',
-	ByName = 'name',
+	ByStatus = 'status',
 }
 
 export const enum TestExplorerStateFilter {

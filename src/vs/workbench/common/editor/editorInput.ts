@@ -136,14 +136,14 @@ export abstract class EditorInput extends BaseEditorInput implements IEditorInpu
 	}
 
 	/**
-	 * If a input was registered onto multiple editors, this method
+	 * If a editor was registered onto multiple editor panes, this method
 	 * will be asked to return the preferred one to use.
 	 *
-	 * @param editors a list of editor descriptors that are candidates
-	 * for the editor input to open in.
+	 * @param editorPanes a list of editor pane descriptors that are candidates
+	 * for the editor to open in.
 	 */
-	prefersEditor<T extends IEditorDescriptor<IEditorPane>>(editors: T[]): T | undefined {
-		return firstOrDefault(editors);
+	prefersEditorPane<T extends IEditorDescriptor<IEditorPane>>(editorPanes: T[]): T | undefined {
+		return firstOrDefault(editorPanes);
 	}
 
 	toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IUntypedEditorInput | undefined {

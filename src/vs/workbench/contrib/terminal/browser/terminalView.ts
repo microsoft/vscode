@@ -12,7 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, IColorTheme, registerThemingParticipant, ICssStyleCollector, ThemeIcon, Themable } from 'vs/platform/theme/common/themeService';
 import { switchTerminalActionViewItemSeparator, switchTerminalShowTabsTitle } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR, TERMINAL_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR, TERMINAL_DRAG_AND_DROP_BACKGROUND, TERMINAL_TAB_ACTIVE_BORDER } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
@@ -53,7 +53,6 @@ export class TerminalViewPane extends ViewPane {
 	private _terminalTabbedView?: TerminalTabbedView;
 	get terminalTabbedView(): TerminalTabbedView | undefined { return this._terminalTabbedView; }
 	private _terminalsInitialized = false;
-	private _bodyDimensions: { width: number, height: number } = { width: 0, height: 0 };
 	private _isWelcomeShowing: boolean = false;
 	private _tabButtons: DropdownWithPrimaryActionViewItem | undefined;
 	private readonly _dropdownMenu: IMenu;
@@ -147,9 +146,6 @@ export class TerminalViewPane extends ViewPane {
 
 				if (hadTerminals) {
 					this._terminalGroupService.activeGroup?.setVisible(visible);
-				} else {
-					// TODO@Tyriar - this call seems unnecessary
-					this.layoutBody(this._bodyDimensions.height, this._bodyDimensions.width);
 				}
 				this._terminalGroupService.showPanel(true);
 			} else {
@@ -169,13 +165,7 @@ export class TerminalViewPane extends ViewPane {
 	// eslint-disable-next-line @typescript-eslint/naming-convention
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
-
-		if (this._terminalTabbedView) {
-			this._bodyDimensions.width = width;
-			this._bodyDimensions.height = height;
-
-			this._terminalTabbedView.layout(width, height);
-		}
+		this._terminalTabbedView?.layout(width, height);
 	}
 
 	override getActionViewItem(action: Action): IActionViewItem | undefined {
@@ -345,6 +335,11 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const dndBackgroundColor = theme.getColor(TERMINAL_DRAG_AND_DROP_BACKGROUND) || theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND);
 	if (dndBackgroundColor) {
 		collector.addRule(`.monaco-workbench .pane-body.integrated-terminal .terminal-drop-overlay { background-color: ${dndBackgroundColor.toString()}; }`);
+	}
+
+	const activeTabBorderColor = theme.getColor(TERMINAL_TAB_ACTIVE_BORDER);
+	if (activeTabBorderColor) {
+		collector.addRule(`.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-entry.is-active::before { background-color: ${activeTabBorderColor.toString()}; }`);
 	}
 });
 

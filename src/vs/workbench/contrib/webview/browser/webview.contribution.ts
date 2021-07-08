@@ -23,10 +23,14 @@ function overrideCommandForWebview(command: MultiCommand | undefined, f: (webvie
 			return true;
 		}
 
-		const editorService = accessor.get(IEditorService);
-		if (editorService.activeEditor instanceof WebviewInput) {
-			f(editorService.activeEditor.webview);
-			return true;
+		// When focused in a custom menu try to fallback to the active webview
+		// This is needed for context menu actions and the menubar
+		if (document.activeElement?.classList.contains('action-menu-item')) {
+			const editorService = accessor.get(IEditorService);
+			if (editorService.activeEditor instanceof WebviewInput) {
+				f(editorService.activeEditor.webview);
+				return true;
+			}
 		}
 
 		return false;

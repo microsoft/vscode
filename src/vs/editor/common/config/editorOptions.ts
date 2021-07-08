@@ -2437,7 +2437,7 @@ export type EditorInlayHintsOptions = Readonly<Required<IEditorInlayHintsOptions
 class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, EditorInlayHintsOptions> {
 
 	constructor() {
-		const defaults: EditorInlayHintsOptions = { enabled: true, fontSize: 0, fontFamily: EDITOR_FONT_DEFAULTS.fontFamily };
+		const defaults: EditorInlayHintsOptions = { enabled: true, fontSize: 0, fontFamily: '' };
 		super(
 			EditorOption.inlayHints, 'inlayHints', defaults,
 			{
@@ -2454,7 +2454,7 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, EditorI
 				'editor.inlayHints.fontFamily': {
 					type: 'string',
 					default: defaults.fontFamily,
-					description: nls.localize('inlayHints.fontFamily', "Controls font family of inlay hints in the editor.")
+					description: nls.localize('inlayHints.fontFamily', "Controls font family of inlay hints in the editor. When set to empty, the `#editor.fontFamily#` is used.")
 				},
 			}
 		);

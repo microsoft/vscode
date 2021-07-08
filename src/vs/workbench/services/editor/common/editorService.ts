@@ -8,11 +8,39 @@ import { IResourceEditorInput, IEditorOptions, IResourceEditorInputIdentifier, I
 import { IEditorInput, IEditorPane, GroupIdentifier, IEditorInputWithOptions, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, ITextEditorPane, ITextDiffEditorPane, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
 import { IEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorGroup, IEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorReplacement, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { URI } from 'vs/base/common/uri';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
+
+/**
+ * Open an editor in the currently active group.
+ */
+export const ACTIVE_GROUP = -1;
+export type ACTIVE_GROUP_TYPE = typeof ACTIVE_GROUP;
+
+/**
+ * Open an editor to the side of the active group.
+ */
+export const SIDE_GROUP = -2;
+export type SIDE_GROUP_TYPE = typeof SIDE_GROUP;
+
+export type PreferredGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
+
+export function isPreferredGroup(obj: unknown): obj is PreferredGroup {
+	const candidate = obj as PreferredGroup | undefined;
+
+	return typeof obj === 'number' || isEditorGroup(candidate);
+}
+
+export interface ISaveEditorsOptions extends ISaveOptions {
+
+	/**
+	 * If true, will ask for a location of the editor to save to.
+	 */
+	readonly saveAs?: boolean;
+}
 
 export interface IUntypedEditorReplacement {
 	readonly editor: IEditorInput;
@@ -23,20 +51,6 @@ export interface IUntypedEditorReplacement {
 	 * save the document. Only use this if you really need to!
 	*/
 	forceReplaceDirty?: boolean;
-}
-
-export const ACTIVE_GROUP = -1;
-export type ACTIVE_GROUP_TYPE = typeof ACTIVE_GROUP;
-
-export const SIDE_GROUP = -2;
-export type SIDE_GROUP_TYPE = typeof SIDE_GROUP;
-
-export interface ISaveEditorsOptions extends ISaveOptions {
-
-	/**
-	 * If true, will ask for a location of the editor to save to.
-	 */
-	readonly saveAs?: boolean;
 }
 
 export interface IBaseSaveRevertAllEditorOptions {

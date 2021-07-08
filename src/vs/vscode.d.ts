@@ -5657,7 +5657,7 @@ declare module 'vscode' {
 		/**
 		 * The tooltip text when you hover over this entry.
 		 */
-		tooltip: string | undefined;
+		tooltip: string | MarkdownString | undefined;
 
 		/**
 		 * The foreground color for this entry.
@@ -10130,6 +10130,14 @@ declare module 'vscode' {
 		readonly text: string;
 	}
 
+	export enum TextDocumentChangeReason {
+		/** The text change is caused by an undo operation. */
+		Undo = 1,
+
+		/** The text change is caused by an redo operation. */
+		Redo = 2,
+	}
+
 	/**
 	 * An event describing a transactional {@link TextDocument document} change.
 	 */
@@ -10144,6 +10152,12 @@ declare module 'vscode' {
 		 * An array of content changes.
 		 */
 		readonly contentChanges: readonly TextDocumentContentChangeEvent[];
+
+		/**
+		 * The reason why the document was changed.
+		 * Is undefined if the reason is not known.
+		*/
+		readonly reason?: TextDocumentChangeReason;
 	}
 
 	/**

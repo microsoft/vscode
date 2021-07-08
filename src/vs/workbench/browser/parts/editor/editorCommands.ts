@@ -7,7 +7,8 @@ import { localize } from 'vs/nls';
 import { isObject, isString, isUndefined, isNumber, withNullAsUndefined } from 'vs/base/common/types';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { TextCompareEditorVisibleContext, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditorInput, IVisibleEditorPane, ActiveEditorStickyContext, EditorsOrder, viewColumnToEditorGroup, EditorGroupColumn, EditorInputCapabilities, isEditorIdentifier } from 'vs/workbench/common/editor';
+import { TextCompareEditorVisibleContext, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditorInput, IVisibleEditorPane, ActiveEditorStickyContext, EditorsOrder, EditorInputCapabilities, isEditorIdentifier } from 'vs/workbench/common/editor';
+import { EditorGroupColumn, columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
@@ -451,7 +452,7 @@ function registerOpenEditorAPICommands(): void {
 		if (optionsArg || typeof columnArg === 'number') {
 			const [options, column] = mixinContext(context, optionsArg, columnArg);
 
-			await editorService.openEditor({ resource, options, label }, viewColumnToEditorGroup(editorGroupService, column));
+			await editorService.openEditor({ resource, options, label }, columnToEditorGroup(editorGroupService, column));
 		}
 
 		// do not allow to execute commands from here
@@ -495,7 +496,7 @@ function registerOpenEditorAPICommands(): void {
 			modified: { resource: URI.revive(modifiedResource) },
 			label,
 			options
-		}, viewColumnToEditorGroup(editorGroupService, column));
+		}, columnToEditorGroup(editorGroupService, column));
 	});
 
 	CommandsRegistry.registerCommand(API_OPEN_WITH_EDITOR_COMMAND_ID, (accessor: ServicesAccessor, resource: UriComponents, id: string, columnAndOptions?: [EditorGroupColumn?, ITextEditorOptions?]) => {
@@ -515,7 +516,7 @@ function registerOpenEditorAPICommands(): void {
 			}
 			group = neighbourGroup;
 		} else {
-			group = editorGroupsService.getGroup(viewColumnToEditorGroup(editorGroupsService, columnArg)) ?? editorGroupsService.activeGroup;
+			group = editorGroupsService.getGroup(columnToEditorGroup(editorGroupsService, columnArg)) ?? editorGroupsService.activeGroup;
 		}
 
 		return editorService.openEditor({ resource: URI.revive(resource), options: { ...optionsArg, pinned: true, override: id } }, group);

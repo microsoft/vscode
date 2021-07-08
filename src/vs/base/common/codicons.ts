@@ -368,7 +368,7 @@ export namespace Codicon {
 	export const horizontalRule = new Codicon('horizontal-rule', { fontCharacter: '\\eb07' });
 	export const hubot = new Codicon('hubot', { fontCharacter: '\\eb08' });
 	export const inbox = new Codicon('inbox', { fontCharacter: '\\eb09' });
-	export const issueClosed = new Codicon('issue-closed', { fontCharacter: '\\eb0a' });
+	export const issueClosed = new Codicon('issue-closed', { fontCharacter: '\\eba4' });
 	export const issueReopened = new Codicon('issue-reopened', { fontCharacter: '\\eb0b' });
 	export const issues = new Codicon('issues', { fontCharacter: '\\eb0c' });
 	export const italic = new Codicon('italic', { fontCharacter: '\\eb0d' });
@@ -581,6 +581,9 @@ export namespace Codicon {
 	export const compassDot = new Codicon('compass-dot', { fontCharacter: '\\ebd6' });
 	export const compassActive = new Codicon('compass-active', { fontCharacter: '\\ebd7' });
 	export const azure = new Codicon('azure', { fontCharacter: '\\ebd8' });
+	export const issueDraft = new Codicon('issue-draft', { fontCharacter: '\\ebd9' });
+	export const gitPullRequestClosed = new Codicon('git-pull-request-closed', { fontCharacter: '\\ebda' });
+	export const gitPullRequestDraft = new Codicon('git-pull-request-draft', { fontCharacter: '\\ebdb' });
 
 	export const dropDownButton = new Codicon('drop-down-button', Codicon.chevronDown.definition);
 }

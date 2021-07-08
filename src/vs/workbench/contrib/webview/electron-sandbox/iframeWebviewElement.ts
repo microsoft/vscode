@@ -43,7 +43,7 @@ export class ElectronIframeWebview extends IFrameWebview implements WebviewFindD
 
 	public readonly checkImeCompletionState = true;
 
-	protected override readonly platform = 'electron';
+	protected override get platform() { return 'electron'; }
 
 	constructor(
 		id: string,
@@ -56,7 +56,7 @@ export class ElectronIframeWebview extends IFrameWebview implements WebviewFindD
 		@IFileService fileService: IFileService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IRemoteAuthorityResolverService _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IMenuService menuService: IMenuService,
 		@ILogService logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -67,7 +67,7 @@ export class ElectronIframeWebview extends IFrameWebview implements WebviewFindD
 	) {
 		super(id, options, contentOptions, extension, webviewThemeDataProvider,
 			configurationService, contextMenuService, menuService, notificationService, environmentService,
-			fileService, logService, _remoteAuthorityResolverService, telemetryService, tunnelService);
+			fileService, logService, remoteAuthorityResolverService, telemetryService, tunnelService);
 
 		this._webviewKeyboardHandler = new WindowIgnoreMenuShortcutsManager(configurationService, mainProcessService, nativeHostService);
 

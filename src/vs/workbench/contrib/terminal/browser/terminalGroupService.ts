@@ -238,9 +238,22 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	 * group has been removed.
 	 */
 	setActiveGroupByIndex(index: number, force?: boolean) {
+		// Unset active group when the last group is removed
+		if (index === -1 && this.groups.length === 0) {
+			if (this.activeGroupIndex !== -1) {
+				this.activeGroupIndex = -1;
+				this._onDidChangeActiveGroup.fire(this.activeGroup);
+				this._onDidChangeActiveInstance.fire(this.activeInstance);
+			}
+			return;
+		}
+
+		// Ensure index is valid
 		if (index < 0 || index >= this.groups.length) {
 			return;
 		}
+
+		// Fire group/instance change if needed
 		const oldActiveGroup = this.activeGroup;
 		this.activeGroupIndex = index;
 		if (force || oldActiveGroup !== this.activeGroup) {

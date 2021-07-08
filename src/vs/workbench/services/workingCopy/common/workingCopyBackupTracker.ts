@@ -15,7 +15,7 @@ import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workben
 import { Promises } from 'vs/base/common/async';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorsOrder, IEditorInput } from 'vs/workbench/common/editor';
-import { EditorOverride } from 'vs/platform/editor/common/editor';
+import { EditorResolution } from 'vs/platform/editor/common/editor';
 
 /**
  * The working copy backup tracker deals with:
@@ -275,7 +275,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 					pinned: true,
 					preserveFocus: true,
 					inactive: true,
-					override: EditorOverride.DISABLED // very important to disable overrides because the editor input we got is proper
+					override: EditorResolution.DISABLED // very important to disable overrides because the editor input we got is proper
 				}
 			})));
 

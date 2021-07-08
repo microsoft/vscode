@@ -15,6 +15,9 @@ import * as kill from 'tree-kill';
 const width = 1200;
 const height = 800;
 
+const root = join(__dirname, '..', '..', '..');
+const logsPath = join(root, '.build', 'logs', 'smoke-tests-browser');
+
 const vscodeToPlaywrightKey: { [key: string]: string } = {
 	cmd: 'Meta',
 	ctrl: 'Control',
@@ -29,7 +32,9 @@ const vscodeToPlaywrightKey: { [key: string]: string } = {
 	esc: 'Escape'
 };
 
-function buildDriver(browser: playwright.Browser, page: playwright.Page): IDriver {
+let traceCounter = 1;
+
+function buildDriver(browser: playwright.Browser, context: playwright.BrowserContext, page: playwright.Page): IDriver {
 	const driver: IDriver = {
 		_serviceBrand: undefined,
 		getWindowIds: () => {
@@ -38,6 +43,7 @@ function buildDriver(browser: playwright.Browser, page: playwright.Page): IDrive
 		capturePage: () => Promise.resolve(''),
 		reloadWindow: (windowId) => Promise.resolve(),
 		exitApplication: async () => {
+			await context.tracing.stop({ path: join(logsPath, `playwright-trace-${traceCounter++}.zip`) });
 			await browser.close();
 			await teardown();
 		},
@@ -108,9 +114,6 @@ export async function launch(userDataDir: string, _workspacePath: string, codeSe
 		...process.env
 	};
 
-	const root = join(__dirname, '..', '..', '..');
-	const logsPath = join(root, '.build', 'logs', 'smoke-tests-browser');
-
 	const args = ['--port', `${port++}`, '--browser', 'none', '--driver', 'web', '--extensions-dir', extPath];
 
 	let serverLocation: string | undefined;
@@ -172,13 +175,14 @@ export function connect(browserType: 'chromium' | 'webkit' | 'firefox' = 'chromi
 	return new Promise(async (c) => {
 		const browser = await playwright[browserType].launch({ headless: false });
 		const context = await browser.newContext();
+		await context.tracing.start({ screenshots: true, snapshots: true });
 		const page = await context.newPage();
 		await page.setViewportSize({ width, height });
 		const payloadParam = `[["enableProposedApi",""],["skipWelcome","true"]]`;
 		await page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${URI.file(workspacePath!).path}&payload=${payloadParam}`);
 		const result = {
 			client: { dispose: () => browser.close() && teardown() },
-			driver: buildDriver(browser, page)
+			driver: buildDriver(browser, context, page)
 		};
 		c(result);
 	});

@@ -17,14 +17,14 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { CodeWindow } from 'vs/platform/windows/electron-main/window';
 import { app, BrowserWindow, MessageBoxOptions, nativeTheme, WebContents } from 'electron';
-import { ILifecycleMainService, UnloadReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowSettings, IPath, isFileToOpen, isWorkspaceToOpen, isFolderToOpen, IWindowOpenable, IOpenEmptyWindowOptions, IAddFoldersRequest, IPathsToWaitFor, INativeWindowConfiguration, INativeOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { findWindowOnFile, findWindowOnWorkspaceOrFolder, findWindowOnExtensionDevelopmentPath } from 'vs/platform/windows/electron-main/windowsFinder';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICodeWindow, IOpenEmptyConfiguration, OpenContext } from 'vs/platform/windows/electron-main/windows';
+import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICodeWindow, IOpenEmptyConfiguration, OpenContext, UnloadReason } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier, hasWorkspaceFileExtension, IRecent, isWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
@@ -635,13 +635,20 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	}
 
 	private doOpenFolderOrWorkspace(openConfig: IOpenConfiguration, folderOrWorkspace: IWorkspacePathToOpen | ISingleFolderWorkspacePathToOpen, forceNewWindow: boolean, filesToOpen: IFilesToOpen | undefined, windowToUse?: ICodeWindow): ICodeWindow {
-		if (!forceNewWindow && !windowToUse && typeof openConfig.contextWindowId === 'number') {
-			windowToUse = this.getWindowById(openConfig.contextWindowId); // fix for https://github.com/microsoft/vscode/issues/49587
+		const contextWindow = typeof openConfig.contextWindowId === 'number' ? this.getWindowById(openConfig.contextWindowId) : undefined;
+		if (!forceNewWindow && !windowToUse && contextWindow) {
+			windowToUse = contextWindow; // fix for https://github.com/microsoft/vscode/issues/49587
+		}
+
+
+		let userEnv = openConfig.userEnv;
+		if (!openConfig.userEnv && contextWindow) {
+			userEnv = contextWindow.config?.userEnv; // fix for https://github.com/microsoft/vscode/issues/123508
 		}
 
 		return this.openInBrowserWindow({
 			workspace: folderOrWorkspace.workspace,
-			userEnv: openConfig.userEnv,
+			userEnv,
 			cli: openConfig.cli,
 			initialStartup: openConfig.initialStartup,
 			remoteAuthority: folderOrWorkspace.remoteAuthority,

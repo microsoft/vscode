@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { toDisposable } from 'vs/base/common/lifecycle';
+import { dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -14,12 +14,14 @@ import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/brow
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export class TerminalEditorInput extends EditorInput {
 
 	static readonly ID = 'workbench.editors.terminal';
 
 	private _isDetached = false;
+	private _isShuttingDown = false;
 	private _copyInstance?: ITerminalInstance;
 
 	private _group: IEditorGroup | undefined;
@@ -70,18 +72,31 @@ export class TerminalEditorInput extends EditorInput {
 		private readonly _terminalInstance: ITerminalInstance,
 		@IThemeService private readonly _themeService: IThemeService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILifecycleService lifecycleService: ILifecycleService
 	) {
 		super();
-		this._register(this._terminalInstance.onTitleChanged(() => this._onDidChangeLabel.fire()));
-		this._register(this._terminalInstance.onIconChanged(() => this._onDidChangeLabel.fire()));
-		this._register(this._terminalInstance.statusList.onDidChangePrimaryStatus(() => this._onDidChangeLabel.fire()));
-		this._register(this._terminalInstance.onDisposed(() => this.dispose()));
+
 		this._register(toDisposable(() => {
-			if (!this._isDetached) {
+			if (!this._isDetached && !this._isShuttingDown) {
 				this._terminalInstance.dispose();
 			}
 		}));
+
+		const disposeListeners = [
+			this._terminalInstance.onExit(() => this.dispose()),
+			this._terminalInstance.onDisposed(() => this.dispose()),
+			this._terminalInstance.onTitleChanged(() => this._onDidChangeLabel.fire()),
+			this._terminalInstance.onIconChanged(() => this._onDidChangeLabel.fire()),
+			this._terminalInstance.statusList.onDidChangePrimaryStatus(() => this._onDidChangeLabel.fire())
+		];
+
+		// Don't dispose editor when instance is torn down on shutdown to avoid extra work and so
+		// the editor/tabs don't disappear
+		lifecycleService.onWillShutdown(() => {
+			this._isShuttingDown = true;
+			dispose(disposeListeners);
+		});
 	}
 
 	override getName() {
@@ -109,7 +124,9 @@ export class TerminalEditorInput extends EditorInput {
 	 * of the terminal instance/process.
 	 */
 	detachInstance() {
-		this._terminalInstance.detachFromElement();
-		this._isDetached = true;
+		if (!this._isShuttingDown) {
+			this._terminalInstance.detachFromElement();
+			this._isDetached = true;
+		}
 	}
 }

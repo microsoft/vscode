@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { IEditorInput, IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, EditorInputCapabilities, IEditorInputFactoryRegistry, EditorExtensions, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, EditorInputCapabilities, IEditorFactoryRegistry, EditorExtensions, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -23,10 +23,10 @@ import { ItemActivation, IQuickInputService } from 'vs/platform/quickinput/commo
 import { AllEditorsByMostRecentlyUsedQuickAccess, ActiveGroupEditorsByMostRecentlyUsedQuickAccess, AllEditorsByAppearanceQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
 import { Codicon } from 'vs/base/common/codicons';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { EditorOverride } from 'vs/platform/editor/common/editor';
+import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { Schemas } from 'vs/base/common/network';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 
 export class ExecuteCommandAction extends Action {
 
@@ -1922,7 +1922,7 @@ export class ReopenResourcesAction extends Action {
 				editor: activeInput,
 				replacement: activeInput,
 				forceReplaceDirty: activeInput.resource?.scheme === Schemas.untitled,
-				options: { ...options, override: EditorOverride.PICK }
+				options: { ...options, override: EditorResolution.PICK }
 			}
 		], group);
 	}
@@ -1937,7 +1937,7 @@ export class ToggleEditorTypeAction extends Action {
 		id: string,
 		label: string,
 		@IEditorService private readonly editorService: IEditorService,
-		@IEditorOverrideService private readonly editorOverrideService: IEditorOverrideService,
+		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 	) {
 		super(id, label);
 	}
@@ -1956,7 +1956,7 @@ export class ToggleEditorTypeAction extends Action {
 		const options = activeEditorPane.options;
 		const group = activeEditorPane.group;
 
-		const editorIds = this.editorOverrideService.getEditorIds(activeEditorResource).filter(id => id !== activeEditorPane.input.editorId);
+		const editorIds = this.editorResolverService.getEditorIds(activeEditorResource).filter(id => id !== activeEditorPane.input.editorId);
 
 		if (editorIds.length === 0) {
 			return;
@@ -1978,7 +1978,7 @@ export class ReOpenInTextEditorAction extends Action {
 	static readonly ID = 'workbench.action.reopenTextEditor';
 	static readonly LABEL = localize('workbench.action.reopenTextEditor', "Reopen Editor With Text Editor");
 
-	private readonly fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getFileEditorInputFactory();
+	private readonly fileEditorFactory = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).getFileEditorFactory();
 
 	constructor(
 		id: string,
@@ -2002,7 +2002,7 @@ export class ReOpenInTextEditorAction extends Action {
 		const options = activeEditorPane.options;
 		const group = activeEditorPane.group;
 
-		if (this.fileEditorInputFactory.isFileEditorInput(this.editorService.activeEditor)) {
+		if (this.fileEditorFactory.isFileEditor(this.editorService.activeEditor)) {
 			return;
 		}
 

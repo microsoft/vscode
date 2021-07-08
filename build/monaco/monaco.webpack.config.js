@@ -33,6 +33,7 @@ module.exports = {
 	stats: {
 		all: false,
 		modules: true,
+		maxModules: 0,
 		errors: true,
 		warnings: true,
 		// our additional options

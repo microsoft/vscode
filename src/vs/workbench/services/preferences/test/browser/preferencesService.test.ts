@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { TestCommandService } from 'vs/editor/test/browser/editorTestServices';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { EditorOverride } from 'vs/platform/editor/common/editor';
+import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
@@ -44,7 +44,7 @@ suite('PreferencesService', () => {
 		testObject.openSettings(false, 'test query');
 		const options = editorService.lastOpenEditorOptions as ISettingsEditorOptions;
 		assert.strictEqual(options.focusSearch, true);
-		assert.strictEqual(options.override, EditorOverride.DISABLED);
+		assert.strictEqual(options.override, EditorResolution.DISABLED);
 		assert.strictEqual(options.query, 'test query');
 	});
 });

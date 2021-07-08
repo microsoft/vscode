@@ -726,6 +726,24 @@ declare module 'vscode' {
 	//#endregion
 
 	// eslint-disable-next-line vscode-dts-region-comments
+	//#region @weinand: new debug session option 'managedByParent' (see https://github.com/microsoft/vscode/issues/128058)
+
+	/**
+	 * Options for {@link debug.startDebugging starting a debug session}.
+	 */
+	export interface DebugSessionOptions {
+
+		/**
+		 * Controls whether lifecycle requests like 'restart' are sent to the newly created session or its parent session.
+		 * By default (if the property is false or missing), lifecycle requests are sent to the new session.
+		 * This property is ignored if the session has no parent session.
+		 */
+		managedByParent?: boolean;
+	}
+
+	//#endregion
+
+	// eslint-disable-next-line vscode-dts-region-comments
 	//#region @weinand: variables view action contributions
 
 	/**
@@ -2716,19 +2734,6 @@ declare module 'vscode' {
 		 * *Note:* This value might be a bitmask, e.g. `FilePermission.Readonly | FilePermission.Other`.
 		 */
 		permissions?: FilePermission;
-	}
-
-	//#endregion
-
-	//#region https://github.com/microsoft/vscode/issues/126258 @aeschli
-
-	export interface StatusBarItem {
-
-		/**
-		 * Will be merged into StatusBarItem#tooltip
-		 */
-		tooltip2: string | MarkdownString | undefined;
-
 	}
 
 	//#endregion
