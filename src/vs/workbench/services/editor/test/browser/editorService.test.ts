@@ -998,6 +998,53 @@ suite('EditorService', () => {
 				await resetTestState();
 			}
 		}
+
+		// untyped default editor
+		{
+			// untyped default editor, options: revealIfVisible
+			{
+				let untypedEditor1: IResourceEditorInput = { resource: URI.file('file-1'), options: { revealIfVisible: true, pinned: true } };
+				let untypedEditor2: IResourceEditorInput = { resource: URI.file('file-2'), options: { pinned: true } };
+
+				let rootPane = await openEditor(untypedEditor1);
+				let sidePane = await openEditor(untypedEditor2, SIDE_GROUP);
+
+				assert.strictEqual(rootPane?.group?.count, 1);
+				assert.strictEqual(sidePane?.group?.count, 1);
+
+				accessor.editorGroupService.activateGroup(sidePane.group);
+
+				await openEditor(untypedEditor1);
+
+				assert.strictEqual(rootPane?.group?.count, 1);
+				assert.strictEqual(sidePane?.group?.count, 1);
+
+				await resetTestState();
+			}
+
+			// untyped default editor, options: revealIfOpened
+			{
+				let untypedEditor1: IResourceEditorInput = { resource: URI.file('file-1'), options: { revealIfOpened: true, pinned: true } };
+				let untypedEditor2: IResourceEditorInput = { resource: URI.file('file-2'), options: { pinned: true } };
+
+				let rootPane = await openEditor(untypedEditor1);
+				await openEditor(untypedEditor2);
+				assert.strictEqual(rootPane?.group?.activeEditor?.resource?.toString(), untypedEditor2.resource.toString());
+				let sidePane = await openEditor(untypedEditor2, SIDE_GROUP);
+
+				assert.strictEqual(rootPane?.group?.count, 2);
+				assert.strictEqual(sidePane?.group?.count, 1);
+
+				accessor.editorGroupService.activateGroup(sidePane.group);
+
+				await openEditor(untypedEditor1);
+
+				assert.strictEqual(rootPane?.group?.count, 2);
+				assert.strictEqual(sidePane?.group?.count, 1);
+
+				await resetTestState();
+			}
+		}
 	}
 
 	test('openEditor() applies options if editor already opened', async () => {
