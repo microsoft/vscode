@@ -174,13 +174,13 @@ function waitForEndpoint(): Promise<string> {
 }
 
 interface Options {
-	readonly browserType?: 'chromium' | 'webkit' | 'firefox';
+	readonly browser?: 'chromium' | 'webkit' | 'firefox';
 	readonly headless?: boolean;
 }
 
 export function connect(options: Options = {}): Promise<{ client: IDisposable, driver: IDriver }> {
 	return new Promise(async (c) => {
-		const browser = await playwright[options.browserType ?? 'chromium'].launch({ headless: options.headless ?? false });
+		const browser = await playwright[options.browser ?? 'chromium'].launch({ headless: options.headless ?? false });
 		const context = await browser.newContext();
 		const page = await context.newPage();
 		await page.setViewportSize({ width, height });
