@@ -292,7 +292,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	public get ghostText(): GhostText | undefined {
 		const currentCompletion = this.currentCompletion;
 		const mode = this.editor.getOptions().get(EditorOption.inlineSuggest).mode;
-		return currentCompletion ? inlineCompletionToGhostText(currentCompletion, this.editor.getModel(), mode, this.editor.getSelection().getEndPosition()) : undefined;
+		return currentCompletion ? inlineCompletionToGhostText(currentCompletion, this.editor.getModel(), mode, this.editor.getPosition()) : undefined;
 	}
 
 	get currentCompletion(): LiveInlineCompletion | undefined {
@@ -489,7 +489,7 @@ export interface NormalizedInlineCompletion extends InlineCompletion {
 	range: Range;
 }
 
-export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCompletion, textModel: ITextModel, mode: 'prefix' | 'subwordDiff', cursorPosition?: Position): GhostText | undefined {
+export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCompletion, textModel: ITextModel, mode: 'prefix' | 'subword' | 'subwordSmart', cursorPosition?: Position): GhostText | undefined {
 	if (inlineCompletion.range.startLineNumber !== inlineCompletion.range.endLineNumber) {
 		// Only single line replacements are supported.
 		return undefined;
@@ -511,10 +511,11 @@ export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCo
 			return undefined;
 		}
 	}
+
 	for (const c of changes) {
 		const insertColumn = inlineCompletion.range.startColumn + c.originalStart + c.originalLength;
 
-		if (cursorPosition && cursorPosition.lineNumber === inlineCompletion.range.startLineNumber && insertColumn < cursorPosition.column) {
+		if (mode === 'subwordSmart' && cursorPosition && cursorPosition.lineNumber === inlineCompletion.range.startLineNumber && insertColumn < cursorPosition.column) {
 			// No ghost text before cursor
 			return undefined;
 		}

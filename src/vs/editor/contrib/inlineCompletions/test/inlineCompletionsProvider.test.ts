@@ -27,7 +27,7 @@ suite('Inline Completions', () => {
 			const cleanedText = text.replace('[', '').replace(']', '');
 			const tempModel = createTextModel(cleanedText);
 			const range = Range.fromPositions(tempModel.getPositionAt(rangeStartOffset), tempModel.getPositionAt(rangeEndOffset));
-			const options = ['prefix', 'subwordDiff'] as const;
+			const options = ['prefix', 'subword'] as const;
 			const result = {} as any;
 			for (const option of options) {
 				result[option] = renderGhostTextToText(inlineCompletionToGhostText({ text: suggestion, range }, tempModel, option), cleanedText);
