@@ -84,7 +84,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}));
 	}
 
-	private async resolveUntypedInputAndGroup(editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<[IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined> {
+	private resolveUntypedInputAndGroup(editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): [IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined {
 		let untypedEditor: IUntypedEditorInput | undefined = undefined;
 
 		// Typed: convert to untyped to be able to resolve the editor as the service only uses untyped
@@ -115,7 +115,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 
 	async resolveEditor(editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<ResolvedEditor> {
-		const resolvedUntypedAndGroup = await this.resolveUntypedInputAndGroup(editor, preferredGroup);
+		const resolvedUntypedAndGroup = this.resolveUntypedInputAndGroup(editor, preferredGroup);
 		if (!resolvedUntypedAndGroup) {
 			return ResolvedStatus.NONE;
 		}
@@ -168,7 +168,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		if (activeEditor && isActive) {
 			return { editor: activeEditor, options, group };
 		}
-		const input = await this.doResolveEditor(untypedEditor, group, selectedEditor);
+		const input = this.doResolveEditor(untypedEditor, group, selectedEditor);
 		if (conflictingDefault && input) {
 			// Show the conflicting default dialog
 			await this.doHandleConflictingDefaults(resource, selectedEditor.editorInfo.label, untypedEditor, input.editor, group);
@@ -346,7 +346,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		};
 	}
 
-	private async doResolveEditor(editor: IUntypedEditorInput, group: IEditorGroup, selectedEditor: RegisteredEditor): Promise<IEditorInputWithOptions | undefined> {
+	private doResolveEditor(editor: IUntypedEditorInput, group: IEditorGroup, selectedEditor: RegisteredEditor): IEditorInputWithOptions | undefined {
 		let options = editor.options;
 		const resource = EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		// If no activation option is provided, populate it.
