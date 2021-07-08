@@ -7,7 +7,8 @@ import { MultiCommand, RedoCommand, SelectAllCommand, UndoCommand } from 'vs/edi
 import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/clipboard';
 import * as nls from 'vs/nls';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { IWebviewService, Webview } from 'vs/workbench/contrib/webview/browser/webview';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED, Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -23,6 +24,13 @@ function overrideCommandForWebview(command: MultiCommand | undefined, f: (webvie
 			return true;
 		}
 
+		// required for copy/paste to work in the find inputbox
+		const contextKeyService = accessor.get(IContextKeyService);
+		if (KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED.getValue(contextKeyService)) {
+			return false;
+		}
+
+		// required for the copy/paste context menu to work
 		const editorService = accessor.get(IEditorService);
 		if (editorService.activeEditor instanceof WebviewInput) {
 			f(editorService.activeEditor.webview);
