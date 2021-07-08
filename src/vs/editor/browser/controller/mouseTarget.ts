@@ -851,13 +851,13 @@ export class MouseTargetFactory {
 		const shadowRoot = dom.getShadowRoot(ctx.viewDomNode);
 		let range: Range;
 		if (shadowRoot) {
-			if (typeof shadowRoot.caretRangeFromPoint === 'undefined') {
+			if (typeof (<any>shadowRoot).caretRangeFromPoint === 'undefined') {
 				range = shadowCaretRangeFromPoint(shadowRoot, coords.clientX, coords.clientY);
 			} else {
-				range = shadowRoot.caretRangeFromPoint(coords.clientX, coords.clientY);
+				range = (<any>shadowRoot).caretRangeFromPoint(coords.clientX, coords.clientY);
 			}
 		} else {
-			range = document.caretRangeFromPoint(coords.clientX, coords.clientY);
+			range = (<any>document).caretRangeFromPoint(coords.clientX, coords.clientY);
 		}
 
 		if (!range || !range.startContainer) {
@@ -951,7 +951,7 @@ export class MouseTargetFactory {
 	private static _doHitTest(ctx: HitTestContext, request: BareHitTestRequest): HitTestResult {
 
 		let result: HitTestResult = new UnknownHitTestResult();
-		if (typeof document.caretRangeFromPoint === 'function') {
+		if (typeof (<any>document).caretRangeFromPoint === 'function') {
 			result = this._doHitTestWithCaretRangeFromPoint(ctx, request);
 		} else if ((<any>document).caretPositionFromPoint) {
 			result = this._doHitTestWithCaretPositionFromPoint(ctx, request.pos.toClientCoordinates());
@@ -974,7 +974,7 @@ export function shadowCaretRangeFromPoint(shadowRoot: ShadowRoot, x: number, y: 
 	const range = document.createRange();
 
 	// Get the element under the point
-	let el: Element | null = shadowRoot.elementFromPoint(x, y);
+	let el: Element | null = (<any>shadowRoot).elementFromPoint(x, y);
 
 	if (el !== null) {
 		// Get the last child of the element until its firstChild is a text node

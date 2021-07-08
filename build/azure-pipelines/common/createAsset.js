@@ -160,7 +160,7 @@ async function main() {
     blobService.defaultClientRequestTimeoutInMs = 10 * 60 * 1000;
     mooncakeBlobService.defaultClientRequestTimeoutInMs = 10 * 60 * 1000;
     console.log('Uploading blobs to Azure storage and Mooncake Azure storage...');
-    await retry_1.retry(() => Promise.all([
+    await (0, retry_1.retry)(() => Promise.all([
         uploadBlob(blobService, quality, blobName, filePath, fileName),
         uploadBlob(mooncakeBlobService, quality, blobName, filePath, fileName)
     ]));
@@ -185,7 +185,7 @@ async function main() {
     console.log('Asset:', JSON.stringify(asset, null, '  '));
     const client = new cosmos_1.CosmosClient({ endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT'], key: process.env['AZURE_DOCUMENTDB_MASTERKEY'] });
     const scripts = client.database('builds').container(quality).scripts;
-    await retry_1.retry(() => scripts.storedProcedure('createAsset').execute('', [commit, asset, true]));
+    await (0, retry_1.retry)(() => scripts.storedProcedure('createAsset').execute('', [commit, asset, true]));
     console.log(`  Done ✔️`);
 }
 main().then(() => {

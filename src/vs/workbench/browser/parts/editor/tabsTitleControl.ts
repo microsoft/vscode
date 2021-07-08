@@ -325,7 +325,7 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Mouse-wheel support to switch to tabs optionally
-		this._register(addDisposableListener(tabsContainer, EventType.MOUSE_WHEEL, (e: MouseWheelEvent) => {
+		this._register(addDisposableListener(tabsContainer, EventType.MOUSE_WHEEL, (e: WheelEvent) => {
 			const activeEditor = this.group.activeEditor;
 			if (!activeEditor || this.group.count < 2) {
 				return;  // need at least 2 open editors
