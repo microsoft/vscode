@@ -89,136 +89,133 @@ export class ImplicitProjectConfiguration {
 	}
 }
 
-export class TypeScriptServiceConfiguration {
-	public readonly locale: string | null;
-	public readonly globalTsdk: string | null;
-	public readonly localTsdk: string | null;
-	public readonly npmLocation: string | null;
-	public readonly tsServerLogLevel: TsServerLogLevel = TsServerLogLevel.Off;
-	public readonly tsServerPluginPaths: readonly string[];
-	public readonly implictProjectConfiguration: ImplicitProjectConfiguration;
-	public readonly disableAutomaticTypeAcquisition: boolean;
-	public readonly separateSyntaxServer: SeparateSyntaxServerConfiguration;
-	public readonly enableProjectDiagnostics: boolean;
-	public readonly maxTsServerMemory: number;
-	public readonly enablePromptUseWorkspaceTsdk: boolean;
-	public readonly watchOptions: protocol.WatchOptions | undefined;
-	public readonly includePackageJsonAutoImports: 'auto' | 'on' | 'off' | undefined;
-	public readonly enableTsServerTracing: boolean;
+export interface TypeScriptServiceConfiguration {
+	readonly locale: string | null;
+	readonly globalTsdk: string | null;
+	readonly localTsdk: string | null;
+	readonly npmLocation: string | null;
+	readonly tsServerLogLevel: TsServerLogLevel;
+	readonly tsServerPluginPaths: readonly string[];
+	readonly implicitProjectConfiguration: ImplicitProjectConfiguration;
+	readonly disableAutomaticTypeAcquisition: boolean;
+	readonly separateSyntaxServer: SeparateSyntaxServerConfiguration;
+	readonly enableProjectDiagnostics: boolean;
+	readonly maxTsServerMemory: number;
+	readonly enablePromptUseWorkspaceTsdk: boolean;
+	readonly watchOptions: protocol.WatchOptions | undefined;
+	readonly includePackageJsonAutoImports: 'auto' | 'on' | 'off' | undefined;
+	readonly enableTsServerTracing: boolean;
+}
 
-	public static loadFromWorkspace(): TypeScriptServiceConfiguration {
-		return new TypeScriptServiceConfiguration();
-	}
+export function areServiceConfigurationsEqual(a: TypeScriptServiceConfiguration, b: TypeScriptServiceConfiguration): boolean {
+	return objects.equals(a, b);
+}
 
-	private constructor() {
-		const configuration = vscode.workspace.getConfiguration();
+export function loadServiceConfigurationFromWorkspace(): TypeScriptServiceConfiguration {
+	const configuration = vscode.workspace.getConfiguration();
+	return {
+		locale: extractLocale(configuration),
+		globalTsdk: extractGlobalTsdk(configuration),
+		localTsdk: extractLocalTsdk(configuration),
+		npmLocation: readNpmLocation(configuration),
+		tsServerLogLevel: readTsServerLogLevel(configuration),
+		tsServerPluginPaths: readTsServerPluginPaths(configuration),
+		implicitProjectConfiguration: new ImplicitProjectConfiguration(configuration),
+		disableAutomaticTypeAcquisition: readDisableAutomaticTypeAcquisition(configuration),
+		separateSyntaxServer: readUseSeparateSyntaxServer(configuration),
+		enableProjectDiagnostics: readEnableProjectDiagnostics(configuration),
+		maxTsServerMemory: readMaxTsServerMemory(configuration),
+		enablePromptUseWorkspaceTsdk: readEnablePromptUseWorkspaceTsdk(configuration),
+		watchOptions: readWatchOptions(configuration),
+		includePackageJsonAutoImports: readIncludePackageJsonAutoImports(configuration),
+		enableTsServerTracing: readEnableTsServerTracing(configuration),
+	};
+}
 
-		this.locale = TypeScriptServiceConfiguration.extractLocale(configuration);
-		this.globalTsdk = TypeScriptServiceConfiguration.extractGlobalTsdk(configuration);
-		this.localTsdk = TypeScriptServiceConfiguration.extractLocalTsdk(configuration);
-		this.npmLocation = TypeScriptServiceConfiguration.readNpmLocation(configuration);
-		this.tsServerLogLevel = TypeScriptServiceConfiguration.readTsServerLogLevel(configuration);
-		this.tsServerPluginPaths = TypeScriptServiceConfiguration.readTsServerPluginPaths(configuration);
-		this.implictProjectConfiguration = new ImplicitProjectConfiguration(configuration);
-		this.disableAutomaticTypeAcquisition = TypeScriptServiceConfiguration.readDisableAutomaticTypeAcquisition(configuration);
-		this.separateSyntaxServer = TypeScriptServiceConfiguration.readUseSeparateSyntaxServer(configuration);
-		this.enableProjectDiagnostics = TypeScriptServiceConfiguration.readEnableProjectDiagnostics(configuration);
-		this.maxTsServerMemory = TypeScriptServiceConfiguration.readMaxTsServerMemory(configuration);
-		this.enablePromptUseWorkspaceTsdk = TypeScriptServiceConfiguration.readEnablePromptUseWorkspaceTsdk(configuration);
-		this.watchOptions = TypeScriptServiceConfiguration.readWatchOptions(configuration);
-		this.includePackageJsonAutoImports = TypeScriptServiceConfiguration.readIncludePackageJsonAutoImports(configuration);
-		this.enableTsServerTracing = TypeScriptServiceConfiguration.readEnableTsServerTracing(configuration);
-	}
-
-	public isEqualTo(other: TypeScriptServiceConfiguration): boolean {
-		return objects.equals(this, other);
-	}
-
-	private static fixPathPrefixes(inspectValue: string): string {
-		const pathPrefixes = ['~' + path.sep];
-		for (const pathPrefix of pathPrefixes) {
-			if (inspectValue.startsWith(pathPrefix)) {
-				return path.join(os.homedir(), inspectValue.slice(pathPrefix.length));
-			}
+function fixPathPrefixes(inspectValue: string): string {
+	const pathPrefixes = ['~' + path.sep];
+	for (const pathPrefix of pathPrefixes) {
+		if (inspectValue.startsWith(pathPrefix)) {
+			return path.join(os.homedir(), inspectValue.slice(pathPrefix.length));
 		}
-		return inspectValue;
 	}
+	return inspectValue;
+}
 
-	private static extractGlobalTsdk(configuration: vscode.WorkspaceConfiguration): string | null {
-		const inspect = configuration.inspect('typescript.tsdk');
-		if (inspect && typeof inspect.globalValue === 'string') {
-			return this.fixPathPrefixes(inspect.globalValue);
-		}
-		return null;
+function extractGlobalTsdk(configuration: vscode.WorkspaceConfiguration): string | null {
+	const inspect = configuration.inspect('typescript.tsdk');
+	if (inspect && typeof inspect.globalValue === 'string') {
+		return fixPathPrefixes(inspect.globalValue);
 	}
+	return null;
+}
 
-	private static extractLocalTsdk(configuration: vscode.WorkspaceConfiguration): string | null {
-		const inspect = configuration.inspect('typescript.tsdk');
-		if (inspect && typeof inspect.workspaceValue === 'string') {
-			return this.fixPathPrefixes(inspect.workspaceValue);
-		}
-		return null;
+function extractLocalTsdk(configuration: vscode.WorkspaceConfiguration): string | null {
+	const inspect = configuration.inspect('typescript.tsdk');
+	if (inspect && typeof inspect.workspaceValue === 'string') {
+		return fixPathPrefixes(inspect.workspaceValue);
 	}
+	return null;
+}
 
-	private static readTsServerLogLevel(configuration: vscode.WorkspaceConfiguration): TsServerLogLevel {
-		const setting = configuration.get<string>('typescript.tsserver.log', 'off');
-		return TsServerLogLevel.fromString(setting);
-	}
+function readTsServerLogLevel(configuration: vscode.WorkspaceConfiguration): TsServerLogLevel {
+	const setting = configuration.get<string>('typescript.tsserver.log', 'off');
+	return TsServerLogLevel.fromString(setting);
+}
 
-	private static readTsServerPluginPaths(configuration: vscode.WorkspaceConfiguration): string[] {
-		return configuration.get<string[]>('typescript.tsserver.pluginPaths', []);
-	}
+function readTsServerPluginPaths(configuration: vscode.WorkspaceConfiguration): string[] {
+	return configuration.get<string[]>('typescript.tsserver.pluginPaths', []);
+}
 
-	private static readNpmLocation(configuration: vscode.WorkspaceConfiguration): string | null {
-		return configuration.get<string | null>('typescript.npm', null);
-	}
+function readNpmLocation(configuration: vscode.WorkspaceConfiguration): string | null {
+	return configuration.get<string | null>('typescript.npm', null);
+}
 
-	private static readDisableAutomaticTypeAcquisition(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.disableAutomaticTypeAcquisition', false);
-	}
+function readDisableAutomaticTypeAcquisition(configuration: vscode.WorkspaceConfiguration): boolean {
+	return configuration.get<boolean>('typescript.disableAutomaticTypeAcquisition', false);
+}
 
-	private static extractLocale(configuration: vscode.WorkspaceConfiguration): string | null {
-		return configuration.get<string | null>('typescript.locale', null);
-	}
+function extractLocale(configuration: vscode.WorkspaceConfiguration): string | null {
+	return configuration.get<string | null>('typescript.locale', null);
+}
 
-	private static readUseSeparateSyntaxServer(configuration: vscode.WorkspaceConfiguration): SeparateSyntaxServerConfiguration {
-		const value = configuration.get<boolean | string>('typescript.tsserver.useSeparateSyntaxServer', true);
-		if (value === 'forAllRequests') {
-			return SeparateSyntaxServerConfiguration.ForAllRequests;
-		}
-		if (value === true) {
-			return SeparateSyntaxServerConfiguration.Enabled;
-		}
-		return SeparateSyntaxServerConfiguration.Disabled;
+function readUseSeparateSyntaxServer(configuration: vscode.WorkspaceConfiguration): SeparateSyntaxServerConfiguration {
+	const value = configuration.get<boolean | string>('typescript.tsserver.useSeparateSyntaxServer', true);
+	if (value === 'forAllRequests') {
+		return SeparateSyntaxServerConfiguration.ForAllRequests;
 	}
+	if (value === true) {
+		return SeparateSyntaxServerConfiguration.Enabled;
+	}
+	return SeparateSyntaxServerConfiguration.Disabled;
+}
 
-	private static readEnableProjectDiagnostics(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.tsserver.experimental.enableProjectDiagnostics', false);
-	}
+function readEnableProjectDiagnostics(configuration: vscode.WorkspaceConfiguration): boolean {
+	return configuration.get<boolean>('typescript.tsserver.experimental.enableProjectDiagnostics', false);
+}
 
-	private static readWatchOptions(configuration: vscode.WorkspaceConfiguration): protocol.WatchOptions | undefined {
-		return configuration.get<protocol.WatchOptions>('typescript.tsserver.watchOptions');
-	}
+function readWatchOptions(configuration: vscode.WorkspaceConfiguration): protocol.WatchOptions | undefined {
+	return configuration.get<protocol.WatchOptions>('typescript.tsserver.watchOptions');
+}
 
-	private static readIncludePackageJsonAutoImports(configuration: vscode.WorkspaceConfiguration): 'auto' | 'on' | 'off' | undefined {
-		return configuration.get<'auto' | 'on' | 'off'>('typescript.preferences.includePackageJsonAutoImports');
-	}
+function readIncludePackageJsonAutoImports(configuration: vscode.WorkspaceConfiguration): 'auto' | 'on' | 'off' | undefined {
+	return configuration.get<'auto' | 'on' | 'off'>('typescript.preferences.includePackageJsonAutoImports');
+}
 
-	private static readMaxTsServerMemory(configuration: vscode.WorkspaceConfiguration): number {
-		const defaultMaxMemory = 3072;
-		const minimumMaxMemory = 128;
-		const memoryInMB = configuration.get<number>('typescript.tsserver.maxTsServerMemory', defaultMaxMemory);
-		if (!Number.isSafeInteger(memoryInMB)) {
-			return defaultMaxMemory;
-		}
-		return Math.max(memoryInMB, minimumMaxMemory);
+function readMaxTsServerMemory(configuration: vscode.WorkspaceConfiguration): number {
+	const defaultMaxMemory = 3072;
+	const minimumMaxMemory = 128;
+	const memoryInMB = configuration.get<number>('typescript.tsserver.maxTsServerMemory', defaultMaxMemory);
+	if (!Number.isSafeInteger(memoryInMB)) {
+		return defaultMaxMemory;
 	}
+	return Math.max(memoryInMB, minimumMaxMemory);
+}
 
-	private static readEnablePromptUseWorkspaceTsdk(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.enablePromptUseWorkspaceTsdk', false);
-	}
+function readEnablePromptUseWorkspaceTsdk(configuration: vscode.WorkspaceConfiguration): boolean {
+	return configuration.get<boolean>('typescript.enablePromptUseWorkspaceTsdk', false);
+}
 
-	private static readEnableTsServerTracing(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.tsserver.enableTracing', false);
-	}
+function readEnableTsServerTracing(configuration: vscode.WorkspaceConfiguration): boolean {
+	return configuration.get<boolean>('typescript.tsserver.enableTracing', false);
 }

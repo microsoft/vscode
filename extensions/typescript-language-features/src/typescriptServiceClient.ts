@@ -19,7 +19,7 @@ import { TypeScriptVersionManager } from './tsServer/versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './tsServer/versionProvider';
 import { ClientCapabilities, ClientCapability, ExecConfig, ITypeScriptServiceClient, ServerResponse, TypeScriptRequests } from './typescriptService';
 import API from './utils/api';
-import { SeparateSyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
+import { areServiceConfigurationsEqual, loadServiceConfigurationFromWorkspace, SeparateSyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
 import { Disposable } from './utils/dispose';
 import * as fileSchemes from './utils/fileSchemes';
 import { Logger } from './utils/logger';
@@ -161,7 +161,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		this.numberRestarts = 0;
 
-		this._configuration = TypeScriptServiceConfiguration.loadFromWorkspace();
+		this._configuration = loadServiceConfigurationFromWorkspace();
 		this.versionProvider.updateConfiguration(this._configuration);
 
 		this.pluginPathsProvider = new TypeScriptPluginPathsProvider(this._configuration);
@@ -185,7 +185,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		vscode.workspace.onDidChangeConfiguration(() => {
 			const oldConfiguration = this._configuration;
-			this._configuration = TypeScriptServiceConfiguration.loadFromWorkspace();
+			this._configuration = loadServiceConfigurationFromWorkspace();
 
 			this.versionProvider.updateConfiguration(this._configuration);
 			this._versionManager.updateConfiguration(this._configuration);
@@ -193,11 +193,11 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			this.tracer.updateConfiguration();
 
 			if (this.serverState.type === ServerState.Type.Running) {
-				if (!this._configuration.implictProjectConfiguration.isEqualTo(oldConfiguration.implictProjectConfiguration)) {
+				if (!this._configuration.implicitProjectConfiguration.isEqualTo(oldConfiguration.implicitProjectConfiguration)) {
 					this.setCompilerOptionsForInferredProjects(this._configuration);
 				}
 
-				if (!this._configuration.isEqualTo(oldConfiguration)) {
+				if (!areServiceConfigurationsEqual(this._configuration, oldConfiguration)) {
 					this.restartTsServer();
 				}
 			}
