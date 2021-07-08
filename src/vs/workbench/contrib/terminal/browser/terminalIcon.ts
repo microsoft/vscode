@@ -57,16 +57,14 @@ export function getIconId(terminal: ITerminalInstance): string {
 }
 
 const labelWithIconsRegex = new RegExp(`(\\\\)?\\$\\((${CSSIcon.iconNameExpression}(?:${CSSIcon.iconModifierExpression})?)\\)`, 'g');
-export function separateIconAndText(text: string): [string[], string] {
+export function separateIconAndText(text: string): { icon: string, text: string } {
 	let match: RegExpMatchArray | null;
-	let codicons = new Array<string>();
-	let textStart = 0, textStop = 0;
+	let icon = '';
+	let textStart = 0;
 	while ((match = labelWithIconsRegex.exec(text)) !== null) {
-		textStop = match.index || 0;
-		codicons.push(text.substring(textStart, textStop));
 		textStart = (match.index || 0) + match[0].length;
 		const [, escaped, codicon] = match;
-		codicons.push(escaped ? `$(${codicon})` : codicon);
+		icon = escaped ? `$(${codicon})` : codicon;
 	}
-	return [codicons, text.substring(textStart)];
+	return { icon, text: text.substring(textStart) };
 }

@@ -511,11 +511,11 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			label.style.color = colorStyle;
 
 			const elements = new Array<HTMLSpanElement | string>();
-			const [[, codicon], labelText] = separateIconAndText(getSingleTabLabel(instance, ThemeIcon.isThemeIcon(this._commandAction.item.icon) ? this._commandAction.item.icon : undefined));
-			elements.push(renderIcon({ id: codicon }));
+			const iconLabel = separateIconAndText(getSingleTabLabel(instance, ThemeIcon.isThemeIcon(this._commandAction.item.icon) ? this._commandAction.item.icon : undefined));
+			elements.push(renderIcon({ id: iconLabel.icon }));
 			const node = dom.$(`span`);
 			node.classList.add('terminal-label-text');
-			node.innerText = labelText;
+			node.innerText = iconLabel.text;
 			elements.push(node);
 			dom.reset(label, ...elements);
 
