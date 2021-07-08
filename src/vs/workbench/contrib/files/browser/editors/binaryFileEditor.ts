@@ -14,6 +14,8 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorResolution, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorResolverService, ResolvedStatus, ResolvedEditor } from 'vs/workbench/services/editor/common/editorResolverService';
+import { isEditorInputWithOptions, UntypedEditorContext } from 'vs/workbench/common/editor';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 
 /**
  * An implementation of editor for binary files that cannot be displayed.
@@ -41,7 +43,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 	}
 
 	private async openInternal(input: EditorInput, options: IEditorOptions | undefined): Promise<void> {
-		if (input instanceof FileEditorInput && this.group && this.group.activeEditor) {
+		if (input instanceof FileEditorInput && this.group?.activeEditor) {
 
 			// We operate on the active editor here to support re-opening
 			// diff editors where `input` may just be one side of the
@@ -49,25 +51,49 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 			// Since `openInternal` can only ever be selected from the
 			// active editor of the group, this is a safe assumption.
 			// (https://github.com/microsoft/vscode/issues/124222)
-			const editor = this.group.activeEditor;
+			const activeEditor = this.group.activeEditor;
+			const untypedActiveEditor = activeEditor?.toUntyped(this.group.id, UntypedEditorContext.Default);
+			if (!untypedActiveEditor) {
+				return; // we need untyped editor support
+			}
 
-			// Enforce to open the input as text to enable our text based viewer
-			input.setForceOpenAsText();
+			// Try to let the user pick an editor
+			let resolvedEditor: ResolvedEditor | undefined = await this.editorResolverService.resolveEditor({
+				...untypedActiveEditor,
+				options: {
+					...options,
+					override: EditorResolution.PICK
+				}
+			}, this.group);
 
-			// Try to let the user pick an override if there is one availabe
-			let overridenInput: ResolvedEditor | undefined = await this.editorResolverService.resolveEditor({ resource: editor.resource, options: { ...options, override: EditorResolution.PICK } }, this.group);
-			if (overridenInput === ResolvedStatus.NONE) {
-				overridenInput = undefined;
-			} else if (overridenInput === ResolvedStatus.ABORT) {
+			if (resolvedEditor === ResolvedStatus.NONE) {
+				resolvedEditor = undefined;
+			} else if (resolvedEditor === ResolvedStatus.ABORT) {
 				return;
 			}
 
-			// Replace the overrriden input, with the text based input
+			// If the result if a file editor, the user indicated to open
+			// the binary file as text. As such we adjust the input for that.
+			if (isEditorInputWithOptions(resolvedEditor)) {
+				if (resolvedEditor.editor instanceof FileEditorInput) {
+					resolvedEditor.editor.setForceOpenAsText();
+				} else if (resolvedEditor.editor instanceof DiffEditorInput) {
+					if (resolvedEditor.editor.original instanceof FileEditorInput) {
+						resolvedEditor.editor.original.setForceOpenAsText();
+					}
+
+					if (resolvedEditor.editor.modified instanceof FileEditorInput) {
+						resolvedEditor.editor.modified.setForceOpenAsText();
+					}
+				}
+			}
+
+			// Replace the active editor with the picked one
 			await this.editorService.replaceEditors([{
-				editor,
-				replacement: overridenInput?.editor ?? input,
+				editor: activeEditor,
+				replacement: resolvedEditor?.editor ?? input,
 				options: {
-					...overridenInput?.options ?? options,
+					...resolvedEditor?.options ?? options,
 					override: EditorResolution.DISABLED
 				}
 			}], this.group);
