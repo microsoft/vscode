@@ -14,7 +14,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorResolution, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorResolverService, ResolvedStatus, ResolvedEditor } from 'vs/workbench/services/editor/common/editorResolverService';
-import { isEditorInputWithOptions, UntypedEditorContext } from 'vs/workbench/common/editor';
+import { isEditorInputWithOptions } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 
 /**
@@ -52,7 +52,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 			// active editor of the group, this is a safe assumption.
 			// (https://github.com/microsoft/vscode/issues/124222)
 			const activeEditor = this.group.activeEditor;
-			const untypedActiveEditor = activeEditor?.toUntyped(this.group.id, UntypedEditorContext.Default);
+			const untypedActiveEditor = activeEditor?.toUntyped();
 			if (!untypedActiveEditor) {
 				return; // we need untyped editor support
 			}

@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorInputWithOptions, IEditorIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInput, IEditorPane, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier, EditorsOrder, IFileEditorInput, IEditorFactoryRegistry, IEditorSerializer, EditorExtensions, ISaveOptions, IMoveResult, ITextEditorPane, ITextDiffEditorPane, IVisibleEditorPane, IEditorOpenContext, IEditorMoveEvent, EditorExtensions as Extensions, EditorInputCapabilities, IEditorOpenEvent, IUntypedEditorInput, UntypedEditorContext } from 'vs/workbench/common/editor';
+import { IEditorInputWithOptions, IEditorIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInput, IEditorPane, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier, EditorsOrder, IFileEditorInput, IEditorFactoryRegistry, IEditorSerializer, EditorExtensions, ISaveOptions, IMoveResult, ITextEditorPane, ITextDiffEditorPane, IVisibleEditorPane, IEditorOpenContext, IEditorMoveEvent, EditorExtensions as Extensions, EditorInputCapabilities, IEditorOpenEvent, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorServiceImpl, IEditorGroupView, IEditorGroupsAccessor, IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
@@ -1512,7 +1512,7 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 		this.gotSavedAs = false;
 		this.dirty = false;
 	}
-	override toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IUntypedEditorInput | undefined {
+	override toUntyped(): IUntypedEditorInput | undefined {
 		if (this.disableToUntyped) {
 			return undefined;
 		}

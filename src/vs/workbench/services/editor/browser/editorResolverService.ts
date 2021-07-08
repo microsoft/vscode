@@ -10,7 +10,7 @@ import { basename, extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorActivation, EditorResolution, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, IEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, isResourceDiffEditorInput, isUntitledResourceEditorInput, IUntypedEditorInput, SideBySideEditor, UntypedEditorContext } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, IEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, isResourceDiffEditorInput, isUntitledResourceEditorInput, IUntypedEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Schemas } from 'vs/base/common/network';
 import { RegisteredEditorInfo, RegisteredEditorPriority, RegisteredEditorOptions, DiffEditorInputFactoryFunction, EditorAssociation, EditorAssociations, EditorInputFactoryFunction, editorsAssociationsSettingId, globMatchesResource, IEditorResolverService, priorityToRank, ResolvedEditor, ResolvedStatus, UntitledEditorInputFactoryFunction } from 'vs/workbench/services/editor/common/editorResolverService';
@@ -89,7 +89,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 		// Typed: convert to untyped to be able to resolve the editor as the service only uses untyped
 		if (isEditorInputWithOptions(editor)) {
-			untypedEditor = editor.editor.toUntyped(undefined, UntypedEditorContext.Default);
+			untypedEditor = editor.editor.toUntyped();
 
 			if (untypedEditor) {
 				// Preserve original options: specifically it is

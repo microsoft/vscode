@@ -16,7 +16,7 @@ import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, EditorResourceAccessor, IMoveResult, EditorInputCapabilities, IUntypedEditorInput, UntypedEditorContext } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, EditorResourceAccessor, IMoveResult, EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { Memento } from 'vs/workbench/common/memento';
 import { SearchEditorFindMatchClass, SearchEditorScheme, SearchEditorWorkingCopyTypeId } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { SearchConfigurationModel, SearchEditorModel, searchEditorModelFactory } from 'vs/workbench/contrib/searchEditor/browser/searchEditorModel';
@@ -277,7 +277,7 @@ export class SearchEditorInput extends EditorInput {
 		return joinPath(await this.fileDialogService.defaultFilePath(this.pathService.defaultUriScheme), searchFileName);
 	}
 
-	override toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IResourceEditorInput | undefined {
+	override toUntyped(): IResourceEditorInput | undefined {
 		if (this.hasCapability(EditorInputCapabilities.Untitled)) {
 			return undefined;
 		}
