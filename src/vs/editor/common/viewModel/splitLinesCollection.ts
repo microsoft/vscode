@@ -883,18 +883,11 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 	}
 
 	public convertModelRangeToViewRange(modelRange: Range): Range {
-		// If the range is empty, we don't want the range to get expanded or moved when
-		let start = this.convertModelPositionToViewPosition(modelRange.startLineNumber, modelRange.startColumn, PositionAffinity.Right);
+		const start = this.convertModelPositionToViewPosition(modelRange.startLineNumber, modelRange.startColumn, PositionAffinity.Right);
 		let end = this.convertModelPositionToViewPosition(modelRange.endLineNumber, modelRange.endColumn, PositionAffinity.Left);
 		if (end.isBefore(start)) {
+			// If the range is empty, we don't want the range to get expanded just by converting to a view range
 			end = start;
-		}
-		if (modelRange.startLineNumber === modelRange.endLineNumber && start.lineNumber !== end.lineNumber) {
-			// This is a single line range that ends up taking more lines due to wrapping
-			if (end.column === this.getViewLineMinColumn(end.lineNumber)) {
-				// the end column lands on the first column of the next line
-				return new Range(start.lineNumber, start.column, end.lineNumber - 1, this.getViewLineMaxColumn(end.lineNumber - 1));
-			}
 		}
 		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
 	}
