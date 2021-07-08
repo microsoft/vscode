@@ -1910,7 +1910,7 @@ export function registerTerminalActions() {
 			super({
 				id: TerminalCommandId.SwitchTerminal,
 				title: switchTerminalTitle,
-				f1: true,
+				f1: false,
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
 			});
