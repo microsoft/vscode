@@ -2720,19 +2720,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region https://github.com/microsoft/vscode/issues/126258 @aeschli
-
-	export interface StatusBarItem {
-
-		/**
-		 * Will be merged into StatusBarItem#tooltip
-		 */
-		tooltip2: string | MarkdownString | undefined;
-
-	}
-
-	//#endregion
-
 	//#region https://github.com/microsoft/vscode/issues/126280 @mjbvz
 
 	export interface NotebookCellData {

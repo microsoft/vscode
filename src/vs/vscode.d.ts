@@ -5657,7 +5657,7 @@ declare module 'vscode' {
 		/**
 		 * The tooltip text when you hover over this entry.
 		 */
-		tooltip: string | undefined;
+		tooltip: string | MarkdownString | undefined;
 
 		/**
 		 * The foreground color for this entry.
