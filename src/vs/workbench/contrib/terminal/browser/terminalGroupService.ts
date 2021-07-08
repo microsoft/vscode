@@ -16,7 +16,7 @@ import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs
 import { ITerminalFindHost, ITerminalGroup, ITerminalGroupService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalGroup } from 'vs/workbench/contrib/terminal/browser/terminalGroup';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { KEYBINDING_CONTEXT_GROUP_TERMINAL_COUNT, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT, KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { KEYBINDING_CONTEXT_GROUP_TERMINAL_COUNT, KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT, KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 
 export class TerminalGroupService extends Disposable implements ITerminalGroupService, ITerminalFindHost {
@@ -191,7 +191,6 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	}
 
 	getFindState(): FindReplaceState {
-		KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE.bindTo(this._contextKeyService).set(true);
 		return this._findState;
 	}
 
