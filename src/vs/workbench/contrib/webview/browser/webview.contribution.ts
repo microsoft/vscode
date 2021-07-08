@@ -23,6 +23,10 @@ function overrideCommandForWebview(command: MultiCommand | undefined, f: (webvie
 			return true;
 		}
 
+		if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
+			return false;
+		}
+
 		const editorService = accessor.get(IEditorService);
 		if (editorService.activeEditor instanceof WebviewInput) {
 			f(editorService.activeEditor.webview);

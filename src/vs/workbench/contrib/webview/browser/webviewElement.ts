@@ -90,7 +90,7 @@ namespace WebviewState {
 
 export class IFrameWebview extends Disposable implements Webview {
 
-	protected readonly platform: string = 'browser';
+	protected get platform(): string { return 'browser'; }
 
 	private readonly _expectedServiceWorkerVersion = 2; // Keep this in sync with the version in service-worker.js
 
@@ -719,14 +719,14 @@ export class IFrameWebview extends Disposable implements Webview {
 	}
 
 	public showFind(): void {
-		throw new Error('Method not implemented.');
+		// noop
 	}
 
 	public hideFind(): void {
-		throw new Error('Method not implemented.');
+		// noop
 	}
 
 	public runFindAction(previous: boolean): void {
-		throw new Error('Method not implemented.');
+		// noop
 	}
 }
