@@ -35,14 +35,14 @@ import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 
-const xtermSelector = '.terminal.xterm';
 const findWidgetSelector = '.simple-find-part-wrapper';
 
 export class TerminalEditor extends EditorPane {
 
 	public static readonly ID = 'terminalEditor';
 
-	private _parentElement: HTMLElement | undefined;
+	private _editorInstanceElement: HTMLElement | undefined;
+	private _overflowGuardElement: HTMLElement | undefined;
 
 	private _editorInput?: TerminalEditorInput = undefined;
 
@@ -87,7 +87,7 @@ export class TerminalEditor extends EditorPane {
 		this._editorInput?.terminalInstance?.detachFromElement();
 		this._editorInput = newInput;
 		await super.setInput(newInput, options, context, token);
-		this._editorInput.terminalInstance?.attachToElement(this._parentElement!);
+		this._editorInput.terminalInstance?.attachToElement(this._overflowGuardElement!);
 		if (this._lastDimension) {
 			this.layout(this._lastDimension);
 		}
@@ -118,15 +118,17 @@ export class TerminalEditor extends EditorPane {
 
 	// eslint-disable-next-line @typescript-eslint/naming-convention
 	protected createEditor(parent: HTMLElement): void {
-		this._parentElement = parent;
+		this._editorInstanceElement = parent;
+		this._overflowGuardElement = dom.$('.terminal-overflow-guard');
+		this._editorInstanceElement.appendChild(this._overflowGuardElement);
 		this._registerListeners();
 	}
 
 	private _registerListeners(): void {
-		if (!this._parentElement) {
+		if (!this._editorInstanceElement) {
 			return;
 		}
-		this._register(dom.addDisposableListener(this._parentElement, 'mousedown', async (event: MouseEvent) => {
+		this._register(dom.addDisposableListener(this._editorInstanceElement, 'mousedown', async (event: MouseEvent) => {
 			if (this._terminalEditorService.instances.length === 0) {
 				return;
 			}
@@ -148,7 +150,7 @@ export class TerminalEditor extends EditorPane {
 
 					// copyPaste: Shift+right click should open context menu
 					if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
-						openContextMenu(event, this._parentElement!, this._instanceMenu, this._contextMenuService);
+						openContextMenu(event, this._editorInstanceElement!, this._instanceMenu, this._contextMenuService);
 						return;
 					}
 
@@ -175,11 +177,11 @@ export class TerminalEditor extends EditorPane {
 				}
 			}
 		}));
-		this._register(dom.addDisposableListener(this._parentElement, 'contextmenu', (event: MouseEvent) => {
+		this._register(dom.addDisposableListener(this._editorInstanceElement, 'contextmenu', (event: MouseEvent) => {
 			const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
 			if (!this._cancelContextMenu && rightClickBehavior !== 'copyPaste' && rightClickBehavior !== 'paste') {
 				if (!this._cancelContextMenu) {
-					openContextMenu(event, this._parentElement!, this._instanceMenu, this._contextMenuService);
+					openContextMenu(event, this._editorInstanceElement!, this._instanceMenu, this._contextMenuService);
 				}
 				event.preventDefault();
 				event.stopImmediatePropagation();
@@ -283,8 +285,8 @@ export class TerminalEditor extends EditorPane {
 	}
 
 	focusFindWidget() {
-		if (this._parentElement && !this._parentElement?.querySelector(findWidgetSelector)) {
-			this._parentElement.querySelector(xtermSelector)!.appendChild(this._findWidget.getDomNode());
+		if (this._overflowGuardElement && !this._overflowGuardElement?.querySelector(findWidgetSelector)) {
+			this._overflowGuardElement.appendChild(this._findWidget.getDomNode());
 		}
 		this._findWidgetVisible.set(true);
 		const activeInstance = this._terminalEditorService.activeInstance;
