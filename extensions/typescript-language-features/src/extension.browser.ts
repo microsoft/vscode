@@ -5,18 +5,19 @@
 
 import * as vscode from 'vscode';
 import { Api, getExtensionApi } from './api';
+import { CommandManager } from './commands/commandManager';
 import { registerBaseCommands } from './commands/index';
 import { LanguageConfigurationManager } from './languageFeatures/languageConfiguration';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
 import { noopRequestCancellerFactory } from './tsServer/cancellation';
 import { noopLogDirectoryProvider } from './tsServer/logDirectoryProvider';
-import { ITypeScriptVersionProvider, TypeScriptVersion, TypeScriptVersionSource } from './tsServer/versionProvider';
 import { WorkerServerProcess } from './tsServer/serverProcess.browser';
-import API from './utils/api';
-import { CommandManager } from './commands/commandManager';
-import { StandardServiceConfigurationProvider, TypeScriptServiceConfiguration } from './utils/configuration';
-import { PluginManager } from './utils/plugins';
+import { ITypeScriptVersionProvider, TypeScriptVersion, TypeScriptVersionSource } from './tsServer/versionProvider';
 import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
+import API from './utils/api';
+import { TypeScriptServiceConfiguration } from './utils/configuration';
+import { BrowserServiceConfigurationProvider } from './utils/configuration.browser';
+import { PluginManager } from './utils/plugins';
 
 class StaticVersionProvider implements ITypeScriptVersionProvider {
 
@@ -67,7 +68,7 @@ export function activate(
 		versionProvider,
 		processFactory: WorkerServerProcess,
 		activeJsTsEditorTracker,
-		serviceConfigurationProvider: new StandardServiceConfigurationProvider(),
+		serviceConfigurationProvider: new BrowserServiceConfigurationProvider(),
 	}, item => {
 		onCompletionAccepted.fire(item);
 	});

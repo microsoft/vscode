@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as os from 'os';
-import * as path from 'path';
 import * as vscode from 'vscode';
 import * as objects from '../utils/objects';
 
@@ -115,7 +113,7 @@ export interface ServiceConfigurationProvider {
 	loadFromWorkspace(): TypeScriptServiceConfiguration;
 }
 
-export class StandardServiceConfigurationProvider implements ServiceConfigurationProvider {
+export abstract class BaseServiceConfigurationProvider implements ServiceConfigurationProvider {
 
 	public loadFromWorkspace(): TypeScriptServiceConfiguration {
 		const configuration = vscode.workspace.getConfiguration();
@@ -138,31 +136,8 @@ export class StandardServiceConfigurationProvider implements ServiceConfiguratio
 		};
 	}
 
-	protected fixPathPrefixes(inspectValue: string): string {
-		const pathPrefixes = ['~' + path.sep];
-		for (const pathPrefix of pathPrefixes) {
-			if (inspectValue.startsWith(pathPrefix)) {
-				return path.join(os.homedir(), inspectValue.slice(pathPrefix.length));
-			}
-		}
-		return inspectValue;
-	}
-
-	protected extractGlobalTsdk(configuration: vscode.WorkspaceConfiguration): string | null {
-		const inspect = configuration.inspect('typescript.tsdk');
-		if (inspect && typeof inspect.globalValue === 'string') {
-			return this.fixPathPrefixes(inspect.globalValue);
-		}
-		return null;
-	}
-
-	protected extractLocalTsdk(configuration: vscode.WorkspaceConfiguration): string | null {
-		const inspect = configuration.inspect('typescript.tsdk');
-		if (inspect && typeof inspect.workspaceValue === 'string') {
-			return this.fixPathPrefixes(inspect.workspaceValue);
-		}
-		return null;
-	}
+	protected abstract extractGlobalTsdk(configuration: vscode.WorkspaceConfiguration): string | null;
+	protected abstract extractLocalTsdk(configuration: vscode.WorkspaceConfiguration): string | null;
 
 	protected readTsServerLogLevel(configuration: vscode.WorkspaceConfiguration): TsServerLogLevel {
 		const setting = configuration.get<string>('typescript.tsserver.log', 'off');
