@@ -138,7 +138,8 @@ export class TypeScriptServiceConfiguration {
 		const pathPrefixes = ['~' + path.sep];
 		for (const pathPrefix of pathPrefixes) {
 			if (inspectValue.startsWith(pathPrefix)) {
-				return path.join(os.homedir(), inspectValue.slice(pathPrefix.length));
+				const homedir = typeof os.homedir === 'function' ? os.homedir() : ''; // no os.homedir in the browser #128222
+				return path.join(homedir, inspectValue.slice(pathPrefix.length));
 			}
 		}
 		return inspectValue;

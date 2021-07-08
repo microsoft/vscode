@@ -7,10 +7,11 @@
 
 'use strict';
 const CopyPlugin = require('copy-webpack-plugin');
-const { lchmod } = require('graceful-fs');
 const Terser = require('terser');
 
-const withBrowserDefaults = require('../shared.webpack.config').browser;
+const defaultConnfig = require('../shared.webpack.config');
+const withBrowserDefaults = defaultConnfig.browser;
+const getBrowserPlugins = defaultConnfig.getBrowserPlugins;
 
 const languages = [
 	'zh-tw',
@@ -33,7 +34,14 @@ module.exports = withBrowserDefaults({
 	entry: {
 		extension: './src/extension.browser.ts',
 	},
+	resolve: {
+		fallback: {
+			os: false
+		}
+	},
 	plugins: [
+		...getBrowserPlugins(), // add plugins, don't replace inherited
+
 		// @ts-ignore
 		new CopyPlugin({
 			patterns: [
@@ -62,7 +70,7 @@ module.exports = withBrowserDefaults({
 					from: '../node_modules/typescript/lib/tsserver.js',
 					to: 'typescript/tsserver.web.js',
 					transform: (content) => {
-						return Terser.minify(content.toString()).code;
+						return Terser.minify(content.toString()).then(output => output.code);
 
 					},
 					transformPath: (targetPath) => {

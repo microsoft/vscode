@@ -19,10 +19,12 @@ const config = withDefaults({
 	output: {
 		filename: 'jsonClientMain.js',
 		path: path.join(__dirname, 'client', 'dist', 'node')
-	}
+	},
+	plugins: [
+		...withDefaults.getNodePlugins(__dirname),
+		new webpack.IgnorePlugin({ contextRegExp: /vertx/})
+	]
 });
 
-// add plugin, don't replace inherited
-config.plugins.push(new webpack.IgnorePlugin(/vertx/)); // request-light dependency
 
 module.exports = config;
