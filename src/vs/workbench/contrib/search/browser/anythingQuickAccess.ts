@@ -959,7 +959,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		// Open editor (typed)
 		if (isEditorInput(resourceOrEditor)) {
-			await this.editorService.openEditor(resourceOrEditor, editorOptions);
+			await this.editorService.openEditor(resourceOrEditor, editorOptions, targetGroup);
 		}
 
 		// Open editor (untyped)
@@ -982,7 +982,6 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 			await this.editorService.openEditor(resourceEditorInput, targetGroup);
 		}
-
 	}
 
 	//#endregion
