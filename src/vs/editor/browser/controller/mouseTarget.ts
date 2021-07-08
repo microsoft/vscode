@@ -18,6 +18,7 @@ import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 import * as dom from 'vs/base/browser/dom';
 import { AtomicTabMoveOperations, Direction } from 'vs/editor/common/controller/cursorAtomicMoveOperations';
+import { PositionAffinity } from 'vs/editor/common/model';
 
 export interface IViewZoneData {
 	viewZoneId: string;
@@ -954,6 +955,12 @@ export class MouseTargetFactory {
 			result = this._doHitTestWithCaretRangeFromPoint(ctx, request);
 		} else if ((<any>document).caretPositionFromPoint) {
 			result = this._doHitTestWithCaretPositionFromPoint(ctx, request.pos.toClientCoordinates());
+		}
+		if (result.type === HitTestResultType.Content) {
+			const normalizedPosition = ctx.model.normalizePosition(result.position, PositionAffinity.None);
+			if (!normalizedPosition.equals(result.position)) {
+				result = new ContentHitTestResult(normalizedPosition, result.spanNode);
+			}
 		}
 		// Snap to the nearest soft tab boundary if atomic soft tabs are enabled.
 		if (result.type === HitTestResultType.Content && ctx.stickyTabStops) {

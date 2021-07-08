@@ -9,7 +9,7 @@ import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { INewScrollPosition, ScrollType } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecorationOptions, TextModelResolvedOptions, ITextModel, InjectedTextOptions } from 'vs/editor/common/model';
+import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecorationOptions, TextModelResolvedOptions, ITextModel, InjectedTextOptions, PositionAffinity } from 'vs/editor/common/model';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IEditorWhitespace, IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
@@ -100,6 +100,11 @@ export class OutputPosition {
 	toString(): string {
 		return `${this.outputLineIndex}:${this.outputOffset}`;
 	}
+
+	toPosition(baseLineNumber: number, wrappedTextIndentLength: number): Position {
+		const delta = (this.outputLineIndex > 0 ? wrappedTextIndentLength : 0);
+		return new Position(baseLineNumber + this.outputLineIndex, delta + this.outputOffset + 1);
+	}
 }
 
 export class LineBreakData {
@@ -137,18 +142,27 @@ export class LineBreakData {
 		return inputOffset;
 	}
 
-	public getOutputPositionOfInputOffset(inputOffset: number): OutputPosition {
+	public getOutputPositionOfInputOffset(inputOffset: number, affinity: PositionAffinity = PositionAffinity.None): OutputPosition {
 		let delta = 0;
 		if (this.injectionOffsets !== null) {
 			for (let i = 0; i < this.injectionOffsets.length; i++) {
-				if (inputOffset <= this.injectionOffsets[i]) {
+				if (inputOffset < this.injectionOffsets[i]) {
 					break;
 				}
+
+				if (affinity !== PositionAffinity.Right && inputOffset === this.injectionOffsets[i]) {
+					break;
+				}
+
 				delta += this.injectionOptions![i].content.length;
 			}
 		}
 		inputOffset += delta;
 
+		return this.getOutputPositionOfOffsetInUnwrappedLine(inputOffset, affinity);
+	}
+
+	public getOutputPositionOfOffsetInUnwrappedLine(inputOffset: number, affinity: PositionAffinity = PositionAffinity.None): OutputPosition {
 		let low = 0;
 		let high = this.breakOffsets.length - 1;
 		let mid = 0;
@@ -160,16 +174,104 @@ export class LineBreakData {
 			const midStop = this.breakOffsets[mid];
 			midStart = mid > 0 ? this.breakOffsets[mid - 1] : 0;
 
-			if (inputOffset < midStart) {
-				high = mid - 1;
-			} else if (inputOffset >= midStop) {
-				low = mid + 1;
+			if (affinity === PositionAffinity.Left) {
+				if (inputOffset <= midStart) {
+					high = mid - 1;
+				} else if (inputOffset > midStop) {
+					low = mid + 1;
+				} else {
+					break;
+				}
 			} else {
-				break;
+				if (inputOffset < midStart) {
+					high = mid - 1;
+				} else if (inputOffset >= midStop) {
+					low = mid + 1;
+				} else {
+					break;
+				}
 			}
 		}
 
 		return new OutputPosition(mid, inputOffset - midStart);
+	}
+
+	public outputPositionToOffsetInUnwrappedLine(outputLineIndex: number, outputOffset: number): number {
+		let result = (outputLineIndex > 0 ? this.breakOffsets[outputLineIndex - 1] : 0) + outputOffset;
+		if (outputLineIndex > 0) {
+			result -= this.wrappedTextIndentLength;
+		}
+		return result;
+	}
+
+	public normalizeOffsetAroundInjections(offsetInUnwrappedLine: number, affinity: PositionAffinity): number {
+		const injectedText = this.getInjectedTextAt(offsetInUnwrappedLine);
+		if (!injectedText) {
+			return offsetInUnwrappedLine;
+		}
+
+		if (affinity === PositionAffinity.None) {
+			if (offsetInUnwrappedLine === injectedText.offsetInUnwrappedLine + injectedText.length) {
+				// go to the end of this injected text
+				return injectedText.offsetInUnwrappedLine + injectedText.length;
+			} else {
+				// go to the start of this injected text
+				return injectedText.offsetInUnwrappedLine;
+			}
+		}
+
+		if (affinity === PositionAffinity.Right) {
+			let result = injectedText.offsetInUnwrappedLine + injectedText.length;
+			let index = injectedText.injectedTextIndex;
+			// traverse all injected text that touch eachother
+			while (index + 1 < this.injectionOffsets!.length && this.injectionOffsets![index + 1] === this.injectionOffsets![index]) {
+				result += this.injectionOptions![index + 1].content.length;
+				index++;
+			}
+			return result;
+		}
+
+		// affinity is left
+		let result = injectedText.offsetInUnwrappedLine;
+		let index = injectedText.injectedTextIndex;
+		// traverse all injected text that touch eachother
+		while (index - 1 >= 0 && this.injectionOffsets![index - 1] === this.injectionOffsets![index]) {
+			result -= this.injectionOptions![index - 1].content.length;
+			index++;
+		}
+		return result;
+	}
+
+	private getInjectedTextAt(offsetInUnwrappedLine: number): { injectedTextIndex: number, offsetInUnwrappedLine: number, length: number } | undefined {
+		const injectionOffsets = this.injectionOffsets;
+		const injectionOptions = this.injectionOptions;
+
+		if (injectionOffsets !== null) {
+			let totalInjectedTextLengthBefore = 0;
+			for (let i = 0; i < injectionOffsets.length; i++) {
+				const length = injectionOptions![i].content.length;
+				const injectedTextStartOffsetInUnwrappedLine = injectionOffsets[i] + totalInjectedTextLengthBefore;
+				const injectedTextEndOffsetInUnwrappedLine = injectionOffsets[i] + totalInjectedTextLengthBefore + length;
+
+				if (injectedTextStartOffsetInUnwrappedLine > offsetInUnwrappedLine) {
+					// Injected text starts later.
+					break; // All later injected texts have an even larger offset.
+				}
+
+				if (offsetInUnwrappedLine <= injectedTextEndOffsetInUnwrappedLine) {
+					// Injected text ends after or with the given position (but also starts with or before it).
+					return {
+						injectedTextIndex: i,
+						offsetInUnwrappedLine: injectedTextStartOffsetInUnwrappedLine,
+						length
+					};
+				}
+
+				totalInjectedTextLengthBefore += length;
+			}
+		}
+
+		return undefined;
 	}
 }
 
