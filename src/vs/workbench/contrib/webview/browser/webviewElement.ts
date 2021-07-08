@@ -719,14 +719,14 @@ export class IFrameWebview extends Disposable implements Webview {
 	}
 
 	public showFind(): void {
-		throw new Error('Method not implemented.');
+		// noop
 	}
 
 	public hideFind(): void {
-		throw new Error('Method not implemented.');
+		// noop
 	}
 
 	public runFindAction(previous: boolean): void {
-		throw new Error('Method not implemented.');
+		// noop
 	}
 }
