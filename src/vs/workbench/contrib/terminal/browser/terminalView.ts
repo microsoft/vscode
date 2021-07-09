@@ -416,7 +416,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		super(new MenuItemAction(
 			{
 				id: action.id,
-				title: getSingleTabLabel(_terminalGroupService.activeInstance).label + getSingleTabLabel(_terminalGroupService.activeInstance).statusIcon,
+				title: getSingleTabLabel(_terminalGroupService.activeInstance),
 				tooltip: getSingleTabTooltip(_terminalGroupService.activeInstance)
 			},
 			{
@@ -512,13 +512,13 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 
 			const elements = new Array<HTMLSpanElement | string>();
 			const tabLabel = getSingleTabLabel(instance, ThemeIcon.isThemeIcon(this._commandAction.item.icon) ? this._commandAction.item.icon : undefined);
-			const iconLabel = separateIconAndText(tabLabel.label);
+			const iconLabel = separateIconAndText(tabLabel);
 
 			if (iconLabel.icon) {
 				elements.push(renderIcon({ id: iconLabel.icon }));
 				const node = dom.$(`span`);
 				node.classList.add('terminal-label-text');
-				node.innerText = tabLabel.statusIcon ? iconLabel.text + tabLabel.statusIcon : iconLabel.text;
+				node.innerText = iconLabel.text;
 				elements.push(node);
 				dom.reset(label, ...elements);
 			}
@@ -563,20 +563,20 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 	}
 }
 
-function getSingleTabLabel(instance: ITerminalInstance | undefined, icon?: ThemeIcon): { label: string, statusIcon?: string } {
+function getSingleTabLabel(instance: ITerminalInstance | undefined, icon?: ThemeIcon): string {
 	// Don't even show the icon if there is no title as the icon would shift around when the title
 	// is added
 	if (!instance || !instance.title) {
-		return { label: '' };
+		return '';
 	}
 	let iconClass = ThemeIcon.isThemeIcon(instance.icon) ? instance.icon?.id : Codicon.terminal.id;
 	const label = `$(${icon?.id || iconClass}) ${getSingleTabTooltip(instance)}`;
 
 	const primaryStatus = instance.statusList.primary;
 	if (!primaryStatus?.icon) {
-		return { label };
+		return label;
 	}
-	return { label: `${label}`, statusIcon: `$(${primaryStatus.icon.id})` };
+	return `${label} $(${primaryStatus.icon.id})`;
 }
 
 function getSingleTabTooltip(instance: ITerminalInstance | undefined): string {
