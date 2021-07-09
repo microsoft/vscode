@@ -293,15 +293,15 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, showOptions?: { viewColumn?: number, preserveFocus?: boolean }, resource?: URI, id?: string): Promise<{ notebookUri: URI, inputUri: URI; }> {
+	async run(accessor: ServicesAccessor, showOptions?: number | { viewColumn?: number, preserveFocus?: boolean }, resource?: URI, id?: string): Promise<{ notebookUri: URI, inputUri: URI; }> {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const historyService = accessor.get(IInteractiveHistoryService);
 		const kernelService = accessor.get(INotebookKernelService);
-		const group = columnToEditorGroup(editorGroupService, showOptions?.viewColumn);
+		const group = columnToEditorGroup(editorGroupService, typeof showOptions === 'number' ? showOptions : showOptions?.viewColumn);
 		const editorOptions = {
 			activation: EditorActivation.PRESERVE,
-			preserveFocus: showOptions?.preserveFocus || true
+			preserveFocus: typeof showOptions !== 'number' ? showOptions?.preserveFocus : true
 		};
 
 		if (resource && resource.scheme === Schemas.vscodeInteractive) {
