@@ -180,7 +180,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 		// Update based on remote indicator changes if any
 		const remoteIndicator = this.environmentService.options?.windowIndicator;
-		if (remoteIndicator) {
+		if (remoteIndicator && remoteIndicator.onDidChange) {
 			this._register(remoteIndicator.onDidChange(() => this.updateRemoteStatusIndicator()));
 		}
 
