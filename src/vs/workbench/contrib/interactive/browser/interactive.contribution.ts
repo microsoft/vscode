@@ -258,14 +258,23 @@ registerAction2(class extends Action2 {
 			f1: false,
 			category: 'Interactive',
 			description: {
-				description: localize('notebookActions.executeNotebook', "Run All"),
+				description: localize('interactive.open', "Open Interactive Window"),
 				args: [
 					{
-						name: 'column',
-						description: 'View Column',
+						name: 'showOptions',
+						description: 'Show Options',
 						schema: {
-							type: 'number',
-							default: -1
+							type: 'object',
+							properties: {
+								'viewColumn': {
+									type: 'number',
+									default: -1
+								},
+								'preserveFocus': {
+									type: 'boolean',
+									default: true
+								}
+							},
 						}
 					},
 					{
@@ -284,12 +293,16 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, column?: number, resource?: URI, id?: string): Promise<{ notebookUri: URI, inputUri: URI; }> {
+	async run(accessor: ServicesAccessor, showOptions?: number | { viewColumn?: number, preserveFocus?: boolean }, resource?: URI, id?: string): Promise<{ notebookUri: URI, inputUri: URI; }> {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const historyService = accessor.get(IInteractiveHistoryService);
 		const kernelService = accessor.get(INotebookKernelService);
-		const group = columnToEditorGroup(editorGroupService, column);
+		const group = columnToEditorGroup(editorGroupService, typeof showOptions === 'number' ? showOptions : showOptions?.viewColumn);
+		const editorOptions = {
+			activation: EditorActivation.PRESERVE,
+			preserveFocus: typeof showOptions !== 'number' ? (showOptions?.preserveFocus ?? false) : false
+		};
 
 		if (resource && resource.scheme === Schemas.vscodeInteractive) {
 			const resourceUri = URI.revive(resource);
@@ -297,7 +310,7 @@ registerAction2(class extends Action2 {
 			if (editors.length) {
 				const editorInput = editors[0].editor as InteractiveEditorInput;
 				const currentGroup = editors[0].groupId;
-				await editorService.openEditor(editorInput, { activation: EditorActivation.PRESERVE, preserveFocus: true }, currentGroup);
+				await editorService.openEditor(editorInput, editorOptions, currentGroup);
 				return {
 					notebookUri: editorInput.resource!,
 					inputUri: editorInput.inputResource
@@ -332,7 +345,7 @@ registerAction2(class extends Action2 {
 
 		const editorInput = InteractiveEditorInput.create(accessor.get(IInstantiationService), notebookUri, inputUri);
 		historyService.clearHistory(notebookUri);
-		await editorService.openEditor(editorInput, undefined, group);
+		await editorService.openEditor(editorInput, editorOptions, group);
 		// Extensions must retain references to these URIs to manipulate the interactive editor
 		return { notebookUri, inputUri };
 	}
