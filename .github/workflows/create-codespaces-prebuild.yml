@@ -11,11 +11,11 @@ jobs:
         run: |
           $splat = @{
             ErrorAction = 'Stop'
-            Uri = 'https://api.github.com/vscs_internal/user/vscode-triage-bot/codespaces/prebuild'
+            Uri = 'https://api.github.com/vscs_internal/user/TylerLeonhardt/codespaces/prebuild'
             Method = 'POST'   
             Headers = @{
               'Content-Type' = 'application/json; charset=utf-8'
-              'Authorization' = 'token ${{ secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT }}'
+              'Authorization' = 'token ${{ secrets.CODESPACES_PREBUILD_PAT }}'
             }
             Body = @{
               ref = 'main'
