@@ -1274,7 +1274,7 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 		}
 
 		if (syncResourceConflicts[1].some(({ remoteResource }) => isEqual(remoteResource, model.uri))) {
-			return this.configurationService.getValue<boolean>('diffEditor.renderSideBySide');
+			return this.configurationService.getValue('diffEditor.renderSideBySide');
 		}
 
 		return false;

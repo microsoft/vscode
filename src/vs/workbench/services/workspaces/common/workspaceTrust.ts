@@ -80,7 +80,7 @@ export class WorkspaceTrustEnablementService extends Disposable implements IWork
 			return false;
 		}
 
-		return this.configurationService.getValue<boolean>(WORKSPACE_TRUST_ENABLED) ?? false;
+		return !!this.configurationService.getValue(WORKSPACE_TRUST_ENABLED);
 	}
 }
 
@@ -308,7 +308,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			}
 
 			// User setting
-			return this.configurationService.getValue<boolean>(WORKSPACE_TRUST_EMPTY_WINDOW) ?? false;
+			return !!this.configurationService.getValue(WORKSPACE_TRUST_EMPTY_WINDOW);
 		}
 
 		return this.getUrisTrust(this.getWorkspaceUris());
