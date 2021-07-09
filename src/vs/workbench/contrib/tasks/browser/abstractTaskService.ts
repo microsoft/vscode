@@ -2625,7 +2625,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			const buildTasks: ConfiguringTask[] = [];
 			for (const taskSource of tasks) {
 				for (const task in taskSource[1].configurations?.byIdentifier) {
-					if ((taskSource[1].configurations?.byIdentifier[task].configurationProperties.group === TaskGroup.Build) &&
+					if ((taskSource[1].configurations?.byIdentifier[task].configurationProperties.group?._id === TaskGroup.Build._id) &&
 						(taskSource[1].configurations?.byIdentifier[task].configurationProperties.groupType === GroupType.default)) {
 						buildTasks.push(taskSource[1].configurations.byIdentifier[task]);
 					}
@@ -3168,7 +3168,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				let selectedEntry: TaskQuickPickEntry;
 
 				for (let task of tasks) {
-					if (task.configurationProperties.group === TaskGroup.Test && task.configurationProperties.groupType === GroupType.default) {
+					if (task.configurationProperties.group?._id === TaskGroup.Test._id && task.configurationProperties.groupType === GroupType.default) {
 						selectedTask = task;
 						break;
 					}

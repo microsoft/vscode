@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import vs_code_editor_walkthrough from 'vs/workbench/contrib/welcome/walkThrough/browser/editor/vs_code_editor_walkthrough';
-
 /**
  * This is the place for API experiments and proposals.
  * These API are NOT stable and subject to change. They are only available in the Insiders
