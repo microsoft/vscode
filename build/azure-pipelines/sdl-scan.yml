@@ -6,17 +6,34 @@ parameters:
     displayName: "Enable Terrapin"
     type: boolean
     default: true
+  - name: SCAN_WINDOWS
+    displayName: "Scan Windows"
+    type: boolean
+    default: true
+  - name: SCAN_LINUX
+    displayName: "Scan Linux"
+    type: boolean
+    default: true
 
 variables:
   - name: ENABLE_TERRAPIN
     value: ${{ eq(parameters.ENABLE_TERRAPIN, true) }}
+  - name: SCAN_WINDOWS
+    value: ${{ eq(parameters.SCAN_WINDOWS, true) }}
+  - name: SCAN_LINUX
+    value: ${{ eq(parameters.SCAN_LINUX, true) }}
   - name: VSCODE_MIXIN_REPO
     value: microsoft/vscode-distro
   - name: skipComponentGovernanceDetection
     value: true
+  - name: NPM_ARCH
+    value: x64
+  - name: VSCODE_ARCH
+    value: x64
 
 stages:
 - stage: Windows
+  condition: eq(variables.SCAN_WINDOWS, 'true'))
   pool:
     vmImage: VS2017-Win2016
   jobs:
@@ -67,7 +84,7 @@ stages:
           . build/azure-pipelines/win32/exec.ps1
           . build/azure-pipelines/win32/retry.ps1
           $ErrorActionPreference = "Stop"
-          $env:npm_config_arch="x64"
+          $env:npm_config_arch="$(NPM_ARCH)"
           $env:npm_config_build_from_source="true"
           $env:CHILD_CONCURRENCY="1"
           retry { exec { yarn --frozen-lockfile } }
@@ -79,14 +96,127 @@ stages:
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
-          exec { yarn gulp "vscode-symbols-win32-x64" }
+          exec { yarn gulp "vscode-symbols-win32-$(VSCODE_ARCH)" }
         displayName: Download Symbols
 
       - task: BinSkim@3
         inputs:
           toolVersion: Latest
           InputType:   CommandLine
-          arguments:   analyze $(agent.builddirectory)\scanbin\*.dll $(agent.builddirectory)\scanbin\*.exe $(agent.builddirectory)\scanbin\*.node --recurse --local-symbol-directories $(agent.builddirectory)\scanbin\VSCode-win32-x64\pdb
+          arguments:   analyze $(agent.builddirectory)\scanbin\*.dll $(agent.builddirectory)\scanbin\*.exe $(agent.builddirectory)\scanbin\*.node --recurse --local-symbol-directories $(agent.builddirectory)\scanbin\VSCode-win32-$(VSCODE_ARCH)\pdb
+
+      - task: TSAUpload@1
+        inputs:
+          tsaVersion: 'TsaV2'
+          codebase: 'NewOrUpdate'
+          tsaEnvironment: 'PROD'
+          serviceTreeID: '79c048b2-322f-4ed5-a1ea-252a1250e4b3'
+          codeBaseName: 'vscode-client'
+          notificationAlias: 'sbatten@microsoft.com'
+          notifyAlwaysV2: true
+          codeBaseAdmins: 'REDMOND\stbatt'
+          instanceUrlForTsaV2: 'MSAZURE'
+          projectNameMSAZURE: 'One'
+          areaPath: 'One\VSCode\Client'
+          uploadAPIScan: false
+          uploadBinSkim: true
+          uploadCredScan: true
+          uploadFortifySCA: false
+          uploadFxCop: false
+          uploadModernCop: false
+          uploadPoliCheck: false
+          uploadPREfast: false
+          uploadRoslyn: false
+          uploadTSLint: false
+          uploadAsync: true
+- stage: Linux
+  dependsOn: []
+  condition: eq(variables.SCAN_LINUX, 'true'))
+  pool:
+    vmImage: "Ubuntu-18.04"
+  jobs:
+    - job: Linux Job
+      steps:
+      - task: CredScan@2
+        inputs:
+          toolMajorVersion: 'V2'
+      - task: NodeTool@0
+        inputs:
+          versionSpec: "14.x"
+
+      - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+        inputs:
+          versionSpec: "1.x"
+
+      - task: AzureKeyVault@1
+        displayName: "Azure Key Vault: Get Secrets"
+        inputs:
+          azureSubscription: "vscode-builds-subscription"
+          KeyVaultName: vscode
+          SecretsFilter: "github-distro-mixin-password,ESRP-SSL-AADAuth,vscode-storage-key,builds-docdb-key-readwrite"
+
+      - script: |
+          set -e
+          cat << EOF > ~/.netrc
+          machine github.com
+          login vscode
+          password $(github-distro-mixin-password)
+          EOF
+
+          git config user.email "vscode@microsoft.com"
+          git config user.name "VSCode"
+        displayName: Prepare tooling
+
+      - script: |
+          set -e
+          git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
+        displayName: Merge distro
+
+      - script: |
+          set -e
+          npx https://aka.ms/enablesecurefeed standAlone
+        timeoutInMinutes: 5
+        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
+        displayName: Switch to Terrapin packages
+
+      - script: |
+          set -e
+          export npm_config_arch=$(NPM_ARCH)
+          export npm_config_build_from_source=true
+
+          if [ -z "$CC" ] || [ -z "$CXX" ]; then
+            export CC=$(which gcc-5)
+            export CXX=$(which g++-5)
+          fi
+
+          if [ "$VSCODE_ARCH" == "x64" ]; then
+            export VSCODE_REMOTE_CC=$(which gcc-4.8)
+            export VSCODE_REMOTE_CXX=$(which g++-4.8)
+          fi
+
+          for i in {1..3}; do # try 3 times, for Terrapin
+            yarn --frozen-lockfile && break
+            if [ $i -eq 3 ]; then
+              echo "Yarn failed too many times" >&2
+              exit 1
+            fi
+            echo "Yarn failed $i, trying again..."
+          done
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+        displayName: Install dependencies
+
+      - script: |
+          set -e
+          yarn gulp vscode-symbols-linux-$(VSCODE_ARCH)
+        displayName: Build
+
+      - task: BinSkim@3
+        inputs:
+          toolVersion: Latest
+          InputType:   CommandLine
+          arguments:   analyze $(agent.builddirectory)\scanbin\exe\*.* --recurse --local-symbol-directories $(agent.builddirectory)\scanbin\VSCode-linux-$(VSCODE_ARCH)\pdb
 
       - task: TSAUpload@1
         inputs:

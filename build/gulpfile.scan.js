@@ -49,13 +49,19 @@ BUILD_TARGETS.forEach(buildTarget => {
 	if (platform === 'win32') {
 		tasks.push(
 			() => electron.dest(destinationPdb, _.extend({}, config, { platform, arch: arch === 'armhf' ? 'arm' : arch, pdbs: true })),
+			util.rimraf(path.join(destinationExe, 'swiftshader')),
 			util.rimraf(path.join(destinationExe, 'd3dcompiler_47.dll')));
 	}
 
-	// cleanup and node modules
+	if (platform === 'linux') {
+		tasks.push(
+			() => electron.dest(destinationPdb, _.extend({}, config, { platform, arch: arch === 'armhf' ? 'arm' : arch, symbols: true }))
+		);
+	}
+
+	// node modules
 	tasks.push(
-		util.rimraf(path.join(destinationExe, 'swiftshader')),
-		nodeModules(destinationExe, destinationPdb)
+		nodeModules(destinationExe, destinationPdb, platform)
 	);
 
 	const setupSymbolsTask = task.define(`vscode-symbols${dashed(platform)}${dashed(arch)}`,
@@ -65,7 +71,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 	gulp.task(setupSymbolsTask);
 });
 
-function nodeModules(destinationExe, destinationPdb) {
+function nodeModules(destinationExe, destinationPdb, platform) {
 	const productionDependencies = deps.getProductionDependencies(root);
 	const dependenciesSrc = _.flatten(productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]));
 
@@ -75,11 +81,25 @@ function nodeModules(destinationExe, destinationPdb) {
 			.pipe(gulp.dest(destinationExe));
 	};
 
-	const pdb = () => {
-		return gulp.src(dependenciesSrc, { base: '.', dot: true })
-			.pipe(filter(['**/*.pdb']))
-			.pipe(gulp.dest(destinationPdb));
-	};
+	if (platform === 'win32') {
+		const pdb = () => {
+			return gulp.src(dependenciesSrc, { base: '.', dot: true })
+				.pipe(filter(['**/*.pdb']))
+				.pipe(gulp.dest(destinationPdb));
+		};
 
-	return gulp.parallel(exe, pdb);
+		return gulp.parallel(exe, pdb);
+	}
+
+	if (platform === 'linux') {
+		const pdb = () => {
+			return gulp.src(dependenciesSrc, { base: '.', dot: true })
+				.pipe(filter(['**/*.sym']))
+				.pipe(gulp.dest(destinationPdb));
+		};
+
+		return gulp.parallel(exe, pdb);
+	}
+
+	return exe;
 }
