@@ -44,15 +44,15 @@ export class PreferencesContribution implements IWorkbenchContribution {
 	) {
 		this.settingsListener = this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(USE_SPLIT_JSON_SETTING)) {
-				this.handleSettingsEditorOverride();
+				this.handleSettingsEditorRegistration();
 			}
 		});
-		this.handleSettingsEditorOverride();
+		this.handleSettingsEditorRegistration();
 
 		this.start();
 	}
 
-	private handleSettingsEditorOverride(): void {
+	private handleSettingsEditorRegistration(): void {
 
 		// dispose any old listener we had
 		dispose(this.editorOpeningListener);

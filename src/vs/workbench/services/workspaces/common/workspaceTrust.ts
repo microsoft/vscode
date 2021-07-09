@@ -17,7 +17,7 @@ import { IRemoteAuthorityResolverService, ResolverResult } from 'vs/platform/rem
 import { getRemoteAuthority, isVirtualResource } from 'vs/platform/remote/common/remoteHosts';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
+import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, WorkspaceTrustUriResponse, IWorkspaceTrustEnablementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { isSingleFolderWorkspaceIdentifier, isUntitledWorkspace, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -64,6 +64,26 @@ export class CanonicalWorkspace implements IWorkspace {
 	}
 }
 
+export class WorkspaceTrustEnablementService extends Disposable implements IWorkspaceTrustEnablementService {
+
+	_serviceBrand: undefined;
+
+	constructor(
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+	) {
+		super();
+	}
+
+	isWorkspaceTrustEnabled(): boolean {
+		if (this.environmentService.disableWorkspaceTrust) {
+			return false;
+		}
+
+		return this.configurationService.getValue<boolean>(WORKSPACE_TRUST_ENABLED) ?? false;
+	}
+}
+
 export class WorkspaceTrustManagementService extends Disposable implements IWorkspaceTrustManagementService {
 
 	_serviceBrand: undefined;
@@ -94,11 +114,12 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
-		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService
+		@IWorkspaceTrustEnablementService private readonly workspaceTrustEnablementService: IWorkspaceTrustEnablementService
 	) {
 		super();
 
@@ -200,7 +221,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			const filesToOpenOrCreateUris = filesToOpenOrCreate.filter(f => f.fileUri && f.fileUri.scheme === Schemas.file).map(f => f.fileUri!);
 			const canonicalFilesToOpen = await Promise.all(filesToOpenOrCreateUris.map(uri => this.getCanonicalUri(uri)));
 
-			this._canonicalStartupFiles.push(...canonicalFilesToOpen);
+			this._canonicalStartupFiles.push(...canonicalFilesToOpen.filter(uri => this._canonicalStartupFiles.every(u => !this.uriIdentityService.extUri.isEqual(uri, u))));
 		}
 
 		// Workspace
@@ -260,7 +281,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	private calculateWorkspaceTrust(): boolean {
 		// Feature is disabled
-		if (!this.workspaceTrustEnabled) {
+		if (!this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
 			return true;
 		}
 
@@ -294,7 +315,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	private async updateWorkspaceTrust(trusted?: boolean): Promise<void> {
-		if (!this.workspaceTrustEnabled) {
+		if (!this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
 			return;
 		}
 
@@ -331,7 +352,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	private doGetUriTrustInfo(uri: URI): IWorkspaceTrustUriInfo {
 		// Return trusted when workspace trust is disabled
-		if (!this.workspaceTrustEnabled) {
+		if (!this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
 			return { trusted: true, uri };
 		}
 
@@ -430,14 +451,6 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	get workspaceResolved(): Promise<void> {
 		return this._workspaceResolvedPromise;
-	}
-
-	get workspaceTrustEnabled(): boolean {
-		if (this.environmentService.disableWorkspaceTrust) {
-			return false;
-		}
-
-		return this.configurationService.getValue<boolean>(WORKSPACE_TRUST_ENABLED) ?? false;
 	}
 
 	get workspaceTrustInitialized(): Promise<void> {
@@ -550,7 +563,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	async getUriTrustInfo(uri: URI): Promise<IWorkspaceTrustUriInfo> {
 		// Return trusted when workspace trust is disabled
-		if (!this.workspaceTrustEnabled) {
+		if (!this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
 			return { trusted: true, uri };
 		}
 
@@ -626,6 +639,7 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkspaceTrustEnablementService private readonly workspaceTrustEnablementService: IWorkspaceTrustEnablementService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService
 	) {
 		super();
@@ -634,7 +648,7 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 
 		this._ctxWorkspaceTrustEnabled = WorkspaceTrustContext.IsEnabled.bindTo(contextKeyService);
 		this._ctxWorkspaceTrustState = WorkspaceTrustContext.IsTrusted.bindTo(contextKeyService);
-		this._ctxWorkspaceTrustEnabled.set(this.workspaceTrustManagementService.workspaceTrustEnabled);
+		this._ctxWorkspaceTrustEnabled.set(this.workspaceTrustEnablementService.isWorkspaceTrustEnabled());
 
 		this.trusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
 	}

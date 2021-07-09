@@ -25,7 +25,8 @@ import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { EditorResolution, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { Schemas } from 'vs/base/common/network';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -41,6 +42,7 @@ export const LAYOUT_EDITOR_GROUPS_COMMAND_ID = 'layoutEditorGroups';
 export const KEEP_EDITOR_COMMAND_ID = 'workbench.action.keepEditor';
 export const TOGGLE_KEEP_EDITORS_COMMAND_ID = 'workbench.action.toggleKeepEditors';
 export const SHOW_EDITORS_IN_GROUP = 'workbench.action.showEditorsInGroup';
+export const REOPEN_WITH_COMMAND_ID = 'workbench.action.reopenWithEditor';
 
 export const PIN_EDITOR_COMMAND_ID = 'workbench.action.pinEditor';
 export const UNPIN_EDITOR_COMMAND_ID = 'workbench.action.unpinEditor';
@@ -848,6 +850,32 @@ function registerCloseEditorCommands() {
 
 				return group.closeEditors({ direction: CloseDirection.RIGHT, except: editor, excludeSticky: true });
 			}
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: REOPEN_WITH_COMMAND_ID,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: undefined,
+		primary: undefined,
+		handler: async (accessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
+			const editorGroupService = accessor.get(IEditorGroupsService);
+			const editorService = accessor.get(IEditorService);
+
+			const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
+
+			if (!editor) {
+				return;
+			}
+
+			await editorService.replaceEditors([
+				{
+					editor: editor,
+					replacement: editor,
+					forceReplaceDirty: editor.resource?.scheme === Schemas.untitled,
+					options: { ...editorService.activeEditorPane?.options, override: EditorResolution.PICK }
+				}
+			], group);
 		}
 	});
 

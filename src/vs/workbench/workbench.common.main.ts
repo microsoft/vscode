@@ -286,6 +286,8 @@ import 'vs/workbench/contrib/welcome/overlay/browser/welcomeOverlay';
 import 'vs/workbench/contrib/welcome/page/browser/welcomePage.contribution';
 import 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted.contribution';
 import 'vs/workbench/contrib/welcome/walkThrough/browser/walkThrough.contribution';
+import 'vs/workbench/contrib/welcome/common/viewsWelcome.contribution';
+import 'vs/workbench/contrib/welcome/common/newFile.contribution';
 
 // Call Hierarchy
 import 'vs/workbench/contrib/callHierarchy/browser/callHierarchy.contribution';
@@ -305,9 +307,6 @@ import 'vs/workbench/contrib/userDataSync/browser/userDataSync.contribution';
 
 // Code Actions
 import 'vs/workbench/contrib/codeActions/common/codeActions.contribution';
-
-// Welcome
-import 'vs/workbench/contrib/welcome/common/viewsWelcome.contribution';
 
 // Timeline
 import 'vs/workbench/contrib/timeline/browser/timeline.contribution';

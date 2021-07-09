@@ -9,7 +9,7 @@ import { Range } from 'vs/editor/common/core/range';
 import * as strings from 'vs/base/common/strings';
 import { Constants } from 'vs/base/common/uint';
 import { AtomicTabMoveOperations, Direction } from 'vs/editor/common/controller/cursorAtomicMoveOperations';
-import { PositionNormalizationAffinity } from 'vs/editor/common/model';
+import { PositionAffinity } from 'vs/editor/common/model';
 
 export class CursorPosition {
 	_cursorPositionBrand: void = undefined;
@@ -75,7 +75,7 @@ export class MoveOperations {
 			const pos = cursor.position.delta(undefined, -(noOfColumns - 1));
 			// We clip the position before normalization, as normalization is not defined
 			// for possibly negative columns.
-			const normalizedPos = model.normalizePosition(MoveOperations.clipPositionColumn(pos, model), PositionNormalizationAffinity.Left);
+			const normalizedPos = model.normalizePosition(MoveOperations.clipPositionColumn(pos, model), PositionAffinity.Left);
 			const p = MoveOperations.left(config, model, normalizedPos);
 
 			lineNumber = p.lineNumber;
@@ -144,7 +144,7 @@ export class MoveOperations {
 			column = cursor.selection.endColumn;
 		} else {
 			const pos = cursor.position.delta(undefined, noOfColumns - 1);
-			const normalizedPos = model.normalizePosition(MoveOperations.clipPositionColumn(pos, model), PositionNormalizationAffinity.Right);
+			const normalizedPos = model.normalizePosition(MoveOperations.clipPositionColumn(pos, model), PositionAffinity.Right);
 			const r = MoveOperations.right(config, model, normalizedPos);
 			lineNumber = r.lineNumber;
 			column = r.column;

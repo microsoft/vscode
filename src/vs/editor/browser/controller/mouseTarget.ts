@@ -18,6 +18,7 @@ import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 import * as dom from 'vs/base/browser/dom';
 import { AtomicTabMoveOperations, Direction } from 'vs/editor/common/controller/cursorAtomicMoveOperations';
+import { PositionAffinity } from 'vs/editor/common/model';
 
 export interface IViewZoneData {
 	viewZoneId: string;
@@ -850,13 +851,13 @@ export class MouseTargetFactory {
 		const shadowRoot = dom.getShadowRoot(ctx.viewDomNode);
 		let range: Range;
 		if (shadowRoot) {
-			if (typeof shadowRoot.caretRangeFromPoint === 'undefined') {
+			if (typeof (<any>shadowRoot).caretRangeFromPoint === 'undefined') {
 				range = shadowCaretRangeFromPoint(shadowRoot, coords.clientX, coords.clientY);
 			} else {
-				range = shadowRoot.caretRangeFromPoint(coords.clientX, coords.clientY);
+				range = (<any>shadowRoot).caretRangeFromPoint(coords.clientX, coords.clientY);
 			}
 		} else {
-			range = document.caretRangeFromPoint(coords.clientX, coords.clientY);
+			range = (<any>document).caretRangeFromPoint(coords.clientX, coords.clientY);
 		}
 
 		if (!range || !range.startContainer) {
@@ -950,10 +951,16 @@ export class MouseTargetFactory {
 	private static _doHitTest(ctx: HitTestContext, request: BareHitTestRequest): HitTestResult {
 
 		let result: HitTestResult = new UnknownHitTestResult();
-		if (typeof document.caretRangeFromPoint === 'function') {
+		if (typeof (<any>document).caretRangeFromPoint === 'function') {
 			result = this._doHitTestWithCaretRangeFromPoint(ctx, request);
 		} else if ((<any>document).caretPositionFromPoint) {
 			result = this._doHitTestWithCaretPositionFromPoint(ctx, request.pos.toClientCoordinates());
+		}
+		if (result.type === HitTestResultType.Content) {
+			const normalizedPosition = ctx.model.normalizePosition(result.position, PositionAffinity.None);
+			if (!normalizedPosition.equals(result.position)) {
+				result = new ContentHitTestResult(normalizedPosition, result.spanNode);
+			}
 		}
 		// Snap to the nearest soft tab boundary if atomic soft tabs are enabled.
 		if (result.type === HitTestResultType.Content && ctx.stickyTabStops) {
@@ -967,7 +974,7 @@ export function shadowCaretRangeFromPoint(shadowRoot: ShadowRoot, x: number, y: 
 	const range = document.createRange();
 
 	// Get the element under the point
-	let el: Element | null = shadowRoot.elementFromPoint(x, y);
+	let el: Element | null = (<any>shadowRoot).elementFromPoint(x, y);
 
 	if (el !== null) {
 		// Get the last child of the element until its firstChild is a text node

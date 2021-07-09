@@ -202,7 +202,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		try {
 			const result = await Promises.stat(slc.executable);
 			if (!result.isFile() && !result.isSymbolicLink()) {
-				return { message: localize('launchFail.executableIsNotFileOrSymlink', "Path to shell executable \"{0}\" is not a file of a symlink", slc.executable) };
+				return { message: localize('launchFail.executableIsNotFileOrSymlink', "Path to shell executable \"{0}\" is not a file or a symlink", slc.executable) };
 			}
 		} catch (err) {
 			if (err?.code === 'ENOENT') {

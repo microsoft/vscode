@@ -444,24 +444,6 @@ export const enum EditorInputCapabilities {
 	RequiresTrust = 1 << 4,
 }
 
-export const enum UntypedEditorContext {
-
-	/**
-	 * The untyped editor should preserve minimal state of the
-	 * typed editor to restore properly.
-	 */
-	Default = 0,
-
-	/**
-	 * The untyped editor should try to preserve as much of the
-	 * state of the typed editor as possible.
-	 *
-	 * For example: the untyped editor may be dragged to another
-	 * window to fully restore there, including contents.
-	 */
-	Full = 1
-}
-
 export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput;
 
 export interface IEditorInput extends IDisposable {
@@ -496,7 +478,7 @@ export interface IEditorInput extends IDisposable {
 
 	/**
 	 * Identifies the type of editor this input represents
-	 * This ID is registered with the {@link EditorOverrideService} to allow
+	 * This ID is registered with the {@link EditorResolverService} to allow
 	 * for resolving an untyped input to a typed one
 	 */
 	readonly editorId: string | undefined;
@@ -617,8 +599,13 @@ export interface IEditorInput extends IDisposable {
 	 * editor input into a form that it can be restored.
 	 *
 	 * May return `undefined` if a untyped representatin is not supported.
+	 *
+	 * @param options additional configuration for the expected return type.
+	 * When `preserveViewState` is provided, implementations should try to
+	 * preserve as much view state as possible from the typed input based on
+	 * the group the editor is opened.
 	 */
-	toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IUntypedEditorInput | undefined;
+	toUntyped(options?: { preserveViewState: GroupIdentifier }): IUntypedEditorInput | undefined;
 
 	/**
 	 * Returns if the other object matches this input.

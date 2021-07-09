@@ -27,7 +27,7 @@ suite('Inline Completions', () => {
 			const cleanedText = text.replace('[', '').replace(']', '');
 			const tempModel = createTextModel(cleanedText);
 			const range = Range.fromPositions(tempModel.getPositionAt(rangeStartOffset), tempModel.getPositionAt(rangeEndOffset));
-			const options = ['prefix', 'subwordDiff'] as const;
+			const options = ['prefix', 'subword'] as const;
 			const result = {} as any;
 			for (const option of options) {
 				result[option] = renderGhostTextToText(inlineCompletionToGhostText({ text: suggestion, range }, tempModel, option), cleanedText);
@@ -73,8 +73,8 @@ suite('Inline Completions', () => {
 		});
 
 		test('Multi Part Diffing', () => {
-			assert.deepStrictEqual(getOutput('foo[()]', '(x);'), { prefix: undefined, subwordDiff: 'foo([x])[;]' });
-			assert.deepStrictEqual(getOutput('[\tfoo]', '\t\tfoobar'), { prefix: undefined, subwordDiff: '\t[\t]foo[bar]' });
+			assert.deepStrictEqual(getOutput('foo[()]', '(x);'), { prefix: undefined, subword: 'foo([x])[;]' });
+			assert.deepStrictEqual(getOutput('[\tfoo]', '\t\tfoobar'), { prefix: undefined, subword: '\t[\t]foo[bar]' });
 		});
 	});
 

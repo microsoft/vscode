@@ -99,15 +99,15 @@ export const enum State {
 
 function shouldPreventQuickSuggest(contextKeyService: IContextKeyService, configurationService: IConfigurationService): boolean {
 	return (
-		Boolean(contextKeyService.getContextKeyValue<boolean>('inlineSuggestionVisible'))
-		&& !Boolean(configurationService.getValue<boolean>('editor.inlineSuggest.allowQuickSuggestions'))
+		Boolean(contextKeyService.getContextKeyValue('inlineSuggestionVisible'))
+		&& !Boolean(configurationService.getValue('editor.inlineSuggest.allowQuickSuggestions'))
 	);
 }
 
 function shouldPreventSuggestOnTriggerCharacters(contextKeyService: IContextKeyService, configurationService: IConfigurationService): boolean {
 	return (
-		Boolean(contextKeyService.getContextKeyValue<boolean>('inlineSuggestionVisible'))
-		&& !Boolean(configurationService.getValue<boolean>('editor.inlineSuggest.allowSuggestOnTriggerCharacters'))
+		Boolean(contextKeyService.getContextKeyValue('inlineSuggestionVisible'))
+		&& !Boolean(configurationService.getValue('editor.inlineSuggest.allowSuggestOnTriggerCharacters'))
 	);
 }
 

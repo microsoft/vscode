@@ -583,13 +583,15 @@ class ExtensionsManager extends Disposable {
 		} catch (error) {
 			this.logService.error(error);
 		}
-		Event.filter(this.extensionManagementService.onDidInstallExtension, (e => !!e.local))(e => this.onDidInstallExtension(e.local!));
-		Event.filter(this.extensionManagementService.onDidUninstallExtension, (e => !e.error))(e => this.onDidUninstallExtension(e.identifier, e.server));
+		this._register(this.extensionManagementService.onDidInstallExtensions(e => this.onDidInstallExtensions(e.reduce<IExtension[]>((result, { local }) => { if (local) { result.push(local); } return result; }, []))));
+		this._register(Event.filter(this.extensionManagementService.onDidUninstallExtension, (e => !e.error))(e => this.onDidUninstallExtension(e.identifier, e.server)));
 	}
 
-	private onDidInstallExtension(extension: IExtension): void {
-		this._extensions.push(extension);
-		this._onDidChangeExtensions.fire({ added: [extension], removed: [] });
+	private onDidInstallExtensions(extensions: IExtension[]): void {
+		if (extensions.length) {
+			this._extensions.push(...extensions);
+			this._onDidChangeExtensions.fire({ added: extensions, removed: [] });
+		}
 	}
 
 	private onDidUninstallExtension(identifier: IExtensionIdentifier, server: IExtensionManagementServer): void {

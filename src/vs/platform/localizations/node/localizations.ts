@@ -5,7 +5,7 @@
 
 import { Promises } from 'vs/base/node/pfs';
 import { createHash } from 'crypto';
-import { IExtensionManagementService, ILocalExtension, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, ILocalExtension, IExtensionIdentifier, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Queue } from 'vs/base/common/async';
@@ -43,7 +43,7 @@ export class LocalizationsService extends Disposable implements ILocalizationsSe
 		super();
 		this.cache = this._register(new LanguagePacksCache(environmentService, logService));
 
-		this._register(extensionManagementService.onDidInstallExtension(({ local }) => this.onDidInstallExtension(local)));
+		this._register(extensionManagementService.onDidInstallExtensions(e => this.onDidInstallExtensions(e)));
 		this._register(extensionManagementService.onDidUninstallExtension(({ identifier }) => this.onDidUninstallExtension(identifier)));
 	}
 
@@ -56,10 +56,12 @@ export class LocalizationsService extends Disposable implements ILocalizationsSe
 			});
 	}
 
-	private onDidInstallExtension(extension: ILocalExtension | undefined): void {
-		if (extension && extension.manifest && extension.manifest.contributes && extension.manifest.contributes.localizations && extension.manifest.contributes.localizations.length) {
-			this.logService.debug('Adding language packs from the extension', extension.identifier.id);
-			this.update().then(changed => { if (changed) { this._onDidLanguagesChange.fire(); } });
+	private onDidInstallExtensions(results: readonly InstallExtensionResult[]): void {
+		for (const { local: extension } of results) {
+			if (extension && extension.manifest && extension.manifest.contributes && extension.manifest.contributes.localizations && extension.manifest.contributes.localizations.length) {
+				this.logService.debug('Adding language packs from the extension', extension.identifier.id);
+				this.update().then(changed => { if (changed) { this._onDidLanguagesChange.fire(); } });
+			}
 		}
 	}
 

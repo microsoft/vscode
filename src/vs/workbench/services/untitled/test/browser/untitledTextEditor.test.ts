@@ -16,7 +16,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { EditorInputCapabilities, UntypedEditorContext } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities } from 'vs/workbench/common/editor';
 
 suite('Untitled text editors', () => {
 
@@ -52,7 +52,7 @@ suite('Untitled text editors', () => {
 		assert.strictEqual(service.get(input2.resource), input2.model);
 
 		// toUntyped()
-		const untypedInput = input1.toUntyped(0, UntypedEditorContext.Full);
+		const untypedInput = input1.toUntyped({ preserveViewState: 0 });
 		assert.strictEqual(untypedInput.forceUntitled, true);
 
 		// get()
@@ -81,10 +81,10 @@ suite('Untitled text editors', () => {
 
 		assert.ok(input2.isDirty());
 
-		const dirtyUntypedInput = input2.toUntyped(0, UntypedEditorContext.Full);
+		const dirtyUntypedInput = input2.toUntyped({ preserveViewState: 0 });
 		assert.strictEqual(dirtyUntypedInput.contents, 'foo bar');
 
-		const dirtyUntypedInputWithoutContent = input2.toUntyped(0, UntypedEditorContext.Default);
+		const dirtyUntypedInputWithoutContent = input2.toUntyped();
 		assert.strictEqual(dirtyUntypedInputWithoutContent.contents, undefined);
 
 		assert.ok(workingCopyService.isDirty(input2.resource));

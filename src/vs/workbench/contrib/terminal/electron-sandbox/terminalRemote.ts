@@ -37,15 +37,17 @@ export class CreateNewLocalTerminalAction extends Action {
 	}
 
 	override async run(): Promise<any> {
-		let cwd: URI;
+		let cwd: URI | undefined;
 		try {
 			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.vscodeRemote);
 			if (activeWorkspaceRootUri) {
-				cwd = await this._remoteAuthorityResolverService.getCanonicalURI(activeWorkspaceRootUri);
-			} else {
-				cwd = this._nativeEnvironmentService.userHome;
+				const canonicalUri = await this._remoteAuthorityResolverService.getCanonicalURI(activeWorkspaceRootUri);
+				if (canonicalUri.scheme === Schemas.file) {
+					cwd = canonicalUri;
+				}
 			}
-		} catch {
+		} catch { }
+		if (!cwd) {
 			cwd = this._nativeEnvironmentService.userHome;
 		}
 		const instance = this._terminalService.createTerminal({ cwd });

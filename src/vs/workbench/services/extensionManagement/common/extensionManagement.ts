@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { createDecorator, refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtension, ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { IExtensionManagementService, IGalleryExtension, IExtensionIdentifier, ILocalExtension, InstallOptions, InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IGalleryExtension, IExtensionIdentifier, ILocalExtension, InstallOptions, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 
@@ -26,7 +26,6 @@ export interface IExtensionManagementServerService {
 }
 
 export type InstallExtensionOnServerEvent = InstallExtensionEvent & { server: IExtensionManagementServer };
-export type DidInstallExtensionOnServerEvent = DidInstallExtensionEvent & { server: IExtensionManagementServer };
 export type UninstallExtensionOnServerEvent = IExtensionIdentifier & { server: IExtensionManagementServer };
 export type DidUninstallExtensionOnServerEvent = DidUninstallExtensionEvent & { server: IExtensionManagementServer };
 
@@ -35,7 +34,7 @@ export interface IWorkbenchExtensionManagementService extends IExtensionManageme
 	readonly _serviceBrand: undefined;
 
 	onInstallExtension: Event<InstallExtensionOnServerEvent>;
-	onDidInstallExtension: Event<DidInstallExtensionOnServerEvent>;
+	onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
 	onUninstallExtension: Event<UninstallExtensionOnServerEvent>;
 	onDidUninstallExtension: Event<DidUninstallExtensionOnServerEvent>;
 

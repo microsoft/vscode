@@ -23,8 +23,6 @@ import { ItemActivation, IQuickInputService } from 'vs/platform/quickinput/commo
 import { AllEditorsByMostRecentlyUsedQuickAccess, ActiveGroupEditorsByMostRecentlyUsedQuickAccess, AllEditorsByAppearanceQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
 import { Codicon } from 'vs/base/common/codicons';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
-import { Schemas } from 'vs/base/common/network';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 
@@ -1888,43 +1886,6 @@ export class NewEditorGroupBelowAction extends BaseCreateEditorGroupAction {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
 		super(id, label, GroupDirection.DOWN, editorGroupService);
-	}
-}
-
-export class ReopenResourcesAction extends Action {
-
-	static readonly ID = 'workbench.action.reopenWithEditor';
-	static readonly LABEL = localize('workbench.action.reopenWithEditor', "Reopen Editor With...");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorService private readonly editorService: IEditorService
-	) {
-		super(id, label);
-	}
-
-	override async run(): Promise<void> {
-		const activeInput = this.editorService.activeEditor;
-		if (!activeInput) {
-			return;
-		}
-
-		const activeEditorPane = this.editorService.activeEditorPane;
-		if (!activeEditorPane) {
-			return;
-		}
-
-		const options = activeEditorPane.options;
-		const group = activeEditorPane.group;
-		await this.editorService.replaceEditors([
-			{
-				editor: activeInput,
-				replacement: activeInput,
-				forceReplaceDirty: activeInput.resource?.scheme === Schemas.untitled,
-				options: { ...options, override: EditorResolution.PICK }
-			}
-		], group);
 	}
 }
 

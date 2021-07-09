@@ -7,7 +7,7 @@ import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { firstOrDefault } from 'vs/base/common/arrays';
-import { IEditorInput, EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane, IUntypedEditorInput, UntypedEditorContext, EditorResourceAccessor, BaseEditorInput, isEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInput, EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane, IUntypedEditorInput, EditorResourceAccessor, BaseEditorInput, isEditorInput } from 'vs/workbench/common/editor';
 import { isEqual } from 'vs/base/common/resources';
 
 /**
@@ -146,7 +146,7 @@ export abstract class EditorInput extends BaseEditorInput implements IEditorInpu
 		return firstOrDefault(editorPanes);
 	}
 
-	toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IUntypedEditorInput | undefined {
+	toUntyped(options?: { preserveViewState: GroupIdentifier }): IUntypedEditorInput | undefined {
 		return undefined;
 	}
 
