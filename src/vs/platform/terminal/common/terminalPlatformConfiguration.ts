@@ -267,7 +267,8 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			type: 'object',
 			default: {
 				'bash': {
-					path: 'bash'
+					path: 'bash',
+					icon: 'terminal-bash'
 				},
 				'zsh': {
 					path: 'zsh'

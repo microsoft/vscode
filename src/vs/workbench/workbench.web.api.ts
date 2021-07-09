@@ -160,7 +160,7 @@ interface IWindowIndicator {
 	/**
 	 * Triggering this event will cause the window indicator to update.
 	 */
-	onDidChange: Event<void>;
+	readonly onDidChange?: Event<void>;
 
 	/**
 	 * Label of the window indicator may include octicons
@@ -192,12 +192,12 @@ interface IInitialColorTheme {
 	/**
 	 * Initial color theme type.
 	 */
-	themeType: ColorScheme;
+	readonly themeType: ColorScheme;
 
 	/**
 	 * A list of workbench colors to apply initially.
 	 */
-	colors?: { [colorId: string]: string };
+	readonly colors?: { [colorId: string]: string };
 }
 
 interface IDefaultView {

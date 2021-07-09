@@ -460,7 +460,7 @@
 	display: grid;
 	grid-template-columns: minmax(auto, 400px) 1fr;
 	grid-template-rows: minmax(40px, 20%) auto max-content 1fr;
-	column-gap: 64px;
+	column-gap: 32px;
 	grid-template-areas: "back media" "title media" "steps media" ". media";
 }
 

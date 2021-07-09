@@ -11,7 +11,7 @@ import 'vs/css!./media/notebook';
 import { localize } from 'vs/nls';
 import { extname } from 'vs/base/common/resources';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { EditorOverride } from 'vs/platform/editor/common/editor';
+import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -208,7 +208,7 @@ export class NotebookEditor extends EditorPane {
 				[{
 					label: localize('fail.reOpen', "Reopen file with VS Code standard text editor"),
 					run: async () => {
-						await this._editorService.openEditor({ resource: input.resource, forceFile: true, options: { ...options, override: EditorOverride.DISABLED } });
+						await this._editorService.openEditor({ resource: input.resource, forceFile: true, options: { ...options, override: EditorResolution.DISABLED } });
 					}
 				}]
 			);
@@ -259,7 +259,6 @@ export class NotebookEditor extends EditorPane {
 			const startTime = perfMarks['startTime'];
 			const extensionActivated = perfMarks['extensionActivated'];
 			const inputLoaded = perfMarks['inputLoaded'];
-			const webviewCommLoaded = perfMarks['webviewCommLoaded'];
 			const customMarkdownLoaded = perfMarks['customMarkdownLoaded'];
 			const editorLoaded = perfMarks['editorLoaded'];
 
@@ -267,7 +266,6 @@ export class NotebookEditor extends EditorPane {
 				startTime !== undefined
 				&& extensionActivated !== undefined
 				&& inputLoaded !== undefined
-				&& webviewCommLoaded !== undefined
 				&& customMarkdownLoaded !== undefined
 				&& editorLoaded !== undefined
 			) {
@@ -277,10 +275,12 @@ export class NotebookEditor extends EditorPane {
 					viewType: model.notebook.viewType,
 					extensionActivated: extensionActivated - startTime,
 					inputLoaded: inputLoaded - startTime,
-					webviewCommLoaded: webviewCommLoaded - startTime,
+					webviewCommLoaded: inputLoaded - startTime,
 					customMarkdownLoaded: customMarkdownLoaded - startTime,
 					editorLoaded: editorLoaded - startTime
 				});
+			} else {
+				console.warn('notebook file open perf marks are broken');
 			}
 		}
 	}

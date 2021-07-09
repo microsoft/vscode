@@ -19,18 +19,23 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { MarshalledId } from 'vs/base/common/marshalling';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 type ProviderHandle = number;
 type GroupHandle = number;
 type ResourceStateHandle = number;
 
-function getIconResource(decorations?: vscode.SourceControlResourceThemableDecorations): vscode.Uri | undefined {
+function getIconResource(decorations?: vscode.SourceControlResourceThemableDecorations): UriComponents | ThemeIcon | undefined {
 	if (!decorations) {
 		return undefined;
 	} else if (typeof decorations.iconPath === 'string') {
 		return URI.file(decorations.iconPath);
-	} else {
+	} else if (URI.isUri(decorations.iconPath)) {
 		return decorations.iconPath;
+	} else if (ThemeIcon.isThemeIcon(decorations.iconPath)) {
+		return decorations.iconPath;
+	} else {
+		return undefined;
 	}
 }
 
@@ -43,8 +48,8 @@ function compareResourceThemableDecorations(a: vscode.SourceControlResourceThema
 		return 1;
 	}
 
-	const aPath = typeof a.iconPath === 'string' ? a.iconPath : a.iconPath.fsPath;
-	const bPath = typeof b.iconPath === 'string' ? b.iconPath : b.iconPath.fsPath;
+	const aPath = typeof a.iconPath === 'string' ? a.iconPath : URI.isUri(a.iconPath) ? a.iconPath.fsPath : (a.iconPath as vscode.ThemeIcon).id;
+	const bPath = typeof b.iconPath === 'string' ? b.iconPath : URI.isUri(b.iconPath) ? b.iconPath.fsPath : (b.iconPath as vscode.ThemeIcon).id;
 	return comparePaths(aPath, bPath);
 }
 
@@ -368,12 +373,8 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 				this._resourceStatesMap.set(handle, r);
 
 				const sourceUri = r.resourceUri;
-				const iconUri = getIconResource(r.decorations);
-				const lightIconUri = r.decorations && getIconResource(r.decorations.light) || iconUri;
-				const darkIconUri = r.decorations && getIconResource(r.decorations.dark) || iconUri;
-				const icons: UriComponents[] = [];
-				let command: ICommandDto | undefined;
 
+				let command: ICommandDto | undefined;
 				if (r.command) {
 					if (r.command.command === 'vscode.open' || r.command.command === 'vscode.diff') {
 						const disposables = new DisposableStore();
@@ -384,13 +385,10 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 					}
 				}
 
-				if (lightIconUri) {
-					icons.push(lightIconUri);
-				}
-
-				if (darkIconUri && (darkIconUri.toString() !== lightIconUri?.toString())) {
-					icons.push(darkIconUri);
-				}
+				const icon = getIconResource(r.decorations);
+				const lightIcon = r.decorations && getIconResource(r.decorations.light) || icon;
+				const darkIcon = r.decorations && getIconResource(r.decorations.dark) || icon;
+				const icons: SCMRawResource[2] = [lightIcon, darkIcon];
 
 				const tooltip = (r.decorations && r.decorations.tooltip) || '';
 				const strikeThrough = r.decorations && !!r.decorations.strikeThrough;

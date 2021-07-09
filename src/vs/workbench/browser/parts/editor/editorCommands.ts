@@ -7,7 +7,8 @@ import { localize } from 'vs/nls';
 import { isObject, isString, isUndefined, isNumber, withNullAsUndefined } from 'vs/base/common/types';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { TextCompareEditorVisibleContext, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditorInput, IVisibleEditorPane, ActiveEditorStickyContext, EditorsOrder, viewColumnToEditorGroup, EditorGroupColumn, EditorInputCapabilities, isEditorIdentifier } from 'vs/workbench/common/editor';
+import { TextCompareEditorVisibleContext, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditorInput, IVisibleEditorPane, ActiveEditorStickyContext, EditorsOrder, EditorInputCapabilities, isEditorIdentifier } from 'vs/workbench/common/editor';
+import { EditorGroupColumn, columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
@@ -24,7 +25,8 @@ import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { EditorResolution, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { Schemas } from 'vs/base/common/network';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -40,6 +42,7 @@ export const LAYOUT_EDITOR_GROUPS_COMMAND_ID = 'layoutEditorGroups';
 export const KEEP_EDITOR_COMMAND_ID = 'workbench.action.keepEditor';
 export const TOGGLE_KEEP_EDITORS_COMMAND_ID = 'workbench.action.toggleKeepEditors';
 export const SHOW_EDITORS_IN_GROUP = 'workbench.action.showEditorsInGroup';
+export const REOPEN_WITH_COMMAND_ID = 'workbench.action.reopenWithEditor';
 
 export const PIN_EDITOR_COMMAND_ID = 'workbench.action.pinEditor';
 export const UNPIN_EDITOR_COMMAND_ID = 'workbench.action.unpinEditor';
@@ -451,7 +454,7 @@ function registerOpenEditorAPICommands(): void {
 		if (optionsArg || typeof columnArg === 'number') {
 			const [options, column] = mixinContext(context, optionsArg, columnArg);
 
-			await editorService.openEditor({ resource, options, label }, viewColumnToEditorGroup(editorGroupService, column));
+			await editorService.openEditor({ resource, options, label }, columnToEditorGroup(editorGroupService, column));
 		}
 
 		// do not allow to execute commands from here
@@ -495,7 +498,7 @@ function registerOpenEditorAPICommands(): void {
 			modified: { resource: URI.revive(modifiedResource) },
 			label,
 			options
-		}, viewColumnToEditorGroup(editorGroupService, column));
+		}, columnToEditorGroup(editorGroupService, column));
 	});
 
 	CommandsRegistry.registerCommand(API_OPEN_WITH_EDITOR_COMMAND_ID, (accessor: ServicesAccessor, resource: UriComponents, id: string, columnAndOptions?: [EditorGroupColumn?, ITextEditorOptions?]) => {
@@ -515,7 +518,7 @@ function registerOpenEditorAPICommands(): void {
 			}
 			group = neighbourGroup;
 		} else {
-			group = editorGroupsService.getGroup(viewColumnToEditorGroup(editorGroupsService, columnArg)) ?? editorGroupsService.activeGroup;
+			group = editorGroupsService.getGroup(columnToEditorGroup(editorGroupsService, columnArg)) ?? editorGroupsService.activeGroup;
 		}
 
 		return editorService.openEditor({ resource: URI.revive(resource), options: { ...optionsArg, pinned: true, override: id } }, group);
@@ -847,6 +850,32 @@ function registerCloseEditorCommands() {
 
 				return group.closeEditors({ direction: CloseDirection.RIGHT, except: editor, excludeSticky: true });
 			}
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: REOPEN_WITH_COMMAND_ID,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: undefined,
+		primary: undefined,
+		handler: async (accessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
+			const editorGroupService = accessor.get(IEditorGroupsService);
+			const editorService = accessor.get(IEditorService);
+
+			const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
+
+			if (!editor) {
+				return;
+			}
+
+			await editorService.replaceEditors([
+				{
+					editor: editor,
+					replacement: editor,
+					forceReplaceDirty: editor.resource?.scheme === Schemas.untitled,
+					options: { ...editorService.activeEditorPane?.options, override: EditorResolution.PICK }
+				}
+			], group);
 		}
 	});
 

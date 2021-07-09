@@ -6,7 +6,7 @@
 import { AbstractSideBySideEditorInputSerializer, SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID, Verbosity, IEditorDescriptor, IEditorPane, GroupIdentifier, IResourceDiffEditorInput, IEditorInput, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, UntypedEditorContext, isResourceDiffEditorInput } from 'vs/workbench/common/editor';
+import { TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID, Verbosity, IEditorDescriptor, IEditorPane, GroupIdentifier, IResourceDiffEditorInput, IEditorInput, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, isResourceDiffEditorInput } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
@@ -112,12 +112,12 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		return this.cachedModel;
 	}
 
-	override prefersEditor<T extends IEditorDescriptor<IEditorPane>>(editors: T[]): T | undefined {
+	override prefersEditorPane<T extends IEditorDescriptor<IEditorPane>>(editorPanes: T[]): T | undefined {
 		if (this.forceOpenAsBinary) {
-			return editors.find(editor => editor.typeId === BINARY_DIFF_EDITOR_ID);
+			return editorPanes.find(editorPane => editorPane.typeId === BINARY_DIFF_EDITOR_ID);
 		}
 
-		return editors.find(editor => editor.typeId === TEXT_DIFF_EDITOR_ID);
+		return editorPanes.find(editorPane => editorPane.typeId === TEXT_DIFF_EDITOR_ID);
 	}
 
 	private async createModel(): Promise<DiffEditorModel> {
@@ -137,11 +137,11 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		return new DiffEditorModel(withNullAsUndefined(originalEditorModel), withNullAsUndefined(modifiedEditorModel));
 	}
 
-	override toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IResourceDiffEditorInput | undefined {
-		const originalResourceEditorInput = this.secondary.toUntyped(group, context);
-		const modifiedResourceEditorInput = this.primary.toUntyped(group, context);
+	override toUntyped(options?: { preserveViewState: GroupIdentifier }): IResourceDiffEditorInput | undefined {
+		const originalResourceEditorInput = this.secondary.toUntyped(options);
+		const modifiedResourceEditorInput = this.primary.toUntyped(options);
 
-		if (originalResourceEditorInput && modifiedResourceEditorInput) {
+		if (originalResourceEditorInput && modifiedResourceEditorInput && !isResourceDiffEditorInput(originalResourceEditorInput) && !isResourceDiffEditorInput(modifiedResourceEditorInput)) {
 			return {
 				label: this.name,
 				description: this.description,

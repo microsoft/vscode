@@ -148,7 +148,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 					preserveFocus: true /* import to not close the picker as a result */
 				};
 
-				await this.editorService.openEditor(this.editorViewState.editor, options, this.editorViewState.group);
+				await this.editorViewState.group.openEditor(this.editorViewState.editor, options);
 			}
 		}
 	}(this, this.editorService);
@@ -959,7 +959,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		// Open editor (typed)
 		if (isEditorInput(resourceOrEditor)) {
-			await this.editorService.openEditor(resourceOrEditor, editorOptions);
+			await this.editorService.openEditor(resourceOrEditor, editorOptions, targetGroup);
 		}
 
 		// Open editor (untyped)
@@ -982,7 +982,6 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 			await this.editorService.openEditor(resourceEditorInput, targetGroup);
 		}
-
 	}
 
 	//#endregion

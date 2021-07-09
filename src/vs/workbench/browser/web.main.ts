@@ -60,10 +60,11 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 import { BrowserWindow } from 'vs/workbench/browser/window';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
-import { WorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { safeStringify } from 'vs/base/common/objects';
 
 class BrowserMain extends Disposable {
 
@@ -100,7 +101,7 @@ class BrowserMain extends Disposable {
 		this._register(instantiationService.createInstance(BrowserWindow));
 
 		// Logging
-		services.logService.trace('workbench configuration', JSON.stringify(this.configuration));
+		services.logService.trace('workbench configuration', safeStringify(this.configuration));
 
 		// Return API Facade
 		return instantiationService.invokeFunction(accessor => {
@@ -210,7 +211,10 @@ class BrowserMain extends Disposable {
 		]);
 
 		// Workspace Trust Service
-		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, storageService, uriIdentityService, environmentService, configurationService, remoteAuthorityResolverService);
+		const workspaceTrustEnablementService = new WorkspaceTrustEnablementService(configurationService, environmentService);
+		serviceCollection.set(IWorkspaceTrustEnablementService, workspaceTrustEnablementService);
+
+		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, remoteAuthorityResolverService, storageService, uriIdentityService, environmentService, configurationService, workspaceTrustEnablementService);
 		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
 
 		// Update workspace trust so that configuration is updated accordingly

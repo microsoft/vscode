@@ -183,7 +183,7 @@ function toWorkbenchListOptions<T>(options: IListOptions<T>, configurationServic
 		}
 	};
 
-	result.smoothScrolling = Boolean(configurationService.getValue<boolean>(listSmoothScrolling));
+	result.smoothScrolling = Boolean(configurationService.getValue(listSmoothScrolling));
 
 	return [result, disposables];
 }
@@ -222,7 +222,7 @@ export class WorkbenchList<T> extends List<T> {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : Boolean(configurationService.getValue<boolean>(horizontalScrollingKey));
+		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : Boolean(configurationService.getValue(horizontalScrollingKey));
 		const [workbenchListOptions, workbenchListOptionsDisposable] = toWorkbenchListOptions(options, configurationService, keybindingService);
 
 		super(user, container, delegate, renderers,
@@ -240,7 +240,7 @@ export class WorkbenchList<T> extends List<T> {
 		this.themeService = themeService;
 
 		this.listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
-		this.listSupportsMultiSelect.set(!!options.multipleSelectionSupport);
+		this.listSupportsMultiSelect.set(options.multipleSelectionSupport !== false);
 
 		const listSelectionNavigation = WorkbenchListSelectionNavigation.bindTo(this.contextKeyService);
 		listSelectionNavigation.set(Boolean(options.selectionNavigation));
@@ -283,11 +283,11 @@ export class WorkbenchList<T> extends List<T> {
 			let options: IListOptionsUpdate = {};
 
 			if (e.affectsConfiguration(horizontalScrollingKey) && this.horizontalScrolling === undefined) {
-				const horizontalScrolling = Boolean(configurationService.getValue<boolean>(horizontalScrollingKey));
+				const horizontalScrolling = Boolean(configurationService.getValue(horizontalScrollingKey));
 				options = { ...options, horizontalScrolling };
 			}
 			if (e.affectsConfiguration(listSmoothScrolling)) {
-				const smoothScrolling = Boolean(configurationService.getValue<boolean>(listSmoothScrolling));
+				const smoothScrolling = Boolean(configurationService.getValue(listSmoothScrolling));
 				options = { ...options, smoothScrolling };
 			}
 			if (Object.keys(options).length > 0) {
@@ -354,7 +354,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : Boolean(configurationService.getValue<boolean>(horizontalScrollingKey));
+		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : Boolean(configurationService.getValue(horizontalScrollingKey));
 		const [workbenchListOptions, workbenchListOptionsDisposable] = toWorkbenchListOptions(options, configurationService, keybindingService);
 		super(user, container, delegate, renderers,
 			{
@@ -374,7 +374,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		this.horizontalScrolling = options.horizontalScrolling;
 
 		this.listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
-		this.listSupportsMultiSelect.set(!!options.multipleSelectionSupport);
+		this.listSupportsMultiSelect.set(options.multipleSelectionSupport !== false);
 
 		const listSelectionNavigation = WorkbenchListSelectionNavigation.bindTo(this.contextKeyService);
 		listSelectionNavigation.set(Boolean(options.selectionNavigation));
@@ -400,11 +400,11 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 			let options: IListOptionsUpdate = {};
 
 			if (e.affectsConfiguration(horizontalScrollingKey) && this.horizontalScrolling === undefined) {
-				const horizontalScrolling = Boolean(configurationService.getValue<boolean>(horizontalScrollingKey));
+				const horizontalScrolling = Boolean(configurationService.getValue(horizontalScrollingKey));
 				options = { ...options, horizontalScrolling };
 			}
 			if (e.affectsConfiguration(listSmoothScrolling)) {
-				const smoothScrolling = Boolean(configurationService.getValue<boolean>(listSmoothScrolling));
+				const smoothScrolling = Boolean(configurationService.getValue(listSmoothScrolling));
 				options = { ...options, smoothScrolling };
 			}
 			if (Object.keys(options).length > 0) {
@@ -480,7 +480,7 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : Boolean(configurationService.getValue<boolean>(horizontalScrollingKey));
+		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : Boolean(configurationService.getValue(horizontalScrollingKey));
 		const [workbenchListOptions, workbenchListOptionsDisposable] = toWorkbenchListOptions(options, configurationService, keybindingService);
 
 		super(user, container, delegate, columns, renderers,
@@ -499,7 +499,7 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 		this.themeService = themeService;
 
 		this.listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
-		this.listSupportsMultiSelect.set(!!options.multipleSelectionSupport);
+		this.listSupportsMultiSelect.set(options.multipleSelectionSupport !== false);
 
 		const listSelectionNavigation = WorkbenchListSelectionNavigation.bindTo(this.contextKeyService);
 		listSelectionNavigation.set(Boolean(options.selectionNavigation));
@@ -542,11 +542,11 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 			let options: IListOptionsUpdate = {};
 
 			if (e.affectsConfiguration(horizontalScrollingKey) && this.horizontalScrolling === undefined) {
-				const horizontalScrolling = Boolean(configurationService.getValue<boolean>(horizontalScrollingKey));
+				const horizontalScrolling = Boolean(configurationService.getValue(horizontalScrollingKey));
 				options = { ...options, horizontalScrolling };
 			}
 			if (e.affectsConfiguration(listSmoothScrolling)) {
-				const smoothScrolling = Boolean(configurationService.getValue<boolean>(listSmoothScrolling));
+				const smoothScrolling = Boolean(configurationService.getValue(listSmoothScrolling));
 				options = { ...options, smoothScrolling };
 			}
 			if (Object.keys(options).length > 0) {
@@ -1030,10 +1030,10 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 
 	const getAutomaticKeyboardNavigation = () => {
 		// give priority to the context key value to disable this completely
-		let automaticKeyboardNavigation = Boolean(contextKeyService.getContextKeyValue<boolean>(WorkbenchListAutomaticKeyboardNavigationKey));
+		let automaticKeyboardNavigation = Boolean(contextKeyService.getContextKeyValue(WorkbenchListAutomaticKeyboardNavigationKey));
 
 		if (automaticKeyboardNavigation) {
-			automaticKeyboardNavigation = Boolean(configurationService.getValue<boolean>(automaticKeyboardNavigationSettingKey));
+			automaticKeyboardNavigation = Boolean(configurationService.getValue(automaticKeyboardNavigationSettingKey));
 		}
 
 		return automaticKeyboardNavigation;
@@ -1041,7 +1041,7 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 
 	const accessibilityOn = accessibilityService.isScreenReaderOptimized();
 	const keyboardNavigation = options.simpleKeyboardNavigation || accessibilityOn ? 'simple' : configurationService.getValue<string>(keyboardNavigationSettingKey);
-	const horizontalScrolling = options.horizontalScrolling !== undefined ? options.horizontalScrolling : Boolean(configurationService.getValue<boolean>(horizontalScrollingKey));
+	const horizontalScrolling = options.horizontalScrolling !== undefined ? options.horizontalScrolling : Boolean(configurationService.getValue(horizontalScrollingKey));
 	const [workbenchListOptions, disposable] = toWorkbenchListOptions(options, configurationService, keybindingService);
 	const additionalScrollHeight = options.additionalScrollHeight;
 
@@ -1052,9 +1052,9 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 			// ...options, // TODO@Joao why is this not splatted here?
 			keyboardSupport: false,
 			...workbenchListOptions,
-			indent: configurationService.getValue<number>(treeIndentKey),
+			indent: typeof configurationService.getValue(treeIndentKey) === 'number' ? configurationService.getValue(treeIndentKey) : undefined,
 			renderIndentGuides: configurationService.getValue<RenderIndentGuides>(treeRenderIndentGuidesKey),
-			smoothScrolling: Boolean(configurationService.getValue<boolean>(listSmoothScrolling)),
+			smoothScrolling: Boolean(configurationService.getValue(listSmoothScrolling)),
 			automaticKeyboardNavigation: getAutomaticKeyboardNavigation(),
 			simpleKeyboardNavigation: keyboardNavigation === 'simple',
 			filterOnType: keyboardNavigation === 'filter',
@@ -1099,7 +1099,7 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, tree);
 
 		this.listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
-		this.listSupportsMultiSelect.set(!!options.multipleSelectionSupport);
+		this.listSupportsMultiSelect.set(options.multipleSelectionSupport !== false);
 
 		const listSelectionNavigation = WorkbenchListSelectionNavigation.bindTo(this.contextKeyService);
 		listSelectionNavigation.set(Boolean(options.selectionNavigation));

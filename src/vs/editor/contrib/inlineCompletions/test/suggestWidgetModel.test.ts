@@ -28,58 +28,61 @@ import assert = require('assert');
 import { GhostTextContext } from 'vs/editor/contrib/inlineCompletions/test/utils';
 import { Range } from 'vs/editor/common/core/range';
 
-test('Active', async () => {
-	await withAsyncTestCodeEditorAndInlineCompletionsModel('',
-		{ fakeClock: true, provider, },
-		async ({ editor, editorViewModel, context, model }) => {
-			let last: boolean | undefined = undefined;
-			const history = new Array<boolean>();
-			model.onDidChange(() => {
-				if (last !== model.isActive) {
-					last = model.isActive;
-					history.push(last);
-				}
-			});
+suite('Suggest Widget Model', () => {
 
-			context.keyboardType('h');
-			const suggestController = (editor.getContribution(SuggestController.ID) as SuggestController);
-			suggestController.triggerSuggest();
-			await timeout(1000);
-			assert.deepStrictEqual(history.splice(0), [true]);
+	test('Active', async () => {
+		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+			{ fakeClock: true, provider, },
+			async ({ editor, editorViewModel, context, model }) => {
+				let last: boolean | undefined = undefined;
+				const history = new Array<boolean>();
+				model.onDidChange(() => {
+					if (last !== model.isActive) {
+						last = model.isActive;
+						history.push(last);
+					}
+				});
 
-			context.keyboardType('.');
-			await timeout(1000);
+				context.keyboardType('h');
+				const suggestController = (editor.getContribution(SuggestController.ID) as SuggestController);
+				suggestController.triggerSuggest();
+				await timeout(1000);
+				assert.deepStrictEqual(history.splice(0), [true]);
 
-			// No flicker here
-			assert.deepStrictEqual(history.splice(0), []);
-			suggestController.cancelSuggestWidget();
-			await timeout(1000);
+				context.keyboardType('.');
+				await timeout(1000);
 
-			assert.deepStrictEqual(history.splice(0), [false]);
-		}
-	);
-});
+				// No flicker here
+				assert.deepStrictEqual(history.splice(0), []);
+				suggestController.cancelSuggestWidget();
+				await timeout(1000);
 
-test('Ghost Text', async () => {
-	await withAsyncTestCodeEditorAndInlineCompletionsModel('',
-		{ fakeClock: true, provider, suggest: { preview: true } },
-		async ({ editor, editorViewModel, context, model }) => {
-			context.keyboardType('h');
-			const suggestController = (editor.getContribution(SuggestController.ID) as SuggestController);
-			suggestController.triggerSuggest();
-			await timeout(1000);
-			assert.deepStrictEqual(context.getAndClearViewStates(), ['', 'h[ello]']);
+				assert.deepStrictEqual(history.splice(0), [false]);
+			}
+		);
+	});
 
-			context.keyboardType('.');
-			await timeout(1000);
-			assert.deepStrictEqual(context.getAndClearViewStates(), ['hello', 'hello.[hello]']);
+	test('Ghost Text', async () => {
+		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+			{ fakeClock: true, provider, suggest: { preview: true } },
+			async ({ editor, editorViewModel, context, model }) => {
+				context.keyboardType('h');
+				const suggestController = (editor.getContribution(SuggestController.ID) as SuggestController);
+				suggestController.triggerSuggest();
+				await timeout(1000);
+				assert.deepStrictEqual(context.getAndClearViewStates(), ['', 'h[ello]']);
 
-			suggestController.cancelSuggestWidget();
+				context.keyboardType('.');
+				await timeout(1000);
+				assert.deepStrictEqual(context.getAndClearViewStates(), ['hello', 'hello.[hello]']);
 
-			await timeout(1000);
-			assert.deepStrictEqual(context.getAndClearViewStates(), ['hello.']);
-		}
-	);
+				suggestController.cancelSuggestWidget();
+
+				await timeout(1000);
+				assert.deepStrictEqual(context.getAndClearViewStates(), ['hello.']);
+			}
+		);
+	});
 });
 
 const provider: CompletionItemProvider = {

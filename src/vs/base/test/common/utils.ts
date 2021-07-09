@@ -6,6 +6,7 @@
 import { join } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
+import { IDisposableTracker, setDisposableTracker, IDisposable } from 'vs/base/common/lifecycle';
 
 export type ValueCallback<T = any> = (value: T | Promise<T>) => void;
 
@@ -39,3 +40,99 @@ export async function assertThrowsAsync(block: () => any, message: string | Erro
 	const err = message instanceof Error ? message : new Error(message);
 	throw err;
 }
+
+interface DisposableData {
+	source: string | null;
+	parent: IDisposable | null;
+	isSingleton: boolean;
+}
+
+class DisposableTracker implements IDisposableTracker {
+	private readonly livingDisposables = new Map<IDisposable, DisposableData>();
+
+	private getDisposableData(d: IDisposable) {
+		let val = this.livingDisposables.get(d);
+		if (!val) {
+			val = { parent: null, source: null, isSingleton: false };
+			this.livingDisposables.set(d, val);
+		}
+		return val;
+	}
+
+	trackDisposable(d: IDisposable): void {
+		const data = this.getDisposableData(d);
+		if (!data.source) {
+			data.source = new Error().stack!;
+		}
+	}
+
+	setParent(child: IDisposable, parent: IDisposable | null): void {
+		const data = this.getDisposableData(child);
+		data.parent = parent;
+	}
+
+	markAsDisposed(x: IDisposable): void {
+		this.livingDisposables.delete(x);
+	}
+
+	markAsSingleton(disposable: IDisposable): void {
+		this.getDisposableData(disposable).isSingleton = true;
+	}
+
+	private getRootParent(data: DisposableData, cache: Map<DisposableData, DisposableData>): DisposableData {
+		const cacheValue = cache.get(data);
+		if (cacheValue) {
+			return cacheValue;
+		}
+
+		const result = data.parent ? this.getRootParent(this.getDisposableData(data.parent), cache) : data;
+		cache.set(data, result);
+		return result;
+	}
+
+	ensureNoLeakingDisposables() {
+		const rootParentCache = new Map<DisposableData, DisposableData>();
+		const leaking = [...this.livingDisposables.values()]
+			.filter(v => v.source !== null && !this.getRootParent(v, rootParentCache).isSingleton);
+
+		if (leaking.length > 0) {
+			throw new Error(`These disposables were not disposed:\n${leaking.map(l => l.source).join('--------------------\n')}`);
+		}
+	}
+}
+
+/**
+ * Use this function to ensure that all disposables are cleaned up at the end of each test in the current suite.
+ *
+ * Use `markAsSingleton` if disposable singletons are created lazily that are allowed to outlive the test.
+ * Make sure that the singleton properly registers all child disposables so that they are excluded too.
+*/
+export function ensureNoDisposablesAreLeakedInTestSuite() {
+	let tracker: DisposableTracker | undefined;
+	setup(() => {
+		tracker = new DisposableTracker();
+		setDisposableTracker(tracker);
+	});
+
+	teardown(() => {
+		setDisposableTracker(null);
+		tracker!.ensureNoLeakingDisposables();
+	});
+}
+
+export function throwIfDisposablesAreLeaked(body: () => void): void {
+	const tracker = new DisposableTracker();
+	setDisposableTracker(tracker);
+	body();
+	setDisposableTracker(null);
+	tracker.ensureNoLeakingDisposables();
+}
+
+export async function throwIfDisposablesAreLeakedAsync(body: () => Promise<void>): Promise<void> {
+	const tracker = new DisposableTracker();
+	setDisposableTracker(tracker);
+	await body();
+	setDisposableTracker(null);
+	tracker.ensureNoLeakingDisposables();
+}
+

@@ -222,8 +222,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
 		return this._proxy.getDefaultSystemShell(osOverride);
 	}
-	async getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles: boolean = false): Promise<ITerminalProfile[]> {
-		return detectAvailableProfiles(profiles, defaultProfile, includeDetectedProfiles, this._configurationService, undefined, this._logService, this._resolveVariables.bind(this));
+	async getProfiles(workspaceId: string, profiles: unknown, defaultProfile: unknown, includeDetectedProfiles: boolean = false): Promise<ITerminalProfile[]> {
+		return detectAvailableProfiles(profiles, defaultProfile, includeDetectedProfiles, this._configurationService, undefined, this._logService, this._resolveVariables.bind(this, workspaceId));
 	}
 	getEnvironment(): Promise<IProcessEnvironment> {
 		return this._proxy.getEnvironment();
@@ -310,11 +310,11 @@ export class PtyHostService extends Disposable implements IPtyService {
 	}
 
 	private _pendingResolveVariablesRequests: Map<number, (resolved: string[]) => void> = new Map();
-	private _resolveVariables(text: string[]): Promise<string[]> {
+	private _resolveVariables(workspaceId: string, text: string[]): Promise<string[]> {
 		return new Promise<string[]>(resolve => {
 			const id = ++lastResolveVariablesRequestId;
 			this._pendingResolveVariablesRequests.set(id, resolve);
-			this._onPtyHostRequestResolveVariables.fire({ id, originalText: text });
+			this._onPtyHostRequestResolveVariables.fire({ id, workspaceId, originalText: text });
 		});
 	}
 	async acceptPtyHostResolvedVariables(id: number, resolved: string[]) {

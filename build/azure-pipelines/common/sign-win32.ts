@@ -3,10 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export const enum TerminalContextKey {
-	TerminalIsOpen = 'terminalIsOpen',
-	TerminalCount = 'terminalCount',
-	TerminalGroupCount = 'terminalGroupCount',
-	TerminalTabsNarrow = 'isTerminalTabsNarrow',
-	TerminalProcessSupported = 'terminalProcessSupported'
-}
+import { main } from './sign';
+import * as path from 'path';
+
+main([
+	process.env['EsrpCliDllPath']!,
+	'windows',
+	process.env['ESRPPKI']!,
+	process.env['ESRPAADUsername']!,
+	process.env['ESRPAADPassword']!,
+	path.dirname(process.argv[2]),
+	path.basename(process.argv[2])
+]);

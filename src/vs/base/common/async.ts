@@ -23,13 +23,17 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 
 	const thenable = callback(source.token);
 	const promise = new Promise<T>((resolve, reject) => {
-		source.token.onCancellationRequested(() => {
+		const subscription = source.token.onCancellationRequested(() => {
+			subscription.dispose();
+			source.dispose();
 			reject(canceled());
 		});
 		Promise.resolve(thenable).then(value => {
+			subscription.dispose();
 			source.dispose();
 			resolve(value);
 		}, err => {
+			subscription.dispose();
 			source.dispose();
 			reject(err);
 		});
@@ -394,9 +398,13 @@ export function timeout(millis: number, token?: CancellationToken): CancelablePr
 	}
 
 	return new Promise((resolve, reject) => {
-		const handle = setTimeout(resolve, millis);
-		token.onCancellationRequested(() => {
+		const handle = setTimeout(() => {
+			disposable.dispose();
+			resolve();
+		}, millis);
+		const disposable = token.onCancellationRequested(() => {
 			clearTimeout(handle);
+			disposable.dispose();
 			reject(canceled());
 		});
 	});

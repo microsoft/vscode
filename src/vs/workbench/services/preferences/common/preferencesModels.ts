@@ -669,7 +669,8 @@ export class DefaultSettings extends Disposable {
 					deprecationMessageIsMarkdown: !!prop.markdownDeprecationMessage,
 					validator: createValidator(prop),
 					enumItemLabels: prop.enumItemLabels,
-					allKeysAreBoolean
+					allKeysAreBoolean,
+					editPresentation: prop.editPresentation
 				});
 			}
 		}

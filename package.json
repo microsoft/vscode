@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.59.0",
-  "distro": "c02145d10cfea1c2b433c25ae22b65ea4cfa164d",
+  "distro": "4f9399b417ee98731317fbd4616d6fc287172355",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -178,7 +178,7 @@
     "opn": "^6.0.0",
     "optimist": "0.3.5",
     "p-all": "^1.0.0",
-    "playwright": "1.11.1",
+    "playwright": "1.12.3",
     "pump": "^1.0.1",
     "queue": "3.0.6",
     "rcedit": "^1.1.0",
@@ -189,9 +189,9 @@
     "source-map": "0.6.1",
     "source-map-support": "^0.3.2",
     "style-loader": "^1.0.0",
-    "ts-loader": "^9.2.3",
+    "ts-loader": "^6.2.1",
     "tsec": "0.1.4",
-    "typescript": "^4.4.0-dev.20210607",
+    "typescript": "^4.4.0-dev.20210708",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.12.1",
     "vinyl": "^2.0.0",
@@ -199,9 +199,9 @@
     "vscode-debugprotocol": "1.47.0",
     "vscode-nls-dev": "^3.3.1",
     "vscode-telemetry-extractor": "^1.8.0",
-    "webpack": "^5.42.0",
-    "webpack-cli": "^4.7.2",
-    "webpack-stream": "^6.1.2",
+    "webpack": "^4.43.0",
+    "webpack-cli": "^3.3.12",
+    "webpack-stream": "^5.2.1",
     "xml2js": "^0.4.17",
     "yaserver": "^0.2.0"
   },

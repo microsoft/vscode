@@ -14,7 +14,7 @@ import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
-	InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent, IExtensionIdentifier, InstallOperation, DefaultIconPath, InstallOptions, WEB_EXTENSION_TAG
+	InstallExtensionEvent, DidUninstallExtensionEvent, IExtensionIdentifier, InstallOperation, DefaultIconPath, InstallOptions, WEB_EXTENSION_TAG, InstallExtensionResult
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, getMaliciousExtensionsSet, groupByExtension, ExtensionIdentifierWithVersion, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -40,7 +40,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { isBoolean } from 'vs/base/common/types';
+import { isBoolean, isString } from 'vs/base/common/types';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 
 interface IExtensionStateProvider<T> {
@@ -332,7 +332,7 @@ class Extensions extends Disposable {
 	) {
 		super();
 		this._register(server.extensionManagementService.onInstallExtension(e => this.onInstallExtension(e)));
-		this._register(server.extensionManagementService.onDidInstallExtension(e => this.onDidInstallExtension(e)));
+		this._register(server.extensionManagementService.onDidInstallExtensions(e => this.onDidInstallExtensions(e)));
 		this._register(server.extensionManagementService.onUninstallExtension(e => this.onUninstallExtension(e)));
 		this._register(server.extensionManagementService.onDidUninstallExtension(e => this.onDidUninstallExtension(e)));
 		this._register(extensionEnablementService.onEnablementChanged(e => this.onEnablementChanged(e)));
@@ -417,41 +417,45 @@ class Extensions extends Disposable {
 	}
 
 	private onInstallExtension(event: InstallExtensionEvent): void {
-		const { gallery } = event;
-		if (gallery) {
-			const extension = this.installed.filter(e => areSameExtensions(e.identifier, gallery.identifier))[0]
-				|| this.instantiationService.createInstance(Extension, this.stateProvider, this.server, undefined, gallery);
+		const { source } = event;
+		if (source && !isString(source)) {
+			const extension = this.installed.filter(e => areSameExtensions(e.identifier, source.identifier))[0]
+				|| this.instantiationService.createInstance(Extension, this.stateProvider, this.server, undefined, source);
 			this.installing.push(extension);
 			this._onChange.fire({ extension });
 		}
 	}
 
-	private onDidInstallExtension(event: DidInstallExtensionEvent): void {
-		const { local, zipPath, error, gallery } = event;
-		const installingExtension = gallery ? this.installing.filter(e => areSameExtensions(e.identifier, gallery.identifier))[0] : null;
-		this.installing = installingExtension ? this.installing.filter(e => e !== installingExtension) : this.installing;
+	private onDidInstallExtensions(results: readonly InstallExtensionResult[]): void {
+		for (const event of results) {
+			const { local, source } = event;
+			const gallery = source && !isString(source) ? source : undefined;
+			const zipPath = source && isString(source) ? source : undefined;
+			const installingExtension = gallery ? this.installing.filter(e => areSameExtensions(e.identifier, gallery.identifier))[0] : null;
+			this.installing = installingExtension ? this.installing.filter(e => e !== installingExtension) : this.installing;
 
-		let extension: Extension | undefined = installingExtension ? installingExtension
-			: (zipPath || local) ? this.instantiationService.createInstance(Extension, this.stateProvider, this.server, local, undefined)
-				: undefined;
-		if (extension) {
-			if (local) {
-				const installed = this.installed.filter(e => areSameExtensions(e.identifier, extension!.identifier))[0];
-				if (installed) {
-					extension = installed;
-				} else {
-					this.installed.push(extension);
+			let extension: Extension | undefined = installingExtension ? installingExtension
+				: (zipPath || local) ? this.instantiationService.createInstance(Extension, this.stateProvider, this.server, local, undefined)
+					: undefined;
+			if (extension) {
+				if (local) {
+					const installed = this.installed.filter(e => areSameExtensions(e.identifier, extension!.identifier))[0];
+					if (installed) {
+						extension = installed;
+					} else {
+						this.installed.push(extension);
+					}
+					extension.local = local;
+					if (!extension.gallery) {
+						extension.gallery = gallery;
+					}
+					extension.enablementState = this.extensionEnablementService.getEnablementState(local);
 				}
-				extension.local = local;
-				if (!extension.gallery) {
-					extension.gallery = gallery;
-				}
-				extension.enablementState = this.extensionEnablementService.getEnablementState(local);
 			}
-		}
-		this._onChange.fire(error || !extension ? undefined : { extension, operation: event.operation });
-		if (extension && !extension.gallery) {
-			this.syncInstalledExtensionWithGallery(extension);
+			this._onChange.fire(!local || !extension ? undefined : { extension, operation: event.operation });
+			if (extension && !extension.gallery) {
+				this.syncInstalledExtensionWithGallery(extension);
+			}
 		}
 	}
 

@@ -196,39 +196,9 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 	}
 });
 
-export const startEntriesExtensionPoint = ExtensionsRegistry.registerExtensionPoint<IStartEntry[]>({
+ExtensionsRegistry.registerExtensionPoint<IStartEntry[]>({
 	extensionPoint: 'startEntries',
 	jsonSchema: {
-		description: localize('startEntries', "Contribute commands to the \"Welcome: Start...\" pickers and \"File => New X...\" menu entries."),
-		type: 'array',
-		items: {
-			type: 'object',
-			required: ['title', 'command', 'category'],
-			additionalProperties: false,
-			defaultSnippets: [{ body: { 'title': '$1', 'command': '$3' } }],
-			properties: {
-				title: {
-					type: 'string',
-					description: localize('startEntries.title', "Title of item.")
-				},
-				command: {
-					type: 'string',
-					description: localize('startEntries.command', "Command to run.")
-				},
-				category: {
-					type: 'string',
-					description: localize('startEntries.category', "Category of the new entry."),
-					enum: ['file', 'folder', 'notebook', 'other'],
-				},
-				description: {
-					type: 'string',
-					description: localize('startEntries.description', "Description of item. We recommend leaving this blank unless the action is significantly nuanced in a way the title can not capture.")
-				},
-				when: {
-					type: 'string',
-					description: localize('startEntries.when', "Context key expression to control the visibility of this item.")
-				},
-			}
-		}
+		deprecationMessage: localize('removed', "Removed, use the menus => file/newFile contribution point instead"),
 	}
 });

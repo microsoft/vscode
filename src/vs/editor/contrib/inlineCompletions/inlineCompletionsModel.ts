@@ -7,7 +7,7 @@ import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
@@ -17,7 +17,6 @@ import { InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCom
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { MutableDisposable } from 'vs/editor/contrib/inlineCompletions/utils';
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { IDiffChange, stringDiff } from 'vs/base/common/diff/diff';
@@ -293,7 +292,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	public get ghostText(): GhostText | undefined {
 		const currentCompletion = this.currentCompletion;
 		const mode = this.editor.getOptions().get(EditorOption.inlineSuggest).mode;
-		return currentCompletion ? inlineCompletionToGhostText(currentCompletion, this.editor.getModel(), mode, this.editor.getSelection().getEndPosition()) : undefined;
+		return currentCompletion ? inlineCompletionToGhostText(currentCompletion, this.editor.getModel(), mode, this.editor.getPosition()) : undefined;
 	}
 
 	get currentCompletion(): LiveInlineCompletion | undefined {
@@ -381,7 +380,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	public commit(completion: LiveInlineCompletion): void {
 		// Mark the cache as stale, but don't dispose it yet,
 		// otherwise command args might get disposed.
-		const cache = this.cache.replace(undefined);
+		const cache = this.cache.clearAndLeak();
 
 		this.editor.executeEdits(
 			'inlineSuggestion.accept',
@@ -490,7 +489,7 @@ export interface NormalizedInlineCompletion extends InlineCompletion {
 	range: Range;
 }
 
-export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCompletion, textModel: ITextModel, mode: 'prefix' | 'subwordDiff', cursorPosition?: Position): GhostText | undefined {
+export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCompletion, textModel: ITextModel, mode: 'prefix' | 'subword' | 'subwordSmart', cursorPosition?: Position): GhostText | undefined {
 	if (inlineCompletion.range.startLineNumber !== inlineCompletion.range.endLineNumber) {
 		// Only single line replacements are supported.
 		return undefined;
@@ -512,10 +511,11 @@ export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCo
 			return undefined;
 		}
 	}
+
 	for (const c of changes) {
 		const insertColumn = inlineCompletion.range.startColumn + c.originalStart + c.originalLength;
 
-		if (cursorPosition && cursorPosition.lineNumber === inlineCompletion.range.startLineNumber && insertColumn < cursorPosition.column) {
+		if (mode === 'subwordSmart' && cursorPosition && cursorPosition.lineNumber === inlineCompletion.range.startLineNumber && insertColumn < cursorPosition.column) {
 			// No ghost text before cursor
 			return undefined;
 		}
@@ -534,7 +534,7 @@ export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCo
 
 		const text = inlineCompletion.text.substr(c.modifiedStart, c.modifiedLength);
 		const lines = strings.splitLines(text);
-		parts.push({ column: insertColumn, lines });
+		parts.push(new GhostTextPart(insertColumn, lines));
 	}
 
 	return new GhostText(lineNumber, parts, 0);

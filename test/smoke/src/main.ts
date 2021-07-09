@@ -61,7 +61,8 @@ const opts = minimist(args, {
 	boolean: [
 		'verbose',
 		'remote',
-		'web'
+		'web',
+		'headless'
 	],
 	default: {
 		verbose: false
@@ -310,6 +311,7 @@ function createOptions(): ApplicationOptions {
 		screenshotsPath,
 		remote: opts.remote,
 		web: opts.web,
+		headless: opts.headless,
 		browser: opts.browser,
 		extraArgs: (opts.electronArgs || '').split(' ').map(a => a.trim()).filter(a => !!a)
 	};

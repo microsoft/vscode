@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WebviewTag } from 'electron';
 import * as nls from 'vs/nls';
 import { Action2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -23,15 +22,6 @@ export class OpenWebviewDeveloperToolsAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const nativeHostService = accessor.get(INativeHostService);
-
-		const webviewElements = document.querySelectorAll('webview.ready');
-		for (const element of webviewElements) {
-			try {
-				(element as WebviewTag).openDevTools();
-			} catch (e) {
-				console.error(e);
-			}
-		}
 
 		const iframeWebviewElements = document.querySelectorAll('iframe.webview.ready');
 		if (iframeWebviewElements.length) {

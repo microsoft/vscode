@@ -721,6 +721,8 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 			includeExternalModuleExports: completionConfiguration.autoImportSuggestions,
 			includeInsertTextCompletions: true,
 			triggerCharacter: this.getTsTriggerCharacter(context),
+			// @ts-expect-error
+			triggerKind: typeConverters.CompletionTriggerKind.toProtocolCompletionTriggerKind(context.triggerKind),
 		};
 
 		let isNewIdentifierLocation = true;

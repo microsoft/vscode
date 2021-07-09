@@ -7,7 +7,7 @@
 (function () {
 	'use strict';
 
-	const { ipcRenderer, webFrame, crashReporter, contextBridge } = require('electron');
+	const { ipcRenderer, webFrame, contextBridge } = require('electron');
 
 	//#region Utilities
 
@@ -253,22 +253,6 @@
 		},
 
 		/**
-		 * Support for subset of methods of Electron's `crashReporter` type.
-		 *
-		 * @type {import('../electron-sandbox/electronTypes').CrashReporter}
-		 */
-		crashReporter: {
-
-			/**
-			 * @param {string} key
-			 * @param {string} value
-			 */
-			addExtraParameter(key, value) {
-				crashReporter.addExtraParameter(key, value);
-			}
-		},
-
-		/**
 		 * Support for a subset of access to node.js global `process`.
 		 *
 		 * Note: when `sandbox` is enabled, the only properties available
@@ -281,7 +265,7 @@
 		process: {
 			get platform() { return process.platform; },
 			get arch() { return process.arch; },
-			get env() { return process.env; },
+			get env() { return { ...process.env }; },
 			get versions() { return process.versions; },
 			get type() { return 'renderer'; },
 			get execPath() { return process.execPath; },

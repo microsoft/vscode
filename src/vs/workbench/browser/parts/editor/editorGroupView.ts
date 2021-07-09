@@ -292,6 +292,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				EventHelper.stop(e);
 
 				this.editorService.openEditor({
+					resource: undefined,
 					forceUntitled: true,
 					options: {
 						pinned: true,

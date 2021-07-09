@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ExtensionType, IExtensionIdentifier, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent, IGalleryExtension, IReportedExtension, IGalleryMetadata, InstallOperation, IExtensionGalleryService, ExtensionManagementError, INSTALL_ERROR_INCOMPATIBLE, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidUninstallExtensionEvent, IGalleryExtension, IReportedExtension, IGalleryMetadata, InstallOperation, IExtensionGalleryService, ExtensionManagementError, INSTALL_ERROR_INCOMPATIBLE, InstallOptions, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -27,8 +27,8 @@ export class WebExtensionManagementService extends Disposable implements IExtens
 	private readonly _onInstallExtension = this._register(new Emitter<InstallExtensionEvent>());
 	readonly onInstallExtension: Event<InstallExtensionEvent> = this._onInstallExtension.event;
 
-	private readonly _onDidInstallExtension = this._register(new Emitter<DidInstallExtensionEvent>());
-	readonly onDidInstallExtension: Event<DidInstallExtensionEvent> = this._onDidInstallExtension.event;
+	private readonly _onDidInstallExtension = this._register(new Emitter<InstallExtensionResult[]>());
+	readonly onDidInstallExtensions = this._onDidInstallExtension.event;
 
 	private readonly _onUninstallExtension = this._register(new Emitter<IExtensionIdentifier>());
 	readonly onUninstallExtension: Event<IExtensionIdentifier> = this._onUninstallExtension.event;
@@ -82,7 +82,7 @@ export class WebExtensionManagementService extends Disposable implements IExtens
 
 		const identifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
 		this.logService.info('Installing extension:', identifier.id);
-		this._onInstallExtension.fire({ identifier: identifier });
+		this._onInstallExtension.fire({ identifier: identifier, source: location.path });
 
 		try {
 			const userExtensions = await this.webExtensionsScannerService.scanUserExtensions();
@@ -91,17 +91,17 @@ export class WebExtensionManagementService extends Disposable implements IExtens
 
 			const extension = await this.webExtensionsScannerService.addExtension(location, metadata);
 			const local = this.toLocalExtension(extension);
-			this._onDidInstallExtension.fire({ local, identifier: extension.identifier, operation: InstallOperation.Install });
+			this._onDidInstallExtension.fire([{ local, identifier: extension.identifier, operation: InstallOperation.Install }]);
 			return local;
 		} catch (error) {
-			this._onDidInstallExtension.fire({ error, identifier, operation: InstallOperation.Install });
+			this._onDidInstallExtension.fire([{ identifier, operation: InstallOperation.Install }]);
 			throw error;
 		}
 	}
 
 	async installFromGallery(gallery: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
 		this.logService.info('Installing extension:', gallery.identifier.id);
-		this._onInstallExtension.fire({ identifier: gallery.identifier, gallery });
+		this._onInstallExtension.fire({ identifier: gallery.identifier, source: gallery });
 		try {
 			const compatibleExtension = await this.extensionGalleryService.getCompatibleExtension(gallery);
 			if (!compatibleExtension) {
@@ -113,10 +113,10 @@ export class WebExtensionManagementService extends Disposable implements IExtens
 
 			const scannedExtension = await this.webExtensionsScannerService.addExtensionFromGallery(compatibleExtension, metadata);
 			const local = this.toLocalExtension(scannedExtension);
-			this._onDidInstallExtension.fire({ local, identifier: compatibleExtension.identifier, operation: InstallOperation.Install, gallery: compatibleExtension });
+			this._onDidInstallExtension.fire([{ local, identifier: compatibleExtension.identifier, operation: InstallOperation.Install, source: compatibleExtension }]);
 			return local;
 		} catch (error) {
-			this._onDidInstallExtension.fire({ error, identifier: gallery.identifier, operation: InstallOperation.Install, gallery });
+			this._onDidInstallExtension.fire([{ identifier: gallery.identifier, operation: InstallOperation.Install, source: gallery }]);
 			throw error;
 		}
 	}

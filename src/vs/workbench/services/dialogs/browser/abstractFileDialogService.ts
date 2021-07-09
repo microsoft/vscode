@@ -237,16 +237,16 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		return uri ? [uri] : undefined;
 	}
 
-	private pickResource(options: IOpenDialogOptions): Promise<URI | undefined> {
-		const simpleFileDialog = this.instantiationService.createInstance(SimpleFileDialog);
+	protected getSimpleFileDialog(): SimpleFileDialog {
+		return this.instantiationService.createInstance(SimpleFileDialog);
+	}
 
-		return simpleFileDialog.showOpenDialog(options);
+	private pickResource(options: IOpenDialogOptions): Promise<URI | undefined> {
+		return this.getSimpleFileDialog().showOpenDialog(options);
 	}
 
 	private saveRemoteResource(options: ISaveDialogOptions): Promise<URI | undefined> {
-		const remoteFileDialog = this.instantiationService.createInstance(SimpleFileDialog);
-
-		return remoteFileDialog.showSaveDialog(options);
+		return this.getSimpleFileDialog().showSaveDialog(options);
 	}
 
 	protected getSchemeFilterForWindow(defaultUriScheme?: string): string {

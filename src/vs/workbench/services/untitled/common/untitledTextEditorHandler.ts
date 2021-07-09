@@ -6,7 +6,7 @@
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IEditorInputSerializer } from 'vs/workbench/common/editor';
+import { IEditorSerializer } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isEqual, toLocalResource } from 'vs/base/common/resources';
@@ -26,7 +26,7 @@ interface ISerializedUntitledTextEditorInput {
 	encoding: string | undefined;
 }
 
-export class UntitledTextEditorInputSerializer implements IEditorInputSerializer {
+export class UntitledTextEditorInputSerializer implements IEditorSerializer {
 
 	constructor(
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,

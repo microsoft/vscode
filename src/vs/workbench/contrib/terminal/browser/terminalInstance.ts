@@ -149,7 +149,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _hasHadInput: boolean;
 
-	readonly statusList: ITerminalStatusList = new TerminalStatusList();
+	readonly statusList: ITerminalStatusList;
 	disableLayout: boolean = false;
 	target?: TerminalLocation;
 	get instanceId(): number { return this._instanceId; }
@@ -197,41 +197,45 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
 	get isDisconnected(): boolean { return this._processManager.isDisconnected; }
 	get isRemote(): boolean { return this._processManager.remoteAuthority !== undefined; }
+	get hasFocus(): boolean { return this._wrapperElement?.contains(document.activeElement) ?? false; }
 	get title(): string { return this._title; }
 	get titleSource(): TitleEventSource { return this._titleSource; }
 	get icon(): TerminalIcon | undefined { return this._getIcon(); }
 	get color(): string | undefined { return this._getColor(); }
 
+	// The onExit event is special in that it fires and is disposed after the terminal instance
+	// itself is disposed
 	private readonly _onExit = new Emitter<number | undefined>();
-	get onExit(): Event<number | undefined> { return this._onExit.event; }
-	private readonly _onDisposed = new Emitter<ITerminalInstance>();
-	get onDisposed(): Event<ITerminalInstance> { return this._onDisposed.event; }
-	private readonly _onFocused = new Emitter<ITerminalInstance>();
-	get onFocused(): Event<ITerminalInstance> { return this._onFocused.event; }
-	private readonly _onProcessIdReady = new Emitter<ITerminalInstance>();
-	get onProcessIdReady(): Event<ITerminalInstance> { return this._onProcessIdReady.event; }
-	private readonly _onLinksReady = new Emitter<ITerminalInstance>();
-	get onLinksReady(): Event<ITerminalInstance> { return this._onLinksReady.event; }
-	private readonly _onTitleChanged = new Emitter<ITerminalInstance>();
-	get onTitleChanged(): Event<ITerminalInstance> { return this._onTitleChanged.event; }
-	private readonly _onIconChanged = new Emitter<ITerminalInstance>();
-	get onIconChanged(): Event<ITerminalInstance> { return this._onIconChanged.event; }
-	private readonly _onData = new Emitter<string>();
-	get onData(): Event<string> { return this._onData.event; }
-	private readonly _onBinary = new Emitter<string>();
-	get onBinary(): Event<string> { return this._onBinary.event; }
-	private readonly _onLineData = new Emitter<string>();
-	get onLineData(): Event<string> { return this._onLineData.event; }
-	private readonly _onRequestExtHostProcess = new Emitter<ITerminalInstance>();
-	get onRequestExtHostProcess(): Event<ITerminalInstance> { return this._onRequestExtHostProcess.event; }
-	private readonly _onDimensionsChanged = new Emitter<void>();
-	get onDimensionsChanged(): Event<void> { return this._onDimensionsChanged.event; }
-	private readonly _onMaximumDimensionsChanged = new Emitter<void>();
-	get onMaximumDimensionsChanged(): Event<void> { return this._onMaximumDimensionsChanged.event; }
-	private readonly _onFocus = new Emitter<ITerminalInstance>();
-	get onFocus(): Event<ITerminalInstance> { return this._onFocus.event; }
-	private readonly _onRequestAddInstanceToGroup = new Emitter<IRequestAddInstanceToGroupEvent>();
-	get onRequestAddInstanceToGroup(): Event<IRequestAddInstanceToGroupEvent> { return this._onRequestAddInstanceToGroup.event; }
+	readonly onExit = this._onExit.event;
+
+	private readonly _onDisposed = this._register(new Emitter<ITerminalInstance>());
+	readonly onDisposed = this._onDisposed.event;
+	private readonly _onFocused = this._register(new Emitter<ITerminalInstance>());
+	readonly onFocused = this._onFocused.event;
+	private readonly _onProcessIdReady = this._register(new Emitter<ITerminalInstance>());
+	readonly onProcessIdReady = this._onProcessIdReady.event;
+	private readonly _onLinksReady = this._register(new Emitter<ITerminalInstance>());
+	readonly onLinksReady = this._onLinksReady.event;
+	private readonly _onTitleChanged = this._register(new Emitter<ITerminalInstance>());
+	readonly onTitleChanged = this._onTitleChanged.event;
+	private readonly _onIconChanged = this._register(new Emitter<ITerminalInstance>());
+	readonly onIconChanged = this._onIconChanged.event;
+	private readonly _onData = this._register(new Emitter<string>());
+	readonly onData = this._onData.event;
+	private readonly _onBinary = this._register(new Emitter<string>());
+	readonly onBinary = this._onBinary.event;
+	private readonly _onLineData = this._register(new Emitter<string>());
+	readonly onLineData = this._onLineData.event;
+	private readonly _onRequestExtHostProcess = this._register(new Emitter<ITerminalInstance>());
+	readonly onRequestExtHostProcess = this._onRequestExtHostProcess.event;
+	private readonly _onDimensionsChanged = this._register(new Emitter<void>());
+	readonly onDimensionsChanged = this._onDimensionsChanged.event;
+	private readonly _onMaximumDimensionsChanged = this._register(new Emitter<void>());
+	readonly onMaximumDimensionsChanged = this._onMaximumDimensionsChanged.event;
+	private readonly _onFocus = this._register(new Emitter<ITerminalInstance>());
+	readonly onFocus = this._onFocus.event;
+	private readonly _onRequestAddInstanceToGroup = this._register(new Emitter<IRequestAddInstanceToGroupEvent>());
+	readonly onRequestAddInstanceToGroup = this._onRequestAddInstanceToGroup.event;
 
 	constructor(
 		private readonly _terminalFocusContextKey: IContextKey<boolean>,
@@ -292,6 +296,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this.setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
 		}
 
+		this.statusList = this._instantiationService.createInstance(TerminalStatusList);
 		this._initDimensions();
 		this._createProcessManager();
 
@@ -311,13 +316,25 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		});
 
-		this.addDisposable(this._configurationService.onDidChangeConfiguration(e => {
+		this.addDisposable(this._configurationService.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration('terminal.integrated') || e.affectsConfiguration('editor.fastScrollSensitivity') || e.affectsConfiguration('editor.mouseWheelScrollSensitivity') || e.affectsConfiguration('editor.multiCursorModifier')) {
 				this.updateConfig();
 				// HACK: Trigger another async layout to ensure xterm's CharMeasure is ready to use,
 				// this hack can be removed when https://github.com/xtermjs/xterm.js/issues/702 is
 				// supported.
 				this.setVisible(this._isVisible);
+			}
+			const layoutSettings: string[] = [
+				TerminalSettingId.FontSize,
+				TerminalSettingId.FontFamily,
+				TerminalSettingId.FontWeight,
+				TerminalSettingId.FontWeightBold,
+				TerminalSettingId.LetterSpacing,
+				TerminalSettingId.LineHeight,
+				'editor.fontFamily'
+			];
+			if (layoutSettings.some(id => e.affectsConfiguration(id))) {
+				await this._resize();
 			}
 			if (e.affectsConfiguration(TerminalSettingId.UnicodeVersion)) {
 				this._updateUnicodeVersion();
@@ -958,7 +975,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		dispose(this._widgetManager);
 
 		if (this._xterm && this._xterm.element) {
-			this._hadFocusOnExit = this._xterm.element.classList.contains('focus');
+			this._hadFocusOnExit = this.hasFocus;
 		}
 		if (this._wrapperElement) {
 			if (this._wrapperElement.xterm) {
@@ -1287,6 +1304,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		this._onExit.fire(this._exitCode);
+		this._onExit.dispose();
 	}
 
 	/**
@@ -1443,6 +1461,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._setCursorWidth(config.cursorWidth);
 		this._setCommandsToSkipShell(config.commandsToSkipShell);
 		this._safeSetOption('scrollback', config.scrollback);
+		this._safeSetOption('drawBoldTextInBrightColors', config.drawBoldTextInBrightColors);
 		this._safeSetOption('minimumContrastRatio', config.minimumContrastRatio);
 		this._safeSetOption('fastScrollSensitivity', config.fastScrollSensitivity);
 		this._safeSetOption('scrollSensitivity', config.mouseWheelScrollSensitivity);
@@ -1616,7 +1635,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._safeSetOption('fontFamily', font.fontFamily);
 				this._safeSetOption('fontWeight', config.fontWeight);
 				this._safeSetOption('fontWeightBold', config.fontWeightBold);
-				this._safeSetOption('drawBoldTextInBrightColors', config.drawBoldTextInBrightColors);
 
 				// Any of the above setting changes could have changed the dimensions of the
 				// terminal, re-evaluate now.
