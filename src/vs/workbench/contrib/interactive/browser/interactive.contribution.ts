@@ -301,7 +301,7 @@ registerAction2(class extends Action2 {
 		const group = columnToEditorGroup(editorGroupService, typeof showOptions === 'number' ? showOptions : showOptions?.viewColumn);
 		const editorOptions = {
 			activation: EditorActivation.PRESERVE,
-			preserveFocus: typeof showOptions !== 'number' ? showOptions?.preserveFocus : true
+			preserveFocus: typeof showOptions !== 'number' ? (showOptions?.preserveFocus ?? false) : false
 		};
 
 		if (resource && resource.scheme === Schemas.vscodeInteractive) {
