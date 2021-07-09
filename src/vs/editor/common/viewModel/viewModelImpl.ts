@@ -21,7 +21,7 @@ import { MinimapTokensColorTracker } from 'vs/editor/common/viewModel/minimapTok
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
 import { IViewModelLinesCollection, IdentityLinesCollection, SplitLinesCollection, ILineBreaksComputerFactory } from 'vs/editor/common/viewModel/splitLinesCollection';
-import { ICoordinatesConverter, ILineBreaksComputer, IOverviewRulerDecorations, IViewModel, MinimapLinesRenderingData, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { ICoordinatesConverter, InjectedText, ILineBreaksComputer, IOverviewRulerDecorations, IViewModel, MinimapLinesRenderingData, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as platform from 'vs/base/common/platform';
@@ -650,6 +650,10 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	public getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[] {
 		return this._decorations.getDecorationsViewportData(visibleRange).decorations;
+	}
+
+	public getInjectedTextAt(viewPosition: Position): InjectedText | null {
+		return this._lines.getInjectedTextAt(viewPosition);
 	}
 
 	public getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData {
