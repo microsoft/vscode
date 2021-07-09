@@ -1474,7 +1474,7 @@ export class SplitLine implements ISplitLine {
 	}
 
 	public getInjectedTextAt(outputLineIndex: number, outputColumn: number): InjectedText | null {
-		return this._lineBreakData.getInjectedText(outputLineIndex, outputColumn);
+		return this._lineBreakData.getInjectedText(outputLineIndex, outputColumn - 1);
 	}
 }
 
