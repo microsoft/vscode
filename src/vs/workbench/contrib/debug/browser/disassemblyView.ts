@@ -17,7 +17,7 @@ import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { CONTEXT_DISASSEMBLE_VIEW_FOCUS, CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, DISASSEMBLY_VIEW_ID, IDebugService, State } from 'vs/workbench/contrib/debug/common/debug';
+import { CONTEXT_DISASSEMBLE_VIEW_FOCUS, CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, DISASSEMBLY_VIEW_ID, IDebugService, IInstructionBreakpoint, State } from 'vs/workbench/contrib/debug/common/debug';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -48,6 +48,7 @@ export class DisassemblyView extends EditorPane {
 	private _disassembledInstructions: WorkbenchTable<IDisassembledInstructionEntry> | undefined;
 	private _onDidChangeStackFrame: Emitter<void>;
 	private _previousDebuggingState: State;
+	private _instructionBpList: readonly IInstructionBreakpoint[] = [];
 	_disassemblyViewFocus: IContextKey<boolean>;
 
 	constructor(
@@ -158,7 +159,7 @@ export class DisassemblyView extends EditorPane {
 			if (this._disassembledInstructions && this._currentInstructionAddress !== stackFrame.stackFrame?.instructionPointerReference) {
 				this._currentInstructionAddress = stackFrame.stackFrame?.instructionPointerReference;
 				if (this._currentInstructionAddress) {
-					console.log(`DisassemblyView: ${this._currentInstructionAddress}`);
+					// console.log(`DisassemblyView: ${this._currentInstructionAddress}`);
 					const index = this.getIndexFromAddress(this._currentInstructionAddress);
 					if (index >= 0) {
 						// If the row is out of the viewport, reveal it
@@ -210,6 +211,9 @@ export class DisassemblyView extends EditorPane {
 						}
 					}
 				});
+
+				// get an updated list so that items beyond the current range would render when reached.
+				this._instructionBpList = this._debugService.getModel().getInstructionBreakpoints();
 
 				if (changed) {
 					this._onDidChangeStackFrame.fire();
@@ -263,14 +267,15 @@ export class DisassemblyView extends EditorPane {
 			}
 		}
 
-		console.log(`DisassemblyView: loadDisassembledInstructions ${address}, ${instructionOffset}, ${instructionCount}`);
+		// console.log(`DisassemblyView: loadDisassembledInstructions ${address}, ${instructionOffset}, ${instructionCount}`);
 		const session = this._debugService.getViewModel().focusedSession;
 		const resultEntries = await session?.disassemble(address!, 0, instructionOffset, instructionCount);
 		if (session && resultEntries && this._disassembledInstructions) {
 			const newEntries: IDisassembledInstructionEntry[] = [];
 
 			for (let i = 0; i < resultEntries.length; i++) {
-				newEntries.push({ allowBreakpoint: true, isBreakpointSet: false, instruction: resultEntries[i] });
+				const found = this._instructionBpList.find(p => p.instructionReference === resultEntries[i].address);
+				newEntries.push({ allowBreakpoint: true, isBreakpointSet: found !== undefined, instruction: resultEntries[i] });
 			}
 
 			// request is either at the start or end
@@ -341,6 +346,7 @@ export class DisassemblyView extends EditorPane {
 	private reloadDisassembly(targetAddress?: string) {
 		if (this._disassembledInstructions) {
 			this._disassembledInstructions.splice(0, this._disassembledInstructions.length);
+			this._instructionBpList = this._debugService.getModel().getInstructionBreakpoints();
 			this.loadDisassembledInstructions(targetAddress, -DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 2).then(() => {
 				// on load, set the target instruction in the middle of the page.
 				if (this._disassembledInstructions!.length > 0) {
