@@ -520,7 +520,6 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				node.classList.add('terminal-label-text');
 				node.innerText = tabLabel.statusIcon ? iconLabel.text + tabLabel.statusIcon : iconLabel.text;
 				elements.push(node);
-				console.log(elements);
 				dom.reset(label, ...elements);
 			}
 
