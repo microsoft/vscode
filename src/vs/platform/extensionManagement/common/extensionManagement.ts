@@ -174,13 +174,13 @@ export interface IExtensionGalleryService {
 
 export interface InstallExtensionEvent {
 	identifier: IExtensionIdentifier;
-	source: string | IGalleryExtension;
+	source: URI | IGalleryExtension;
 }
 
 export interface InstallExtensionResult {
 	readonly identifier: IExtensionIdentifier;
 	readonly operation: InstallOperation;
-	readonly source?: string | IGalleryExtension;
+	readonly source?: URI | IGalleryExtension;
 	readonly local?: ILocalExtension;
 }
 

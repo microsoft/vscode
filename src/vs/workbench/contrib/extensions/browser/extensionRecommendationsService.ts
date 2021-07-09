@@ -23,7 +23,7 @@ import { ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser
 import { ConfigBasedRecommendations } from 'vs/workbench/contrib/extensions/browser/configBasedRecommendations';
 import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { timeout } from 'vs/base/common/async';
-import { isString } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
 
 type IgnoreRecommendationClassification = {
 	recommendationReason: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -216,7 +216,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 
 	private onDidInstallExtensions(results: readonly InstallExtensionResult[]): void {
 		for (const e of results) {
-			if (e.source && !isString(e.source) && e.operation === InstallOperation.Install) {
+			if (e.source && !URI.isUri(e.source) && e.operation === InstallOperation.Install) {
 				const extRecommendations = this.getAllRecommendationsWithReason() || {};
 				const recommendationReason = extRecommendations[e.source.identifier.id.toLowerCase()];
 				if (recommendationReason) {
