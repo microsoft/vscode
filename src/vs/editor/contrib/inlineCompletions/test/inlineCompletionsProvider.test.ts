@@ -10,7 +10,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { InlineCompletionsProvider, InlineCompletionsProviderRegistry } from 'vs/editor/common/modes';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { InlineCompletionsModel, inlineCompletionToGhostText } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsModel';
-import { GhostTextContext, MockInlineCompletionsProvider, renderGhostTextToText } from 'vs/editor/contrib/inlineCompletions/test/utils';
+import { GhostTextContext, MockInlineCompletionsProvider } from 'vs/editor/contrib/inlineCompletions/test/utils';
 import { ITestCodeEditor, TestCodeEditorCreationOptions, withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import sinon = require('sinon');
@@ -30,7 +30,7 @@ suite('Inline Completions', () => {
 			const options = ['prefix', 'subword'] as const;
 			const result = {} as any;
 			for (const option of options) {
-				result[option] = renderGhostTextToText(inlineCompletionToGhostText({ text: suggestion, range }, tempModel, option), cleanedText);
+				result[option] = inlineCompletionToGhostText({ text: suggestion, range }, tempModel, option)?.render(cleanedText, true);
 			}
 
 			tempModel.dispose();
