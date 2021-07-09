@@ -194,9 +194,14 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.restoreViewState': {
 				'type': 'boolean',
-				'description': localize('restoreViewState', "Restores the last view state (e.g. scroll position) when re-opening textual editors after they have been closed."),
+				'description': localize('restoreViewState', "Restores the last view state (e.g. scroll position) when re-opening editors after they have been closed."),
 				'default': true,
 				'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
+			},
+			'workbench.editor.sharedViewState': {
+				'type': 'boolean',
+				'description': localize('sharedViewState', "Preserves the most recent view state (e.g. scroll position) across all editor groups and restores that if no specific view state is found for the group."),
+				'default': false
 			},
 			'workbench.editor.centeredLayoutAutoResize': {
 				'type': 'boolean',
