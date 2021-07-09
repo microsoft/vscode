@@ -64,13 +64,13 @@ function withNodeDefaults(/**@type WebpackConfig*/extConfig) {
 		},
 		// yes, really source maps
 		devtool: 'source-map',
-		plugins: getDefaultNodePlugins(extConfig.context),
+		plugins: nodePlugins(extConfig.context),
 	};
 
 	return merge(defaultConfig, extConfig);
 }
 
-function getDefaultNodePlugins(context) {
+function nodePlugins(context) {
 	// Need to find the top-most `package.json` file
 	const folderName = path.relative(__dirname, context).split(/[\\\/]/)[0];
 	const pkgPath = path.join(__dirname, folderName, 'package.json');
@@ -136,31 +136,30 @@ function withBrowserDefaults(/**@type WebpackConfig*/extConfig) {
 		},
 		// yes, really source maps
 		devtool: 'source-map',
-		plugins: getDefaultBrowserPlugins()
+		plugins: browserPlugins
 	};
 
 	return merge(defaultConfig, extConfig);
 }
 
-function getDefaultBrowserPlugins() {
-	return [
-		new CopyWebpackPlugin({
-			patterns: [
-				{ from: 'src', to: '.', globOptions: { ignore: ['**/test/**', '**/*.ts'] }, noErrorOnMissing: true }
-			]
-		}),
-		new DefinePlugin({
-			'process.env': JSON.stringify({}),
-			'process.env.BROWSER_ENV': JSON.stringify('true')
-		})
-	];
-}
+const browserPlugins = [
+	new CopyWebpackPlugin({
+		patterns: [
+			{ from: 'src', to: '.', globOptions: { ignore: ['**/test/**', '**/*.ts'] }, noErrorOnMissing: true }
+		]
+	}),
+	new DefinePlugin({
+		'process.env': JSON.stringify({}),
+		'process.env.BROWSER_ENV': JSON.stringify('true')
+	})
+];
+
 
 
 
 module.exports = withNodeDefaults;
 module.exports.node = withNodeDefaults;
 module.exports.browser = withBrowserDefaults;
-module.exports.getNodePlugins = getDefaultNodePlugins;
-module.exports.getBrowserPlugins = getDefaultBrowserPlugins;
+module.exports.nodePlugins = nodePlugins;
+module.exports.browserPlugins = browserPlugins;
 

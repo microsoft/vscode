@@ -9,7 +9,6 @@
 
 const withDefaults = require('../../shared.webpack.config');
 const path = require('path');
-const webpack = require('webpack');
 
 const config = withDefaults({
 	context: path.join(__dirname),

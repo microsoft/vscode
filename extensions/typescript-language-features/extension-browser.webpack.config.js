@@ -9,9 +9,9 @@
 const CopyPlugin = require('copy-webpack-plugin');
 const Terser = require('terser');
 
-const defaultConnfig = require('../shared.webpack.config');
-const withBrowserDefaults = defaultConnfig.browser;
-const getBrowserPlugins = defaultConnfig.getBrowserPlugins;
+const defaultConfig = require('../shared.webpack.config');
+const withBrowserDefaults = defaultConfig.browser;
+const browserPlugins = defaultConfig.browserPlugins;
 
 const languages = [
 	'zh-tw',
@@ -34,13 +34,8 @@ module.exports = withBrowserDefaults({
 	entry: {
 		extension: './src/extension.browser.ts',
 	},
-	resolve: {
-		fallback: {
-			os: false
-		}
-	},
 	plugins: [
-		...getBrowserPlugins(), // add plugins, don't replace inherited
+		...browserPlugins, // add plugins, don't replace inherited
 
 		// @ts-ignore
 		new CopyPlugin({
