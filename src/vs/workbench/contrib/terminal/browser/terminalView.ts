@@ -511,14 +511,18 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			label.style.color = colorStyle;
 
 			const elements = new Array<HTMLSpanElement | string>();
-			const tabLabel = getSingleTabLabel(instance, ThemeIcon.isThemeIcon(this._commandAction.item.icon) ? this._commandAction.item.icon : undefined);
-			const iconLabel = separateIconAndText(tabLabel);
 
-			if (iconLabel.icon) {
-				elements.push(renderIcon({ id: iconLabel.icon }));
+			const tabLabel = getSingleTabLabel(instance, ThemeIcon.isThemeIcon(this._commandAction.item.icon) ? this._commandAction.item.icon : undefined);
+
+			// ensures that the icon will always be displayed and allows for truncation of text
+			// to prevent overflow into the actions
+			const iconAndText = separateIconAndText(tabLabel);
+
+			if (iconAndText.icon) {
+				elements.push(renderIcon({ id: iconAndText.icon }));
 				const node = dom.$(`span`);
 				node.classList.add('terminal-label-text');
-				node.innerText = iconLabel.text;
+				node.innerText = iconAndText.text;
 				elements.push(node);
 				dom.reset(label, ...elements);
 			}
