@@ -374,3 +374,13 @@
 .monaco-workbench .pane-body.integrated-terminal .terminal-group > .monaco-split-view2.vertical .terminal-drop-overlay.drop-after {
 	top: 50%;
 }
+
+.monaco-workbench .terminal-single-tab .terminal-label-text {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.monaco-workbench .terminal-single-tab {
+	min-width: 22px;
+
+}
