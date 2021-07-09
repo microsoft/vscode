@@ -3068,30 +3068,30 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return;
 		}
 
-		let identifier = this.getTaskIdentifier(arg);
 		let selectedTask: Task | undefined;
 
-		if (identifier) {
-			this.getGroupedTasks().then(async (grouped) => {
-				const allTasks: Task[] = grouped.all();
-				for (let task of allTasks) {
-					if (task.configurationProperties.group === TaskGroup.Build && task.configurationProperties.groupType === GroupType.default) {
-						selectedTask = task;
-						break;
-					}
+		this.getGroupedTasks().then(async (grouped) => {
+			const allTasks: Task[] = grouped.all();
+			for (let task of allTasks) {
+				if (task.configurationProperties.group?._id === TaskGroup.Build._id && task.configurationProperties.groupType === GroupType.default) {
+					selectedTask = task;
+					break;
 				}
+			}
+
+			let identifier = this.getTaskIdentifier(arg);
+			if (identifier) {
 				const resolvedTask: Task | undefined = await this.resolveTask(grouped, identifier);
 				if (resolvedTask) {
 					this.doConfigureDefaultBuildTask(resolvedTask, selectedTask);
 					return;
 				}
-				this.showConfigureDefaultBuildTask(allTasks, selectedTask);
-			}, () => {
-				this.showConfigureDefaultBuildTask();
-			});
-		} else {
+			}
+
+			this.showConfigureDefaultBuildTask(allTasks, selectedTask);
+		}, () => {
 			this.showConfigureDefaultBuildTask();
-		}
+		});
 	}
 
 	private doConfigureDefaultBuildTask(newDefaultTask: Task, existingDefaultTask?: Task): void {
