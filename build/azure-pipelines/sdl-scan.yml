@@ -1,0 +1,95 @@
+trigger: none
+pr: none
+
+stages:
+- stage: Windows
+  pool:
+    vmImage: VS2017-Win2016
+  jobs:
+    - job: WindowsJob
+      steps:
+      - task: CredScan@2
+        inputs:
+          toolMajorVersion: 'V2'
+      - task: NodeTool@0
+        inputs:
+          versionSpec: "14.x"
+
+      - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+        inputs:
+          versionSpec: "1.x"
+
+      - task: AzureKeyVault@1
+        displayName: "Azure Key Vault: Get Secrets"
+        inputs:
+          azureSubscription: "vscode-builds-subscription"
+          KeyVaultName: vscode
+          SecretsFilter: "github-distro-mixin-password,ESRP-SSL-AADAuth,vscode-storage-key,builds-docdb-key-readwrite"
+
+      - powershell: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+          "machine github.com`nlogin vscode`npassword $(github-distro-mixin-password)" | Out-File "$env:USERPROFILE\_netrc" -Encoding ASCII
+
+          exec { git config user.email "vscode@microsoft.com" }
+          exec { git config user.name "VSCode" }
+        displayName: Prepare tooling
+
+      - powershell: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+          exec { npx https://aka.ms/enablesecurefeed standAlone }
+        timeoutInMinutes: 5
+        condition: and(succeeded(), eq(variables['ENABLE_TERRAPIN'], 'true'))
+        displayName: Switch to Terrapin packages
+
+
+      - powershell: |
+          . build/azure-pipelines/win32/exec.ps1
+          . build/azure-pipelines/win32/retry.ps1
+          $ErrorActionPreference = "Stop"
+          $env:npm_config_arch="x64"
+          $env:npm_config_build_from_source="true"
+          $env:CHILD_CONCURRENCY="1"
+          retry { exec { yarn --frozen-lockfile } }
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+        displayName: Install dependencies
+
+      - powershell: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+          exec { yarn gulp "vscode-symbols-win32-x64" }
+        displayName: Download Symbols
+
+      - task: BinSkim@3
+        inputs:
+          toolVersion: Latest
+          InputType:   CommandLine
+          arguments:   analyze $(agent.builddirectory)\scanbin\*.dll $(agent.builddirectory)\scanbin\*.exe $(agent.builddirectory)\scanbin\*.node --recurse --local-symbol-directories $(agent.builddirectory)\scanbin\VSCode-win32-x64\pdb
+
+      - task: TSAUpload@1
+        inputs:
+          tsaVersion: 'TsaV2'
+          codebase: 'NewOrUpdate'
+          tsaEnvironment: 'PROD'
+          serviceTreeID: '79c048b2-322f-4ed5-a1ea-252a1250e4b3'
+          codeBaseName: 'vscode-client'
+          notificationAlias: 'sbatten@microsoft.com'
+          notifyAlwaysV2: true
+          codeBaseAdmins: 'REDMOND\stbatt'
+          instanceUrlForTsaV2: 'MSAZURE'
+          projectNameMSAZURE: 'One'
+          areaPath: 'One\VSCode\Client'
+          uploadAPIScan: false
+          uploadBinSkim: true
+          uploadCredScan: true
+          uploadFortifySCA: false
+          uploadFxCop: false
+          uploadModernCop: false
+          uploadPoliCheck: false
+          uploadPREfast: false
+          uploadRoslyn: false
+          uploadTSLint: false
+          uploadAsync: true
