@@ -328,7 +328,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 							return false;
 						}
 					} else if (server === this.extensionManagementServerService.localExtensionManagementServer) {
-						const enableLocalWebWorker = this.configurationService.getValue<boolean>(webWorkerExtHostConfig);
+						const enableLocalWebWorker = this.configurationService.getValue(webWorkerExtHostConfig);
 						if (enableLocalWebWorker) {
 							// Web extensions are enabled on all configurations
 							return false;

@@ -248,11 +248,11 @@ export class WalkThroughPart extends EditorPane {
 	}
 
 	private getArrowScrollHeight() {
-		let fontSize = this.configurationService.getValue<number>('editor.fontSize');
+		let fontSize = this.configurationService.getValue('editor.fontSize');
 		if (typeof fontSize !== 'number' || fontSize < 1) {
 			fontSize = 12;
 		}
-		return 3 * fontSize;
+		return 3 * (fontSize as number);
 	}
 
 	pageUp() {
@@ -469,7 +469,7 @@ export class WalkThroughPart extends EditorPane {
 
 	private multiCursorModifier() {
 		const labels = UILabelProvider.modifierLabels[OS];
-		const value = this.configurationService.getValue<string>('editor.multiCursorModifier');
+		const value = this.configurationService.getValue('editor.multiCursorModifier');
 		const modifier = labels[value === 'ctrlCmd' ? (OS === OperatingSystem.Macintosh ? 'metaKey' : 'ctrlKey') : 'altKey'];
 		const keys = this.content.querySelectorAll('.multi-cursor-modifier');
 		Array.prototype.forEach.call(keys, (key: Element) => {

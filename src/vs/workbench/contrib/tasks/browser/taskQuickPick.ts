@@ -55,7 +55,8 @@ export class TaskQuickPick extends Disposable {
 	}
 
 	private showDetail(): boolean {
-		return this.configurationService.getValue<boolean>(QUICKOPEN_DETAIL_CONFIG);
+		// Ensure invalid values get converted into boolean values
+		return !!this.configurationService.getValue(QUICKOPEN_DETAIL_CONFIG);
 	}
 
 	private guessTaskLabel(task: Task | ConfiguringTask): string {

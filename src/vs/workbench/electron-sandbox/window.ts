@@ -40,7 +40,7 @@ import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/
 import { coalesce } from 'vs/base/common/arrays';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { assertIsDefined } from 'vs/base/common/types';
+import { assertIsDefined, isArray } from 'vs/base/common/types';
 import { IOpenerService, OpenOptions } from 'vs/platform/opener/common/opener';
 import { Schemas } from 'vs/base/common/network';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
@@ -360,7 +360,7 @@ export class NativeWindow extends Disposable {
 		// or setting is disabled. Also enabled when running with --wait from the command line.
 		const visibleEditorPanes = this.editorService.visibleEditorPanes;
 		if (visibleEditorPanes.length === 0 && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && !this.environmentService.isExtensionDevelopment) {
-			const closeWhenEmpty = this.configurationService.getValue<boolean>('window.closeWhenEmpty');
+			const closeWhenEmpty = this.configurationService.getValue('window.closeWhenEmpty');
 			if (closeWhenEmpty || this.environmentService.args.wait) {
 				this.closeEmptyWindowScheduler.schedule();
 			}
@@ -564,8 +564,9 @@ export class NativeWindow extends Disposable {
 
 		const actions: Array<MenuItemAction | Separator> = [];
 
-		const disabled = this.configurationService.getValue<boolean>('keyboard.touchbar.enabled') === false;
-		const ignoredItems = this.configurationService.getValue<string[]>('keyboard.touchbar.ignored') || [];
+		const disabled = this.configurationService.getValue('keyboard.touchbar.enabled') === false;
+		const touchbarIgnored = this.configurationService.getValue('keyboard.touchbar.ignored');
+		const ignoredItems = isArray(touchbarIgnored) ? touchbarIgnored : [];
 
 		// Fill actions into groups respecting order
 		this.touchBarDisposables.add(createAndFillInActionBarActions(this.touchBarMenu, undefined, actions));
