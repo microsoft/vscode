@@ -30,7 +30,7 @@ export class GhostText {
 export class GhostTextPart {
 	constructor(
 		readonly column: number,
-		readonly lines: string[],
+		readonly lines: readonly string[],
 	) {
 	}
 
