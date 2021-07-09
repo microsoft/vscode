@@ -394,13 +394,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (!this.state.zenMode.active) {
 
 			// Statusbar visibility
-			const newStatusbarHiddenValue = !this.configurationService.getValue<boolean>(Settings.STATUSBAR_VISIBLE);
+			const newStatusbarHiddenValue = !this.configurationService.getValue(Settings.STATUSBAR_VISIBLE);
 			if (newStatusbarHiddenValue !== this.state.statusBar.hidden) {
 				this.setStatusBarHidden(newStatusbarHiddenValue, skipLayout);
 			}
 
 			// Activitybar visibility
-			const newActivityBarHiddenValue = !this.configurationService.getValue<boolean>(Settings.ACTIVITYBAR_VISIBLE);
+			const newActivityBarHiddenValue = !this.configurationService.getValue(Settings.ACTIVITYBAR_VISIBLE);
 			if (newActivityBarHiddenValue !== this.state.activityBar.hidden) {
 				this.setActivityBarHidden(newActivityBarHiddenValue, skipLayout);
 			}

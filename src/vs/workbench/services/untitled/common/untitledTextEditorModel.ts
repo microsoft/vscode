@@ -152,8 +152,8 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	private onConfigurationChange(fromEvent: boolean): void {
 
 		// Encoding
-		const configuredEncoding = this.textResourceConfigurationService.getValue<string>(this.resource, 'files.encoding');
-		if (this.configuredEncoding !== configuredEncoding) {
+		const configuredEncoding = this.textResourceConfigurationService.getValue(this.resource, 'files.encoding');
+		if (this.configuredEncoding !== configuredEncoding && typeof configuredEncoding === 'string') {
 			this.configuredEncoding = configuredEncoding;
 
 			if (fromEvent && !this.preferredEncoding) {

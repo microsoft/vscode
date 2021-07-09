@@ -216,7 +216,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 	}
 
 	private updateConfiguration(): void {
-		this.shareEditorState = this.configurationService.getValue<boolean>(undefined, 'workbench.editor.sharedViewState') === true;
+		this.shareEditorState = this.configurationService.getValue(undefined, 'workbench.editor.sharedViewState') === true;
 	}
 
 	saveEditorState(group: IEditorGroup, resource: URI, state: T): void;
