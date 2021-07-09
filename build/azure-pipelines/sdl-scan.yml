@@ -135,7 +135,7 @@ stages:
   pool:
     vmImage: "Ubuntu-18.04"
   jobs:
-    - job: Linux Job
+    - job: LinuxJob
       steps:
       - task: CredScan@2
         inputs:
