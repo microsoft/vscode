@@ -33,7 +33,7 @@ variables:
 
 stages:
 - stage: Windows
-  condition: eq(variables.SCAN_WINDOWS, 'true'))
+  condition: eq(variables.SCAN_WINDOWS, 'true')
   pool:
     vmImage: VS2017-Win2016
   jobs:
@@ -131,7 +131,7 @@ stages:
           uploadAsync: true
 - stage: Linux
   dependsOn: []
-  condition: eq(variables.SCAN_LINUX, 'true'))
+  condition: eq(variables.SCAN_LINUX, 'true')
   pool:
     vmImage: "Ubuntu-18.04"
   jobs:
