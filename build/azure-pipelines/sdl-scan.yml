@@ -1,6 +1,20 @@
 trigger: none
 pr: none
 
+parameters:
+  - name: ENABLE_TERRAPIN
+    displayName: "Enable Terrapin"
+    type: boolean
+    default: true
+
+variables:
+  - name: ENABLE_TERRAPIN
+    value: ${{ eq(parameters.ENABLE_TERRAPIN, true) }}
+  - name: VSCODE_MIXIN_REPO
+    value: microsoft/vscode-distro
+  - name: skipComponentGovernanceDetection
+    value: true
+
 stages:
 - stage: Windows
   pool:
@@ -38,11 +52,16 @@ stages:
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
+          exec { git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro") }
+        displayName: Merge distro
+
+      - powershell: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
           exec { npx https://aka.ms/enablesecurefeed standAlone }
         timeoutInMinutes: 5
         condition: and(succeeded(), eq(variables['ENABLE_TERRAPIN'], 'true'))
         displayName: Switch to Terrapin packages
-
 
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
