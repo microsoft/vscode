@@ -51,6 +51,7 @@ import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL } from 'vs/workbench/
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
 import { IEditorInput } from 'vs/workbench/common/editor';
+import { DisassemblyView } from 'vs/workbench/contrib/debug/browser/disassemblyView';
 
 export class DebugService implements IDebugService {
 	declare readonly _serviceBrand: undefined;
@@ -816,14 +817,19 @@ export class DebugService implements IDebugService {
 		if (stackFrame) {
 			const editor = await stackFrame.openInEditor(this.editorService, true);
 			if (editor) {
-				const control = editor.getControl();
-				if (stackFrame && isCodeEditor(control) && control.hasModel()) {
-					const model = control.getModel();
-					const lineNumber = stackFrame.range.startLineNumber;
-					if (lineNumber >= 1 && lineNumber <= model.getLineCount()) {
-						const lineContent = control.getModel().getLineContent(lineNumber);
-						aria.alert(nls.localize({ key: 'debuggingPaused', comment: ['First placeholder is the stack frame name, second is the line number, third placeholder is the reason why debugging is stopped, for example "breakpoint" and the last one is the file line content.'] },
-							"{0}:{1}, debugging paused {2}, {3}", stackFrame.source ? stackFrame.source.name : '', stackFrame.range.startLineNumber, thread && thread.stoppedDetails ? `, reason ${thread.stoppedDetails.reason}` : '', lineContent));
+				if (editor.getId() === 'workbench.debug.disassemblyView') {
+					const disassemblyView = editor as DisassemblyView;
+					disassemblyView.goToAddress(stackFrame.instructionPointerReference);
+				} else {
+					const control = editor.getControl();
+					if (stackFrame && isCodeEditor(control) && control.hasModel()) {
+						const model = control.getModel();
+						const lineNumber = stackFrame.range.startLineNumber;
+						if (lineNumber >= 1 && lineNumber <= model.getLineCount()) {
+							const lineContent = control.getModel().getLineContent(lineNumber);
+							aria.alert(nls.localize({ key: 'debuggingPaused', comment: ['First placeholder is the stack frame name, second is the line number, third placeholder is the reason why debugging is stopped, for example "breakpoint" and the last one is the file line content.'] },
+								"{0}:{1}, debugging paused {2}, {3}", stackFrame.source ? stackFrame.source.name : '', stackFrame.range.startLineNumber, thread && thread.stoppedDetails ? `, reason ${thread.stoppedDetails.reason}` : '', lineContent));
+						}
 					}
 				}
 			}

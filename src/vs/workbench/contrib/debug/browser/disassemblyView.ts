@@ -237,6 +237,20 @@ export class DisassemblyView extends EditorPane {
 		}
 	}
 
+	goToAddress(address?: string): void {
+		if (address) {
+			const index = this.getIndexFromAddress(address);
+			if (index >= 0) {
+				this._disassembledInstructions?.reveal(index, 0.5);
+			} else {
+				// Address is very far from what's shown in the view now. Clear the table and reload.
+				this.reloadDisassembly(address);
+			}
+		} else {
+			this.reloadDisassembly();
+		}
+	}
+
 	private async scrollUp_LoadDisassembledInstructions(instructionCount: number): Promise<boolean> {
 		if (this._disassembledInstructions && this._disassembledInstructions.length > 0) {
 			const address: string | undefined = this._disassembledInstructions?.row(0).instruction.address;
