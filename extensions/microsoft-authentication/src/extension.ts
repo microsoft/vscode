@@ -30,7 +30,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				*/
 				telemetryReporter.sendTelemetryEvent('login', {
 					// Get rid of guids from telemetry.
-					scopes: JSON.stringify(scopes.map(s => s.replace(/[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}/, '{guid}'))),
+					scopes: JSON.stringify(scopes.map(s => s.replace(/[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}/i, '{guid}'))),
 				});
 
 				const session = await loginService.createSession(scopes.sort().join(' '));
