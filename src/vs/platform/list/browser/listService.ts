@@ -240,7 +240,7 @@ export class WorkbenchList<T> extends List<T> {
 		this.themeService = themeService;
 
 		this.listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
-		this.listSupportsMultiSelect.set(!!options.multipleSelectionSupport);
+		this.listSupportsMultiSelect.set(options.multipleSelectionSupport !== false);
 
 		const listSelectionNavigation = WorkbenchListSelectionNavigation.bindTo(this.contextKeyService);
 		listSelectionNavigation.set(Boolean(options.selectionNavigation));
@@ -374,7 +374,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		this.horizontalScrolling = options.horizontalScrolling;
 
 		this.listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
-		this.listSupportsMultiSelect.set(!!options.multipleSelectionSupport);
+		this.listSupportsMultiSelect.set(options.multipleSelectionSupport !== false);
 
 		const listSelectionNavigation = WorkbenchListSelectionNavigation.bindTo(this.contextKeyService);
 		listSelectionNavigation.set(Boolean(options.selectionNavigation));
@@ -499,7 +499,7 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 		this.themeService = themeService;
 
 		this.listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
-		this.listSupportsMultiSelect.set(!!options.multipleSelectionSupport);
+		this.listSupportsMultiSelect.set(options.multipleSelectionSupport !== false);
 
 		const listSelectionNavigation = WorkbenchListSelectionNavigation.bindTo(this.contextKeyService);
 		listSelectionNavigation.set(Boolean(options.selectionNavigation));
@@ -1099,7 +1099,7 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, tree);
 
 		this.listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
-		this.listSupportsMultiSelect.set(!!options.multipleSelectionSupport);
+		this.listSupportsMultiSelect.set(options.multipleSelectionSupport !== false);
 
 		const listSelectionNavigation = WorkbenchListSelectionNavigation.bindTo(this.contextKeyService);
 		listSelectionNavigation.set(Boolean(options.selectionNavigation));
