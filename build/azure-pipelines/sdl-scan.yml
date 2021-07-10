@@ -13,7 +13,7 @@ parameters:
   - name: SCAN_LINUX
     displayName: "Scan Linux"
     type: boolean
-    default: true
+    default: false
 
 variables:
   - name: ENABLE_TERRAPIN
