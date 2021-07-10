@@ -93,6 +93,16 @@ stages:
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Install dependencies
 
+      - task: Semmle@1
+        inputs:
+          sourceCodeDirectory: '$(Build.SourcesDirectory)'
+          language: 'cpp'
+          buildCommandsString: 'yarn'
+          querySuite: 'Required'
+          timeout: '1800'
+          ram: '16384'
+          addProjectDirToScanningExclusionList: true
+
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
