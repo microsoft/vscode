@@ -1246,7 +1246,7 @@ export class SplitLine implements ISplitLine {
 
 		let r: string;
 		if (this._lineBreakData.injectionOffsets !== null) {
-			const injectedTexts = this._lineBreakData.injectionOffsets.map((offset, idx) => new LineInjectedText(0, 0, offset, this._lineBreakData.injectionOptions![idx], 0));
+			const injectedTexts = this._lineBreakData.injectionOffsets.map((offset, idx) => new LineInjectedText(0, 0, offset + 1, this._lineBreakData.injectionOptions![idx], 0));
 			r = LineInjectedText.applyInjectedText(model.getLineContent(modelLineNumber), injectedTexts).substring(startOffset, endOffset);
 		} else {
 			r = model.getValueInRange({

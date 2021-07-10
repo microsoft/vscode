@@ -25,20 +25,21 @@ import { GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/ghostT
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
 
 export class GhostTextWidget extends Disposable {
 	private disposed = false;
-	private readonly partsWidget = this._register(new DecorationsWidget(this.editor, this.codeEditorService, this.themeService));
+	private readonly partsWidget = this._register(this.instantiationService.createInstance(DecorationsWidget, this.editor));
 	private readonly additionalLinesWidget = this._register(new AdditionalLinesWidget(this.editor));
 	private viewMoreContentWidget: ViewMoreLinesContentWidget | undefined = undefined;
 
 	constructor(
 		private readonly editor: ICodeEditor,
 		private readonly model: GhostTextWidgetModel,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@IThemeService private readonly themeService: IThemeService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -200,7 +201,8 @@ class DecorationsWidget implements IDisposable {
 	constructor(
 		private readonly editor: ICodeEditor,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@IThemeService private readonly themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 	}
 
@@ -254,6 +256,9 @@ class DecorationsWidget implements IDisposable {
 			});
 		}
 
+		const key = this.contextKeyService.getContextKeyValue('config.editor.useInjectedText');
+		const shouldUseInjectedText = key === undefined ? true : !!key;
+
 		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, parts.map<IModelDeltaDecoration>(p => {
 			currentLinePrefix += line.substring(lastIndex, p.column - 1);
 			lastIndex = p.column - 1;
@@ -273,7 +278,10 @@ class DecorationsWidget implements IDisposable {
 
 			return ({
 				range: Range.fromPositions(new Position(lineNumber, p.column)),
-				options: {
+				options: shouldUseInjectedText ? {
+					description: 'ghost-text',
+					after: { content: contentText, inlineClassName: 'ghost-text-decoration' }
+				} : {
 					...decorationType.resolve()
 				}
 			});
@@ -486,7 +494,7 @@ registerThemingParticipant((theme, collector) => {
 		const opacity = String(foreground.rgba.a);
 		const color = Color.Format.CSS.format(opaque(foreground))!;
 
-		// We need to override the only used token type .mtk1
+		collector.addRule(`.monaco-editor .ghost-text-decoration { opacity: ${opacity}; color: ${color}; }`);
 		collector.addRule(`.monaco-editor .suggest-preview-text .ghost-text { opacity: ${opacity}; color: ${color}; }`);
 	}
 
