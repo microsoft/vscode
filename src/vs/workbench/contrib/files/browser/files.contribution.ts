@@ -407,13 +407,16 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': [
 				'/',
-				'\\'
+				'\\',
+				'auto'
 			],
 			'enumDescriptions': [
 				nls.localize('copyRelativePathSeparator.slash', "Use slash as path separation character."),
 				nls.localize('copyRelativePathSeparator.backslash', "Use backslash as path separation character."),
+				nls.localize('copyRelativePathSeparator.auto', "Uses operating system specific path separation character."),
 			],
-			'description': nls.localize('copyRelativePathSeparator', "The path separation character used when copying relative file paths. Will use the operating system default unless specified."),
+			'description': nls.localize('copyRelativePathSeparator', "The path separation character used when copying relative file paths."),
+			'default': 'auto'
 		}
 	}
 });
