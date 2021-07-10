@@ -13,8 +13,8 @@ import { InlineCompletionsModel, inlineCompletionToGhostText } from 'vs/editor/c
 import { GhostTextContext, MockInlineCompletionsProvider } from 'vs/editor/contrib/inlineCompletions/test/utils';
 import { ITestCodeEditor, TestCodeEditorCreationOptions, withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import sinon = require('sinon');
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { TimeTravelScheduler } from 'vs/editor/contrib/inlineCompletions/test/timeTravelScheduler';
 
 suite('Inline Completions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -500,9 +500,11 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 		disposableStore.add(d);
 	}
 
-	let clock: sinon.SinonFakeTimers | undefined;
+	let scheduler: TimeTravelScheduler | undefined;
+
 	if (options.fakeClock) {
-		clock = sinon.useFakeTimers();
+		scheduler = new TimeTravelScheduler();
+		disposableStore.add(scheduler.installGlobally());
 	}
 	try {
 		const p = withAsyncTestCodeEditor(text, options, async (editor, editorViewModel, instantiationService) => {
@@ -513,16 +515,14 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 			model.dispose();
 		});
 
-		const p2 = clock?.runAllAsync();
+		await scheduler?.runUntilQueueEmptyAsync();
 
 		await p;
-		await p2;
 
 		if (options.provider instanceof MockInlineCompletionsProvider) {
 			options.provider.assertNotCalledTwiceWithin50ms();
 		}
 	} finally {
-		clock?.restore();
 		disposableStore.dispose();
 	}
 }
