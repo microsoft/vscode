@@ -19,7 +19,7 @@ import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs
 import { MementoObject } from 'vs/workbench/common/memento';
 import { joinPath, IExtUri, isEqual } from 'vs/base/common/resources';
 import { indexOfPath } from 'vs/base/common/extpath';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
@@ -159,7 +159,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 
 		let editorMemento = EditorPane.EDITOR_MEMENTOS.get(mementoKey);
 		if (!editorMemento) {
-			editorMemento = new EditorMemento(this.getId(), key, this.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE), limit, editorGroupService, configurationService);
+			editorMemento = this._register(new EditorMemento(this.getId(), key, this.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE), limit, editorGroupService, configurationService));
 			EditorPane.EDITOR_MEMENTOS.set(mementoKey, editorMemento);
 		}
 
@@ -190,7 +190,7 @@ interface MapGroupToMemento<T> {
 	[group: GroupIdentifier]: T;
 }
 
-export class EditorMemento<T> implements IEditorMemento<T> {
+export class EditorMemento<T> extends Disposable implements IEditorMemento<T> {
 
 	private static readonly SHARED_EDITOR_STATE = -1; // pick a number < 0 to be outside group id range
 
@@ -207,12 +207,14 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 		private editorGroupService: IEditorGroupsService,
 		private configurationService: ITextResourceConfigurationService
 	) {
+		super();
+
 		this.updateConfiguration();
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this.configurationService.onDidChangeConfiguration(() => this.updateConfiguration());
+		this._register(this.configurationService.onDidChangeConfiguration(() => this.updateConfiguration()));
 	}
 
 	private updateConfiguration(): void {
