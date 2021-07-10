@@ -80,6 +80,16 @@ stages:
         condition: and(succeeded(), eq(variables['ENABLE_TERRAPIN'], 'true'))
         displayName: Switch to Terrapin packages
 
+      - task: Semmle@1
+        inputs:
+          sourceCodeDirectory: '$(Build.SourcesDirectory)'
+          language: 'cpp'
+          buildCommandsString: 'yarn --frozen-lockfile'
+          querySuite: 'Required'
+          timeout: '1800'
+          ram: '16384'
+          addProjectDirToScanningExclusionList: true
+
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           . build/azure-pipelines/win32/retry.ps1
@@ -92,16 +102,6 @@ stages:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Install dependencies
-
-      - task: Semmle@1
-        inputs:
-          sourceCodeDirectory: '$(Build.SourcesDirectory)'
-          language: 'cpp'
-          buildCommandsString: 'yarn'
-          querySuite: 'Required'
-          timeout: '1800'
-          ram: '16384'
-          addProjectDirToScanningExclusionList: true
 
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
