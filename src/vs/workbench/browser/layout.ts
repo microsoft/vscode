@@ -19,7 +19,7 @@ import { Position, Parts, PanelOpensMaximizedOptions, IWorkbenchLayoutService, p
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { ISecondViewletService, IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -158,6 +158,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private panelPartView!: ISerializableView;
 	private editorPartView!: ISerializableView;
 	private statusBarPartView!: ISerializableView;
+	private thirdPanelPartView!: ISerializableView;
 
 	private environmentService!: IWorkbenchEnvironmentService;
 	private extensionService!: IExtensionService;
@@ -169,6 +170,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private panelService!: IPanelService;
 	private titleService!: ITitleService;
 	private viewletService!: IViewletService;
+	// @ts-ignore
+	private secondViewletService!: IViewletService;
 	private viewDescriptorService!: IViewDescriptorService;
 	private contextService!: IWorkspaceContextService;
 	private workingCopyBackupService!: IWorkingCopyBackupService;
@@ -234,6 +237,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			wasPanelVisible: false,
 			transitionDisposables: new DisposableStore(),
 			setNotificationsFilter: false,
+		},
+
+		thirdPanel: {
+			hidden: false,
+			position: Position.RIGHT,
+			width: 300,
 		}
 	};
 
@@ -261,6 +270,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.editorGroupService = accessor.get(IEditorGroupsService);
 		this.panelService = accessor.get(IPanelService);
 		this.viewletService = accessor.get(IViewletService);
+		this.secondViewletService = accessor.get(ISecondViewletService);
 		this.viewDescriptorService = accessor.get(IViewDescriptorService);
 		this.titleService = accessor.get(ITitleService);
 		this.notificationService = accessor.get(INotificationService);
@@ -905,6 +915,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				break;
 			case Parts.STATUSBAR_PART:
 				this.statusBarService.focus();
+			// TODO@wendellhu: have something to do with third panel?
 			default:
 				// Title Bar & Banner simply pass focus to container
 				const container = this.getContainer(part);
@@ -930,6 +941,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				return this.getPart(Parts.EDITOR_PART).getContainer();
 			case Parts.STATUSBAR_PART:
 				return this.getPart(Parts.STATUSBAR_PART).getContainer();
+			case Parts.THIRD_PANEL_PART:
+				return this.getPart(Parts.THIRD_PANEL_PART).getContainer();
 		}
 	}
 
@@ -1173,6 +1186,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const panelPart = this.getPart(Parts.PANEL_PART);
 		const sideBar = this.getPart(Parts.SIDEBAR_PART);
 		const statusBar = this.getPart(Parts.STATUSBAR_PART);
+		const thirdPanel = this.getPart(Parts.THIRD_PANEL_PART);
 
 		// View references for all parts
 		this.titleBarPartView = titleBar;
@@ -1182,6 +1196,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.editorPartView = editorPart;
 		this.panelPartView = panelPart;
 		this.statusBarPartView = statusBar;
+		this.thirdPanelPartView = thirdPanel;
 
 		const viewMap = {
 			[Parts.ACTIVITYBAR_PART]: this.activityBarPartView,
@@ -1190,7 +1205,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			[Parts.EDITOR_PART]: this.editorPartView,
 			[Parts.PANEL_PART]: this.panelPartView,
 			[Parts.SIDEBAR_PART]: this.sideBarPartView,
-			[Parts.STATUSBAR_PART]: this.statusBarPartView
+			[Parts.STATUSBAR_PART]: this.statusBarPartView,
+			[Parts.THIRD_PANEL_PART]: this.thirdPanelPartView
 		};
 
 		const fromJSON = ({ type }: { type: Parts; }) => viewMap[type];
@@ -1407,6 +1423,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.state.statusBar.hidden ? Classes.STATUSBAR_HIDDEN : undefined,
 			this.state.fullscreen ? Classes.FULLSCREEN : undefined
 		]);
+	}
+
+	setThirdLayoutHidden(hidden: boolean): void {
+		return;
 	}
 
 	setSideBarHidden(hidden: boolean, skipLayout?: boolean): void {
@@ -1760,8 +1780,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const bannerHeight = this.bannerPartView.minimumHeight;
 		const statusBarHeight = this.statusBarPartView.minimumHeight;
 		const activityBarWidth = this.activityBarPartView.minimumWidth;
+		const thirdPanelSize = this.thirdPanelPartView.minimumWidth;
 		const middleSectionHeight = height - titleBarHeight - statusBarHeight;
-		const editorSectionWidth = width - (this.state.activityBar.hidden ? 0 : activityBarWidth) - (this.state.sideBar.hidden ? 0 : sideBarSize);
+		const editorSectionWidth = width
+			- (this.state.activityBar.hidden ? 0 : activityBarWidth)
+			- (this.state.sideBar.hidden ? 0 : sideBarSize)
+			- (this.state.thirdPanel.hidden ? 0 : thirdPanelSize);
 
 		const activityBarNode: ISerializedLeafNode = {
 			type: 'leaf',
@@ -1793,11 +1817,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			visible: !this.state.panel.hidden
 		};
 
+		const thirdPanelNode: ISerializedLeafNode = {
+			type: 'leaf',
+			data: { type: Parts.THIRD_PANEL_PART },
+			size: thirdPanelSize,
+			visible: !this.state.thirdPanel.hidden
+		};
+
 		const editorSectionNode = this.arrangeEditorNodes(editorNode, panelNode, editorSectionWidth);
 
 		const middleSection: ISerializedNode[] = this.state.sideBar.position === Position.LEFT
-			? [activityBarNode, sideBarNode, ...editorSectionNode]
-			: [...editorSectionNode, sideBarNode, activityBarNode];
+			? [activityBarNode, sideBarNode, ...editorSectionNode, thirdPanelNode]
+			: [thirdPanelNode, ...editorSectionNode, sideBarNode, activityBarNode];
 
 		const result: ISerializedGrid = {
 			root: {
