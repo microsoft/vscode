@@ -559,8 +559,9 @@ export class ViewsService extends Disposable implements IViewsService {
 				this.registerPanel(viewContainer);
 				break;
 			case ViewContainerLocation.Sidebar:
+			case ViewContainerLocation.ThirdPanel:
 				if (viewContainer.ctorDescriptor) {
-					this.registerViewlet(viewContainer);
+					this.registerViewlet(viewContainer, viewContainerLocation);
 				}
 				break;
 		}
@@ -633,7 +634,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		Registry.as<PanelRegistry>(PanelExtensions.Panels).deregisterPanel(viewContainer.id);
 	}
 
-	private registerViewlet(viewContainer: ViewContainer): void {
+	private registerViewlet(viewContainer: ViewContainer, location: ViewContainerLocation): void {
 		const that = this;
 		class PaneContainerViewlet extends Viewlet {
 			constructor(
@@ -667,7 +668,11 @@ export class ViewsService extends Disposable implements IViewsService {
 				return viewPaneContainer;
 			}
 		}
-		Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(ViewletDescriptor.create(
+
+		const registry = location === ViewContainerLocation.Sidebar
+			? Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets)
+			: Registry.as<ViewletRegistry>(ViewletExtensions.ThirdPanelViewlets);
+		registry.registerViewlet(ViewletDescriptor.create(
 			PaneContainerViewlet,
 			viewContainer.id,
 			viewContainer.title,

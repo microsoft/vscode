@@ -119,11 +119,21 @@ export class ThirdPanelPart extends CompositePart<Viewlet> implements IViewletSe
 	}
 
 	getViewlet(id: string): ViewletDescriptor | undefined {
-		throw new Error('Method not implemented.');
+		return this.getViewlets().filter(viewlet => viewlet.id === id)[0];
 	}
 
 	getViewlets(): ViewletDescriptor[] {
-		throw new Error('Method not implemented.');
+		return this.viewletRegistry.getViewlets().sort((v1, v2) => {
+			if (typeof v1.order !== 'number') {
+				return -1;
+			}
+
+			if (typeof v2.order !== 'number') {
+				return 1;
+			}
+
+			return v1.order - v2.order;
+		});
 	}
 
 	override create(parent: HTMLElement): void {
@@ -168,7 +178,7 @@ export class ThirdPanelPart extends CompositePart<Viewlet> implements IViewletSe
 	}
 
 	override layout(width: number, height: number): void {
-		if (this.layoutService.isVisible(Parts.THIRD_PANEL_PART)) {
+		if (!this.layoutService.isVisible(Parts.THIRD_PANEL_PART)) {
 			return;
 		}
 

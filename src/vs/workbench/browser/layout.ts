@@ -170,7 +170,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private panelService!: IPanelService;
 	private titleService!: ITitleService;
 	private viewletService!: IViewletService;
-	// @ts-ignore
 	private secondViewletService!: IViewletService;
 	private viewDescriptorService!: IViewDescriptorService;
 	private contextService!: IWorkspaceContextService;
@@ -814,6 +813,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 
 			mark('code/didRestoreViewlet');
+
+			this.secondViewletService.openViewlet(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.ThirdPanel)?.id);
 		})());
 
 		// Restore Panel
