@@ -7,7 +7,7 @@ import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/
 import { IViewDescriptorService, ViewContainer, IViewDescriptor, IView, ViewContainerLocation, IViewsService, IViewPaneContainer, getVisbileViewContextKey, getEnabledViewContainerContextKey, FocusedViewContext } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { ISecondViewletService, IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ContextKeyDefinedExpr, ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isString } from 'vs/base/common/types';
@@ -54,6 +54,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IPanelService private readonly panelService: IPanelService,
 		@IViewletService private readonly viewletService: IViewletService,
+		@ISecondViewletService private readonly secondViewletService: IViewletService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
@@ -317,6 +318,11 @@ export class ViewsService extends Disposable implements IViewsService {
 
 		if (location === ViewContainerLocation.Sidebar) {
 			const activeViewlet = this.viewletService.getActiveViewlet();
+			if (activeViewlet?.getId() === viewContainer.id) {
+				return activeViewlet.getViewPaneContainer() || null;
+			}
+		} else if (location === ViewContainerLocation.ThirdPanel) {
+			const activeViewlet = this.secondViewletService.getActiveViewlet();
 			if (activeViewlet?.getId() === viewContainer.id) {
 				return activeViewlet.getViewPaneContainer() || null;
 			}

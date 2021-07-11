@@ -88,6 +88,7 @@ enum Storage {
 
 enum Classes {
 	SIDEBAR_HIDDEN = 'nosidebar',
+	THIRD_PANEL_HIDDEN = 'nothirdpanel',
 	EDITOR_HIDDEN = 'noeditorarea',
 	PANEL_HIDDEN = 'nopanel',
 	STATUSBAR_HIDDEN = 'nostatusbar',
@@ -989,6 +990,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				return !this.state.activityBar.hidden;
 			case Parts.EDITOR_PART:
 				return !this.state.editor.hidden;
+			case Parts.THIRD_PANEL_PART:
+				return !this.state.thirdPanel.hidden;
 			default:
 				return true; // any other part cannot be hidden
 		}
@@ -1427,7 +1430,16 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	setThirdLayoutHidden(hidden: boolean): void {
-		return;
+		this.state.thirdPanel.hidden = hidden;
+
+		if (hidden) {
+			this.container.classList.add(Classes.THIRD_PANEL_HIDDEN);
+		} else {
+			this.container.classList.remove(Classes.THIRD_PANEL_HIDDEN);
+		}
+
+		// Propagate to grid
+		this.workbenchGrid.setViewVisible(this.thirdPanelPartView, !hidden);
 	}
 
 	setSideBarHidden(hidden: boolean, skipLayout?: boolean): void {

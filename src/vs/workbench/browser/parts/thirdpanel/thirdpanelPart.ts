@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/thirdPanelPart';
 import { LayoutPriority } from 'vs/base/browser/ui/splitview/splitview';
 import { Event, Emitter } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -29,7 +30,6 @@ import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ISecondViewletService, IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-// import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 // TODO@wendellhu: will find some shared code in sidebarPart.ts
 export class ThirdPanelPart extends CompositePart<Viewlet> implements IViewletService {
@@ -40,7 +40,7 @@ export class ThirdPanelPart extends CompositePart<Viewlet> implements IViewletSe
 
 	//#region IView
 
-	readonly minimumWidth: number = 300;
+	readonly minimumWidth: number = 170;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	readonly minimumHeight: number = 0;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
@@ -148,7 +148,7 @@ export class ThirdPanelPart extends CompositePart<Viewlet> implements IViewletSe
 		const titleArea = super.createTitleArea(parent);
 
 		// TODO@wendell: this is just a hack
-		this.titleLabel!.updateTitle('third-pannel', 'Third Panel');
+		this.titleLabel!.updateTitle('third-panel', 'THIRD PANEL');
 
 		this.titleLabelElement!.draggable = false;
 
@@ -282,6 +282,29 @@ class FocusThirdPanelAction extends Action2 {
 	}
 }
 
+class ToggleThirdPanelAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.toggleThirdPanel',
+			title: 'Toggle Third Panel',
+			category: CATEGORIES.View,
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_B
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+
+		layoutService.setThirdLayoutHidden(layoutService.isVisible(Parts.THIRD_PANEL_PART));
+	}
+}
+
+
 registerAction2(FocusThirdPanelAction);
+registerAction2(ToggleThirdPanelAction);
 
 registerSingleton(ISecondViewletService, ThirdPanelPart);
