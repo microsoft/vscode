@@ -555,6 +555,10 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		return elements.length === 1 ? elements[0].title : undefined;
 	}
 
+	onDragEnd() {
+		this._terminalService.activeInstance?.detachFromProcess();
+	}
+
 	onDragLeave() {
 		this._autoFocusInstance = undefined;
 		this._autoFocusDisposable.dispose();
@@ -630,7 +634,6 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 					if (process.length !== 1) {
 						return;
 					}
-
 					const instance = this._terminalService.createTerminal({
 						config: { attachPersistentProcess: process[0] }
 					});
