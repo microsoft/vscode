@@ -612,8 +612,6 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 export class WorkspaceTrustRequestService extends Disposable implements IWorkspaceTrustRequestService {
 	_serviceBrand: undefined;
 
-	private _trusted!: boolean;
-
 	private _openFilesTrustRequestPromise?: Promise<WorkspaceTrustUriResponse>;
 	private _openFilesTrustRequestResolver?: (response: WorkspaceTrustUriResponse) => void;
 
@@ -631,17 +629,6 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService
 	) {
 		super();
-
-		this.trusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
-		this._register(this.workspaceTrustManagementService.onDidChangeTrust(trusted => this.trusted = trusted));
-	}
-
-	private get trusted(): boolean {
-		return this._trusted;
-	}
-
-	private set trusted(trusted: boolean) {
-		this._trusted = trusted;
 	}
 
 	//#region Open file(s) trust request
@@ -684,7 +671,7 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 
 	async requestOpenFilesTrust(uris: URI[]): Promise<WorkspaceTrustUriResponse> {
 		// If workspace is untrusted, there is no conflict
-		if (!this.trusted) {
+		if (!this.workspaceTrustManagementService.isWorkspaceTrusted()) {
 			return WorkspaceTrustUriResponse.Open;
 		}
 
@@ -730,7 +717,7 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 
 	private resolveWorkspaceTrustRequest(trusted?: boolean): void {
 		if (this._workspaceTrustRequestResolver) {
-			this._workspaceTrustRequestResolver(trusted ?? this.trusted);
+			this._workspaceTrustRequestResolver(trusted ?? this.workspaceTrustManagementService.isWorkspaceTrusted());
 
 			this._workspaceTrustRequestResolver = undefined;
 			this._workspaceTrustRequestPromise = undefined;
@@ -747,7 +734,7 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 	}
 
 	async completeWorkspaceTrustRequest(trusted?: boolean): Promise<void> {
-		if (trusted === undefined || trusted === this.trusted) {
+		if (trusted === undefined || trusted === this.workspaceTrustManagementService.isWorkspaceTrusted()) {
 			this.resolveWorkspaceTrustRequest(trusted);
 			return;
 		}
@@ -759,8 +746,8 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 
 	async requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined> {
 		// Trusted workspace
-		if (this.trusted) {
-			return this.trusted;
+		if (this.workspaceTrustManagementService.isWorkspaceTrusted()) {
+			return this.workspaceTrustManagementService.isWorkspaceTrusted();
 		}
 
 		// Modal request
