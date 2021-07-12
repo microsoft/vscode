@@ -947,7 +947,6 @@ class JumpToParentFoldAction extends FoldingAction<void> {
 			precondition: CONTEXT_FOLDING_ENABLED,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.WinCtrl | KeyCode.KEY_F, KeyCode.KEY_P),
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -979,7 +978,6 @@ class JumpToPreviousFoldAction extends FoldingAction<void> {
 			precondition: CONTEXT_FOLDING_ENABLED,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.WinCtrl | KeyCode.KEY_F, KeyCode.UpArrow),
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -1011,7 +1009,6 @@ class JumpToNextFoldAction extends FoldingAction<void> {
 			precondition: CONTEXT_FOLDING_ENABLED,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.WinCtrl | KeyCode.KEY_F, KeyCode.DownArrow),
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
