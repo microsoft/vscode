@@ -547,7 +547,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 	getDragURI(instance: ITerminalInstance): string | null {
 		return URI.from({
 			scheme: Schemas.vscodeTerminal,
-			path: `/${instance.instanceId.toString()}`
+			path: `/${instance.persistentProcessId?.toString() || instance.instanceId.toString()}`//TODO:@meganrogge fix
 		}).toString();
 	}
 
@@ -555,7 +555,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		return elements.length === 1 ? elements[0].title : undefined;
 	}
 
-	onDragEnd() {
+	onDragEnd(originalEvent: DragEvent) {
 		this._terminalService.activeInstance?.detachFromProcess();
 	}
 
@@ -629,7 +629,6 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 				} else {
 					const processes = await this._localTerminalService.listProcesses(true);
 					this._localTerminalService.reduceConnectionGraceTime();
-
 					const process = processes.filter(r => uri.path.includes(r.id.toString()));
 					if (process.length !== 1) {
 						return;
