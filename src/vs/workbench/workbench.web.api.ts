@@ -319,15 +319,6 @@ interface IWorkbenchConstructionOptions {
 	readonly workspaceProvider?: IWorkspaceProvider;
 
 	/**
-	 * Enables Settings Sync by default.
-	 *
-	 * Syncs with the current authenticated user account (provided in [credentialsProvider](#credentialsProvider)) by default.
-	 *
-	 * @deprecated Instead use [settingsSyncOptions](#settingsSyncOptions) to enable/disable settings sync in the workbench.
-	 */
-	readonly enableSyncByDefault?: boolean;
-
-	/**
 	 * Settings sync options
 	 */
 	readonly settingsSyncOptions?: ISettingsSyncOptions;
