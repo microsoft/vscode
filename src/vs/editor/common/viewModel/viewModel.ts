@@ -557,7 +557,8 @@ export class SingleLineInlineDecoration {
 	constructor(
 		public readonly startOffset: number,
 		public readonly endOffset: number,
-		public readonly inlineClassName: string
+		public readonly inlineClassName: string,
+		public readonly inlineClassNameAffectsLetterSpacing: boolean
 	) {
 	}
 
@@ -565,7 +566,7 @@ export class SingleLineInlineDecoration {
 		return new InlineDecoration(
 			new Range(lineNumber, this.startOffset + 1, lineNumber, this.endOffset + 1),
 			this.inlineClassName,
-			InlineDecorationType.Regular
+			this.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular
 		);
 	}
 }

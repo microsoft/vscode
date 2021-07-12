@@ -1347,13 +1347,13 @@ export class SplitLine implements ISplitLine {
 
 				if (lineStartOffsetInUnwrappedLine < injectedTextEndOffsetInUnwrappedLine) {
 					// Injected text ends after or in this line (but also starts in or before this line).
-					const inlineClassName = injectionOptions![i].inlineClassName;
-					if (inlineClassName) {
+					const options = injectionOptions![i];
+					if (options.inlineClassName) {
 						const offset = (outputLineIndex > 0 ? lineBreakData.wrappedTextIndentLength : 0);
 						const start = offset + Math.max(injectedTextStartOffsetInUnwrappedLine - lineStartOffsetInUnwrappedLine, 0);
 						const end = offset + Math.min(injectedTextEndOffsetInUnwrappedLine - lineStartOffsetInUnwrappedLine, lineEndOffsetInUnwrappedLine);
 						if (start !== end) {
-							inlineDecorations.push(new SingleLineInlineDecoration(start, end, inlineClassName));
+							inlineDecorations.push(new SingleLineInlineDecoration(start, end, options.inlineClassName, options.inlineClassNameAffectsLetterSpacing!));
 						}
 					}
 				}
