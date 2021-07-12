@@ -16,13 +16,12 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 				this.skip();
 			}
 
-			// The `stable-build` tests may download a build during
-			// execution and for some reason the first run of the
-			// smoke test was never working, only subsequent ones
-			// To workaround this, we retry the test a couple of
-			// times.
-			// (https://github.com/microsoft/vscode/pull/127799)
-			this.retries(3);
+			// On macOS, the stable app fails to launch on first try,
+			// so let's retry this once
+			// https://github.com/microsoft/vscode/pull/127799
+			if (process.platform === 'darwin') {
+				this.retries(2);
+			}
 
 			const userDataDir = join(testDataPath, 'd2'); // different data dir from the other tests
 
@@ -64,8 +63,6 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 			if (!stableCodePath) {
 				this.skip();
 			}
-
-			this.retries(3);
 
 			const userDataDir = join(testDataPath, 'd3'); // different data dir from the other tests
 
