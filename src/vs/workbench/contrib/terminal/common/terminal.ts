@@ -156,11 +156,6 @@ export interface IOffProcessTerminalService {
 	reduceConnectionGraceTime(): Promise<void>;
 }
 
-export interface IMoveWindowArgs {
-	processDetails: IProcessDetails,
-	workspaceId: string
-}
-
 export const ILocalTerminalService = createDecorator<ILocalTerminalService>('localTerminalService');
 export interface ILocalTerminalService extends IOffProcessTerminalService {
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess>;

@@ -130,7 +130,7 @@ import { ICreateTerminalOptions, IShellLaunchConfig, ITerminalChildProcess, ITer
 import { IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { isArray } from 'vs/base/common/types';
-import { ILocalTerminalService, IMoveWindowArgs, IShellLaunchConfigResolveOptions, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ILocalTerminalService, IShellLaunchConfigResolveOptions, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorResolverService } from 'vs/workbench/services/editor/browser/editorResolverService';
 import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
@@ -1682,7 +1682,6 @@ export class TestLocalTerminalService implements ILocalTerminalService {
 	processBinary(id: number, data: string): Promise<void> { throw new Error('Method not implemented.'); }
 	updateTitle(id: number, title: string): Promise<void> { throw new Error('Method not implemented.'); }
 	updateIcon(id: number, icon: URI | { light: URI; dark: URI } | { id: string, color?: { id: string } }, color?: string): Promise<void> { throw new Error('Method not implemented.'); }
-	detachFromOtherWindow(args: IMoveWindowArgs): Promise<void> { throw new Error('Method not implemented.'); }
 }
 
 class TestTerminalChildProcess implements ITerminalChildProcess {
