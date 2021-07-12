@@ -462,7 +462,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 	private async withWebExtensions(file: URI | undefined, updateFn?: (extensions: IWebExtension[]) => IWebExtension[]): Promise<IWebExtension[]> {
 		if (!file) {
-			throw new Error('unsupported');
+			return [];
 		}
 		return this.getResourceAccessQueue(file).queue(async () => {
 			let webExtensions: IWebExtension[] = [];
