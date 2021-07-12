@@ -147,9 +147,6 @@ export class MacExternalTerminalService extends ExternalTerminalService implemen
 					// merge environment variables into a copy of the process.env
 					const env = Object.assign({}, getSanitizedEnvironment(process), envVars);
 
-					// delete environment variables that have a null value
-					Object.keys(env).filter(v => env[v] === null).forEach(key => delete env[key]);
-
 					for (let key in env) {
 						const value = env[key];
 						if (value === null) {
