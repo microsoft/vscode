@@ -153,7 +153,7 @@ function isWelcomePageEnabled(configurationService: IConfigurationService, conte
 		}
 	}
 
-	if (startupEditor.value === 'readme' && (startupEditor.userValue !== 'readme' || startupEditor.defaultValue !== 'readme')) {
+	if (startupEditor.value === 'readme' && startupEditor.userValue !== 'readme' && startupEditor.defaultValue !== 'readme') {
 		console.error(`Warning: 'workbench.startupEditor: readme' setting ignored due to being set somewhere other than user or default settings (user=${startupEditor.userValue}, default=${startupEditor.defaultValue})`);
 	}
 	return startupEditor.value === 'welcomePage'
