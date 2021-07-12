@@ -11,6 +11,8 @@ import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
 import * as mkdirp from 'mkdirp';
 import { ncp } from 'ncp';
+import * as vscodetest from 'vscode-test';
+import fetch from 'node-fetch';
 import {
 	Application,
 	Quality,
@@ -85,6 +87,12 @@ function fail(errorMessage): void {
 const repoPath = path.join(__dirname, '..', '..', '..');
 
 let quality: Quality;
+let version: string | undefined;
+
+function parseVersion(version: string): { major: number, minor: number, patch: number } {
+	const [, major, minor, patch] = /^(\d+)\.(\d+)\.(\d+)/.exec(version)!;
+	return { major: parseInt(major), minor: parseInt(minor), patch: parseInt(patch) };
+}
 
 //
 // #### Electron Smoke Tests ####
@@ -124,17 +132,21 @@ if (!opts.web) {
 		}
 	}
 
+	function getBuildVersion(root: string): string {
+		switch (process.platform) {
+			case 'darwin':
+				return require(path.join(root, 'Contents', 'Resources', 'app', 'package.json')).version;
+			default:
+				return require(path.join(root, 'resources', 'app', 'package.json')).version;
+		}
+	}
+
 	let testCodePath = opts.build;
-	let stableCodePath = opts['stable-build'];
 	let electronPath: string;
-	let stablePath: string | undefined = undefined;
 
 	if (testCodePath) {
 		electronPath = getBuildElectronPath(testCodePath);
-
-		if (stableCodePath) {
-			stablePath = getBuildElectronPath(stableCodePath);
-		}
+		version = getBuildVersion(testCodePath);
 	} else {
 		testCodePath = getDevElectronPath();
 		electronPath = testCodePath;
@@ -145,10 +157,6 @@ if (!opts.web) {
 
 	if (!fs.existsSync(electronPath || '')) {
 		fail(`Can't find VSCode at ${electronPath}.`);
-	}
-
-	if (typeof stablePath === 'string' && !fs.existsSync(stablePath)) {
-		fail(`Can't find Stable VSCode at ${stablePath}.`);
 	}
 
 	if (process.env.VSCODE_DEV === '1') {
@@ -222,10 +230,55 @@ async function setupRepository(): Promise<void> {
 	}
 }
 
+async function ensureStableCode(): Promise<void> {
+	if (opts.web || !opts['build']) {
+		return;
+	}
+
+	let stableCodePath = opts['stable-build'];
+	if (!stableCodePath) {
+		const { major, minor } = parseVersion(version!);
+		const majorMinorVersion = `${major}.${minor - 1}`;
+		const versionsReq = await fetch('https://update.code.visualstudio.com/api/releases/stable', { headers: { 'x-api-version': '2' } });
+
+		if (!versionsReq.ok) {
+			throw new Error('Could not fetch releases from update server');
+		}
+
+		const versions: { version: string }[] = await versionsReq.json();
+		const prefix = `${majorMinorVersion}.`;
+		const previousVersion = versions.find(v => v.version.startsWith(prefix));
+
+		if (!previousVersion) {
+			throw new Error(`Could not find suitable stable version ${majorMinorVersion}`);
+		}
+
+		console.log(`*** Found VS Code v${version}, downloading previous VS Code version ${previousVersion.version}...`);
+
+		const stableCodeExecutable = await vscodetest.downloadAndUnzipVSCode(previousVersion.version);
+		if (process.platform === 'darwin') {
+			// Visual Studio Code.app/Contents/MacOS/Electron
+			stableCodePath = path.dirname(path.dirname(path.dirname(stableCodeExecutable)));
+		} else {
+			// VSCode/Code.exe (Windows) | VSCode/code (Linux)
+			stableCodePath = path.dirname(stableCodeExecutable);
+		}
+	}
+
+	if (!fs.existsSync(stableCodePath)) {
+		throw new Error(`Can't find Stable VSCode at ${stableCodePath}.`);
+	}
+
+	console.log(`*** Using stable build ${stableCodePath} for migration tests`);
+
+	opts['stable-build'] = stableCodePath;
+}
+
 async function setup(): Promise<void> {
 	console.log('*** Test data:', testDataPath);
 	console.log('*** Preparing smoketest setup...');
 
+	await ensureStableCode();
 	await setupRepository();
 
 	console.log('*** Smoketest setup done!\n');
@@ -304,9 +357,9 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 		});
 	}
 
-	if (!opts.web && opts['stable-build']) {
-		describe(`Stable vs Insiders Smoke Tests: This test MUST run before releasing by providing the --stable-build command line argument`, () => {
-			setupDataMigrationTests(opts['stable-build'], testDataPath);
+	if (!opts.web && opts['build'] && !opts['remote']) {
+		describe(`Stable vs Insiders Smoke Tests: This test MUST run before releasing`, () => {
+			setupDataMigrationTests(opts, testDataPath);
 		});
 	}
 
