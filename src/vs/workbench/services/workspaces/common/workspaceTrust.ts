@@ -9,9 +9,7 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { LinkedList } from 'vs/base/common/linkedList';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IRemoteAuthorityResolverService, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { getRemoteAuthority, isVirtualResource } from 'vs/platform/remote/common/remoteHosts';
@@ -30,11 +28,6 @@ export const WORKSPACE_TRUST_UNTRUSTED_FILES = 'security.workspace.trust.untrust
 export const WORKSPACE_TRUST_EMPTY_WINDOW = 'security.workspace.trust.emptyWindow';
 export const WORKSPACE_TRUST_EXTENSION_SUPPORT = 'extensions.supportUntrustedWorkspaces';
 export const WORKSPACE_TRUST_STORAGE_KEY = 'content.trust.model.key';
-
-export const WorkspaceTrustContext = {
-	IsEnabled: new RawContextKey<boolean>('isWorkspaceTrustEnabled', false, localize('workspaceTrustEnabledCtx', "Whether the workspace trust feature is enabled.")),
-	IsTrusted: new RawContextKey<boolean>('isWorkspaceTrusted', false, localize('workspaceTrustedCtx', "Whether the current workspace has been trusted by the user."))
-};
 
 export class CanonicalWorkspace implements IWorkspace {
 	constructor(
@@ -633,24 +626,14 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 	private readonly _onDidInitiateWorkspaceTrustRequest = this._register(new Emitter<WorkspaceTrustRequestOptions | undefined>());
 	readonly onDidInitiateWorkspaceTrustRequest = this._onDidInitiateWorkspaceTrustRequest.event;
 
-	private readonly _ctxWorkspaceTrustEnabled: IContextKey<boolean>;
-	private readonly _ctxWorkspaceTrustState: IContextKey<boolean>;
-
 	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkspaceTrustEnablementService private readonly workspaceTrustEnablementService: IWorkspaceTrustEnablementService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService
 	) {
 		super();
 
-		this._register(this.workspaceTrustManagementService.onDidChangeTrust(trusted => this.trusted = trusted));
-
-		this._ctxWorkspaceTrustEnabled = WorkspaceTrustContext.IsEnabled.bindTo(contextKeyService);
-		this._ctxWorkspaceTrustState = WorkspaceTrustContext.IsTrusted.bindTo(contextKeyService);
-		this._ctxWorkspaceTrustEnabled.set(this.workspaceTrustEnablementService.isWorkspaceTrustEnabled());
-
 		this.trusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
+		this._register(this.workspaceTrustManagementService.onDidChangeTrust(trusted => this.trusted = trusted));
 	}
 
 	private get trusted(): boolean {
@@ -659,7 +642,6 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 
 	private set trusted(trusted: boolean) {
 		this._trusted = trusted;
-		this._ctxWorkspaceTrustState.set(trusted);
 	}
 
 	//#region Open file(s) trust request
