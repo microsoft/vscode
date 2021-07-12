@@ -122,30 +122,10 @@ stages:
           InputType:   CommandLine
           arguments:   analyze $(agent.builddirectory)\scanbin\*.dll $(agent.builddirectory)\scanbin\*.exe $(agent.builddirectory)\scanbin\*.node --recurse --local-symbol-directories $(agent.builddirectory)\scanbin\VSCode-win32-$(VSCODE_ARCH)\pdb
 
-      - task: TSAUpload@1
+      - task: TSAUpload@2
         inputs:
-          tsaVersion: 'TsaV2'
-          codebase: 'NewOrUpdate'
-          tsaEnvironment: 'PROD'
-          serviceTreeID: '79c048b2-322f-4ed5-a1ea-252a1250e4b3'
-          codeBaseName: 'vscode-client'
-          notificationAlias: 'sbatten@microsoft.com'
-          notifyAlwaysV2: true
-          codeBaseAdmins: 'REDMOND\stbatt'
-          instanceUrlForTsaV2: 'MSAZURE'
-          projectNameMSAZURE: 'One'
-          areaPath: 'One\VSCode\Client'
-          uploadAPIScan: false
-          uploadBinSkim: true
-          uploadCredScan: true
-          uploadFortifySCA: false
-          uploadFxCop: false
-          uploadModernCop: false
-          uploadPoliCheck: false
-          uploadPREfast: false
-          uploadRoslyn: false
-          uploadTSLint: false
-          uploadAsync: true
+          GdnPublishTsaConfigFile: '$(Build.SourceDirectory)\build\azure-pipelines\.gdntsa'
+
 - stage: Linux
   dependsOn: []
   condition: eq(variables.SCAN_LINUX, 'true')
@@ -235,27 +215,6 @@ stages:
           InputType:   CommandLine
           arguments:   analyze $(agent.builddirectory)\scanbin\exe\*.* --recurse --local-symbol-directories $(agent.builddirectory)\scanbin\VSCode-linux-$(VSCODE_ARCH)\pdb
 
-      - task: TSAUpload@1
+      - task: TSAUpload@2
         inputs:
-          tsaVersion: 'TsaV2'
-          codebase: 'NewOrUpdate'
-          tsaEnvironment: 'PROD'
-          serviceTreeID: '79c048b2-322f-4ed5-a1ea-252a1250e4b3'
-          codeBaseName: 'vscode-client'
-          notificationAlias: 'sbatten@microsoft.com'
-          notifyAlwaysV2: true
-          codeBaseAdmins: 'REDMOND\stbatt'
-          instanceUrlForTsaV2: 'MSAZURE'
-          projectNameMSAZURE: 'One'
-          areaPath: 'One\VSCode\Client'
-          uploadAPIScan: false
-          uploadBinSkim: true
-          uploadCredScan: true
-          uploadFortifySCA: false
-          uploadFxCop: false
-          uploadModernCop: false
-          uploadPoliCheck: false
-          uploadPREfast: false
-          uploadRoslyn: false
-          uploadTSLint: false
-          uploadAsync: true
+          GdnPublishTsaConfigFile: '$(Build.SourceDirectory)\build\azure-pipelines\.gdntsa'
