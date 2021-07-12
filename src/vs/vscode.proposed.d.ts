@@ -967,6 +967,10 @@ declare module 'vscode' {
 		private constructor(id: string, label: string);
 	}
 
+	export class Task2 extends Task {
+		group?: TaskGroup2;
+	}
+
 	//#region Custom editor move https://github.com/microsoft/vscode/issues/86146
 
 	// TODO: Also for custom editor
