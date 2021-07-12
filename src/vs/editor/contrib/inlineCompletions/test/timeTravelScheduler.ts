@@ -249,10 +249,10 @@ export const originalGlobalValues = {
 	clearTimeout: globalThis.clearTimeout.bind(globalThis),
 	setInterval: globalThis.setInterval.bind(globalThis),
 	clearInterval: globalThis.clearInterval.bind(globalThis),
-	setImmediate: globalThis.setImmediate.bind(globalThis),
-	clearImmediate: globalThis.clearImmediate.bind(globalThis),
-	requestAnimationFrame: globalThis.requestAnimationFrame.bind(globalThis),
-	cancelAnimationFrame: globalThis.cancelAnimationFrame.bind(globalThis),
+	setImmediate: globalThis.setImmediate?.bind(globalThis),
+	clearImmediate: globalThis.clearImmediate?.bind(globalThis),
+	requestAnimationFrame: globalThis.requestAnimationFrame?.bind(globalThis),
+	cancelAnimationFrame: globalThis.cancelAnimationFrame?.bind(globalThis),
 	Date: globalThis.Date,
 };
 
