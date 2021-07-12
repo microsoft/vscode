@@ -721,14 +721,9 @@ export class DefaultSettings extends Disposable {
 
 	private toContent(settingsGroups: ISettingsGroup[]): string {
 		const builder = new SettingsContentBuilder();
-		builder.pushLine('[');
 		settingsGroups.forEach((settingsGroup, i) => {
-			builder.pushGroup(settingsGroup);
-			if (i < settingsGroups.length - 1) {
-				builder.pushLine(',');
-			}
+			builder.pushGroup(settingsGroup, i === 0, i === settingsGroups.length - 1);
 		});
-		builder.pushLine(']');
 		return builder.getContent();
 	}
 
@@ -941,10 +936,8 @@ class SettingsContentBuilder {
 		this._contentByLines.push(...lineText);
 	}
 
-	pushGroup(settingsGroups: ISettingsGroup): void {
-		this._contentByLines.push('{');
-		this._contentByLines.push('');
-		this._contentByLines.push('');
+	pushGroup(settingsGroups: ISettingsGroup, isFirst?: boolean, isLast?: boolean): void {
+		this._contentByLines.push(isFirst ? '[{' : '{');
 		const lastSetting = this._pushGroup(settingsGroups, '  ');
 
 		if (lastSetting) {
@@ -954,7 +947,7 @@ class SettingsContentBuilder {
 			this._contentByLines[lineIdx - 2] = content.substring(0, content.length - 1);
 		}
 
-		this._contentByLines.push('}');
+		this._contentByLines.push(isLast ? '}]' : '},');
 	}
 
 	protected _pushGroup(group: ISettingsGroup, indent: string): ISetting | null {
