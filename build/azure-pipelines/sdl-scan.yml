@@ -124,7 +124,7 @@ stages:
 
       - task: TSAUpload@2
         inputs:
-          GdnPublishTsaOnboard: false,
+          GdnPublishTsaOnboard: true,
           GdnPublishTsaConfigFile: '$(Build.SourceDirectory)\build\azure-pipelines\.gdntsa'
 
 - stage: Linux
