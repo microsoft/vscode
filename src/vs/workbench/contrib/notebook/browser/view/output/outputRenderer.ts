@@ -52,6 +52,7 @@ export class OutputRenderer {
 	}
 
 	render(viewModel: ICellOutputViewModel, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI): IRenderOutput {
+		this._initialize();
 		if (!viewModel.model.outputs.length) {
 			return this._renderMessage(container, localize('empty', "Cell has no output"));
 		}
