@@ -38,6 +38,7 @@ stages:
     vmImage: VS2017-Win2016
   jobs:
     - job: WindowsJob
+      timeoutInMinutes: 0
       steps:
       - task: CredScan@2
         inputs:
