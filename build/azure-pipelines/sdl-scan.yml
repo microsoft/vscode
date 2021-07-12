@@ -90,6 +90,12 @@ stages:
           timeout: '1800'
           ram: '16384'
           addProjectDirToScanningExclusionList: true
+        env:
+          npm_config_arch: "$(NPM_ARCH)"
+          npm_config_build_from_source: true
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+        displayName: CodeQL
 
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
