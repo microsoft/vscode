@@ -405,13 +405,14 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	private async toScannedExtension(webExtension: IWebExtension, isBuiltin: boolean): Promise<IScannedExtension> {
-		const context = await this.requestService.request({ type: 'GET', url: this.toRequestUrl(joinPath(webExtension.location, 'package.json')) }, CancellationToken.None);
+		const url = this.toRequestUrl(joinPath(webExtension.location, 'package.json'));
+		const context = await this.requestService.request({ type: 'GET', url: url }, CancellationToken.None);
 		if (!isSuccess(context)) {
-			throw new Error(`Error while fetching package.json for extension '${webExtension.identifier.id}'. Server returned ${context.res.statusCode}`);
+			throw new Error(`Error while fetching package.json for the extension '${webExtension.identifier.id}'. Server returned '${context.res.statusCode}' for the request '${url}'`);
 		}
 		const content = await asText(context);
 		if (!content) {
-			throw new Error(`Error while fetching package.json for extension '${webExtension.identifier.id}'. Server returned no content`);
+			throw new Error(`Error while fetching package.json for extension '${webExtension.identifier.id}'. Server returned no content for the request '${url}'`);
 		}
 
 		let manifest: IExtensionManifest = JSON.parse(content);
