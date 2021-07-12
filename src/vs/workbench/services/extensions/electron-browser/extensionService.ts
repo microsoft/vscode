@@ -111,7 +111,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	}
 
 	private _isLocalWebWorkerEnabled() {
-		if (this._configurationService.getValue<boolean>(webWorkerExtHostConfig)) {
+		if (this._configurationService.getValue(webWorkerExtHostConfig)) {
 			return true;
 		}
 		if (this._environmentService.isExtensionDevelopment && this._environmentService.extensionDevelopmentKind?.some(k => k === 'web')) {

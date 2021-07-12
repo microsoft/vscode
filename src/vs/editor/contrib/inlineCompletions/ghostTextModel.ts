@@ -27,6 +27,9 @@ export abstract class DelegatingModel extends Disposable implements GhostTextWid
 	}
 
 	protected setTargetModel(model: GhostTextWidgetModel | undefined): void {
+		if (this.currentModelRef.value?.object === model) {
+			return;
+		}
 		this.currentModelRef.clear();
 		this.currentModelRef.value = model ? createDisposableRef(model, model.onDidChange(() => {
 			this.hasCachedGhostText = false;

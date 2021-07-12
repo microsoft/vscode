@@ -233,7 +233,7 @@ import { EditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/c
 				'type': 'boolean',
 				'description': localize('telemetry.enableCrashReporting', "Enable crash reports to be sent to a Microsoft online service. \nThis option requires restart to take effect."),
 				'default': true,
-				'tags': ['usesOnlineServices']
+				'tags': ['usesOnlineServices', 'telemetry']
 			}
 		}
 	});

@@ -281,7 +281,7 @@ class KeyboardController<T> implements IDisposable {
 		this.onKeyDown.filter(e => e.keyCode === KeyCode.PageDown).on(this.onPageDownArrow, this, this.disposables);
 		this.onKeyDown.filter(e => e.keyCode === KeyCode.Escape).on(this.onEscape, this, this.disposables);
 
-		if (options.multipleSelectionSupport) {
+		if (options.multipleSelectionSupport !== false) {
 			this.onKeyDown.filter(e => (platform.isMacintosh ? e.metaKey : e.ctrlKey) && e.keyCode === KeyCode.KEY_A).on(this.onCtrlA, this, this.multipleSelectionDisposables);
 		}
 	}
@@ -1346,7 +1346,7 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 			this.ariaLabel = this.accessibilityProvider.getWidgetAriaLabel();
 		}
 
-		if (this._options.multipleSelectionSupport) {
+		if (this._options.multipleSelectionSupport !== false) {
 			this.view.domNode.setAttribute('aria-multiselectable', 'true');
 		}
 	}

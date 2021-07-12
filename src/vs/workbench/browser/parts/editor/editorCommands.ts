@@ -352,14 +352,14 @@ function registerDiffEditorCommands(): void {
 	function toggleDiffSideBySide(accessor: ServicesAccessor): void {
 		const configurationService = accessor.get(IConfigurationService);
 
-		const newValue = !configurationService.getValue<boolean>('diffEditor.renderSideBySide');
+		const newValue = !configurationService.getValue('diffEditor.renderSideBySide');
 		configurationService.updateValue('diffEditor.renderSideBySide', newValue);
 	}
 
 	function toggleDiffIgnoreTrimWhitespace(accessor: ServicesAccessor): void {
 		const configurationService = accessor.get(IConfigurationService);
 
-		const newValue = !configurationService.getValue<boolean>('diffEditor.ignoreTrimWhitespace');
+		const newValue = !configurationService.getValue('diffEditor.ignoreTrimWhitespace');
 		configurationService.updateValue('diffEditor.ignoreTrimWhitespace', newValue);
 	}
 
@@ -948,7 +948,7 @@ function registerOtherEditorCommands(): void {
 		handler: accessor => {
 			const configurationService = accessor.get(IConfigurationService);
 
-			const currentSetting = configurationService.getValue<boolean>('workbench.editor.enablePreview');
+			const currentSetting = configurationService.getValue('workbench.editor.enablePreview');
 			const newSetting = currentSetting === true ? false : true;
 			configurationService.updateValue('workbench.editor.enablePreview', newSetting);
 		}

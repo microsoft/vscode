@@ -328,7 +328,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 							return false;
 						}
 					} else if (server === this.extensionManagementServerService.localExtensionManagementServer) {
-						const enableLocalWebWorker = this.configurationService.getValue<boolean>(webWorkerExtHostConfig);
+						const enableLocalWebWorker = this.configurationService.getValue(webWorkerExtHostConfig);
 						if (enableLocalWebWorker) {
 							// Web extensions are enabled on all configurations
 							return false;
@@ -367,7 +367,8 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		}
 		try {
 			for (const dependencyExtension of dependencyExtensions) {
-				if (!this.isEnabledEnablementState(this._computeEnablementState(dependencyExtension, extensions, workspaceType, computedEnablementStates))) {
+				const enablementState = this._computeEnablementState(dependencyExtension, extensions, workspaceType, computedEnablementStates);
+				if (!this.isEnabledEnablementState(enablementState) && enablementState !== EnablementState.DisabledByExtensionKind) {
 					return true;
 				}
 			}
