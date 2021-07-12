@@ -3,32 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 
 export type TimeOffset = number;
 
 export interface Scheduler {
-	schedule(action: ScheduledAction): IDisposable;
+	schedule(task: ScheduledTask): IDisposable;
 	get now(): TimeOffset;
 }
 
-export interface ScheduledAction {
+export interface ScheduledTask {
 	readonly time: TimeOffset;
-	readonly source: ScheduledActionSource;
+	readonly source: ScheduledTaskSource;
 
 	run(): void;
 }
 
-export interface ScheduledActionSource {
+export interface ScheduledTaskSource {
 	toString(): string;
 	readonly stackTrace: string | undefined;
 }
 
-interface ExtendedScheduledAction extends ScheduledAction {
+interface ExtendedScheduledTask extends ScheduledTask {
 	id: number;
 }
 
-function compareScheduledActions(a: ExtendedScheduledAction, b: ExtendedScheduledAction): number {
+function compareScheduledTasks(a: ExtendedScheduledTask, b: ExtendedScheduledTask): number {
 	if (a.time !== b.time) {
 		// Prefer lower time
 		return a.time - b.time;
@@ -43,77 +44,150 @@ function compareScheduledActions(a: ExtendedScheduledAction, b: ExtendedSchedule
 }
 
 export class TimeTravelScheduler implements Scheduler {
-	private actionCounter = 0;
+	private taskCounter = 0;
 	private _now: TimeOffset = 0;
-	private readonly queue: PriorityQueue<ExtendedScheduledAction> = new StupidPriorityQueue([], compareScheduledActions);
+	private readonly queue: PriorityQueue<ExtendedScheduledTask> = new SimplePriorityQueue([], compareScheduledTasks);
 
-	schedule(action: ScheduledAction): IDisposable {
-		if (action.time < this._now) {
-			throw new Error(`Scheduled time (${action.time}) must be equal to or greater than the current time (${this._now}).`);
+	private readonly taskScheduledEmitter = new Emitter<{ task: ScheduledTask }>();
+	public readonly onTaskScheduled = this.taskScheduledEmitter.event;
+
+	schedule(task: ScheduledTask): IDisposable {
+		if (task.time < this._now) {
+			throw new Error(`Scheduled time (${task.time}) must be equal to or greater than the current time (${this._now}).`);
 		}
-		const extendedAction: ExtendedScheduledAction = { ...action, id: this.actionCounter++ };
-		this.queue.add(extendedAction);
-		return { dispose: () => this.queue.remove(extendedAction) };
+		const extendedTask: ExtendedScheduledTask = { ...task, id: this.taskCounter++ };
+		this.queue.add(extendedTask);
+		this.taskScheduledEmitter.fire({ task });
+		return { dispose: () => this.queue.remove(extendedTask) };
 	}
 
 	get now(): TimeOffset {
 		return this._now;
 	}
 
-	get hasScheduledActions(): boolean {
+	get hasScheduledTasks(): boolean {
 		return this.queue.length > 0;
 	}
 
-	getScheduledActions(): readonly ScheduledAction[] {
+	getScheduledTasks(): readonly ScheduledTask[] {
 		return this.queue.toSortedArray();
 	}
 
-	runNext(): ScheduledAction | undefined {
-		const action = this.queue.removeMin();
-		if (action) {
-			this._now = action.time;
-			action.run();
+	runNext(): ScheduledTask | undefined {
+		const task = this.queue.removeMin();
+		if (task) {
+			this._now = task.time;
+			task.run();
 		}
 
-		return action;
-	}
-
-	runUntilQueueEmpty(maxCount: number = 100): ScheduledAction[] {
-		const history = new Array<ScheduledAction>();
-		while (true) {
-			const executedAction = this.runNext();
-			if (!executedAction) {
-				break;
-			}
-			history.push(executedAction);
-			if (history.length >= maxCount && this.hasScheduledActions) {
-				const lastActions = history.slice(Math.max(0, history.length - 10)).map(h => `${h.source.toString()}: ${h.source.stackTrace}`);
-				throw new Error(`Queue did not get empty after processing ${history.length} items. These are the last ${lastActions.length} scheduled actions:\n${lastActions.join('\n\n\n')}`);
-			}
-		}
-		return history;
-	}
-
-	async runUntilQueueEmptyAsync(maxCount: number = 100): Promise<ScheduledAction[]> {
-		const history = new Array<ScheduledAction>();
-		while (true) {
-			await new Promise(res => process.nextTick(res));
-			const executedAction = this.runNext();
-			if (!executedAction) {
-				break;
-			}
-			history.push(executedAction);
-			if (history.length >= maxCount && this.hasScheduledActions) {
-				const lastActions = history.slice(Math.max(0, history.length - 10)).map(h => `${h.source.toString()}: ${h.source.stackTrace}`);
-				throw new Error(`Queue did not get empty after processing ${history.length} items. These are the last ${lastActions.length} scheduled actions:\n${lastActions.join('\n\n\n')}`);
-			}
-		}
-		return history;
+		return task;
 	}
 
 	installGlobally(): IDisposable {
 		return overwriteGlobals(this);
 	}
+}
+
+export class AsyncSchedulerProcessor extends Disposable {
+	private isProcessing = false;
+	private readonly history = new Array<ScheduledTask>();
+
+	private readonly maxTaskCount: number;
+
+	private readonly queueEmptyEmitter = new Emitter<void>();
+	public readonly onTaskQueueEmpty = this.queueEmptyEmitter.event;
+
+	private lastError: Error | undefined;
+
+	constructor(private readonly scheduler: TimeTravelScheduler, options?: { maxTaskCount?: number }) {
+		super();
+
+		this.maxTaskCount = options && options.maxTaskCount ? options.maxTaskCount : 100;
+
+		this._register(scheduler.onTaskScheduled(() => {
+			if (this.isProcessing) {
+				return;
+			} else {
+				this.isProcessing = true;
+				this.schedule();
+			}
+		}));
+	}
+
+	private schedule() {
+		// This allows promises created by a previous task to settle and schedule tasks before the next task is run.
+		// Tasks scheduled in those promises might have to run before the current next task.
+		Promise.resolve().then(() => {
+			process.nextTick(() => this.process());
+		});
+	}
+
+	private process() {
+		const executedTask = this.scheduler.runNext();
+		if (executedTask) {
+			this.history.push(executedTask);
+
+			if (history.length >= this.maxTaskCount && this.scheduler.hasScheduledTasks) {
+				const lastTasks = this.history.slice(Math.max(0, history.length - 10)).map(h => `${h.source.toString()}: ${h.source.stackTrace}`);
+				let e = new Error(`Queue did not get empty after processing ${history.length} items. These are the last ${lastTasks.length} scheduled tasks:\n${lastTasks.join('\n\n\n')}`);
+				this.lastError = e;
+				throw e;
+			}
+		}
+
+		if (this.scheduler.hasScheduledTasks) {
+			this.schedule();
+		} else {
+			this.isProcessing = false;
+			this.queueEmptyEmitter.fire();
+		}
+	}
+
+	waitForEmptyQueue(): Promise<void> {
+		if (this.lastError) {
+			const error = this.lastError;
+			this.lastError = undefined;
+			throw error;
+		}
+		if (!this.isProcessing) {
+			return Promise.resolve();
+		} else {
+			return Event.toPromise(this.onTaskQueueEmpty).then(() => {
+				if (this.lastError) {
+					throw this.lastError;
+				}
+			});
+		}
+	}
+}
+
+
+export async function runWithFakedTimers<T>(options: { useFakeTimers?: boolean, maxTaskCount?: number }, fn: () => Promise<T>): Promise<T> {
+	const useFakeTimers = options.useFakeTimers === undefined ? true : options.useFakeTimers;
+	if (!useFakeTimers) {
+		return fn();
+	}
+
+	const scheduler = new TimeTravelScheduler();
+	const schedulerProcessor = new AsyncSchedulerProcessor(scheduler, { maxTaskCount: options.maxTaskCount });
+	const globalInstallDisposable = scheduler.installGlobally();
+
+	let result: T;
+	try {
+		result = await fn();
+	} finally {
+		globalInstallDisposable.dispose();
+	}
+
+	try {
+		// We process the remaining scheduled tasks.
+		// The global override is no longer active, so during this, no more tasks will be scheduled.
+		await schedulerProcessor.waitForEmptyQueue();
+	} finally {
+		schedulerProcessor.dispose();
+	}
+
+	return result;
 }
 
 export const originalGlobalValues = {
@@ -262,7 +336,7 @@ interface PriorityQueue<T> {
 	toSortedArray(): T[];
 }
 
-class StupidPriorityQueue<T> implements PriorityQueue<T> {
+class SimplePriorityQueue<T> implements PriorityQueue<T> {
 	private isSorted = false;
 	private items: T[];
 

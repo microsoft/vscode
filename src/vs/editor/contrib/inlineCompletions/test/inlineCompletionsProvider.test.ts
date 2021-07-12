@@ -14,7 +14,7 @@ import { GhostTextContext, MockInlineCompletionsProvider } from 'vs/editor/contr
 import { ITestCodeEditor, TestCodeEditorCreationOptions, withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TimeTravelScheduler } from 'vs/editor/contrib/inlineCompletions/test/timeTravelScheduler';
+import { runWithFakedTimers } from 'vs/editor/contrib/inlineCompletions/test/timeTravelScheduler';
 
 suite('Inline Completions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -488,41 +488,38 @@ suite('Inline Completions', () => {
 	});
 });
 
-async function withAsyncTestCodeEditorAndInlineCompletionsModel(
+async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 	text: string,
 	options: TestCodeEditorCreationOptions & { provider?: InlineCompletionsProvider, fakeClock?: boolean },
-	callback: (args: { editor: ITestCodeEditor, editorViewModel: ViewModel, model: InlineCompletionsModel, context: GhostTextContext }) => Promise<void>
-): Promise<void> {
-	const disposableStore = new DisposableStore();
+	callback: (args: { editor: ITestCodeEditor, editorViewModel: ViewModel, model: InlineCompletionsModel, context: GhostTextContext }) => Promise<T>
+): Promise<T> {
+	return await runWithFakedTimers({
+		useFakeTimers: options.fakeClock,
+	}, async () => {
+		const disposableStore = new DisposableStore();
 
-	if (options.provider) {
-		const d = InlineCompletionsProviderRegistry.register({ pattern: '**' }, options.provider);
-		disposableStore.add(d);
-	}
+		try {
+			if (options.provider) {
+				const d = InlineCompletionsProviderRegistry.register({ pattern: '**' }, options.provider);
+				disposableStore.add(d);
+			}
 
-	let scheduler: TimeTravelScheduler | undefined;
+			let result: T;
+			await withAsyncTestCodeEditor(text, options, async (editor, editorViewModel, instantiationService) => {
+				const model = instantiationService.createInstance(InlineCompletionsModel, editor);
+				const context = new GhostTextContext(model, editor);
+				result = await callback({ editor, editorViewModel, model, context });
+				context.dispose();
+				model.dispose();
+			});
 
-	if (options.fakeClock) {
-		scheduler = new TimeTravelScheduler();
-		disposableStore.add(scheduler.installGlobally());
-	}
-	try {
-		const p = withAsyncTestCodeEditor(text, options, async (editor, editorViewModel, instantiationService) => {
-			const model = instantiationService.createInstance(InlineCompletionsModel, editor);
-			const context = new GhostTextContext(model, editor);
-			await callback({ editor, editorViewModel, model, context });
-			context.dispose();
-			model.dispose();
-		});
+			if (options.provider instanceof MockInlineCompletionsProvider) {
+				options.provider.assertNotCalledTwiceWithin50ms();
+			}
 
-		await scheduler?.runUntilQueueEmptyAsync();
-
-		await p;
-
-		if (options.provider instanceof MockInlineCompletionsProvider) {
-			options.provider.assertNotCalledTwiceWithin50ms();
+			return result!;
+		} finally {
+			disposableStore.dispose();
 		}
-	} finally {
-		disposableStore.dispose();
-	}
+	});
 }

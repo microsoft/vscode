@@ -26,7 +26,7 @@ import { Event } from 'vs/base/common/event';
 import assert = require('assert');
 import { GhostTextContext } from 'vs/editor/contrib/inlineCompletions/test/utils';
 import { Range } from 'vs/editor/common/core/range';
-import { TimeTravelScheduler } from 'vs/editor/contrib/inlineCompletions/test/timeTravelScheduler';
+import { runWithFakedTimers } from 'vs/editor/contrib/inlineCompletions/test/timeTravelScheduler';
 
 suite('Suggest Widget Model', () => {
 	test('Active', async () => {
@@ -109,56 +109,49 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 	options: TestCodeEditorCreationOptions & { provider?: CompletionItemProvider, fakeClock?: boolean, serviceCollection?: never },
 	callback: (args: { editor: ITestCodeEditor, editorViewModel: ViewModel, model: SuggestWidgetAdapterModel, context: GhostTextContext }) => Promise<void>
 ): Promise<void> {
-	const serviceCollection = new ServiceCollection(
-		[ITelemetryService, NullTelemetryService],
-		[ILogService, new NullLogService()],
-		[IStorageService, new InMemoryStorageService()],
-		[IKeybindingService, new MockKeybindingService()],
-		[IEditorWorkerService, new class extends mock<IEditorWorkerService>() {
-			override computeWordRanges() {
-				return Promise.resolve({});
+	runWithFakedTimers({ useFakeTimers: options.fakeClock }, async () => {
+		const disposableStore = new DisposableStore();
+
+		try {
+			const serviceCollection = new ServiceCollection(
+				[ITelemetryService, NullTelemetryService],
+				[ILogService, new NullLogService()],
+				[IStorageService, new InMemoryStorageService()],
+				[IKeybindingService, new MockKeybindingService()],
+				[IEditorWorkerService, new class extends mock<IEditorWorkerService>() {
+					override computeWordRanges() {
+						return Promise.resolve({});
+					}
+				}],
+				[ISuggestMemoryService, new class extends mock<ISuggestMemoryService>() {
+					override memorize(): void { }
+					override select(): number { return 0; }
+				}],
+				[IMenuService, new class extends mock<IMenuService>() {
+					override createMenu() {
+						return new class extends mock<IMenu>() {
+							override onDidChange = Event.None;
+							override dispose() { }
+						};
+					}
+				}]
+			);
+
+			if (options.provider) {
+				const d = CompletionProviderRegistry.register({ pattern: '**' }, options.provider);
+				disposableStore.add(d);
 			}
-		}],
-		[ISuggestMemoryService, new class extends mock<ISuggestMemoryService>() {
-			override memorize(): void { }
-			override select(): number { return 0; }
-		}],
-		[IMenuService, new class extends mock<IMenuService>() {
-			override createMenu() {
-				return new class extends mock<IMenu>() {
-					override onDidChange = Event.None;
-					override dispose() { }
-				};
-			}
-		}]
-	);
 
-	const disposableStore = new DisposableStore();
-
-	if (options.provider) {
-		const d = CompletionProviderRegistry.register({ pattern: '**' }, options.provider);
-		disposableStore.add(d);
-	}
-
-	let scheduler: TimeTravelScheduler | undefined;
-	if (options.fakeClock) {
-		scheduler = new TimeTravelScheduler();
-		disposableStore.add(scheduler.installGlobally());
-	}
-	try {
-		const p = withAsyncTestCodeEditor(text, { ...options, serviceCollection }, async (editor, editorViewModel, instantiationService) => {
-			editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
-			editor.registerAndInstantiateContribution(SuggestController.ID, SuggestController);
-			const model = instantiationService.createInstance(SuggestWidgetAdapterModel, editor);
-			const context = new GhostTextContext(model, editor);
-			await callback({ editor, editorViewModel, model, context });
-			model.dispose();
-		});
-
-		await scheduler?.runUntilQueueEmptyAsync();
-
-		await p;
-	} finally {
-		disposableStore.dispose();
-	}
+			await withAsyncTestCodeEditor(text, { ...options, serviceCollection }, async (editor, editorViewModel, instantiationService) => {
+				editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
+				editor.registerAndInstantiateContribution(SuggestController.ID, SuggestController);
+				const model = instantiationService.createInstance(SuggestWidgetAdapterModel, editor);
+				const context = new GhostTextContext(model, editor);
+				await callback({ editor, editorViewModel, model, context });
+				model.dispose();
+			});
+		} finally {
+			disposableStore.dispose();
+		}
+	});
 }
