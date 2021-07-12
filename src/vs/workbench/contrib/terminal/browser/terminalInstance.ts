@@ -651,14 +651,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	detachFromElement(): void {
-		this._detachWrapperElement();
-		this._wrapperElement = undefined;
+		this._wrapperElement?.remove();
 		this._container = undefined;
 	}
 
-	private _detachWrapperElement() {
-		this._wrapperElement?.parentNode?.removeChild(this._wrapperElement);
-	}
 
 	attachToElement(container: HTMLElement): Promise<void> | void {
 		// The container did not change, do nothing
@@ -679,7 +675,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		// The container changed, reattach
-		this._detachWrapperElement();
 		this._container = container;
 		this._container.appendChild(this._wrapperElement);
 		setTimeout(() => this._initDragAndDrop(container));
