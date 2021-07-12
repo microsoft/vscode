@@ -51,8 +51,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	private readonly _onDidChangeInstances = new Emitter<void>();
 	readonly onDidChangeInstances = this._onDidChangeInstances.event;
 
-	private readonly _onPanelOrientationChanged = new Emitter<Orientation>();
-	readonly onPanelOrientationChanged = this._onPanelOrientationChanged.event;
+	private readonly _onDidChangePanelOrientation = new Emitter<Orientation>();
+	readonly onDidChangePanelOrientation = this._onDidChangePanelOrientation.event;
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
@@ -139,7 +139,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	createGroup(slcOrInstance?: IShellLaunchConfig | ITerminalInstance): ITerminalGroup {
 		const group = this._instantiationService.createInstance(TerminalGroup, this._container, slcOrInstance);
 		// TODO: Move panel orientation change into this file so it's not fired many times
-		group.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
+		group.onPanelOrientationChanged((orientation) => this._onDidChangePanelOrientation.fire(orientation));
 		this.groups.push(group);
 		group.addDisposable(group.onDidDisposeInstance(this._onDidDisposeInstance.fire, this._onDidDisposeInstance));
 		group.addDisposable(group.onDidFocusInstance(this._onDidFocusInstance.fire, this._onDidFocusInstance));
@@ -238,9 +238,22 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	 * group has been removed.
 	 */
 	setActiveGroupByIndex(index: number, force?: boolean) {
+		// Unset active group when the last group is removed
+		if (index === -1 && this.groups.length === 0) {
+			if (this.activeGroupIndex !== -1) {
+				this.activeGroupIndex = -1;
+				this._onDidChangeActiveGroup.fire(this.activeGroup);
+				this._onDidChangeActiveInstance.fire(this.activeInstance);
+			}
+			return;
+		}
+
+		// Ensure index is valid
 		if (index < 0 || index >= this.groups.length) {
 			return;
 		}
+
+		// Fire group/instance change if needed
 		const oldActiveGroup = this.activeGroup;
 		this.activeGroupIndex = index;
 		if (force || oldActiveGroup !== this.activeGroup) {
@@ -313,9 +326,22 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	moveGroup(source: ITerminalInstance, target: ITerminalInstance) {
 		const sourceGroup = this.getGroupForInstance(source);
 		const targetGroup = this.getGroupForInstance(target);
+
+		// Something went wrong
 		if (!sourceGroup || !targetGroup) {
 			return;
 		}
+
+		// The groups are the same, rearrange within the group
+		if (sourceGroup === targetGroup) {
+			const index = sourceGroup.terminalInstances.indexOf(target);
+			if (index !== -1) {
+				sourceGroup.moveInstance(source, index);
+			}
+			return;
+		}
+
+		// The groups differ, rearrange groups
 		const sourceGroupIndex = this.groups.indexOf(sourceGroup);
 		const targetGroupIndex = this.groups.indexOf(targetGroup);
 		this.groups.splice(sourceGroupIndex, 1);

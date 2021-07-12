@@ -37,7 +37,6 @@ export abstract class BaseBinaryResourceEditor extends EditorPane {
 	private readonly _onDidOpenInPlace = this._register(new Emitter<void>());
 	readonly onDidOpenInPlace = this._onDidOpenInPlace.event;
 
-	private callbacks: IOpenCallbacks;
 	private metadata: string | undefined;
 	private binaryContainer: HTMLElement | undefined;
 	private scrollbar: DomScrollableElement | undefined;
@@ -45,14 +44,12 @@ export abstract class BaseBinaryResourceEditor extends EditorPane {
 
 	constructor(
 		id: string,
-		callbacks: IOpenCallbacks,
+		private readonly callbacks: IOpenCallbacks,
 		telemetryService: ITelemetryService,
 		themeService: IThemeService,
 		@IStorageService storageService: IStorageService
 	) {
 		super(id, telemetryService, themeService, storageService);
-
-		this.callbacks = callbacks;
 	}
 
 	override getTitle(): string {

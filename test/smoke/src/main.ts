@@ -36,7 +36,13 @@ import { setup as setupLaunchTests } from './areas/workbench/launch.test';
 
 const tmpDir = tmp.dirSync({ prefix: 't' }) as { name: string; removeCallback: Function; };
 const testDataPath = tmpDir.name;
-process.once('exit', () => rimraf.sync(testDataPath));
+process.once('exit', () => {
+	try {
+		rimraf.sync(testDataPath);
+	} catch {
+		// noop
+	}
+});
 
 const [, , ...args] = process.argv;
 const opts = minimist(args, {
@@ -53,7 +59,8 @@ const opts = minimist(args, {
 	boolean: [
 		'verbose',
 		'remote',
-		'web'
+		'web',
+		'headless'
 	],
 	default: {
 		verbose: false
@@ -251,6 +258,7 @@ function createOptions(): ApplicationOptions {
 		screenshotsPath,
 		remote: opts.remote,
 		web: opts.web,
+		headless: opts.headless,
 		browser: opts.browser,
 		extraArgs: (opts.electronArgs || '').split(' ').map(a => a.trim()).filter(a => !!a)
 	};

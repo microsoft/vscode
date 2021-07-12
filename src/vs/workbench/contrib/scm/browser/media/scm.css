@@ -144,6 +144,11 @@
 	margin-right: 8px;
 }
 
+.scm-view .monaco-list-row .resource > .decoration-icon.codicon {
+	margin-right: 0;
+	margin-top: 3px;
+}
+
 .scm-view .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions {
 	flex-grow: 100;
 }

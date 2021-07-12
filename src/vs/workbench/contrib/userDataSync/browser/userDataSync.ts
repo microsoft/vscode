@@ -54,7 +54,7 @@ import { UserDataSyncDataViews } from 'vs/workbench/contrib/userDataSync/browser
 import { IUserDataSyncWorkbenchService, getSyncAreaLabel, AccountStatus, CONTEXT_SYNC_STATE, CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE, CONFIGURE_SYNC_COMMAND_ID, SHOW_SYNC_LOG_COMMAND_ID, SYNC_VIEW_CONTAINER_ID, SYNC_TITLE, SYNC_VIEW_ICON } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { Codicon } from 'vs/base/common/codicons';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { EditorOverride } from 'vs/platform/editor/common/editor';
+import { EditorResolution } from 'vs/platform/editor/common/editor';
 
 const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
 
@@ -693,7 +693,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					preserveFocus: false,
 					pinned: true,
 					revealIfVisible: true,
-					override: EditorOverride.DISABLED
+					override: EditorResolution.DISABLED
 				},
 			});
 		}
@@ -1274,7 +1274,7 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 		}
 
 		if (syncResourceConflicts[1].some(({ remoteResource }) => isEqual(remoteResource, model.uri))) {
-			return this.configurationService.getValue<boolean>('diffEditor.renderSideBySide');
+			return this.configurationService.getValue('diffEditor.renderSideBySide');
 		}
 
 		return false;

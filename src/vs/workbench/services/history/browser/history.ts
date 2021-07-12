@@ -8,7 +8,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { parse, stringify } from 'vs/base/common/marshalling';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { ITextEditorOptions, IResourceEditorInput, TextEditorSelectionRevealType, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditorPane, IEditorCloseEvent, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput, UntypedEditorContext, isResourceEditorInput, isEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorPane, IEditorCloseEvent, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput, isResourceEditorInput, isEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -595,7 +595,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// the entry across restarts
 		if (hasValidResourceEditorInputScheme) {
 			if (input instanceof EditorInput) {
-				const untypedInput = input.toUntyped(undefined, UntypedEditorContext.Default);
+				const untypedInput = input.toUntyped();
 				if (isResourceEditorInput(untypedInput)) {
 					return untypedInput;
 				}
@@ -720,7 +720,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return; // ignore if editor was replaced
 		}
 
-		const untypedEditor = editor.toUntyped(event.groupId, UntypedEditorContext.Default);
+		const untypedEditor = editor.toUntyped();
 		if (!untypedEditor) {
 			return; // we need a untyped editor to restore from going forward
 		}

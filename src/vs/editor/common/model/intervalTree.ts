@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Range } from 'vs/editor/common/core/range';
-import { IModelDecoration, TrackedRangeStickiness, TrackedRangeStickiness as ActualTrackedRangeStickiness } from 'vs/editor/common/model';
+import { TrackedRangeStickiness, TrackedRangeStickiness as ActualTrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 
 //
@@ -114,7 +114,7 @@ export function setNodeStickiness(node: IntervalNode, stickiness: ActualTrackedR
 	_setNodeStickiness(node, <number>stickiness);
 }
 
-export class IntervalNode implements IModelDecoration {
+export class IntervalNode {
 
 	/**
 	 * contains binary encoded information for color, visited, isForValidation and stickiness.
@@ -137,7 +137,7 @@ export class IntervalNode implements IModelDecoration {
 	public cachedVersionId: number;
 	public cachedAbsoluteStart: number;
 	public cachedAbsoluteEnd: number;
-	public range: Range;
+	public range: Range | null;
 
 	constructor(id: string, start: number, end: number) {
 		this.metadata = 0;
@@ -163,7 +163,7 @@ export class IntervalNode implements IModelDecoration {
 		this.cachedVersionId = 0;
 		this.cachedAbsoluteStart = start;
 		this.cachedAbsoluteEnd = end;
-		this.range = null!;
+		this.range = null;
 
 		setNodeIsVisited(this, false);
 	}
@@ -192,7 +192,7 @@ export class IntervalNode implements IModelDecoration {
 
 	public setCachedOffsets(absoluteStart: number, absoluteEnd: number, cachedVersionId: number): void {
 		if (this.cachedVersionId !== cachedVersionId) {
-			this.range = null!;
+			this.range = null;
 		}
 		this.cachedVersionId = cachedVersionId;
 		this.cachedAbsoluteStart = absoluteStart;

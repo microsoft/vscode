@@ -20,14 +20,14 @@ import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { EditorDescriptor } from 'vs/workbench/browser/editor';
+import { EditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
 export class WorkspaceTrustRequiredEditor extends EditorPane {
 
 	static readonly ID = 'workbench.editors.workspaceTrustRequiredEditor';
 	static readonly LABEL = localize('trustRequiredEditor', "Workspace Trust Required");
-	static readonly DESCRIPTOR = EditorDescriptor.create(WorkspaceTrustRequiredEditor, WorkspaceTrustRequiredEditor.ID, WorkspaceTrustRequiredEditor.LABEL);
+	static readonly DESCRIPTOR = EditorPaneDescriptor.create(WorkspaceTrustRequiredEditor, WorkspaceTrustRequiredEditor.ID, WorkspaceTrustRequiredEditor.LABEL);
 
 	private container: HTMLElement | undefined;
 	private scrollbar: DomScrollableElement | undefined;

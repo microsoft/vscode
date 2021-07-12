@@ -23,6 +23,7 @@ export class SuggestWidgetAdapterModel extends BaseGhostTextWidgetModel {
 	private currentGhostText: GhostText | undefined = undefined;
 	private _isActive: boolean = false;
 	private isShiftKeyPressed = false;
+	private currentCompletion: NormalizedInlineCompletion | undefined;
 
 	public override minReservedLineCount: number = 0;
 
@@ -75,6 +76,12 @@ export class SuggestWidgetAdapterModel extends BaseGhostTextWidgetModel {
 			}));
 		}
 		this.updateFromSuggestion();
+
+		this._register(this.editor.onDidChangeCursorPosition((e) => {
+			if (this.isSuggestionPreviewEnabled()) {
+				this.update();
+			}
+		}));
 
 		this._register(toDisposable(() => {
 			const suggestController = SuggestController.get(this.editor);
@@ -136,14 +143,31 @@ export class SuggestWidgetAdapterModel extends BaseGhostTextWidgetModel {
 	}
 
 	private setCurrentInlineCompletion(completion: NormalizedInlineCompletion | undefined): void {
+		this.currentCompletion = completion;
+		this.update();
+	}
+
+	private update(): void {
+		const completion = this.currentCompletion;
 		const mode = this.editor.getOptions().get(EditorOption.suggest).previewMode;
 
-		this.currentGhostText = completion
-			? (
-				inlineCompletionToGhostText(completion, this.editor.getModel(), mode) ||
-				// Show an invisible ghost text to reserve space
-				new GhostText(completion.range.endLineNumber, [], this.minReservedLineCount)
-			) : undefined;
+		this.setGhostText(
+			completion
+				? (
+					inlineCompletionToGhostText(completion, this.editor.getModel(), mode, this.editor.getPosition()) ||
+					// Show an invisible ghost text to reserve space
+					new GhostText(completion.range.endLineNumber, [], this.minReservedLineCount)
+				)
+				: undefined
+		);
+	}
+
+	private setGhostText(newGhostText: GhostText | undefined): void {
+		if (GhostText.equals(this.currentGhostText, newGhostText)) {
+			return;
+		}
+
+		this.currentGhostText = newGhostText;
 
 		if (this.currentGhostText && this.expanded) {
 			this.minReservedLineCount = Math.max(this.minReservedLineCount, ...this.currentGhostText.parts.map(p => p.lines.length - 1));

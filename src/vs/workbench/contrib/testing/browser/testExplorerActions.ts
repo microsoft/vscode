@@ -411,14 +411,14 @@ export class TestingViewAsTreeAction extends ViewAction<TestingExplorerView> {
 }
 
 
-export class TestingSortByNameAction extends ViewAction<TestingExplorerView> {
-	public static readonly ID = 'testing.sortByName';
+export class TestingSortByStatusAction extends ViewAction<TestingExplorerView> {
+	public static readonly ID = 'testing.sortByStatus';
 	constructor() {
 		super({
-			id: TestingSortByNameAction.ID,
+			id: TestingSortByStatusAction.ID,
 			viewId: Testing.ExplorerViewId,
-			title: localize('testing.sortByName', "Sort by Name"),
-			toggled: TestingContextKeys.viewSorting.isEqualTo(TestExplorerViewSorting.ByName),
+			title: localize('testing.sortByStatus', "Sort by Status"),
+			toggled: TestingContextKeys.viewSorting.isEqualTo(TestExplorerViewSorting.ByStatus),
 			menu: {
 				id: MenuId.ViewTitle,
 				order: ActionOrder.Sort,
@@ -432,7 +432,7 @@ export class TestingSortByNameAction extends ViewAction<TestingExplorerView> {
 	 * @override
 	 */
 	public runInView(_accessor: ServicesAccessor, view: TestingExplorerView) {
-		view.viewModel.viewSorting = TestExplorerViewSorting.ByName;
+		view.viewModel.viewSorting = TestExplorerViewSorting.ByStatus;
 	}
 }
 
@@ -1182,7 +1182,7 @@ export const allTestActions = [
 	SearchForTestExtension,
 	ShowMostRecentOutputAction,
 	TestingSortByLocationAction,
-	TestingSortByNameAction,
+	TestingSortByStatusAction,
 	TestingViewAsListAction,
 	TestingViewAsTreeAction,
 	UnhideTestAction,

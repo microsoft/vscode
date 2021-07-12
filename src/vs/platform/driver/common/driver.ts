@@ -18,6 +18,18 @@ export interface IElement {
 	left: number;
 }
 
+export interface ILocaleInfo {
+	/**
+	 * The UI language used.
+	 */
+	language: string;
+
+	/**
+	 * The requested locale
+	 */
+	locale?: string;
+}
+
 export interface ILocalizedStrings {
 	open: string;
 	close: string;
@@ -42,7 +54,8 @@ export interface IDriver {
 	typeInEditor(windowId: number, selector: string, text: string): Promise<void>;
 	getTerminalBuffer(windowId: number, selector: string): Promise<string[]>;
 	writeInTerminal(windowId: number, selector: string, text: string): Promise<void>;
-	getLocalizedStrings(windowId: number): Promise<ILocalizedStrings>
+	getLocaleInfo(windowId: number): Promise<ILocaleInfo>;
+	getLocalizedStrings(windowId: number): Promise<ILocalizedStrings>;
 }
 //*END
 
@@ -60,6 +73,7 @@ export interface IWindowDriver {
 	typeInEditor(selector: string, text: string): Promise<void>;
 	getTerminalBuffer(selector: string): Promise<string[]>;
 	writeInTerminal(selector: string, text: string): Promise<void>;
+	getLocaleInfo(): Promise<ILocaleInfo>;
 	getLocalizedStrings(): Promise<ILocalizedStrings>
 }
 

@@ -3,6 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export function activate() {
-	// no-op. This extension may be removed in the future
-}
+import { main } from './sign';
+import * as path from 'path';
+
+main([
+	process.env['EsrpCliDllPath']!,
+	'windows',
+	process.env['ESRPPKI']!,
+	process.env['ESRPAADUsername']!,
+	process.env['ESRPAADPassword']!,
+	path.dirname(process.argv[2]),
+	path.basename(process.argv[2])
+]);

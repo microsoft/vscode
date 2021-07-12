@@ -1123,18 +1123,24 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 
 		const { element: item } = node;
 
-		const icon = this.themeService.getColorTheme().type === ColorScheme.LIGHT ? item.icon : item.iconDark;
+		const theme = this.themeService.getColorTheme();
+		const icon = theme.type === ColorScheme.LIGHT ? item.icon : item.iconDark;
 		const iconUrl = icon ? URI.revive(icon) : null;
 
 		if (iconUrl) {
 			template.icon.className = 'custom-view-tree-node-item-icon';
 			template.icon.style.backgroundImage = DOM.asCSSUrl(iconUrl);
-		} else {
-			let iconClass: string | undefined;
-			if (item.themeIcon /*&& !this.isFileKindThemeIcon(element.themeIcon)*/) {
-				iconClass = ThemeIcon.asClassName(item.themeIcon);
+			template.icon.style.color = '';
+		} else if (item.themeIcon) {
+			template.icon.className = `custom-view-tree-node-item-icon ${ThemeIcon.asClassName(item.themeIcon)}`;
+			if (item.themeIcon.color) {
+				template.icon.style.color = theme.getColor(item.themeIcon.color.id)?.toString() ?? '';
 			}
-			template.icon.className = iconClass ? `custom-view-tree-node-item-icon ${iconClass}` : '';
+			template.icon.style.backgroundImage = '';
+		} else {
+			template.icon.className = 'custom-view-tree-node-item-icon';
+			template.icon.style.backgroundImage = '';
+			template.icon.style.color = '';
 		}
 
 		template.iconLabel.setLabel(item.label, item.description, {

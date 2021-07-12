@@ -204,7 +204,8 @@ export class ExperimentService implements ITASExperimentService {
 		}
 
 		// For development purposes, configure the delay until tas local tas treatment ovverrides are available
-		const overrideDelay = this.configurationService.getValue<number>('experiments.overrideDelay') ?? 0;
+		const overrideDelaySetting = this.configurationService.getValue('experiments.overrideDelay');
+		const overrideDelay = typeof overrideDelaySetting === 'number' ? overrideDelaySetting : 0;
 		this.overrideInitDelay = new Promise(resolve => setTimeout(resolve, overrideDelay));
 	}
 

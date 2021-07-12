@@ -19,6 +19,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { localize } from 'vs/nls';
 import { FoldingRegion } from 'vs/editor/contrib/folding/foldingRanges';
+import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 
 export class FoldingController extends Disposable implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.findController';
@@ -146,6 +147,32 @@ registerNotebookContribution(FoldingController.id, FoldingController);
 const NOTEBOOK_FOLD_COMMAND_LABEL = localize('fold.cell', "Fold Cell");
 const NOTEBOOK_UNFOLD_COMMAND_LABEL = localize('unfold.cell', "Unfold Cell");
 
+const FOLDING_COMMAND_ARGS: Pick<ICommandHandlerDescription, 'args'> = {
+	args: [{
+		isOptional: true,
+		name: 'index',
+		description: 'The cell index',
+		schema: {
+			'type': 'object',
+			'required': ['index', 'direction'],
+			'properties': {
+				'index': {
+					'type': 'number'
+				},
+				'direction': {
+					'type': 'string',
+					'enum': ['up', 'down'],
+					'default': 'down'
+				},
+				'levels': {
+					'type': 'number',
+					'default': 1
+				},
+			}
+		}
+	}]
+};
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -164,31 +191,7 @@ registerAction2(class extends Action2 {
 			},
 			description: {
 				description: NOTEBOOK_FOLD_COMMAND_LABEL,
-				args: [
-					{
-						isOptional: true,
-						name: 'index',
-						description: 'The cell index',
-						schema: {
-							'type': 'object',
-							'required': ['index', 'direction'],
-							'properties': {
-								'index': {
-									'type': 'number'
-								},
-								'direction': {
-									'type': 'string',
-									'enum': ['up', 'down'],
-									'default': 'down'
-								},
-								'levels': {
-									'type': 'number',
-									'default': 1
-								},
-							}
-						}
-					}
-				]
+				args: FOLDING_COMMAND_ARGS.args
 			},
 			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 			f1: true
@@ -254,31 +257,7 @@ registerAction2(class extends Action2 {
 			},
 			description: {
 				description: NOTEBOOK_UNFOLD_COMMAND_LABEL,
-				args: [
-					{
-						isOptional: true,
-						name: 'index',
-						description: 'The cell index',
-						schema: {
-							'type': 'object',
-							'required': ['index', 'direction'],
-							'properties': {
-								'index': {
-									'type': 'number'
-								},
-								'direction': {
-									'type': 'string',
-									'enum': ['up', 'down'],
-									'default': 'down'
-								},
-								'levels': {
-									'type': 'number',
-									'default': 1
-								},
-							}
-						}
-					}
-				]
+				args: FOLDING_COMMAND_ARGS.args
 			},
 			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 			f1: true

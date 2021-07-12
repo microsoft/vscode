@@ -141,7 +141,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 						this.logService.info('Ignoring following additional builtin extensions as there is an error while fetching them from gallery', extensionIds, getErrorMessage(error));
 					}
 				} else {
-					await this.writeCustomBuiltinExtensionsCache([]);
+					await this.writeCustomBuiltinExtensionsCache(() => []);
 				}
 			})(),
 		]);
@@ -201,7 +201,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		}
 
 		try {
-			await this.writeCustomBuiltinExtensionsCache(webExtensions);
+			await this.writeCustomBuiltinExtensionsCache(() => webExtensions);
 		} catch (error) {
 			this.logService.info(`Ignoring the error while adding additional builtin gallery extensions`, getErrorMessage(error));
 		}
@@ -307,9 +307,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	async removeExtension(identifier: IExtensionIdentifier, version?: string): Promise<void> {
-		let installedExtensions = await this.readInstalledExtensions();
-		installedExtensions = installedExtensions.filter(extension => !(areSameExtensions(extension.identifier, identifier) && (version ? extension.version === version : true)));
-		await this.writeInstalledExtensions(installedExtensions);
+		await this.writeInstalledExtensions(installedExtensions => installedExtensions.filter(extension => !(areSameExtensions(extension.identifier, identifier) && (version ? extension.version === version : true))));
 	}
 
 	private async addWebExtension(webExtension: IWebExtension) {
@@ -318,11 +316,12 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 		// Update custom builtin extensions to custom builtin extensions cache
 		if (isBuiltin) {
-			let customBuiltinExtensions = await this.readCustomBuiltinExtensionsCache();
-			// Remove the existing extension to avoid duplicates
-			customBuiltinExtensions = customBuiltinExtensions.filter(extension => !areSameExtensions(extension.identifier, webExtension.identifier));
-			customBuiltinExtensions.push(webExtension);
-			await this.writeCustomBuiltinExtensionsCache(customBuiltinExtensions);
+			await this.writeCustomBuiltinExtensionsCache(customBuiltinExtensions => {
+				// Remove the existing extension to avoid duplicates
+				customBuiltinExtensions = customBuiltinExtensions.filter(extension => !areSameExtensions(extension.identifier, webExtension.identifier));
+				customBuiltinExtensions.push(webExtension);
+				return customBuiltinExtensions;
+			});
 
 			const installedExtensions = await this.readInstalledExtensions();
 			// Also add to installed extensions if it is installed to update its version
@@ -340,11 +339,12 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	private async addToInstalledExtensions(webExtension: IWebExtension): Promise<void> {
-		let installedExtensions = await this.readInstalledExtensions();
-		// Remove the existing extension to avoid duplicates
-		installedExtensions = installedExtensions.filter(e => !areSameExtensions(e.identifier, webExtension.identifier));
-		installedExtensions.push(webExtension);
-		await this.writeInstalledExtensions(installedExtensions);
+		await this.writeInstalledExtensions(installedExtensions => {
+			// Remove the existing extension to avoid duplicates
+			installedExtensions = installedExtensions.filter(e => !areSameExtensions(e.identifier, webExtension.identifier));
+			installedExtensions.push(webExtension);
+			return installedExtensions;
+		});
 	}
 
 	private async scanInstalledExtensions(): Promise<IExtension[]> {
@@ -445,29 +445,31 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	private readInstalledExtensions(): Promise<IWebExtension[]> {
-		return this.readWebExtensions(this.installedExtensionsResource);
+		return this.withWebExtensions(this.installedExtensionsResource);
 	}
 
-	private writeInstalledExtensions(userWebExtensions: IWebExtension[]): Promise<IWebExtension[]> {
-		return this.writeWebExtensions(this.installedExtensionsResource, userWebExtensions);
+	private writeInstalledExtensions(updateFn: (extensions: IWebExtension[]) => IWebExtension[]): Promise<IWebExtension[]> {
+		return this.withWebExtensions(this.installedExtensionsResource, updateFn);
 	}
 
 	private readCustomBuiltinExtensionsCache(): Promise<IWebExtension[]> {
-		return this.readWebExtensions(this.customBuiltinExtensionsCacheResource);
+		return this.withWebExtensions(this.customBuiltinExtensionsCacheResource);
 	}
 
-	private writeCustomBuiltinExtensionsCache(customBuiltinExtensions: IWebExtension[]): Promise<IWebExtension[]> {
-		return this.writeWebExtensions(this.customBuiltinExtensionsCacheResource, customBuiltinExtensions);
+	private writeCustomBuiltinExtensionsCache(updateFn: (extensions: IWebExtension[]) => IWebExtension[]): Promise<IWebExtension[]> {
+		return this.withWebExtensions(this.customBuiltinExtensionsCacheResource, updateFn);
 	}
 
-	private async readWebExtensions(file: URI | undefined): Promise<IWebExtension[]> {
+	private async withWebExtensions(file: URI | undefined, updateFn?: (extensions: IWebExtension[]) => IWebExtension[]): Promise<IWebExtension[]> {
 		if (!file) {
-			return [];
+			throw new Error('unsupported');
 		}
 		return this.getResourceAccessQueue(file).queue(async () => {
+			let webExtensions: IWebExtension[] = [];
+
+			// Read
 			try {
 				const content = await this.fileService.readFile(file);
-				const webExtensions: IWebExtension[] = [];
 				const storedWebExtensions: IStoredWebExtension[] = JSON.parse(content.value.toString());
 				for (const e of storedWebExtensions) {
 					if (!e.location || !e.identifier || !e.version) {
@@ -484,32 +486,28 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 						metadata: e.metadata,
 					});
 				}
-				return webExtensions;
 			} catch (error) {
 				/* Ignore */
 				if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
 					this.logService.error(error);
 				}
 			}
-			return [];
-		});
-	}
 
-	private writeWebExtensions(file: URI | undefined, webExtensions: IWebExtension[]): Promise<IWebExtension[]> {
-		if (!file) {
-			throw new Error('unsupported');
-		}
-		return this.getResourceAccessQueue(file).queue(async () => {
-			const storedWebExtensions: IStoredWebExtension[] = webExtensions.map(e => ({
-				identifier: e.identifier,
-				version: e.version,
-				location: e.location.toJSON(),
-				readmeUri: e.readmeUri?.toJSON(),
-				changelogUri: e.changelogUri?.toJSON(),
-				packageNLSUri: e.packageNLSUri?.toJSON(),
-				metadata: e.metadata
-			}));
-			await this.fileService.writeFile(file, VSBuffer.fromString(JSON.stringify(storedWebExtensions)));
+			// Update
+			if (updateFn) {
+				webExtensions = updateFn(webExtensions);
+				const storedWebExtensions: IStoredWebExtension[] = webExtensions.map(e => ({
+					identifier: e.identifier,
+					version: e.version,
+					location: e.location.toJSON(),
+					readmeUri: e.readmeUri?.toJSON(),
+					changelogUri: e.changelogUri?.toJSON(),
+					packageNLSUri: e.packageNLSUri?.toJSON(),
+					metadata: e.metadata
+				}));
+				await this.fileService.writeFile(file, VSBuffer.fromString(JSON.stringify(storedWebExtensions)));
+			}
+
 			return webExtensions;
 		});
 	}

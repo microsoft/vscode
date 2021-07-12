@@ -12,7 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, IColorTheme, registerThemingParticipant, ICssStyleCollector, ThemeIcon, Themable } from 'vs/platform/theme/common/themeService';
 import { switchTerminalActionViewItemSeparator, switchTerminalShowTabsTitle } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR, TERMINAL_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR, TERMINAL_DRAG_AND_DROP_BACKGROUND, TERMINAL_TAB_ACTIVE_BORDER } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
@@ -33,7 +33,7 @@ import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TerminalTabbedView } from 'vs/workbench/contrib/terminal/browser/terminalTabbedView';
 import { Codicon } from 'vs/base/common/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { createAndFillInContextMenuActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { TerminalTabContextMenuGroup } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
@@ -41,7 +41,7 @@ import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/d
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
+import { getColorClass, getUriClasses, separateIconAndText } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { DataTransfers } from 'vs/base/browser/dnd';
@@ -53,7 +53,6 @@ export class TerminalViewPane extends ViewPane {
 	private _terminalTabbedView?: TerminalTabbedView;
 	get terminalTabbedView(): TerminalTabbedView | undefined { return this._terminalTabbedView; }
 	private _terminalsInitialized = false;
-	private _bodyDimensions: { width: number, height: number } = { width: 0, height: 0 };
 	private _isWelcomeShowing: boolean = false;
 	private _tabButtons: DropdownWithPrimaryActionViewItem | undefined;
 	private readonly _dropdownMenu: IMenu;
@@ -147,9 +146,6 @@ export class TerminalViewPane extends ViewPane {
 
 				if (hadTerminals) {
 					this._terminalGroupService.activeGroup?.setVisible(visible);
-				} else {
-					// TODO@Tyriar - this call seems unnecessary
-					this.layoutBody(this._bodyDimensions.height, this._bodyDimensions.width);
 				}
 				this._terminalGroupService.showPanel(true);
 			} else {
@@ -169,13 +165,7 @@ export class TerminalViewPane extends ViewPane {
 	// eslint-disable-next-line @typescript-eslint/naming-convention
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
-
-		if (this._terminalTabbedView) {
-			this._bodyDimensions.width = width;
-			this._bodyDimensions.height = height;
-
-			this._terminalTabbedView.layout(width, height);
-		}
+		this._terminalTabbedView?.layout(width, height);
 	}
 
 	override getActionViewItem(action: Action): IActionViewItem | undefined {
@@ -346,6 +336,11 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	if (dndBackgroundColor) {
 		collector.addRule(`.monaco-workbench .pane-body.integrated-terminal .terminal-drop-overlay { background-color: ${dndBackgroundColor.toString()}; }`);
 	}
+
+	const activeTabBorderColor = theme.getColor(TERMINAL_TAB_ACTIVE_BORDER);
+	if (activeTabBorderColor) {
+		collector.addRule(`.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-entry.is-active::before { background-color: ${activeTabBorderColor.toString()}; }`);
+	}
 });
 
 
@@ -359,9 +354,9 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 	) {
 		super(null, action, getTerminalSelectOpenItems(_terminalService, _terminalGroupService), _terminalGroupService.activeGroupIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.'), optionsAsChildren: true });
 		this._register(_terminalService.onDidChangeInstances(() => this._updateItems(), this));
-		this._register(_terminalService.onActiveGroupChanged(() => this._updateItems(), this));
+		this._register(_terminalService.onDidChangeActiveGroup(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeActiveInstance(() => this._updateItems(), this));
-		this._register(_terminalService.onInstanceTitleChanged(() => this._updateItems(), this));
+		this._register(_terminalService.onDidChangeInstanceTitle(() => this._updateItems(), this));
 		this._register(_terminalGroupService.onDidChangeGroups(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeConnectionState(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeAvailableProfiles(() => this._updateItems(), this));
@@ -412,7 +407,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@ICommandService private readonly _commandService: ICommandService,
+		@ICommandService private readonly _commandService: ICommandService
 	) {
 		super(new MenuItemAction(
 			{
@@ -433,11 +428,11 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		}, keybindingService, notificationService, contextKeyService);
 
 		// Register listeners to update the tab
-		this._register(this._terminalService.onInstancePrimaryStatusChanged(e => this.updateLabel(e)));
+		this._register(this._terminalService.onDidChangeInstancePrimaryStatus(e => this.updateLabel(e)));
 		this._register(this._terminalGroupService.onDidChangeActiveInstance(() => this.updateLabel()));
-		this._register(this._terminalService.onInstanceIconChanged(e => this.updateLabel(e)));
-		this._register(this._terminalService.onInstanceColorChanged(e => this.updateLabel(e)));
-		this._register(this._terminalService.onInstanceTitleChanged(e => {
+		this._register(this._terminalService.onDidChangeInstanceIcon(e => this.updateLabel(e)));
+		this._register(this._terminalService.onDidChangeInstanceColor(e => this.updateLabel(e)));
+		this._register(this._terminalService.onDidChangeInstanceTitle(e => {
 			if (e === this._terminalGroupService.activeInstance) {
 				this._action.tooltip = getSingleTabTooltip(e);
 				this.updateLabel();
@@ -446,6 +441,11 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 
 		// Clean up on dispose
 		this._register(toDisposable(() => dispose(this._elementDisposables)));
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		container.classList.add('terminal-single-tab');
 	}
 
 	override async onClick(event: MouseEvent): Promise<void> {
@@ -505,7 +505,23 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				}
 			}
 			label.style.color = colorStyle;
-			dom.reset(label, ...renderLabelWithIcons(getSingleTabLabel(instance, ThemeIcon.isThemeIcon(this._commandAction.item.icon) ? this._commandAction.item.icon : undefined)));
+
+			const elements = new Array<HTMLSpanElement | string>();
+
+			const tabLabel = getSingleTabLabel(instance, ThemeIcon.isThemeIcon(this._commandAction.item.icon) ? this._commandAction.item.icon : undefined);
+
+			// ensures that the icon will always be displayed and allows for truncation of text
+			// to prevent overflow into the actions
+			const iconAndText = separateIconAndText(tabLabel);
+
+			if (iconAndText.icon) {
+				elements.push(renderIcon({ id: iconAndText.icon }));
+				const node = dom.$(`span`);
+				node.classList.add('terminal-label-text');
+				node.innerText = iconAndText.text;
+				elements.push(node);
+				dom.reset(label, ...elements);
+			}
 
 			if (this._altCommand) {
 				label.classList.remove(this._altCommand);
@@ -547,7 +563,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 	}
 }
 
-function getSingleTabLabel(instance: ITerminalInstance | undefined, icon?: ThemeIcon) {
+function getSingleTabLabel(instance: ITerminalInstance | undefined, icon?: ThemeIcon): string {
 	// Don't even show the icon if there is no title as the icon would shift around when the title
 	// is added
 	if (!instance || !instance.title) {
@@ -590,8 +606,8 @@ class TerminalThemeIconStyle extends Themable {
 	}
 
 	private _registerListeners(): void {
-		this._register(this._terminalService.onInstanceIconChanged(() => this.updateStyles()));
-		this._register(this._terminalService.onInstanceColorChanged(() => this.updateStyles()));
+		this._register(this._terminalService.onDidChangeInstanceIcon(() => this.updateStyles()));
+		this._register(this._terminalService.onDidChangeInstanceColor(() => this.updateStyles()));
 		this._register(this._terminalService.onDidChangeInstances(() => this.updateStyles()));
 		this._register(this._terminalGroupService.onDidChangeGroups(() => this.updateStyles()));
 	}
@@ -618,7 +634,7 @@ class TerminalThemeIconStyle extends Themable {
 			const iconClasses = getUriClasses(instance, colorTheme.type);
 			if (uri instanceof URI && iconClasses && iconClasses.length > 1) {
 				css += (
-					`.monaco-workbench .${iconClasses[0]} .monaco-highlighted-label .codicon, .monaco-action-bar .terminal-uri-icon.single-terminal-tab.action-label:not(.alt-command) .codicon,` +
+					`.monaco-workbench .${iconClasses[0]} .monaco-highlighted-label .codicon, .monaco-action-bar .terminal-uri-icon.single-terminal-tab.action-label:not(.alt-command) .codicon` +
 					`{background-image: ${dom.asCSSUrl(uri)};}`
 				);
 			}

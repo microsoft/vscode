@@ -1459,8 +1459,12 @@ declare namespace monaco.editor {
 	export interface InjectedTextOptions {
 		/**
 		 * Sets the text to inject. Must be a single line.
-		*/
+		 */
 		readonly content: string;
+		/**
+		 * If set, the decoration will be rendered inline with the text with this CSS class name.
+		 */
+		readonly inlineClassName?: string | null;
 	}
 
 	/**
@@ -3851,10 +3855,11 @@ declare namespace monaco.editor {
 		/**
 		 * Configures the mode.
 		 * Use `prefix` to only show ghost text if the text to replace is a prefix of the suggestion text.
-		 * Use `subwordDiff` to only show ghost text if the replace text is a subword of the suggestion text and diffing should be used to compute the ghost text.
+		 * Use `subword` to only show ghost text if the replace text is a subword of the suggestion text.
+		 * Use `subwordSmart` to only show ghost text if the replace text is a subword of the suggestion text, but the subword must start after the cursor position.
 		 * Defaults to `prefix`.
 		*/
-		mode?: 'prefix' | 'subwordDiff';
+		mode?: 'prefix' | 'subword' | 'subwordSmart';
 	}
 
 	export type InternalInlineSuggestOptions = Readonly<Required<IInlineSuggestOptions>>;
@@ -3896,9 +3901,9 @@ declare namespace monaco.editor {
 		 */
 		preview?: boolean;
 		/**
-		 * Configures the mode of the preview. Defaults to `subwordDiff`.
+		 * Configures the mode of the preview.
 		*/
-		previewMode?: 'prefix' | 'subwordDiff';
+		previewMode?: 'prefix' | 'subword' | 'subwordSmart';
 		/**
 		 * Show details inline with the label. Defaults to true.
 		 */
@@ -5378,6 +5383,11 @@ declare namespace monaco.languages {
 	 * Register an inline completions provider.
 	 */
 	export function registerInlineCompletionsProvider(languageId: string, provider: InlineCompletionsProvider): IDisposable;
+
+	/**
+	 * Register an inlay hints provider.
+	 */
+	export function registerInlayHintsProvider(languageId: string, provider: InlayHintsProvider): IDisposable;
 
 	/**
 	 * Contains additional diagnostic information about the context in which

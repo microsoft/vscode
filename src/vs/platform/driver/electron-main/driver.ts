@@ -18,7 +18,7 @@ import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/e
 import { ScanCodeBinding } from 'vs/base/common/scanCode';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { timeout } from 'vs/base/common/async';
-import { IDriver, IDriverOptions, IElement, ILocalizedStrings, IWindowDriver, IWindowDriverRegistry } from 'vs/platform/driver/common/driver';
+import { IDriver, IDriverOptions, IElement, ILocaleInfo, ILocalizedStrings, IWindowDriver, IWindowDriverRegistry } from 'vs/platform/driver/common/driver';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 
@@ -187,6 +187,11 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	async writeInTerminal(windowId: number, selector: string, text: string): Promise<void> {
 		const windowDriver = await this.getWindowDriver(windowId);
 		await windowDriver.writeInTerminal(selector, text);
+	}
+
+	async getLocaleInfo(windowId: number): Promise<ILocaleInfo> {
+		const windowDriver = await this.getWindowDriver(windowId);
+		return await windowDriver.getLocaleInfo();
 	}
 
 	async getLocalizedStrings(windowId: number): Promise<ILocalizedStrings> {

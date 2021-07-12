@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GroupIdentifier, IEditorInput, IResourceDiffEditorInput, isResourceDiffEditorInput, IUntypedEditorInput, UntypedEditorContext } from 'vs/workbench/common/editor';
+import { IEditorInput, IResourceDiffEditorInput, isResourceDiffEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { URI } from 'vs/base/common/uri';
-import { isEqual } from 'vs/base/common/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotebookDiffEditorModel, IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -92,7 +91,7 @@ export class NotebookDiffEditorInput extends DiffEditorInput {
 		return this._cachedModel;
 	}
 
-	override toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IResourceDiffEditorInput {
+	override toUntyped(): IResourceDiffEditorInput {
 		return {
 			original: { resource: this.original.resource },
 			modified: { resource: this.resource },
@@ -103,26 +102,23 @@ export class NotebookDiffEditorInput extends DiffEditorInput {
 	}
 
 	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
-		if (super.matches(otherInput)) {
+		if (this === otherInput) {
 			return true;
 		}
 
-		if (isResourceDiffEditorInput(otherInput)) {
-			return this.primary.matches(otherInput.modified) && this.secondary.matches(otherInput.original) && this.editorId !== undefined && this.editorId === otherInput.options?.override;
-		}
-
 		if (otherInput instanceof NotebookDiffEditorInput) {
-			return this.viewType === otherInput.viewType
-				&& isEqual(this.resource, otherInput.resource);
+			return this.modified.matches(otherInput.modified)
+				&& this.original.matches(otherInput.original)
+				&& this.viewType === otherInput.viewType;
 		}
-		return false;
-	}
 
-	override dispose() {
-		this._modifiedTextModel?.dispose();
-		this._modifiedTextModel = null;
-		this._originalTextModel?.dispose();
-		this._originalTextModel = null;
-		super.dispose();
+		if (isResourceDiffEditorInput(otherInput)) {
+			return this.modified.matches(otherInput.modified)
+				&& this.original.matches(otherInput.original)
+				&& this.editorId !== undefined
+				&& this.editorId === otherInput.options?.override;
+		}
+
+		return false;
 	}
 }

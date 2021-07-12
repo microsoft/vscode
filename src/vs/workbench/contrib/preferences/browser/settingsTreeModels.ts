@@ -18,6 +18,7 @@ import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_S
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
+import { EditPresentationTypes } from 'vs/platform/configuration/common/configurationRegistry';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
@@ -227,7 +228,11 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		if (this.setting.enum && (!this.setting.type || settingTypeEnumRenderable(this.setting.type))) {
 			this.valueType = SettingValueType.Enum;
 		} else if (this.setting.type === 'string') {
-			this.valueType = SettingValueType.String;
+			if (this.setting.editPresentation === EditPresentationTypes.Multiline) {
+				this.valueType = SettingValueType.MultilineString;
+			} else {
+				this.valueType = SettingValueType.String;
+			}
 		} else if (isExcludeSetting(this.setting)) {
 			this.valueType = SettingValueType.Exclude;
 		} else if (this.setting.type === 'integer') {

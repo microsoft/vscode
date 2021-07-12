@@ -23,7 +23,8 @@ import { IUndoRedoService, UndoRedoElementType } from 'vs/platform/undoRedo/comm
 import { MainThreadWebviewPanels } from 'vs/workbench/api/browser/mainThreadWebviewPanels';
 import { MainThreadWebviews, reviveWebviewExtension } from 'vs/workbench/api/browser/mainThreadWebviews';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { editorGroupToViewColumn, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
+import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
+import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 import { CustomDocumentBackupData } from 'vs/workbench/contrib/customEditor/browser/customEditorInputFactory';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
@@ -195,7 +196,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 						title: webviewInput.getTitle(),
 						webviewOptions: webviewInput.webview.contentOptions,
 						panelOptions: webviewInput.webview.options,
-					}, editorGroupToViewColumn(this._editorGroupService, webviewInput.group || 0), cancellation);
+					}, editorGroupToColumn(this._editorGroupService, webviewInput.group || 0), cancellation);
 				} catch (error) {
 					onUnexpectedError(error);
 					webviewInput.webview.html = this.mainThreadWebview.getWebviewResolvedFailedContent(viewType);

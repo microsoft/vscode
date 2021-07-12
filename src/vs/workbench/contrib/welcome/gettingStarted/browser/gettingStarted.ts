@@ -6,7 +6,7 @@
 import 'vs/css!./gettingStarted';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInputSerializer, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { IEditorSerializer, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
 import { $, addDisposableListener, append, clearNode, Dimension, reset } from 'vs/base/browser/dom';
@@ -667,13 +667,12 @@ export class GettingStartedPage extends EditorPane {
 					${DEFAULT_MARKDOWN_STYLES}
 					${css}
 					svg {
-						width: 100%;
-						height: 100%;
 						position: fixed;
-						top: 0;
-						left: 0;
-						bottom: 0;
-						right: 0;
+						height: 100%;
+						width: 80%;
+						left: 50%;
+						top: 50%;
+						transform: translate(-50%,-50%);
 					}
 				</style>
 			</head>
@@ -1370,7 +1369,7 @@ export class GettingStartedPage extends EditorPane {
 	}
 }
 
-export class GettingStartedInputSerializer implements IEditorInputSerializer {
+export class GettingStartedInputSerializer implements IEditorSerializer {
 	public canSerialize(editorInput: GettingStartedInput): boolean {
 		return true;
 	}

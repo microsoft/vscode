@@ -11,7 +11,7 @@ import 'vs/css!./media/notebook';
 import { localize } from 'vs/nls';
 import { extname } from 'vs/base/common/resources';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { EditorOverride } from 'vs/platform/editor/common/editor';
+import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -33,6 +33,7 @@ import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction } from 'vs/base/common/actions';
 import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { NotebooKernelActionViewItem } from 'vs/workbench/contrib/notebook/browser/notebookKernelActionViewItem';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
@@ -67,9 +68,10 @@ export class NotebookEditor extends EditorPane {
 		@INotebookEditorService private readonly _notebookWidgetService: INotebookEditorService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IFileService private readonly fileService: IFileService,
+		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
-		this._editorMemento = this.getEditorMemento<INotebookEditorViewState>(_editorGroupService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
+		this._editorMemento = this.getEditorMemento<INotebookEditorViewState>(_editorGroupService, configurationService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 
 		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onDidChangeFileSystemProvider(e.scheme)));
 		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onDidChangeFileSystemProvider(e.scheme)));
@@ -208,7 +210,7 @@ export class NotebookEditor extends EditorPane {
 				[{
 					label: localize('fail.reOpen', "Reopen file with VS Code standard text editor"),
 					run: async () => {
-						await this._editorService.openEditor({ resource: input.resource, forceFile: true, options: { ...options, override: EditorOverride.DISABLED } });
+						await this._editorService.openEditor({ resource: input.resource, forceFile: true, options: { ...options, override: EditorResolution.DISABLED } });
 					}
 				}]
 			);
@@ -259,7 +261,6 @@ export class NotebookEditor extends EditorPane {
 			const startTime = perfMarks['startTime'];
 			const extensionActivated = perfMarks['extensionActivated'];
 			const inputLoaded = perfMarks['inputLoaded'];
-			const webviewCommLoaded = perfMarks['webviewCommLoaded'];
 			const customMarkdownLoaded = perfMarks['customMarkdownLoaded'];
 			const editorLoaded = perfMarks['editorLoaded'];
 
@@ -267,7 +268,6 @@ export class NotebookEditor extends EditorPane {
 				startTime !== undefined
 				&& extensionActivated !== undefined
 				&& inputLoaded !== undefined
-				&& webviewCommLoaded !== undefined
 				&& customMarkdownLoaded !== undefined
 				&& editorLoaded !== undefined
 			) {
@@ -277,10 +277,12 @@ export class NotebookEditor extends EditorPane {
 					viewType: model.notebook.viewType,
 					extensionActivated: extensionActivated - startTime,
 					inputLoaded: inputLoaded - startTime,
-					webviewCommLoaded: webviewCommLoaded - startTime,
+					webviewCommLoaded: inputLoaded - startTime,
 					customMarkdownLoaded: customMarkdownLoaded - startTime,
 					editorLoaded: editorLoaded - startTime
 				});
+			} else {
+				console.warn('notebook file open perf marks are broken');
 			}
 		}
 	}

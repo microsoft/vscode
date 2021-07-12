@@ -5,8 +5,9 @@
 
 import { getTopLeftOffset, getClientArea } from 'vs/base/browser/dom';
 import { coalesce } from 'vs/base/common/arrays';
-import { IElement, ILocalizedStrings, IWindowDriver } from 'vs/platform/driver/common/driver';
+import { IElement, ILocaleInfo, ILocalizedStrings, IWindowDriver } from 'vs/platform/driver/common/driver';
 import localizedStrings from 'vs/platform/localizations/common/localizedStrings';
+import { locale, language } from 'vs/base/common/platform';
 
 function serializeElement(element: Element, recursive: boolean): IElement {
 	const attributes = Object.create(null);
@@ -160,6 +161,13 @@ export abstract class BaseWindowDriver implements IWindowDriver {
 		}
 
 		xterm._core._coreService.triggerDataEvent(text);
+	}
+
+	getLocaleInfo(): Promise<ILocaleInfo> {
+		return Promise.resolve({
+			language: language,
+			locale: locale
+		});
 	}
 
 	getLocalizedStrings(): Promise<ILocalizedStrings> {

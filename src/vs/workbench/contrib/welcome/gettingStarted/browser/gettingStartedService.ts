@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, IInstantiationService, optional, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, optional, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Memento } from 'vs/workbench/common/memento';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
@@ -24,7 +24,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILink, LinkedText, parseLinkedText } from 'vs/base/common/linkedText';
-import { walkthroughsExtensionPoint, startEntriesExtensionPoint } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedExtensionPoint';
+import { walkthroughsExtensionPoint } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedExtensionPoint';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { dirname } from 'vs/base/common/path';
 import { coalesce, flatten } from 'vs/base/common/arrays';
@@ -32,9 +32,6 @@ import { IViewsService } from 'vs/workbench/common/views';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { isLinux, isMacintosh, isWindows, OperatingSystem as OS } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import product from 'vs/platform/product/common/product';
 
 export const WorkspacePlatform = new RawContextKey<'mac' | 'linux' | 'windows' | undefined>('workspacePlatform', undefined, localize('workspacePlatform', "The platform of the current workspace, which in remote contexts may be different from the platform of the UI"));
 export const HasMultipleNewFileEntries = new RawContextKey<boolean>('hasMultipleNewFileEntries', false);
@@ -86,25 +83,6 @@ export interface IGettingStartedWalkthroughDescriptor {
 	content:
 	| { type: 'steps' }
 }
-
-export enum IGettingStartedNewMenuEntryDescriptorCategory {
-	'file',
-	'notebook',
-	'folder',
-}
-
-
-export interface IGettingStartedNewMenuEntryDescriptor {
-	title: string
-	description?: string
-	when?: ContextKeyExpression
-	from: string
-	sourceExtensionId?: string
-	category: IGettingStartedNewMenuEntryDescriptorCategory
-	action: { runCommand: string, invokeFunction?: never } | { invokeFunction: (accessor: ServicesAccessor) => void, runCommand?: never }
-}
-
-export const CoreNewEntryDisplayName = localize('builtinProviderDisplayName', "Built-in");
 
 export interface IGettingStartedStartEntryDescriptor {
 	id: GettingStartedCategory | string
@@ -171,8 +149,6 @@ export interface IGettingStartedService {
 	progressStep(id: string): void;
 	deprogressStep(id: string): void;
 
-	selectNewEntry(categories: IGettingStartedNewMenuEntryDescriptorCategory[]): Promise<void>;
-
 	markWalkthroughOpened(id: string): void;
 
 	installedExtensionsRegistered: Promise<void>;
@@ -218,8 +194,6 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	private stepCompletionContextKeyExpressions = new Set<ContextKeyExpression>();
 	private stepCompletionContextKeys = new Set<string>();
 
-	private newMenuItems: IGettingStartedNewMenuEntryDescriptor[] = [];
-
 	private triggerInstalledExtensionsRegistered!: () => void;
 	installedExtensionsRegistered: Promise<void>;
 
@@ -230,10 +204,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextKeyService private readonly contextService: IContextKeyService,
 		@IUserDataAutoSyncEnablementService  readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IHostService private readonly hostService: IHostService,
 		@IViewsService private readonly viewsService: IViewsService,
@@ -248,31 +219,8 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			JSON.parse(
 				this.storageService.get(walkthroughMetadataConfigurationKey, StorageScope.GLOBAL, '[]')));
 
-		const builtinNewMenuItems = [
-			{
-				title: localize('newUntitledTitle', "Text File"),
-				action: { runCommand: 'workbench.action.files.newUntitledFile' },
-				category: IGettingStartedNewMenuEntryDescriptorCategory.file,
-				from: CoreNewEntryDisplayName,
-			},
-			{
-				title: localize('newGit', "Folder from Git Repo"),
-				action: { runCommand: 'git.clone' },
-				when: ContextKeyExpr.deserialize('!git.missing'),
-				category: IGettingStartedNewMenuEntryDescriptorCategory.folder,
-				from: CoreNewEntryDisplayName,
-			}
-		];
-
-		builtinNewMenuItems.forEach(item => this.registerNewMenuItem(item));
-
 		this.memento = new Memento('gettingStartedService', this.storageService);
 		this.stepProgress = this.memento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
-
-		startEntriesExtensionPoint.setHandler((_, { added, removed }) => {
-			added.forEach(e => this.registerExtensionNewContributions(e.description));
-			removed.forEach(e => this.unregisterExtensionNewContributions(e.description));
-		});
 
 		walkthroughsExtensionPoint.setHandler((_, { added, removed }) => {
 			added.forEach(e => this.registerExtensionWalkthroughContributions(e.description));
@@ -285,11 +233,14 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			installed.forEach(ext => this.progressByEvent(`extensionInstalled:${ext.identifier.id.toLowerCase()}`));
 		});
 
-		this._register(this.extensionManagementService.onDidInstallExtension(async e => {
-			if (await this.hostService.hadLastFocus()) {
-				this.sessionInstalledExtensions.add(e.identifier.id.toLowerCase());
+		this._register(this.extensionManagementService.onDidInstallExtensions(async result => {
+			const hadLastFoucs = await this.hostService.hadLastFocus();
+			for (const e of result) {
+				if (hadLastFoucs) {
+					this.sessionInstalledExtensions.add(e.identifier.id.toLowerCase());
+				}
+				this.progressByEvent(`extensionInstalled:${e.identifier.id.toLowerCase()}`);
 			}
-			this.progressByEvent(`extensionInstalled:${e.identifier.id.toLowerCase()}`);
 		}));
 
 		this._register(this.contextService.onDidChangeContext(event => {
@@ -392,90 +343,6 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		});
 	}
 
-	public async selectNewEntry(categories: IGettingStartedNewMenuEntryDescriptorCategory[]) {
-		const disposables = new DisposableStore();
-		const qp = this.quickInputService.createQuickPick();
-		qp.title = localize('createNew', "Create New...");
-		qp.matchOnDetail = true;
-		qp.matchOnDescription = true;
-
-		if (this.newMenuItems.filter(entry => categories.includes(entry.category)).length === 1
-			&& !(categories.length === 1 && categories[0] === IGettingStartedNewMenuEntryDescriptorCategory.folder)) {
-			const selection = this.newMenuItems
-				.filter(entry => categories.includes(entry.category))[0];
-
-			if (selection) {
-				if (selection.action.runCommand) {
-					await this.commandService.executeCommand(selection.action.runCommand);
-				} else if (selection.action.invokeFunction) {
-					await this.instantiationService.invokeFunction<unknown>(selection.action.invokeFunction);
-				}
-			}
-			return;
-		}
-
-		const refreshQp = () => {
-			const items: (((IQuickPickItem & IGettingStartedNewMenuEntryDescriptor) | IQuickPickSeparator))[] = [];
-			let lastSeparator: IGettingStartedNewMenuEntryDescriptorCategory | undefined;
-			this.newMenuItems
-				.filter(entry => categories.length === 0 || categories.includes(entry.category))
-				.filter(entry => this.contextService.contextMatchesRules(entry.when))
-				.forEach((entry) => {
-					const command = entry.action.runCommand;
-					const keybinding = this.keybindingService.lookupKeybinding(command || '', this.contextService);
-					if (lastSeparator !== entry.category && categories.length !== 1) {
-						items.push({
-							type: 'separator',
-							label: displayCategory[entry.category]
-						});
-						lastSeparator = entry.category;
-					}
-					items.push({
-						...entry,
-						label: entry.title,
-						type: 'item',
-						keybinding,
-						buttons: command ? [
-							{
-								iconClass: 'codicon codicon-gear',
-								tooltip: localize('change keybinding', "Configure Keybinding")
-							}
-						] : [],
-						detail: entry.description,
-						description: entry.from,
-					});
-				});
-			qp.items = items;
-		};
-		refreshQp();
-
-		disposables.add(this.onDidAddNewEntry(() => refreshQp()));
-
-		disposables.add(qp.onDidAccept(async e => {
-			const selected = qp.selectedItems[0] as (IQuickPickItem & IGettingStartedNewMenuEntryDescriptor);
-			if (selected) {
-				if (selected.action.runCommand) {
-					await this.commandService.executeCommand(selected.action.runCommand);
-				} else if (selected.action.invokeFunction) {
-					await this.instantiationService.invokeFunction<unknown>(selected.action.invokeFunction);
-				}
-			}
-			qp.hide();
-		}));
-
-		disposables.add(qp.onDidHide(() => {
-			qp.dispose();
-			disposables.dispose();
-		}));
-
-		disposables.add(qp.onDidTriggerItemButton(e => {
-			qp.hide();
-			this.commandService.executeCommand('workbench.action.openGlobalKeybindings', (e.item as any).action.runCommand);
-		}));
-
-		qp.show();
-	}
-
 	private async getCategoryOverrides(category: BuiltinGettingStartedCategory | BuiltinGettingStartedStartEntry) {
 		if (!this.tasExperimentService) { return; }
 
@@ -511,24 +378,6 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		existingStep.description = description ? parseDescription(description) : existingStep.description;
 		existingStep.media.path = media ? convertInternalMediaPathsToBrowserURIs(media) : existingStep.media.path;
 		this._onDidChangeStep.fire(this.getStepProgress(existingStep));
-	}
-
-	private async registerExtensionNewContributions(extension: IExtensionDescription) {
-		if (product.quality === 'stable' && !this.configurationService.getValue('workbench.welcome.experimental.startEntries')) {
-			console.warn('Warning: ignoring startEntries contributed by', extension.identifier, 'becuase this is a stable build and welcome.experimental.startEntries has not been set');
-			return;
-		}
-		extension.contributes?.startEntries?.forEach(entry => {
-			this.registerNewMenuItem({
-				sourceExtensionId: extension.identifier.value,
-				action: { runCommand: entry.command },
-				description: entry.description,
-				title: entry.title,
-				category: IGettingStartedNewMenuEntryDescriptorCategory[entry.category],
-				when: ContextKeyExpr.deserialize(entry.when) ?? ContextKeyExpr.true(),
-				from: extension.displayName ?? extension.name,
-			});
-		});
 	}
 
 	markWalkthroughOpened(id: string) {
@@ -677,16 +526,6 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		}
 	}
 
-	private registerNewMenuItem(categoryDescriptor: IGettingStartedNewMenuEntryDescriptor) {
-		this.newMenuItems.push(categoryDescriptor);
-		this.newMenuItems.sort((a, b) => b.category - a.category);
-		if (categoryDescriptor.category === IGettingStartedNewMenuEntryDescriptorCategory.file || categoryDescriptor.category === IGettingStartedNewMenuEntryDescriptorCategory.notebook) {
-			HasMultipleNewFileEntries.bindTo(this.contextService).set(true);
-		}
-
-		this._onDidAddNewEntry.fire();
-	}
-
 	private unregisterExtensionWalkthroughContributions(extension: IExtensionDescription) {
 		if (!(extension.contributes?.walkthroughs?.length)) {
 			return;
@@ -701,19 +540,6 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			this.gettingStartedContributions.delete(categoryID);
 			this._onDidRemoveCategory.fire();
 		});
-	}
-
-	private unregisterExtensionNewContributions(extension: IExtensionDescription) {
-		if (!(extension.contributes?.startEntries?.length)) {
-			return;
-		}
-
-		this.newMenuItems = this.newMenuItems.filter(entry => entry.sourceExtensionId !== extension.identifier.value);
-		HasMultipleNewFileEntries.bindTo(this.contextService).set(
-			this.newMenuItems.filter(entry =>
-				entry.category === IGettingStartedNewMenuEntryDescriptorCategory.file
-				|| entry.category === IGettingStartedNewMenuEntryDescriptorCategory.notebook).length > 1
-		);
 	}
 
 	private registerDoneListeners(step: IGettingStartedStep) {
@@ -1024,11 +850,5 @@ registerAction2(class extends Action2 {
 		memento.saveMemento();
 	}
 });
-
-const displayCategory: Record<IGettingStartedNewMenuEntryDescriptorCategory, string> = {
-	[IGettingStartedNewMenuEntryDescriptorCategory.file]: localize('file', "File"),
-	[IGettingStartedNewMenuEntryDescriptorCategory.folder]: localize('folder', "Folder"),
-	[IGettingStartedNewMenuEntryDescriptorCategory.notebook]: localize('notebook', "Notebook"),
-};
 
 registerSingleton(IGettingStartedService, GettingStartedService);

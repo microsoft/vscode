@@ -8,8 +8,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IOffProcessTerminalService, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalIcon, TitleEventSource, TerminalShellType, ICreateContributedTerminalProfileOptions, ICreateTerminalOptions, TerminalLocation } from 'vs/platform/terminal/common/terminal';
-import { ICommandTracker, INavigationMode, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalIcon, TitleEventSource, TerminalShellType, ICreateContributedTerminalProfileOptions, ICreateTerminalOptions, TerminalLocation } from 'vs/platform/terminal/common/terminal';
+import { ICommandTracker, INavigationMode, IOffProcessTerminalService, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
@@ -111,17 +111,17 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	readonly profilesReady: Promise<void>;
 
 	initializeTerminals(): Promise<void>;
-	onActiveGroupChanged: Event<ITerminalGroup | undefined>;
-	onGroupDisposed: Event<ITerminalGroup>;
+	onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
+	onDidDisposeGroup: Event<ITerminalGroup>;
 	onDidCreateInstance: Event<ITerminalInstance>;
-	onInstanceProcessIdReady: Event<ITerminalInstance>;
-	onInstanceDimensionsChanged: Event<ITerminalInstance>;
-	onInstanceMaximumDimensionsChanged: Event<ITerminalInstance>;
-	onInstanceRequestStartExtensionTerminal: Event<IStartExtensionTerminalRequest>;
-	onInstanceTitleChanged: Event<ITerminalInstance | undefined>;
-	onInstanceIconChanged: Event<ITerminalInstance | undefined>;
-	onInstanceColorChanged: Event<ITerminalInstance | undefined>;
-	onInstancePrimaryStatusChanged: Event<ITerminalInstance>;
+	onDidReceiveProcessId: Event<ITerminalInstance>;
+	onDidChangeInstanceDimensions: Event<ITerminalInstance>;
+	onDidMaximumDimensionsChange: Event<ITerminalInstance>;
+	onDidRequestStartExtensionTerminal: Event<IStartExtensionTerminalRequest>;
+	onDidChangeInstanceTitle: Event<ITerminalInstance | undefined>;
+	onDidChangeInstanceIcon: Event<ITerminalInstance | undefined>;
+	onDidChangeInstanceColor: Event<ITerminalInstance | undefined>;
+	onDidChangeInstancePrimaryStatus: Event<ITerminalInstance>;
 	onDidRegisterProcessSupport: Event<void>;
 	onDidChangeConnectionState: Event<void>;
 	onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
@@ -221,7 +221,7 @@ export interface ITerminalGroupService extends ITerminalInstanceHost, ITerminalF
 	/** Fires when a group is created, disposed of, or shown (in the case of a background group). */
 	readonly onDidChangeGroups: Event<void>;
 
-	readonly onPanelOrientationChanged: Event<Orientation>;
+	readonly onDidChangePanelOrientation: Event<Orientation>;
 
 	createGroup(shellLaunchConfig?: IShellLaunchConfig): ITerminalGroup;
 	createGroup(instance?: ITerminalInstance): ITerminalGroup;
@@ -379,6 +379,11 @@ export interface ITerminalInstance {
 	 * Whether the terminal's pty is hosted on a remote.
 	 */
 	readonly isRemote: boolean;
+
+	/**
+	 * Whether an element within this terminal is focused.
+	 */
+	readonly hasFocus: boolean;
 
 	/**
 	 * An event that fires when the terminal instance's title changes.
