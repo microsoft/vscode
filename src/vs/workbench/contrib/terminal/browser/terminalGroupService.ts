@@ -295,8 +295,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		if (this.activeGroupIndex !== instanceLocation.groupIndex) {
 			this.activeGroupIndex = instanceLocation.groupIndex;
 			this._onDidChangeActiveGroup.fire(this.activeGroup);
-			instanceLocation.group.setActiveInstanceByIndex(activeInstanceIndex, true);
 		}
+		instanceLocation.group.setActiveInstanceByIndex(activeInstanceIndex, true);
 		this.groups.forEach((g, i) => g.setVisible(i === instanceLocation.groupIndex));
 
 	}
