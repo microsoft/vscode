@@ -845,9 +845,11 @@ function asTerminalIcon(iconPath?: vscode.Uri | { light: vscode.Uri; dark: vscod
 	if (!iconPath) {
 		return undefined;
 	}
-	if (!('id' in iconPath)) {
+
+	if (typeof iconPath === 'string' || !('id' in iconPath)) {
 		return iconPath;
 	}
+
 	return {
 		id: iconPath.id,
 		color: iconPath.color as ThemeColor
