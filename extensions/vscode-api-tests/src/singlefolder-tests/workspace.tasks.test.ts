@@ -254,7 +254,6 @@ import { assertNoRpc } from '../utils';
 								return Promise.resolve(pty);
 							});
 							const task = new Task(kind, TaskScope.Workspace, taskName, taskType, execution);
-
 							result.push(task);
 							return result;
 						},
