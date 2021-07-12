@@ -143,7 +143,7 @@ export interface IOffProcessTerminalService {
 	onPtyHostRestart: Event<void>;
 
 	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
-	listProcesses(): Promise<IProcessDetails[]>;
+	listProcesses(all?: boolean): Promise<IProcessDetails[]>;
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
 	getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
 	getWslPath(original: string): Promise<string>;
@@ -154,6 +154,11 @@ export interface IOffProcessTerminalService {
 	updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<void>;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;
+}
+
+export interface IMoveWindowArgs {
+	processDetails: IProcessDetails,
+	workspaceId: string
 }
 
 export const ILocalTerminalService = createDecorator<ILocalTerminalService>('localTerminalService');

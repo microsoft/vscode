@@ -130,7 +130,7 @@ import { ICreateTerminalOptions, IShellLaunchConfig, ITerminalChildProcess, ITer
 import { IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { isArray } from 'vs/base/common/types';
-import { ILocalTerminalService, IShellLaunchConfigResolveOptions, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ILocalTerminalService, IMoveWindowArgs, IShellLaunchConfigResolveOptions, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorResolverService } from 'vs/workbench/services/editor/browser/editorResolverService';
 import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
@@ -1664,12 +1664,13 @@ export class TestLocalTerminalService implements ILocalTerminalService {
 	onPtyHostUnresponsive = Event.None;
 	onPtyHostResponsive = Event.None;
 	onPtyHostRestart = Event.None;
+	onDidMoveWindowInstance = Event.None;
 
 	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess> {
 		return new TestTerminalChildProcess(shouldPersist);
 	}
 	async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> { throw new Error('Method not implemented.'); }
-	async listProcesses(): Promise<IProcessDetails[]> { throw new Error('Method not implemented.'); }
+	async listProcesses(all?: boolean): Promise<IProcessDetails[]> { throw new Error('Method not implemented.'); }
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> { throw new Error('Method not implemented.'); }
 	getProfiles(isWorkspaceTrusted: boolean, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> { throw new Error('Method not implemented.'); }
 	getEnvironment(): Promise<IProcessEnvironment> { throw new Error('Method not implemented.'); }
@@ -1681,6 +1682,7 @@ export class TestLocalTerminalService implements ILocalTerminalService {
 	processBinary(id: number, data: string): Promise<void> { throw new Error('Method not implemented.'); }
 	updateTitle(id: number, title: string): Promise<void> { throw new Error('Method not implemented.'); }
 	updateIcon(id: number, icon: URI | { light: URI; dark: URI } | { id: string, color?: { id: string } }, color?: string): Promise<void> { throw new Error('Method not implemented.'); }
+	detachFromOtherWindow(args: IMoveWindowArgs): Promise<void> { throw new Error('Method not implemented.'); }
 }
 
 class TestTerminalChildProcess implements ITerminalChildProcess {

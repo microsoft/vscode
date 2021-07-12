@@ -16,7 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IS_SPLIT_TERMINAL_CONTEXT_KEY, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ILocalTerminalService, IS_SPLIT_TERMINAL_CONTEXT_KEY, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
@@ -540,7 +540,8 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
-		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService
+		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
+		@ILocalTerminalService private readonly _localTerminalService: ILocalTerminalService
 	) { }
 
 	getDragURI(instance: ITerminalInstance): string | null {
@@ -572,7 +573,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		const terminals: ITerminalInstance[] = dndData.filter(e => 'instanceId' in (e as any));
 		if (terminals.length > 0) {
 			originalEvent.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(terminals.map(e => e.resource.toString())));
-			originalEvent.dataTransfer.setData(DataTransfers.TERMINALS, JSON.stringify(terminals.map(e => e.instanceId)));
+			originalEvent.dataTransfer.setData(DataTransfers.TERMINALS, JSON.stringify(terminals.map(e => e.persistentProcessId)));
 		}
 	}
 
@@ -607,7 +608,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		};
 	}
 
-	drop(data: IDragAndDropData, targetInstance: ITerminalInstance | undefined, targetIndex: number | undefined, originalEvent: DragEvent): void {
+	async drop(data: IDragAndDropData, targetInstance: ITerminalInstance | undefined, targetIndex: number | undefined, originalEvent: DragEvent): Promise<void> {
 		this._autoFocusDisposable.dispose();
 		this._autoFocusInstance = undefined;
 
@@ -621,6 +622,20 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 				if (instance) {
 					sourceInstances = [instance];
 					this._terminalService.moveToTerminalView(instance);
+				} else {
+					const processes = await this._localTerminalService.listProcesses(true);
+					this._localTerminalService.reduceConnectionGraceTime();
+
+					const process = processes.filter(r => uri.path.includes(r.id.toString()));
+					if (process.length !== 1) {
+						return;
+					}
+
+					const instance = this._terminalService.createTerminal({
+						config: { attachPersistentProcess: process[0] }
+					});
+					sourceInstances = [instance];
+					this._terminalGroupService.setActiveInstance(instance);
 				}
 			}
 		}

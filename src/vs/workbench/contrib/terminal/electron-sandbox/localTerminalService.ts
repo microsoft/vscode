@@ -121,6 +121,7 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 			}));
 		}
 	}
+
 	async updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void> {
 		await this._localPtyService.updateTitle(id, title, titleSource);
 	}
@@ -149,8 +150,8 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		return undefined;
 	}
 
-	async listProcesses(): Promise<IProcessDetails[]> {
-		return this._localPtyService.listProcesses();
+	async listProcesses(all?: boolean): Promise<IProcessDetails[]> {
+		return this._localPtyService.listProcesses(all);
 	}
 
 	async reduceConnectionGraceTime(): Promise<void> {

@@ -201,7 +201,7 @@ export class RemoteTerminalChannelClient {
 	detachFromProcess(id: number): Promise<void> {
 		return this._channel.call('$detachFromProcess', [id]);
 	}
-	listProcesses(): Promise<IProcessDetails[]> {
+	listProcesses(all?: boolean): Promise<IProcessDetails[]> {
 		return this._channel.call('$listProcesses');
 	}
 	reduceConnectionGraceTime(): Promise<void> {

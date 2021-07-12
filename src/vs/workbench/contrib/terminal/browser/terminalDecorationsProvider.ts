@@ -36,6 +36,7 @@ export class TerminalDecorationsProvider implements IDecorationsProvider {
 			return undefined;
 		}
 
+		// DO: get this from offProcTerminalService
 		const instance = this._terminalService.getInstanceFromResource(resource);
 		if (!instance) {
 			return undefined;

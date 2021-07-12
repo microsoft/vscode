@@ -156,7 +156,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get resource(): URI {
 		return URI.from({
 			scheme: Schemas.vscodeTerminal,
-			path: `/${this.instanceId}`,
+			path: `/${this.persistentProcessId}`,
 			fragment: this.title,
 		});
 	}
