@@ -695,19 +695,19 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 		switch (this.workspaceService.getWorkbenchState()) {
 			case WorkbenchState.EMPTY: {
-				title = trusted ? localize('trustedWindow', "In a trusted window") : localize('untrustedWorkspace', "In Restricted Mode");
+				title = trusted ? localize('trustedWindow', "In a Trusted Window") : localize('untrustedWorkspace', "In Restricted Mode");
 				subTitle = trusted ? localize('trustedWindowSubtitle', "You trust the authors of the files in the current window. All features are enabled:") :
 					localize('untrustedWindowSubtitle', "You do not trust the authors of the files in the current window. The following features are disabled:");
 				break;
 			}
 			case WorkbenchState.FOLDER: {
-				title = trusted ? localize('trustedFolder', "In a trusted folder") : localize('untrustedWorkspace', "In Restricted Mode");
+				title = trusted ? localize('trustedFolder', "In a Trusted Folder") : localize('untrustedWorkspace', "In Restricted Mode");
 				subTitle = trusted ? localize('trustedFolderSubtitle', "You trust the authors of the files in the current folder. All features are enabled:") :
 					localize('untrustedFolderSubtitle', "You do not trust the authors of the files in the current folder. The following features are disabled:");
 				break;
 			}
 			case WorkbenchState.WORKSPACE: {
-				title = trusted ? localize('trustedWorkspace', "In a trusted workspace") : localize('untrustedWorkspace', "In Restricted Mode");
+				title = trusted ? localize('trustedWorkspace', "In a Trusted Workspace") : localize('untrustedWorkspace', "In Restricted Mode");
 				subTitle = trusted ? localize('trustedWorkspaceSubtitle', "You trust the authors of the files in the current workspace. All features are enabled:") :
 					localize('untrustedWorkspaceSubtitle', "You do not trust the authors of the files in the current workspace. The following features are disabled:");
 				break;
