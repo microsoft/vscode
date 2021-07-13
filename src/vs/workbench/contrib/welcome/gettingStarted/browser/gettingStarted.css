@@ -232,9 +232,9 @@
 	font-size: 13px;
 	box-sizing: border-box;
 	line-height: normal;
-	margin: 8px 8px 12px;
+	margin: 8px 8px 12px 0;
 	padding: 3px 6px 6px;
-	left: 1px;
+	left: -3px;
 	text-align: left;
 }
 
