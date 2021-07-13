@@ -18,11 +18,6 @@ const config = withDefaults({
 	output: {
 		filename: 'jsonClientMain.js',
 		path: path.join(__dirname, 'client', 'dist', 'node')
-	},
-	resolve: {
-		fallback: {
-			vertx: false // indirectly required by request-light
-		}
 	}
 });
 
