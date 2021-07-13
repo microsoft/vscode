@@ -942,7 +942,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	public _onDidActivateExtensionError(extensionId: ExtensionIdentifier, error: Error): void {
 		type ExtensionActivationErrorClassification = {
 			extensionId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-			error: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+			error: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
 		};
 		type ExtensionActivationErrorEvent = {
 			extensionId: string;
