@@ -144,7 +144,8 @@ export class TimeTravelScheduler implements Scheduler {
 
 export class AsyncSchedulerProcessor extends Disposable {
 	private isProcessing = false;
-	private readonly history = new Array<ScheduledTask>();
+	private readonly _history = new Array<ScheduledTask>();
+	public get history(): readonly ScheduledTask[] { return this._history; }
 
 	private readonly maxTaskCount: number;
 
@@ -179,10 +180,10 @@ export class AsyncSchedulerProcessor extends Disposable {
 	private process() {
 		const executedTask = this.scheduler.runNext();
 		if (executedTask) {
-			this.history.push(executedTask);
+			this._history.push(executedTask);
 
 			if (history.length >= this.maxTaskCount && this.scheduler.hasScheduledTasks) {
-				const lastTasks = this.history.slice(Math.max(0, history.length - 10)).map(h => `${h.source.toString()}: ${h.source.stackTrace}`);
+				const lastTasks = this._history.slice(Math.max(0, history.length - 10)).map(h => `${h.source.toString()}: ${h.source.stackTrace}`);
 				let e = new Error(`Queue did not get empty after processing ${history.length} items. These are the last ${lastTasks.length} scheduled tasks:\n${lastTasks.join('\n\n\n')}`);
 				this.lastError = e;
 				throw e;
