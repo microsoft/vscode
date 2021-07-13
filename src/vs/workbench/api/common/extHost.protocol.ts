@@ -76,6 +76,7 @@ export interface IEnvironment {
 	globalStorageHome: URI;
 	workspaceStorageHome: URI;
 	useHostProxy?: boolean;
+	skipWorkspaceStorageLock?: boolean;
 }
 
 export interface IStaticWorkspaceData {
