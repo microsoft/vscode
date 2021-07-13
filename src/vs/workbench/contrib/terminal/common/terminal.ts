@@ -156,8 +156,8 @@ export interface IOffProcessTerminalService {
 	updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<void>;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;
-	requestAdoptInstance(workspaceId: string, instanceId: number): Promise<void>;
-	setOrphanToAttach(persistentProcessId: number): Promise<void>;
+	requestDetachInstance(workspaceId: string, instanceId: number): Promise<void>;
+	acceptInstanceForAttachment(persistentProcessId: number): Promise<void>;
 }
 
 export const ILocalTerminalService = createDecorator<ILocalTerminalService>('localTerminalService');

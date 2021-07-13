@@ -231,8 +231,8 @@ export interface IPtyService {
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void>;
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;
-	requestAdoptInstance(workspaceId: string, instanceId: number): Promise<void>;
-	setOrphanToAttach(persistentProcessId: number): Promise<void>;
+	requestDetachInstance(workspaceId: string, instanceId: number): Promise<void>;
+	acceptInstanceForAttachment(persistentProcessId: number): Promise<void>;
 }
 
 export interface IRequestResolveVariablesEvent {

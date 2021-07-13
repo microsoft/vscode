@@ -262,10 +262,11 @@ export class TerminalService implements ITerminalService {
 		this._primaryOffProcessTerminalService = !!this._environmentService.remoteAuthority ? this._remoteTerminalService : this._localTerminalService;
 		this._primaryOffProcessTerminalService.onDidRequestDetach(async (e) => {
 			if (e.workspaceId && this._workspaceContextService.getWorkspace().id === e.workspaceId) {
-				const instanceToDetach = this.instances.find(i => i.instanceId === e.instanceId);
-				if (instanceToDetach?.persistentProcessId) {
-					this._primaryOffProcessTerminalService?.setOrphanToAttach(instanceToDetach.persistentProcessId);
-					instanceToDetach.detachFromProcess();
+				const instanceToDetach = this.getInstanceFromId(e.instanceId);
+				const persistentProcessId = instanceToDetach?.persistentProcessId;
+				if (persistentProcessId) {
+					await instanceToDetach.detachFromProcess();
+					await this._primaryOffProcessTerminalService?.acceptInstanceForAttachment(persistentProcessId);
 				}
 			}
 		});

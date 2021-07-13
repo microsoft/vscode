@@ -154,11 +154,11 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		}
 	}
 
-	async setOrphanToAttach(persistentProcessId: number): Promise<void> {
-		this._remoteTerminalChannel?.setOrphanToAttach(persistentProcessId);
+	async acceptInstanceForAttachment(persistentProcessId: number): Promise<void> {
+		this._remoteTerminalChannel?.acceptInstanceForAttachment(persistentProcessId);
 	}
 
-	async requestAdoptInstance(workspaceId: string, instanceId: number): Promise<void> {
+	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<void> {
 		if (!this._remoteTerminalChannel) {
 			throw new Error(`Cannot request adopt instance when there is no remote!`);
 		}

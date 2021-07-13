@@ -125,12 +125,12 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		}
 	}
 
-	async setOrphanToAttach(persistentProcessId: number): Promise<void> {
-		await this._localPtyService.setOrphanToAttach(persistentProcessId);
+	async acceptInstanceForAttachment(persistentProcessId: number): Promise<void> {
+		await this._localPtyService.acceptInstanceForAttachment(persistentProcessId);
 	}
 
-	async requestAdoptInstance(workspaceId: string, instanceId: number): Promise<void> {
-		await this._localPtyService.requestAdoptInstance(workspaceId, instanceId);
+	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<void> {
+		await this._localPtyService.requestDetachInstance(workspaceId, instanceId);
 	}
 
 	async updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void> {

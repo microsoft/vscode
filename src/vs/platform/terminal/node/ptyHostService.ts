@@ -242,12 +242,12 @@ export class PtyHostService extends Disposable implements IPtyService {
 		return await this._proxy.getTerminalLayoutInfo(args);
 	}
 
-	async requestAdoptInstance(workspaceId: string, instanceId: number): Promise<void> {
-		return this._proxy.requestAdoptInstance(workspaceId, instanceId);
+	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<void> {
+		return this._proxy.requestDetachInstance(workspaceId, instanceId);
 	}
 
-	async setOrphanToAttach(persistentProcessId: number): Promise<void> {
-		return this._proxy.setOrphanToAttach(persistentProcessId);
+	async acceptInstanceForAttachment(persistentProcessId: number): Promise<void> {
+		return this._proxy.acceptInstanceForAttachment(persistentProcessId);
 	}
 
 	async restartPtyHost(): Promise<void> {

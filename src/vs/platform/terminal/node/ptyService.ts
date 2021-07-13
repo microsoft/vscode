@@ -5,9 +5,9 @@
 
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
-import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalsLayoutInfo, IRawTerminalInstanceLayoutInfo, ITerminalTabLayoutInfoById, ITerminalInstanceLayoutInfoById, TerminalShellType, IProcessReadyEvent, TitleEventSource, TerminalIcon, IReconnectConstants, IRequestResolveVariablesEvent } from 'vs/platform/terminal/common/terminal';
+import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalsLayoutInfo, IRawTerminalInstanceLayoutInfo, ITerminalTabLayoutInfoById, ITerminalInstanceLayoutInfoById, TerminalShellType, IProcessReadyEvent, TitleEventSource, TerminalIcon, IReconnectConstants } from 'vs/platform/terminal/common/terminal';
 import { AutoOpenBarrier, Queue, RunOnceScheduler } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
 import { ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto, IProcessDetails, IGetTerminalLayoutInfoArgs, IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
@@ -67,17 +67,12 @@ export class PtyService extends Disposable implements IPtyService {
 			this._ptys.clear();
 		}));
 	}
-	onPtyHostExit?: Event<number> | undefined;
-	onPtyHostStart?: Event<void> | undefined;
-	onPtyHostUnresponsive?: Event<void> | undefined;
-	onPtyHostResponsive?: Event<void> | undefined;
-	onPtyHostRequestResolveVariables?: Event<IRequestResolveVariablesEvent> | undefined;
 
-	async requestAdoptInstance(workspaceId: string, instanceId: number): Promise<void> {
+	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<void> {
 		this._onDidRequestDetach.fire({ workspaceId, instanceId });
 	}
 
-	async setOrphanToAttach(persistentProcessId: number): Promise<void> {
+	async acceptInstanceForAttachment(persistentProcessId: number): Promise<void> {
 		this._processIdToAttach = persistentProcessId;
 	}
 
@@ -158,7 +153,7 @@ export class PtyService extends Disposable implements IPtyService {
 		const allTerminals = await Promise.all(promises);
 		const idToAttach = this._processIdToAttach;
 		this._processIdToAttach = undefined;
-		return allTerminals.filter(entry => getDetachedInstance ? idToAttach === entry.id : entry.isOrphan);
+		return allTerminals.filter(entry => entry.isOrphan && (!getDetachedInstance || idToAttach === entry.id));
 	}
 
 	async start(id: number): Promise<ITerminalLaunchError | undefined> {

@@ -202,8 +202,8 @@ export class RemoteTerminalChannelClient {
 	requestAdoptInstance(workspaceId: string, instanceId: number): Promise<void> {
 		return this._channel.call('$requestAdoptInstance', [workspaceId, instanceId]);
 	}
-	setOrphanToAttach(persistentProcessId: number): Promise<void> {
-		return this._channel.call('$setOrphanToAttach', [persistentProcessId]);
+	acceptInstanceForAttachment(persistentProcessId: number): Promise<void> {
+		return this._channel.call('$acceptInstanceForAttachment', [persistentProcessId]);
 	}
 	attachToProcess(id: number): Promise<void> {
 		return this._channel.call('$attachToProcess', [id]);

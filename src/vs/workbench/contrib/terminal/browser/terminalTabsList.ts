@@ -628,7 +628,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 						sourceInstances = [instance];
 						this._terminalService.moveToTerminalView(instance);
 					} else if (workspaceId !== this._workspaceContextService.getWorkspace().id) {
-						await this._localTerminalService.requestAdoptInstance(workspaceId, Number.parseInt(instanceId));
+						await this._localTerminalService.requestDetachInstance(workspaceId, Number.parseInt(instanceId));
 						const processes = await this._localTerminalService.listProcesses(true);
 						if (processes?.length > 0) {
 							const instance = this._terminalService.createTerminal({
