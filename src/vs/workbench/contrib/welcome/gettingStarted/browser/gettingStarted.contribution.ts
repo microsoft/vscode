@@ -222,8 +222,8 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'welcome.showAllGettingStarted',
-			title: localize('welcome.showAllGettingStarted', "Open Getting Started Page..."),
+			id: 'welcome.showAllWalkthroughs',
+			title: localize('welcome.showAllWalkthroughs', "Open Walkthrough..."),
 			category,
 			f1: true,
 		});
@@ -238,7 +238,7 @@ registerAction2(class extends Action2 {
 			id: x.id,
 			label: x.title,
 			detail: x.description,
-		})), { canPickMany: false, title: localize('pickWalkthroughs', "Open Getting Started Page...") });
+		})), { canPickMany: false, title: localize('pickWalkthroughs', "Open Walkthrough...") });
 		if (selection) {
 			commandService.executeCommand('workbench.action.openWalkthrough', selection.id);
 		}
@@ -266,7 +266,7 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION,
 			type: 'boolean',
 			default: true,
-			description: localize('workbench.welcomePage.walkthroughs.openOnInstall', "When enabled, an extension's walkthrough will open upon install the extension. Walkthroughs are the items contributed the the 'Getting Started' section of the welcome page")
+			description: localize('workbench.welcomePage.walkthroughs.openOnInstall', "When enabled, an extension's walkthrough will open upon install the extension.")
 		}
 	}
 });
