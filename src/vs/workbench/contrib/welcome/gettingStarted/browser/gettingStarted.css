@@ -456,7 +456,7 @@
 	height: 100%;
 	max-width: 1200px;
 	margin: 0 auto;
-	padding: 0 12px;
+	padding: 0 32px;
 	display: grid;
 	grid-template-columns: minmax(auto, 400px) 1fr;
 	grid-template-rows: minmax(40px, 20%) auto max-content 1fr;

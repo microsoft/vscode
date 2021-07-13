@@ -672,6 +672,8 @@ export class GettingStartedPage extends EditorPane {
 						width: 80%;
 						left: 50%;
 						top: 50%;
+						max-width: 530px;
+						min-width: 350px;
 						transform: translate(-50%,-50%);
 					}
 				</style>
