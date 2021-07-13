@@ -172,7 +172,7 @@ export class AsyncSchedulerProcessor extends Disposable {
 		// This allows promises created by a previous task to settle and schedule tasks before the next task is run.
 		// Tasks scheduled in those promises might have to run before the current next task.
 		Promise.resolve().then(() => {
-			process.nextTick(() => this.process());
+			originalGlobalValues.setTimeout(() => this.process());
 		});
 	}
 
