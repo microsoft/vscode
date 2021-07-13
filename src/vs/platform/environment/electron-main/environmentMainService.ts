@@ -30,6 +30,7 @@ export interface IEnvironmentMainService extends INativeEnvironmentService {
 
 	// --- IPC
 	mainIPCHandle: string;
+	mainLockfile: string;
 
 	// --- config
 	sandbox: boolean;
@@ -51,6 +52,9 @@ export class EnvironmentMainService extends NativeEnvironmentService implements 
 
 	@memoize
 	get mainIPCHandle(): string { return createStaticIPCHandle(this.userDataPath, 'main', this.productService.version); }
+
+	@memoize
+	get mainLockfile(): string { return join(this.userDataPath, 'code.lock'); }
 
 	@memoize
 	get sandbox(): boolean { return !!this.args['__sandbox']; }

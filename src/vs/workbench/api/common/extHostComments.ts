@@ -383,7 +383,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			});
 
 			const that = this;
-			this.value = Object.freeze({
+			this.value = {
 				get uri() { return that.uri; },
 				get range() { return that.range; },
 				set range(value: vscode.Range) { that.range = value; },
@@ -400,7 +400,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 				dispose: () => {
 					that.dispose();
 				}
-			});
+			};
 		}
 
 

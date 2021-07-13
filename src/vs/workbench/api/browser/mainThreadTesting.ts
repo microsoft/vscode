@@ -37,7 +37,6 @@ const reviveDiff = (diff: TestsDiff) => {
 export class MainThreadTesting extends Disposable implements MainThreadTestingShape, ITestRootProvider {
 	private readonly proxy: ExtHostTestingShape;
 	private readonly diffListener = this._register(new MutableDisposable());
-	private readonly testSubscriptions = new Map<string, IDisposable>();
 	private readonly testProviderRegistrations = new Map<string, IDisposable>();
 
 	constructor(
@@ -205,10 +204,10 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 
 	public override dispose() {
 		super.dispose();
-		for (const subscription of this.testSubscriptions.values()) {
+		for (const subscription of this.testProviderRegistrations.values()) {
 			subscription.dispose();
 		}
-		this.testSubscriptions.clear();
+		this.testProviderRegistrations.clear();
 	}
 
 	private withLiveRun<T>(runId: string, fn: (run: LiveTestResult) => T): T | undefined {

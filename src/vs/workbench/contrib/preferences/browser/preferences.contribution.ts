@@ -59,6 +59,7 @@ const SETTINGS_EDITOR_COMMAND_FOCUS_UP = 'settings.action.focusLevelUp';
 const SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON = 'settings.switchToJSON';
 const SETTINGS_EDITOR_COMMAND_FILTER_MODIFIED = 'settings.filterByModified';
 const SETTINGS_EDITOR_COMMAND_FILTER_ONLINE = 'settings.filterByOnline';
+const SETTINGS_EDITOR_COMMAND_FILTER_TELEMETRY = 'settings.filterByTelemetry';
 const SETTINGS_EDITOR_COMMAND_FILTER_UNTRUSTED = 'settings.filterUntrusted';
 
 const SETTINGS_COMMAND_OPEN_SETTINGS = 'workbench.action.openSettings';
@@ -474,6 +475,28 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				title: nls.localize('onlineServices', "Online Services Settings")
 			},
 			order: 2
+		});
+
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: SETTINGS_EDITOR_COMMAND_FILTER_TELEMETRY,
+					title: { value: nls.localize('showTelemtrySettings', "Telemetry Settings"), original: 'Telemetry Settings' },
+					menu: {
+						id: MenuId.MenubarPreferencesMenu,
+						group: '1_settings',
+						order: 3,
+					}
+				});
+			}
+			run(accessor: ServicesAccessor) {
+				const editorPane = accessor.get(IEditorService).activeEditorPane;
+				if (editorPane instanceof SettingsEditor2) {
+					editorPane.focusSearch('@tag:telemetry');
+				} else {
+					accessor.get(IPreferencesService).openSettings(false, '@tag:telemetry');
+				}
+			}
 		});
 
 		registerAction2(class extends Action2 {
