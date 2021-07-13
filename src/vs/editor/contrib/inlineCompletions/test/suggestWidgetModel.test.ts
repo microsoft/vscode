@@ -109,7 +109,7 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 	options: TestCodeEditorCreationOptions & { provider?: CompletionItemProvider, fakeClock?: boolean, serviceCollection?: never },
 	callback: (args: { editor: ITestCodeEditor, editorViewModel: ViewModel, model: SuggestWidgetAdapterModel, context: GhostTextContext }) => Promise<void>
 ): Promise<void> {
-	runWithFakedTimers({ useFakeTimers: options.fakeClock }, async () => {
+	await runWithFakedTimers({ useFakeTimers: options.fakeClock }, async () => {
 		const disposableStore = new DisposableStore();
 
 		try {
