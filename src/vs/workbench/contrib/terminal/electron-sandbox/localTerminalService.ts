@@ -161,8 +161,8 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		return undefined;
 	}
 
-	async listProcesses(all?: boolean): Promise<IProcessDetails[]> {
-		return this._localPtyService.listProcesses(all);
+	async listProcesses(getDetachedInstance?: boolean): Promise<IProcessDetails[]> {
+		return this._localPtyService.listProcesses(getDetachedInstance);
 	}
 
 	async reduceConnectionGraceTime(): Promise<void> {

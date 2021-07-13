@@ -214,8 +214,8 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		return undefined;
 	}
 
-	async listProcesses(all?: boolean): Promise<IProcessDetails[]> {
-		const terms = this._remoteTerminalChannel ? await this._remoteTerminalChannel.listProcesses(all) : [];
+	async listProcesses(getDetachedInstance?: boolean): Promise<IProcessDetails[]> {
+		const terms = this._remoteTerminalChannel ? await this._remoteTerminalChannel.listProcesses(getDetachedInstance) : [];
 		return terms.map(termDto => {
 			return <IProcessDetails>{
 				id: termDto.id,
