@@ -118,6 +118,6 @@
     "mocha-junit-reporter": "^1.17.0",
     "mocha-multi-reporters": "^1.1.7",
     "typescript": "^1.6.2",
-    "vscode": "1.1.5"
+    "vscode": "1.1.6"
   }
 }
