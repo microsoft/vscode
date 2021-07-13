@@ -1621,12 +1621,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	updateEditorFocus() {
 		// Note - focus going to the webview will fire 'blur', but the webview element will be
 		// a descendent of the notebook editor root.
-		const focused = DOM.isAncestor(document.activeElement, this._overlayContainer);
+		const focused = this._overlayContainer.contains(document.activeElement);
 		this._editorFocus.set(focused);
 		this.viewModel?.setEditorFocus(focused);
 	}
 
 	hasEditorFocus() {
+		// _editorFocus is driven by the FocusTracker, which is only guaranteed to _eventually_ fire blur.
+		// If we need to know whether we have focus at this instant, we need to check the DOM manually.
+		this.updateEditorFocus();
 		return this._editorFocus.get() || false;
 	}
 
