@@ -488,6 +488,7 @@
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent>.getting-started-category {
 	grid-area: title;
+	align-self: flex-end;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent>.steps-container {
