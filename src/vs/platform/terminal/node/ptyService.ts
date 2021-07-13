@@ -158,7 +158,7 @@ export class PtyService extends Disposable implements IPtyService {
 		const allTerminals = await Promise.all(promises);
 		const idToAttach = this._processIdToAttach;
 		this._processIdToAttach = undefined;
-		return allTerminals.filter(entry => entry.isOrphan && (!getDetachedInstance || idToAttach === entry.id));
+		return allTerminals.filter(entry => getDetachedInstance ? idToAttach === entry.id : entry.isOrphan);
 	}
 
 	async start(id: number): Promise<ITerminalLaunchError | undefined> {

@@ -621,58 +621,57 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 			const json = JSON.parse(terminalResources);
 			for (const entry of json) {
 				const uri = URI.parse(entry);
-				const instance = this._terminalService.instances.find(e => e.resource.path === uri.path);
-				if (instance) {
-					sourceInstances = [instance];
-					this._terminalService.moveToTerminalView(instance);
-				} else {
-					const parsedResource = uri.path.split('/');
-					if (parsedResource.length === 3 && parsedResource[1] !== this._workspaceContextService.getWorkspace().id) {
-						await this._localTerminalService.requestAdoptInstance(parsedResource[1], Number.parseInt(parsedResource[2]));
+				const [, workspaceId, instanceId] = uri.path.split('/');
+				if (workspaceId && instanceId) {
+					const instance = this._terminalService.instances.find(e => e.resource.path === instanceId);
+					if (instance) {
+						sourceInstances = [instance];
+						this._terminalService.moveToTerminalView(instance);
+					} else if (workspaceId !== this._workspaceContextService.getWorkspace().id) {
+						await this._localTerminalService.requestAdoptInstance(workspaceId, Number.parseInt(instanceId));
 						const processes = await this._localTerminalService.listProcesses(true);
-						if (processes && processes?.length > 0) {
+						if (processes?.length > 0) {
 							const instance = this._terminalService.createTerminal({
 								config: { attachPersistentProcess: processes[0] },
 								target: TerminalLocation.TerminalView
 							});
-							this._terminalService.setActiveInstance(instance);
-							return;
+							sourceInstances = [instance];
 						}
 					}
 				}
 			}
-		}
 
-		if (sourceInstances === undefined) {
-			if (!(data instanceof ElementsDragAndDropData)) {
-				this._handleExternalDrop(targetInstance, originalEvent);
-				return;
-			}
+			if (sourceInstances === undefined) {
+				if (!(data instanceof ElementsDragAndDropData)) {
+					this._handleExternalDrop(targetInstance, originalEvent);
+					return;
+				}
 
-			const draggedElement = data.getData();
-			if (!draggedElement || !Array.isArray(draggedElement)) {
-				return;
-			}
+				const draggedElement = data.getData();
+				if (!draggedElement || !Array.isArray(draggedElement)) {
+					return;
+				}
 
-			sourceInstances = [];
-			for (const e of draggedElement) {
-				if ('instanceId' in e) {
-					sourceInstances.push(e as ITerminalInstance);
+				sourceInstances = [];
+				for (const e of draggedElement) {
+					if ('instanceId' in e) {
+						sourceInstances.push(e as ITerminalInstance);
+					}
 				}
 			}
-		}
 
-		if (!targetInstance) {
-			this._terminalGroupService.moveGroupToEnd(sourceInstances[0]);
-			return;
-		}
+			if (!targetInstance) {
+				this._terminalGroupService.moveGroupToEnd(sourceInstances[0]);
+				return;
+			}
 
-		let focused = false;
-		for (const instance of sourceInstances) {
-			this._terminalGroupService.moveGroup(instance, targetInstance);
-			if (!focused) {
-				this._terminalService.setActiveInstance(instance);
-				focused = true;
+			let focused = false;
+			for (const instance of sourceInstances) {
+				this._terminalGroupService.moveGroup(instance, targetInstance);
+				if (!focused) {
+					this._terminalService.setActiveInstance(instance);
+					focused = true;
+				}
 			}
 		}
 	}
