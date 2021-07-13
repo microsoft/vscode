@@ -557,10 +557,6 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		return elements.length === 1 ? elements[0].title : undefined;
 	}
 
-	onDragEnd(originalEvent: DragEvent) {
-		this._terminalService.activeInstance?.detachFromProcess();
-	}
-
 	onDragLeave() {
 		this._autoFocusInstance = undefined;
 		this._autoFocusDisposable.dispose();
@@ -630,11 +626,18 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 					this._terminalService.moveToTerminalView(instance);
 				} else {
 					const parsedResource = uri.path.split('/');
-					if (parsedResource.length !== 2) {
-						return;
+					if (parsedResource.length === 2 && parsedResource[0] !== this._workspaceContextService.getWorkspace().id) {
+						await this._localTerminalService.requestAdoptInstance(parsedResource[0], Number.parseInt(parsedResource[1]));
+						const processes = await this._localTerminalService.listProcesses();
+						if (processes && processes?.length > 0) {
+							const instance = this._terminalService.createTerminal({
+								config: { attachPersistentProcess: processes[0] },
+								target: TerminalLocation.TerminalView
+							});
+							this._terminalService.setActiveInstance(instance);
+							return;
+						}
 					}
-					await this._localTerminalService.requestAdoptInstance(parsedResource[0], Number.parseInt(parsedResource[1]));
-					return;
 				}
 			}
 		}

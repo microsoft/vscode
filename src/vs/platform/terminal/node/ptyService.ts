@@ -73,7 +73,6 @@ export class PtyService extends Disposable implements IPtyService {
 
 	async requestAdoptInstance(workspaceId: string, instanceId: number): Promise<void> {
 		this._onDidRequestDetach.fire({ workspaceId, instanceId });
-
 	}
 
 	async shutdownAll(): Promise<void> {

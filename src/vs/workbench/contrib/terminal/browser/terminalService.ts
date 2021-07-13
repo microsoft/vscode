@@ -167,17 +167,8 @@ export class TerminalService implements ITerminalService {
 		this._findState = new FindReplaceState();
 		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
 		this._primaryOffProcessTerminalService?.onDidRequestDetach(async (e) => {
-			if (this._workspaceContextService.getWorkspace().id === e.workspaceId) {
+			if (e.workspaceId && this._workspaceContextService.getWorkspace().id === e.workspaceId) {
 				this.instances.find(i => i.instanceId === e.instanceId)?.detachFromProcess();
-			} else {
-				const processes = await this._primaryOffProcessTerminalService?.listProcesses();
-				if (processes && processes?.length > 0) {
-					const instance = this.createTerminal({
-						config: { attachPersistentProcess: processes[0] },
-						target: TerminalLocation.TerminalView
-					});
-					this.setActiveInstance(instance);
-				}
 			}
 		});
 		editorResolverService.registerEditor(
