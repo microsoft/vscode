@@ -696,7 +696,7 @@ declare module 'vscode' {
 		 * By default (if the property is false or missing), lifecycle requests are sent to the new session.
 		 * This property is ignored if the session has no parent session.
 		 */
-		managedByParent?: boolean;
+		lifecycleManagedByParent?: boolean;
 	}
 
 	//#endregion
