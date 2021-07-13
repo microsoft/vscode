@@ -142,6 +142,8 @@ export interface IOffProcessTerminalService {
 	 */
 	onPtyHostRestart: Event<void>;
 
+	onDidRequestDetach: Event<{ workspaceId: string, instanceId: number }>;
+
 	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
 	listProcesses(all?: boolean): Promise<IProcessDetails[]>;
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
@@ -154,6 +156,7 @@ export interface IOffProcessTerminalService {
 	updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<void>;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;
+	requestAdoptInstance(workspaceId: string, instanceId: number): Promise<void>;
 }
 
 export const ILocalTerminalService = createDecorator<ILocalTerminalService>('localTerminalService');

@@ -195,6 +195,9 @@ export class RemoteTerminalChannelClient {
 		return await this._channel.call<ICreateTerminalProcessResult>('$createProcess', args);
 	}
 
+	requestAdoptInstance(workspaceId: string, instanceId: number): Promise<void> {
+		return this._channel.call('$requestAdoptInstance', [workspaceId, instanceId]);
+	}
 	attachToProcess(id: number): Promise<void> {
 		return this._channel.call('$attachToProcess', [id]);
 	}

@@ -44,6 +44,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { containsDragType } from 'vs/workbench/browser/dnd';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 const $ = DOM.$;
 
@@ -541,13 +542,14 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
-		@ILocalTerminalService private readonly _localTerminalService: ILocalTerminalService
+		@ILocalTerminalService private readonly _localTerminalService: ILocalTerminalService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) { }
 
 	getDragURI(instance: ITerminalInstance): string | null {
 		return URI.from({
 			scheme: Schemas.vscodeTerminal,
-			path: `/${instance.persistentProcessId?.toString() || instance.instanceId.toString()}`//TODO:@meganrogge fix
+			path: `/${this._workspaceContextService.getWorkspace().id}/${instance.instanceId.toString()}`
 		}).toString();
 	}
 
@@ -577,7 +579,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		const terminals: ITerminalInstance[] = dndData.filter(e => 'instanceId' in (e as any));
 		if (terminals.length > 0) {
 			originalEvent.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(terminals.map(e => e.resource.toString())));
-			originalEvent.dataTransfer.setData(DataTransfers.TERMINALS, JSON.stringify(terminals.map(e => e.persistentProcessId)));
+			originalEvent.dataTransfer.setData(DataTransfers.TERMINALS, JSON.stringify(terminals.map(e => e.instanceId.toString())));
 		}
 	}
 
@@ -627,17 +629,12 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 					sourceInstances = [instance];
 					this._terminalService.moveToTerminalView(instance);
 				} else {
-					const processes = await this._localTerminalService.listProcesses(true);
-					this._localTerminalService.reduceConnectionGraceTime();
-					const process = processes.filter(r => uri.path.includes(r.id.toString()));
-					if (process.length !== 1) {
+					const parsedResource = uri.path.split('/');
+					if (parsedResource.length !== 2) {
 						return;
 					}
-					const instance = this._terminalService.createTerminal({
-						config: { attachPersistentProcess: process[0] }
-					});
-					sourceInstances = [instance];
-					this._terminalGroupService.setActiveInstance(instance);
+					await this._localTerminalService.requestAdoptInstance(parsedResource[0], Number.parseInt(parsedResource[1]));
+					return;
 				}
 			}
 		}

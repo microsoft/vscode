@@ -42,6 +42,8 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 	readonly onPtyHostRestart = this._onPtyHostRestart.event;
 	private readonly _onPtyHostRequestResolveVariables = this._register(new Emitter<IRequestResolveVariablesEvent>());
 	readonly onPtyHostRequestResolveVariables = this._onPtyHostRequestResolveVariables.event;
+	private readonly _onDidRequestDetach = this._register(new Emitter<{ workspaceId: string, instanceId: number }>());
+	readonly onDidRequestDetach = this._onDidRequestDetach.event;
 
 	constructor(
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
@@ -149,6 +151,13 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		} else {
 			this._remoteTerminalChannel = null;
 		}
+	}
+
+	async requestAdoptInstance(workspaceId: string, instanceId: number): Promise<void> {
+		if (!this._remoteTerminalChannel) {
+			throw new Error(`Cannot request adopt instance when there is no remote!`);
+		}
+		return this._remoteTerminalChannel.requestAdoptInstance(workspaceId, instanceId);
 	}
 
 	async createProcess(shellLaunchConfig: IShellLaunchConfig, configuration: ICompleteTerminalConfiguration, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper): Promise<ITerminalChildProcess> {

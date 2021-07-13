@@ -36,6 +36,8 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 	readonly onPtyHostResponsive = this._onPtyHostResponsive.event;
 	private readonly _onPtyHostRestart = this._register(new Emitter<void>());
 	readonly onPtyHostRestart = this._onPtyHostRestart.event;
+	private readonly _onDidRequestDetach = this._register(new Emitter<{ workspaceId: string, instanceId: number }>());
+	readonly onDidRequestDetach = this._onDidRequestDetach.event;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -120,6 +122,10 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 				this._localPtyService.acceptPtyHostResolvedVariables?.(e.id, result);
 			}));
 		}
+	}
+
+	async requestAdoptInstance(workspaceId: string, instanceId: number): Promise<void> {
+		await this._localPtyService.requestAdoptInstance(workspaceId, instanceId);
 	}
 
 	async updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void> {
