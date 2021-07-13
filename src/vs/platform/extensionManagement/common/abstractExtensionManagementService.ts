@@ -20,7 +20,8 @@ import {
 	InstallExtensionResult,
 	UninstallOptions,
 	IGalleryMetadata,
-	StatisticType
+	StatisticType,
+	IExtensionManagementParticipant
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, getMaliciousExtensionsSet, getGalleryExtensionTelemetryData, ExtensionIdentifierWithVersion, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -75,6 +76,8 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 	protected _onDidUninstallExtension = this._register(new Emitter<DidUninstallExtensionEvent>());
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent> = this._onDidUninstallExtension.event;
+
+	private readonly participants: IExtensionManagementParticipant[] = [];
 
 	constructor(
 		@IExtensionGalleryService protected readonly galleryService: IExtensionGalleryService,
@@ -152,6 +155,10 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		return this.reportedExtensions;
 	}
 
+	registerParticipant(participant: IExtensionManagementParticipant): void {
+		this.participants.push(participant);
+	}
+
 	protected async installExtension(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallOptions & InstallVSIXOptions): Promise<ILocalExtension> {
 		// only cache gallery extensions tasks
 		if (!URI.isUri(extension)) {
@@ -217,10 +224,11 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 				}
 
 				// Install extensions in parallel and wait until all extensions are installed / failed
-				const result = await Promise.allSettled(extensionsToInstall.map(async ({ task }) => {
+				await this.joinAllSettled(extensionsToInstall.map(async ({ task }) => {
 					const startTime = new Date().getTime();
 					try {
 						const local = await task.run();
+						await this.joinAllSettled(this.participants.map(participant => participant.postInstall(local, task.source, options, CancellationToken.None)));
 						if (!URI.isUri(task.source)) {
 							reportTelemetry(this.telemetryService, task.operation === InstallOperation.Update ? 'extensionGallery:update' : 'extensionGallery:install', getGalleryExtensionTelemetryData(task.source), new Date().getTime() - startTime, undefined);
 						}
@@ -234,11 +242,6 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 						throw error;
 					} finally { extensionsToInstallMap.delete(task.identifier.id.toLowerCase()); }
 				}));
-
-				// Collect the errors
-				const errors = result.reduce<any[]>((errors, r) => { if (r.status === 'rejected') { errors.push(r.reason); } return errors; }, []);
-				// If there are errors, throw the error.
-				if (errors.length) { throw joinErrors(errors); }
 			}
 
 			installResults.forEach(({ identifier }) => this.logService.info(`Extension installed successfully:`, identifier.id));
@@ -287,6 +290,22 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 				}
 			}
 		}
+	}
+
+	private async joinAllSettled<T>(promises: Promise<T>[]): Promise<T[]> {
+		const results: T[] = [];
+		const errors: any[] = [];
+		const promiseResults = await Promise.allSettled(promises);
+		for (const r of promiseResults) {
+			if (r.status === 'fulfilled') {
+				results.push(r.value);
+			} else {
+				errors.push(r.reason);
+			}
+		}
+		// If there are errors, throw the error.
+		if (errors.length) { throw joinErrors(errors); }
+		return results;
 	}
 
 	private async getAllDepsAndPackExtensionsToInstall(extensionIdentifier: IExtensionIdentifier, manifest: IExtensionManifest, getOnlyNewlyAddedFromExtensionPack: boolean): Promise<{ gallery: IGalleryExtension, manifest: IExtensionManifest }[]> {
@@ -413,9 +432,10 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			}
 
 			// Uninstall extensions in parallel and wait until all extensions are uninstalled / failed
-			const result = await Promise.allSettled(allTasks.map(async task => {
+			await this.joinAllSettled(allTasks.map(async task => {
 				try {
 					await task.run();
+					await this.joinAllSettled(this.participants.map(participant => participant.postUninstall(task.extension, options, CancellationToken.None)));
 					// only report if extension has a mapped gallery extension. UUID identifies the gallery extension.
 					if (task.extension.identifier.uuid) {
 						try {
@@ -431,11 +451,6 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 					processedTasks.push(task);
 				}
 			}));
-
-			// Collect the errors
-			const errors = result.reduce<any[]>((errors, r) => { if (r.status === 'rejected') { errors.push(r.reason); } return errors; }, []);
-			// If there are errors, throw the error.
-			if (errors.length) { throw joinErrors(errors); }
 
 		} catch (e) {
 			const error = e instanceof ExtensionManagementError ? e : new ExtensionManagementError(getErrorMessage(e), ERROR_UNKNOWN);
