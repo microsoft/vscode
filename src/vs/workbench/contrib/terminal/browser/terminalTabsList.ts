@@ -29,7 +29,7 @@ import Severity from 'vs/base/common/severity';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IListDragAndDrop, IListDragOverReaction, IListRenderer, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
 import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
-import { disposableTimeout } from 'vs/base/common/async';
+import { disposableTimeout, timeout } from 'vs/base/common/async';
 import { ElementsDragAndDropData, NativeDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { URI } from 'vs/base/common/uri';
 import { getColorClass, getIconId, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
@@ -628,7 +628,8 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 						sourceInstances = [instance];
 						this._terminalService.moveToTerminalView(instance);
 					} else if (workspaceId !== this._workspaceContextService.getWorkspace().id) {
-						await this._localTerminalService.requestDetachInstance(workspaceId, Number.parseInt(instanceId));
+						this._localTerminalService.requestDetachInstance(workspaceId, Number.parseInt(instanceId));
+						await timeout(300);
 						const processes = await this._localTerminalService.listProcesses(true);
 						if (processes?.length > 0) {
 							const instance = this._terminalService.createTerminal({

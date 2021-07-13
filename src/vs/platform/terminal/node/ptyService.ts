@@ -151,9 +151,15 @@ export class PtyService extends Disposable implements IPtyService {
 		this._logService.info(`Listing ${persistentProcesses.length} persistent terminals, ${this._ptys.size} total terminals`);
 		const promises = persistentProcesses.map(async ([id, terminalProcessData]) => this._buildProcessDetails(id, terminalProcessData));
 		const allTerminals = await Promise.all(promises);
-		const idToAttach = this._processIdToAttach;
-		this._processIdToAttach = undefined;
-		return allTerminals.filter(entry => entry.isOrphan && (!getDetachedInstance || idToAttach === entry.id));
+		if (getDetachedInstance) {
+			if (!this._processIdToAttach) {
+				return [];
+			}
+			const result = allTerminals.filter(entry => entry.isOrphan && entry.id === this._processIdToAttach);
+			this._processIdToAttach = undefined;
+			return result;
+		}
+		return allTerminals.filter(entry => entry.isOrphan);
 	}
 
 	async start(id: number): Promise<ITerminalLaunchError | undefined> {
