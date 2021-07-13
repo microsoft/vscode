@@ -207,9 +207,9 @@ export interface IPtyService {
 	detachFromProcess(id: number): Promise<void>;
 
 	/**
-	 * Lists orphaned processes, ie. those without a connected frontend, unless the all argument is provided.
+	 * Lists orphaned processes, ie. those without a connected frontend, unless only the detached one (via a drop between windows) is requested.
 	 */
-	listProcesses(all?: boolean): Promise<IProcessDetails[]>;
+	listProcesses(getDetachedInstance?: boolean): Promise<IProcessDetails[]>;
 
 	start(id: number): Promise<ITerminalLaunchError | undefined>;
 	shutdown(id: number, immediate: boolean): Promise<void>;
@@ -232,6 +232,7 @@ export interface IPtyService {
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;
 	requestAdoptInstance(workspaceId: string, instanceId: number): Promise<void>;
+	setOrphanToAttach(persistentProcessId: number): Promise<void>;
 }
 
 export interface IRequestResolveVariablesEvent {

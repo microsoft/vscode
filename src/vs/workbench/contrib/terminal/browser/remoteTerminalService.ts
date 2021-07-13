@@ -78,6 +78,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			channel.onProcessResolvedShellLaunchConfig(e => this._ptys.get(e.id)?.handleResolvedShellLaunchConfig(e.event));
 			channel.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
 			channel.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
+			channel.onDidRequestDetach(e => this._onDidRequestDetach.fire(e));
 
 			const allowedCommands = ['_remoteCLI.openExternal', '_remoteCLI.windowOpen', '_remoteCLI.getSystemStatus', '_remoteCLI.manageExtensions'];
 			channel.onExecuteCommand(async e => {
@@ -151,6 +152,10 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		} else {
 			this._remoteTerminalChannel = null;
 		}
+	}
+
+	async setOrphanToAttach(persistentProcessId: number): Promise<void> {
+		this._remoteTerminalChannel?.setOrphanToAttach(persistentProcessId);
 	}
 
 	async requestAdoptInstance(workspaceId: string, instanceId: number): Promise<void> {

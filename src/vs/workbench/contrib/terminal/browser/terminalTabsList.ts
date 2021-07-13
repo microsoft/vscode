@@ -615,8 +615,9 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		this._autoFocusInstance = undefined;
 
 		let sourceInstances: ITerminalInstance[] | undefined;
-		const terminalResources = originalEvent.dataTransfer?.getData(DataTransfers.TERMINALS);
-		if (terminalResources) {
+		const terminalResources = originalEvent.dataTransfer?.getData(DataTransfers.RESOURCES);
+		const terminals = originalEvent.dataTransfer?.getData(DataTransfers.TERMINALS);
+		if (terminals && terminalResources) {
 			const json = JSON.parse(terminalResources);
 			for (const entry of json) {
 				const uri = URI.parse(entry);
@@ -626,9 +627,9 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 					this._terminalService.moveToTerminalView(instance);
 				} else {
 					const parsedResource = uri.path.split('/');
-					if (parsedResource.length === 2 && parsedResource[0] !== this._workspaceContextService.getWorkspace().id) {
-						await this._localTerminalService.requestAdoptInstance(parsedResource[0], Number.parseInt(parsedResource[1]));
-						const processes = await this._localTerminalService.listProcesses();
+					if (parsedResource.length === 3 && parsedResource[1] !== this._workspaceContextService.getWorkspace().id) {
+						await this._localTerminalService.requestAdoptInstance(parsedResource[1], Number.parseInt(parsedResource[2]));
+						const processes = await this._localTerminalService.listProcesses(true);
 						if (processes && processes?.length > 0) {
 							const instance = this._terminalService.createTerminal({
 								config: { attachPersistentProcess: processes[0] },

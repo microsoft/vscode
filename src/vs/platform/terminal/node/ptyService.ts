@@ -27,6 +27,8 @@ export class PtyService extends Disposable implements IPtyService {
 	private readonly _ptys: Map<number, PersistentTerminalProcess> = new Map();
 	private readonly _workspaceLayoutInfos = new Map<WorkspaceId, ISetTerminalLayoutInfoArgs>();
 
+	private _processIdToAttach: number | undefined = undefined;
+
 	private readonly _onHeartbeat = this._register(new Emitter<void>());
 	readonly onHeartbeat = this._onHeartbeat.event;
 
@@ -73,6 +75,10 @@ export class PtyService extends Disposable implements IPtyService {
 
 	async requestAdoptInstance(workspaceId: string, instanceId: number): Promise<void> {
 		this._onDidRequestDetach.fire({ workspaceId, instanceId });
+	}
+
+	async setOrphanToAttach(persistentProcessId: number): Promise<void> {
+		this._processIdToAttach = persistentProcessId;
 	}
 
 	async shutdownAll(): Promise<void> {
@@ -145,13 +151,14 @@ export class PtyService extends Disposable implements IPtyService {
 		}
 	}
 
-	async listProcesses(all?: boolean): Promise<IProcessDetails[]> {
+	async listProcesses(getDetachedInstance?: boolean): Promise<IProcessDetails[]> {
 		const persistentProcesses = Array.from(this._ptys.entries()).filter(([_, pty]) => pty.shouldPersistTerminal);
-
 		this._logService.info(`Listing ${persistentProcesses.length} persistent terminals, ${this._ptys.size} total terminals`);
 		const promises = persistentProcesses.map(async ([id, terminalProcessData]) => this._buildProcessDetails(id, terminalProcessData));
 		const allTerminals = await Promise.all(promises);
-		return all ? allTerminals : allTerminals.filter(entry => entry.isOrphan);
+		const idToAttach = this._processIdToAttach;
+		this._processIdToAttach = undefined;
+		return allTerminals.filter(entry => entry.isOrphan && (!getDetachedInstance || idToAttach === entry.id));
 	}
 
 	async start(id: number): Promise<ITerminalLaunchError | undefined> {

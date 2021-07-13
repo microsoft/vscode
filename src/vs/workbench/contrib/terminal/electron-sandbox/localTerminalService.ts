@@ -67,6 +67,7 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		this._localPtyService.onProcessResolvedShellLaunchConfig(e => this._ptys.get(e.id)?.handleResolvedShellLaunchConfig(e.event));
 		this._localPtyService.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
 		this._localPtyService.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
+		this._localPtyService.onDidRequestDetach(e => this._onDidRequestDetach.fire(e));
 
 		// Attach pty host listeners
 		if (this._localPtyService.onPtyHostExit) {
@@ -122,6 +123,10 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 				this._localPtyService.acceptPtyHostResolvedVariables?.(e.id, result);
 			}));
 		}
+	}
+
+	async setOrphanToAttach(persistentProcessId: number): Promise<void> {
+		await this._localPtyService.setOrphanToAttach(persistentProcessId);
 	}
 
 	async requestAdoptInstance(workspaceId: string, instanceId: number): Promise<void> {

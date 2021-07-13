@@ -118,6 +118,10 @@ export class RemoteTerminalChannelClient {
 		return this._channel.listen<{ reqId: number, commandId: string, commandArgs: any[] }>('$onExecuteCommand');
 	}
 
+	get onDidRequestDetach(): Event<{ workspaceId: string, instanceId: number }> {
+		return this._channel.listen<{ workspaceId: string, instanceId: number }>('$onDidRequestDetach');
+	}
+
 	constructor(
 		private readonly _remoteAuthority: string,
 		private readonly _channel: IChannel,
@@ -197,6 +201,9 @@ export class RemoteTerminalChannelClient {
 
 	requestAdoptInstance(workspaceId: string, instanceId: number): Promise<void> {
 		return this._channel.call('$requestAdoptInstance', [workspaceId, instanceId]);
+	}
+	setOrphanToAttach(persistentProcessId: number): Promise<void> {
+		return this._channel.call('$setOrphanToAttach', [persistentProcessId]);
 	}
 	attachToProcess(id: number): Promise<void> {
 		return this._channel.call('$attachToProcess', [id]);

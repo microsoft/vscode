@@ -157,6 +157,7 @@ export interface IOffProcessTerminalService {
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;
 	requestAdoptInstance(workspaceId: string, instanceId: number): Promise<void>;
+	setOrphanToAttach(persistentProcessId: number): Promise<void>;
 }
 
 export const ILocalTerminalService = createDecorator<ILocalTerminalService>('localTerminalService');

@@ -166,11 +166,7 @@ export class TerminalService implements ITerminalService {
 		this._isShuttingDown = false;
 		this._findState = new FindReplaceState();
 		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
-		this._primaryOffProcessTerminalService?.onDidRequestDetach(async (e) => {
-			if (e.workspaceId && this._workspaceContextService.getWorkspace().id === e.workspaceId) {
-				this.instances.find(i => i.instanceId === e.instanceId)?.detachFromProcess();
-			}
-		});
+
 		editorResolverService.registerEditor(
 			`${Schemas.vscodeTerminal}:/**`,
 			{
@@ -264,6 +260,15 @@ export class TerminalService implements ITerminalService {
 				? this._localTerminalsInitPromise = this._reconnectToLocalTerminals()
 				: Promise.resolve();
 		this._primaryOffProcessTerminalService = !!this._environmentService.remoteAuthority ? this._remoteTerminalService : this._localTerminalService;
+		this._primaryOffProcessTerminalService.onDidRequestDetach(async (e) => {
+			if (e.workspaceId && this._workspaceContextService.getWorkspace().id === e.workspaceId) {
+				const instanceToDetach = this.instances.find(i => i.instanceId === e.instanceId);
+				if (instanceToDetach?.persistentProcessId) {
+					this._primaryOffProcessTerminalService?.setOrphanToAttach(instanceToDetach.persistentProcessId);
+					instanceToDetach.detachFromProcess();
+				}
+			}
+		});
 		initPromise.then(() => this._setConnected());
 
 		// Wait up to 5 seconds for profiles to be ready so it's assured that we know the actual

@@ -1684,6 +1684,7 @@ export class TestLocalTerminalService implements ILocalTerminalService {
 	updateTitle(id: number, title: string): Promise<void> { throw new Error('Method not implemented.'); }
 	updateIcon(id: number, icon: URI | { light: URI; dark: URI } | { id: string, color?: { id: string } }, color?: string): Promise<void> { throw new Error('Method not implemented.'); }
 	requestAdoptInstance(workspaceId: string, instanceId: number): Promise<void> { throw new Error('Method not implemented.'); }
+	setOrphanToAttach(persistentProcessId: number): Promise<void> { throw new Error('Method not implemented.'); }
 }
 
 class TestTerminalChildProcess implements ITerminalChildProcess {

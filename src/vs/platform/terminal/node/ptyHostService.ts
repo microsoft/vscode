@@ -185,8 +185,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 	detachFromProcess(id: number): Promise<void> {
 		return this._proxy.detachFromProcess(id);
 	}
-	listProcesses(all?: boolean): Promise<IProcessDetails[]> {
-		return this._proxy.listProcesses(all);
+	listProcesses(getDetachedInstance?: boolean): Promise<IProcessDetails[]> {
+		return this._proxy.listProcesses(getDetachedInstance);
 	}
 	reduceConnectionGraceTime(): Promise<void> {
 		return this._proxy.reduceConnectionGraceTime();
@@ -244,6 +244,10 @@ export class PtyHostService extends Disposable implements IPtyService {
 
 	async requestAdoptInstance(workspaceId: string, instanceId: number): Promise<void> {
 		return this._proxy.requestAdoptInstance(workspaceId, instanceId);
+	}
+
+	async setOrphanToAttach(persistentProcessId: number): Promise<void> {
+		return this._proxy.setOrphanToAttach(persistentProcessId);
 	}
 
 	async restartPtyHost(): Promise<void> {
