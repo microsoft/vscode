@@ -118,12 +118,12 @@ export class CoordinatesConverter implements ICoordinatesConverter {
 
 	// Model -> View conversion and related methods
 
-	public convertModelPositionToViewPosition(modelPosition: Position, affinity?: PositionAffinity): Position {
-		return this._lines.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column, affinity);
+	public convertModelPositionToViewPosition(modelPosition: Position): Position {
+		return this._lines.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column);
 	}
 
-	public convertModelRangeToViewRange(modelRange: Range, affinity?: PositionAffinity): Range {
-		return this._lines.convertModelRangeToViewRange(modelRange, affinity);
+	public convertModelRangeToViewRange(modelRange: Range): Range {
+		return this._lines.convertModelRangeToViewRange(modelRange);
 	}
 
 	public modelPositionIsVisible(modelPosition: Position): boolean {
@@ -886,12 +886,9 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		return r;
 	}
 
-	/**
-	 * @param affinity The affinity in case of an empty range. Has no effect for non-empty ranges.
-	*/
-	public convertModelRangeToViewRange(modelRange: Range, affinity: PositionAffinity = PositionAffinity.Left): Range {
+	public convertModelRangeToViewRange(modelRange: Range): Range {
 		if (modelRange.isEmpty()) {
-			const start = this.convertModelPositionToViewPosition(modelRange.startLineNumber, modelRange.startColumn, affinity);
+			const start = this.convertModelPositionToViewPosition(modelRange.startLineNumber, modelRange.startColumn, PositionAffinity.Left);
 			return Range.fromPositions(start);
 		} else {
 			const start = this.convertModelPositionToViewPosition(modelRange.startLineNumber, modelRange.startColumn, PositionAffinity.Right);
