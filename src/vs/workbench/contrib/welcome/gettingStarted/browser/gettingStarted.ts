@@ -386,7 +386,7 @@ export class GettingStartedPage extends EditorPane {
 			label: x.title,
 			detail: x.description,
 			description: x.source,
-		})), { canPickMany: false, title: localize('pickWalkthroughs', "Open Walkthrough...") });
+		})), { canPickMany: false, matchOnDescription: true, matchOnDetail: true, title: localize('pickWalkthroughs', "Open Walkthrough...") });
 		if (selection) {
 			this.runDispatchCommand('selectCategory', selection.id);
 		}
