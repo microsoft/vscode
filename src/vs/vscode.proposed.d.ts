@@ -915,6 +915,7 @@ declare module 'vscode' {
 
 	export class DragAndDropData {
 		asString: string;
+		// Later, if we want, we can support an optional asFile
 	}
 
 	export class DragAndDropDataTransfer {
