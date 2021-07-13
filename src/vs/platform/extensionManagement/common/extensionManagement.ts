@@ -204,6 +204,11 @@ export type InstallOptions = { isBuiltin?: boolean, isMachineScoped?: boolean, d
 export type InstallVSIXOptions = InstallOptions & { installOnlyNewlyAddedFromExtensionPack?: boolean };
 export type UninstallOptions = { donotIncludePack?: boolean, donotCheckDependents?: boolean };
 
+export interface IExtensionManagementParticipant {
+	postInstall(local: ILocalExtension, source: URI | IGalleryExtension, options: InstallOptions | InstallVSIXOptions, token: CancellationToken): Promise<void>;
+	postUninstall(local: ILocalExtension, options: UninstallOptions, token: CancellationToken): Promise<void>;
+}
+
 export const IExtensionManagementService = createDecorator<IExtensionManagementService>('extensionManagementService');
 export interface IExtensionManagementService {
 	readonly _serviceBrand: undefined;
@@ -226,6 +231,8 @@ export interface IExtensionManagementService {
 
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension>;
 	updateExtensionScope(local: ILocalExtension, isMachineScoped: boolean): Promise<ILocalExtension>;
+
+	registerParticipant(pariticipant: IExtensionManagementParticipant): void;
 }
 
 export const DISABLED_EXTENSIONS_STORAGE_PATH = 'extensionsIdentifiers/disabled';
