@@ -153,6 +153,7 @@ export class PtyService extends Disposable implements IPtyService {
 		const allTerminals = await Promise.all(promises);
 		if (getDetachedInstance) {
 			if (!this._processIdToAttach) {
+				this._logService.info(`Tried to get a detached instance, but there was no processId to attach to`);
 				return [];
 			}
 			const result = allTerminals.filter(entry => entry.isOrphan && entry.id === this._processIdToAttach);
