@@ -19,11 +19,11 @@ import { TestExclusions } from 'vs/workbench/contrib/testing/common/testExclusio
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { AmbiguousRunTestsRequest, ITestService, MainTestController } from 'vs/workbench/contrib/testing/common/testService';
+import { AmbiguousRunTestsRequest, IMainThreadTestController, ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
 export class TestService extends Disposable implements ITestService {
 	declare readonly _serviceBrand: undefined;
-	private testControllers = new Map<string, MainTestController>();
+	private testControllers = new Map<string, IMainThreadTestController>();
 
 	private readonly cancelExtensionTestRunEmitter = new Emitter<{ runId: string | undefined }>();
 	private readonly processDiffEmitter = new Emitter<TestsDiff>();
@@ -95,7 +95,7 @@ export class TestService extends Disposable implements ITestService {
 	public async runTests(req: AmbiguousRunTestsRequest, token = CancellationToken.None): Promise<ITestResult> {
 		const resolved: ResolvedTestRunRequest = { targets: [], exclude: req.exclude, isAutoRun: req.isAutoRun };
 		for (const byController of groupBy(req.tests, (a, b) => a.controllerId === b.controllerId ? 0 : 1)) {
-			const groups = this.testConfigurationService.controllerGroupConfigurations(byController[0].controllerId, req.group);
+			const groups = this.testConfigurationService.getControllerGroupConfigurations(byController[0].controllerId, req.group);
 			const group = req.preferGroupLabel ? (groups.find(g => g.label === req.preferGroupLabel) || groups[0]) : groups[0];
 			if (group) {
 				resolved.targets.push({
@@ -159,13 +159,6 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
-	public resubscribeToAllTests() {
-		// todo
-	}
-
-	/**
-	 * @inheritdoc
-	 */
 	public publishDiff(_controllerId: string, diff: TestsDiff) {
 		this.collection.apply(diff);
 		this.processDiffEmitter.fire(diff);
@@ -174,7 +167,7 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
-	public registerTestController(id: string, controller: MainTestController): IDisposable {
+	public registerTestController(id: string, controller: IMainThreadTestController): IDisposable {
 		this.testControllers.set(id, controller);
 		this.providerCount.set(this.testControllers.size);
 

@@ -342,9 +342,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			: extHostTypes.ExtensionKind.UI;
 
 		const test: typeof vscode.test = {
-			createTestController(provider) {
+			createTestController(provider, label) {
 				checkProposedApiEnabled(extension);
-				return extHostTesting.createTestController(provider);
+				return extHostTesting.createTestController(provider, label);
 			},
 			createTestObserver() {
 				checkProposedApiEnabled(extension);

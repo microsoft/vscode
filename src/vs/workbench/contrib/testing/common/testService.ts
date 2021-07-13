@@ -10,13 +10,17 @@ import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { AbstractIncrementalTestCollection, IncrementalTestCollectionItem, InternalTestItem, ITestIdWithSrc, ResolvedTestRunRequest, RunTestForControllerRequest, TestIdPath, TestItemExpandState, TestRunConfigurationBitset, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestExclusions } from 'vs/workbench/contrib/testing/common/testExclusions';
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 
 export const ITestService = createDecorator<ITestService>('testService');
 
-export interface MainTestController {
+export interface IMainThreadTestController {
+	readonly id: string;
+	readonly label: IObservableValue<string>;
+	configureRunConfig(configId: number): void;
 	expandTest(src: ITestIdWithSrc, levels: number): Promise<void>;
 	runTests(request: RunTestForControllerRequest, token: CancellationToken): Promise<void>;
 }
@@ -204,7 +208,7 @@ export interface ITestService {
 	/**
 	 * Registers an interface that runs tests for the given provider ID.
 	 */
-	registerTestController(providerId: string, controller: MainTestController): IDisposable;
+	registerTestController(providerId: string, controller: IMainThreadTestController): IDisposable;
 
 	/**
 	 * Requests that tests be executed.
@@ -225,9 +229,4 @@ export interface ITestService {
 	 * Publishes a test diff for a controller.
 	 */
 	publishDiff(controllerId: string, diff: TestsDiff): void;
-
-	/**
-	 * Requests to resubscribe to all active subscriptions, discarding old tests.
-	 */
-	resubscribeToAllTests(): void;
 }

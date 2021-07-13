@@ -22,6 +22,8 @@ export const enum TestRunConfigurationBitset {
 	Run = 1 << 1,
 	Debug = 1 << 2,
 	Coverage = 1 << 3,
+	HasNonDefaultConfig = 1 << 4,
+	HasConfigurable = 1 << 5,
 }
 
 /**
@@ -31,6 +33,7 @@ export const testRunConfigurationBitsetList = [
 	TestRunConfigurationBitset.Run,
 	TestRunConfigurationBitset.Debug,
 	TestRunConfigurationBitset.Coverage,
+	TestRunConfigurationBitset.HasNonDefaultConfig,
 ];
 
 /**

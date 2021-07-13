@@ -26,7 +26,7 @@ import { ITestingProgressUiService, TestingProgressUiService } from 'vs/workbenc
 import { TestingViewPaneContainer } from 'vs/workbench/contrib/testing/browser/testingViewPaneContainer';
 import { testingConfiguation } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { TestIdPath, ITestIdWithSrc, identifyTest, TestRunConfigurationBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { identifyTest, ITestIdWithSrc, TestIdPath, TestRunConfigurationBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestConfigurationService, TestConfigurationService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
 import { ITestingAutoRun, TestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
 import { TestingContentProvider } from 'vs/workbench/contrib/testing/common/testingContentProvider';
@@ -38,6 +38,7 @@ import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { TestService } from 'vs/workbench/contrib/testing/common/testServiceImpl';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { allTestActions, runTestsByPath } from './testExplorerActions';
+import './testingConfigurationUi';
 
 registerSingleton(ITestService, TestService, true);
 registerSingleton(ITestResultStorage, TestResultStorage, true);

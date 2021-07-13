@@ -26,10 +26,11 @@ import { REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/contrib/files/browse
 import { IActionableTestTreeElement, TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestExplorerFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
-import { TestingExplorerView, TestingExplorerViewModel } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
+import type { TestingExplorerView, TestingExplorerViewModel } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
 import { TestExplorerViewMode, TestExplorerViewSorting, Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { identifyTest, InternalTestItem, ITestIdWithSrc, ITestItem, TestIdPath, TestRunConfigurationBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { identifyTest, InternalTestItem, ITestIdWithSrc, ITestItem, ITestRunConfiguration, TestIdPath, TestRunConfigurationBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestConfigurationService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
 import { ITestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
@@ -48,12 +49,11 @@ const enum ActionOrder {
 	Debug,
 	Coverage,
 	AutoRun,
-	Collapse,
 
 	// Submenu:
+	Collapse,
 	DisplayMode,
 	Sort,
-	Refresh,
 }
 
 const hasAnyTestProvider = ContextKeyGreaterExpr.create(TestingContextKeys.providerCount.key, 0);
@@ -130,7 +130,6 @@ export class DebugAction extends Action2 {
 	}
 }
 
-
 export class RunAction extends Action2 {
 	public static readonly ID = 'testing.run';
 	constructor() {
@@ -155,6 +154,37 @@ export class RunAction extends Action2 {
 			tests: [...Iterable.concatNested(elements.map(e => e.tests))],
 			group: TestRunConfigurationBitset.Run,
 		});
+	}
+}
+
+export class ConfigureTestsAction extends Action2 {
+	public static readonly ID = 'testing.configureTests';
+	constructor() {
+		super({
+			id: ConfigureTestsAction.ID,
+			title: localize('testing.configureTests', 'Configure Tests'),
+			icon: icons.testingUpdateConfiguration,
+			f1: true,
+			category,
+			menu: {
+				id: MenuId.CommandPalette,
+				when: TestingContextKeys.hasConfigurableConfig.isEqualTo(true),
+			},
+		});
+	}
+
+	public override async run(acessor: ServicesAccessor) {
+		const commands = acessor.get(ICommandService);
+		const testConfigurationService = acessor.get(ITestConfigurationService);
+		const configuration = await commands.executeCommand<ITestRunConfiguration>('vscode.pickTestConfiguration', {
+			placeholder: localize('configureTests', 'Select a configuration to update'),
+			showConfigureButtons: false,
+			onlyConfigurable: true,
+		});
+
+		if (configuration) {
+			testConfigurationService.configure(configuration.controllerId, configuration.configId);
+		}
 	}
 }
 
@@ -491,7 +521,7 @@ export class CollapseAllAction extends ViewAction<TestingExplorerView> {
 			menu: {
 				id: MenuId.ViewTitle,
 				order: ActionOrder.Collapse,
-				group: 'navigation',
+				group: 'cikkaose',
 				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
 			}
 		});
@@ -502,33 +532,6 @@ export class CollapseAllAction extends ViewAction<TestingExplorerView> {
 	 */
 	public runInView(_accessor: ServicesAccessor, view: TestingExplorerView) {
 		view.viewModel.collapseAll();
-	}
-}
-
-export class RefreshTestsAction extends Action2 {
-	public static readonly ID = 'testing.refreshTests';
-	constructor() {
-		super({
-			id: RefreshTestsAction.ID,
-			title: localize('testing.refresh', "Refresh Tests"),
-			category,
-			menu: [{
-				id: MenuId.ViewTitle,
-				order: ActionOrder.Refresh,
-				group: 'refresh',
-				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
-			}, {
-				id: MenuId.CommandPalette,
-				when: TestingContextKeys.providerCount.isEqualTo(true),
-			}],
-		});
-	}
-
-	/**
-	 * @override
-	 */
-	public run(accessor: ServicesAccessor) {
-		accessor.get(ITestService).resubscribeToAllTests();
 	}
 }
 
@@ -1085,6 +1088,7 @@ export const allTestActions = [
 	CancelTestRunAction,
 	ClearTestResultsAction,
 	CollapseAllAction,
+	ConfigureTestsAction,
 	DebugAction,
 	DebugAllAction,
 	DebugAtCursor,
@@ -1095,7 +1099,6 @@ export const allTestActions = [
 	GoToTest,
 	HideTestAction,
 	OpenOutputPeek,
-	RefreshTestsAction,
 	ReRunFailedTests,
 	ReRunLastRun,
 	RunAction,

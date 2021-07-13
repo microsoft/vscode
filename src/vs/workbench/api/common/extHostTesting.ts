@@ -53,14 +53,22 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	/**
 	 * Implements vscode.test.registerTestProvider
 	 */
-	public createTestController(controllerId: string): vscode.TestController {
+	public createTestController(controllerId: string, label: string): vscode.TestController {
 		const disposable = new DisposableStore();
 		const collection = disposable.add(new SingleUseTestCollection(controllerId));
 		const initialExpand = disposable.add(new RunOnceScheduler(() => collection.expand(collection.root.id, 0), 0));
 		const configurations = new Map<number, vscode.TestRunConfiguration>();
+		const proxy = this.proxy;
 
 		const controller: vscode.TestController = {
 			root: collection.root,
+			get label() {
+				return label;
+			},
+			set label(value: string) {
+				label = value;
+				proxy.$updateControllerLabel(controllerId, label);
+			},
 			get id() {
 				return controllerId;
 			},
@@ -100,13 +108,13 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			},
 		};
 
-		this.proxy.$registerTestController(controllerId);
-		disposable.add(toDisposable(() => this.proxy.$unregisterTestController(controllerId)));
+		proxy.$registerTestController(controllerId, label);
+		disposable.add(toDisposable(() => proxy.$unregisterTestController(controllerId)));
 
 		this.controllers.set(controllerId, { controller, collection, configurations });
 		disposable.add(toDisposable(() => this.controllers.delete(controllerId)));
 
-		disposable.add(collection.onDidGenerateDiff(diff => this.proxy.$publishDiff(controllerId, diff)));
+		disposable.add(collection.onDidGenerateDiff(diff => proxy.$publishDiff(controllerId, diff)));
 
 		return controller;
 	}
@@ -164,6 +172,11 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	 */
 	$resolveFileCoverage(runId: string, taskId: string, fileIndex: number, token: CancellationToken): Promise<CoverageDetails[]> {
 		return Iterable.find(this.runTracker.trackers, t => t.id === runId)?.getCoverage(taskId)?.resolveFileCoverage(fileIndex, token) ?? Promise.resolve([]);
+	}
+
+	/** @inheritdoc */
+	$configureRunConfig(controllerId: string, configId: number) {
+		this.controllers.get(controllerId)?.configurations.get(configId)?.configureHandler?.();
 	}
 
 	/**

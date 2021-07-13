@@ -24,6 +24,7 @@ import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/testing';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { localize } from 'vs/nls';
+import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -48,7 +49,7 @@ import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/comm
 import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
 import { HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
 import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
-import { testingHiddenIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
+import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestExplorerFilterState, TestExplorerFilterState, TestingExplorerFilter } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { ITestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
@@ -61,7 +62,7 @@ import { cmpPriority, isFailedState, isStateWithResult } from 'vs/workbench/cont
 import { getPathForTestInResult, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService, testCollectionIsEmpty } from 'vs/workbench/contrib/testing/common/testService';
-import { GoToTest } from './testExplorerActions';
+import { DebugAllAction, GoToTest, RunAllAction } from './testExplorerActions';
 
 export class TestingExplorerView extends ViewPane {
 	public viewModel!: TestingExplorerViewModel;
@@ -82,9 +83,10 @@ export class TestingExplorerView extends ViewPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITestService testService: ITestService,
+		@ITestService private readonly testService: ITestService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ITestingProgressUiService private readonly testProgressService: ITestingProgressUiService,
+		@ITestConfigurationService private readonly testConfigurationService: ITestConfigurationService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.location.set(viewDescriptorService.getViewLocationById(Testing.ExplorerViewId) ?? ViewContainerLocation.Sidebar);
@@ -153,15 +155,65 @@ export class TestingExplorerView extends ViewPane {
 		}
 	}
 
-	/**
-	 * @override
-	 */
+	/** @override  */
 	public override getActionViewItem(action: IAction): IActionViewItem | undefined {
-		if (action.id === Testing.FilterActionId) {
-			return this.instantiationService.createInstance(TestingExplorerFilter, action);
+		switch (action.id) {
+			case Testing.FilterActionId:
+				return this.instantiationService.createInstance(TestingExplorerFilter, action);
+			case RunAllAction.ID:
+				return this.getRunGroupDropdown(TestRunConfigurationBitset.Run, action);
+			case DebugAllAction.ID:
+				return this.getRunGroupDropdown(TestRunConfigurationBitset.Debug, action);
+			default:
+				return super.getActionViewItem(action);
+		}
+	}
+
+	/** @inheritdoc */
+	private getTestConfigGroupActions(group: TestRunConfigurationBitset) {
+		const actions: IAction[] = [];
+
+		let participatingGroups = 0;
+		for (const { configs, controller } of this.testConfigurationService.all()) {
+			let hasAdded = false;
+
+			for (const config of configs) {
+				if (config.group !== group) {
+					continue;
+				}
+
+				if (!hasAdded) {
+					hasAdded = true;
+					participatingGroups++;
+					actions.push(new Action(`${controller.id}.$root`, controller.label.value, undefined, false));
+				}
+
+				actions.push(new Action(
+					`${controller.id}.${config.configId}`,
+					config.label,
+					undefined,
+					undefined,
+					() => this.testService.runResolvedTests({
+						targets: [{
+							configGroup: config.group,
+							configId: config.configId,
+							configLabel: config.label,
+							controllerId: config.controllerId,
+							testIds: this.getSelectedOrVisibleItems()
+								.filter(i => i.controllerId === config.controllerId)
+								.map(i => i.item.extId),
+						}]
+					}),
+				));
+			}
 		}
 
-		return super.getActionViewItem(action);
+		// If there's only one group, don't add a heading for it in the dropdown.
+		if (participatingGroups === 1) {
+			actions.shift();
+		}
+
+		return actions;
 	}
 
 	/**
@@ -169,6 +221,38 @@ export class TestingExplorerView extends ViewPane {
 	 */
 	public override saveState() {
 		super.saveState();
+	}
+
+	/**
+	 * If items in the tree are selected, returns them. Otherwise, returns
+	 * visible tests.
+	 */
+	private getSelectedOrVisibleItems() {
+		return [...this.testService.collection.rootItems]; // todo
+	}
+
+	private getRunGroupDropdown(group: TestRunConfigurationBitset, defaultAction: IAction) {
+		const dropdownActions = this.getTestConfigGroupActions(group);
+		if (dropdownActions.length < 2) {
+			return super.getActionViewItem(defaultAction);
+		}
+
+		const primaryAction = this.instantiationService.createInstance(MenuItemAction, {
+			id: defaultAction.id,
+			title: defaultAction.label,
+			icon: group === TestRunConfigurationBitset.Run
+				? icons.testingRunAllIcon
+				: icons.testingDebugAllIcon,
+		}, undefined, undefined);
+
+		const dropdownAction = new Action('selectRunConfig', 'Select Configuration...', 'codicon-chevron-down', true);
+
+		return this.instantiationService.createInstance(
+			DropdownWithPrimaryActionViewItem,
+			primaryAction, dropdownAction, dropdownActions,
+			'',
+			this.contextMenuService,
+		);
 	}
 
 	private createFilterActionBar() {
@@ -911,7 +995,7 @@ abstract class ActionableItemTemplateData<T extends TestItemTreeElement> extends
 		const name = dom.append(wrapper, dom.$('.name'));
 		const label = this.labels.create(name, { supportHighlights: true });
 
-		dom.append(wrapper, dom.$(ThemeIcon.asCSSSelector(testingHiddenIcon)));
+		dom.append(wrapper, dom.$(ThemeIcon.asCSSSelector(icons.testingHiddenIcon)));
 		const actionBar = new ActionBar(wrapper, {
 			actionRunner: this.actionRunner,
 			actionViewItemProvider: action =>
@@ -978,7 +1062,7 @@ class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
 		const testHidden = this.testService.excluded.contains(identifyTest(node.element.test));
 		data.wrapper.classList.toggle('test-is-hidden', testHidden);
 
-		const icon = testingStatesToIcons.get(
+		const icon = icons.testingStatesToIcons.get(
 			node.element.test.expand === TestItemExpandState.BusyExpanding || node.element.test.item.busy
 				? TestResultState.Running
 				: node.element.state);

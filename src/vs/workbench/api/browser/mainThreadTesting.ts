@@ -17,7 +17,7 @@ import { ITestConfigurationService } from 'vs/workbench/contrib/testing/common/t
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { ITestRootProvider, ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { IMainThreadTestController, ITestRootProvider, ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { ExtHostContext, ExtHostTestingShape, IExtHostContext, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
 
 const reviveDiff = (diff: TestsDiff) => {
@@ -38,7 +38,11 @@ const reviveDiff = (diff: TestsDiff) => {
 export class MainThreadTesting extends Disposable implements MainThreadTestingShape, ITestRootProvider {
 	private readonly proxy: ExtHostTestingShape;
 	private readonly diffListener = this._register(new MutableDisposable());
-	private readonly testProviderRegistrations = new Map<string, IDisposable>();
+	private readonly testProviderRegistrations = new Map<string, {
+		instance: IMainThreadTestController;
+		label: MutableObservableValue<string>;
+		disposable: IDisposable
+	}>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -71,7 +75,10 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	 * @inheritdoc
 	 */
 	$publishTestRunConfig(config: ITestRunConfiguration): void {
-		this.testConfiguration.addConfiguration(config);
+		const controller = this.testProviderRegistrations.get(config.controllerId);
+		if (controller) {
+			this.testConfiguration.addConfiguration(controller.instance, config);
+		}
 	}
 
 	/**
@@ -180,23 +187,43 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	/**
 	 * @inheritdoc
 	 */
-	public $registerTestController(controllerId: string) {
+	public $registerTestController(controllerId: string, labelStr: string) {
 		const disposable = new DisposableStore();
-
-		disposable.add(toDisposable(() => this.testConfiguration.removeConfiguration(controllerId)));
-		disposable.add(this.testService.registerTestController(controllerId, {
+		const label = new MutableObservableValue(labelStr);
+		const controller: IMainThreadTestController = {
+			id: controllerId,
+			label,
+			configureRunConfig: id => this.proxy.$configureRunConfig(controllerId, id),
 			runTests: (req, token) => this.proxy.$runControllerTests(req, token),
 			expandTest: (src, levels) => this.proxy.$expandTest(src, isFinite(levels) ? levels : -1),
-		}));
+		};
 
-		this.testProviderRegistrations.set(controllerId, disposable);
+
+		disposable.add(toDisposable(() => this.testConfiguration.removeConfiguration(controllerId)));
+		disposable.add(this.testService.registerTestController(controllerId, controller));
+
+		this.testProviderRegistrations.set(controllerId, {
+			instance: controller,
+			label,
+			disposable
+		});
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public $updateControllerLabel(controllerId: string, label: string) {
+		const controller = this.testProviderRegistrations.get(controllerId);
+		if (controller) {
+			controller.label.value = label;
+		}
 	}
 
 	/**
 	 * @inheritdoc
 	 */
 	public $unregisterTestController(controllerId: string) {
-		this.testProviderRegistrations.get(controllerId)?.dispose();
+		this.testProviderRegistrations.get(controllerId)?.disposable.dispose();
 		this.testProviderRegistrations.delete(controllerId);
 	}
 
@@ -231,7 +258,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	public override dispose() {
 		super.dispose();
 		for (const subscription of this.testProviderRegistrations.values()) {
-			subscription.dispose();
+			subscription.disposable.dispose();
 		}
 		this.testProviderRegistrations.clear();
 	}

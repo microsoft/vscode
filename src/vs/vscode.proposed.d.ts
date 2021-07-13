@@ -1772,7 +1772,7 @@ declare module 'vscode' {
 		 *
 		 * @param id Identifier for the controller, must be globally unique.
 		 */
-		export function createTestController(id: string): TestController;
+		export function createTestController(id: string, label: string): TestController;
 
 		/**
 		 * Requests that tests be run by their controller.
@@ -1930,6 +1930,11 @@ declare module 'vscode' {
 		 * The ID of the controller, passed in {@link vscode.test.createTestController}
 		 */
 		readonly id: string;
+
+		/**
+		 * Human-readable label for the test controller.
+		 */
+		label: string;
 
 		/**
 		 * Root test item. Tests in the workspace should be added as children of

@@ -8,6 +8,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITestRunConfiguration, TestRunConfigurationBitset, testRunConfigurationBitsetList } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+import { IMainThreadTestController } from 'vs/workbench/contrib/testing/common/testService';
 
 export const ITestConfigurationService = createDecorator<ITestConfigurationService>('testConfigurationService');
 
@@ -22,7 +23,7 @@ export interface ITestConfigurationService {
 	/**
 	 * Publishes a new test configuration.
 	 */
-	addConfiguration(config: ITestRunConfiguration): void;
+	addConfiguration(controller: IMainThreadTestController, config: ITestRunConfiguration): void;
 
 	/**
 	 * Updates an existing test run configuration
@@ -43,9 +44,27 @@ export interface ITestConfigurationService {
 	controllerCapabilities(controllerId: string): number;
 
 	/**
-	 * Gets the configurations for the group, in priorty order.
+	 * Configures a test configuration.
 	 */
-	controllerGroupConfigurations(controllerId: string, group: TestRunConfigurationBitset): readonly ITestRunConfiguration[];
+	configure(controllerId: string, configId: number): void;
+
+	/**
+	 * Gets all registered controllers, grouping by controller.
+	 */
+	all(): Iterable<Readonly<{ controller: IMainThreadTestController, configs: ITestRunConfiguration[] }>>;
+
+	/**
+	 * Gets the configurations for a controller, in priority order.
+	 */
+	getControllerConfigurations(controllerId: string): undefined | {
+		controller: IMainThreadTestController;
+		configs: ITestRunConfiguration[];
+	};
+
+	/**
+	 * Gets the configurations for the group in a controller, in priorty order.
+	 */
+	getControllerGroupConfigurations(controllerId: string, group: TestRunConfigurationBitset): readonly ITestRunConfiguration[];
 }
 
 const sorter = (a: ITestRunConfiguration, b: ITestRunConfiguration) => {
@@ -66,40 +85,52 @@ export const capabilityContextKeys = (capabilities: number): [key: string, value
 	[TestingContextKeys.hasCoverableTests.key, (capabilities & TestRunConfigurationBitset.Coverage) !== 0],
 ];
 
+
 export class TestConfigurationService implements ITestConfigurationService {
 	declare readonly _serviceBrand: undefined;
 	private readonly capabilitiesContexts: { [K in TestRunConfigurationBitset]: IContextKey<boolean> };
 	private readonly changeEmitter = new Emitter<void>();
 	private readonly controllerConfigs = new Map</* controller ID */string, {
 		configs: ITestRunConfiguration[],
+		controller: IMainThreadTestController,
 		capabilities: number,
 	}>();
 
 	/** @inheritdoc */
 	public readonly onDidChange = this.changeEmitter.event;
 
-	constructor(@IContextKeyService contextKeyService: IContextKeyService) {
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
 		this.capabilitiesContexts = {
 			[TestRunConfigurationBitset.Run]: TestingContextKeys.hasRunnableTests.bindTo(contextKeyService),
 			[TestRunConfigurationBitset.Debug]: TestingContextKeys.hasDebuggableTests.bindTo(contextKeyService),
 			[TestRunConfigurationBitset.Coverage]: TestingContextKeys.hasCoverableTests.bindTo(contextKeyService),
+			[TestRunConfigurationBitset.HasNonDefaultConfig]: TestingContextKeys.hasNonDefaultConfig.bindTo(contextKeyService),
+			[TestRunConfigurationBitset.HasConfigurable]: TestingContextKeys.hasConfigurableConfig.bindTo(contextKeyService),
 		};
 
 		this.refreshContextKeys();
 	}
 
 	/** @inheritdoc */
-	public addConfiguration(config: ITestRunConfiguration): void {
-		const existing = this.controllerConfigs.get(config.controllerId);
-		if (existing) {
-			existing.configs.push(config);
-			existing.configs.sort(sorter);
-			existing.capabilities |= config.group;
+	public addConfiguration(controller: IMainThreadTestController, config: ITestRunConfiguration): void {
+		let record = this.controllerConfigs.get(config.controllerId);
+		if (record) {
+			record.configs.push(config);
+			record.configs.sort(sorter);
+			record.capabilities |= config.group;
 		} else {
-			this.controllerConfigs.set(config.controllerId, {
+			record = {
 				configs: [config],
+				controller,
 				capabilities: config.group
-			});
+			};
+			this.controllerConfigs.set(config.controllerId, record);
+		}
+
+		if (!config.isDefault) {
+			record.capabilities |= TestRunConfigurationBitset.HasNonDefaultConfig;
 		}
 
 		this.refreshContextKeys();
@@ -121,6 +152,11 @@ export class TestConfigurationService implements ITestConfigurationService {
 		Object.assign(config, update);
 		ctrl.configs.sort(sorter);
 		this.changeEmitter.fire();
+	}
+
+	/** @inheritdoc */
+	public configure(controllerId: string, configId: number) {
+		this.controllerConfigs.get(controllerId)?.controller.configureRunConfig(configId);
 	}
 
 	/** @inheritdoc */
@@ -157,7 +193,17 @@ export class TestConfigurationService implements ITestConfigurationService {
 	}
 
 	/** @inheritdoc */
-	public controllerGroupConfigurations(controllerId: string, group: TestRunConfigurationBitset) {
+	public all() {
+		return this.controllerConfigs.values();
+	}
+
+	/** @inheritdoc */
+	public getControllerConfigurations(controllerId: string) {
+		return this.controllerConfigs.get(controllerId);
+	}
+
+	/** @inheritdoc */
+	public getControllerGroupConfigurations(controllerId: string, group: TestRunConfigurationBitset) {
 		return this.controllerConfigs.get(controllerId)?.configs.filter(c => c.group === group) ?? [];
 	}
 

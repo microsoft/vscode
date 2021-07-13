@@ -139,9 +139,9 @@ export class TestResultService implements ITestResultService {
 
 		let config: ITestRunConfiguration | undefined;
 		if (!req.config) {
-			config = this.testConfiguration.controllerGroupConfigurations(req.controllerId, TestRunConfigurationBitset.Run)[0];
+			config = this.testConfiguration.getControllerGroupConfigurations(req.controllerId, TestRunConfigurationBitset.Run)[0];
 		} else {
-			const configs = this.testConfiguration.controllerGroupConfigurations(req.controllerId, req.config.group);
+			const configs = this.testConfiguration.getControllerGroupConfigurations(req.controllerId, req.config.group);
 			config = configs.find(c => c.configId === req.config!.id) || configs[0];
 		}
 

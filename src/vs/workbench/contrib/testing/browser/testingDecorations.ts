@@ -30,7 +30,7 @@ import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browse
 import { testMessageSeverityColors } from 'vs/workbench/contrib/testing/browser/theme';
 import { DefaultGutterClickAction, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { labelForTestInState } from 'vs/workbench/contrib/testing/common/constants';
-import { identifyTest, IncrementalTestCollectionItem, InternalTestItem, IRichLocation, ITestMessage, TestResultItem, TestRunConfigurationBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { identifyTest, IncrementalTestCollectionItem, InternalTestItem, IRichLocation, ITestMessage, ITestRunConfiguration, TestResultItem, TestRunConfigurationBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestConfigurationService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
 import { maxPriority } from 'vs/workbench/contrib/testing/common/testingStates';
 import { buildTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
@@ -417,6 +417,25 @@ abstract class RunTestDecoration extends Disposable {
 				group: TestRunConfigurationBitset.Debug,
 				tests: [identifyTest(test)],
 			})));
+		}
+
+		if (capabilities & TestRunConfigurationBitset.HasNonDefaultConfig) {
+			testActions.push(new Action('testing.gutter.runUsing', localize('run using', 'Run Using...'), undefined, undefined, async () => {
+				const config: ITestRunConfiguration | undefined = await this.commandService.executeCommand('vscode.pickTestConfiguration', test.controllerId);
+				if (!config) {
+					return;
+				}
+
+				this.testService.runResolvedTests({
+					targets: [{
+						configGroup: config.group,
+						configId: config.configId,
+						configLabel: config.label,
+						controllerId: config.controllerId,
+						testIds: [test.item.extId]
+					}]
+				});
+			}));
 		}
 
 		testActions.push(new Action('testing.gutter.reveal', localize('reveal test', 'Reveal in Test Explorer'), undefined, undefined, async () => {

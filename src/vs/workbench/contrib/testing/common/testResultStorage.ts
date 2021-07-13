@@ -275,7 +275,7 @@ export class TestResultStorage extends BaseTestResultStorage {
 		await Promise.all(
 			children
 				.filter(child => !stored.has(child.name.replace(/\.[a-z]+$/, '')))
-				.map(child => this.fileService.del(child.resource))
+				.map(child => this.fileService.del(child.resource).catch(() => undefined))
 		);
 	}
 

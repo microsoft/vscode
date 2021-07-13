@@ -2087,13 +2087,17 @@ export interface ExtHostTestingShape {
 	 * Requires file coverage to have been previously requested via $provideFileCoverage.
 	 */
 	$resolveFileCoverage(runId: string, taskId: string, fileIndex: number, token: CancellationToken): Promise<CoverageDetails[]>;
+	/** Configures a test run config. */
+	$configureRunConfig(controllerId: string, configId: number): void;
 }
 
 export interface MainThreadTestingShape {
 	// --- test lifecycle:
 
-	/** Registeres that there's a test controller with the given ID */
-	$registerTestController(controllerId: string): void;
+	/** Registers that there's a test controller with the given ID */
+	$registerTestController(controllerId: string, label: string): void;
+	/** Updates the label of an existing test controller. */
+	$updateControllerLabel(controllerId: string, label: string): void;
 	/** Diposes of the test controller with the given ID */
 	$unregisterTestController(controllerId: string): void;
 	/** Requests tests published to VS Code. */
