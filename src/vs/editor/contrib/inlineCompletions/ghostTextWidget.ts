@@ -264,7 +264,7 @@ class DecorationsWidget implements IDisposable {
 			lastIndex = p.column - 1;
 
 			// To avoid visual confusion, we don't want to render visible whitespace
-			const contentText = this.renderSingleLineText(p.text, currentLinePrefix, tabSize, false);
+			const contentText = shouldUseInjectedText ? p.text : this.renderSingleLineText(p.text, currentLinePrefix, tabSize, false);
 
 			const decorationType = this.disposableStore.add(registerDecorationType(this.codeEditorService, 'ghost-text', '0-ghost-text-', {
 				after: {
