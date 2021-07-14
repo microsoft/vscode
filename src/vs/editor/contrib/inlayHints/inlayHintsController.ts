@@ -126,7 +126,7 @@ export class InlayHintsController implements IEditorContribution {
 		this._disposables.add(this._editor.onDidScrollChange(() => scheduler.schedule()));
 		scheduler.schedule();
 
-		// update inline hints when any any provider fires an event
+		// update inline hints when any provider fires an event
 		const providerListener = new DisposableStore();
 		this._sessionDisposables.add(providerListener);
 		for (const provider of InlayHintsProviderRegistry.all(model)) {
@@ -172,7 +172,7 @@ export class InlayHintsController implements IEditorContribution {
 					shouldUseInjectedText ? { beforeInjectedText: { ...before, affectsLetterSpacing: true } } : { before }, undefined, this._editor);
 
 				// decoration types are ref-counted which means we only need to
-				// call register und remove equally often
+				// call register and remove equally often
 				newDecorationsTypeIds.push(key);
 
 				const options = this._codeEditorService.resolveDecorationOptions(key, true);
