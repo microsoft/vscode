@@ -546,3 +546,12 @@
 .extension-editor .extensions-grid-view > .extension-container:focus > .extension-list-item > .details .header > .name:hover {
 	text-decoration: underline;
 }
+.extension-editor > .body > .content .runtime-status .no-status-message,
+.extension-editor > .body > .content .runtime-status .activation-message {
+	font-size: medium;
+}
+
+.extension-editor > .body > .content .runtime-status .message-entry {
+	display: flex;
+	align-items: center;
+}

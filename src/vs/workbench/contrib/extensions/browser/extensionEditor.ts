@@ -11,9 +11,9 @@ import { OS } from 'vs/base/common/platform';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Cache, CacheResult } from 'vs/base/common/cache';
 import { Action, IAction } from 'vs/base/common/actions';
-import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
+import { getErrorMessage, isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { dispose, toDisposable, Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { append, $, finalHandler, join, hide, show, addDisposableListener, EventType, setParentFlowTo } from 'vs/base/browser/dom';
+import { append, $, finalHandler, join, hide, show, addDisposableListener, EventType, setParentFlowTo, reset } from 'vs/base/browser/dom';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -35,13 +35,13 @@ import {
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
-import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Color } from 'vs/base/common/color';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ExtensionsTree, ExtensionData, ExtensionsGridView, getExtensions } from 'vs/workbench/contrib/extensions/browser/extensionsViewer';
 import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
@@ -69,6 +69,8 @@ import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { attachKeybindingLabelStyler } from 'vs/platform/theme/common/styler';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { errorIcon, infoIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 
 class NavBar extends Disposable {
 
@@ -462,6 +464,18 @@ export class ExtensionEditor extends EditorPane {
 			template.navbar.push(ExtensionEditorTab.ExtensionPack, localize('extensionpack', "Extension Pack"), localize('extensionpacktooltip', "Lists extensions those will be installed together with this extension"));
 		}
 
+		const addRuntimeStatusSection = () => template.navbar.push(ExtensionEditorTab.RuntimeStatus, localize('runtimeStatus', "Runtime Status"), localize('runtimeStatus description', "Extension runtime status"));
+		if (this.extensionsWorkbenchService.getExtensionStatus(extension)) {
+			addRuntimeStatusSection();
+		} else {
+			const disposable = this.extensionService.onDidChangeExtensionsStatus(e => {
+				if (e.some(extensionIdentifier => areSameExtensions({ id: extensionIdentifier.value }, extension.identifier))) {
+					addRuntimeStatusSection();
+					disposable.dispose();
+				}
+			}, this, this.transientDisposables);
+		}
+
 		if (template.navbar.currentId) {
 			this.onNavbarChange(extension, { id: template.navbar.currentId, focus: !preserveFocus }, template);
 		}
@@ -555,6 +569,7 @@ export class ExtensionEditor extends EditorPane {
 			case ExtensionEditorTab.Changelog: return this.openChangelog(template, token);
 			case ExtensionEditorTab.Dependencies: return this.openExtensionDependencies(extension, template, token);
 			case ExtensionEditorTab.ExtensionPack: return this.openExtensionPack(extension, template, token);
+			case ExtensionEditorTab.RuntimeStatus: return this.showRuntimeStatus(extension, template, token);
 		}
 		return Promise.resolve(null);
 	}
@@ -871,6 +886,75 @@ export class ExtensionEditor extends EditorPane {
 		this.contentDisposables.add(dependenciesTree);
 		scrollableContent.scanDomNode();
 		return Promise.resolve({ focus() { dependenciesTree.domFocus(); } });
+	}
+
+	private async showRuntimeStatus(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+		const content = $('div', { class: 'subcontent', tabindex: '0' });
+
+		const scrollableContent = new DomScrollableElement(content, {});
+		const layout = () => scrollableContent.scanDomNode();
+		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
+		this.contentDisposables.add(toDisposable(removeLayoutParticipant));
+
+		const updateContent = () => {
+			scrollableContent.scanDomNode();
+			reset(content, this.renderRuntimeStatus(extension, layout));
+		};
+
+		updateContent();
+		this.extensionService.onDidChangeExtensionsStatus(e => {
+			if (e.some(extensionIdentifier => areSameExtensions({ id: extensionIdentifier.value }, extension.identifier))) {
+				updateContent();
+			}
+		}, this, this.contentDisposables);
+
+		append(template.content, scrollableContent.getDomNode());
+		return content;
+	}
+
+	private renderRuntimeStatus(extension: IExtension, onDetailsToggle: Function): HTMLElement {
+		const extensionStatus = this.extensionsWorkbenchService.getExtensionStatus(extension);
+		const element = $('.runtime-status');
+
+		if (extensionStatus?.activationTimes) {
+			const activationTime = extensionStatus.activationTimes.codeLoadingTime + extensionStatus.activationTimes.activateCallTime;
+			append(element, $('div.activation-message', undefined, `${localize('activation', "Activation time")}: ${activationTime}ms`));
+		}
+
+		else if (extension.local && (extension.local.manifest.main || extension.local.manifest.browser)) {
+			append(element, $('div.activation-message', undefined, localize('not yet activated', "Not yet activated.")));
+		}
+
+		if (extensionStatus?.runtimeErrors.length) {
+			append(element, $('details', { open: true, ontoggle: onDetailsToggle },
+				$('summary', { tabindex: '0' }, localize('uncaught errors', "Uncaught Errors ({0})", extensionStatus.runtimeErrors.length)),
+				$('div', undefined,
+					...extensionStatus.runtimeErrors.map(error => $('div.message-entry', undefined,
+						$(`span${ThemeIcon.asCSSSelector(errorIcon)}`, undefined),
+						$('span', undefined, getErrorMessage(error)),
+					))
+				),
+			));
+		}
+
+		if (extensionStatus?.messages.length) {
+			append(element, $('details', { open: true, ontoggle: onDetailsToggle },
+				$('summary', { tabindex: '0' }, localize('messages', "Messages ({0})", extensionStatus?.messages.length)),
+				$('div', undefined,
+					...extensionStatus.messages.sort((a, b) => b.type - a.type)
+						.map(message => $('div.message-entry', undefined,
+							$(`span${ThemeIcon.asCSSSelector(message.type === Severity.Error ? errorIcon : message.type === Severity.Warning ? warningIcon : infoIcon)}`, undefined),
+							$('span', undefined, message.message)
+						))
+				),
+			));
+		}
+
+		if (element.children.length === 0) {
+			append(element, $('div.no-status-message')).textContent = localize('noStatus', "No status available.");
+		}
+
+		return element;
 	}
 
 	private async renderExtensionPack(manifest: IExtensionManifest, parent: HTMLElement, token: CancellationToken): Promise<void> {

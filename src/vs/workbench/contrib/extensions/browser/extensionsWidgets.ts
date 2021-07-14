@@ -524,14 +524,14 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 
 				if (extensionStatus.runtimeErrors.length) {
 					markdown.appendText(`\n`);
-					markdown.appendMarkdown(`- $(${errorIcon.id}) [${extensionStatus.runtimeErrors.length === 1 ? localize('uncaught error', '1 uncaught error') : localize('uncaught errors', '{0} uncaught errors', extensionStatus.runtimeErrors.length)}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, 'status']))}`)})`);
+					markdown.appendMarkdown(`- $(${errorIcon.id}) [${extensionStatus.runtimeErrors.length === 1 ? localize('uncaught error', '1 uncaught error') : localize('uncaught errors', '{0} uncaught errors', extensionStatus.runtimeErrors.length)}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.RuntimeStatus]))}`)})`);
 				}
 
 				if (extensionStatus.messages.length) {
 					markdown.appendText(`\n`);
 					const hasErrors = extensionStatus.messages.some(message => message.type === Severity.Error);
 					const hasWarnings = extensionStatus.messages.some(message => message.type === Severity.Warning);
-					markdown.appendMarkdown(`- $(${hasErrors ? errorIcon.id : hasWarnings ? warningIcon.id : infoIcon.id}) [${extensionStatus.messages.length === 1 ? localize('message', '1 message') : localize('messages', '{0} messages', extensionStatus.messages.length)}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, 'status']))}`)})`);
+					markdown.appendMarkdown(`- $(${hasErrors ? errorIcon.id : hasWarnings ? warningIcon.id : infoIcon.id}) [${extensionStatus.messages.length === 1 ? localize('message', '1 message') : localize('messages', '{0} messages', extensionStatus.messages.length)}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.RuntimeStatus]))}`)})`);
 				}
 			}
 		}

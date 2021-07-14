@@ -2733,6 +2733,7 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	if (errorColor) {
 		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.extension-status-icon-error { color: ${errorColor}; }`);
 		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.extension-status-icon-error { color: ${errorColor}; }`);
+		collector.addRule(`.extension-editor .body .subcontent .runtime-status ${ThemeIcon.asCSSSelector(errorIcon)} { color: ${errorColor}; }`);
 		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(errorIcon)} { color: ${errorColor}; }`);
 	}
 
@@ -2740,6 +2741,7 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	if (warningColor) {
 		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.extension-status-icon-warning { color: ${warningColor}; }`);
 		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.extension-status-icon-warning { color: ${warningColor}; }`);
+		collector.addRule(`.extension-editor .body .subcontent .runtime-status ${ThemeIcon.asCSSSelector(warningIcon)} { color: ${warningColor}; }`);
 		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(warningIcon)} { color: ${warningColor}; }`);
 	}
 
@@ -2747,6 +2749,7 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	if (infoColor) {
 		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.extension-status-icon-info { color: ${infoColor}; }`);
 		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.extension-status-icon-info { color: ${infoColor}; }`);
+		collector.addRule(`.extension-editor .body .subcontent .runtime-status ${ThemeIcon.asCSSSelector(infoIcon)} { color: ${infoColor}; }`);
 		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(infoIcon)} { color: ${infoColor}; }`);
 	}
 });
