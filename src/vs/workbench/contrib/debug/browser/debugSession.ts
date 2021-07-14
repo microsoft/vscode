@@ -46,6 +46,7 @@ export class DebugSession implements IDebugSession {
 
 	private sources = new Map<string, Source>();
 	private threads = new Map<number, Thread>();
+	private threadIds: number[] = [];
 	private cancellationMap = new Map<number, CancellationTokenSource[]>();
 	private rawListeners: IDisposable[] = [];
 	private fetchThreadsScheduler: RunOnceScheduler | undefined;
@@ -694,7 +695,12 @@ export class DebugSession implements IDebugSession {
 
 	getAllThreads(): IThread[] {
 		const result: IThread[] = [];
-		this.threads.forEach(t => result.push(t));
+		this.threadIds.forEach((threadId) => {
+			const thread = this.threads.get(threadId);
+			if (thread) {
+				result.push(thread);
+			}
+		});
 		return result;
 	}
 
@@ -729,9 +735,9 @@ export class DebugSession implements IDebugSession {
 	}
 
 	rawUpdate(data: IRawModelUpdate): void {
-		const threadIds: number[] = [];
+		this.threadIds = [];
 		data.threads.forEach(thread => {
-			threadIds.push(thread.id);
+			this.threadIds.push(thread.id);
 			if (!this.threads.has(thread.id)) {
 				// A new thread came in, initialize it.
 				this.threads.set(thread.id, new Thread(this, thread.name, thread.id));
@@ -745,7 +751,7 @@ export class DebugSession implements IDebugSession {
 		});
 		this.threads.forEach(t => {
 			// Remove all old threads which are no longer part of the update #75980
-			if (threadIds.indexOf(t.threadId) === -1) {
+			if (this.threadIds.indexOf(t.threadId) === -1) {
 				this.threads.delete(t.threadId);
 			}
 		});
