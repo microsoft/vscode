@@ -79,7 +79,10 @@ const enum Constants {
 	 * terminal process. This period helps ensure the terminal has good initial dimensions to work
 	 * with if it's going to be a foreground terminal.
 	 */
-	WaitForContainerThreshold = 100
+	WaitForContainerThreshold = 100,
+
+	DefaultCols = 80,
+	DefaultRows = 30,
 }
 
 let xtermConstructor: Promise<typeof XTermTerminal> | undefined;
@@ -538,9 +541,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
 
 		const xterm = new Terminal({
-			// TODO: Replace null with undefined when https://github.com/xtermjs/xterm.js/issues/3329 is resolved
-			cols: this._cols || null as any,
-			rows: this._rows || null as any,
+			cols: this._cols || Constants.DefaultCols,
+			rows: this._rows || Constants.DefaultRows,
 			altClickMovesCursor: config.altClickMovesCursor && editorOptions.multiCursorModifier === 'alt',
 			scrollback: config.scrollback,
 			theme: this._getXtermTheme(),
@@ -1159,8 +1161,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this._isDisposed) {
 			return;
 		}
+
+		// Re-evaluate dimensions if the container has been set since the xterm instance was created
+		if (this._container && this._cols === 0 && this._rows === 0) {
+			this._initDimensions();
+			this._xterm?.resize(this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows);
+		}
+
 		const hadIcon = !!this.shellLaunchConfig.icon;
-		await this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows, this._accessibilityService.isScreenReaderOptimized()).then(error => {
+		await this._processManager.createProcess(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, this._accessibilityService.isScreenReaderOptimized()).then(error => {
 			if (error) {
 				this._onProcessExit(error);
 			}
