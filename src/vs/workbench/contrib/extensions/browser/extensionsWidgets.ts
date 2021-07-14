@@ -440,7 +440,11 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 			this.hover.value = setupCustomHover({
 				delay: this.configurationService.getValue<number>('workbench.hover.delay'),
 				showHover: (options) => {
-					return this.hoverService.showHover({ ...options, hoverPosition: this.options.position() });
+					return this.hoverService.showHover({
+						...options,
+						hoverPosition: this.options.position(),
+						additionalClasses: ['extension-hover']
+					});
 				},
 				placement: 'element'
 			}, this.options.target, { markdown: () => Promise.resolve(this.getHoverMarkdown()), markdownNotSupportedFallback: undefined });
