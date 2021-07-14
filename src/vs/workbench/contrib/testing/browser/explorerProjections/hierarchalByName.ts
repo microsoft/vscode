@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Iterable } from 'vs/base/common/iterator';
 import { TestExplorerTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections';
 import { flatTestItemDelimiter } from 'vs/workbench/contrib/testing/browser/explorerProjections/display';
 import { HierarchicalByLocationProjection as HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
 import { ByLocationTestItemElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalNodes';
 import { NodeRenderDirective } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
-import { InternalTestItem, ITestItemUpdate } from 'vs/workbench/contrib/testing/common/testCollection';
+import { InternalTestItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
@@ -18,11 +17,9 @@ import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
  */
 export const enum ListElementType {
 	/** The element is a leaf test that should be shown in the list */
-	TestLeaf,
+	Leaf,
 	/** The element is not runnable, but doesn't have any nested leaf tests */
-	BranchWithLeaf,
-	/** The element has nested leaf tests */
-	BranchWithoutLeaf,
+	Branch,
 	/** State not yet computed */
 	Unset,
 }
@@ -59,17 +56,6 @@ export class ByNameTestItemElement extends ByLocationTestItemElement {
 	}
 
 	/**
-	 * @override
-	 */
-	public override update(patch: ITestItemUpdate) {
-		super.update(patch);
-
-		if (patch.item?.runnable !== undefined) {
-			this.updateLeafTestState();
-		}
-	}
-
-	/**
 	 * Should be called when the list element is removed.
 	 */
 	public remove() {
@@ -92,11 +78,9 @@ export class ByNameTestItemElement extends ByLocationTestItemElement {
 	 * here, the children will already be leaves, or not.
 	 */
 	private updateLeafTestState() {
-		const newType = Iterable.some(this.actualChildren, c => c.elementType !== ListElementType.BranchWithoutLeaf)
-			? ListElementType.BranchWithLeaf
-			: this.test.item.runnable
-				? ListElementType.TestLeaf
-				: ListElementType.BranchWithoutLeaf;
+		const newType = this.children.size
+			? ListElementType.Branch
+			: ListElementType.Leaf;
 
 		if (newType !== this.elementType) {
 			this.elementType = newType;
@@ -118,7 +102,7 @@ export class HierarchicalByNameProjection extends HierarchicalByLocationProjecti
 
 		const originalRenderNode = this.renderNode.bind(this);
 		this.renderNode = (node, recurse) => {
-			if (node instanceof ByNameTestItemElement && node.elementType !== ListElementType.TestLeaf && !node.isTestRoot) {
+			if (node instanceof ByNameTestItemElement && node.elementType !== ListElementType.Leaf && !node.isTestRoot) {
 				return NodeRenderDirective.Concat;
 			}
 

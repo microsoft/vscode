@@ -9,6 +9,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
+import { hash } from 'vs/base/common/hash';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshalling';
@@ -19,15 +20,16 @@ import { ExtHostTestingShape, MainContext, MainThreadTestingShape } from 'vs/wor
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
-import { TestItemImpl } from 'vs/workbench/api/common/extHostTypes';
+import { TestItemImpl, TestRunConfigurationGroup, TestRunRequest } from 'vs/workbench/api/common/extHostTypes';
 import { SingleUseTestCollection, TestPosition } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
-import { AbstractIncrementalTestCollection, CoverageDetails, IFileCoverage, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, ISerializedTestResults, ITestIdWithSrc, ITestItem, RunTestForControllerRequest, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { AbstractIncrementalTestCollection, CoverageDetails, IFileCoverage, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, ISerializedTestResults, ITestIdWithSrc, ITestItem, RunTestForControllerRequest, TestRunConfigurationBitset, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import type * as vscode from 'vscode';
 
 export class ExtHostTesting implements ExtHostTestingShape {
 	private readonly resultsChangedEmitter = new Emitter<void>();
 	private readonly controllers = new Map</* controller ID */ string, {
 		controller: vscode.TestController,
+		configurations: Map<number, vscode.TestRunConfiguration>,
 		collection: SingleUseTestCollection,
 	}>();
 	private readonly proxy: MainThreadTestingShape;
@@ -51,15 +53,36 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	/**
 	 * Implements vscode.test.registerTestProvider
 	 */
-	public createTestController(controllerId: string): vscode.TestController {
+	public createTestController(controllerId: string, label: string): vscode.TestController {
 		const disposable = new DisposableStore();
 		const collection = disposable.add(new SingleUseTestCollection(controllerId));
 		const initialExpand = disposable.add(new RunOnceScheduler(() => collection.expand(collection.root.id, 0), 0));
+		const configurations = new Map<number, vscode.TestRunConfiguration>();
+		const proxy = this.proxy;
 
 		const controller: vscode.TestController = {
 			root: collection.root,
+			get label() {
+				return label;
+			},
+			set label(value: string) {
+				label = value;
+				proxy.$updateControllerLabel(controllerId, label);
+			},
 			get id() {
 				return controllerId;
+			},
+			createRunConfiguration: (label, group, runHandler, isDefault) => {
+				// Derive the config ID from a hash so that the same config will tend
+				// to have the same hashes, allowing re-run requests to work across reloads.
+				let configId = hash(label);
+				while (configurations.has(configId)) {
+					configId++;
+				}
+
+				const config = new TestRunConfigurationImpl(this.proxy, controllerId, configId, label, group, runHandler, isDefault);
+				configurations.set(configId, config);
+				return config;
 			},
 			createTestRun: (request, name, persist = true) => {
 				return this.runTracker.createTestRun(controllerId, request, name, persist);
@@ -85,13 +108,13 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			},
 		};
 
-		this.proxy.$registerTestController(controllerId);
-		disposable.add(toDisposable(() => this.proxy.$unregisterTestController(controllerId)));
+		proxy.$registerTestController(controllerId, label);
+		disposable.add(toDisposable(() => proxy.$unregisterTestController(controllerId)));
 
-		this.controllers.set(controllerId, { controller, collection });
+		this.controllers.set(controllerId, { controller, collection, configurations });
 		disposable.add(toDisposable(() => this.controllers.delete(controllerId)));
 
-		disposable.add(collection.onDidGenerateDiff(diff => this.proxy.$publishDiff(controllerId, diff)));
+		disposable.add(collection.onDidGenerateDiff(diff => proxy.$publishDiff(controllerId, diff)));
 
 		return controller;
 	}
@@ -108,16 +131,31 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	 * Implements vscode.test.runTests
 	 */
 	public async runTests(req: vscode.TestRunRequest, token = CancellationToken.None) {
+		const config = tryGetConfigFromTestRunReq(req);
+		if (!config) {
+			throw new Error('The request passed to `vscode.test.runTests` must include a configuration');
+		}
+
+		if (!req.tests.length) {
+			return;
+		}
+
 		const testListToProviders = (tests: ReadonlyArray<vscode.TestItem>) =>
 			tests
 				.map(this.getInternalTestForReference, this)
 				.filter(isDefined)
-				.map(t => ({ controllerId: t.controllerId, testId: t.item.extId }));
+				.map(t => ({ controllerId: t.controllerId, testId: t.item.extId, configId: config }));
 
 		await this.proxy.$runTests({
-			exclude: req.exclude ? testListToProviders(req.exclude).map(t => t.testId) : undefined,
-			tests: testListToProviders(req.tests),
-			debug: req.debug
+			targets: [{
+				testIds: req.tests.map(t => t.id),
+				profileGroup: configGroupToBitset[config.group],
+				profileId: config.configId,
+				controllerId: config.controllerId,
+			}],
+			exclude: req.exclude
+				? testListToProviders(req.exclude).map(t => ({ testId: t.testId, controllerId: t.controllerId }))
+				: undefined,
 		}, token);
 	}
 
@@ -133,6 +171,11 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	 */
 	$resolveFileCoverage(runId: string, taskId: string, fileIndex: number, token: CancellationToken): Promise<CoverageDetails[]> {
 		return Iterable.find(this.runTracker.trackers, t => t.id === runId)?.getCoverage(taskId)?.resolveFileCoverage(fileIndex, token) ?? Promise.resolve([]);
+	}
+
+	/** @inheritdoc */
+	$configureRunConfig(controllerId: string, configId: number) {
+		this.controllers.get(controllerId)?.configurations.get(configId)?.configureHandler?.();
 	}
 
 	/**
@@ -182,7 +225,12 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			return;
 		}
 
-		const { controller, collection } = lookup;
+		const { collection, configurations } = lookup;
+		const configuration = configurations.get(req.configId);
+		if (!configuration) {
+			return;
+		}
+
 		const includeTests = req.testIds
 			.map((testId) => collection.tree.get(testId))
 			.filter(isDefined);
@@ -198,16 +246,16 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			return;
 		}
 
-		const publicReq: vscode.TestRunRequest = {
-			tests: includeTests.map(t => t.actual),
-			exclude: excludeTests.map(t => t.actual),
-			debug: req.debug,
-		};
+		const publicReq = new TestRunRequest(
+			includeTests.map(t => t.actual),
+			excludeTests.map(t => t.actual),
+			configuration,
+		);
 
 		const tracker = this.runTracker.prepareForMainThreadTestRun(publicReq, TestRunDto.fromInternal(req), token);
 
 		try {
-			await controller.runHandler?.(publicReq, token);
+			await configuration.runHandler(publicReq, token);
 		} finally {
 			if (tracker.isRunning && !token.isCancellationRequested) {
 				await Event.toPromise(tracker.onEnd);
@@ -357,8 +405,10 @@ export class TestRunCoordinator {
 		// If there is not an existing tracked extension for the request, start
 		// a new, detached session.
 		const dto = TestRunDto.fromPublic(controllerId, request);
+		const config = tryGetConfigFromTestRunReq(request);
 		this.proxy.$startedExtensionTestRun({
-			debug: request.debug,
+			controllerId,
+			config: config && { group: configGroupToBitset[config.group], id: config.configId },
 			exclude: request.exclude?.map(t => t.id) ?? [],
 			id: dto.id,
 			tests: request.tests.map(t => t.id),
@@ -377,6 +427,18 @@ export class TestRunCoordinator {
 		return tracker;
 	}
 }
+
+const tryGetConfigFromTestRunReq = (request: vscode.TestRunRequest) => {
+	if (!request.configuration) {
+		return undefined;
+	}
+
+	if (!(request.configuration instanceof TestRunConfigurationImpl)) {
+		throw new Error(`TestRunRequest.configuration is not an instance created from TestController.createRunConfiguration`);
+	}
+
+	return request.configuration;
+};
 
 export class TestRunDto {
 	public static fromPublic(controllerId: string, request: vscode.TestRunRequest) {
@@ -748,3 +810,77 @@ class TestObservers {
 		return { observers: 0, tests, };
 	}
 }
+
+export class TestRunConfigurationImpl implements vscode.TestRunConfiguration {
+	readonly #proxy: MainThreadTestingShape;
+	private _configureHandler?: (() => void);
+
+	public get label() {
+		return this._label;
+	}
+
+	public set label(label: string) {
+		if (label !== this._label) {
+			this._label = label;
+			this.#proxy.$updateTestRunConfig(this.controllerId, this.configId, { label });
+		}
+	}
+
+	public get isDefault() {
+		return this._isDefault;
+	}
+
+	public set isDefault(isDefault: boolean) {
+		if (isDefault !== this._isDefault) {
+			this._isDefault = isDefault;
+			this.#proxy.$updateTestRunConfig(this.controllerId, this.configId, { isDefault });
+		}
+	}
+
+	public get configureHandler() {
+		return this._configureHandler;
+	}
+
+	public set configureHandler(handler: undefined | (() => void)) {
+		if (handler !== this._configureHandler) {
+			this._configureHandler = handler;
+			this.#proxy.$updateTestRunConfig(this.controllerId, this.configId, { hasConfigurationHandler: !!handler });
+		}
+	}
+
+	constructor(
+		proxy: MainThreadTestingShape,
+		public readonly controllerId: string,
+		public readonly configId: number,
+		private _label: string,
+		public readonly group: vscode.TestRunConfigurationGroup,
+		public runHandler: vscode.TestRunHandler,
+		private _isDefault = false,
+	) {
+		this.#proxy = proxy;
+
+		const groupBitset = configGroupToBitset[group];
+		if (typeof groupBitset !== 'number') {
+			throw new Error(`Unknown TestRunConfiguration.group ${group}`);
+		}
+
+		this.#proxy.$publishTestRunConfig({
+			profileId: configId,
+			controllerId,
+			label: _label,
+			group: groupBitset,
+			isDefault: _isDefault,
+			hasConfigurationHandler: false,
+		});
+	}
+
+	dispose(): void {
+		this.#proxy.$removeTestRunConfig(this.controllerId, this.configId);
+	}
+}
+
+const configGroupToBitset: { [K in TestRunConfigurationGroup]: TestRunConfigurationBitset } = {
+	[TestRunConfigurationGroup.Coverage]: TestRunConfigurationBitset.Coverage,
+	[TestRunConfigurationGroup.Debug]: TestRunConfigurationBitset.Debug,
+	[TestRunConfigurationGroup.Run]: TestRunConfigurationBitset.Run,
+};

@@ -3331,11 +3331,17 @@ const rangeComparator = (a: vscode.Range | undefined, b: vscode.Range | undefine
 	return a.isEqual(b);
 };
 
+export enum TestRunConfigurationGroup {
+	Run = 1,
+	Debug = 2,
+	Coverage = 3,
+}
+
 export class TestRunRequest implements vscode.TestRunRequest {
 	constructor(
 		public readonly tests: vscode.TestItem[],
 		public readonly exclude?: vscode.TestItem[] | undefined,
-		public readonly debug = false,
+		public readonly configuration?: vscode.TestRunConfiguration,
 	) { }
 }
 
@@ -3347,8 +3353,6 @@ export class TestItemImpl implements vscode.TestItem {
 
 	public range!: vscode.Range | undefined;
 	public description!: string | undefined;
-	public runnable!: boolean;
-	public debuggable!: boolean;
 	public label!: string;
 	public error!: string | vscode.MarkdownString;
 	public busy!: boolean;
@@ -3384,8 +3388,6 @@ export class TestItemImpl implements vscode.TestItem {
 			range: testItemPropAccessor(api, 'range', undefined, rangeComparator),
 			label: testItemPropAccessor(api, 'label', label, strictEqualComparator),
 			description: testItemPropAccessor(api, 'description', undefined, strictEqualComparator),
-			runnable: testItemPropAccessor(api, 'runnable', true, strictEqualComparator),
-			debuggable: testItemPropAccessor(api, 'debuggable', false, strictEqualComparator),
 			canResolveChildren: testItemPropAccessor(api, 'canResolveChildren', false, strictEqualComparator),
 			busy: testItemPropAccessor(api, 'busy', false, strictEqualComparator),
 			error: testItemPropAccessor(api, 'error', undefined, strictEqualComparator),

@@ -9,9 +9,9 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Iterable } from 'vs/base/common/iterator';
 import { mockObject, MockObject } from 'vs/base/test/common/mock';
 import { MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
-import { TestRunCoordinator, TestRunDto } from 'vs/workbench/api/common/extHostTesting';
+import { TestRunConfigurationImpl, TestRunCoordinator, TestRunDto } from 'vs/workbench/api/common/extHostTesting';
 import * as convert from 'vs/workbench/api/common/extHostTypeConverters';
-import { TestMessage } from 'vs/workbench/api/common/extHostTypes';
+import { TestMessage, TestRunConfigurationGroup } from 'vs/workbench/api/common/extHostTypes';
 import { TestDiffOpType, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestItemImpl, TestResultState, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
 import { TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
@@ -22,8 +22,6 @@ const simplify = (item: TestItem) => ({
 	label: item.label,
 	uri: item.uri,
 	range: item.range,
-	runnable: item.runnable,
-	debuggable: item.debuggable,
 });
 
 const assertTreesEqual = (a: TestItem | undefined, b: TestItem | undefined) => {
@@ -302,6 +300,7 @@ suite('ExtHost Testing', () => {
 		let proxy: MockObject<MainThreadTestingShape>;
 		let c: TestRunCoordinator;
 		let cts: CancellationTokenSource;
+		let configuration: TestRunConfigurationImpl;
 
 		let req: TestRunRequest;
 
@@ -312,15 +311,17 @@ suite('ExtHost Testing', () => {
 			cts = new CancellationTokenSource();
 			c = new TestRunCoordinator(proxy);
 
+			configuration = new TestRunConfigurationImpl(mockObject<MainThreadTestingShape, {}>(), 'ctrlId', 42, 'Do Run', TestRunConfigurationGroup.Run, () => { }, false);
+
 			req = {
 				tests: [single.root],
 				exclude: [single.root.children.get('id-b')!],
-				debug: false,
+				configuration,
 			};
 
 			dto = TestRunDto.fromInternal({
 				controllerId: 'ctrl',
-				debug: false,
+				configId: configuration.configId,
 				excludeExtIds: ['id-b'],
 				runId: 'run-id',
 				testIds: [single.root.id],
@@ -356,10 +357,11 @@ suite('ExtHost Testing', () => {
 			assert.strictEqual(tracker.isRunning, true);
 			assert.deepStrictEqual(proxy.$startedExtensionTestRun.args, [
 				[{
+					config: { group: 2, id: 42 },
+					controllerId: 'ctrl',
 					id: tracker.id,
 					tests: [single.root.id],
 					exclude: ['id-b'],
-					debug: false,
 					persist: false,
 				}]
 			]);
@@ -430,7 +432,7 @@ suite('ExtHost Testing', () => {
 			single.expand(single.root.id, Infinity);
 
 			const task = c.createTestRun('ctrl', {
-				debug: false,
+				configuration,
 				tests: [single.root.children.get('id-a')!],
 				exclude: [single.root.children.get('id-a')!.children.get('id-aa')!],
 			}, 'hello world', false);

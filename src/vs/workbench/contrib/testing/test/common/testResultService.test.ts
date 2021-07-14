@@ -10,7 +10,8 @@ import { Lazy } from 'vs/base/common/lazy';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { SingleUseTestCollection } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
-import { ITestTaskState, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestTaskState, ResolvedTestRunRequest, TestResultItem, TestRunConfigurationBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestConfigurationService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
 import { getPathForTestInResult, HydratedTestResult, LiveOutputController, LiveTestResult, makeEmptyCounts, resultItemParents, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { InMemoryResultStorage, ITestResultStorage } from 'vs/workbench/contrib/testing/common/testResultStorage';
@@ -32,12 +33,14 @@ suite('Workbench - Test Results Service', () => {
 	let changed = new Set<TestResultItemChange>();
 	let tests: SingleUseTestCollection;
 
-	const defaultOpts = {
-		exclude: [],
-		debug: false,
-		id: 'x',
-		persist: true,
-	};
+	const defaultOpts = (testIds: string[]): ResolvedTestRunRequest => ({
+		targets: [{
+			profileGroup: TestRunConfigurationBitset.Run,
+			profileId: 0,
+			controllerId: 'ctrlId',
+			testIds,
+		}]
+	});
 
 	class TestLiveTestResult extends LiveTestResult {
 		public override setAllToState(state: TestResultState, taskId: string, when: (task: ITestTaskState, item: TestResultItem) => boolean) {
@@ -50,7 +53,8 @@ suite('Workbench - Test Results Service', () => {
 		r = new TestLiveTestResult(
 			'foo',
 			emptyOutputController(),
-			{ ...defaultOpts, tests: ['id-a'] },
+			true,
+			defaultOpts(['id-a']),
 		);
 
 		r.onChange(e => changed.add(e));
@@ -75,7 +79,8 @@ suite('Workbench - Test Results Service', () => {
 			assert.deepStrictEqual(getLabelsIn(new TestLiveTestResult(
 				'foo',
 				emptyOutputController(),
-				{ ...defaultOpts, tests: ['id-a'] },
+				false,
+				defaultOpts(['id-a']),
 			).tests), []);
 		});
 
@@ -198,7 +203,7 @@ suite('Workbench - Test Results Service', () => {
 
 		setup(() => {
 			storage = new InMemoryResultStorage(new TestStorageService(), new NullLogService());
-			results = new TestTestResultService(new MockContextKeyService(), storage);
+			results = new TestTestResultService(new MockContextKeyService(), storage, new TestConfigurationService(new MockContextKeyService(), new TestStorageService()));
 		});
 
 		test('pushes new result', () => {
@@ -210,15 +215,16 @@ suite('Workbench - Test Results Service', () => {
 			results.push(r);
 			r.updateState('id-aa', 't', TestRunState.Passed);
 			r.markComplete();
-			await timeout(0); // allow persistImmediately async to happen
+			await timeout(10); // allow persistImmediately async to happen
 
 			results = new TestResultService(
 				new MockContextKeyService(),
 				storage,
+				new TestConfigurationService(new MockContextKeyService(), new TestStorageService()),
 			);
 
 			assert.strictEqual(0, results.results.length);
-			await timeout(0); // allow load promise to resolve
+			await timeout(10); // allow load promise to resolve
 			assert.strictEqual(1, results.results.length);
 
 			const [rehydrated, actual] = results.getStateById(tests.root.id)!;
@@ -240,7 +246,8 @@ suite('Workbench - Test Results Service', () => {
 			const r2 = results.push(new LiveTestResult(
 				'',
 				emptyOutputController(),
-				{ ...defaultOpts, tests: [] }
+				false,
+				defaultOpts([]),
 			));
 			results.clear();
 
@@ -252,7 +259,8 @@ suite('Workbench - Test Results Service', () => {
 			const r2 = results.push(new LiveTestResult(
 				'',
 				emptyOutputController(),
-				{ ...defaultOpts, tests: [] }
+				false,
+				defaultOpts([]),
 			));
 
 			assert.deepStrictEqual(results.results, [r2, r]);
@@ -267,6 +275,7 @@ suite('Workbench - Test Results Service', () => {
 			id: 'some-id',
 			tasks: [{ id: 't', running: false, name: undefined }],
 			name: 'hello world',
+			request: defaultOpts([]),
 			items: [{
 				...(await getInitializedMainTestCollection()).getNodeById('id-a')!,
 				tasks: [{ state, duration: 0, messages: [] }],
