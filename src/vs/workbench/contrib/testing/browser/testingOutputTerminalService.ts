@@ -12,7 +12,7 @@ import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessDataEvent, ITerminalChildProcess, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IViewsService } from 'vs/workbench/common/views';
-import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalGroupService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { testingViewIcon } from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
@@ -50,6 +50,7 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 
 	constructor(
 		@ITerminalService private readonly terminalService: ITerminalService,
+		@ITerminalGroupService private readonly terminalGroupService: ITerminalGroupService,
 		@ITestResultService resultService: ITestResultService,
 		@IViewsService private viewsService: IViewsService,
 	) {
@@ -88,7 +89,7 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 		const existing = testOutputPtys.find(([, o]) => o.resultId === result?.id);
 		if (existing) {
 			this.terminalService.setActiveInstance(existing[0]);
-			this.terminalService.showPanel();
+			this.terminalGroupService.showPanel();
 			return;
 		}
 
@@ -114,7 +115,7 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 		this.outputTerminals.set(terminal, output);
 		output.resetFor(result?.id, getTitle(result));
 		this.terminalService.setActiveInstance(terminal);
-		this.terminalService.showPanel();
+		this.terminalGroupService.showPanel();
 
 		if (!result) {
 			// seems like it takes a tick for listeners to be registered

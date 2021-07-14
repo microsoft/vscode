@@ -36,7 +36,7 @@ export class UrlFinder extends Disposable {
 		terminalService.instances.forEach(instance => {
 			this.registerTerminalInstance(instance);
 		});
-		this._register(terminalService.onInstanceCreated(instance => {
+		this._register(terminalService.onDidCreateInstance(instance => {
 			this.registerTerminalInstance(instance);
 		}));
 		this._register(terminalService.onDidDisposeInstance(instance => {

@@ -334,7 +334,9 @@ suite('NotebookConcatDocument', function () {
 				rangeLength: 6,
 				rangeOffset: 12,
 				text: 'Hi'
-			}]
+			}],
+			isRedoing: false,
+			isUndoing: false,
 		}, false);
 		assertLines(doc, 'Hello', 'World', 'Hi World!', 'Hallo', 'Welt', 'Hallo Welt!');
 		assertLocation(doc, new Position(2, 12), new Location(notebook.apiNotebook.cellAt(0).document.uri, new Position(2, 9)), false);
@@ -536,19 +538,28 @@ suite('NotebookConcatDocument', function () {
 						language: 'test',
 						cellKind: CellKind.Code,
 						outputs: [],
+					}, {
+						handle: 3,
+						uri: CellUri.generate(notebook.uri, 3),
+						source: ['Three', 'Drei', 'Drüü'],
+						eol: '\n',
+						language: 'test',
+						cellKind: CellKind.Code,
+						outputs: [],
 					}]]]
 				}
 			]
 		}, false);
 
-		assert.strictEqual(notebook.apiNotebook.cellCount, 1 + 2); // markdown and code
+		assert.strictEqual(notebook.apiNotebook.cellCount, 1 + 3); // markdown and code
 
 		let doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.apiNotebook, undefined);
-		assertLines(doc, 'Hello', 'World', 'Hello World!', 'Hallo', 'Welt', 'Hallo Welt!');
+		assertLines(doc, 'Hello', 'World', 'Hello World!', 'Hallo', 'Welt', 'Hallo Welt!', 'Three', 'Drei', 'Drüü');
 
 		assert.strictEqual(doc.getText(new Range(0, 0, 0, 0)), '');
 		assert.strictEqual(doc.getText(new Range(0, 0, 1, 0)), 'Hello\n');
 		assert.strictEqual(doc.getText(new Range(2, 0, 4, 0)), 'Hello World!\nHallo\n');
+		assert.strictEqual(doc.getText(new Range(2, 0, 8, 0)), 'Hello World!\nHallo\nWelt\nHallo Welt!\nThree\nDrei\n');
 	});
 
 	test('validateRange/Position', function () {

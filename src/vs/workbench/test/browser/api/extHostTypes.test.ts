@@ -9,6 +9,7 @@ import * as types from 'vs/workbench/api/common/extHostTypes';
 import { isWindows } from 'vs/base/common/platform';
 import { assertType } from 'vs/base/common/types';
 import { Mimes } from 'vs/base/common/mime';
+import { MarshalledId } from 'vs/base/common/marshalling';
 
 function assertToJSON(a: any, expected: any) {
 	const raw = JSON.stringify(a);
@@ -22,14 +23,14 @@ suite('ExtHostTypes', function () {
 
 		let uri = URI.parse('file:///path/test.file');
 		assert.deepStrictEqual(uri.toJSON(), {
-			$mid: 1,
+			$mid: MarshalledId.Uri,
 			scheme: 'file',
 			path: '/path/test.file'
 		});
 
 		assert.ok(uri.fsPath);
 		assert.deepStrictEqual(uri.toJSON(), {
-			$mid: 1,
+			$mid: MarshalledId.Uri,
 			scheme: 'file',
 			path: '/path/test.file',
 			fsPath: '/path/test.file'.replace(/\//g, isWindows ? '\\' : '/'),
@@ -38,7 +39,7 @@ suite('ExtHostTypes', function () {
 
 		assert.ok(uri.toString());
 		assert.deepStrictEqual(uri.toJSON(), {
-			$mid: 1,
+			$mid: MarshalledId.Uri,
 			scheme: 'file',
 			path: '/path/test.file',
 			fsPath: '/path/test.file'.replace(/\//g, isWindows ? '\\' : '/'),

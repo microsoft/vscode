@@ -293,9 +293,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._actions = {};
 
 		this._focusTracker = new CodeEditorWidgetFocusTracker(domElement);
-		this._focusTracker.onChange(() => {
+		this._register(this._focusTracker.onChange(() => {
 			this._editorWidgetFocus.setValue(this._focusTracker.hasFocus());
-		});
+		}));
 
 		this._contentWidgets = {};
 		this._overlayWidgets = {};

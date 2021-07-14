@@ -255,10 +255,10 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 							}
 						}
 
-						const clientHeight = entry.target.clientHeight;
-						if (observedElementInfo.lastKnownHeight !== clientHeight) {
-							observedElementInfo.lastKnownHeight = clientHeight;
-							dimensionUpdater.updateHeight(observedElementInfo.id, clientHeight, {
+						const offsetHeight = entry.target.offsetHeight;
+						if (observedElementInfo.lastKnownHeight !== offsetHeight) {
+							observedElementInfo.lastKnownHeight = offsetHeight;
+							dimensionUpdater.updateHeight(observedElementInfo.id, offsetHeight, {
 								isOutput: observedElementInfo.output
 							});
 						}
@@ -598,19 +598,19 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 					resizeObserver.observe(outputNode, outputId, true);
 
-					const clientHeight = outputNode.clientHeight;
+					const offsetHeight = outputNode.offsetHeight;
 					const cps = document.defaultView!.getComputedStyle(outputNode);
-					if (clientHeight !== 0 && cps.padding === '0px') {
+					if (offsetHeight !== 0 && cps.padding === '0px') {
 						// we set padding to zero if the output height is zero (then we can have a zero-height output DOM node)
 						// thus we need to ensure the padding is accounted when updating the init height of the output
-						dimensionUpdater.updateHeight(outputId, clientHeight + style.outputNodePadding * 2, {
+						dimensionUpdater.updateHeight(outputId, offsetHeight + style.outputNodePadding * 2, {
 							isOutput: true,
 							init: true,
 						});
 
 						outputNode.style.padding = `${style.outputNodePadding}px 0 ${style.outputNodePadding}px 0`;
 					} else {
-						dimensionUpdater.updateHeight(outputId, outputNode.clientHeight, {
+						dimensionUpdater.updateHeight(outputId, outputNode.offsetHeight, {
 							isOutput: true,
 							init: true,
 						});
@@ -1178,7 +1178,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				});
 			}
 
-			dimensionUpdater.updateHeight(this.id, this.element.clientHeight, {
+			dimensionUpdater.updateHeight(this.id, this.element.offsetHeight, {
 				isOutput: false
 			});
 		}
@@ -1203,7 +1203,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		}
 
 		private async updateMarkupDimensions() {
-			dimensionUpdater.updateHeight(this.id, this.element.clientHeight, {
+			dimensionUpdater.updateHeight(this.id, this.element.offsetHeight, {
 				isOutput: false
 			});
 		}
@@ -1299,7 +1299,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			this.element.style.visibility = 'visible';
 			this.element.style.top = `${top}px`;
 
-			dimensionUpdater.updateHeight(outputId, outputContainer.clientHeight, {
+			dimensionUpdater.updateHeight(outputId, outputContainer.offsetHeight, {
 				isOutput: true,
 			});
 		}
@@ -1413,8 +1413,9 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		updateDrag(e: DragEvent, cellId: string) {
 			if (cellId !== this.currentDrag?.cellId) {
 				this.currentDrag = undefined;
+			} else {
+				this.currentDrag = { cellId, clientY: e.clientY };
 			}
-			this.currentDrag = { cellId, clientY: e.clientY };
 		}
 
 		endDrag(e: DragEvent, cellId: string) {

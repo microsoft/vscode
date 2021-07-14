@@ -14,6 +14,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import * as Codicons from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { MarshalledId } from 'vs/base/common/marshalling';
 import * as platform from 'vs/base/common/platform';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -113,9 +114,9 @@ abstract class AbstractCellRenderer {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
 					if (notebookOptions.getLayoutConfiguration().insertToolbarAlignment === 'center') {
-						return new CodiconActionViewItem(action, this.keybindingService, this.notificationService);
+						return this.instantiationService.createInstance(CodiconActionViewItem, action);
 					} else {
-						return new MenuEntryActionViewItem(action, this.keybindingService, this.notificationService);
+						return this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined);
 					}
 				}
 
@@ -502,7 +503,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			ui: true,
 			cell: element,
 			notebookEditor: this.notebookEditor,
-			$mid: 12
+			$mid: MarshalledId.NotebookCellActionContext
 		};
 		templateData.toolbar.context = toolbarContext;
 		templateData.deleteToolbar.context = toolbarContext;
@@ -721,7 +722,9 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 				height: 0
 			},
 			// overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
-		}, {});
+		}, {
+			contributions: this.notebookEditor.creationOptions.cellEditorContributions
+		});
 
 		disposables.add(editor);
 		const { collapsedPart, expandButton } = this.setupCollapsedPart(container);
@@ -844,7 +847,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			actionViewItemProvider: _action => {
 				actionViewItemDisposables.clear();
 
-				const actions = this.getCellToolbarActions(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecuteToolbar, contextKeyService));
+				const menu = actionViewItemDisposables.add(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecuteToolbar, contextKeyService));
+				const actions = this.getCellToolbarActions(menu);
 				const primary = actions.primary[0];
 				if (!(primary instanceof MenuItemAction)) {
 					return undefined;
@@ -858,14 +862,12 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 					return undefined;
 				}
 
-				const item = new DropdownWithPrimaryActionViewItem(
+				const item = this.instantiationService.createInstance(DropdownWithPrimaryActionViewItem,
 					primary,
 					dropdownAction,
 					actions.secondary,
 					'notebook-cell-run-toolbar',
-					this.contextMenuService,
-					this.keybindingService,
-					this.notificationService);
+					this.contextMenuService);
 				actionViewItemDisposables.add(item.onDidChangeDropdownVisibility(visible => {
 					cellContainer.classList.toggle('cell-run-toolbar-dropdown-active', visible);
 				}));
@@ -879,10 +881,10 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	}
 
 	private setupRunToolbar(runButtonContainer: HTMLElement, cellContainer: HTMLElement, contextKeyService: IContextKeyService, disposables: DisposableStore): ToolBar {
-		const menu = this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecuteToolbar, contextKeyService);
+		const menu = disposables.add(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecuteToolbar, contextKeyService));
 		const runToolbar = this.createRunCellToolbar(runButtonContainer, cellContainer, contextKeyService, disposables);
 		const updateActions = () => {
-			const actions = this.getCellToolbarActions(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecuteToolbar, contextKeyService));
+			const actions = this.getCellToolbarActions(menu);
 			runToolbar.setActions(actions.primary);
 		};
 		updateActions();
@@ -907,7 +909,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const internalMetadata = element.internalMetadata;
 		this.updateExecutionOrder(internalMetadata, templateData);
 
-		if (internalMetadata.runState === NotebookCellExecutionState.Executing) {
+		if (internalMetadata.runState === NotebookCellExecutionState.Executing && !internalMetadata.isPaused) {
 			templateData.progressBar.infinite().show(500);
 		} else {
 			templateData.progressBar.hide();
@@ -1044,7 +1046,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			cell: element,
 			cellTemplate: templateData,
 			notebookEditor: this.notebookEditor,
-			$mid: 12
+			$mid: MarshalledId.NotebookCellActionContext
 		};
 		templateData.toolbar.context = toolbarContext;
 		templateData.runToolbar.context = toolbarContext;
@@ -1208,9 +1210,7 @@ export class ListTopCellToolbar extends Disposable {
 		insertionIndicatorContainer: HTMLElement,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
-		@IMenuService protected readonly menuService: IMenuService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@INotificationService private readonly notificationService: INotificationService,
+		@IMenuService protected readonly menuService: IMenuService
 	) {
 		super();
 
@@ -1219,7 +1219,7 @@ export class ListTopCellToolbar extends Disposable {
 		this.toolbar = this._register(new ToolBar(this.topCellToolbar, this.contextMenuService, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
-					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService);
+					const item = this.instantiationService.createInstance(CodiconActionViewItem, action);
 					return item;
 				}
 

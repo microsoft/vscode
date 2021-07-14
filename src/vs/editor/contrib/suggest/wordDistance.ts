@@ -57,7 +57,7 @@ export abstract class WordDistance {
 				if (item.kind === CompletionItemKind.Keyword) {
 					return 2 << 20;
 				}
-				let word = typeof item.label === 'string' ? item.label : item.label.name;
+				let word = typeof item.label === 'string' ? item.label : item.label.label;
 				let wordLines = wordRanges[word];
 				if (isFalsyOrEmpty(wordLines)) {
 					return 2 << 20;

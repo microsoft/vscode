@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { shuffle } from 'vs/base/common/arrays';
 import { ConfigKeysIterator, LinkedMap, LRUCache, PathIterator, ResourceMap, StringIterator, TernarySearchTree, Touch, UriIterator } from 'vs/base/common/map';
 import { extUriIgnorePathCase } from 'vs/base/common/resources';
+import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
 
 suite('Map', () => {
@@ -1019,5 +1021,108 @@ suite('Map', () => {
 
 		assert.strictEqual(map.get(windowsFile), 'true');
 		assert.strictEqual(map.get(uncFile), 'true');
+	});
+});
+
+
+suite.skip('TST, perf', function () {
+
+	function createRandomUris(n: number): URI[] {
+		const uris: URI[] = [];
+		function randomWord(): string {
+			let result = '';
+			let length = 4 + Math.floor(Math.random() * 4);
+			for (let i = 0; i < length; i++) {
+				result += (Math.random() * 26 + 65).toString(36);
+			}
+			return result;
+		}
+
+		// generate 10000 random words
+		const words: string[] = [];
+		for (let i = 0; i < 10000; i++) {
+			words.push(randomWord());
+		}
+
+		for (let i = 0; i < n; i++) {
+
+			let len = 4 + Math.floor(Math.random() * 4);
+
+			let segments: string[] = [];
+			for (; len >= 0; len--) {
+				segments.push(words[Math.floor(Math.random() * words.length)]);
+			}
+
+			uris.push(URI.from({ scheme: 'file', path: segments.join('/') }));
+		}
+
+		return uris;
+	}
+
+	let tree: TernarySearchTree<URI, boolean>;
+	let sampleUris: URI[] = [];
+	let candidates: URI[] = [];
+
+	suiteSetup(() => {
+		const len = 50_000;
+		sampleUris = createRandomUris(len);
+		candidates = [...sampleUris.slice(0, len / 2), ...createRandomUris(len / 2)];
+		shuffle(candidates);
+	});
+
+	setup(() => {
+		tree = TernarySearchTree.forUris();
+		for (let uri of sampleUris) {
+			tree.set(uri, true);
+		}
+	});
+
+	const _profile = false;
+
+	function perfTest(name: string, callback: Function) {
+		test(name, function () {
+			if (_profile) { console.profile(name); }
+			const sw = new StopWatch(true);
+			callback();
+			console.log(name, sw.elapsed());
+			if (_profile) { console.profileEnd(); }
+		});
+	}
+
+	perfTest('TST, clear', function () {
+		tree.clear();
+	});
+
+	perfTest('TST, insert', function () {
+		let insertTree = TernarySearchTree.forUris();
+		for (let uri of sampleUris) {
+			insertTree.set(uri, true);
+		}
+	});
+
+	perfTest('TST, lookup', function () {
+		let match = 0;
+		for (let candidate of candidates) {
+			if (tree.has(candidate)) {
+				match += 1;
+			}
+		}
+		assert.strictEqual(match, sampleUris.length / 2);
+	});
+
+	perfTest('TST, substr', function () {
+		let match = 0;
+		for (let candidate of candidates) {
+			if (tree.findSubstr(candidate)) {
+				match += 1;
+			}
+		}
+		assert.strictEqual(match, sampleUris.length / 2);
+	});
+
+	perfTest('TST, superstr', function () {
+		for (let candidate of candidates) {
+			tree.findSuperstr(candidate);
+		}
 	});
 });

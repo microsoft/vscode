@@ -9,6 +9,7 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Action, IAction } from 'vs/base/common/actions';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { MarshalledId } from 'vs/base/common/marshalling';
 import { Schemas } from 'vs/base/common/network';
 import * as nls from 'vs/nls';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -334,14 +335,14 @@ export class CellOutputElement extends Disposable {
 			ui: true,
 			cell: this.output.cellViewModel as ICellViewModel,
 			notebookEditor: this.notebookEditor,
-			$mid: 12
+			$mid: MarshalledId.NotebookCellActionContext
 		};
 
 		// TODO: This could probably be a real registered action, but it has to talk to this output element
 		const pickAction = new Action('notebook.output.pickMimetype', nls.localize('pickMimeType', "Choose a different output mimetype"), ThemeIcon.asClassName(mimetypeIcon), undefined,
 			async _context => this._pickActiveMimeTypeRenderer(notebookTextModel, kernel, this.output));
 		if (index === 0 && useConsolidatedButton) {
-			const menu = this.menuService.createMenu(MenuId.NotebookOutputToolbar, this.contextKeyService);
+			const menu = this._renderDisposableStore.add(this.menuService.createMenu(MenuId.NotebookOutputToolbar, this.contextKeyService));
 			const updateMenuToolbar = () => {
 				const primary: IAction[] = [];
 				const secondary: IAction[] = [];
@@ -454,6 +455,10 @@ export class CellOutputElement extends Disposable {
 
 		if (this._outputHeightTimer) {
 			clearTimeout(this._outputHeightTimer);
+		}
+
+		if (this.renderResult && this.renderResult.type === RenderOutputType.Mainframe) {
+			this.renderResult.disposable?.dispose();
 		}
 
 		super.dispose();

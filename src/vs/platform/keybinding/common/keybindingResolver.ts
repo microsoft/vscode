@@ -247,15 +247,23 @@ export class KeybindingResolver {
 		return result;
 	}
 
-	public lookupPrimaryKeybinding(commandId: string, context?: IContextKeyService): ResolvedKeybindingItem | null {
-		let items = this._lookupMap.get(commandId);
+	public lookupPrimaryKeybinding(commandId: string, context: IContextKeyService): ResolvedKeybindingItem | null {
+		const items = this._lookupMap.get(commandId);
 		if (typeof items === 'undefined' || items.length === 0) {
 			return null;
 		}
+		if (items.length === 1) {
+			return items[0];
+		}
 
-		const itemMatchingContext = context &&
-			Array.from(items).reverse().find(item => context.contextMatchesRules(item.when));
-		return itemMatchingContext ?? items[items.length - 1];
+		for (let i = items.length - 1; i >= 0; i--) {
+			const item = items[i];
+			if (context.contextMatchesRules(item.when)) {
+				return item;
+			}
+		}
+
+		return items[items.length - 1];
 	}
 
 	public resolve(context: IContext, currentChord: string | null, keypress: string): IResolveResult | null {

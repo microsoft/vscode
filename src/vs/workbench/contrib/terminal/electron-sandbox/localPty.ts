@@ -126,4 +126,8 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		// remove size override
 		this._onProcessOverrideDimensions.fire(undefined);
 	}
+
+	handleOrphanQuestion() {
+		this._localPtyService.orphanQuestionReply(this.id);
+	}
 }

@@ -23,9 +23,9 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { RemoteNameContext, WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
-import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
+import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { ExplorerFolderContext, ExplorerRootContext } from 'vs/workbench/contrib/files/common/files';
 import { KeybindingsEditor } from 'vs/workbench/contrib/preferences/browser/keybindingsEditor';
@@ -59,12 +59,13 @@ const SETTINGS_EDITOR_COMMAND_FOCUS_UP = 'settings.action.focusLevelUp';
 const SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON = 'settings.switchToJSON';
 const SETTINGS_EDITOR_COMMAND_FILTER_MODIFIED = 'settings.filterByModified';
 const SETTINGS_EDITOR_COMMAND_FILTER_ONLINE = 'settings.filterByOnline';
+const SETTINGS_EDITOR_COMMAND_FILTER_TELEMETRY = 'settings.filterByTelemetry';
 const SETTINGS_EDITOR_COMMAND_FILTER_UNTRUSTED = 'settings.filterUntrusted';
 
 const SETTINGS_COMMAND_OPEN_SETTINGS = 'workbench.action.openSettings';
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
 		PreferencesEditor,
 		PreferencesEditor.ID,
 		nls.localize('defaultPreferencesEditor', "Default Preferences Editor")
@@ -74,8 +75,8 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	]
 );
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
 		SettingsEditor2,
 		SettingsEditor2.ID,
 		nls.localize('settingsEditor2', "Settings Editor 2")
@@ -85,8 +86,8 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	]
 );
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
 		KeybindingsEditor,
 		KeybindingsEditor.ID,
 		nls.localize('keybindingsEditor', "Keybindings Editor")
@@ -104,7 +105,7 @@ class PreferencesEditorInputSerializer extends AbstractSideBySideEditorInputSeri
 	}
 }
 
-class KeybindingsEditorInputSerializer implements IEditorInputSerializer {
+class KeybindingsEditorInputSerializer implements IEditorSerializer {
 
 	canSerialize(editorInput: EditorInput): boolean {
 		return true;
@@ -119,7 +120,7 @@ class KeybindingsEditorInputSerializer implements IEditorInputSerializer {
 	}
 }
 
-class SettingsEditor2InputSerializer implements IEditorInputSerializer {
+class SettingsEditor2InputSerializer implements IEditorSerializer {
 
 	canSerialize(editorInput: EditorInput): boolean {
 		return true;
@@ -139,7 +140,7 @@ interface ISerializedDefaultPreferencesEditorInput {
 }
 
 // Register Default Preferences Editor Input Serializer
-class DefaultPreferencesEditorInputSerializer implements IEditorInputSerializer {
+class DefaultPreferencesEditorInputSerializer implements IEditorSerializer {
 
 	canSerialize(editorInput: EditorInput): boolean {
 		return true;
@@ -160,10 +161,10 @@ class DefaultPreferencesEditorInputSerializer implements IEditorInputSerializer 
 	}
 }
 
-Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(PreferencesEditorInput.ID, PreferencesEditorInputSerializer);
-Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(DefaultPreferencesEditorInput.ID, DefaultPreferencesEditorInputSerializer);
-Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(KeybindingsEditorInput.ID, KeybindingsEditorInputSerializer);
-Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(SettingsEditor2Input.ID, SettingsEditor2InputSerializer);
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(PreferencesEditorInput.ID, PreferencesEditorInputSerializer);
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(DefaultPreferencesEditorInput.ID, DefaultPreferencesEditorInputSerializer);
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(KeybindingsEditorInput.ID, KeybindingsEditorInputSerializer);
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(SettingsEditor2Input.ID, SettingsEditor2InputSerializer);
 
 const OPEN_SETTINGS2_ACTION_TITLE = { value: nls.localize('openSettings2', "Open Settings (UI)"), original: 'Open Settings (UI)' };
 
@@ -280,7 +281,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					icon: preferencesOpenSettingsIcon,
 					menu: [{
 						id: MenuId.EditorTitle,
-						when: ResourceContextKey.Resource.isEqualTo(that.environmentService.settingsResource.toString()),
+						when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(that.environmentService.settingsResource.toString()), ContextKeyExpr.not('isInDiffEditor')),
 						group: 'navigation',
 						order: 1
 					}]
@@ -474,6 +475,28 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				title: nls.localize('onlineServices', "Online Services Settings")
 			},
 			order: 2
+		});
+
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: SETTINGS_EDITOR_COMMAND_FILTER_TELEMETRY,
+					title: { value: nls.localize('showTelemtrySettings', "Telemetry Settings"), original: 'Telemetry Settings' },
+					menu: {
+						id: MenuId.MenubarPreferencesMenu,
+						group: '1_settings',
+						order: 3,
+					}
+				});
+			}
+			run(accessor: ServicesAccessor) {
+				const editorPane = accessor.get(IEditorService).activeEditorPane;
+				if (editorPane instanceof SettingsEditor2) {
+					editorPane.focusSearch('@tag:telemetry');
+				} else {
+					accessor.get(IPreferencesService).openSettings(false, '@tag:telemetry');
+				}
+			}
 		});
 
 		registerAction2(class extends Action2 {
@@ -1158,7 +1181,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					title: OPEN_SETTINGS2_ACTION_TITLE,
 					icon: preferencesOpenSettingsIcon
 				},
-				when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource!.toString()), WorkbenchStateContext.isEqualTo('workspace')),
+				when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource!.toString()), WorkbenchStateContext.isEqualTo('workspace'), ContextKeyExpr.not('isInDiffEditor')),
 				group: 'navigation',
 				order: 1
 			});
@@ -1183,7 +1206,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						title: OPEN_SETTINGS2_ACTION_TITLE,
 						icon: preferencesOpenSettingsIcon
 					},
-					when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.getFolderSettingsResource(folder.uri)!.toString())),
+					when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.getFolderSettingsResource(folder.uri)!.toString()), ContextKeyExpr.not('isInDiffEditor')),
 					group: 'navigation',
 					order: 1
 				});

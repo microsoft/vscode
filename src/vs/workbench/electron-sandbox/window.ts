@@ -10,8 +10,8 @@ import { equals } from 'vs/base/common/objects';
 import { EventType, EventHelper, addDisposableListener, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { Separator } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
-import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput } from 'vs/workbench/common/editor';
-import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
+import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WindowMinimumSize, IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
@@ -19,7 +19,7 @@ import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/work
 import { applyZoom } from 'vs/platform/windows/electron-sandbox/window';
 import { setFullscreen, getZoomLevel } from 'vs/base/browser/browser';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IBaseResourceEditorInput, IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { env } from 'vs/base/common/process';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
@@ -40,7 +40,7 @@ import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/
 import { coalesce } from 'vs/base/common/arrays';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { assertIsDefined } from 'vs/base/common/types';
+import { assertIsDefined, isArray } from 'vs/base/common/types';
 import { IOpenerService, OpenOptions } from 'vs/platform/opener/common/opener';
 import { Schemas } from 'vs/base/common/network';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
@@ -360,7 +360,7 @@ export class NativeWindow extends Disposable {
 		// or setting is disabled. Also enabled when running with --wait from the command line.
 		const visibleEditorPanes = this.editorService.visibleEditorPanes;
 		if (visibleEditorPanes.length === 0 && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && !this.environmentService.isExtensionDevelopment) {
-			const closeWhenEmpty = this.configurationService.getValue<boolean>('window.closeWhenEmpty');
+			const closeWhenEmpty = this.configurationService.getValue('window.closeWhenEmpty');
 			if (closeWhenEmpty || this.environmentService.args.wait) {
 				this.closeEmptyWindowScheduler.schedule();
 			}
@@ -519,18 +519,20 @@ export class NativeWindow extends Disposable {
 					}
 				}
 
-				// Assume `uri` this is a workspace uri, let's see if we can handle it
-				await this.fileService.activateProvider(uri.scheme);
+				if (!options?.openExternal) {
+					// Assume `uri` this is a workspace uri, let's see if we can handle it
+					await this.fileService.activateProvider(uri.scheme);
 
-				if (this.fileService.canHandleResource(uri)) {
-					return {
-						resolved: URI.from({
-							scheme: this.productService.urlProtocol,
-							path: 'workspace',
-							query: uri.toString()
-						}),
-						dispose() { }
-					};
+					if (this.fileService.canHandleResource(uri)) {
+						return {
+							resolved: URI.from({
+								scheme: this.productService.urlProtocol,
+								path: 'workspace',
+								query: uri.toString()
+							}),
+							dispose() { }
+						};
+					}
 				}
 
 				return undefined;
@@ -562,8 +564,9 @@ export class NativeWindow extends Disposable {
 
 		const actions: Array<MenuItemAction | Separator> = [];
 
-		const disabled = this.configurationService.getValue<boolean>('keyboard.touchbar.enabled') === false;
-		const ignoredItems = this.configurationService.getValue<string[]>('keyboard.touchbar.ignored') || [];
+		const disabled = this.configurationService.getValue('keyboard.touchbar.enabled') === false;
+		const touchbarIgnored = this.configurationService.getValue('keyboard.touchbar.ignored');
+		const ignoredItems = isArray(touchbarIgnored) ? touchbarIgnored : [];
 
 		// Fill actions into groups respecting order
 		this.touchBarDisposables.add(createAndFillInActionBarActions(this.touchBarMenu, undefined, actions));
@@ -629,7 +632,7 @@ export class NativeWindow extends Disposable {
 	}
 
 	private async onOpenFiles(request: INativeOpenFileRequest): Promise<void> {
-		const inputs: IResourceEditorInputType[] = [];
+		const inputs: Array<IResourceEditorInput | IUntitledTextResourceEditorInput> = [];
 		const diffMode = !!(request.filesToDiff && (request.filesToDiff.length === 2));
 
 		if (!diffMode && request.filesToOpenOrCreate) {
@@ -662,13 +665,13 @@ export class NativeWindow extends Disposable {
 	}
 
 	private async openResources(resources: Array<IResourceEditorInput | IUntitledTextResourceEditorInput>, diffMode: boolean): Promise<unknown> {
-		const editors: IBaseResourceEditorInput[] = [];
+		const editors: IUntypedEditorInput[] = [];
 
 		// In diffMode we open 2 resources as diff
 		if (diffMode && resources.length === 2 && resources[0].resource && resources[1].resource) {
 			const diffEditor: IResourceDiffEditorInput = {
-				originalInput: { resource: resources[0].resource },
-				modifiedInput: { resource: resources[1].resource },
+				original: { resource: resources[0].resource },
+				modified: { resource: resources[1].resource },
 				options: { pinned: true }
 			};
 			editors.push(diffEditor);

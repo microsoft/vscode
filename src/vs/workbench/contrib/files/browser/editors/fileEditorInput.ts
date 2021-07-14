@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult, EditorInputCapabilities, IEditorDescriptor, IEditorPane, IEditorInput } from 'vs/workbench/common/editor';
+import { IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult, EditorInputCapabilities, IEditorDescriptor, IEditorPane, IEditorInput, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { EditorOverride, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { ITextEditorOptions, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { ITextFileService, TextFileEditorModelState, TextFileResolveReason, TextFileOperationError, TextFileOperationResult, ITextFileEditorModel, EncodingMode } from 'vs/workbench/services/textfile/common/textfiles';
@@ -16,7 +16,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FILE_EDITOR_INPUT_ID, TEXT_FILE_EDITOR_ID, BINARY_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isEqual } from 'vs/base/common/resources';
 import { Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
@@ -36,6 +36,10 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 
 	override get typeId(): string {
 		return FILE_EDITOR_INPUT_ID;
+	}
+
+	override get editorId(): string | undefined {
+		return DEFAULT_EDITOR_ASSOCIATION.id;
 	}
 
 	override get capabilities(): EditorInputCapabilities {
@@ -295,12 +299,12 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		return super.isSaving();
 	}
 
-	override prefersEditor<T extends IEditorDescriptor<IEditorPane>>(editors: T[]): T | undefined {
+	override prefersEditorPane<T extends IEditorDescriptor<IEditorPane>>(editorPanes: T[]): T | undefined {
 		if (this.forceOpenAs === ForceOpenAs.Binary) {
-			return editors.find(editor => editor.typeId === BINARY_FILE_EDITOR_ID);
+			return editorPanes.find(editorPane => editorPane.typeId === BINARY_FILE_EDITOR_ID);
 		}
 
-		return editors.find(editor => editor.typeId === TEXT_FILE_EDITOR_ID);
+		return editorPanes.find(editorPane => editorPane.typeId === TEXT_FILE_EDITOR_ID);
 	}
 
 	override resolve(): Promise<ITextFileEditorModel | BinaryEditorModel> {
@@ -390,28 +394,34 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		};
 	}
 
-	override asResourceEditorInput(group: GroupIdentifier): ITextResourceEditorInput {
-		return {
+	override toUntyped(options?: { preserveViewState: GroupIdentifier }): ITextResourceEditorInput {
+		const untypedInput: ITextResourceEditorInput & { options: ITextEditorOptions } = {
 			resource: this.preferredResource,
 			forceFile: true,
-			encoding: this.getEncoding(),
-			mode: this.getMode(),
-			contents: (() => {
+			options: {
+				override: this.editorId
+			}
+		};
+
+		if (typeof options?.preserveViewState === 'number') {
+			untypedInput.encoding = this.getEncoding();
+			untypedInput.mode = this.getMode();
+			untypedInput.contents = (() => {
 				const model = this.textFileService.files.get(this.resource);
 				if (model && model.isDirty()) {
 					return model.textEditorModel.getValue(); // only if dirty
 				}
 
 				return undefined;
-			})(),
-			options: {
-				viewState: this.getViewStateFor(group),
-				override: EditorOverride.DISABLED
-			}
-		};
+			})();
+
+			untypedInput.options.viewState = this.getViewStateFor(options.preserveViewState);
+		}
+
+		return untypedInput;
 	}
 
-	override matches(otherInput: IEditorInput | IResourceEditorInputType): boolean {
+	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
 		if (super.matches(otherInput)) {
 			return true;
 		}

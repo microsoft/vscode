@@ -601,7 +601,7 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 			description: editor.getDescription(Verbosity.MEDIUM)
 		}, {
 			italic: openedEditor.isPreview(),
-			extraClasses: ['open-editor'],
+			extraClasses: ['open-editor'].concat(openedEditor.editor.getLabelExtraClasses()),
 			fileDecorations: this.configurationService.getValue<IFilesConfiguration>().explorer.decorations,
 			title: editor.getTitle(Verbosity.LONG)
 		});

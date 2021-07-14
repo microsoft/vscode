@@ -5,14 +5,13 @@
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalIcon, TitleEventSource } from 'vs/platform/terminal/common/terminal';
-import { IEditorInputSerializer } from 'vs/workbench/common/editor';
+import { IEditorSerializer } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ITerminalEditorService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalEditorService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 
-export class TerminalInputSerializer implements IEditorInputSerializer {
+export class TerminalInputSerializer implements IEditorSerializer {
 	constructor(
-		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService
 	) { }
 
@@ -25,15 +24,12 @@ export class TerminalInputSerializer implements IEditorInputSerializer {
 			return;
 		}
 		const term = JSON.stringify(this._toJson(editorInput.terminalInstance));
-		this._terminalEditorService.detachInstance(editorInput.terminalInstance);
 		return term;
 	}
 
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined {
 		const terminalInstance = JSON.parse(serializedEditorInput);
-		const terminal = this._terminalService.createInstance({ attachPersistentProcess: terminalInstance });
-		const editor = this._terminalEditorService.getOrCreateEditorInput(terminal);
-		terminal.onExit(() => editor.dispose());
+		const editor = this._terminalEditorService.getOrCreateEditorInput(terminalInstance);
 		return editor;
 	}
 
@@ -50,7 +46,7 @@ export class TerminalInputSerializer implements IEditorInputSerializer {
 	}
 }
 
-interface SerializedTerminalEditorInput {
+export interface SerializedTerminalEditorInput {
 	readonly id: number;
 	readonly pid: number;
 	readonly title: string;

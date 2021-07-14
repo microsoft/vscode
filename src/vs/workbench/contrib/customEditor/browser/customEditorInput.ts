@@ -17,13 +17,14 @@ import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { EditorInputCapabilities, GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, Verbosity } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, isEditorInputWithOptionsAndGroup, IUntypedEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { decorateFileEditorLabel } from 'vs/workbench/common/editor/resourceEditorInput';
 import { defaultCustomEditor } from 'vs/workbench/contrib/customEditor/common/contributedCustomEditors';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { IWebviewService, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
-import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 
 export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
@@ -77,7 +78,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		@ILabelService private readonly labelService: ILabelService,
 		@ICustomEditorService private readonly customEditorService: ICustomEditorService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@IEditorService private readonly editorService: IEditorService,
+		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
 		@IFileService private readonly fileService: IFileService
 	) {
@@ -241,7 +242,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return decorateFileEditorLabel(label, { orphaned, readonly });
 	}
 
-	public override matches(other: IEditorInput | IResourceEditorInputType): boolean {
+	public override matches(other: IEditorInput | IUntypedEditorInput): boolean {
 		if (super.matches(other)) {
 			return true;
 		}
@@ -339,7 +340,8 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			return { editor: this.doMove(group, newResource) };
 		}
 
-		return { editor: this.editorService.createEditorInput({ resource: newResource, forceFile: true }) };
+		const resolvedEditor = this.editorResolverService.resolveEditor({ resource: newResource, forceFile: true }, undefined);
+		return isEditorInputWithOptionsAndGroup(resolvedEditor) ? { editor: resolvedEditor.editor } : undefined;
 	}
 
 	private doMove(group: GroupIdentifier, newResource: URI): IEditorInput {
@@ -397,7 +399,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return this._untitledDocumentData;
 	}
 
-	public override asResourceEditorInput(groupId: GroupIdentifier): IResourceEditorInput {
+	public override toUntyped(): IResourceEditorInput {
 		return {
 			resource: this.resource,
 			options: {

@@ -3976,6 +3976,31 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A structured label for a {@link CompletionItem completion item}.
+	 */
+	export interface CompletionItemLabel {
+
+		/**
+		 * The label of this completion item.
+		 *
+		 * By default this is also the text that is inserted when this completion is selected.
+		 */
+		label: string;
+
+		/**
+		 * An optional string which is rendered less prominently directly after {@link CompletionItemLabel.label label},
+		 * without any spacing. Should be used for function signatures or type annotations.
+		 */
+		detail?: string;
+
+		/**
+		 * An optional string which is rendered less prominently after {@link CompletionItemLabel.detail}. Should be used
+		 * for fully qualified names or file path.
+		 */
+		description?: string;
+	}
+
+	/**
 	 * Completion item kinds.
 	 */
 	export enum CompletionItemKind {
@@ -4041,7 +4066,7 @@ declare module 'vscode' {
 		 * this is also the text that is inserted when selecting
 		 * this completion.
 		 */
-		label: string;
+		label: string | CompletionItemLabel;
 
 		/**
 		 * The kind of this completion item. Based on the kind
@@ -4165,7 +4190,7 @@ declare module 'vscode' {
 		 * @param label The label of the completion.
 		 * @param kind The {@link CompletionItemKind kind} of the completion.
 		 */
-		constructor(label: string, kind?: CompletionItemKind);
+		constructor(label: string | CompletionItemLabel, kind?: CompletionItemKind);
 	}
 
 	/**
@@ -5632,7 +5657,7 @@ declare module 'vscode' {
 		/**
 		 * The tooltip text when you hover over this entry.
 		 */
-		tooltip: string | undefined;
+		tooltip: string | MarkdownString | undefined;
 
 		/**
 		 * The foreground color for this entry.
@@ -6188,6 +6213,13 @@ declare module 'vscode' {
 	 * values.
 	 */
 	export interface Memento {
+
+		/**
+		 * Returns the stored keys.
+		 *
+		 * @return The stored keys.
+		 */
+		keys(): readonly string[];
 
 		/**
 		 * Return a value.
@@ -8231,8 +8263,7 @@ declare module 'vscode' {
 		export function openExternal(target: Uri): Thenable<boolean>;
 
 		/**
-		 * Resolves a uri to form that is accessible externally. Currently only supports `https:`, `http:` and
-		 * `vscode.env.uriScheme` uris.
+		 * Resolves a uri to a form that is accessible externally.
 		 *
 		 * #### `http:` or `https:` scheme
 		 *
@@ -8252,7 +8283,7 @@ declare module 'vscode' {
 		 * Creates a uri that - if opened in a browser (e.g. via `openExternal`) - will result in a registered {@link UriHandler}
 		 * to trigger.
 		 *
-		 * Extensions should not make any assumptions about the resulting uri and should not alter it in anyway.
+		 * Extensions should not make any assumptions about the resulting uri and should not alter it in any way.
 		 * Rather, extensions can e.g. use this uri in an authentication flow, by adding the uri as callback query
 		 * argument to the server to authenticate to.
 		 *
@@ -8269,13 +8300,18 @@ declare module 'vscode' {
 		 *   }
 		 * });
 		 *
-		 * const callableUri = await vscode.env.asExternalUri(vscode.Uri.parse('${vscode.env.uriScheme}://my.extension/did-authenticate'));
+		 * const callableUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://my.extension/did-authenticate`));
 		 * await vscode.env.openExternal(callableUri);
 		 * ```
 		 *
 		 * *Note* that extensions should not cache the result of `asExternalUri` as the resolved uri may become invalid due to
 		 * a system or user action — for example, in remote cases, a user may close a port forwarding tunnel that was opened by
 		 * `asExternalUri`.
+		 *
+		 * #### Any other scheme
+		 *
+		 * Any other scheme will be handled as if the provided URI is a workspace URI. In that case, the method will return
+		 * a URI which, when handled, will make the editor open the workspace.
 		 *
 		 * @return A uri that can be used on the client machine.
 		 */
@@ -10094,6 +10130,14 @@ declare module 'vscode' {
 		readonly text: string;
 	}
 
+	export enum TextDocumentChangeReason {
+		/** The text change is caused by an undo operation. */
+		Undo = 1,
+
+		/** The text change is caused by an redo operation. */
+		Redo = 2,
+	}
+
 	/**
 	 * An event describing a transactional {@link TextDocument document} change.
 	 */
@@ -10108,6 +10152,12 @@ declare module 'vscode' {
 		 * An array of content changes.
 		 */
 		readonly contentChanges: readonly TextDocumentContentChangeEvent[];
+
+		/**
+		 * The reason why the document was changed.
+		 * Is undefined if the reason is not known.
+		*/
+		readonly reason?: TextDocumentChangeReason;
 	}
 
 	/**
@@ -12278,7 +12328,7 @@ declare module 'vscode' {
 		 * The icon path for a specific
 		 * {@link SourceControlResourceState source control resource state}.
 		 */
-		readonly iconPath?: string | Uri;
+		readonly iconPath?: string | Uri | ThemeIcon;
 	}
 
 	/**

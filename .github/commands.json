@@ -66,6 +66,11 @@
 		"comment": "The described behavior is how it is expected to work. If you disagree, please explain what is expected and what is not in more detail. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
 	},
 	{
+		"type": "label",
+		"name": "notebook",
+		"assign": ["rebornix"]
+	},
+	{
 		"type": "comment",
 		"name": "duplicate",
 		"allowUsers": [

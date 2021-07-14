@@ -16,48 +16,6 @@
 
 declare module 'vscode' {
 
-	//#region auth provider: https://github.com/microsoft/vscode/issues/88309
-
-	/**
-	 * An {@link Event} which fires when an {@link AuthenticationProvider} is added or removed.
-	 */
-	export interface AuthenticationProvidersChangeEvent {
-		/**
-		 * The ids of the {@link AuthenticationProvider}s that have been added.
-		 */
-		readonly added: ReadonlyArray<AuthenticationProviderInformation>;
-
-		/**
-		 * The ids of the {@link AuthenticationProvider}s that have been removed.
-		 */
-		readonly removed: ReadonlyArray<AuthenticationProviderInformation>;
-	}
-
-	export namespace authentication {
-		/**
-		 * @deprecated - getSession should now trigger extension activation.
-		 * Fires with the provider id that was registered or unregistered.
-		 */
-		export const onDidChangeAuthenticationProviders: Event<AuthenticationProvidersChangeEvent>;
-
-		/**
-		 * @deprecated
-		 * An array of the information of authentication providers that are currently registered.
-		 */
-		export const providers: ReadonlyArray<AuthenticationProviderInformation>;
-
-		/**
-		 * @deprecated
-		 * Logout of a specific session.
-		 * @param providerId The id of the provider to use
-		 * @param sessionId The session id to remove
-		 * provider
-		 */
-		export function logout(providerId: string, sessionId: string): Thenable<void>;
-	}
-
-	//#endregion
-
 	// eslint-disable-next-line vscode-dts-region-comments
 	//#region @alexdima - resolvers
 
@@ -721,6 +679,24 @@ declare module 'vscode' {
 		 * @return Disposable which unregisters this command on disposal.
 		 */
 		export function registerDiffInformationCommand(command: string, callback: (diff: LineChange[], ...args: any[]) => any, thisArg?: any): Disposable;
+	}
+
+	//#endregion
+
+	// eslint-disable-next-line vscode-dts-region-comments
+	//#region @weinand: new debug session option 'managedByParent' (see https://github.com/microsoft/vscode/issues/128058)
+
+	/**
+	 * Options for {@link debug.startDebugging starting a debug session}.
+	 */
+	export interface DebugSessionOptions {
+
+		/**
+		 * Controls whether lifecycle requests like 'restart' are sent to the newly created session or its parent session.
+		 * By default (if the property is false or missing), lifecycle requests are sent to the new session.
+		 * This property is ignored if the session has no parent session.
+		 */
+		lifecycleManagedByParent?: boolean;
 	}
 
 	//#endregion
@@ -1396,43 +1372,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region https://github.com/microsoft/vscode/issues/39441
-
-	export interface CompletionItem {
-		/**
-		 * Will be merged into CompletionItem#label
-		 */
-		label2?: CompletionItemLabel;
-	}
-
-	export interface CompletionItemLabel {
-		/**
-		 * The name of this completion item. By default
-		 * this is also the text that is inserted when selecting
-		 * this completion.
-		 */
-		name: string;
-
-		/**
-		 * The signature of this completion item. Will be rendered right after the
-		 * {@link CompletionItemLabel.name name}.
-		 */
-		signature?: string;
-
-		/**
-		 * The fully qualified name, like package name or file path. Rendered after `signature`.
-		 */
-		//todo@API find better name
-		qualifier?: string;
-
-		/**
-		 * The return-type of a function or type of a property/variable. Rendered rightmost.
-		 */
-		type?: string;
-	}
-
-	//#endregion
-
 	//#region @https://github.com/microsoft/vscode/issues/123601, notebook messaging
 
 	export interface NotebookRendererMessage<T> {
@@ -1829,60 +1768,25 @@ declare module 'vscode' {
 	//#region https://github.com/microsoft/vscode/issues/107467
 	export namespace test {
 		/**
-		 * Registers a controller that can discover and
-		 * run tests in workspaces and documents.
+		 * Creates a new test controller.
+		 *
+		 * @param id Identifier for the controller, must be globally unique.
 		 */
-		export function registerTestController<T>(testController: TestController<T>): Disposable;
+		export function createTestController(id: string, label: string): TestController;
 
 		/**
 		 * Requests that tests be run by their controller.
-		 * @param run Run options to use
+		 * @param run Run options to use.
 		 * @param token Cancellation token for the test run
-		 */
-		export function runTests<T>(run: TestRunRequest<T>, token?: CancellationToken): Thenable<void>;
-
-		/**
-		 * Returns an observer that retrieves tests in the given workspace folder.
 		 * @stability experimental
 		 */
-		export function createWorkspaceTestObserver(workspaceFolder: WorkspaceFolder): TestObserver;
+		export function runTests(run: TestRunRequest, token?: CancellationToken): Thenable<void>;
 
 		/**
-		 * Returns an observer that retrieves tests in the given text document.
+		 * Returns an observer that watches and can request tests.
 		 * @stability experimental
 		 */
-		export function createDocumentTestObserver(document: TextDocument): TestObserver;
-
-		/**
-		 * Creates a {@link TestRun<T>}. This should be called by the
-		 * {@link TestRunner} when a request is made to execute tests, and may also
-		 * be called if a test run is detected externally. Once created, tests
-		 * that are included in the results will be moved into the
-		 * {@link TestResultState.Pending} state.
-		 *
-		 * @param request Test run request. Only tests inside the `include` may be
-		 * modified, and tests in its `exclude` are ignored.
-		 * @param name The human-readable name of the run. This can be used to
-		 * disambiguate multiple sets of results in a test run. It is useful if
-		 * tests are run across multiple platforms, for example.
-		 * @param persist Whether the results created by the run should be
-		 * persisted in the editor. This may be false if the results are coming from
-		 * a file already saved externally, such as a coverage information file.
-		 */
-		export function createTestRun<T>(request: TestRunRequest<T>, name?: string, persist?: boolean): TestRun<T>;
-
-		/**
-		 * Creates a new managed {@link TestItem} instance.
-		 * @param options Initial/required options for the item
-		 * @param data Custom data to be stored in {@link TestItem.data}
-		 */
-		export function createTestItem<T, TChildren = T>(options: TestItemOptions, data: T): TestItem<T, TChildren>;
-
-		/**
-		 * Creates a new managed {@link TestItem} instance.
-		 * @param options Initial/required options for the item
-		 */
-		export function createTestItem<T = void, TChildren = any>(options: TestItemOptions): TestItem<T, TChildren>;
+		export function createTestObserver(): TestObserver;
 
 		/**
 		 * List of test results stored by the editor, sorted in descending
@@ -1905,7 +1809,7 @@ declare module 'vscode' {
 		/**
 		 * List of tests returned by test provider for files in the workspace.
 		 */
-		readonly tests: ReadonlyArray<TestItem<never>>;
+		readonly tests: ReadonlyArray<TestItem>;
 
 		/**
 		 * An event that fires when an existing test in the collection changes, or
@@ -1913,16 +1817,6 @@ declare module 'vscode' {
 		 * should check the test item and all its children for changes.
 		 */
 		readonly onDidChangeTest: Event<TestsChangeEvent>;
-
-		/**
-		 * An event that fires when all test providers have signalled that the tests
-		 * the observer references have been discovered. Providers may continue to
-		 * watch for changes and cause {@link onDidChangeTest} to fire as files
-		 * change, until the observer is disposed.
-		 *
-		 * @todo as below
-		 */
-		readonly onDidDiscoverInitialTests: Event<void>;
 
 		/**
 		 * Dispose of the observer, allowing the editor to eventually tell test
@@ -1938,59 +1832,79 @@ declare module 'vscode' {
 		/**
 		 * List of all tests that are newly added.
 		 */
-		readonly added: ReadonlyArray<TestItem<never>>;
+		readonly added: ReadonlyArray<TestItem>;
 
 		/**
 		 * List of existing tests that have updated.
 		 */
-		readonly updated: ReadonlyArray<TestItem<never>>;
+		readonly updated: ReadonlyArray<TestItem>;
 
 		/**
 		 * List of existing tests that have been removed.
 		 */
-		readonly removed: ReadonlyArray<TestItem<never>>;
+		readonly removed: ReadonlyArray<TestItem>;
+	}
+
+	// Todo: this is basically the same as the TaskGroup, which is a class that
+	// allows custom groups to be created. However I don't anticipate having any
+	// UI for that, so enum for now?
+	export enum TestRunConfigurationGroup {
+		Run = 1,
+		Debug = 2,
+		Coverage = 3,
 	}
 
 	/**
-	 * Interface to discover and execute tests.
+	 * Handler called to start a test run. When invoked, the function should
+	 * {@link TestController.createTestRun} at least once, and all tasks
+	 * associated with the run should be created before the function returns
+	 * or the reutrned promise is resolved.
+	 *
+	 * @param request Request information for the test run
+	 * @param cancellationToken Token that signals the used asked to abort the
+	 * test run. If cancellation is requested on this token, all {@link TestRun}
+	 * instances associated with the request will be
+	 * automatically cancelled as well.
 	 */
-	export interface TestController<T> {
+	export type TestRunHandler = (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void;
+
+	export interface TestRunConfiguration {
 		/**
-		 * Requests that tests be provided for the given workspace. This will
-		 * be called when tests need to be enumerated for the workspace, such as
-		 * when the user opens the test explorer.
+		 * Label shown to the user in the UI.
 		 *
-		 * It's guaranteed that this method will not be called again while
-		 * there is a previous uncancelled call for the given workspace folder.
-		 *
-		 * @param workspace The workspace in which to observe tests
-		 * @param cancellationToken Token that signals the used asked to abort the test run.
-		 * @returns the root test item for the workspace
+		 * Note that the label has some significance if the user requests that
+		 * tests be re-run in a certain way. For example, if tests were run
+		 * normally and the user requests to re-run them in debug mode, the editor
+		 * will attempt use a configuration with the same label in the `Debug`
+		 * group. If there is no such configuration, the default will be used.
 		 */
-		createWorkspaceTestRoot(workspace: WorkspaceFolder, token: CancellationToken): ProviderResult<TestItem<T>>;
+		label: string;
 
 		/**
-		 * Requests that tests be provided for the given document. This will be
-		 * called when tests need to be enumerated for a single open file, for
-		 * instance by code lens UI.
-		 *
-		 * It's suggested that the provider listen to change events for the text
-		 * document to provide information for tests that might not yet be
-		 * saved.
-		 *
-		 * If the test system is not able to provide or estimate for tests on a
-		 * per-file basis, this method may not be implemented. In that case, the
-		 * editor will request and use the information from the workspace tree.
-		 *
-		 * @param document The document in which to observe tests
-		 * @param cancellationToken Token that signals the used asked to abort the test run.
-		 * @returns the root test item for the document
+		 * Configures where this configuration is grouped in the UI. If there
+		 * are no configurations for a group, it will not be available in the UI.
 		 */
-		createDocumentTestRoot?(document: TextDocument, token: CancellationToken): ProviderResult<TestItem<T>>;
+		readonly group: TestRunConfigurationGroup;
+
+		/**
+		 * Controls whether this configuration is the default action that will
+		 * be taken when its group is actions. For example, if the user clicks
+		 * the generic "run all" button, then the default configuration for
+		 * {@link TestRunConfigurationGroup.Run} will be executed.
+		 */
+		isDefault: boolean;
+
+		/**
+		 * If this method is present a configuration gear will be present in the
+		 * UI, and this method will be invoked when it's clicked. When called,
+		 * you can take other editor actions, such as showing a quick pick or
+		 * opening a configuration file.
+		 */
+		configureHandler?: () => void;
 
 		/**
 		 * Starts a test run. When called, the controller should call
-		 * {@link vscode.test.createTestRun}. All tasks associated with the
+		 * {@link TestController.createTestRun}. All tasks associated with the
 		 * run should be created before the function returns or the reutrned
 		 * promise is resolved.
 		 *
@@ -2000,37 +1914,154 @@ declare module 'vscode' {
 		 * instances associated with the request will be
 		 * automatically cancelled as well.
 		 */
-		runTests(request: TestRunRequest<T>, token: CancellationToken): Thenable<void> | void;
+		runHandler: TestRunHandler;
+
+		/**
+		 * Deletes the run configuration.
+		 */
+		dispose(): void;
+	}
+
+	/**
+	 * Interface to discover and execute tests.
+	 */
+	export interface TestController {
+		/**
+		 * The ID of the controller, passed in {@link vscode.test.createTestController}
+		 */
+		readonly id: string;
+
+		/**
+		 * Human-readable label for the test controller.
+		 */
+		label: string;
+
+		/**
+		 * Root test item. Tests in the workspace should be added as children of
+		 * the root. The extension controls when to add these, although the
+		 * editor may request children using the {@link resolveChildrenHandler},
+		 * and the extension should add tests for a file when
+		 * {@link vscode.workspace.onDidOpenTextDocument} fires in order for
+		 * decorations for tests within the file to be visible.
+		 *
+		 * Tests in this collection should be watched and updated by the extension
+		 * as files change. See  {@link resolveChildrenHandler} for details around
+		 * for the lifecycle of watches.
+		 */
+		// todo@API a little weird? what is its label, id, busy state etc? Can I dispose this?
+		// todo@API allow createTestItem-calls without parent and simply treat them as root (similar to createSourceControlResourceGroup)
+		readonly root: TestItem;
+
+		/**
+		 * Creates a configuration used for running tests. Extensions must create
+		 * at least one configuration in order for tests to be run.
+		 * @param label Human-readable label for this configuration
+		 * @param group Configures where this configuration is grouped in the UI.
+		 * @param runHandler Function called to start a test run
+		 * @param isDefault Whether this is the default action for the group
+		 */
+		createRunConfiguration(label: string, group: TestRunConfigurationGroup, runHandler: TestRunHandler, isDefault?: boolean): TestRunConfiguration;
+
+		/**
+		 * Creates a new managed {@link TestItem} instance as a child of this
+		 * one.
+		 * @param id Unique identifier for the TestItem.
+		 * @param label Human-readable label of the test item.
+		 * @param parent Parent of the item. This is required; top-level items
+		 * should be created as children of the {@link root}.
+		 * @param uri URI this TestItem is associated with. May be a file or directory.
+		 * @param data Custom data to be stored in {@link TestItem.data}
+		 */
+		createTestItem(
+			id: string,
+			label: string,
+			parent: TestItem,
+			uri?: Uri,
+		): TestItem;
+
+		/**
+		 * A function provided by the extension that the editor may call to request
+		 * children of a test item, if the {@link TestItem.canExpand} is `true`.
+		 * When called, the item should discover children and call
+		 * {@link TestController.createTestItem} as children are discovered.
+		 *
+		 * The item in the explorer will automatically be marked as "busy" until
+		 * the function returns or the returned thenable resolves.
+		 *
+		 * The controller may wish to set up listeners or watchers to update the
+		 * children as files and documents change.
+		 *
+		 * @param item An unresolved test item for which
+		 * children are being requested
+		 */
+		resolveChildrenHandler?: (item: TestItem) => Thenable<void> | void;
+
+		/**
+		 * Creates a {@link TestRun<T>}. This should be called by the
+		 * {@link TestRunner} when a request is made to execute tests, and may also
+		 * be called if a test run is detected externally. Once created, tests
+		 * that are included in the results will be moved into the
+		 * {@link TestResultState.Pending} state.
+		 *
+		 * All runs created using the same `request` instance will be grouped
+		 * together. This is useful if, for example, a single suite of tests is
+		 * run on multiple platforms.
+		 *
+		 * @param request Test run request. Only tests inside the `include` may be
+		 * modified, and tests in its `exclude` are ignored.
+		 * @param name The human-readable name of the run. This can be used to
+		 * disambiguate multiple sets of results in a test run. It is useful if
+		 * tests are run across multiple platforms, for example.
+		 * @param persist Whether the results created by the run should be
+		 * persisted in the editor. This may be false if the results are coming from
+		 * a file already saved externally, such as a coverage information file.
+		 */
+		createTestRun(request: TestRunRequest, name?: string, persist?: boolean): TestRun;
+
+		/**
+		 * Unregisters the test controller, disposing of its associated tests
+		 * and unpersisted results.
+		 */
+		dispose(): void;
 	}
 
 	/**
 	 * Options given to {@link test.runTests}.
 	 */
-	export interface TestRunRequest<T> {
+	export class TestRunRequest {
 		/**
 		 * Array of specific tests to run. The controllers should run all of the
 		 * given tests and all children of the given tests, excluding any tests
 		 * that appear in {@link TestRunRequest.exclude}.
 		 */
-		tests: TestItem<T>[];
+		tests: TestItem[];
 
 		/**
 		 * An array of tests the user has marked as excluded in the editor. May be
 		 * omitted if no exclusions were requested. Test controllers should not run
 		 * excluded tests or any children of excluded tests.
 		 */
-		exclude?: TestItem<T>[];
+		exclude?: TestItem[];
 
 		/**
-		 * Whether tests in this run should be debugged.
+		 * The configuration used for this request. This will always be defined
+		 * for requests issued from the editor UI, though extensions may
+		 * programmatically create requests not associated with any configuration.
 		 */
-		debug: boolean;
+		configuration?: TestRunConfiguration;
+
+		/**
+		 * @param tests Array of specific tests to run.
+		 * @param exclude Tests to exclude from the run
+		 * @param configuration The run configuration used for this request.
+		 */
+		constructor(tests: readonly TestItem[], exclude?: readonly TestItem[], configuration?: TestRunConfiguration);
 	}
 
 	/**
 	 * Options given to {@link TestController.runTests}
 	 */
-	export interface TestRun<T = void> {
+	export interface TestRun {
 		/**
 		 * The human-readable name of the run. This can be used to
 		 * disambiguate multiple sets of results in a test run. It is useful if
@@ -2053,7 +2084,8 @@ declare module 'vscode' {
 		 * @param state The state to assign to the test
 		 * @param duration Optionally sets how long the test took to run, in milliseconds
 		 */
-		setState(test: TestItem<T>, state: TestResultState, duration?: number): void;
+		//todo@API is this "update" state or set final state? should this be called setTestResult?
+		setState(test: TestItem, state: TestResultState, duration?: number): void;
 
 		/**
 		 * Appends a message, such as an assertion error, to the test item.
@@ -2064,7 +2096,7 @@ declare module 'vscode' {
 		 * @param test The test to update
 		 * @param message The message to add
 		 */
-		appendMessage(test: TestItem<T>, message: TestMessage): void;
+		appendMessage(test: TestItem, message: TestMessage): void;
 
 		/**
 		 * Appends raw output from the test runner. On the user's request, the
@@ -2084,47 +2116,10 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Indicates the the activity state of the {@link TestItem}.
-	 */
-	export enum TestItemStatus {
-		/**
-		 * All children of the test item, if any, have been discovered.
-		 */
-		Resolved = 1,
-
-		/**
-		 * The test item may have children who have not been discovered yet.
-		 */
-		Pending = 0,
-	}
-
-	/**
-	 * Options initially passed into `vscode.test.createTestItem`
-	 */
-	export interface TestItemOptions {
-		/**
-		 * Unique identifier for the TestItem. This is used to correlate
-		 * test results and tests in the document with those in the workspace
-		 * (test explorer). This cannot change for the lifetime of the TestItem.
-		 */
-		id: string;
-
-		/**
-		 * URI this TestItem is associated with. May be a file or directory.
-		 */
-		uri?: Uri;
-
-		/**
-		 * Display name describing the test item.
-		 */
-		label: string;
-	}
-
-	/**
 	 * A test item is an item shown in the "test explorer" view. It encompasses
 	 * both a suite and a test, since they have almost or identical capabilities.
 	 */
-	export interface TestItem<T, TChildren = any> {
+	export interface TestItem {
 		/**
 		 * Unique identifier for the TestItem. This is used to correlate
 		 * test results and tests in the document with those in the workspace
@@ -2140,26 +2135,31 @@ declare module 'vscode' {
 		/**
 		 * A mapping of children by ID to the associated TestItem instances.
 		 */
-		readonly children: ReadonlyMap<string, TestItem<TChildren>>;
+		//todo@API use array over es6-map
+		readonly children: ReadonlyMap<string, TestItem>;
 
 		/**
-		 * The parent of this item, if any. Assigned automatically when calling
-		 * {@link TestItem.addChild}.
+		 * The parent of this item, given in {@link TestController.createTestItem}.
+		 * This is undefined only for the {@link TestController.root}.
 		 */
-		readonly parent?: TestItem<any>;
+		readonly parent?: TestItem;
 
 		/**
-		 * Indicates the state of the test item's children. The editor will show
-		 * TestItems in the `Pending` state and with a `resolveHandler` as being
-		 * expandable, and will call the `resolveHandler` to request items.
+		 * Indicates whether this test item may have children discovered by resolving.
+		 * If so, it will be shown as expandable in the Test Explorer  view, and
+		 * expanding the item will cause {@link TestController.resolveChildrenHandler}
+		 * to be invoked with the item.
 		 *
-		 * A TestItem in the `Resolved` state is assumed to have discovered and be
-		 * watching for changes in its children if applicable. TestItems are in the
-		 * `Resolved` state when initially created; if the editor should call
-		 * the `resolveHandler` to discover children, set the state to `Pending`
-		 * after creating the item.
+		 * Default to false.
 		 */
-		status: TestItemStatus;
+		canResolveChildren: boolean;
+
+		/**
+		 * Controls whether the item is shown as "busy" in the Test Explorer view.
+		 * This is useful for showing status while discovering children. Defaults
+		 * to false.
+		 */
+		busy: boolean;
 
 		/**
 		 * Display name describing the test case.
@@ -2185,24 +2185,6 @@ declare module 'vscode' {
 		error?: string | MarkdownString;
 
 		/**
-		 * Whether this test item can be run by providing it in the
-		 * {@link TestRunRequest.tests} array. Defaults to `true`.
-		 */
-		runnable: boolean;
-
-		/**
-		 * Whether this test item can be debugged by providing it in the
-		 * {@link TestRunRequest.tests} array. Defaults to `false`.
-		 */
-		debuggable: boolean;
-
-		/**
-		 * Custom extension data on the item. This data will never be serialized
-		 * or shared outside the extenion who created the item.
-		 */
-		data: T;
-
-		/**
 		 * Marks the test as outdated. This can happen as a result of file changes,
 		 * for example. In "auto run" mode, tests that are outdated will be
 		 * automatically rerun after a short delay. Invoking this on a
@@ -2210,40 +2192,10 @@ declare module 'vscode' {
 		 *
 		 * Extensions should generally not override this method.
 		 */
-		invalidate(): void;
+		invalidateResults(): void;
 
 		/**
-		 * A function provided by the extension that the editor may call to request
-		 * children of the item, if the {@link TestItem.status} is `Pending`.
-		 *
-		 * When called, the item should discover tests and call {@link TestItem.addChild}.
-		 * The items should set its {@link TestItem.status} to `Resolved` when
-		 * discovery is finished.
-		 *
-		 * The item should continue watching for changes to the children and
-		 * firing updates until the token is cancelled. The process of watching
-		 * the tests may involve creating a file watcher, for example. After the
-		 * token is cancelled and watching stops, the TestItem should set its
-		 * {@link TestItem.status} back to `Pending`.
-		 *
-		 * The editor will only call this method when it's interested in refreshing
-		 * the children of the item, and will not call it again while there's an
-		 * existing, uncancelled discovery for an item.
-		 *
-		 * @param token Cancellation for the request. Cancellation will be
-		 * requested if the test changes before the previous call completes.
-		 */
-		resolveHandler?: (token: CancellationToken) => void;
-
-		/**
-		 * Attaches a child, created from the {@link test.createTestItem} function,
-		 * to this item. A `TestItem` may be a child of at most one other item.
-		 */
-		addChild(child: TestItem<TChildren>): void;
-
-		/**
-		 * Removes the test and its children from the tree. Any tokens passed to
-		 * child `resolveHandler` methods will be cancelled.
+		 * Removes the test and its children from the tree.
 		 */
 		dispose(): void;
 	}
@@ -2576,69 +2528,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region @joaomoreno https://github.com/microsoft/vscode/issues/124263
-	// This API change only affects behavior and documentation, not API surface.
-
-	namespace env {
-
-		/**
-		 * Resolves a uri to form that is accessible externally.
-		 *
-		 * #### `http:` or `https:` scheme
-		 *
-		 * Resolves an *external* uri, such as a `http:` or `https:` link, from where the extension is running to a
-		 * uri to the same resource on the client machine.
-		 *
-		 * This is a no-op if the extension is running on the client machine.
-		 *
-		 * If the extension is running remotely, this function automatically establishes a port forwarding tunnel
-		 * from the local machine to `target` on the remote and returns a local uri to the tunnel. The lifetime of
-		 * the port forwarding tunnel is managed by the editor and the tunnel can be closed by the user.
-		 *
-		 * *Note* that uris passed through `openExternal` are automatically resolved and you should not call `asExternalUri` on them.
-		 *
-		 * #### `vscode.env.uriScheme`
-		 *
-		 * Creates a uri that - if opened in a browser (e.g. via `openExternal`) - will result in a registered {@link UriHandler}
-		 * to trigger.
-		 *
-		 * Extensions should not make any assumptions about the resulting uri and should not alter it in anyway.
-		 * Rather, extensions can e.g. use this uri in an authentication flow, by adding the uri as callback query
-		 * argument to the server to authenticate to.
-		 *
-		 * *Note* that if the server decides to add additional query parameters to the uri (e.g. a token or secret), it
-		 * will appear in the uri that is passed to the {@link UriHandler}.
-		 *
-		 * **Example** of an authentication flow:
-		 * ```typescript
-		 * vscode.window.registerUriHandler({
-		 *   handleUri(uri: vscode.Uri): vscode.ProviderResult<void> {
-		 *     if (uri.path === '/did-authenticate') {
-		 *       console.log(uri.toString());
-		 *     }
-		 *   }
-		 * });
-		 *
-		 * const callableUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://my.extension/did-authenticate`));
-		 * await vscode.env.openExternal(callableUri);
-		 * ```
-		 *
-		 * *Note* that extensions should not cache the result of `asExternalUri` as the resolved uri may become invalid due to
-		 * a system or user action — for example, in remote cases, a user may close a port forwarding tunnel that was opened by
-		 * `asExternalUri`.
-		 *
-		 * #### Any other scheme
-		 *
-		 * Any other scheme will be handled as if the provided URI is a workspace URI. In that case, the method will return
-		 * a URI which, when handled, will make the editor open the workspace.
-		 *
-		 * @return A uri that can be used on the client machine.
-		 */
-		export function asExternalUri(target: Uri): Thenable<Uri>;
-	}
-
-	//#endregion
-
 	//#region https://github.com/Microsoft/vscode/issues/15178
 
 	// TODO@API must be a class
@@ -2880,31 +2769,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region https://github.com/microsoft/vscode/issues/87110 @eamodio
-
-	export interface Memento {
-
-		/**
-		 * The stored keys.
-		 */
-		readonly keys: readonly string[];
-	}
-
-	//#endregion
-
-	//#region https://github.com/microsoft/vscode/issues/126258 @aeschli
-
-	export interface StatusBarItem {
-
-		/**
-		 * Will be merged into StatusBarItem#tooltip
-		 */
-		tooltip2: string | MarkdownString | undefined;
-
-	}
-
-	//#endregion
-
 	//#region https://github.com/microsoft/vscode/issues/126280 @mjbvz
 
 	export interface NotebookCellData {
@@ -2930,6 +2794,197 @@ declare module 'vscode' {
 		 */
 		mime: string | undefined;
 	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/123713 @connor4312
+	export interface TestRun {
+		/**
+		 * Test coverage provider for this result. An extension can defer setting
+		 * this until after a run is complete and coverage is available.
+		 */
+		coverageProvider?: TestCoverageProvider
+		// ...
+	}
+
+	/**
+	 * Provides information about test coverage for a test result.
+	 * Methods on the provider will not be called until the test run is complete
+	 */
+	export interface TestCoverageProvider<T extends FileCoverage = FileCoverage> {
+		/**
+		 * Returns coverage information for all files involved in the test run.
+		 * @param token A cancellation token.
+		 * @return Coverage metadata for all files involved in the test.
+		 */
+		provideFileCoverage(token: CancellationToken): ProviderResult<T[]>;
+
+		/**
+		 * Give a FileCoverage to fill in more data, namely {@link FileCoverage.detailedCoverage}.
+		 * The editor will only resolve a FileCoverage once, and onyl if detailedCoverage
+		 * is undefined.
+		 *
+		 * @param coverage A coverage object obtained from {@link provideFileCoverage}
+		 * @param token A cancellation token.
+		 * @return The resolved file coverage, or a thenable that resolves to one. It
+		 * is OK to return the given `coverage`. When no result is returned, the
+		 * given `coverage` will be used.
+		 */
+		resolveFileCoverage?(coverage: T, token: CancellationToken): ProviderResult<T>;
+	}
+
+	/**
+	 * A class that contains information about a covered resource. A count can
+	 * be give for lines, branches, and functions in a file.
+	 */
+	export class CoveredCount {
+		/**
+		 * Number of items covered in the file.
+		 */
+		covered: number;
+		/**
+		 * Total number of covered items in the file.
+		 */
+		total: number;
+
+		/**
+		 * @param covered Value for {@link CovereredCount.covered}
+		 * @param total Value for {@link CovereredCount.total}
+		 */
+		constructor(covered: number, total: number);
+	}
+
+	/**
+	 * Contains coverage metadata for a file.
+	 */
+	export class FileCoverage {
+		/**
+		 * File URI.
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * Statement coverage information. If the reporter does not provide statement
+		 * coverage information, this can instead be used to represent line coverage.
+		 */
+		statementCoverage: CoveredCount;
+
+		/**
+		 * Branch coverage information.
+		 */
+		branchCoverage?: CoveredCount;
+
+		/**
+		 * Function coverage information.
+		 */
+		functionCoverage?: CoveredCount;
+
+		/**
+		 * Detailed, per-statement coverage. If this is undefined, the editor will
+		 * call {@link TestCoverageProvider.resolveFileCoverage} when necessary.
+		 */
+		detailedCoverage?: DetailedCoverage[];
+
+		/**
+		 * Creates a {@link FileCoverage} instance with counts filled in from
+		 * the coverage details.
+		 * @param uri Covered file URI
+		 * @param detailed Detailed coverage information
+		 */
+		static fromDetails(uri: Uri, details: readonly DetailedCoverage[]): FileCoverage;
+
+		/**
+		 * @param uri Covered file URI
+		 * @param statementCoverage Statement coverage information. If the reporter
+		 * does not provide statement coverage information, this can instead be
+		 * used to represent line coverage.
+		 * @param branchCoverage Branch coverage information
+		 * @param functionCoverage Function coverage information
+		 */
+		constructor(
+			uri: Uri,
+			statementCoverage: CoveredCount,
+			branchCoverage?: CoveredCount,
+			functionCoverage?: CoveredCount,
+		);
+	}
+
+	/**
+	 * Contains coverage information for a single statement or line.
+	 */
+	export class StatementCoverage {
+		/**
+		 * The number of times this statement was executed. If zero, the
+		 * statement will be marked as un-covered.
+		 */
+		executionCount: number;
+
+		/**
+		 * Statement location.
+		 */
+		location: Position | Range;
+
+		/**
+		 * Coverage from branches of this line or statement. If it's not a
+		 * conditional, this will be empty.
+		 */
+		branches: BranchCoverage[];
+
+		/**
+		 * @param location The statement position.
+		 * @param executionCount The number of times this statement was
+		 * executed. If zero, the statement will be marked as un-covered.
+		 * @param branches Coverage from branches of this line.  If it's not a
+		 * conditional, this should be omitted.
+		 */
+		constructor(executionCount: number, location: Position | Range, branches?: BranchCoverage[]);
+	}
+
+	/**
+	 * Contains coverage information for a branch of a {@link StatementCoverage}.
+	 */
+	export class BranchCoverage {
+		/**
+		 * The number of times this branch was executed. If zero, the
+		 * branch will be marked as un-covered.
+		 */
+		executionCount: number;
+
+		/**
+		 * Branch location.
+		 */
+		location?: Position | Range;
+
+		/**
+		 * @param executionCount The number of times this branch was executed.
+		 * @param location The branch position.
+		 */
+		constructor(executionCount: number, location?: Position | Range);
+	}
+
+	/**
+	 * Contains coverage information for a function or method.
+	 */
+	export class FunctionCoverage {
+		/**
+		 * The number of times this function was executed. If zero, the
+		 * function will be marked as un-covered.
+		 */
+		executionCount: number;
+
+		/**
+		 * Function location.
+		 */
+		location: Position | Range;
+
+		/**
+		 * @param executionCount The number of times this function was executed.
+		 * @param location The function position.
+		 */
+		constructor(executionCount: number, location: Position | Range);
+	}
+
+	export type DetailedCoverage = StatementCoverage | FunctionCoverage;
 
 	//#endregion
 }

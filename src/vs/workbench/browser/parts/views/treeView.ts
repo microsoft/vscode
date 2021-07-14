@@ -141,7 +141,7 @@ const noDataProviderMessage = localize('no-dataprovider', "There is no data prov
 
 class Tree extends WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore> { }
 
-export class TreeView extends Disposable implements ITreeView {
+abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 	private isVisible: boolean = false;
 	private _hasIconForParentNode = false;
@@ -162,6 +162,7 @@ export class TreeView extends Disposable implements ITreeView {
 	private messageElement!: HTMLDivElement;
 	private tree: Tree | undefined;
 	private treeLabels: ResourceLabels | undefined;
+	private treeViewDnd: CustomTreeViewDragAndDrop;
 
 	private root: ITreeItem;
 	private elementsToRefresh: ITreeItem[] = [];
@@ -215,6 +216,7 @@ export class TreeView extends Disposable implements ITreeView {
 		this.collapseAllToggleContext = this.collapseAllToggleContextKey.bindTo(contextKeyService);
 		this.refreshContextKey = new RawContextKey<boolean>(`treeView.${this.id}.enableRefresh`, false, localize('treeView.enableRefresh', "Whether the tree view with id {0} enables refresh.", this.id));
 		this.refreshContext = this.refreshContextKey.bindTo(contextKeyService);
+		this.treeViewDnd = this.instantiationService.createInstance(CustomTreeViewDragAndDrop);
 
 		this._register(this.themeService.onDidFileIconThemeChange(() => this.doRefresh([this.root]) /** soft refresh **/));
 		this._register(this.themeService.onDidColorThemeChange(() => this.doRefresh([this.root]) /** soft refresh **/));
@@ -246,6 +248,7 @@ export class TreeView extends Disposable implements ITreeView {
 	}
 	set dragAndDropController(dnd: ITreeViewDragAndDropController | undefined) {
 		this._dragAndDropController = dnd;
+		this.treeViewDnd.controller = dnd;
 	}
 
 	private _dataProvider: ITreeViewDataProvider | undefined;
@@ -254,10 +257,6 @@ export class TreeView extends Disposable implements ITreeView {
 	}
 
 	set dataProvider(dataProvider: ITreeViewDataProvider | undefined) {
-		if (this.tree === undefined) {
-			this.createTree();
-		}
-
 		if (dataProvider) {
 			const self = this;
 			this._dataProvider = new class implements ITreeViewDataProvider {
@@ -336,7 +335,11 @@ export class TreeView extends Disposable implements ITreeView {
 	}
 
 	set canSelectMany(canSelectMany: boolean) {
+		const oldCanSelectMany = this._canSelectMany;
 		this._canSelectMany = canSelectMany;
+		if (this._canSelectMany !== oldCanSelectMany) {
+			this.tree?.updateOptions({ multipleSelectionSupport: this.canSelectMany });
+		}
 	}
 
 	get hasIconForParentNode(): boolean {
@@ -432,7 +435,13 @@ export class TreeView extends Disposable implements ITreeView {
 		}
 
 		this._onDidChangeVisibility.fire(this.isVisible);
+
+		if (this.visible) {
+			this.activate();
+		}
 	}
+
+	protected abstract activate(): void;
 
 	focus(reveal: boolean = true): void {
 		if (this.tree && this.root.children && this.root.children.length > 0) {
@@ -465,7 +474,7 @@ export class TreeView extends Disposable implements ITreeView {
 		this._register(focusTracker.onDidBlur(() => this.focused = false));
 	}
 
-	private createTree() {
+	protected createTree() {
 		const actionViewItemProvider = createActionViewItem.bind(undefined, this.instantiationService);
 		const treeMenus = this._register(this.instantiationService.createInstance(TreeMenus, this.id));
 		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
@@ -513,7 +522,7 @@ export class TreeView extends Disposable implements ITreeView {
 				return e.collapsibleState !== TreeItemCollapsibleState.Expanded;
 			},
 			multipleSelectionSupport: this.canSelectMany,
-			dnd: this.dragAndDropController ? this.instantiationService.createInstance(CustomTreeViewDragAndDrop, this.dragAndDropController) : undefined,
+			dnd: this.treeViewDnd,
 			overrideStyles: {
 				listBackground: this.viewLocation === ViewContainerLocation.Sidebar ? SIDE_BAR_BACKGROUND : PANEL_BACKGROUND
 			}
@@ -1153,7 +1162,7 @@ class TreeMenus extends Disposable implements IDisposable {
 	}
 }
 
-export class CustomTreeView extends TreeView {
+export class CustomTreeView extends AbstractTreeView {
 
 	private activated: boolean = false;
 
@@ -1176,15 +1185,9 @@ export class CustomTreeView extends TreeView {
 		super(id, title, themeService, instantiationService, commandService, configurationService, progressService, contextMenuService, keybindingService, notificationService, viewDescriptorService, hoverService, contextKeyService);
 	}
 
-	override setVisibility(isVisible: boolean): void {
-		super.setVisibility(isVisible);
-		if (this.visible) {
-			this.activate();
-		}
-	}
-
-	private activate() {
+	protected activate() {
 		if (!this.activated) {
+			this.createTree();
 			this.progressService.withProgress({ location: this.id }, () => this.extensionService.activateByEvent(`onView:${this.id}`))
 				.then(() => timeout(2000))
 				.then(() => {
@@ -1195,18 +1198,44 @@ export class CustomTreeView extends TreeView {
 	}
 }
 
+export class TreeView extends AbstractTreeView {
+
+	private activated: boolean = false;
+
+	protected activate() {
+		if (!this.activated) {
+			this.createTree();
+			this.activated = true;
+		}
+	}
+}
+
 export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
-	constructor(private dndController: ITreeViewDragAndDropController, @ILabelService private readonly labelService: ILabelService) { }
+	constructor(@ILabelService private readonly labelService: ILabelService) { }
+
+	private dndController: ITreeViewDragAndDropController | undefined;
+	set controller(controller: ITreeViewDragAndDropController | undefined) {
+		this.dndController = controller;
+	}
 
 	onDragOver(data: IDragAndDropData, targetElement: ITreeItem, targetIndex: number, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
+		if (!this.dndController) {
+			return false;
+		}
 		return { accept: true, bubble: TreeDragOverBubble.Down, autoExpand: true };
 	}
 
 	getDragURI(element: ITreeItem): string | null {
+		if (!this.dndController) {
+			return null;
+		}
 		return element.resourceUri ? URI.revive(element.resourceUri).toString() : element.handle;
 	}
 
 	getDragLabel?(elements: ITreeItem[]): string | undefined {
+		if (!this.dndController) {
+			return undefined;
+		}
 		if (elements.length > 1) {
 			return String(elements.length);
 		}
@@ -1218,7 +1247,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		if (data instanceof ElementsDragAndDropData) {
 			const elements = data.elements;
 			if (targetNode) {
-				await this.dndController.onDrop(elements, targetNode);
+				await this.dndController?.onDrop(elements, targetNode);
 			}
 		}
 	}

@@ -17,8 +17,26 @@ const TRACK_DISPOSABLES = false;
 let disposableTracker: IDisposableTracker | null = null;
 
 export interface IDisposableTracker {
-	trackDisposable(x: IDisposable): void;
-	markTracked(x: IDisposable): void;
+	/**
+	 * Is called on construction of a disposable.
+	*/
+	trackDisposable(disposable: IDisposable): void;
+
+	/**
+	 * Is called when a disposable is registered as child of another disposable (e.g. {@link DisposableStore}).
+	 * If parent is `null`, the disposable is removed from its former parent.
+	*/
+	setParent(child: IDisposable, parent: IDisposable | null): void;
+
+	/**
+	 * Is called after a disposable is disposed.
+	*/
+	markAsDisposed(disposable: IDisposable): void;
+
+	/**
+	 * Indicates that the given object is a singleton which does not need to be disposed.
+	*/
+	markAsSingleton(disposable: IDisposable): void;
 }
 
 export function setDisposableTracker(tracker: IDisposableTracker | null): void {
@@ -27,7 +45,7 @@ export function setDisposableTracker(tracker: IDisposableTracker | null): void {
 
 if (TRACK_DISPOSABLES) {
 	const __is_disposable_tracked__ = '__is_disposable_tracked__';
-	disposableTracker = new class implements IDisposableTracker {
+	setDisposableTracker(new class implements IDisposableTracker {
 		trackDisposable(x: IDisposable): void {
 			const stack = new Error('Potentially leaked disposable').stack!;
 			setTimeout(() => {
@@ -37,31 +55,57 @@ if (TRACK_DISPOSABLES) {
 			}, 3000);
 		}
 
-		markTracked(x: IDisposable): void {
-			if (x && x !== Disposable.None) {
+		setParent(child: IDisposable, parent: IDisposable | null): void {
+			if (child && child !== Disposable.None) {
 				try {
-					(x as any)[__is_disposable_tracked__] = true;
+					(child as any)[__is_disposable_tracked__] = true;
 				} catch {
 					// noop
 				}
 			}
 		}
-	};
+
+		markAsDisposed(disposable: IDisposable): void {
+			if (disposable && disposable !== Disposable.None) {
+				try {
+					(disposable as any)[__is_disposable_tracked__] = true;
+				} catch {
+					// noop
+				}
+			}
+		}
+		markAsSingleton(disposable: IDisposable): void { }
+	});
 }
 
-function markTracked<T extends IDisposable>(x: T): void {
+function trackDisposable<T extends IDisposable>(x: T): T {
+	disposableTracker?.trackDisposable(x);
+	return x;
+}
+
+function markAsDisposed(disposable: IDisposable): void {
+	disposableTracker?.markAsDisposed(disposable);
+}
+
+function setParentOfDisposable(child: IDisposable, parent: IDisposable | null): void {
+	disposableTracker?.setParent(child, parent);
+}
+
+function setParentOfDisposables(children: IDisposable[], parent: IDisposable | null): void {
 	if (!disposableTracker) {
 		return;
 	}
-	disposableTracker.markTracked(x);
+	for (const child of children) {
+		disposableTracker.setParent(child, parent);
+	}
 }
 
-export function trackDisposable<T extends IDisposable>(x: T): T {
-	if (!disposableTracker) {
-		return x;
-	}
-	disposableTracker.trackDisposable(x);
-	return x;
+/**
+ * Indicates that the given object is a singleton which does not need to be disposed.
+*/
+export function markAsSingleton<T extends IDisposable>(singleton: T): T {
+	disposableTracker?.markAsSingleton(singleton);
+	return singleton;
 }
 
 export class MultiDisposeError extends Error {
@@ -91,7 +135,6 @@ export function dispose<T extends IDisposable>(arg: T | IterableIterator<T> | un
 
 		for (const d of arg) {
 			if (d) {
-				markTracked(d);
 				try {
 					d.dispose();
 				} catch (e) {
@@ -108,7 +151,6 @@ export function dispose<T extends IDisposable>(arg: T | IterableIterator<T> | un
 
 		return Array.isArray(arg) ? [] : arg;
 	} else if (arg) {
-		markTracked(arg);
 		arg.dispose();
 		return arg;
 	}
@@ -116,16 +158,17 @@ export function dispose<T extends IDisposable>(arg: T | IterableIterator<T> | un
 
 
 export function combinedDisposable(...disposables: IDisposable[]): IDisposable {
-	disposables.forEach(markTracked);
-	return toDisposable(() => dispose(disposables));
+	const parent = toDisposable(() => dispose(disposables));
+	setParentOfDisposables(disposables, parent);
+	return parent;
 }
 
 export function toDisposable(fn: () => void): IDisposable {
 	const self = trackDisposable({
-		dispose: () => {
-			markTracked(self);
+		dispose: once(() => {
+			markAsDisposed(self);
 			fn();
-		}
+		})
 	});
 	return self;
 }
@@ -137,6 +180,10 @@ export class DisposableStore implements IDisposable {
 	private _toDispose = new Set<IDisposable>();
 	private _isDisposed = false;
 
+	constructor() {
+		trackDisposable(this);
+	}
+
 	/**
 	 * Dispose of all registered disposables and mark this object as disposed.
 	 *
@@ -147,7 +194,7 @@ export class DisposableStore implements IDisposable {
 			return;
 		}
 
-		markTracked(this);
+		markAsDisposed(this);
 		this._isDisposed = true;
 		this.clear();
 	}
@@ -171,7 +218,7 @@ export class DisposableStore implements IDisposable {
 			throw new Error('Cannot register a disposable on itself!');
 		}
 
-		markTracked(t);
+		setParentOfDisposable(t, this);
 		if (this._isDisposed) {
 			if (!DisposableStore.DISABLE_DISPOSED_WARNING) {
 				console.warn(new Error('Trying to add a disposable to a DisposableStore that has already been disposed of. The added object will be leaked!').stack);
@@ -192,10 +239,11 @@ export abstract class Disposable implements IDisposable {
 
 	constructor() {
 		trackDisposable(this);
+		setParentOfDisposable(this._store, this);
 	}
 
 	public dispose(): void {
-		markTracked(this);
+		markAsDisposed(this);
 
 		this._store.dispose();
 	}
@@ -233,7 +281,7 @@ export class MutableDisposable<T extends IDisposable> implements IDisposable {
 
 		this._value?.dispose();
 		if (value) {
-			markTracked(value);
+			setParentOfDisposable(value, this);
 		}
 		this._value = value;
 	}
@@ -244,9 +292,22 @@ export class MutableDisposable<T extends IDisposable> implements IDisposable {
 
 	dispose(): void {
 		this._isDisposed = true;
-		markTracked(this);
+		markAsDisposed(this);
 		this._value?.dispose();
 		this._value = undefined;
+	}
+
+	/**
+	 * Clears the value, but does not dispose it.
+	 * The old value is returned.
+	*/
+	clearAndLeak(): T | undefined {
+		const oldValue = this._value;
+		this._value = undefined;
+		if (oldValue) {
+			setParentOfDisposable(oldValue, null);
+		}
+		return oldValue;
 	}
 }
 

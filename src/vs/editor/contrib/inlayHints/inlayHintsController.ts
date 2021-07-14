@@ -26,6 +26,7 @@ import { IRange } from 'vs/base/common/range';
 import { assertType } from 'vs/base/common/types';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { Position } from 'vs/editor/common/core/position';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const MAX_DECORATORS = 500;
 
@@ -65,6 +66,7 @@ export class InlayHintsController implements IEditorContribution {
 		private readonly _editor: ICodeEditor,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IThemeService private readonly _themeService: IThemeService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		this._disposables.add(InlayHintsProviderRegistry.onDidChange(() => this._update()));
 		this._disposables.add(_themeService.onDidColorThemeChange(() => this._update()));
@@ -145,6 +147,9 @@ export class InlayHintsController implements IEditorContribution {
 		const fontFamilyVar = '--inlayHintsFontFamily';
 		this._editor.getContainerDomNode().style.setProperty(fontFamilyVar, fontFamily);
 
+		const key = this._configurationService.getValue('editor.useInjectedText');
+		const shouldUseInjectedText = key === undefined ? true : !!key;
+
 		for (const { list: hints } of hintsData) {
 
 			for (let j = 0; j < hints.length && newDecorationsData.length < MAX_DECORATORS; j++) {
@@ -163,7 +168,8 @@ export class InlayHintsController implements IEditorContribution {
 					borderRadius: `${(fontSize / 4) | 0}px`,
 				};
 				const key = 'inlayHints-' + hash(before).toString(16);
-				this._codeEditorService.registerDecorationType('inlay-hints-controller', key, { before }, undefined, this._editor);
+				this._codeEditorService.registerDecorationType('inlay-hints-controller', key,
+					shouldUseInjectedText ? { beforeInjectedText: { ...before, affectsLetterSpacing: true } } : { before }, undefined, this._editor);
 
 				// decoration types are ref-counted which means we only need to
 				// call register und remove equally often
@@ -190,7 +196,7 @@ export class InlayHintsController implements IEditorContribution {
 		if (!fontSize || fontSize < 5 || fontSize > editorFontSize) {
 			fontSize = (editorFontSize * .9) | 0;
 		}
-		const fontFamily = options.fontFamily;
+		const fontFamily = options.fontFamily || this._editor.getOption(EditorOption.fontFamily);
 		return { fontSize, fontFamily };
 	}
 

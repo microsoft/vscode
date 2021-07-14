@@ -112,6 +112,10 @@
 	line-height: 20px;
 }
 
+.extension-editor > .header > .details > .subtitle .hide {
+	display: none;
+}
+
 .extension-editor > .header > .details > .subtitle .publisher {
 	font-size: 18px;
 }
@@ -192,19 +196,17 @@
 	max-width: 300px;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label.system-disable {
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label.extension-status-icon {
 	margin-right: 0;
 }
 
 .extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.extension-status-label,
-.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.disable-status,
-.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.malicious-status {
+.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.disable-status {
 	font-weight: normal;
 }
 
 .extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.extension-status-label:hover,
-.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.disable-status:hover,
-.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.malicious-status:hover {
+.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.disable-status:hover {
 	opacity: 0.9;
 }
 

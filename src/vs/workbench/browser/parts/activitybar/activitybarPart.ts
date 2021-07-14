@@ -204,7 +204,6 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	private getActivityHoverOptions(): IActivityHoverOptions {
 		return {
 			position: () => this.layoutService.getSideBarPosition() === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT,
-			delay: () => 0
 		};
 	}
 

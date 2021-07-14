@@ -21,7 +21,7 @@ export function setup(opts: minimist.ParsedArgs) {
 
 			await app.workbench.extensions.openExtensionsViewlet();
 
-			await app.workbench.extensions.installExtension('michelkaporin.vscode-smoketest-check', true);
+			await app.workbench.extensions.installExtension('ms-vscode.vscode-smoketest-check', true);
 
 			// Close extension editor because keybindings dispatch is not working when web views are opened and focused
 			// https://github.com/microsoft/vscode/issues/110276

@@ -15,6 +15,9 @@ import * as kill from 'tree-kill';
 const width = 1200;
 const height = 800;
 
+const root = join(__dirname, '..', '..', '..');
+const logsPath = join(root, '.build', 'logs', 'smoke-tests-browser');
+
 const vscodeToPlaywrightKey: { [key: string]: string } = {
 	cmd: 'Meta',
 	ctrl: 'Control',
@@ -29,7 +32,9 @@ const vscodeToPlaywrightKey: { [key: string]: string } = {
 	esc: 'Escape'
 };
 
-function buildDriver(browser: playwright.Browser, page: playwright.Page): IDriver {
+let traceCounter = 1;
+
+function buildDriver(browser: playwright.Browser, context: playwright.BrowserContext, page: playwright.Page): IDriver {
 	const driver: IDriver = {
 		_serviceBrand: undefined,
 		getWindowIds: () => {
@@ -38,6 +43,7 @@ function buildDriver(browser: playwright.Browser, page: playwright.Page): IDrive
 		capturePage: () => Promise.resolve(''),
 		reloadWindow: (windowId) => Promise.resolve(),
 		exitApplication: async () => {
+			await context.tracing.stop({ path: join(logsPath, `playwright-trace-${traceCounter++}.zip`) });
 			await browser.close();
 			await teardown();
 		},
@@ -81,7 +87,9 @@ function buildDriver(browser: playwright.Browser, page: playwright.Page): IDrive
 		getElementXY: (windowId, selector, xoffset?, yoffset?) => page.evaluate(`window.driver.getElementXY('${selector}', ${xoffset}, ${yoffset})`),
 		typeInEditor: (windowId, selector, text) => page.evaluate(`window.driver.typeInEditor('${selector}', '${text}')`),
 		getTerminalBuffer: (windowId, selector) => page.evaluate(`window.driver.getTerminalBuffer('${selector}')`),
-		writeInTerminal: (windowId, selector, text) => page.evaluate(`window.driver.writeInTerminal('${selector}', '${text}')`)
+		writeInTerminal: (windowId, selector, text) => page.evaluate(`window.driver.writeInTerminal('${selector}', '${text}')`),
+		getLocaleInfo: (windowId) => page.evaluate(`window.driver.getLocaleInfo()`),
+		getLocalizedStrings: (windowId) => page.evaluate(`window.driver.getLocalizedStrings()`)
 	};
 	return driver;
 }
@@ -90,6 +98,7 @@ function timeout(ms: number): Promise<void> {
 	return new Promise<void>(r => setTimeout(r, ms));
 }
 
+let port = 9000;
 let server: ChildProcess | undefined;
 let endpoint: string | undefined;
 let workspacePath: string | undefined;
@@ -105,24 +114,25 @@ export async function launch(userDataDir: string, _workspacePath: string, codeSe
 		...process.env
 	};
 
-	const root = join(__dirname, '..', '..', '..');
-	const logsPath = join(root, '.build', 'logs', 'smoke-tests-browser');
-
-	const args = ['--browser', 'none', '--driver', 'web', '--extensions-dir', extPath];
+	const args = ['--port', `${port++}`, '--browser', 'none', '--driver', 'web', '--extensions-dir', extPath];
 
 	let serverLocation: string | undefined;
 	if (codeServerPath) {
 		serverLocation = join(codeServerPath, `server.${process.platform === 'win32' ? 'cmd' : 'sh'}`);
 		args.push(`--logsPath=${logsPath}`);
 
-		console.log(`Starting built server from '${serverLocation}'`);
-		console.log(`Storing log files into '${logsPath}'`);
+		if (verbose) {
+			console.log(`Starting built server from '${serverLocation}'`);
+			console.log(`Storing log files into '${logsPath}'`);
+		}
 	} else {
 		serverLocation = join(root, `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`);
 		args.push('--logsPath', logsPath);
 
-		console.log(`Starting server out of sources from '${serverLocation}'`);
-		console.log(`Storing log files into '${logsPath}'`);
+		if (verbose) {
+			console.log(`Starting server out of sources from '${serverLocation}'`);
+			console.log(`Storing log files into '${logsPath}'`);
+		}
 	}
 
 	server = spawn(
@@ -145,7 +155,12 @@ export async function launch(userDataDir: string, _workspacePath: string, codeSe
 
 async function teardown(): Promise<void> {
 	if (server) {
-		await new Promise((c, e) => kill(server!.pid, error => error ? e(error) : c(null)));
+		try {
+			await new Promise<void>((c, e) => kill(server!.pid, err => err ? e(err) : c()));
+		} catch {
+			// noop
+		}
+
 		server = undefined;
 	}
 }
@@ -161,17 +176,23 @@ function waitForEndpoint(): Promise<string> {
 	});
 }
 
-export function connect(browserType: 'chromium' | 'webkit' | 'firefox' = 'chromium'): Promise<{ client: IDisposable, driver: IDriver }> {
+interface Options {
+	readonly browser?: 'chromium' | 'webkit' | 'firefox';
+	readonly headless?: boolean;
+}
+
+export function connect(options: Options = {}): Promise<{ client: IDisposable, driver: IDriver }> {
 	return new Promise(async (c) => {
-		const browser = await playwright[browserType].launch({ headless: false });
+		const browser = await playwright[options.browser ?? 'chromium'].launch({ headless: options.headless ?? false });
 		const context = await browser.newContext();
+		await context.tracing.start({ screenshots: true, snapshots: true });
 		const page = await context.newPage();
 		await page.setViewportSize({ width, height });
 		const payloadParam = `[["enableProposedApi",""],["skipWelcome","true"]]`;
 		await page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${URI.file(workspacePath!).path}&payload=${payloadParam}`);
 		const result = {
 			client: { dispose: () => browser.close() && teardown() },
-			driver: buildDriver(browser, page)
+			driver: buildDriver(browser, context, page)
 		};
 		c(result);
 	});

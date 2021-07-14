@@ -22,10 +22,10 @@
     "vscode-regexpp": "^3.1.0",
     "vscode-ripgrep": "^1.12.0",
     "vscode-textmate": "5.4.0",
-    "xterm": "4.13.0-beta.1",
-    "xterm-addon-search": "0.9.0-beta.2",
+    "xterm": "4.14.0-beta.5",
+    "xterm-addon-search": "0.9.0-beta.3",
     "xterm-addon-unicode11": "0.3.0-beta.5",
-    "xterm-addon-webgl": "0.11.1",
+    "xterm-addon-webgl": "0.12.0-beta.4",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },

@@ -6,7 +6,7 @@
 import * as chokidar from 'chokidar';
 import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
-import * as glob from 'vs/base/common/glob';
+import { match, ParsedPattern, parse } from 'vs/base/common/glob';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -29,7 +29,7 @@ interface IWatcher {
 }
 
 interface ExtendedWatcherRequest extends IWatcherRequest {
-	parsedPattern?: glob.ParsedPattern;
+	parsedPattern?: ParsedPattern;
 }
 
 export class ChokidarWatcherService extends Disposable implements IWatcherService {
@@ -104,7 +104,7 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 		let usePolling = this.usePolling; // boolean or a list of path patterns
 		if (Array.isArray(usePolling)) {
 			// switch to polling if one of the paths matches with a watched path
-			usePolling = usePolling.some(pattern => requests.some(request => glob.match(pattern, request.path)));
+			usePolling = usePolling.some(pattern => requests.some(request => match(pattern, request.path)));
 		}
 
 		const watcherOpts: chokidar.WatchOptions = {
@@ -146,7 +146,7 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 			this.warn(`Watcher basePath does not match version on disk and was corrected (original: ${basePath}, real: ${realBasePath})`);
 		}
 
-		this.debug(`Start watching with chokidar: ${realBasePath}, excludes: ${excludes.join(',')}, usePolling: ${usePolling ? 'true, interval ' + pollingInterval : 'false'}`);
+		this.debug(`Start watching: ${realBasePath}, excludes: ${excludes.join(',')}, usePolling: ${usePolling ? 'true, interval ' + pollingInterval : 'false'}`);
 
 		let chokidarWatcher: chokidar.FSWatcher | null = chokidar.watch(realBasePath, watcherOpts);
 		this._watcherCount++;
@@ -166,11 +166,13 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 					if (this.verboseLogging) {
 						this.log(`Stop watching: ${basePath}]`);
 					}
+
 					if (chokidarWatcher) {
 						await chokidarWatcher.close();
 						this._watcherCount--;
 						chokidarWatcher = null;
 					}
+
 					if (fileEventDelayer) {
 						fileEventDelayer.cancel();
 						fileEventDelayer = null;
@@ -255,9 +257,9 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 
 					// Logging
 					if (this.verboseLogging) {
-						normalizedEvents.forEach(e => {
+						for (const e of normalizedEvents) {
 							this.log(` >> normalized  ${e.type === FileChangeType.ADDED ? '[ADDED]' : e.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${e.path}`);
-						});
+						}
 					}
 
 					return undefined;
@@ -322,7 +324,7 @@ function isIgnored(path: string, requests: ExtendedWatcherRequest[]): boolean {
 			if (!request.parsedPattern) {
 				if (request.excludes && request.excludes.length > 0) {
 					const pattern = `{${request.excludes.join(',')}}`;
-					request.parsedPattern = glob.parse(pattern);
+					request.parsedPattern = parse(pattern);
 				} else {
 					request.parsedPattern = () => false;
 				}

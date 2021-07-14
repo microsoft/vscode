@@ -9,7 +9,7 @@ import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node
 import * as cp from 'child_process';
 import { ILogService } from 'vs/platform/log/common/log';
 import * as pfs from 'vs/base/node/pfs';
-import { ITerminalEnvironment, ITerminalProfile, ITerminalProfileObject, ProfileSource, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { ITerminalEnvironment, ITerminalProfile, ITerminalProfileObject, ProfileSource, TerminalIcon, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -37,7 +37,7 @@ export function detectAvailableProfiles(
 			includeDetectedProfiles,
 			fsProvider,
 			logService,
-			configurationService.getValue<boolean>(TerminalSettingId.UseWslProfiles) !== false,
+			configurationService.getValue(TerminalSettingId.UseWslProfiles) !== false,
 			profiles && typeof profiles === 'object' ? { ...profiles } : configurationService.getValue<{ [key: string]: ITerminalProfileObject }>(TerminalSettingId.ProfilesWindows),
 			typeof defaultProfile === 'string' ? defaultProfile : configurationService.getValue<string>(TerminalSettingId.DefaultProfileWindows),
 			testPwshSourcePaths,
@@ -156,14 +156,14 @@ async function transformToTerminalProfiles(
 			// if there are configured args, override the default ones
 			args = profile.args || source.args;
 			if (profile.icon) {
-				icon = profile.icon;
+				icon = validateIcon(profile.icon);
 			} else if (source.icon) {
 				icon = source.icon;
 			}
 		} else {
 			originalPaths = Array.isArray(profile.path) ? profile.path : [profile.path];
 			args = isWindows ? profile.args : Array.isArray(profile.args) ? profile.args : undefined;
-			icon = profile.icon || undefined;
+			icon = validateIcon(profile.icon) || undefined;
 		}
 
 		const paths = (await variableResolver?.(originalPaths)) || originalPaths.slice();
@@ -178,6 +178,13 @@ async function transformToTerminalProfiles(
 		}
 	}
 	return resultProfiles;
+}
+
+function validateIcon(icon: string | TerminalIcon | undefined): TerminalIcon | undefined {
+	if (typeof icon === 'string') {
+		return { id: icon };
+	}
+	return icon;
 }
 
 async function initializeWindowsProfiles(testPwshSourcePaths?: string[]): Promise<void> {

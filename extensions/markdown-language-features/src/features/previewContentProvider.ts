@@ -78,7 +78,7 @@ export class MarkdownContentProvider {
 		this.logger.log('provideTextDocumentContent', initialData);
 
 		// Content Security Policy
-		const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
+		const nonce = getNonce();
 		const csp = this.getCsp(resourceProvider, sourceUri, nonce);
 
 		const body = await this.engine.render(markdownDocument, resourceProvider);
@@ -227,4 +227,13 @@ export class MarkdownContentProvider {
 				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' ${rule} https: data:; media-src 'self' ${rule} https: data:; script-src 'nonce-${nonce}'; style-src 'self' ${rule} 'unsafe-inline' https: data:; font-src 'self' ${rule} https: data:;">`;
 		}
 	}
+}
+
+function getNonce() {
+	let text = '';
+	const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+	for (let i = 0; i < 64; i++) {
+		text += possible.charAt(Math.floor(Math.random() * possible.length));
+	}
+	return text;
 }

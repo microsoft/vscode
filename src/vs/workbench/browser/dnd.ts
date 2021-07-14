@@ -173,6 +173,7 @@ export class ResourcesDropHandler {
 		const targetGroup = resolveTargetGroup();
 		await this.editorService.openEditors(editors.map(editor => ({
 			...editor,
+			resource: editor.resource,
 			options: {
 				...editor.options,
 				pinned: true,
@@ -302,7 +303,7 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		// Extract resource editor from provided object or URI
 		let editor: IDraggedResourceEditorInput | undefined = undefined;
 		if (isEditorIdentifier(resourceOrEditor)) {
-			editor = resourceOrEditor.editor.asResourceEditorInput(resourceOrEditor.groupId);
+			editor = resourceOrEditor.editor.toUntyped({ preserveViewState: resourceOrEditor.groupId });
 		} else if (URI.isUri(resourceOrEditor)) {
 			editor = { resource: resourceOrEditor };
 		} else if (!resourceOrEditor.isDirectory) {
@@ -316,7 +317,7 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		// Fill in some properties if they are not there already by accessing
 		// some well known things from the text file universe.
 		// This is not ideal for custom editors, but those have a chance to
-		// provide everything from the `asResourceEditorInput` method.
+		// provide everything from the `toUntyped` method.
 		{
 			const resource = editor.resource;
 			if (resource) {

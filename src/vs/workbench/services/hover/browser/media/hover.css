@@ -26,6 +26,7 @@
 	position: absolute;
 	/* Must be higher than workbench hover z-index */
 	z-index: 41;
+	pointer-events: none;
 }
 
 .monaco-workbench .workbench-hover-pointer:after {
@@ -35,18 +36,15 @@
 	height: 5px;
 }
 
-.monaco-workbench .workbench-hover-pointer.left {
-	left: -3px;
-}
+.monaco-workbench .workbench-hover-pointer.left   { left: -3px; }
+.monaco-workbench .workbench-hover-pointer.right  { right: 3px; }
+.monaco-workbench .workbench-hover-pointer.top    { top: -3px; }
+.monaco-workbench .workbench-hover-pointer.bottom { bottom: 3px; }
 
 .monaco-workbench .workbench-hover-pointer.left:after {
 	-moz-transform: rotate(135deg);
 	-webkit-transform: rotate(135deg);
 	transform: rotate(135deg);
-}
-
-.monaco-workbench .workbench-hover-pointer.right {
-	right: 3px;
 }
 
 .monaco-workbench .workbench-hover-pointer.right:after {
@@ -55,18 +53,10 @@
 	transform: rotate(315deg);
 }
 
-.monaco-workbench .workbench-hover-pointer.top {
-	top: -3px;
-}
-
 .monaco-workbench .workbench-hover-pointer.top:after {
 	-moz-transform: rotate(225deg);
 	-webkit-transform: rotate(225deg);
 	transform: rotate(225deg);
-}
-
-.monaco-workbench .workbench-hover-pointer.bottom {
-	bottom: 3px;
 }
 
 .monaco-workbench .workbench-hover-pointer.bottom:after {

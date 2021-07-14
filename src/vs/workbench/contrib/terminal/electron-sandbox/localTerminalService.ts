@@ -14,10 +14,11 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationHandle, INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
-import { ILocalTerminalService, IShellLaunchConfig, ITerminalChildProcess, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalChildProcess, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ILocalTerminalService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { LocalPty } from 'vs/workbench/contrib/terminal/electron-sandbox/localPty';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
@@ -45,7 +46,7 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		@INotificationService notificationService: INotificationService,
 		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
-		@IHistoryService historyService: IHistoryService
+		@IHistoryService historyService: IHistoryService,
 	) {
 		super();
 
@@ -63,6 +64,7 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		this._localPtyService.onProcessOverrideDimensions(e => this._ptys.get(e.id)?.handleOverrideDimensions(e.event));
 		this._localPtyService.onProcessResolvedShellLaunchConfig(e => this._ptys.get(e.id)?.handleResolvedShellLaunchConfig(e.event));
 		this._localPtyService.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
+		this._localPtyService.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
 
 		// Attach pty host listeners
 		if (this._localPtyService.onPtyHostExit) {
@@ -105,6 +107,10 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		}
 		if (this._localPtyService.onPtyHostRequestResolveVariables) {
 			this._register(this._localPtyService.onPtyHostRequestResolveVariables(async e => {
+				// Only answer requests for this workspace
+				if (e.workspaceId !== this._workspaceContextService.getWorkspace().id) {
+					return;
+				}
 				const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
 				const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
 				const resolveCalls: Promise<string>[] = e.originalText.map(t => {
@@ -156,7 +162,7 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 	}
 
 	async getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean) {
-		return this._localPtyService.getProfiles?.(profiles, defaultProfile, includeDetectedProfiles) || [];
+		return this._localPtyService.getProfiles?.(this._workspaceContextService.getWorkspace().id, profiles, defaultProfile, includeDetectedProfiles) || [];
 	}
 
 	async getEnvironment(): Promise<IProcessEnvironment> {

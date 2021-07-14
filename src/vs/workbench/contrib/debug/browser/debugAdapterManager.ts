@@ -28,10 +28,9 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IEditorModel } from 'vs/editor/common/editorCommon';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
-const DEBUGGERS_AVAILABLE_KEY = 'debug.debuggersavailable';
 
 export class AdapterManager implements IAdapterManager {
 
@@ -53,14 +52,11 @@ export class AdapterManager implements IAdapterManager {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IModeService private readonly modeService: IModeService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IStorageService private readonly storageService: IStorageService
 	) {
 		this.adapterDescriptorFactories = [];
 		this.debuggers = [];
 		this.registerListeners();
-		const debuggersAvailable = this.storageService.getBoolean(DEBUGGERS_AVAILABLE_KEY, StorageScope.WORKSPACE, false);
 		this.debuggersAvailable = CONTEXT_DEBUGGERS_AVAILABLE.bindTo(contextKeyService);
-		this.debuggersAvailable.set(debuggersAvailable);
 	}
 
 	private registerListeners(): void {
@@ -164,7 +160,6 @@ export class AdapterManager implements IAdapterManager {
 	registerDebugAdapterFactory(debugTypes: string[], debugAdapterLauncher: IDebugAdapterFactory): IDisposable {
 		debugTypes.forEach(debugType => this.debugAdapterFactories.set(debugType, debugAdapterLauncher));
 		this.debuggersAvailable.set(this.debugAdapterFactories.size > 0);
-		this.storageService.store(DEBUGGERS_AVAILABLE_KEY, this.debugAdapterFactories.size > 0, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		this._onDidRegisterDebugger.fire();
 
 		return {
@@ -276,8 +271,9 @@ export class AdapterManager implements IAdapterManager {
 		const activeTextEditorControl = this.editorService.activeTextEditorControl;
 		let candidates: Debugger[] = [];
 		let languageLabel: string | null = null;
+		let model: IEditorModel | null = null;
 		if (isCodeEditor(activeTextEditorControl)) {
-			const model = activeTextEditorControl.getModel();
+			model = activeTextEditorControl.getModel();
 			const language = model ? model.getLanguageIdentifier().language : undefined;
 			if (language) {
 				languageLabel = this.modeService.getLanguageName(language);
@@ -291,7 +287,9 @@ export class AdapterManager implements IAdapterManager {
 			}
 		}
 
-		if ((!languageLabel || gettingConfigurations) && candidates.length === 0) {
+		// We want to get the debuggers that have configuration providers in the case we are fetching configurations
+		// Or if a breakpoint can be set in the current file (good hint that an extension can handle it)
+		if ((!languageLabel || gettingConfigurations || (model && this.canSetBreakpointsIn(model))) && candidates.length === 0) {
 			await this.activateDebuggers('onDebugInitialConfigurations');
 			candidates = this.debuggers.filter(dbg => dbg.hasInitialConfiguration() || dbg.hasConfigurationProvider());
 		}

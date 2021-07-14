@@ -144,7 +144,7 @@ export class CursorsController extends Disposable {
 		this._knownModelVersionId = this._model.getVersionId();
 		this._viewModel = viewModel;
 		this._coordinatesConverter = coordinatesConverter;
-		this.context = new CursorContext(this._model, this._coordinatesConverter, cursorConfig);
+		this.context = new CursorContext(this._model, this._viewModel, this._coordinatesConverter, cursorConfig);
 		this._cursors = new CursorCollection(this.context);
 
 		this._hasFocus = false;
@@ -163,7 +163,7 @@ export class CursorsController extends Disposable {
 	}
 
 	public updateConfiguration(cursorConfig: CursorConfiguration): void {
-		this.context = new CursorContext(this._model, this._coordinatesConverter, cursorConfig);
+		this.context = new CursorContext(this._model, this._viewModel, this._coordinatesConverter, cursorConfig);
 		this._cursors.updateContext(this.context);
 	}
 

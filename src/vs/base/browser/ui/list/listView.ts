@@ -65,7 +65,6 @@ export interface IListViewOptions<T> extends IListViewOptionsUpdate {
 	readonly accessibilityProvider?: IListViewAccessibilityProvider<T>;
 	readonly transformOptimization?: boolean;
 	readonly alwaysConsumeMouseWheel?: boolean;
-	readonly useActiveIcons?: boolean;
 }
 
 const DefaultOptions = {
@@ -73,7 +72,6 @@ const DefaultOptions = {
 	verticalScrollMode: ScrollbarVisibility.Auto,
 	setRowLineHeight: true,
 	setRowHeight: true,
-	useActiveIcons: true,
 	supportDynamicHeights: false,
 	dnd: {
 		getDragElements<T>(e: T) { return [e]; },
@@ -327,11 +325,6 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			this.rowsContainer.style.transform = 'translate3d(0px, 0px, 0px)';
 		}
 
-		const activeIcons = getOrDefault(options, o => o.useActiveIcons, DefaultOptions.useActiveIcons);
-		if (activeIcons) {
-			this.rowsContainer.setAttribute('useActiveIcons', 'true');
-		}
-
 		this.disposables.add(Gesture.addTarget(this.rowsContainer));
 
 		this.scrollable = new Scrollable(getOrDefault(options, o => o.smoothScrolling, false) ? 125 : 0, cb => scheduleAtNextAnimationFrame(cb));
@@ -354,7 +347,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		this.disposables.add(addDisposableListener(this.domNode, 'dragover', e => this.onDragOver(this.toDragEvent(e))));
 		this.disposables.add(addDisposableListener(this.domNode, 'drop', e => this.onDrop(this.toDragEvent(e))));
-		this.disposables.add(addDisposableListener(this.domNode, 'dragleave', _ => this.onDragLeave()));
+		this.disposables.add(addDisposableListener(this.domNode, 'dragleave', e => this.onDragLeave(this.toDragEvent(e))));
 		this.disposables.add(addDisposableListener(this.domNode, 'dragend', e => this.onDragEnd(e)));
 
 		this.setRowLineHeight = getOrDefault(options, o => o.setRowLineHeight, DefaultOptions.setRowLineHeight);
@@ -966,7 +959,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const elements = this.dnd.getDragElements(element);
 
 		event.dataTransfer.effectAllowed = 'copyMove';
-		event.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify([uri]));
+		event.dataTransfer.setData(DataTransfers.TEXT, uri);
 
 		if (event.dataTransfer.setDragImage) {
 			let label: string | undefined;
@@ -1091,9 +1084,12 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		return true;
 	}
 
-	private onDragLeave(): void {
+	private onDragLeave(event: IListDragEvent<T>): void {
 		this.onDragLeaveTimeout.dispose();
 		this.onDragLeaveTimeout = disposableTimeout(() => this.clearDragOverFeedback(), 100);
+		if (this.currentDragData) {
+			this.dnd.onDragLeave?.(this.currentDragData, event.element, event.index, event.browserEvent);
+		}
 	}
 
 	private onDrop(event: IListDragEvent<T>): void {

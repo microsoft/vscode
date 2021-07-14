@@ -18,7 +18,7 @@ import { serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/ter
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -51,6 +51,7 @@ export interface ITerminalInternalOptions {
 	isFeatureTerminal?: boolean;
 	useShellEnvironment?: boolean;
 	isSplitTerminal?: boolean;
+	target?: TerminalLocation;
 }
 
 export const IExtHostTerminalService = createDecorator<IExtHostTerminalService>('IExtHostTerminalService');
@@ -140,11 +141,12 @@ export class ExtHostTerminal {
 			isFeatureTerminal: withNullAsUndefined(internalOptions?.isFeatureTerminal),
 			isExtensionOwnedTerminal: true,
 			useShellEnvironment: withNullAsUndefined(internalOptions?.useShellEnvironment),
-			isSplitTerminal: withNullAsUndefined(internalOptions?.isSplitTerminal)
+			isSplitTerminal: internalOptions?.isSplitTerminal,
+			target: internalOptions?.target
 		});
 	}
 
-	public async createExtensionTerminal(isSplitTerminal?: boolean, iconPath?: URI | { light: URI; dark: URI } | ThemeIcon): Promise<number> {
+	public async createExtensionTerminal(isSplitTerminal?: boolean, target?: TerminalLocation, iconPath?: URI | { light: URI; dark: URI } | ThemeIcon): Promise<number> {
 		if (typeof this._id !== 'string') {
 			throw new Error('Terminal has already been created');
 		}
@@ -152,7 +154,8 @@ export class ExtHostTerminal {
 			name: this._name,
 			isExtensionCustomPtyTerminal: true,
 			icon: iconPath,
-			isSplitTerminal
+			isSplitTerminal,
+			target
 		});
 		// At this point, the id has been set via `$acceptTerminalOpened`
 		if (typeof this._id === 'string') {
@@ -369,7 +372,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	public createExtensionTerminal(options: vscode.ExtensionTerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, generateUuid(), options, options.name);
 		const p = new ExtHostPseudoterminal(options.pty);
-		terminal.createExtensionTerminal(internalOptions?.isSplitTerminal, asTerminalIcon(options.iconPath)).then(id => {
+		terminal.createExtensionTerminal(internalOptions?.isSplitTerminal, internalOptions?.target, asTerminalIcon(options.iconPath)).then(id => {
 			const disposable = this._setupExtHostProcessListeners(id, p);
 			this._terminalProcessDisposables[id] = disposable;
 		});
@@ -596,7 +599,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		});
 	}
 
-	public async $createContributedProfileTerminal(id: string, isSplitTerminal: boolean): Promise<void> {
+	public async $createContributedProfileTerminal(id: string, options: ICreateContributedTerminalProfileOptions): Promise<void> {
 		const token = new CancellationTokenSource().token;
 		const profile = await this._profileProviders.get(id)?.provideTerminalProfile(token);
 		if (token.isCancellationRequested) {
@@ -606,10 +609,10 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			throw new Error(`No terminal profile options provided for id "${id}"`);
 		}
 		if ('pty' in profile.options) {
-			this.createExtensionTerminal(profile.options, { isSplitTerminal });
+			this.createExtensionTerminal(profile.options, options);
 			return;
 		}
-		this.createTerminalFromOptions(profile.options, { isSplitTerminal });
+		this.createTerminalFromOptions(profile.options, options);
 	}
 
 	public async $provideLinks(terminalId: number, line: string): Promise<ITerminalLinkDto[]> {
@@ -839,12 +842,14 @@ export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
 }
 
 function asTerminalIcon(iconPath?: vscode.Uri | { light: vscode.Uri; dark: vscode.Uri } | vscode.ThemeIcon): TerminalIcon | undefined {
-	if (!iconPath) {
+	if (!iconPath || typeof iconPath === 'string') {
 		return undefined;
 	}
+
 	if (!('id' in iconPath)) {
 		return iconPath;
 	}
+
 	return {
 		id: iconPath.id,
 		color: iconPath.color as ThemeColor

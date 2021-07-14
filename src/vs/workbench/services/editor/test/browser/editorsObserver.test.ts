@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IEditorInputFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
+import { IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { workbenchInstantiationService, TestFileEditorInput, registerTestEditor, TestEditorPart, createEditorPart, registerTestSideBySideEditor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -38,7 +38,7 @@ suite('EditorsObserver', function () {
 
 	async function createPart(): Promise<TestEditorPart> {
 		const instantiationService = workbenchInstantiationService();
-		instantiationService.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
 
 		const part = await createEditorPart(instantiationService, disposables);
 		disposables.add(toDisposable(() => part.clearState()));
@@ -75,15 +75,15 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(currentEditorsMRU[0].groupId, part.activeGroup.id);
 		assert.strictEqual(currentEditorsMRU[0].editor, input1);
 		assert.strictEqual(onDidMostRecentlyActiveEditorsChangeCalled, true);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
 		assert.strictEqual(observer.hasEditors(input1.resource), true);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: 'unknownTypeId' }), false);
+		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: 'unknownTypeId', editorId: 'unknownTypeId' }), false);
 
 		const input2 = new TestFileEditorInput(URI.parse('foo://bar2'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
 		const input3 = new TestFileEditorInput(URI.parse('foo://bar3'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
 
 		assert.strictEqual(observer.hasEditors(input2.resource), false);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), false);
 
 		await part.activeGroup.openEditor(input2, { pinned: true });
 		await part.activeGroup.openEditor(input3, { pinned: true });
@@ -96,8 +96,8 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(currentEditorsMRU[1].editor, input2);
 		assert.strictEqual(currentEditorsMRU[2].groupId, part.activeGroup.id);
 		assert.strictEqual(currentEditorsMRU[2].editor, input1);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
 
 		await part.activeGroup.openEditor(input2, { pinned: true });
 
@@ -109,9 +109,9 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(currentEditorsMRU[1].editor, input3);
 		assert.strictEqual(currentEditorsMRU[2].groupId, part.activeGroup.id);
 		assert.strictEqual(currentEditorsMRU[2].editor, input1);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
 
 		onDidMostRecentlyActiveEditorsChangeCalled = false;
 		await part.activeGroup.closeEditor(input1);
@@ -123,16 +123,16 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(currentEditorsMRU[1].groupId, part.activeGroup.id);
 		assert.strictEqual(currentEditorsMRU[1].editor, input3);
 		assert.strictEqual(onDidMostRecentlyActiveEditorsChangeCalled, true);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
 
 		await part.activeGroup.closeAllEditors();
 		currentEditorsMRU = observer.editors;
 		assert.strictEqual(currentEditorsMRU.length, 0);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), false);
 
 		listener.dispose();
 	});
@@ -159,7 +159,7 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(currentEditorsMRU[1].groupId, rootGroup.id);
 		assert.strictEqual(currentEditorsMRU[1].editor, input1);
 		assert.strictEqual(observer.hasEditors(input1.resource), true);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
 
 		await rootGroup.openEditor(input1, { pinned: true, activation: EditorActivation.ACTIVATE });
 
@@ -170,7 +170,7 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(currentEditorsMRU[1].groupId, sideGroup.id);
 		assert.strictEqual(currentEditorsMRU[1].editor, input1);
 		assert.strictEqual(observer.hasEditors(input1.resource), true);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
 
 		// Opening an editor inactive should not change
 		// the most recent editor, but rather put it behind
@@ -188,8 +188,8 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(currentEditorsMRU[2].editor, input1);
 		assert.strictEqual(observer.hasEditors(input1.resource), true);
 		assert.strictEqual(observer.hasEditors(input2.resource), true);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
 
 		await rootGroup.closeAllEditors();
 
@@ -199,8 +199,8 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(currentEditorsMRU[0].editor, input1);
 		assert.strictEqual(observer.hasEditors(input1.resource), true);
 		assert.strictEqual(observer.hasEditors(input2.resource), false);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), false);
 
 		await sideGroup.closeAllEditors();
 
@@ -208,8 +208,8 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(currentEditorsMRU.length, 0);
 		assert.strictEqual(observer.hasEditors(input1.resource), false);
 		assert.strictEqual(observer.hasEditors(input2.resource), false);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), false);
 	});
 
 	test('hasEditor/hasEditors - same resource, different type id', async () => {
@@ -219,32 +219,32 @@ suite('EditorsObserver', function () {
 		const input2 = new TestFileEditorInput(input1.resource, 'otherTypeId');
 
 		assert.strictEqual(observer.hasEditors(input1.resource), false);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), false);
 
 		await part.activeGroup.openEditor(input1, { pinned: true });
 
 		assert.strictEqual(observer.hasEditors(input1.resource), true);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), false);
 
 		await part.activeGroup.openEditor(input2, { pinned: true });
 
 		assert.strictEqual(observer.hasEditors(input1.resource), true);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
 
 		await part.activeGroup.closeEditor(input2);
 
 		assert.strictEqual(observer.hasEditors(input1.resource), true);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), false);
 
 		await part.activeGroup.closeEditor(input1);
 
 		assert.strictEqual(observer.hasEditors(input1.resource), false);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), false);
 	});
 
 	test('hasEditor/hasEditors - side by side editor support', async () => {
@@ -256,32 +256,32 @@ suite('EditorsObserver', function () {
 		const input = new SideBySideEditorInput('name', undefined, secondary, primary);
 
 		assert.strictEqual(observer.hasEditors(primary.resource), false);
-		assert.strictEqual(observer.hasEditor({ resource: primary.resource, typeId: primary.typeId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: secondary.resource, typeId: secondary.typeId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: primary.resource, typeId: primary.typeId, editorId: primary.editorId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: secondary.resource, typeId: secondary.typeId, editorId: secondary.editorId }), false);
 
 		await part.activeGroup.openEditor(input, { pinned: true });
 
 		assert.strictEqual(observer.hasEditors(primary.resource), true);
-		assert.strictEqual(observer.hasEditor({ resource: primary.resource, typeId: primary.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: secondary.resource, typeId: secondary.typeId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: primary.resource, typeId: primary.typeId, editorId: primary.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: secondary.resource, typeId: secondary.typeId, editorId: secondary.editorId }), false);
 
 		await part.activeGroup.openEditor(primary, { pinned: true });
 
 		assert.strictEqual(observer.hasEditors(primary.resource), true);
-		assert.strictEqual(observer.hasEditor({ resource: primary.resource, typeId: primary.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: secondary.resource, typeId: secondary.typeId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: primary.resource, typeId: primary.typeId, editorId: primary.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: secondary.resource, typeId: secondary.typeId, editorId: secondary.editorId }), false);
 
 		await part.activeGroup.closeEditor(input);
 
 		assert.strictEqual(observer.hasEditors(primary.resource), true);
-		assert.strictEqual(observer.hasEditor({ resource: primary.resource, typeId: primary.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: secondary.resource, typeId: secondary.typeId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: primary.resource, typeId: primary.typeId, editorId: primary.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: secondary.resource, typeId: secondary.typeId, editorId: secondary.editorId }), false);
 
 		await part.activeGroup.closeEditor(primary);
 
 		assert.strictEqual(observer.hasEditors(primary.resource), false);
-		assert.strictEqual(observer.hasEditor({ resource: primary.resource, typeId: primary.typeId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: secondary.resource, typeId: secondary.typeId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: primary.resource, typeId: primary.typeId, editorId: primary.editorId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: secondary.resource, typeId: secondary.typeId, editorId: secondary.editorId }), false);
 	});
 
 	test('copy group', async function () {
@@ -305,9 +305,9 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(currentEditorsMRU[1].editor, input2);
 		assert.strictEqual(currentEditorsMRU[2].groupId, rootGroup.id);
 		assert.strictEqual(currentEditorsMRU[2].editor, input1);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
 
 		const copiedGroup = part.copyGroup(rootGroup, rootGroup, GroupDirection.RIGHT);
 		copiedGroup.setActive(true);
@@ -327,21 +327,21 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(currentEditorsMRU[4].editor, input2);
 		assert.strictEqual(currentEditorsMRU[5].groupId, rootGroup.id);
 		assert.strictEqual(currentEditorsMRU[5].editor, input1);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
 
 		await rootGroup.closeAllEditors();
 
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
 
 		await copiedGroup.closeAllEditors();
 
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), false);
 	});
 
 	test('initial editors are part of observer and state is persisted & restored (single group)', async () => {
@@ -369,9 +369,9 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(currentEditorsMRU[1].editor, input2);
 		assert.strictEqual(currentEditorsMRU[2].groupId, rootGroup.id);
 		assert.strictEqual(currentEditorsMRU[2].editor, input1);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
 
 		storage.emitWillSaveState(WillSaveStateReason.SHUTDOWN);
 
@@ -386,9 +386,9 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(currentEditorsMRU[1].editor, input2);
 		assert.strictEqual(currentEditorsMRU[2].groupId, rootGroup.id);
 		assert.strictEqual(currentEditorsMRU[2].editor, input1);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
 	});
 
 	test('initial editors are part of observer (multi group)', async () => {
@@ -418,9 +418,9 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(currentEditorsMRU[1].editor, input2);
 		assert.strictEqual(currentEditorsMRU[2].groupId, rootGroup.id);
 		assert.strictEqual(currentEditorsMRU[2].editor, input1);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
 
 		storage.emitWillSaveState(WillSaveStateReason.SHUTDOWN);
 
@@ -435,9 +435,9 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(currentEditorsMRU[1].editor, input2);
 		assert.strictEqual(currentEditorsMRU[2].groupId, rootGroup.id);
 		assert.strictEqual(currentEditorsMRU[2].editor, input1);
-		assert.strictEqual(restoredObserver.hasEditor({ resource: input1.resource, typeId: input1.typeId }), true);
-		assert.strictEqual(restoredObserver.hasEditor({ resource: input2.resource, typeId: input2.typeId }), true);
-		assert.strictEqual(restoredObserver.hasEditor({ resource: input3.resource, typeId: input3.typeId }), true);
+		assert.strictEqual(restoredObserver.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
+		assert.strictEqual(restoredObserver.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
+		assert.strictEqual(restoredObserver.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
 	});
 
 	test('observer does not restore editors that cannot be serialized', async () => {
@@ -457,7 +457,7 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(currentEditorsMRU.length, 1);
 		assert.strictEqual(currentEditorsMRU[0].groupId, rootGroup.id);
 		assert.strictEqual(currentEditorsMRU[0].editor, input1);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
 
 		storage.emitWillSaveState(WillSaveStateReason.SHUTDOWN);
 
@@ -466,7 +466,7 @@ suite('EditorsObserver', function () {
 
 		currentEditorsMRU = restoredObserver.editors;
 		assert.strictEqual(currentEditorsMRU.length, 0);
-		assert.strictEqual(restoredObserver.hasEditor({ resource: input1.resource, typeId: input1.typeId }), false);
+		assert.strictEqual(restoredObserver.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), false);
 	});
 
 	test('observer closes editors when limit reached (across all groups)', async () => {
@@ -494,10 +494,10 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(rootGroup.contains(input2), true);
 		assert.strictEqual(rootGroup.contains(input3), true);
 		assert.strictEqual(rootGroup.contains(input4), true);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input4.resource, typeId: input4.typeId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input4.resource, typeId: input4.typeId, editorId: input4.editorId }), true);
 
 		input2.setDirty();
 		part.enforcePartOptions({ limit: { enabled: true, value: 1 } });
@@ -509,10 +509,10 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(rootGroup.contains(input2), true); // dirty
 		assert.strictEqual(rootGroup.contains(input3), false);
 		assert.strictEqual(rootGroup.contains(input4), true);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input4.resource, typeId: input4.typeId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: input4.resource, typeId: input4.typeId, editorId: input4.editorId }), true);
 
 		const input5 = new TestFileEditorInput(URI.parse('foo://bar5'), TEST_EDITOR_INPUT_ID);
 		await sideGroup.openEditor(input5, { pinned: true });
@@ -523,11 +523,11 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(rootGroup.contains(input3), false);
 		assert.strictEqual(rootGroup.contains(input4), false);
 		assert.strictEqual(sideGroup.contains(input5), true);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input4.resource, typeId: input4.typeId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input5.resource, typeId: input5.typeId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: input4.resource, typeId: input4.typeId, editorId: input4.editorId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: input5.resource, typeId: input5.typeId, editorId: input5.editorId }), true);
 	});
 
 	test('observer closes editors when limit reached (in group)', async () => {
@@ -555,10 +555,10 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(rootGroup.contains(input2), true);
 		assert.strictEqual(rootGroup.contains(input3), true);
 		assert.strictEqual(rootGroup.contains(input4), true);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input4.resource, typeId: input4.typeId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input4.resource, typeId: input4.typeId, editorId: input4.editorId }), true);
 
 		await sideGroup.openEditor(input1, { pinned: true });
 		await sideGroup.openEditor(input2, { pinned: true });
@@ -570,10 +570,10 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(sideGroup.contains(input2), true);
 		assert.strictEqual(sideGroup.contains(input3), true);
 		assert.strictEqual(sideGroup.contains(input4), true);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input4.resource, typeId: input4.typeId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input4.resource, typeId: input4.typeId, editorId: input4.editorId }), true);
 
 		part.enforcePartOptions({ limit: { enabled: true, value: 1, perEditorGroup: true } });
 
@@ -591,10 +591,10 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(sideGroup.contains(input3), false);
 		assert.strictEqual(sideGroup.contains(input4), true);
 
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input4.resource, typeId: input4.typeId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: input4.resource, typeId: input4.typeId, editorId: input4.editorId }), true);
 	});
 
 	test('observer does not close sticky', async () => {
@@ -621,9 +621,9 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(rootGroup.contains(input2), false);
 		assert.strictEqual(rootGroup.contains(input3), true);
 		assert.strictEqual(rootGroup.contains(input4), true);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input4.resource, typeId: input4.typeId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), false);
+		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
+		assert.strictEqual(observer.hasEditor({ resource: input4.resource, typeId: input4.typeId, editorId: input4.editorId }), true);
 	});
 });

@@ -8,10 +8,12 @@ import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
+import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IAction } from 'vs/base/common/actions';
 import { disposableTimeout } from 'vs/base/common/async';
+import { Codicon } from 'vs/base/common/codicons';
 import { Color, RGBA } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -21,7 +23,7 @@ import { isDefined, isUndefinedOrNull } from 'vs/base/common/types';
 import 'vs/css!./media/settingsWidgets';
 import { localize } from 'vs/nls';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { editorWidgetBorder, focusBorder, foreground, inputBackground, inputBorder, inputForeground, listActiveSelectionBackground, listActiveSelectionForeground, listActiveSelectionIconForeground, listFocusBackground, listHoverBackground, listHoverForeground, listInactiveSelectionBackground, listInactiveSelectionForeground, registerColor, selectBackground, selectBorder, selectForeground, simpleCheckboxBackground, simpleCheckboxBorder, simpleCheckboxForeground, textLinkActiveForeground, textLinkForeground, textPreformatForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { editorWidgetBorder, focusBorder, foreground, inputBackground, inputBorder, inputForeground, listActiveSelectionBackground, listActiveSelectionForeground, listFocusBackground, listHoverBackground, listHoverForeground, listInactiveSelectionBackground, listInactiveSelectionForeground, registerColor, selectBackground, selectBorder, selectForeground, simpleCheckboxBackground, simpleCheckboxBorder, simpleCheckboxForeground, textLinkActiveForeground, textLinkForeground, textPreformatForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { settingsDiscardIcon, settingsEditIcon, settingsRemoveIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
@@ -151,11 +153,6 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const listSelectForegroundColor = theme.getColor(listActiveSelectionForeground);
 	if (listSelectForegroundColor) {
 		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row.selected:focus { color: ${listSelectForegroundColor}; }`);
-	}
-
-	const listSelectForegroundIconColor = theme.getColor(listActiveSelectionIconForeground);
-	if (listSelectForegroundIconColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row.selected:focus .codicon { color: ${listSelectForegroundIconColor}; }`);
 	}
 
 	const codeTextForegroundColor = theme.getColor(textPreformatForeground);
@@ -388,7 +385,7 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 		this.renderList();
 	}
 
-	private renderDataOrEditItem(item: IListViewItem<TDataItem>, idx: number, listFocused: boolean): HTMLElement {
+	protected renderDataOrEditItem(item: IListViewItem<TDataItem>, idx: number, listFocused: boolean): HTMLElement {
 		const rowElement = item.editing ?
 			this.renderEdit(item, idx) :
 			this.renderDataItem(item, idx, listFocused);
@@ -799,6 +796,7 @@ interface IObjectBoolData {
 
 type ObjectKey = IObjectStringData | IObjectEnumData;
 export type ObjectValue = IObjectStringData | IObjectEnumData | IObjectBoolData;
+type ObjectWidget = InputBox | SelectBox;
 
 export interface IObjectDataItem {
 	key: ObjectKey;
@@ -945,7 +943,7 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 			changedItem.value = value;
 		};
 
-		let keyWidget: InputBox | SelectBox | undefined;
+		let keyWidget: ObjectWidget | undefined;
 		let keyElement: HTMLElement;
 
 		if (this.showAddButton) {
@@ -973,7 +971,7 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 			keyElement.textContent = item.key.data;
 		}
 
-		let valueWidget: InputBox | SelectBox;
+		let valueWidget: ObjectWidget;
 		const valueContainer = $('.setting-list-object-value-container');
 
 		const renderLatestValue = () => {
@@ -1154,6 +1152,139 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		return isDefined(enumDescription)
 			? `${enumDescription}. Currently set to ${item.value.data}.`
 			: localize('objectPairHintLabel', "The property `{0}` is set to `{1}`.", item.key.data, item.value.data);
+	}
+
+	protected getLocalizedStrings() {
+		return {
+			deleteActionTooltip: localize('removeItem', "Remove Item"),
+			resetActionTooltip: localize('resetItem', "Reset Item"),
+			editActionTooltip: localize('editItem', "Edit Item"),
+			addButtonLabel: localize('addItem', "Add Item"),
+			keyHeaderText: localize('objectKeyHeader', "Item"),
+			valueHeaderText: localize('objectValueHeader', "Value"),
+		};
+	}
+}
+
+interface IBoolObjectSetValueOptions {
+	settingKey: string;
+}
+export interface IBoolObjectDataItem {
+	key: string;
+	value: boolean;
+	description?: string;
+}
+
+export class BoolObjectSettingWidget extends AbstractListSettingWidget<IBoolObjectDataItem> {
+	private currentSettingKey: string = '';
+
+	override setValue(listData: IBoolObjectDataItem[], options?: IBoolObjectSetValueOptions): void {
+		if (isDefined(options) && options.settingKey !== this.currentSettingKey) {
+			this.model.setEditKey('none');
+			this.model.select(null);
+			this.currentSettingKey = options.settingKey;
+		}
+
+		super.setValue(listData);
+	}
+
+	isItemNew(item: IBoolObjectDataItem): boolean {
+		return !item.key && !item.value;
+	}
+
+	protected getEmptyItem(): IBoolObjectDataItem {
+		return {
+			key: '',
+			value: false
+		};
+	}
+
+	protected getContainerClasses() {
+		return ['setting-list-object-widget'];
+	}
+
+	protected getActionsForItem(item: IBoolObjectDataItem, idx: number): IAction[] {
+		return [];
+	}
+
+	protected override isAddButtonVisible(): boolean {
+		return false;
+	}
+
+	protected override renderHeader() {
+		return undefined;
+	}
+
+	protected override renderDataOrEditItem(item: IListViewItem<IBoolObjectDataItem>, idx: number, listFocused: boolean): HTMLElement {
+		const rowElement = this.renderEdit(item, idx);
+		rowElement.setAttribute('role', 'listitem');
+		return rowElement;
+	}
+
+	protected renderItem(item: IBoolObjectDataItem): HTMLElement {
+		// return empty object, since we always render in edit mode
+		const rowElement = $('.setting-list-row');
+		return rowElement;
+	}
+
+	protected renderEdit(item: IBoolObjectDataItem, idx: number): HTMLElement {
+		const rowElement = $('.setting-list-edit-row.setting-list-object-row.setting-item-bool');
+
+		const changedItem = { ...item };
+		const onValueChange = (newValue: boolean) => {
+			changedItem.value = newValue;
+			this.handleItemChange(item, changedItem, idx);
+		};
+		const { element, widget: checkbox } = this.renderEditWidget(changedItem.value, onValueChange);
+		rowElement.appendChild(element);
+
+		const valueElement = DOM.append(rowElement, $('.setting-list-object-value'));
+		valueElement.textContent = changedItem.key;
+		valueElement.setAttribute('title', changedItem.description ?? '');
+		this._register(DOM.addDisposableListener(valueElement, DOM.EventType.MOUSE_DOWN, e => {
+			const targetElement = <HTMLElement>e.target;
+			if (targetElement.tagName.toLowerCase() !== 'a') {
+				checkbox.checked = !checkbox.checked;
+				onValueChange(checkbox.checked);
+			}
+			DOM.EventHelper.stop(e);
+		}));
+
+		return rowElement;
+	}
+
+	private renderEditWidget(
+		value: boolean,
+		onValueChange: (newValue: boolean) => void
+	) {
+		const checkbox = new Checkbox({
+			icon: Codicon.check,
+			actionClassName: 'setting-value-checkbox',
+			isChecked: value,
+			title: ''
+		});
+
+		this.listDisposables.add(checkbox);
+
+		const wrapper = $('.setting-list-object-input');
+		wrapper.classList.add('setting-list-object-input-key-checkbox');
+		checkbox.domNode.classList.add('setting-value-checkbox');
+		wrapper.appendChild(checkbox.domNode);
+
+		this._register(DOM.addDisposableListener(wrapper, DOM.EventType.MOUSE_DOWN, e => {
+			checkbox.checked = !checkbox.checked;
+			onValueChange(checkbox.checked);
+
+			// Without this line, the settings editor assumes
+			// we lost focus on this setting completely.
+			e.stopImmediatePropagation();
+		}));
+
+		return { widget: checkbox, element: wrapper };
+	}
+
+	protected getLocalizedRowTitle(item: IBoolObjectDataItem): string {
+		return localize('objectPairHintLabel', "The property `{0}` is set to `{1}`.", item.key, item.value);
 	}
 
 	protected getLocalizedStrings() {

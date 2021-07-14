@@ -20,10 +20,10 @@ export class FileWatcher extends Disposable {
 
 	constructor(
 		private folders: IWatcherRequest[],
-		private onDidFilesChange: (changes: IDiskFileChange[]) => void,
-		private onLogMessage: (msg: ILogMessage) => void,
+		private readonly onDidFilesChange: (changes: IDiskFileChange[]) => void,
+		private readonly onLogMessage: (msg: ILogMessage) => void,
 		private verboseLogging: boolean,
-		private watcherOptions: IWatcherOptions = {}
+		private readonly watcherOptions: IWatcherOptions = {}
 	) {
 		super();
 

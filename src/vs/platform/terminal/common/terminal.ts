@@ -36,6 +36,7 @@ export const enum TerminalSettingId {
 	DefaultProfileWindows = 'terminal.integrated.defaultProfile.windows',
 	UseWslProfiles = 'terminal.integrated.useWslProfiles',
 	TabsEnabled = 'terminal.integrated.tabs.enabled',
+	TabsEnableAnimation = 'terminal.integrated.tabs.enableAnimation',
 	TabsHideCondition = 'terminal.integrated.tabs.hideCondition',
 	TabsShowActiveTerminal = 'terminal.integrated.tabs.showActiveTerminal',
 	TabsShowActions = 'terminal.integrated.tabs.showActions',
@@ -165,44 +166,6 @@ export enum TerminalIpcChannels {
 	Heartbeat = 'heartbeat'
 }
 
-export interface IOffProcessTerminalService {
-	readonly _serviceBrand: undefined;
-
-	/**
-	 * Fired when the ptyHost process becomes non-responsive, this should disable stdin for all
-	 * terminals using this pty host connection and mark them as disconnected.
-	 */
-	onPtyHostUnresponsive: Event<void>;
-	/**
-	 * Fired when the ptyHost process becomes responsive after being non-responsive. Allowing
-	 * previously disconnected terminals to reconnect.
-	 */
-	onPtyHostResponsive: Event<void>;
-	/**
-	 * Fired when the ptyHost has been restarted, this is used as a signal for listening terminals
-	 * that its pty has been lost and will remain disconnected.
-	 */
-	onPtyHostRestart: Event<void>;
-
-	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
-	listProcesses(): Promise<IProcessDetails[]>;
-	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
-	getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
-	getWslPath(original: string): Promise<string>;
-	getEnvironment(): Promise<IProcessEnvironment>;
-	getShellEnvironment(): Promise<IProcessEnvironment | undefined>;
-	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
-	updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void>;
-	updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<void>;
-	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
-	reduceConnectionGraceTime(): Promise<void>;
-}
-
-export const ILocalTerminalService = createDecorator<ILocalTerminalService>('localTerminalService');
-export interface ILocalTerminalService extends IOffProcessTerminalService {
-	createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess>;
-}
-
 export const IPtyService = createDecorator<IPtyService>('ptyService');
 export interface IPtyService {
 	readonly _serviceBrand: undefined;
@@ -261,7 +224,7 @@ export interface IPtyService {
 	updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void>;
 	updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<void>;
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
-	getProfiles?(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
+	getProfiles?(workspaceId: string, profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
 	getEnvironment(): Promise<IProcessEnvironment>;
 	getWslPath(original: string): Promise<string>;
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void>;
@@ -271,6 +234,7 @@ export interface IPtyService {
 
 export interface IRequestResolveVariablesEvent {
 	id: number;
+	workspaceId: string;
 	originalText: string[];
 }
 
@@ -415,6 +379,34 @@ export interface IShellLaunchConfig {
 	 * The color ID to use for this terminal. If not specified it will use the default fallback
 	 */
 	color?: string;
+}
+
+export interface ICreateTerminalOptions {
+	/**
+	 * The shell launch config or profile to launch with, when not specified the default terminal
+	 * profile will be used.
+	 */
+	config?: IShellLaunchConfig | ITerminalProfile;
+	/**
+	 * The current working directory to start with, this will override IShellLaunchConfig.cwd if
+	 * specified.
+	 */
+	cwd?: string | URI;
+	/**
+	 * Where to create the terminal, when not specified the default target will be used.
+	 */
+	target?: TerminalLocation;
+}
+
+export interface ICreateContributedTerminalProfileOptions {
+	isSplitTerminal: boolean;
+	target?: TerminalLocation;
+	icon?: string;
+}
+
+export const enum TerminalLocation {
+	TerminalView = 'view',
+	Editor = 'editor'
 }
 
 export type TerminalIcon = ThemeIcon | URI | { light: URI; dark: URI };
@@ -594,7 +586,7 @@ export interface IBaseUnresolvedTerminalProfile {
 	args?: string | string[] | undefined;
 	isAutoDetected?: boolean;
 	overrideName?: boolean;
-	icon?: ThemeIcon | URI | { light: URI, dark: URI };
+	icon?: string | ThemeIcon | URI | { light: URI, dark: URI };
 	color?: string;
 	env?: ITerminalEnvironment;
 }

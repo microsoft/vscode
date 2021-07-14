@@ -37,8 +37,8 @@ import { isIOS, isWindows } from 'vs/base/common/platform';
 import { setupTerminalMenus } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
-import { EditorExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
-import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
@@ -72,9 +72,9 @@ CommandsRegistry.registerCommand({ id: quickAccessNavigatePreviousInTerminalPick
 registerTerminalPlatformConfiguration();
 registerTerminalConfiguration();
 
-Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(TerminalEditorInput.ID, TerminalInputSerializer);
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(TerminalEditorInput.ID, TerminalInputSerializer);
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
 		TerminalEditor,
 		TerminalEditor.ID,
 		terminalStrings.terminal

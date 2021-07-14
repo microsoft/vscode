@@ -411,12 +411,14 @@ suite('Notebook Document', function () {
 	});
 
 	test('onDidOpenNotebookDocument - emit event only once when opened in two editors', async function () {
+		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		let counter = 0;
-		testDisposables.push(vscode.workspace.onDidOpenNotebookDocument(() => {
-			counter++;
+		testDisposables.push(vscode.workspace.onDidOpenNotebookDocument(nb => {
+			if (uri.toString() === nb.uri.toString()) {
+				counter++;
+			}
 		}));
 
-		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		const notebook = await vscode.workspace.openNotebookDocument(uri);
 		assert.strictEqual(counter, 1);
 

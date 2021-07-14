@@ -107,4 +107,11 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 	public writeScrollPosition(target: INewScrollPosition, scrollPosition: number): void {
 		target.scrollLeft = scrollPosition;
 	}
+
+	public updateOptions(options: ScrollableElementResolvedOptions): void {
+		this.updateScrollbarSize(options.horizontal === ScrollbarVisibility.Hidden ? 0 : options.horizontalScrollbarSize);
+		this._scrollbarState.setOppositeScrollbarSize(options.vertical === ScrollbarVisibility.Hidden ? 0 : options.verticalScrollbarSize);
+		this._visibilityController.setVisibility(options.horizontal);
+		this._scrollByPage = options.scrollByPage;
+	}
 }

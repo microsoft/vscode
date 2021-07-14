@@ -144,7 +144,7 @@ function fromLocalWebpack(extensionPath, webpackConfigFileName) {
         console.error(packagedDependencies);
         result.emit('error', err);
     });
-    return result.pipe(stats_1.createStatsStream(path.basename(extensionPath)));
+    return result.pipe((0, stats_1.createStatsStream)(path.basename(extensionPath)));
 }
 function fromLocalNormal(extensionPath) {
     const result = es.through();
@@ -162,7 +162,7 @@ function fromLocalNormal(extensionPath) {
         es.readArray(files).pipe(result);
     })
         .catch(err => result.emit('error', err));
-    return result.pipe(stats_1.createStatsStream(path.basename(extensionPath)));
+    return result.pipe((0, stats_1.createStatsStream)(path.basename(extensionPath)));
 }
 const baseHeaders = {
     'X-Market-Client-Id': 'VSCode Build',
@@ -213,7 +213,7 @@ const productJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../produ
 const builtInExtensions = productJson.builtInExtensions || [];
 const webBuiltInExtensions = productJson.webBuiltInExtensions || [];
 /**
- * Loosely based on `getExtensionKind` from `src/vs/workbench/services/extensions/common/extensionsUtil.ts`
+ * Loosely based on `getExtensionKind` from `src/vs/workbench/services/extensions/common/extensionManifestPropertiesService.ts`
  */
 function isWebExtension(manifest) {
     if (typeof manifest.extensionKind !== 'undefined') {
@@ -320,7 +320,7 @@ function translatePackageJSON(packageJSON, packageNLSPath) {
             else if (typeof val === 'string' && val.charCodeAt(0) === CharCode_PC && val.charCodeAt(val.length - 1) === CharCode_PC) {
                 const translated = packageNls[val.substr(1, val.length - 2)];
                 if (translated) {
-                    obj[key] = translated;
+                    obj[key] = typeof translated === 'string' ? translated : (typeof translated.message === 'string' ? translated.message : val);
                 }
             }
         }

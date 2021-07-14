@@ -311,4 +311,64 @@ suite('Arrays', () => {
 		assert.strictEqual(arrays.maxIndex(array, _value => 0), 0);
 		assert.strictEqual(arrays.maxIndex(array, value => value === 'b' ? 5 : 0), 1);
 	});
+
+	suite('ArrayQueue', () => {
+		suite('takeWhile/takeFromEndWhile', () => {
+			test('TakeWhile 1', () => {
+				const queue1 = new arrays.ArrayQueue([9, 8, 1, 7, 6]);
+				assert.deepStrictEqual(queue1.takeWhile(x => x > 5), [9, 8]);
+				assert.deepStrictEqual(queue1.takeWhile(x => x < 7), [1]);
+				assert.deepStrictEqual(queue1.takeWhile(x => true), [7, 6]);
+			});
+
+			test('TakeWhile 1', () => {
+				const queue1 = new arrays.ArrayQueue([9, 8, 1, 7, 6]);
+				assert.deepStrictEqual(queue1.takeFromEndWhile(x => x > 5), [7, 6]);
+				assert.deepStrictEqual(queue1.takeFromEndWhile(x => x < 2), [1]);
+				assert.deepStrictEqual(queue1.takeFromEndWhile(x => true), [9, 8]);
+			});
+		});
+
+		suite('takeWhile/takeFromEndWhile monotonous', () => {
+			function testMonotonous(array: number[], predicate: (a: number) => boolean) {
+				function normalize(arr: number[]): number[] | null {
+					if (arr.length === 0) {
+						return null;
+					}
+					return arr;
+				}
+
+				const negatedPredicate = (a: number) => !predicate(a);
+
+				{
+					const queue1 = new arrays.ArrayQueue(array);
+					assert.deepStrictEqual(queue1.takeWhile(predicate), normalize(array.filter(predicate)));
+					assert.deepStrictEqual(queue1.length, array.length - array.filter(predicate).length);
+					assert.deepStrictEqual(queue1.takeWhile(() => true), normalize(array.filter(negatedPredicate)));
+				}
+				{
+					const queue3 = new arrays.ArrayQueue(array);
+					assert.deepStrictEqual(queue3.takeFromEndWhile(negatedPredicate), normalize(array.filter(negatedPredicate)));
+					assert.deepStrictEqual(queue3.length, array.length - array.filter(negatedPredicate).length);
+					assert.deepStrictEqual(queue3.takeFromEndWhile(() => true), normalize(array.filter(predicate)));
+				}
+			}
+
+			const array = [1, 1, 1, 2, 5, 5, 7, 8, 8];
+
+			test('TakeWhile 1', () => testMonotonous(array, value => value <= 1));
+			test('TakeWhile 2', () => testMonotonous(array, value => value < 5));
+			test('TakeWhile 3', () => testMonotonous(array, value => value <= 5));
+			test('TakeWhile 4', () => testMonotonous(array, value => true));
+			test('TakeWhile 5', () => testMonotonous(array, value => false));
+
+			const array2 = [1, 1, 1, 2, 5, 5, 7, 8, 8, 9, 9, 9, 9, 10, 10];
+
+			test('TakeWhile 6', () => testMonotonous(array2, value => value < 10));
+			test('TakeWhile 7', () => testMonotonous(array2, value => value < 7));
+			test('TakeWhile 8', () => testMonotonous(array2, value => value < 5));
+
+			test('TakeWhile Empty', () => testMonotonous([], value => value <= 5));
+		});
+	});
 });

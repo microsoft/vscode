@@ -36,6 +36,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { Schemas } from 'vs/base/common/network';
 
 export interface IFileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopyManager<S | U, IFileWorkingCopy<S | U>> {
 
@@ -206,7 +207,16 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 	resolve(resource: URI, options?: IStoredFileWorkingCopyResolveOptions): Promise<IStoredFileWorkingCopy<S>>;
 	resolve(arg1?: URI | INewUntitledFileWorkingCopyOptions | INewUntitledFileWorkingCopyWithAssociatedResourceOptions | INewOrExistingUntitledFileWorkingCopyOptions, arg2?: IStoredFileWorkingCopyResolveOptions): Promise<IUntitledFileWorkingCopy<U> | IStoredFileWorkingCopy<S>> {
 		if (URI.isUri(arg1)) {
-			return this.stored.resolve(arg1, arg2);
+
+			// Untitled: via untitled manager
+			if (arg1.scheme === Schemas.untitled) {
+				return this.untitled.resolve({ untitledResource: arg1 });
+			}
+
+			// else: via stored file manager
+			else {
+				return this.stored.resolve(arg1, arg2);
+			}
 		}
 
 		return this.untitled.resolve(arg1);

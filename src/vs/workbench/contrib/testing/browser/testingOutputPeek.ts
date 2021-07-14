@@ -49,7 +49,6 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
 import { textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
@@ -59,14 +58,15 @@ import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/brow
 import { testingPeekBorder } from 'vs/workbench/contrib/testing/browser/theme';
 import { AutoOpenPeekViewWhen, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { IRichLocation, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { IRichLocation, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, TestResultItem, TestRunConfigurationBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { capabilityContextKeys, ITestConfigurationService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
 import { buildTestUri, ParsedTestUri, parseTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
 import { getPathForTestInResult, ITestResult, maxCountPriority, resultItemParents, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService, ResultChangeEvent } from 'vs/workbench/contrib/testing/common/testResultService';
-import { getAllTestsInHierarchy, ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 class TestDto {
@@ -187,7 +187,7 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 			return;
 		}
 
-		if (evt.result.isAutoRun && !getTestingConfiguration(this.configuration, TestingConfigKeys.AutoOpenPeekViewDuringAutoRun)) {
+		if (evt.result.request.isAutoRun && !getTestingConfiguration(this.configuration, TestingConfigKeys.AutoOpenPeekViewDuringAutoRun)) {
 			return;
 		}
 
@@ -215,45 +215,39 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 	 * Gets the message closest to the given position from a test in the file.
 	 */
 	private async getFileCandidateMessage(uri: URI, position: Position | null) {
-		const tests = this.testService.subscribeToDiffs(ExtHostTestingResource.TextDocument, uri);
-		try {
-			await getAllTestsInHierarchy(tests.object);
+		let best: TestUriWithDocument | undefined;
+		let bestDistance = Infinity;
 
-			let best: TestUriWithDocument | undefined;
-			let bestDistance = Infinity;
-
-			// Get all tests for the document. In those, find one that has a test
-			// message closest to the cursor position.
-			for (const test of tests.object.all) {
-				const result = this.testResults.getStateById(test.item.extId);
-				if (!result) {
-					continue;
-				}
-
-				mapFindTestMessage(result[1], (_task, message, messageIndex, taskIndex) => {
-					if (!message.location || message.location.uri.toString() !== uri.toString()) {
-						return;
-					}
-
-					const distance = position ? Math.abs(position.lineNumber - message.location.range.startLineNumber) : 0;
-					if (!best || distance <= bestDistance) {
-						bestDistance = distance;
-						best = {
-							type: TestUriType.ResultMessage,
-							testExtId: result[1].item.extId,
-							resultId: result[0].id,
-							taskIndex,
-							messageIndex,
-							documentUri: uri,
-						};
-					}
-				});
+		// Get all tests for the document. In those, find one that has a test
+		// message closest to the cursor position.
+		const demandedUriStr = uri.toString();
+		for (const test of this.testService.collection.all) {
+			const result = this.testResults.getStateById(test.item.extId);
+			if (!result) {
+				continue;
 			}
 
-			return best;
-		} finally {
-			tests.dispose();
+			mapFindTestMessage(result[1], (_task, message, messageIndex, taskIndex) => {
+				if (!message.location || message.location.uri.toString() !== demandedUriStr) {
+					return;
+				}
+
+				const distance = position ? Math.abs(position.lineNumber - message.location.range.startLineNumber) : 0;
+				if (!best || distance <= bestDistance) {
+					bestDistance = distance;
+					best = {
+						type: TestUriType.ResultMessage,
+						testExtId: result[1].item.extId,
+						resultId: result[0].id,
+						taskIndex,
+						messageIndex,
+						documentUri: uri,
+					};
+				}
+			});
 		}
+
+		return best;
 	}
 
 	/**
@@ -1230,7 +1224,7 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 		const actionBar = new ActionBar(wrapper, {
 			actionViewItemProvider: action =>
 				action instanceof MenuItemAction
-					? this.instantiationService.createInstance(MenuEntryActionViewItem, action)
+					? this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined)
 					: undefined
 		});
 
@@ -1276,17 +1270,18 @@ class TreeActionsProvider {
 		@ITestingOutputTerminalService private readonly testTerminalService: ITestingOutputTerminalService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ICommandService private readonly commandService: ICommandService,
+		@ITestConfigurationService private readonly testConfigurationService: ITestConfigurationService,
 	) { }
 
 	public provideActionBar(element: ITreeElement) {
 		const test = element instanceof TestCaseElement ? element.test : undefined;
+		const capabilities = test ? this.testConfigurationService.controllerCapabilities(test.controllerId) : 0;
 		const contextOverlay = this.contextKeyService.createOverlay([
 			['peek', Testing.OutputPeekContributionId],
 			[TestingContextKeys.peekItemType.key, element.type],
 			[TestingContextKeys.testItemExtId.key, test?.item.extId],
 			[TestingContextKeys.testItemHasUri.key, !!test?.item.uri],
-			[TestingContextKeys.hasDebuggableTests.key, test?.item.debuggable],
-			[TestingContextKeys.hasRunnableTests.key, test?.item.debuggable],
+			...(test ? capabilityContextKeys(capabilities) : [])
 		]);
 		const menu = this.menuService.createMenu(MenuId.TestPeekElement, contextOverlay);
 
@@ -1311,7 +1306,7 @@ class TreeActionsProvider {
 					() => this.commandService.executeCommand('testing.reRunLastRun', element.value.id),
 				));
 
-				if (Iterable.some(element.value.tests, t => t.item.debuggable)) {
+				if (capabilities & TestRunConfigurationBitset.Debug) {
 					primary.push(new Action(
 						'testing.outputPeek.debugLastRun',
 						localize('testing.debugLastRun', "Debug Test Run"),
@@ -1331,7 +1326,7 @@ class TreeActionsProvider {
 					() => this.commandService.executeCommand('vscode.revealTestInExplorer', element.path),
 				));
 
-				if (element.test.item.runnable) {
+				if (capabilities & TestRunConfigurationBitset.Run) {
 					primary.push(new Action(
 						'testing.outputPeek.runTest',
 						localize('run test', 'Run Test'),
@@ -1341,7 +1336,7 @@ class TreeActionsProvider {
 					));
 				}
 
-				if (element.test.item.debuggable) {
+				if (capabilities & TestRunConfigurationBitset.Coverage) {
 					primary.push(new Action(
 						'testing.outputPeek.debugTest',
 						localize('debug test', 'Debug Test'),

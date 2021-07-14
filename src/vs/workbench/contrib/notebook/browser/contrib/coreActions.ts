@@ -36,6 +36,7 @@ import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/not
 import { Iterable } from 'vs/base/common/iterator';
 import { flatten, maxIndex, minIndex } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
+import { Mimes } from 'vs/base/common/mime';
 
 // Kernel Command
 export const SELECT_KERNEL_ID = 'notebook.selectKernel';
@@ -121,19 +122,8 @@ function getContextFromActiveEditor(editorService: IEditorService): INotebookAct
 }
 
 function getWidgetFromUri(accessor: ServicesAccessor, uri: URI) {
-	const editorService = accessor.get(IEditorService);
 	const notebookEditorService = accessor.get(INotebookEditorService);
-	const editorId = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editorId => editorId.editor instanceof NotebookEditorInput && editorId.editor.resource?.toString() === uri.toString());
-	if (!editorId) {
-		return undefined;
-	}
-
-	const notebookEditorInput = editorId.editor as NotebookEditorInput;
-	if (!notebookEditorInput.resource) {
-		return undefined;
-	}
-
-	const widget = notebookEditorService.listNotebookEditors().find(widget => widget.textModel?.viewType === notebookEditorInput.viewType && widget.textModel?.uri.toString() === notebookEditorInput.resource.toString());
+	const widget = notebookEditorService.listNotebookEditors().find(widget => widget.hasModel() && widget.textModel.uri.toString() === uri.toString());
 
 	if (widget && widget.hasModel()) {
 		return widget;
@@ -527,6 +517,7 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction<INotebookActio
 				description: localize('notebookActions.execute', "Execute Cell"),
 				args: [
 					{
+						isOptional: true,
 						name: 'options',
 						description: 'The cell range options',
 						schema: {
@@ -696,8 +687,6 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 			}
 			return;
 		} else {
-			const executionP = runCell(accessor, context);
-
 			// Try to select below, fall back on inserting
 			const nextCell = context.notebookEditor.viewModel.cellAt(idx + 1);
 			if (nextCell) {
@@ -709,7 +698,7 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 				}
 			}
 
-			return executionP;
+			return runCell(accessor, context);
 		}
 	}
 });
@@ -933,7 +922,7 @@ registerAction2(class ChangeCellToMarkdownAction extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		await changeCellToKind(CellKind.Markup, context, 'markdown');
+		await changeCellToKind(CellKind.Markup, context, 'markdown', Mimes.markdown);
 	}
 });
 
@@ -966,7 +955,7 @@ async function runCell(accessor: ServicesAccessor, context: INotebookActionConte
 	}
 }
 
-export async function changeCellToKind(kind: CellKind, context: INotebookCellActionContext, language?: string): Promise<ICellViewModel | null> {
+export async function changeCellToKind(kind: CellKind, context: INotebookCellActionContext, language?: string, mime?: string): Promise<ICellViewModel | null> {
 	const { cell, notebookEditor } = context;
 
 	if (cell.cellKind === kind) {
@@ -998,7 +987,7 @@ export async function changeCellToKind(kind: CellKind, context: INotebookCellAct
 				cellKind: kind,
 				source: text,
 				language: language!,
-				mime: cell.mime,
+				mime: mime ?? cell.mime,
 				outputs: cell.model.outputs,
 				metadata: cell.metadata,
 			}]
@@ -1289,7 +1278,10 @@ registerAction2(class EditCellAction extends NotebookCellAction {
 				id: EDIT_CELL_COMMAND_ID,
 				title: localize('notebookActions.editCell', "Edit Cell"),
 				keybinding: {
-					when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
+					when: ContextKeyExpr.and(
+						NOTEBOOK_CELL_LIST_FOCUSED,
+						ContextKeyExpr.not(InputFocusedContextKey),
+						NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)),
 					primary: KeyCode.Enter,
 					weight: KeybindingWeight.WorkbenchContrib
 				},
@@ -1308,6 +1300,11 @@ registerAction2(class EditCellAction extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+		const viewModel = context.notebookEditor.viewModel;
+		if (!viewModel || viewModel.options.isReadOnly) {
+			return;
+		}
+
 		context.notebookEditor.focusNotebookCell(context.cell, 'editor');
 	}
 });

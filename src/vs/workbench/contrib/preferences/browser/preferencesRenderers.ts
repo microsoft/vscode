@@ -1059,7 +1059,7 @@ class UnsupportedSettingsRenderer extends Disposable implements modes.CodeAction
 			markerData.push(this.generateUnsupportedMachineSettingMarker(setting));
 		}
 
-		if (!this.workspaceTrustManagementService.isWorkpaceTrusted() && configuration.restricted) {
+		if (!this.workspaceTrustManagementService.isWorkspaceTrusted() && configuration.restricted) {
 			const marker = this.generateUntrustedSettingMarker(setting);
 			markerData.push(marker);
 			const codeActions = this.generateUntrustedSettingCodeActions([marker]);
@@ -1085,7 +1085,7 @@ class UnsupportedSettingsRenderer extends Disposable implements modes.CodeAction
 			});
 		}
 
-		if (!this.workspaceTrustManagementService.isWorkpaceTrusted() && configuration.restricted) {
+		if (!this.workspaceTrustManagementService.isWorkspaceTrusted() && configuration.restricted) {
 			const marker = this.generateUntrustedSettingMarker(setting);
 			markerData.push(marker);
 			const codeActions = this.generateUntrustedSettingCodeActions([marker]);
@@ -1180,7 +1180,7 @@ class WorkspaceConfigurationRenderer extends Disposable {
 									endColumn: setting.valueRange.endColumn
 								});
 							}
-						} else if (setting.key !== 'settings' && setting.key !== 'remoteAuthority') {
+						} else if (setting.key !== 'settings' && setting.key !== 'remoteAuthority' && setting.key !== 'transient') {
 							markerData.push({
 								severity: MarkerSeverity.Hint,
 								tags: [MarkerTag.Unnecessary],

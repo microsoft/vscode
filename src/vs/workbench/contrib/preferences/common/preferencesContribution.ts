@@ -13,7 +13,6 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -21,8 +20,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditorInputWithOptions } from 'vs/workbench/common/editor';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { RegisteredEditorPriority, IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { RegisteredEditorPriority, IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { FOLDER_SETTINGS_PATH, IPreferencesService, USE_SPLIT_JSON_SETTING } from 'vs/workbench/services/preferences/common/preferences';
 import { PreferencesEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
@@ -41,27 +39,27 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEditorOverrideService private readonly editorOverrideService: IEditorOverrideService,
+		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 		@IEditorService private readonly editorService: IEditorService,
 	) {
 		this.settingsListener = this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(USE_SPLIT_JSON_SETTING)) {
-				this.handleSettingsEditorOverride();
+				this.handleSettingsEditorRegistration();
 			}
 		});
-		this.handleSettingsEditorOverride();
+		this.handleSettingsEditorRegistration();
 
 		this.start();
 	}
 
-	private handleSettingsEditorOverride(): void {
+	private handleSettingsEditorRegistration(): void {
 
 		// dispose any old listener we had
 		dispose(this.editorOpeningListener);
 
 		// install editor opening listener unless user has disabled this
 		if (!!this.configurationService.getValue(USE_SPLIT_JSON_SETTING)) {
-			this.editorOpeningListener = this.editorOverrideService.registerEditor(
+			this.editorOpeningListener = this.editorResolverService.registerEditor(
 				'**/settings.json',
 				{
 					id: PreferencesEditorInput.ID,
@@ -70,7 +68,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 					priority: RegisteredEditorPriority.builtin,
 				},
 				{},
-				(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup): IEditorInputWithOptions => {
+				({ resource, options }, group): IEditorInputWithOptions => {
 					// Global User Settings File
 					if (isEqual(resource, this.environmentService.settingsResource)) {
 						return { editor: this.preferencesService.getCurrentOrNewSplitJsonEditorInput(ConfigurationTarget.USER_LOCAL, resource, group), options };

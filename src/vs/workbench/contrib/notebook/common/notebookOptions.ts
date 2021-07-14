@@ -485,7 +485,7 @@ export class NotebookOptions {
 	}
 
 	setCellBreakpointMarginActive(active: boolean) {
-		this._layoutConfiguration.cellBreakpointMarginActive = active;
+		this._layoutConfiguration = { ...this._layoutConfiguration, ...{ cellBreakpointMarginActive: active } };
 		this._onDidChangeOptions.fire({ cellBreakpointMargin: true });
 	}
 

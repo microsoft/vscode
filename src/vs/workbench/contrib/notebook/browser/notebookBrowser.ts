@@ -34,6 +34,7 @@ import { INotebookWebviewMessage } from 'vs/workbench/contrib/notebook/browser/v
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { isCompositeNotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
@@ -174,6 +175,7 @@ export interface IFocusNotebookCellOptions {
 }
 
 export interface ICommonNotebookEditor {
+	readonly creationOptions: INotebookEditorCreationOptions;
 	getCellOutputLayoutInfo(cell: IGenericCellViewModel): INotebookCellOutputLayoutInfo;
 	triggerScroll(event: IMouseWheelEvent): void;
 	getCellByInfo(cellInfo: ICommonCellInfo): IGenericCellViewModel;
@@ -346,6 +348,7 @@ export interface INotebookEditorCreationOptions {
 	readonly isEmbedded?: boolean;
 	readonly isReadOnly?: boolean;
 	readonly contributions?: INotebookEditorContributionDescription[];
+	readonly cellEditorContributions?: IEditorContributionDescription[];
 	readonly menuIds: {
 		notebookToolbar: MenuId;
 		cellTitleToolbar: MenuId;

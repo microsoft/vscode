@@ -31,7 +31,8 @@ interface IStaticExtension {
 }
 
 /**
- * The id of an extension. It is always ${publisher}.${name}. For example: vscode.csharp.
+ * The identifier of an extension in the format: `PUBLISHER.NAME`.
+ * For example: `vscode.csharp`
  */
 type ExtensionId = string;
 
@@ -159,7 +160,7 @@ interface IWindowIndicator {
 	/**
 	 * Triggering this event will cause the window indicator to update.
 	 */
-	onDidChange: Event<void>;
+	readonly onDidChange?: Event<void>;
 
 	/**
 	 * Label of the window indicator may include octicons
@@ -191,12 +192,12 @@ interface IInitialColorTheme {
 	/**
 	 * Initial color theme type.
 	 */
-	themeType: ColorScheme;
+	readonly themeType: ColorScheme;
 
 	/**
 	 * A list of workbench colors to apply initially.
 	 */
-	colors?: { [colorId: string]: string };
+	readonly colors?: { [colorId: string]: string };
 }
 
 interface IDefaultView {
@@ -270,8 +271,16 @@ interface IWorkbenchConstructionOptions {
 
 	/**
 	 * An URL pointing to the web worker extension host <iframe> src.
+	 * @deprecated. This will be removed soon.
 	 */
 	readonly webWorkerExtensionHostIframeSrc?: string;
+
+	/**
+	 * [TEMPORARY]: This will be removed soon.
+	 * Use an unique origin for the web worker extension host.
+	 * Defaults to false.
+	 */
+	readonly __uniqueWebWorkerExtensionHostOrigin?: boolean;
 
 	/**
 	 * A factory for web sockets.
@@ -310,15 +319,6 @@ interface IWorkbenchConstructionOptions {
 	readonly workspaceProvider?: IWorkspaceProvider;
 
 	/**
-	 * Enables Settings Sync by default.
-	 *
-	 * Syncs with the current authenticated user account (provided in [credentialsProvider](#credentialsProvider)) by default.
-	 *
-	 * @deprecated Instead use [settingsSyncOptions](#settingsSyncOptions) to enable/disable settings sync in the workbench.
-	 */
-	readonly enableSyncByDefault?: boolean;
-
-	/**
 	 * Settings sync options
 	 */
 	readonly settingsSyncOptions?: ISettingsSyncOptions;
@@ -330,7 +330,7 @@ interface IWorkbenchConstructionOptions {
 
 	/**
 	 * Add static extensions that cannot be uninstalled but only be disabled.
-	 * @deprecated
+	 * @deprecated. Use `additionalBuiltinExtensions` instead.
 	 */
 	readonly staticExtensions?: readonly IStaticExtension[];
 
@@ -343,23 +343,11 @@ interface IWorkbenchConstructionOptions {
 	readonly additionalBuiltinExtensions?: readonly (ExtensionId | UriComponents)[];
 
 	/**
-	 * Filter for built-in extensions.
-	 */
-	readonly builtinExtensionsFilter?: (extensionId: string) => boolean;
-
-	/**
 	 * [TEMPORARY]: This will be removed soon.
 	 * Enable inlined extensions.
 	 * Defaults to true.
 	 */
 	readonly _enableBuiltinExtensions?: boolean;
-
-	/**
-	 * Allows the workbench to skip checking whether an extension was built for the web
-	 * and assumes they are addressable via the `Microsoft.VisualStudio.Code.WebResources`
-	 * asset URI.
-	 */
-	readonly assumeGalleryExtensionsAreAddressable?: boolean;
 
 	/**
 	 * Support for URL callbacks.
