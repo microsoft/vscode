@@ -82,8 +82,11 @@ export interface ICoordinatesConverter {
 	validateViewRange(viewRange: Range, expectedModelRange: Range): Range;
 
 	// Model -> View conversion and related methods
-	convertModelPositionToViewPosition(modelPosition: Position): Position;
-	convertModelRangeToViewRange(modelRange: Range): Range;
+	convertModelPositionToViewPosition(modelPosition: Position, affinity?: PositionAffinity): Position;
+	/**
+	 * @param affinity Only has an effect if the range is empty.
+	*/
+	convertModelRangeToViewRange(modelRange: Range, affinity?: PositionAffinity): Range;
 	modelPositionIsVisible(modelPosition: Position): boolean;
 	getModelLineViewLineCount(modelLineNumber: number): number;
 }
