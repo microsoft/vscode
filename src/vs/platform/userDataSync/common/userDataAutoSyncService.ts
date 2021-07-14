@@ -61,14 +61,14 @@ export class UserDataAutoSyncEnablementService extends Disposable implements _IU
 		this._register(storageService.onDidChangeValue(e => this.onDidStorageChange(e)));
 	}
 
-	isEnabled(defaultEnablement?: boolean): boolean {
+	isEnabled(): boolean {
 		switch (this.environmentService.sync) {
 			case 'on':
 				return true;
 			case 'off':
 				return false;
 		}
-		return this.storageService.getBoolean(enablementKey, StorageScope.GLOBAL, !!defaultEnablement);
+		return this.storageService.getBoolean(enablementKey, StorageScope.GLOBAL, false);
 	}
 
 	canToggleEnablement(): boolean {

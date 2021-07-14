@@ -58,7 +58,7 @@ class UserDataSyncAccount implements IUserDataSyncAccount {
 	get sessionId(): string { return this.session.id; }
 	get accountName(): string { return this.session.account.label; }
 	get accountId(): string { return this.session.account.id; }
-	get token(): string { return this.session.accessToken; }
+	get token(): string { return this.session.idToken || this.session.accessToken; }
 }
 
 export class UserDataSyncWorkbenchService extends Disposable implements IUserDataSyncWorkbenchService {

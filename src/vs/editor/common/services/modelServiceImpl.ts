@@ -249,15 +249,15 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		if (resource) {
 			return this._resourcePropertiesService.getEOL(resource, language);
 		}
-		const eol = this._configurationService.getValue<string>('files.eol', { overrideIdentifier: language });
-		if (eol && eol !== 'auto') {
+		const eol = this._configurationService.getValue('files.eol', { overrideIdentifier: language });
+		if (eol && typeof eol === 'string' && eol !== 'auto') {
 			return eol;
 		}
 		return platform.OS === platform.OperatingSystem.Linux || platform.OS === platform.OperatingSystem.Macintosh ? '\n' : '\r\n';
 	}
 
 	private _shouldRestoreUndoStack(): boolean {
-		const result = this._configurationService.getValue<boolean>('files.restoreUndoStack');
+		const result = this._configurationService.getValue('files.restoreUndoStack');
 		if (typeof result === 'boolean') {
 			return result;
 		}

@@ -1465,6 +1465,10 @@ declare namespace monaco.editor {
 		 * If set, the decoration will be rendered inline with the text with this CSS class name.
 		 */
 		readonly inlineClassName?: string | null;
+		/**
+		 * If there is an `inlineClassName` which affects letter spacing.
+		 */
+		readonly inlineClassNameAffectsLetterSpacing?: boolean;
 	}
 
 	/**
@@ -3855,10 +3859,11 @@ declare namespace monaco.editor {
 		/**
 		 * Configures the mode.
 		 * Use `prefix` to only show ghost text if the text to replace is a prefix of the suggestion text.
-		 * Use `subwordDiff` to only show ghost text if the replace text is a subword of the suggestion text and diffing should be used to compute the ghost text.
+		 * Use `subword` to only show ghost text if the replace text is a subword of the suggestion text.
+		 * Use `subwordSmart` to only show ghost text if the replace text is a subword of the suggestion text, but the subword must start after the cursor position.
 		 * Defaults to `prefix`.
 		*/
-		mode?: 'prefix' | 'subwordDiff';
+		mode?: 'prefix' | 'subword' | 'subwordSmart';
 	}
 
 	export type InternalInlineSuggestOptions = Readonly<Required<IInlineSuggestOptions>>;
@@ -3900,9 +3905,9 @@ declare namespace monaco.editor {
 		 */
 		preview?: boolean;
 		/**
-		 * Configures the mode of the preview. Defaults to `subwordDiff`.
+		 * Configures the mode of the preview.
 		*/
-		previewMode?: 'prefix' | 'subwordDiff';
+		previewMode?: 'prefix' | 'subword' | 'subwordSmart';
 		/**
 		 * Show details inline with the label. Defaults to true.
 		 */

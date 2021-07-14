@@ -174,17 +174,14 @@ export interface IExtensionGalleryService {
 
 export interface InstallExtensionEvent {
 	identifier: IExtensionIdentifier;
-	zipPath?: string;
-	gallery?: IGalleryExtension;
+	source: URI | IGalleryExtension;
 }
 
-export interface DidInstallExtensionEvent {
-	identifier: IExtensionIdentifier;
-	operation: InstallOperation;
-	zipPath?: string;
-	gallery?: IGalleryExtension;
-	local?: ILocalExtension;
-	error?: string;
+export interface InstallExtensionResult {
+	readonly identifier: IExtensionIdentifier;
+	readonly operation: InstallOperation;
+	readonly source?: URI | IGalleryExtension;
+	readonly local?: ILocalExtension;
 }
 
 export interface DidUninstallExtensionEvent {
@@ -207,12 +204,17 @@ export type InstallOptions = { isBuiltin?: boolean, isMachineScoped?: boolean, d
 export type InstallVSIXOptions = InstallOptions & { installOnlyNewlyAddedFromExtensionPack?: boolean };
 export type UninstallOptions = { donotIncludePack?: boolean, donotCheckDependents?: boolean };
 
+export interface IExtensionManagementParticipant {
+	postInstall(local: ILocalExtension, source: URI | IGalleryExtension, options: InstallOptions | InstallVSIXOptions, token: CancellationToken): Promise<void>;
+	postUninstall(local: ILocalExtension, options: UninstallOptions, token: CancellationToken): Promise<void>;
+}
+
 export const IExtensionManagementService = createDecorator<IExtensionManagementService>('extensionManagementService');
 export interface IExtensionManagementService {
 	readonly _serviceBrand: undefined;
 
 	onInstallExtension: Event<InstallExtensionEvent>;
-	onDidInstallExtension: Event<DidInstallExtensionEvent>;
+	onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
 	onUninstallExtension: Event<IExtensionIdentifier>;
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
 
@@ -229,6 +231,8 @@ export interface IExtensionManagementService {
 
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension>;
 	updateExtensionScope(local: ILocalExtension, isMachineScoped: boolean): Promise<ILocalExtension>;
+
+	registerParticipant(pariticipant: IExtensionManagementParticipant): void;
 }
 
 export const DISABLED_EXTENSIONS_STORAGE_PATH = 'extensionsIdentifiers/disabled';

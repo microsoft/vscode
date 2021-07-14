@@ -78,6 +78,7 @@ type GettingStartedActionEvent = {
 	argument: string | undefined;
 };
 
+const REDUCED_MOTION_KEY = 'workbench.welcomePage.preferReducedMotion';
 export class GettingStartedPage extends EditorPane {
 
 	public static readonly ID = 'gettingStartedPage';
@@ -218,6 +219,12 @@ export class GettingStartedPage extends EditorPane {
 				this.hideCategory(category.id);
 			}
 
+			this._register(this.configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(REDUCED_MOTION_KEY)) {
+					this.container.classList.toggle('animatable', this.shouldAnimate());
+				}
+			}));
+
 			ourStep.done = step.done;
 			if (category.id === this.currentCategory?.id) {
 				const badgeelements = assertIsDefined(document.querySelectorAll(`[data-done-step-id="${step.id}"]`));
@@ -240,12 +247,18 @@ export class GettingStartedPage extends EditorPane {
 		this.recentlyOpened = workspacesService.getRecentlyOpened();
 	}
 
+	private shouldAnimate() {
+		return !this.configurationService.getValue(REDUCED_MOTION_KEY);
+	}
+
 	override async setInput(newInput: GettingStartedInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
-		this.container.classList.remove('animationReady');
+		this.container.classList.remove('animatable');
 		this.editorInput = newInput;
 		await super.setInput(newInput, options, context, token);
 		await this.buildCategoriesSlide();
-		setTimeout(() => this.container.classList.add('animationReady'), 0);
+		if (this.shouldAnimate()) {
+			setTimeout(() => this.container.classList.add('animatable'), 0);
+		}
 	}
 
 	async makeCategoryVisibleWhenAvailable(categoryID: string, stepId?: string) {
@@ -385,7 +398,8 @@ export class GettingStartedPage extends EditorPane {
 			id: x.id,
 			label: x.title,
 			detail: x.description,
-		})), { canPickMany: false, title: localize('pickWalkthroughs', "Open Getting Started Page...") });
+			description: x.source,
+		})), { canPickMany: false, matchOnDescription: true, matchOnDetail: true, title: localize('pickWalkthroughs', "Open Walkthrough...") });
 		if (selection) {
 			this.runDispatchCommand('selectCategory', selection.id);
 		}
@@ -531,6 +545,13 @@ export class GettingStartedPage extends EditorPane {
 					}
 				}
 			}));
+
+			this.stepDisposables.add(webview.onDidClickLink(link => {
+				if (matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.http) || (matchesScheme(link, Schemas.command))) {
+					this.openerService.open(link, { allowCommands: true });
+				}
+			}));
+
 		}
 		else if (stepToExpand.media.type === 'markdown') {
 
@@ -672,6 +693,8 @@ export class GettingStartedPage extends EditorPane {
 						width: 80%;
 						left: 50%;
 						top: 50%;
+						max-width: 530px;
+						min-width: 350px;
 						transform: translate(-50%,-50%);
 					}
 				</style>
@@ -840,7 +863,7 @@ export class GettingStartedPage extends EditorPane {
 				reset(leftColumn, startList.getDomElement());
 				reset(rightColumn, recentList.getDomElement());
 				reset(footer, $('p.showOnStartup', {}, showOnStartupCheckbox, $('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show welcome page on startup"))),
-					$('p.openAWalkthrough', {}, $('button.button-link', { 'x-dispatch': 'seeAllWalkthroughs' }, localize('openAWalkthrough', "Open Getting Started Page..."))));
+					$('p.openAWalkthrough', {}, $('button.button-link', { 'x-dispatch': 'seeAllWalkthroughs' }, localize('openAWalkthrough', "Open Walkthrough..."))));
 				recentList.setLimit(10);
 			}
 			setTimeout(() => this.categoriesPageScrollbar?.scanDomNode(), 50);
@@ -1039,12 +1062,12 @@ export class GettingStartedPage extends EditorPane {
 		if (this.gettingStartedList) { this.gettingStartedList.dispose(); }
 
 		const gettingStartedList = this.gettingStartedList = new GettingStartedIndexList(
-			localize('gettingStarted', "Getting Started"),
+			localize('walkthroughs', "Walkthroughs"),
 			'getting-started',
 			5,
 			undefined,
 			undefined,
-			$('button.button-link.see-all-walkthroughs', { 'tabindex': '0', 'x-dispatch': 'seeAllWalkthroughs' }, localize('showAll', "Show All...")),
+			$('button.button-link.see-all-walkthroughs', { 'tabindex': '0', 'x-dispatch': 'seeAllWalkthroughs' }, localize('showAll', "More...")),
 			renderGetttingStaredWalkthrough);
 
 		gettingStartedList.onDidChange(() => {

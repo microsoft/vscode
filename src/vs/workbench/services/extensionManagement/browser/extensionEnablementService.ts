@@ -328,7 +328,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 							return false;
 						}
 					} else if (server === this.extensionManagementServerService.localExtensionManagementServer) {
-						const enableLocalWebWorker = this.configurationService.getValue<boolean>(webWorkerExtHostConfig);
+						const enableLocalWebWorker = this.configurationService.getValue(webWorkerExtHostConfig);
 						if (enableLocalWebWorker) {
 							// Web extensions are enabled on all configurations
 							return false;
@@ -367,7 +367,8 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		}
 		try {
 			for (const dependencyExtension of dependencyExtensions) {
-				if (!this.isEnabledEnablementState(this._computeEnablementState(dependencyExtension, extensions, workspaceType, computedEnablementStates))) {
+				const enablementState = this._computeEnablementState(dependencyExtension, extensions, workspaceType, computedEnablementStates);
+				if (!this.isEnabledEnablementState(enablementState) && enablementState !== EnablementState.DisabledByExtensionKind) {
 					return true;
 				}
 			}
@@ -583,13 +584,15 @@ class ExtensionsManager extends Disposable {
 		} catch (error) {
 			this.logService.error(error);
 		}
-		Event.filter(this.extensionManagementService.onDidInstallExtension, (e => !!e.local))(e => this.onDidInstallExtension(e.local!));
-		Event.filter(this.extensionManagementService.onDidUninstallExtension, (e => !e.error))(e => this.onDidUninstallExtension(e.identifier, e.server));
+		this._register(this.extensionManagementService.onDidInstallExtensions(e => this.onDidInstallExtensions(e.reduce<IExtension[]>((result, { local }) => { if (local) { result.push(local); } return result; }, []))));
+		this._register(Event.filter(this.extensionManagementService.onDidUninstallExtension, (e => !e.error))(e => this.onDidUninstallExtension(e.identifier, e.server)));
 	}
 
-	private onDidInstallExtension(extension: IExtension): void {
-		this._extensions.push(extension);
-		this._onDidChangeExtensions.fire({ added: [extension], removed: [] });
+	private onDidInstallExtensions(extensions: IExtension[]): void {
+		if (extensions.length) {
+			this._extensions.push(...extensions);
+			this._onDidChangeExtensions.fire({ added: extensions, removed: [] });
+		}
 	}
 
 	private onDidUninstallExtension(identifier: IExtensionIdentifier, server: IExtensionManagementServer): void {

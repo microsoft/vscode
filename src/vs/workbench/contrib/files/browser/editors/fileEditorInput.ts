@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult, EditorInputCapabilities, IEditorDescriptor, IEditorPane, IEditorInput, IUntypedEditorInput, UntypedEditorContext, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult, EditorInputCapabilities, IEditorDescriptor, IEditorPane, IEditorInput, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { ITextEditorOptions, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
@@ -394,7 +394,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		};
 	}
 
-	override toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): ITextResourceEditorInput {
+	override toUntyped(options?: { preserveViewState: GroupIdentifier }): ITextResourceEditorInput {
 		const untypedInput: ITextResourceEditorInput & { options: ITextEditorOptions } = {
 			resource: this.preferredResource,
 			forceFile: true,
@@ -403,7 +403,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 			}
 		};
 
-		if (context === UntypedEditorContext.Full) {
+		if (typeof options?.preserveViewState === 'number') {
 			untypedInput.encoding = this.getEncoding();
 			untypedInput.mode = this.getMode();
 			untypedInput.contents = (() => {
@@ -415,9 +415,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 				return undefined;
 			})();
 
-			if (typeof group === 'number') {
-				untypedInput.options.viewState = this.getViewStateFor(group);
-			}
+			untypedInput.options.viewState = this.getViewStateFor(options.preserveViewState);
 		}
 
 		return untypedInput;

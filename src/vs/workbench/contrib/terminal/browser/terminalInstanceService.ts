@@ -10,7 +10,7 @@ import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode1
 import type { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ILocalTerminalService, IShellLaunchConfig, ITerminalProfile, TerminalLocation, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalProfile, TerminalLocation, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { basename } from 'vs/base/common/path';
@@ -18,7 +18,7 @@ import { isWindows } from 'vs/base/common/platform';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE } from 'vs/workbench/contrib/terminal/common/terminal';
+import { KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, ILocalTerminalService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 

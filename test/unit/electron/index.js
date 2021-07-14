@@ -204,7 +204,7 @@ app.on('ready', () => {
 			timeout = setTimeout(() => {
 				console.error('timed out waiting for before starting tests debugger');
 				resolve();
-			}, 7000);
+			}, 15000);
 		}).finally(() => {
 			if (socket) {
 				socket.end();

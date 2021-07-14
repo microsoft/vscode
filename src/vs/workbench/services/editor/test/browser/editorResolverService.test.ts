@@ -13,9 +13,9 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEditorResolverService, ResolvedStatus, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { createEditorPart, ITestInstantiationService, TestFileEditorInput, TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
-suite('EditorOverrideService', () => {
+suite('EditorResolverService', () => {
 
-	const TEST_EDITOR_INPUT_ID = 'testEditorInputForEditorOverrideService';
+	const TEST_EDITOR_INPUT_ID = 'testEditorInputForEditorResolverService';
 	const disposables = new DisposableStore();
 
 	teardown(() => disposables.clear());

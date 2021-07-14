@@ -142,6 +142,7 @@ class SplitPaneContainer extends Disposable {
 		if (index !== null) {
 			this._children.splice(index, 1);
 			this._splitView.removeView(index, Sizing.Distribute);
+			instance.detachFromElement();
 		}
 	}
 

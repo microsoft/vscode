@@ -36,6 +36,7 @@ export const enum TerminalSettingId {
 	DefaultProfileWindows = 'terminal.integrated.defaultProfile.windows',
 	UseWslProfiles = 'terminal.integrated.useWslProfiles',
 	TabsEnabled = 'terminal.integrated.tabs.enabled',
+	TabsEnableAnimation = 'terminal.integrated.tabs.enableAnimation',
 	TabsHideCondition = 'terminal.integrated.tabs.hideCondition',
 	TabsShowActiveTerminal = 'terminal.integrated.tabs.showActiveTerminal',
 	TabsShowActions = 'terminal.integrated.tabs.showActions',
@@ -163,44 +164,6 @@ export enum TerminalIpcChannels {
 	 * Enables the detection of unresponsive pty hosts.
 	 */
 	Heartbeat = 'heartbeat'
-}
-
-export interface IOffProcessTerminalService {
-	readonly _serviceBrand: undefined;
-
-	/**
-	 * Fired when the ptyHost process becomes non-responsive, this should disable stdin for all
-	 * terminals using this pty host connection and mark them as disconnected.
-	 */
-	onPtyHostUnresponsive: Event<void>;
-	/**
-	 * Fired when the ptyHost process becomes responsive after being non-responsive. Allowing
-	 * previously disconnected terminals to reconnect.
-	 */
-	onPtyHostResponsive: Event<void>;
-	/**
-	 * Fired when the ptyHost has been restarted, this is used as a signal for listening terminals
-	 * that its pty has been lost and will remain disconnected.
-	 */
-	onPtyHostRestart: Event<void>;
-
-	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
-	listProcesses(): Promise<IProcessDetails[]>;
-	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
-	getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
-	getWslPath(original: string): Promise<string>;
-	getEnvironment(): Promise<IProcessEnvironment>;
-	getShellEnvironment(): Promise<IProcessEnvironment | undefined>;
-	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
-	updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void>;
-	updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<void>;
-	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
-	reduceConnectionGraceTime(): Promise<void>;
-}
-
-export const ILocalTerminalService = createDecorator<ILocalTerminalService>('localTerminalService');
-export interface ILocalTerminalService extends IOffProcessTerminalService {
-	createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess>;
 }
 
 export const IPtyService = createDecorator<IPtyService>('ptyService');

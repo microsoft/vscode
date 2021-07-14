@@ -155,7 +155,12 @@ export async function launch(userDataDir: string, _workspacePath: string, codeSe
 
 async function teardown(): Promise<void> {
 	if (server) {
-		await new Promise((c, e) => kill(server!.pid, error => error ? e(error) : c(null)));
+		try {
+			await new Promise<void>((c, e) => kill(server!.pid, err => err ? e(err) : c()));
+		} catch {
+			// noop
+		}
+
 		server = undefined;
 	}
 }
@@ -171,9 +176,14 @@ function waitForEndpoint(): Promise<string> {
 	});
 }
 
-export function connect(browserType: 'chromium' | 'webkit' | 'firefox' = 'chromium'): Promise<{ client: IDisposable, driver: IDriver }> {
+interface Options {
+	readonly browser?: 'chromium' | 'webkit' | 'firefox';
+	readonly headless?: boolean;
+}
+
+export function connect(options: Options = {}): Promise<{ client: IDisposable, driver: IDriver }> {
 	return new Promise(async (c) => {
-		const browser = await playwright[browserType].launch({ headless: false });
+		const browser = await playwright[options.browser ?? 'chromium'].launch({ headless: options.headless ?? false });
 		const context = await browser.newContext();
 		await context.tracing.start({ screenshots: true, snapshots: true });
 		const page = await context.newPage();

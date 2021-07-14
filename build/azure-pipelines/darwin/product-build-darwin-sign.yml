@@ -8,7 +8,7 @@ steps:
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
-      SecretsFilter: 'github-distro-mixin-password'
+      SecretsFilter: "github-distro-mixin-password,ESRP-PKI,esrp-aad-username,esrp-aad-password"
 
   - script: |
       set -e
@@ -28,12 +28,10 @@ steps:
     displayName: Merge distro
 
   - script: |
-      pushd build \
-      && yarn \
-      && npm install -g typescript \
-      && tsc azure-pipelines/common/createAsset.ts \
-      && popd
-    displayName: Restore modules for just build folder and compile it
+      set -e
+      yarn --cwd build
+      yarn --cwd build compile
+    displayName: Compile build tools
 
   - download: current
     artifact: unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
@@ -45,28 +43,16 @@ steps:
       mv $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip
     displayName: Unzip & move
 
-  - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
+  - task: UseDotNet@2
     inputs:
-      ConnectedServiceName: "ESRP CodeSign"
-      FolderPath: "$(agent.builddirectory)"
-      Pattern: "VSCode-darwin-$(VSCODE_ARCH).zip"
-      signConfigType: inlineSignParams
-      inlineOperation: |
-        [
-          {
-            "keyCode": "CP-401337-Apple",
-            "operationSetCode": "MacAppDeveloperSign",
-            "parameters": [
-              {
-                "parameterName": "Hardening",
-                "parameterValue": "--options=runtime"
-              }
-            ],
-            "toolName": "sign",
-            "toolVersion": "1.0"
-          }
-        ]
-      SessionTimeout: 60
+      version: 2.x
+
+  - task: EsrpClientTool@1
+    displayName: Download ESRPClient
+
+  - script: |
+      set -e
+      node build/azure-pipelines/common/sign "$(esrpclient.toolpath)/$(esrpclient.toolname)" darwin-sign $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(agent.builddirectory) VSCode-darwin-$(VSCODE_ARCH).zip
     displayName: Codesign
 
   - script: |
@@ -76,29 +62,10 @@ steps:
       echo "##vso[task.setvariable variable=BundleIdentifier]$BUNDLE_IDENTIFIER"
     displayName: Export bundle identifier
 
-  - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
-    inputs:
-      ConnectedServiceName: "ESRP CodeSign"
-      FolderPath: "$(agent.builddirectory)"
-      Pattern: "VSCode-darwin-$(VSCODE_ARCH).zip"
-      signConfigType: inlineSignParams
-      inlineOperation: |
-        [
-          {
-            "keyCode": "CP-401337-Apple",
-            "operationSetCode": "MacAppNotarize",
-            "parameters": [
-              {
-                "parameterName": "BundleId",
-                "parameterValue": "$(BundleIdentifier)"
-              }
-            ],
-            "toolName": "sign",
-            "toolVersion": "1.0"
-          }
-        ]
-      SessionTimeout: 60
-    displayName: Notarization
+  - script: |
+      set -e
+      node build/azure-pipelines/common/sign "$(esrpclient.toolpath)/$(esrpclient.toolname)" darwin-notarize $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(agent.builddirectory) VSCode-darwin-$(VSCODE_ARCH).zip
+    displayName: Notarize
 
   - script: |
       set -e

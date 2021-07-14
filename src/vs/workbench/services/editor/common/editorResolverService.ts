@@ -58,7 +58,7 @@ export interface IEditorType {
 configurationRegistry.registerConfiguration(editorAssociationsConfigurationNode);
 //#endregion
 
-//#region EditorOverrideService types
+//#region EditorResolverService types
 export enum RegisteredEditorPriority {
 	builtin = 'builtin',
 	option = 'option',
@@ -69,7 +69,7 @@ export enum RegisteredEditorPriority {
 /**
  * If we didn't resolve an editor dictates what to do with the opening state
  * ABORT = Do not continue with opening the editor
- * NONE = Continue as if the override has been disabled as the service could not resolve one
+ * NONE = Continue as if the resolution has been disabled as the service could not resolve one
  */
 export const enum ResolvedStatus {
 	ABORT = 1,

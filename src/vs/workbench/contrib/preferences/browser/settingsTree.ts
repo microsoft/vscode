@@ -1583,6 +1583,10 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 		const disposables = new DisposableStore();
 		template.toDispose.add(disposables);
 
+		if (!dataElement.setting.enum!.includes(dataElement.defaultValue)) {
+			dataElement.setting.enum!.unshift(dataElement.defaultValue ?? '');
+		}
+
 		const displayOptions = dataElement.setting.enum!
 			.map(String)
 			.map(escapeInvisibleChars)
@@ -1608,9 +1612,6 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 		let idx = dataElement.setting.enum!.indexOf(dataElement.value);
 		if (idx === -1) {
 			idx = dataElement.setting.enum!.indexOf(dataElement.defaultValue);
-			if (idx === -1) {
-				idx = 0;
-			}
 		}
 
 		template.onChange = undefined;

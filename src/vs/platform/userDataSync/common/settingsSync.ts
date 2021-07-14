@@ -307,7 +307,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		if (!this._defaultIgnoredSettings) {
 			this._defaultIgnoredSettings = this.userDataSyncUtilService.resolveDefaultIgnoredSettings();
 			const disposable = Event.any<any>(
-				Event.filter(this.extensionManagementService.onDidInstallExtension, (e => !!e.gallery)),
+				Event.filter(this.extensionManagementService.onDidInstallExtensions, (e => e.some(({ local }) => !!local))),
 				Event.filter(this.extensionManagementService.onDidUninstallExtension, (e => !e.error)))(() => {
 					disposable.dispose();
 					this._defaultIgnoredSettings = undefined;

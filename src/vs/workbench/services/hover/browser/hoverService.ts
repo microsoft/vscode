@@ -50,6 +50,10 @@ export class HoverService implements IHoverService {
 		} else {
 			hoverDisposables.add(addDisposableListener(options.target, EventType.CLICK, () => this.hideHover()));
 		}
+		const focusedElement = <HTMLElement | null>document.activeElement;
+		if (focusedElement) {
+			hoverDisposables.add(addDisposableListener(focusedElement, EventType.KEY_DOWN, () => this.hideHover()));
+		}
 
 		if ('IntersectionObserver' in window) {
 			const observer = new IntersectionObserver(e => this._intersectionChange(e, hover), { threshold: 0 });

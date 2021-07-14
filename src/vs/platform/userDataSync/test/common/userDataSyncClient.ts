@@ -26,7 +26,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { UserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSyncResourceEnablementService';
-import { IGlobalExtensionEnablementService, IExtensionManagementService, IExtensionGalleryService, DidInstallExtensionEvent, DidUninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IGlobalExtensionEnablementService, IExtensionManagementService, IExtensionGalleryService, DidUninstallExtensionEvent, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
@@ -110,7 +110,7 @@ export class UserDataSyncClient extends Disposable {
 		this.instantiationService.stub(IIgnoredExtensionsManagementService, this.instantiationService.createInstance(IgnoredExtensionsManagementService));
 		this.instantiationService.stub(IExtensionManagementService, <Partial<IExtensionManagementService>>{
 			async getInstalled() { return []; },
-			onDidInstallExtension: new Emitter<DidInstallExtensionEvent>().event,
+			onDidInstallExtensions: new Emitter<readonly InstallExtensionResult[]>().event,
 			onDidUninstallExtension: new Emitter<DidUninstallExtensionEvent>().event,
 		});
 		this.instantiationService.stub(IExtensionGalleryService, <Partial<IExtensionGalleryService>>{

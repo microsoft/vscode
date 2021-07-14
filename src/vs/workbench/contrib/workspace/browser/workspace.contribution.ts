@@ -13,19 +13,19 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, workspaceTrustToString, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, workspaceTrustToString, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeColor } from 'vs/workbench/api/common/extHostTypes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import { shieldIcon, WorkspaceTrustEditor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustEditor';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
-import { WorkspaceTrustContext, WORKSPACE_TRUST_BANNER, WORKSPACE_TRUST_EMPTY_WINDOW, WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_STARTUP_PROMPT, WORKSPACE_TRUST_UNTRUSTED_FILES } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { WORKSPACE_TRUST_BANNER, WORKSPACE_TRUST_EMPTY_WINDOW, WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_STARTUP_PROMPT, WORKSPACE_TRUST_UNTRUSTED_FILES } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -54,6 +54,38 @@ import { ILabelService } from 'vs/platform/label/common/label';
 const BANNER_RESTRICTED_MODE = 'workbench.banner.restrictedMode';
 const STARTUP_PROMPT_SHOWN_KEY = 'workspace.trust.startupPrompt.shown';
 const BANNER_RESTRICTED_MODE_DISMISSED_KEY = 'workbench.banner.restrictedMode.dismissed';
+
+/**
+ * Trust Context Keys
+ */
+
+export const WorkspaceTrustContext = {
+	IsEnabled: new RawContextKey<boolean>('isWorkspaceTrustEnabled', false, localize('workspaceTrustEnabledCtx', "Whether the workspace trust feature is enabled.")),
+	IsTrusted: new RawContextKey<boolean>('isWorkspaceTrusted', false, localize('workspaceTrustedCtx', "Whether the current workspace has been trusted by the user."))
+};
+
+export class WorkspaceTrustContextKeys extends Disposable implements IWorkbenchContribution {
+
+	private readonly _ctxWorkspaceTrustEnabled: IContextKey<boolean>;
+	private readonly _ctxWorkspaceTrustState: IContextKey<boolean>;
+
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IWorkspaceTrustEnablementService workspaceTrustEnablementService: IWorkspaceTrustEnablementService,
+		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService
+	) {
+		super();
+
+		this._ctxWorkspaceTrustState = WorkspaceTrustContext.IsTrusted.bindTo(contextKeyService);
+		this._ctxWorkspaceTrustEnabled = WorkspaceTrustContext.IsEnabled.bindTo(contextKeyService);
+		this._ctxWorkspaceTrustEnabled.set(workspaceTrustEnablementService.isWorkspaceTrustEnabled());
+
+		this._register(workspaceTrustManagementService.onDidChangeTrust(trusted => this._ctxWorkspaceTrustState.set(trusted)));
+	}
+}
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceTrustContextKeys, LifecyclePhase.Restored);
+
 
 /*
  * Trust Request via Service UX handler
@@ -190,6 +222,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 	constructor(
 		@IDialogService private readonly dialogService: IDialogService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IWorkspaceTrustEnablementService private readonly workspaceTrustEnablementService: IWorkspaceTrustEnablementService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
@@ -207,7 +240,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 
 			await this.workspaceTrustManagementService.workspaceTrustInitialized;
 
-			if (this.workspaceTrustManagementService.workspaceTrustEnabled) {
+			if (this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
 				this.registerListeners();
 				this.createStatusbarEntry();
 
@@ -231,7 +264,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 			if (e.fromCache) {
 				return;
 			}
-			if (!this.workspaceTrustManagementService.workspaceTrustEnabled) {
+			if (!this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
 				return;
 			}
 			const trusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
@@ -727,6 +760,7 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IWorkspaceTrustEnablementService private readonly workspaceTrustEnablementService: IWorkspaceTrustEnablementService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService
 	) {
@@ -743,7 +777,7 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 	}
 
 	private logInitialWorkspaceTrustInfo(): void {
-		if (!this.workspaceTrustManagementService.workspaceTrustEnabled) {
+		if (!this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
 			const disabledByCliFlag = this.environmentService.disableWorkspaceTrust;
 
 			type WorkspaceTrustDisabledEventClassification = {
@@ -774,7 +808,7 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 	}
 
 	private async logWorkspaceTrust(isTrusted: boolean): Promise<void> {
-		if (!this.workspaceTrustManagementService.workspaceTrustEnabled) {
+		if (!this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
 			return;
 		}
 
@@ -834,7 +868,7 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 	}
 
 	private async logWorkspaceTrustRequest(): Promise<void> {
-		if (!this.workspaceTrustManagementService.workspaceTrustEnabled) {
+		if (!this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
 			return;
 		}
 

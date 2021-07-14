@@ -4,6 +4,7 @@
 	"files.exclude": {
 		".git": true,
 		".build": true,
+		".profile-oss": true,
 		"**/.DS_Store": true,
 		"build/**/*.js": {
 			"when": "$(basename).ts"
