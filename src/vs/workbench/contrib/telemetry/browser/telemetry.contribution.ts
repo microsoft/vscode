@@ -195,7 +195,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 
 	private getTelemetryData(resource: URI, reason?: number): TelemetryData {
 		let ext = extname(resource);
-		// Remove query paramaters from the resource extension
+		// Remove query parameters from the resource extension
 		const queryStringLocation = ext.indexOf('?');
 		ext = queryStringLocation !== -1 ? ext.substr(0, queryStringLocation) : ext;
 		const fileName = basename(resource);
