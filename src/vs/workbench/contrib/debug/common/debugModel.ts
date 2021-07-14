@@ -24,6 +24,7 @@ import { mixin } from 'vs/base/common/objects';
 import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 
 interface IDebugProtocolVariableWithContext extends DebugProtocol.Variable {
 	__vscodeVariableMenuContext?: string;
@@ -321,7 +322,7 @@ export class StackFrame implements IStackFrame {
 	private scopes: Promise<Scope[]> | undefined;
 
 	constructor(
-		public thread: IThread,
+		public thread: Thread,
 		public frameId: number,
 		public source: Source,
 		public name: string,
@@ -387,10 +388,10 @@ export class StackFrame implements IStackFrame {
 	}
 
 	async openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<IEditorPane | undefined> {
-		// if DisassemblyView is openned and has disassembly instruction,
-		// then stay with DisassemblyView
-		if (editorService.activeEditorPane?.getId() === `workbench.debug.disassemblyView` && this.instructionPointerReference) {
-			return editorService.activeEditorPane;
+		const threadStopReason = this.thread.stoppedDetails?.reason;
+		if (threadStopReason === 'instruction breakpoint' ||
+			(threadStopReason === 'step' && this.thread.lastSteppingGranularity === 'instruction')) {
+			return editorService.openEditor(DisassemblyViewInput.instance, { pinned: true });
 		}
 
 		if (this.source.available) {
@@ -411,6 +412,7 @@ export class Thread implements IThread {
 	public stoppedDetails: IRawStoppedDetails | undefined;
 	public stopped: boolean;
 	public reachedEndOfCallStack = false;
+	public lastSteppingGranularity: DebugProtocol.SteppingGranularity | undefined;
 
 	constructor(public session: IDebugSession, public name: string, public threadId: number) {
 		this.callStack = [];

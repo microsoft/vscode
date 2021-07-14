@@ -51,8 +51,9 @@ import { DebugEditorContribution } from 'vs/workbench/contrib/debug/browser/debu
 import { FileAccess } from 'vs/base/common/network';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { EditorExtensions } from 'vs/workbench/common/editor';
-import { DisassemblyView, DisassemblyViewContribution, DisassemblyViewInput } from 'vs/workbench/contrib/debug/browser/disassemblyView';
+import { DisassemblyView, DisassemblyViewContribution } from 'vs/workbench/contrib/debug/browser/disassemblyView';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
+import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 
 const debugCategory = nls.localize('debugCategory', "Debug");
 registerColors();

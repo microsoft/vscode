@@ -555,11 +555,19 @@ export class DebugSession implements IDebugSession {
 		await this.raw.restartFrame({ frameId }, threadId);
 	}
 
+	private setLastSteppingGranularity(threadId: number, granularity?: DebugProtocol.SteppingGranularity) {
+		const thread = this.getThread(threadId);
+		if (thread) {
+			thread.lastSteppingGranularity = granularity;
+		}
+	}
+
 	async next(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'next'));
 		}
 
+		this.setLastSteppingGranularity(threadId, granularity);
 		await this.raw.next({ threadId, granularity });
 	}
 
@@ -568,6 +576,7 @@ export class DebugSession implements IDebugSession {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'stepIn'));
 		}
 
+		this.setLastSteppingGranularity(threadId, granularity);
 		await this.raw.stepIn({ threadId, targetId, granularity });
 	}
 
@@ -576,6 +585,7 @@ export class DebugSession implements IDebugSession {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'stepOut'));
 		}
 
+		this.setLastSteppingGranularity(threadId, granularity);
 		await this.raw.stepOut({ threadId, granularity });
 	}
 
@@ -584,6 +594,7 @@ export class DebugSession implements IDebugSession {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'stepBack'));
 		}
 
+		this.setLastSteppingGranularity(threadId, granularity);
 		await this.raw.stepBack({ threadId, granularity });
 	}
 

@@ -16,7 +16,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { CONTEXT_DISASSEMBLE_VIEW_FOCUS, CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, DISASSEMBLY_VIEW_ID, IDebugService, IInstructionBreakpoint, State } from 'vs/workbench/contrib/debug/common/debug';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
@@ -553,35 +552,6 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 		element.style.fontSize = fontInfo.fontSize + 'px';
 		element.style.fontFeatureSettings = fontInfo.fontFeatureSettings;
 		element.style.letterSpacing = fontInfo.letterSpacing + 'px';
-	}
-
-}
-
-export class DisassemblyViewInput extends EditorInput {
-
-	static readonly ID = 'debug.disassemblyView.input';
-
-	override get typeId(): string {
-		return DisassemblyViewInput.ID;
-	}
-
-	static _instance: DisassemblyViewInput;
-	static get instance() {
-		if (!DisassemblyViewInput._instance || DisassemblyViewInput._instance.isDisposed()) {
-			DisassemblyViewInput._instance = new DisassemblyViewInput();
-		}
-
-		return DisassemblyViewInput._instance;
-	}
-
-	readonly resource = undefined;
-
-	override getName(): string {
-		return localize('disassemblyInputName', "Disassembly");
-	}
-
-	override matches(other: unknown): boolean {
-		return other instanceof DisassemblyViewInput;
 	}
 
 }

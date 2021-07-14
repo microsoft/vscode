@@ -26,7 +26,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { raceTimeout } from 'vs/base/common/async';
 import { registerAction2, MenuId } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/browser/disassemblyView';
+import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 
 class ToggleBreakpointAction extends EditorAction2 {
 	constructor() {
@@ -156,7 +156,7 @@ class OpenDisassemblyViewAction extends EditorAction {
 	async run(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]): Promise<void> {
 		if (editor.hasModel()) {
 			const editorService = accessor.get(IEditorService);
-			editorService.openEditor(DisassemblyViewInput.instance);
+			editorService.openEditor(DisassemblyViewInput.instance, { pinned: true });
 		}
 	}
 }
