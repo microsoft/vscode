@@ -633,10 +633,10 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 							config: { attachPersistentProcess }
 						});
 						this._terminalService.setActiveInstance(instance);
-						return;
 					}
 				}
 			}
+			return;
 		}
 
 		if (sourceInstances === undefined) {
