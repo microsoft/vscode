@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
 import { IContentDecorationRenderOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions, isThemeColor } from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, InjectedTextOptions, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IColorTheme, IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
 
 export class RefCountedStyleSheet {
@@ -250,6 +250,7 @@ export class DecorationTypeOptionsProvider implements IModelDecorationOptionsPro
 	public isWholeLine: boolean;
 	public overviewRuler: IModelDecorationOverviewRulerOptions | undefined;
 	public stickiness: TrackedRangeStickiness | undefined;
+	public beforeInjectedText: InjectedTextOptions | undefined;
 
 	constructor(description: string, themeService: IThemeService, styleSheet: GlobalStyleSheet | RefCountedStyleSheet, providerArgs: ProviderArguments) {
 		this.description = description;
@@ -283,6 +284,16 @@ export class DecorationTypeOptionsProvider implements IModelDecorationOptionsPro
 		}
 		this.beforeContentClassName = createCSSRules(ModelDecorationCSSRuleType.BeforeContentClassName);
 		this.afterContentClassName = createCSSRules(ModelDecorationCSSRuleType.AfterContentClassName);
+
+		if (providerArgs.options.beforeInjectedText && providerArgs.options.beforeInjectedText.contentText) {
+			const beforeInlineData = createInlineCSSRules(ModelDecorationCSSRuleType.BeforeInjectedTextClassName);
+			this.beforeInjectedText = {
+				content: providerArgs.options.beforeInjectedText.contentText,
+				inlineClassName: beforeInlineData?.className,
+				inlineClassNameAffectsLetterSpacing: beforeInlineData?.hasLetterSpacing || providerArgs.options.beforeInjectedText.affectsLetterSpacing
+			};
+		}
+
 		this.glyphMarginClassName = createCSSRules(ModelDecorationCSSRuleType.GlyphMarginClassName);
 
 		const options = providerArgs.options;
@@ -307,6 +318,7 @@ export class DecorationTypeOptionsProvider implements IModelDecorationOptionsPro
 		if (!writable) {
 			return this;
 		}
+
 		return {
 			description: this.description,
 			inlineClassName: this.inlineClassName,
@@ -316,7 +328,8 @@ export class DecorationTypeOptionsProvider implements IModelDecorationOptionsPro
 			glyphMarginClassName: this.glyphMarginClassName,
 			isWholeLine: this.isWholeLine,
 			overviewRuler: this.overviewRuler,
-			stickiness: this.stickiness
+			stickiness: this.stickiness,
+			before: this.beforeInjectedText
 		};
 	}
 
@@ -461,6 +474,11 @@ class DecorationCSSRules {
 				lightCSS = this.getCSSTextForModelDecorationContentClassName(options.light && options.light.after);
 				darkCSS = this.getCSSTextForModelDecorationContentClassName(options.dark && options.dark.after);
 				break;
+			case ModelDecorationCSSRuleType.BeforeInjectedTextClassName:
+				unthemedCSS = this.getCSSTextForModelDecorationContentClassName(options.beforeInjectedText);
+				lightCSS = this.getCSSTextForModelDecorationContentClassName(options.light && options.light.beforeInjectedText);
+				darkCSS = this.getCSSTextForModelDecorationContentClassName(options.dark && options.dark.beforeInjectedText);
+				break;
 			default:
 				throw new Error('Unknown rule type: ' + this._ruleType);
 		}
@@ -600,7 +618,8 @@ const enum ModelDecorationCSSRuleType {
 	InlineClassName = 1,
 	GlyphMarginClassName = 2,
 	BeforeContentClassName = 3,
-	AfterContentClassName = 4
+	AfterContentClassName = 4,
+	BeforeInjectedTextClassName = 5,
 }
 
 class CSSNameHelper {
