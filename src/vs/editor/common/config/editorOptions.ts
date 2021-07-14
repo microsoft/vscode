@@ -1356,7 +1356,7 @@ export interface IEditorFindOptions {
 	/**
 	 * Controls if we seed search string in the Find Widget with editor selection.
 	 */
-	seedSearchStringFromSelection?: boolean;
+	seedSearchStringFromSelection?: 'never' | 'always' | 'selectionOnly';
 	/**
 	 * Controls if Find in Selection flag is turned on in the editor.
 	 */
@@ -1383,7 +1383,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 	constructor() {
 		const defaults: EditorFindOptions = {
 			cursorMoveOnType: true,
-			seedSearchStringFromSelection: true,
+			seedSearchStringFromSelection: 'always',
 			autoFindInSelection: 'never',
 			globalFindClipboard: false,
 			addExtraSpaceOnTop: true,
@@ -1398,8 +1398,14 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 					description: nls.localize('find.cursorMoveOnType', "Controls whether the cursor should jump to find matches while typing.")
 				},
 				'editor.find.seedSearchStringFromSelection': {
-					type: 'boolean',
+					type: 'string',
+					enum: ['never', 'always', 'selectionOnly'],
 					default: defaults.seedSearchStringFromSelection,
+					enumDescriptions: [
+						nls.localize('editor.find.seedSearchStringFromSelection.never', 'Never seed search string from the editor selection.'),
+						nls.localize('editor.find.seedSearchStringFromSelection.always', 'Always seed search string from the editor selection, including word at cursor position.'),
+						nls.localize('editor.find.seedSearchStringFromSelection.selectionOnly', 'Only seed search string from the editor selection.')
+					],
 					description: nls.localize('find.seedSearchStringFromSelection', "Controls whether the search string in the Find Widget is seeded from the editor selection.")
 				},
 				'editor.find.autoFindInSelection': {
@@ -1441,7 +1447,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 		const input = _input as IEditorFindOptions;
 		return {
 			cursorMoveOnType: boolean(input.cursorMoveOnType, this.defaultValue.cursorMoveOnType),
-			seedSearchStringFromSelection: boolean(input.seedSearchStringFromSelection, this.defaultValue.seedSearchStringFromSelection),
+			seedSearchStringFromSelection: stringSet<'never' | 'always' | 'selectionOnly'>(input.seedSearchStringFromSelection, this.defaultValue.seedSearchStringFromSelection, ['never', 'always', 'selectionOnly']),
 			autoFindInSelection: typeof _input.autoFindInSelection === 'boolean'
 				? (_input.autoFindInSelection ? 'always' : 'never')
 				: stringSet<'never' | 'always' | 'multiline'>(input.autoFindInSelection, this.defaultValue.autoFindInSelection, ['never', 'always', 'multiline']),

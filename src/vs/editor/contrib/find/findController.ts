@@ -29,7 +29,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 const SEARCH_STRING_MAX_LENGTH = 524288;
 
-export function getSelectionSearchString(editor: ICodeEditor, seedSearchStringFromSelection: 'single' | 'multiple' = 'single'): string | null {
+export function getSelectionSearchString(editor: ICodeEditor, seedSearchStringFromSelection: 'single' | 'selectionOnly' | 'multiple' = 'single'): string | null {
 	if (!editor.hasModel()) {
 		return null;
 	}
@@ -37,11 +37,11 @@ export function getSelectionSearchString(editor: ICodeEditor, seedSearchStringFr
 	const selection = editor.getSelection();
 	// if selection spans multiple lines, default search string to empty
 
-	if ((seedSearchStringFromSelection === 'single' && selection.startLineNumber === selection.endLineNumber)
+	if (((seedSearchStringFromSelection === 'single' || seedSearchStringFromSelection === 'selectionOnly') && selection.startLineNumber === selection.endLineNumber)
 		|| seedSearchStringFromSelection === 'multiple') {
 		if (selection.isEmpty()) {
 			const wordAtPosition = editor.getConfiguredWordAtPosition(selection.getStartPosition());
-			if (wordAtPosition) {
+			if (wordAtPosition && seedSearchStringFromSelection !== 'selectionOnly') {
 				return wordAtPosition.word;
 			}
 		} else {
@@ -62,7 +62,7 @@ export const enum FindStartFocusAction {
 
 export interface IFindStartOptions {
 	forceRevealReplace: boolean;
-	seedSearchStringFromSelection: 'none' | 'single' | 'multiple';
+	seedSearchStringFromSelection: 'none' | 'single' | 'selectionOnly' | 'multiple';
 	seedSearchStringFromGlobalClipboard: boolean;
 	shouldFocus: FindStartFocusAction;
 	shouldAnimate: boolean;
@@ -283,7 +283,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 			isRevealed: true
 		};
 
-		if (opts.seedSearchStringFromSelection === 'single') {
+		if (opts.seedSearchStringFromSelection === 'single' || opts.seedSearchStringFromSelection === 'selectionOnly') {
 			let selectionSearchString = getSelectionSearchString(this._editor, opts.seedSearchStringFromSelection);
 			if (selectionSearchString) {
 				if (this._state.isRegex) {
@@ -508,7 +508,7 @@ StartFindAction.addImplementation(0, (accessor: ServicesAccessor, editor: ICodeE
 	}
 	return controller.start({
 		forceRevealReplace: false,
-		seedSearchStringFromSelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection ? 'single' : 'none',
+		seedSearchStringFromSelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection === 'never' ? 'none' : (editor.getOption(EditorOption.find).seedSearchStringFromSelection === 'selectionOnly' ? 'selectionOnly' : 'single'),
 		seedSearchStringFromGlobalClipboard: editor.getOption(EditorOption.find).globalFindClipboard,
 		shouldFocus: FindStartFocusAction.FocusFindInput,
 		shouldAnimate: true,
@@ -559,7 +559,7 @@ export abstract class MatchFindAction extends EditorAction {
 		if (controller && !this._run(controller)) {
 			await controller.start({
 				forceRevealReplace: false,
-				seedSearchStringFromSelection: (controller.getState().searchString.length === 0) && editor.getOption(EditorOption.find).seedSearchStringFromSelection ? 'single' : 'none',
+				seedSearchStringFromSelection: (controller.getState().searchString.length === 0) && editor.getOption(EditorOption.find).seedSearchStringFromSelection === 'never' ? 'none' : (editor.getOption(EditorOption.find).seedSearchStringFromSelection === 'selectionOnly' ? 'selectionOnly' : 'single'),
 				seedSearchStringFromGlobalClipboard: true,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: true,
@@ -638,14 +638,14 @@ export abstract class SelectionMatchFindAction extends EditorAction {
 		if (!controller) {
 			return;
 		}
-		let selectionSearchString = getSelectionSearchString(editor);
+		let selectionSearchString = getSelectionSearchString(editor, editor.getOption(EditorOption.find).seedSearchStringFromSelection === 'selectionOnly' ? 'selectionOnly' : 'single');
 		if (selectionSearchString) {
 			controller.setSearchString(selectionSearchString);
 		}
 		if (!this._run(controller)) {
 			await controller.start({
 				forceRevealReplace: false,
-				seedSearchStringFromSelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection ? 'single' : 'none',
+				seedSearchStringFromSelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection === 'never' ? 'none' : (editor.getOption(EditorOption.find).seedSearchStringFromSelection === 'selectionOnly' ? 'selectionOnly' : 'single'),
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: true,
@@ -734,7 +734,7 @@ StartFindReplaceAction.addImplementation(0, (accessor: ServicesAccessor, editor:
 	// we only seed search string from selection when the current selection is single line and not empty,
 	// + the find input is not focused
 	const seedSearchStringFromSelection = !currentSelection.isEmpty()
-		&& currentSelection.startLineNumber === currentSelection.endLineNumber && editor.getOption(EditorOption.find).seedSearchStringFromSelection
+		&& currentSelection.startLineNumber === currentSelection.endLineNumber && (editor.getOption(EditorOption.find).seedSearchStringFromSelection === 'always' || editor.getOption(EditorOption.find).seedSearchStringFromSelection === 'selectionOnly')
 		&& !findInputFocused;
 	/*
 	* if the existing search string in find widget is empty and we don't seed search string from selection, it means the Find Input is still empty, so we should focus the Find Input instead of Replace Input.
@@ -748,8 +748,8 @@ StartFindReplaceAction.addImplementation(0, (accessor: ServicesAccessor, editor:
 
 	return controller.start({
 		forceRevealReplace: true,
-		seedSearchStringFromSelection: seedSearchStringFromSelection ? 'single' : 'none',
-		seedSearchStringFromGlobalClipboard: editor.getOption(EditorOption.find).seedSearchStringFromSelection,
+		seedSearchStringFromSelection: seedSearchStringFromSelection ? (editor.getOption(EditorOption.find).seedSearchStringFromSelection === 'selectionOnly' ? 'selectionOnly' : 'single') : 'none',
+		seedSearchStringFromGlobalClipboard: (editor.getOption(EditorOption.find).seedSearchStringFromSelection === 'always' || editor.getOption(EditorOption.find).seedSearchStringFromSelection === 'selectionOnly'),
 		shouldFocus: shouldFocus,
 		shouldAnimate: true,
 		updateSearchScope: false,
