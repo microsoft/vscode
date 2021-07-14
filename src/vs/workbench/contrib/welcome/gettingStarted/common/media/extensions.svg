@@ -41,42 +41,79 @@
 <rect x="396" y="308" width="32" height="32" rx="2" fill="var(--vscode-quickInput-background)"/>
 <rect x="396" y="352" width="32" height="32" rx="2" fill="var(--vscode-quickInput-background)"/>
 <rect x="440" y="180" width="32" height="32" rx="2" fill="var(--vscode-quickInput-background)"/>
-<g filter="url(#filter0_d)">
-<rect x="60" y="140" width="48" height="48" rx="4" fill="white"/>
-<rect x="60" y="140" width="48" height="48" rx="4" fill="url(#pattern0)"/>
-</g>
-<g filter="url(#filter1_d)">
-<rect x="236" y="316" width="48" height="48" rx="4" fill="white"/>
-<rect x="240" y="320" width="40" height="40" fill="url(#pattern1)"/>
-</g>
-<g filter="url(#filter2_d)">
-<rect x="372" y="364" width="48" height="48" rx="4" fill="white"/>
-<rect x="376" y="371" width="40" height="35" fill="url(#pattern2)"/>
-</g>
-<g filter="url(#filter3_d)">
-<rect x="148" y="60" width="48" height="48" rx="4" fill="white"/>
-<rect x="152" y="64" width="40" height="40" fill="url(#pattern3)"/>
-</g>
-<g filter="url(#filter4_d)">
-<rect x="276" y="228" width="48" height="48" rx="4" fill="white"/>
-<rect x="280" y="232" width="40" height="40" fill="url(#pattern4)"/>
-</g>
-<g filter="url(#filter5_d)">
-<rect x="60" y="320" width="48" height="48" rx="4" fill="white"/>
-<rect x="64" y="324" width="40" height="40" fill="url(#pattern5)"/>
-</g>
-<g filter="url(#filter6_d)">
-<rect x="412" y="196" width="48" height="48" rx="4" fill="white"/>
-<rect x="416" y="200" width="40" height="40" fill="url(#pattern6)"/>
-</g>
-<g filter="url(#filter7_d)">
-<rect x="144" y="196" width="48" height="48" rx="4" fill="white"/>
-<rect x="150" y="200" width="40" height="40" fill="url(#pattern7)"/>
-</g>
-<g filter="url(#filter8_d)">
-<rect x="276" y="78" width="48" height="48" rx="4" fill="#3A3D41"/>
-<rect x="276" y="78" width="48" height="48" rx="4" fill="url(#pattern8)"/>
-</g>
+
+<!-- Jupyter -->
+<a xlink:href="command:workbench.extensions.search?%22@id:ms-toolsai.jupyter%22">
+	<g filter="url(#filter0_d)">
+	<rect x="60" y="140" width="48" height="48" rx="4" fill="white"/>
+	<rect x="60" y="140" width="48" height="48" rx="4" fill="url(#pattern0)"/>
+	</g>
+</a>
+
+<!-- ESLint -->
+<a xlink:href="command:workbench.extensions.search?%22@id:dbaeumer.vscode-eslint%22">
+	<g filter="url(#filter1_d)">
+		<rect x="236" y="316" width="48" height="48" rx="4" fill="white"/>
+		<rect x="240" y="320" width="40" height="40" fill="url(#pattern1)"/>
+	</g>
+</a>
+
+<!-- Vetur -->
+<a xlink:href="command:workbench.extensions.search?%22@id:octref.vetur%22">
+	<g filter="url(#filter2_d)">
+		<rect x="372" y="364" width="48" height="48" rx="4" fill="white"/>
+		<rect x="376" y="371" width="40" height="35" fill="url(#pattern2)"/>
+	</g>
+</a>
+
+<!-- Python -->
+<a xlink:href="command:workbench.extensions.search?%22@id:ms-python.python%22">
+	<g filter="url(#filter3_d)">
+		<rect x="148" y="60" width="48" height="48" rx="4" fill="white"/>
+		<rect x="152" y="64" width="40" height="40" fill="url(#pattern3)"/>
+	</g>
+</a>
+
+<!-- GitHub Pull Request -->
+<a xlink:href="command:workbench.extensions.search?%22@id:github.vscode-pull-request-github%22">
+	<g filter="url(#filter4_d)">
+		<rect x="276" y="228" width="48" height="48" rx="4" fill="white"/>
+		<rect x="280" y="232" width="40" height="40" fill="url(#pattern4)"/>
+	</g>
+</a>
+
+<!-- C++ -->
+<a xlink:href="command:workbench.extensions.search?%22@id:ms-vscode.cpptools%22">
+	<g filter="url(#filter5_d)">
+	<rect x="60" y="320" width="48" height="48" rx="4" fill="white"/>
+	<rect x="64" y="324" width="40" height="40" fill="url(#pattern5)"/>
+	</g>
+</a>
+
+<!-- GitLens -->
+<a xlink:href="command:workbench.extensions.search?%22@id:eamodio.gitlens%22">
+	<g filter="url(#filter6_d)">
+		<rect x="412" y="196" width="48" height="48" rx="4" fill="white"/>
+		<rect x="416" y="200" width="40" height="40" fill="url(#pattern6)"/>
+	</g>
+</a>
+
+<!-- LiveShare -->
+<a xlink:href="command:workbench.extensions.search?%22@id:ms-vsliveshare.vsliveshare%22">
+	<g filter="url(#filter7_d)">
+		<rect x="144" y="196" width="48" height="48" rx="4" fill="white"/>
+		<rect x="150" y="200" width="40" height="40" fill="url(#pattern7)"/>
+	</g>
+</a>
+
+<!-- Prettier -->
+<a xlink:href="command:workbench.extensions.search?%22@id:esbenp.prettier-vscode%22">
+	<g filter="url(#filter8_d)">
+		<rect x="276" y="78" width="48" height="48" rx="4" fill="#3A3D41"/>
+		<rect x="276" y="78" width="48" height="48" rx="4" fill="url(#pattern8)"/>
+	</g>
+</a>
+
 <defs>
 <filter id="filter0_d" x="48" y="130" width="72" height="72" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
 <feFlood flood-opacity="0" result="BackgroundImageFix"/>
