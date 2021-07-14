@@ -252,7 +252,7 @@ class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 		// keeping things DRY :)
 		const formatWholeFile = async () => {
 			await this.instantiationService.invokeFunction(formatDocumentWithSelectedProvider, editorOrModel, FormattingMode.Silent, nestedProgress, token);
-		}
+		};
 
 		if (mode === 'modifications' || mode === 'modificationsIfAvailable') {
 			// try formatting modifications
