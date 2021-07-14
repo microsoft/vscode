@@ -830,7 +830,7 @@ export class ExtensionEditor extends EditorPane {
 				$('span', undefined, new Date(gallery.releaseDate).toLocaleString())
 			),
 			$('.more-info-entry', undefined,
-				$('span', undefined, localize('last published', "Last published")),
+				$('span', undefined, localize('last updated', "Last updated")),
 				$('span', undefined, new Date(gallery.lastUpdated).toLocaleString())
 			)
 		);
