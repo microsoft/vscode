@@ -461,7 +461,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 
 		markdown.appendMarkdown(`**${this.extension.displayName}**`);
 		if (this.extension.preview) {
-			markdown.appendMarkdown(`&nbsp;<span style="background-color:#d63f26;">&nbsp;&nbsp;*${localize('preview', "Preview")}*&nbsp;&nbsp;</span>`);
+			markdown.appendMarkdown(`&nbsp;<span style="color:#ffffff;background-color:#d63f26;">&nbsp;&nbsp;*${localize('preview', "Preview")}*&nbsp;&nbsp;</span>`);
 		}
 		markdown.appendText(`\n`);
 
