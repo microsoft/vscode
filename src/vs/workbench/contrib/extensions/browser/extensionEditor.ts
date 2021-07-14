@@ -752,10 +752,20 @@ export class ExtensionEditor extends EditorPane {
 	}
 
 	private renderAdditionalDetails(container: HTMLElement, extension: IExtension): void {
-		this.renderCategories(container, extension);
-		this.renderTags(container, extension);
-		this.renderResources(container, extension);
-		this.renderMoreInfo(container, extension);
+		const content = $('div', { class: 'additional-details-content', tabindex: '0' });
+		const scrollableContent = new DomScrollableElement(content, {});
+		const layout = () => scrollableContent.scanDomNode();
+		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
+		this.contentDisposables.add(toDisposable(removeLayoutParticipant));
+		this.contentDisposables.add(scrollableContent);
+
+		this.renderCategories(content, extension);
+		this.renderTags(content, extension);
+		this.renderResources(content, extension);
+		this.renderMoreInfo(content, extension);
+
+		append(container, scrollableContent.getDomNode());
+		scrollableContent.scanDomNode();
 	}
 
 	private renderCategories(container: HTMLElement, extension: IExtension): void {
@@ -985,6 +995,7 @@ export class ExtensionEditor extends EditorPane {
 			}
 		}, this, this.contentDisposables);
 
+		this.contentDisposables.add(scrollableContent);
 		append(template.content, scrollableContent.getDomNode());
 		return content;
 	}
@@ -1655,14 +1666,14 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 
 	const buttonHoverBackgroundColor = theme.getColor(buttonHoverBackground);
 	if (buttonHoverBackgroundColor) {
-		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container > .categories-container > .categories > .category:hover { background-color: ${buttonHoverBackgroundColor}; border-color: ${buttonHoverBackgroundColor}; }`);
-		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container > .tags-container > .tags > .tag:hover { background-color: ${buttonHoverBackgroundColor}; border-color: ${buttonHoverBackgroundColor}; }`);
+		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container .categories-container > .categories > .category:hover { background-color: ${buttonHoverBackgroundColor}; border-color: ${buttonHoverBackgroundColor}; }`);
+		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container .tags-container > .tags > .tag:hover { background-color: ${buttonHoverBackgroundColor}; border-color: ${buttonHoverBackgroundColor}; }`);
 	}
 
 	const buttonForegroundColor = theme.getColor(buttonForeground);
 	if (buttonForegroundColor) {
-		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container > .categories-container > .categories > .category:hover { color: ${buttonForegroundColor}; }`);
-		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container > .tags-container > .tags > .tag:hover { color: ${buttonForegroundColor}; }`);
+		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container .categories-container > .categories > .category:hover { color: ${buttonForegroundColor}; }`);
+		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container .tags-container > .tags > .tag:hover { color: ${buttonForegroundColor}; }`);
 	}
 
 });

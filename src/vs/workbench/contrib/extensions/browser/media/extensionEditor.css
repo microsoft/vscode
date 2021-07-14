@@ -314,23 +314,34 @@
 
 .extension-editor > .body > .content > .details > .additional-details-container {
 	width: 25%;
-	min-width: 170px;
-	margin: 20px 0 0 20px;
+	min-width: 280px;
+	height: 100%;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container > .monaco-scrollable-element {
+	height: 100%;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container > .monaco-scrollable-element > .additional-details-content {
+	height: 100%;
+	overflow-y: scroll;
+	padding: 20px;
+	box-sizing: border-box;
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container .additional-details-title {
 	font-size: 120%;
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container > .categories-container > .categories,
-.extension-editor > .body > .content > .details > .additional-details-container > .tags-container > .tags,
-.extension-editor > .body > .content > .details > .additional-details-container > .resources-container > .resources,
-.extension-editor > .body > .content > .details > .additional-details-container > .more-info-container > .more-info {
+.extension-editor > .body > .content > .details > .additional-details-container .categories-container > .categories,
+.extension-editor > .body > .content > .details > .additional-details-container .tags-container > .tags,
+.extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources,
+.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info {
 	margin: 15px 0px;
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container > .categories-container > .categories > .category,
-.extension-editor > .body > .content > .details > .additional-details-container > .tags-container > .tags > .tag {
+.extension-editor > .body > .content > .details > .additional-details-container .categories-container > .categories > .category,
+.extension-editor > .body > .content > .details > .additional-details-container .tags-container > .tags > .tag {
 	display: inline-block;
 	border: 1px solid rgba(136, 136, 136, 0.45);
 	padding: 2px 4px;
@@ -340,21 +351,21 @@
 	cursor: pointer;
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container > .resources-container > .resources > .resource {
+.extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource {
 	display: block;
 	cursor: pointer;
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container > .resources-container > .resources > .resource:hover {
+.extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource:hover {
 	text-decoration: underline;
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container > .more-info-container > .more-info  > .more-info-entry {
+.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info  > .more-info-entry {
 	font-size: 90%;
 	display: flex;
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container > .more-info-container > .more-info  > .more-info-entry span {
+.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info  > .more-info-entry span {
 	flex: 0.5
 }
 
