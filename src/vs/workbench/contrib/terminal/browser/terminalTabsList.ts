@@ -575,7 +575,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		const terminals: ITerminalInstance[] = dndData.filter(e => 'instanceId' in (e as any));
 		if (terminals.length > 0) {
 			originalEvent.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(terminals.map(e => e.resource.toString())));
-			originalEvent.dataTransfer.setData(DataTransfers.TERMINALS, JSON.stringify(terminals.map(e => e.instanceId.toString())));
+			originalEvent.dataTransfer.setData(DataTransfers.TERMINALS, JSON.stringify(terminals.map(e => e.instanceId)));
 		}
 	}
 
@@ -671,7 +671,6 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 				focused = true;
 			}
 		}
-
 	}
 
 	private async _handleExternalDrop(instance: ITerminalInstance | undefined, e: DragEvent) {

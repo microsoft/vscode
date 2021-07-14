@@ -117,7 +117,6 @@ export class RemoteTerminalChannelClient {
 	get onExecuteCommand(): Event<{ reqId: number, commandId: string, commandArgs: any[] }> {
 		return this._channel.listen<{ reqId: number, commandId: string, commandArgs: any[] }>('$onExecuteCommand');
 	}
-
 	get onDidRequestDetach(): Event<{ requestId: number, workspaceId: string, instanceId: number }> {
 		return this._channel.listen<{ requestId: number, workspaceId: string, instanceId: number }>('$onDidRequestDetach');
 	}
