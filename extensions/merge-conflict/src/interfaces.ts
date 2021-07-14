@@ -14,7 +14,8 @@ export interface IMergeRegion {
 export const enum CommitType {
 	Current,
 	Incoming,
-	Both
+	CurrentThenIncoming,
+	IncomingThenCurrent
 }
 
 export interface IExtensionConfiguration {

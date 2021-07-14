@@ -52,13 +52,21 @@ export class DocumentMergeConflict implements interfaces.IDocumentMergeConflict 
 			let content = document.getText(this.incoming.content);
 			this.replaceRangeWithContent(content, edit);
 		}
-		else if (type === interfaces.CommitType.Both) {
+		else if (type === interfaces.CommitType.CurrentThenIncoming) {
 			// Replace [ Conflict Range ] with [ Current Content ] + \n + [ Incoming Content ]
 
 			const currentContent = document.getText(this.current.content);
 			const incomingContent = document.getText(this.incoming.content);
 
 			edit.replace(this.range, currentContent.concat(incomingContent));
+		}
+		else if (type === interfaces.CommitType.IncomingThenCurrent) {
+			// Replace [ Conflict Range ] with [ Incoming Content ] + \n + [ Current Content ]
+
+			const currentContent = document.getText(this.current.content);
+			const incomingContent = document.getText(this.incoming.content);
+
+			edit.replace(this.range, incomingContent.concat(currentContent));
 		}
 	}
 
