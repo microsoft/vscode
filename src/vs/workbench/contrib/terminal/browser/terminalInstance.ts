@@ -213,8 +213,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private readonly _onDisposed = this._register(new Emitter<ITerminalInstance>());
 	readonly onDisposed = this._onDisposed.event;
-	private readonly _onFocused = this._register(new Emitter<ITerminalInstance>());
-	readonly onFocused = this._onFocused.event;
 	private readonly _onProcessIdReady = this._register(new Emitter<ITerminalInstance>());
 	readonly onProcessIdReady = this._onProcessIdReady.event;
 	private readonly _onLinksReady = this._register(new Emitter<ITerminalInstance>());
@@ -235,8 +233,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onDimensionsChanged = this._onDimensionsChanged.event;
 	private readonly _onMaximumDimensionsChanged = this._register(new Emitter<void>());
 	readonly onMaximumDimensionsChanged = this._onMaximumDimensionsChanged.event;
-	private readonly _onFocus = this._register(new Emitter<ITerminalInstance>());
-	readonly onFocus = this._onFocus.event;
+	private readonly _onDidFocus = this._register(new Emitter<ITerminalInstance>());
+	readonly onDidFocus = this._onDidFocus.event;
+	private readonly _onDidBlur = this._register(new Emitter<ITerminalInstance>());
+	readonly onDidBlur = this._onDidBlur.event;
 	private readonly _onRequestAddInstanceToGroup = this._register(new Emitter<IRequestAddInstanceToGroupEvent>());
 	readonly onRequestAddInstanceToGroup = this._onRequestAddInstanceToGroup.event;
 
@@ -709,7 +709,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._setAriaLabel(xterm, this._instanceId, this._title);
 
-		xterm.textarea.addEventListener('focus', () => this._onFocus.fire(this));
 		xterm.attachCustomKeyEventHandler((event: KeyboardEvent): boolean => {
 			// Disable all input if the terminal is exiting
 			if (this._isExiting) {
@@ -814,11 +813,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			} else {
 				this._terminalShellTypeContextKey.reset();
 			}
-			this._onFocused.fire(this);
+			this._onDidFocus.fire(this);
 		}));
 
 		this._register(dom.addDisposableListener(xterm.textarea, 'blur', () => {
 			this._terminalFocusContextKey.reset();
+			this._onDidBlur.fire(this);
 			this._refreshSelectionContextKey();
 		}));
 

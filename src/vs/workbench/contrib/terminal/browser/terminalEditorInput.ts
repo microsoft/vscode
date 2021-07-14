@@ -15,6 +15,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { KEYBINDING_CONTEXT_TERMINAL_EDITOR_FOCUS } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class TerminalEditorInput extends EditorInput {
 
@@ -23,6 +25,7 @@ export class TerminalEditorInput extends EditorInput {
 	private _isDetached = false;
 	private _isShuttingDown = false;
 	private _copyInstance?: ITerminalInstance;
+	private _terminalEditorFocusContextKey: IContextKey<boolean>;
 
 	private _group: IEditorGroup | undefined;
 
@@ -73,9 +76,12 @@ export class TerminalEditorInput extends EditorInput {
 		@IThemeService private readonly _themeService: IThemeService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ILifecycleService lifecycleService: ILifecycleService
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super();
+
+		this._terminalEditorFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_EDITOR_FOCUS.bindTo(contextKeyService);
 
 		this._register(toDisposable(() => {
 			if (!this._isDetached && !this._isShuttingDown) {
@@ -88,6 +94,8 @@ export class TerminalEditorInput extends EditorInput {
 			this._terminalInstance.onDisposed(() => this.dispose()),
 			this._terminalInstance.onTitleChanged(() => this._onDidChangeLabel.fire()),
 			this._terminalInstance.onIconChanged(() => this._onDidChangeLabel.fire()),
+			this._terminalInstance.onDidFocus(() => this._terminalEditorFocusContextKey.set(true)),
+			this._terminalInstance.onDidBlur(() => this._terminalEditorFocusContextKey.reset()),
 			this._terminalInstance.statusList.onDidChangePrimaryStatus(() => this._onDidChangeLabel.fire())
 		];
 

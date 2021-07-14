@@ -24,6 +24,9 @@ export const KEYBINDING_CONTEXT_TERMINAL_IS_OPEN = new RawContextKey<boolean>(Te
 /** A context key that is set when the integrated terminal has focus. */
 export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = new RawContextKey<boolean>(TerminalContextKey.Focus, false, nls.localize('terminalFocusContextKey', "Whether the terminal is focused"));
 
+/** A context key that is set when a terminal editor has focus. */
+export const KEYBINDING_CONTEXT_TERMINAL_EDITOR_FOCUS = new RawContextKey<boolean>(TerminalContextKey.EditorFocus, false, nls.localize('terminalEditorFocusContextKey', "Whether a terminal in the editor area is focused"));
+
 /** A context key that is set to the current number of integrated terminals in the terminal groups. */
 export const KEYBINDING_CONTEXT_GROUP_TERMINAL_COUNT = new RawContextKey<number>(TerminalContextKey.Count, 0, nls.localize('terminalCountContextKey', "The current number of terminals"));
 

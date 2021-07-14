@@ -722,7 +722,7 @@ export class TerminalService implements ITerminalService {
 			}
 		}));
 		instance.addDisposable(instance.onMaximumDimensionsChanged(() => this._onDidMaxiumumDimensionsChange.fire(instance)));
-		instance.addDisposable(instance.onFocus(this._onDidChangeActiveInstance.fire, this._onDidChangeActiveInstance));
+		instance.addDisposable(instance.onDidFocus(this._onDidChangeActiveInstance.fire, this._onDidChangeActiveInstance));
 		instance.addDisposable(instance.onRequestAddInstanceToGroup(e => {
 			const instanceId = this._getInstanceIdFromUri(e.uri);
 			if (instanceId === undefined) {

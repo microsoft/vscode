@@ -400,14 +400,14 @@ export interface ITerminalInstance {
 	 */
 	onDisposed: Event<ITerminalInstance>;
 
-	onFocused: Event<ITerminalInstance>;
 	onProcessIdReady: Event<ITerminalInstance>;
 	onLinksReady: Event<ITerminalInstance>;
 	onRequestExtHostProcess: Event<ITerminalInstance>;
 	onDimensionsChanged: Event<void>;
 	onMaximumDimensionsChanged: Event<void>;
 
-	onFocus: Event<ITerminalInstance>;
+	onDidFocus: Event<ITerminalInstance>;
+	onDidBlur: Event<ITerminalInstance>;
 
 	/**
 	 * An event that fires when a terminal is dropped on this instance via drag and drop.
