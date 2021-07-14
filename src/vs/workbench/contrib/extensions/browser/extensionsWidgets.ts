@@ -507,45 +507,43 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 			addSeparator = true;
 		}
 
+		const toolTip = this.getTooltip();
 		const extensionStatus = this.extensionsWorkbenchService.getExtensionStatus(this.extension);
-		if (extensionStatus || this.extension.local) {
+
+		if (toolTip || extensionStatus) {
 			markdown.appendText(`\n`);
 			markdown.appendMarkdown(`---`);
 			markdown.appendText(`\n`);
-		}
 
-		if (this.extensionStatusIconAction.statusIcon) {
-			markdown.appendMarkdown(`$(${this.extensionStatusIconAction.statusIcon.id})`);
-		}
-
-		const toolTip = this.getTooltip();
-		if (toolTip) {
-			markdown.appendMarkdown(` ${toolTip}`);
-		}
-
-		if (this.extension.enablementState === EnablementState.DisabledByExtensionDependency && this.extension.local) {
-			markdown.appendMarkdown(` [${localize('dependencies', "Show Dependencies")}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, 'dependencies']))}`)})`);
-		}
-
-		if (extensionStatus) {
-			if (extensionStatus.activationTimes) {
-				const activationTime = extensionStatus.activationTimes.codeLoadingTime + extensionStatus.activationTimes.activateCallTime;
-				markdown.appendText(`\n`);
-				markdown.appendMarkdown(`- ${extensionStatus.activationTimes.activationReason.startup ? localize('startup activation', "Startup Activation") : localize('activation', "Activation")}: \`${activationTime}ms\``);
+			if (toolTip) {
+				if (this.extensionStatusIconAction.statusIcon) {
+					markdown.appendMarkdown(`$(${this.extensionStatusIconAction.statusIcon.id})`);
+				}
+				markdown.appendMarkdown(` ${toolTip}`);
+				if (this.extension.enablementState === EnablementState.DisabledByExtensionDependency && this.extension.local) {
+					markdown.appendMarkdown(` [${localize('dependencies', "Show Dependencies")}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, 'dependencies']))}`)})`);
+				}
 			}
 
-			if (extensionStatus.runtimeErrors.length) {
-				markdown.appendText(`\n`);
-				markdown.appendMarkdown(`- $(${errorIcon.id}) [${extensionStatus.runtimeErrors.length === 1 ? localize('uncaught error', '1 uncaught error') : localize('uncaught errors', '{0} uncaught errors', extensionStatus.runtimeErrors.length)}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, 'status']))}`)})`);
-			}
+			if (extensionStatus) {
+				if (extensionStatus.activationTimes) {
+					const activationTime = extensionStatus.activationTimes.codeLoadingTime + extensionStatus.activationTimes.activateCallTime;
+					markdown.appendText(`\n`);
+					markdown.appendMarkdown(`- ${extensionStatus.activationTimes.activationReason.startup ? localize('startup activation', "Startup Activation") : localize('activation', "Activation")}: \`${activationTime}ms\``);
+				}
 
-			if (extensionStatus.messages.length) {
-				markdown.appendText(`\n`);
-				const hasErrors = extensionStatus.messages.some(message => message.type === Severity.Error);
-				const hasWarnings = extensionStatus.messages.some(message => message.type === Severity.Warning);
-				markdown.appendMarkdown(`- $(${hasErrors ? errorIcon.id : hasWarnings ? warningIcon.id : infoIcon.id}) [${extensionStatus.messages.length === 1 ? localize('message', '1 message') : localize('messages', '{0} messages', extensionStatus.messages.length)}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, 'status']))}`)})`);
-			}
+				if (extensionStatus.runtimeErrors.length) {
+					markdown.appendText(`\n`);
+					markdown.appendMarkdown(`- $(${errorIcon.id}) [${extensionStatus.runtimeErrors.length === 1 ? localize('uncaught error', '1 uncaught error') : localize('uncaught errors', '{0} uncaught errors', extensionStatus.runtimeErrors.length)}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, 'status']))}`)})`);
+				}
 
+				if (extensionStatus.messages.length) {
+					markdown.appendText(`\n`);
+					const hasErrors = extensionStatus.messages.some(message => message.type === Severity.Error);
+					const hasWarnings = extensionStatus.messages.some(message => message.type === Severity.Warning);
+					markdown.appendMarkdown(`- $(${hasErrors ? errorIcon.id : hasWarnings ? warningIcon.id : infoIcon.id}) [${extensionStatus.messages.length === 1 ? localize('message', '1 message') : localize('messages', '{0} messages', extensionStatus.messages.length)}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, 'status']))}`)})`);
+				}
+			}
 		}
 
 		this.hover.value = this.hoverService.showHover({
