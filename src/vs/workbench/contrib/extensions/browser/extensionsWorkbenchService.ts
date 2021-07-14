@@ -304,6 +304,14 @@ ${this.description}
 		return [];
 	}
 
+	get tags(): readonly string[] {
+		const { gallery } = this;
+		if (gallery) {
+			return gallery.tags.filter(tag => !tag.startsWith('_'));
+		}
+		return [];
+	}
+
 	get dependencies(): string[] {
 		const { local, gallery } = this;
 		if (local && local.manifest.extensionDependencies && !this.outdated) {

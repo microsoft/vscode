@@ -323,11 +323,14 @@
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container > .categories-container > .categories,
-.extension-editor > .body > .content > .details > .additional-details-container > .resources-container > .resources {
+.extension-editor > .body > .content > .details > .additional-details-container > .tags-container > .tags,
+.extension-editor > .body > .content > .details > .additional-details-container > .resources-container > .resources,
+.extension-editor > .body > .content > .details > .additional-details-container > .more-info-container > .more-info {
 	margin: 15px 0px;
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container > .categories-container > .categories > .category {
+.extension-editor > .body > .content > .details > .additional-details-container > .categories-container > .categories > .category,
+.extension-editor > .body > .content > .details > .additional-details-container > .tags-container > .tags > .tag {
 	display: inline-block;
 	border: 1px solid rgba(136, 136, 136, 0.45);
 	padding: 2px 4px;
@@ -346,49 +349,58 @@
 	text-decoration: underline;
 }
 
-.extension-editor > .body > .content > .extension-pack-readme {
+.extension-editor > .body > .content > .details > .additional-details-container > .more-info-container > .more-info  > .more-info-entry {
+	font-size: 90%;
+	display: flex;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container > .more-info-container > .more-info  > .more-info-entry span {
+	flex: 0.5
+}
+
+.extension-editor > .body > .content  > .details > .readme-container > .extension-pack-readme {
 	height: 100%;
 }
 
-.extension-editor > .body > .content > .extension-pack-readme > .extension-pack {
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme > .extension-pack {
 	height: 224px;
 	padding-left: 20px;
 }
 
-.extension-editor > .body > .content > .extension-pack-readme.one-row > .extension-pack {
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.one-row > .extension-pack {
 	height: 142px;
 }
 
-.extension-editor > .body > .content > .extension-pack-readme.two-rows > .extension-pack {
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.two-rows > .extension-pack {
 	height: 224px;
 }
 
-.extension-editor > .body > .content > .extension-pack-readme.three-rows > .extension-pack {
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.three-rows > .extension-pack {
 	height: 306px;
 }
 
-.extension-editor > .body > .content > .extension-pack-readme.more-rows > .extension-pack {
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.more-rows > .extension-pack {
 	height: 326px;
 }
 
-.extension-editor > .body > .content > .extension-pack-readme.one-row > .readme-content {
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.one-row > .readme-content {
 	height: calc(100% - 142px);
 }
 
-.extension-editor > .body > .content > .extension-pack-readme.two-rows > .readme-content {
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.two-rows > .readme-content {
 	height: calc(100% - 224px);
 }
 
-.extension-editor > .body > .content > .extension-pack-readme.three-rows > .readme-content {
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.three-rows > .readme-content {
 	height: calc(100% - 306px);
 }
 
-.extension-editor > .body > .content > .extension-pack-readme.more-rows > .readme-content {
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.more-rows > .readme-content {
 	height: calc(100% - 326px);
 }
 
-.extension-editor > .body > .content > .extension-pack-readme > .extension-pack > .header,
-.extension-editor > .body > .content > .extension-pack-readme > .extension-pack > .footer {
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme > .extension-pack > .header,
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme > .extension-pack > .footer {
 	margin-bottom: 10px;
 	margin-right: 30px;
 	font-weight: bold;
@@ -398,15 +410,15 @@
 	line-height: 22px;
 }
 
-.extension-editor > .body > .content > .extension-pack-readme > .extension-pack > .extension-pack-content {
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme > .extension-pack > .extension-pack-content {
 	height: calc(100% - 60px);
 }
 
-.extension-editor > .body > .content > .extension-pack-readme > .extension-pack > .extension-pack-content > .monaco-scrollable-element {
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme > .extension-pack > .extension-pack-content > .monaco-scrollable-element {
 	height: 100%;
 }
 
-.extension-editor > .body > .content .extension-pack-readme > .extension-pack > .extension-pack-content > .monaco-scrollable-element > .subcontent {
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme > .extension-pack > .extension-pack-content > .monaco-scrollable-element > .subcontent {
 	height: 100%;
 	overflow-y: scroll;
 	box-sizing: border-box;

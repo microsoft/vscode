@@ -753,7 +753,9 @@ export class ExtensionEditor extends EditorPane {
 
 	private renderAdditionalDetails(container: HTMLElement, extension: IExtension): void {
 		this.renderCategories(container, extension);
+		this.renderTags(container, extension);
 		this.renderResources(container, extension);
+		this.renderMoreInfo(container, extension);
 	}
 
 	private renderCategories(container: HTMLElement, extension: IExtension): void {
@@ -770,6 +772,23 @@ export class ExtensionEditor extends EditorPane {
 			}
 		} else {
 			append(categoriesElement, $('span', undefined, localize('none', "None")));
+		}
+	}
+
+	private renderTags(container: HTMLElement, extension: IExtension): void {
+		const tagsContainer = append(container, $('.tags-container'));
+		append(tagsContainer, $('.additional-details-title', undefined, localize('tags', "Tags")));
+		const tagsElement = append(tagsContainer, $('.tags'));
+		if (extension.tags.length) {
+			for (const tag of extension.tags) {
+				this.transientDisposables.add(this.onClick(append(tagsElement, $('span.tag', undefined, tag)), () => {
+					this.viewletService.openViewlet(VIEWLET_ID, true)
+						.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
+						.then(viewlet => viewlet.search(`@tag:"${tag}"`));
+				}));
+			}
+		} else {
+			append(tagsElement, $('span', undefined, localize('none', "None")));
 		}
 	}
 
@@ -795,6 +814,26 @@ export class ExtensionEditor extends EditorPane {
 		} else {
 			append(resourcesElement, $('span', undefined, localize('none', "None")));
 		}
+	}
+
+	private renderMoreInfo(container: HTMLElement, extension: IExtension): void {
+		const gallery = extension.gallery;
+		if (!gallery) {
+			return;
+		}
+		const moreInfoContainer = append(container, $('.more-info-container'));
+		append(moreInfoContainer, $('.additional-details-title', undefined, localize('more info', "More Info")));
+		const moreInfo = append(moreInfoContainer, $('.more-info'));
+		append(moreInfo,
+			$('.more-info-entry', undefined,
+				$('span', undefined, localize('release date', "Released on")),
+				$('span', undefined, new Date(gallery.releaseDate).toLocaleString())
+			),
+			$('.more-info-entry', undefined,
+				$('span', undefined, localize('last published', "Last published")),
+				$('span', undefined, new Date(gallery.lastUpdated).toLocaleString())
+			)
+		);
 	}
 
 	private openChangelog(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
@@ -1617,11 +1656,13 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const buttonHoverBackgroundColor = theme.getColor(buttonHoverBackground);
 	if (buttonHoverBackgroundColor) {
 		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container > .categories-container > .categories > .category:hover { background-color: ${buttonHoverBackgroundColor}; border-color: ${buttonHoverBackgroundColor}; }`);
+		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container > .tags-container > .tags > .tag:hover { background-color: ${buttonHoverBackgroundColor}; border-color: ${buttonHoverBackgroundColor}; }`);
 	}
 
 	const buttonForegroundColor = theme.getColor(buttonForeground);
 	if (buttonForegroundColor) {
 		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container > .categories-container > .categories > .category:hover { color: ${buttonForegroundColor}; }`);
+		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container > .tags-container > .tags > .tag:hover { color: ${buttonForegroundColor}; }`);
 	}
 
 });

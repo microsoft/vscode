@@ -58,6 +58,7 @@ export interface IExtension {
 	readonly ratingCount?: number;
 	readonly outdated: boolean;
 	readonly enablementState: EnablementState;
+	readonly tags: readonly string[];
 	readonly categories: readonly string[];
 	readonly dependencies: string[];
 	readonly extensionPack: string[];
