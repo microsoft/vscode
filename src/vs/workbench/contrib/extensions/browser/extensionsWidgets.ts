@@ -515,14 +515,6 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 			addSeparator = true;
 		}
 
-		if (this.extension.categories.length) {
-			markdown.appendText(`\n`);
-			for (const category of this.extension.categories) {
-				markdown.appendMarkdown(`<span style="color:#000000;background-color:#dcdcdc;">&nbsp;&nbsp;${category}&nbsp;&nbsp;</span>`);
-				markdown.appendText('  ');
-			}
-		}
-
 		const toolTip = this.getTooltip();
 		const extensionStatus = this.extensionsWorkbenchService.getExtensionStatus(this.extension);
 
