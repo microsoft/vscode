@@ -25,7 +25,7 @@
 		},
 		{
 			"include": "#rule-list"
-		} 
+		}
 	],
 	"repository": {
 		"at-rules": {
