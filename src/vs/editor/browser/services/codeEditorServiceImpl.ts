@@ -251,6 +251,7 @@ export class DecorationTypeOptionsProvider implements IModelDecorationOptionsPro
 	public overviewRuler: IModelDecorationOverviewRulerOptions | undefined;
 	public stickiness: TrackedRangeStickiness | undefined;
 	public beforeInjectedText: InjectedTextOptions | undefined;
+	public afterInjectedText: InjectedTextOptions | undefined;
 
 	constructor(description: string, themeService: IThemeService, styleSheet: GlobalStyleSheet | RefCountedStyleSheet, providerArgs: ProviderArguments) {
 		this.description = description;
@@ -291,6 +292,15 @@ export class DecorationTypeOptionsProvider implements IModelDecorationOptionsPro
 				content: providerArgs.options.beforeInjectedText.contentText,
 				inlineClassName: beforeInlineData?.className,
 				inlineClassNameAffectsLetterSpacing: beforeInlineData?.hasLetterSpacing || providerArgs.options.beforeInjectedText.affectsLetterSpacing
+			};
+		}
+
+		if (providerArgs.options.afterInjectedText && providerArgs.options.afterInjectedText.contentText) {
+			const afterInlineData = createInlineCSSRules(ModelDecorationCSSRuleType.AfterInjectedTextClassName);
+			this.afterInjectedText = {
+				content: providerArgs.options.afterInjectedText.contentText,
+				inlineClassName: afterInlineData?.className,
+				inlineClassNameAffectsLetterSpacing: afterInlineData?.hasLetterSpacing || providerArgs.options.afterInjectedText.affectsLetterSpacing
 			};
 		}
 
@@ -479,6 +489,11 @@ class DecorationCSSRules {
 				lightCSS = this.getCSSTextForModelDecorationContentClassName(options.light && options.light.beforeInjectedText);
 				darkCSS = this.getCSSTextForModelDecorationContentClassName(options.dark && options.dark.beforeInjectedText);
 				break;
+			case ModelDecorationCSSRuleType.AfterInjectedTextClassName:
+				unthemedCSS = this.getCSSTextForModelDecorationContentClassName(options.afterInjectedText);
+				lightCSS = this.getCSSTextForModelDecorationContentClassName(options.light && options.light.afterInjectedText);
+				darkCSS = this.getCSSTextForModelDecorationContentClassName(options.dark && options.dark.afterInjectedText);
+				break;
 			default:
 				throw new Error('Unknown rule type: ' + this._ruleType);
 		}
@@ -620,6 +635,7 @@ const enum ModelDecorationCSSRuleType {
 	BeforeContentClassName = 3,
 	AfterContentClassName = 4,
 	BeforeInjectedTextClassName = 5,
+	AfterInjectedTextClassName = 6,
 }
 
 class CSSNameHelper {
