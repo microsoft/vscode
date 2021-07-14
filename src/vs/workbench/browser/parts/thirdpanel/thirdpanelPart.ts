@@ -151,10 +151,6 @@ export class ThirdPanelPart extends CompositePart<Viewlet> implements IViewletSe
 		this.titleLabel!.updateTitle('third-panel', 'THIRD PANEL');
 
 		this.titleLabelElement!.draggable = false;
-
-		// TODO@wendell: drag things
-
-		// this._register(addDisposableListener(titleArea,))
 		return titleArea;
 	}
 

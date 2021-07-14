@@ -66,6 +66,9 @@ enum Storage {
 	SIDEBAR_HIDDEN = 'workbench.sidebar.hidden',
 	SIDEBAR_SIZE = 'workbench.sidebar.size',
 
+	THIRD_PANEL_SIZE = 'workbench.thirdPanel.size',
+	THIRD_PANEL_HIDDEN = 'workbench.thirdPanel.hidden',
+
 	PANEL_HIDDEN = 'workbench.panel.hidden',
 	PANEL_POSITION = 'workbench.panel.location',
 	PANEL_SIZE = 'workbench.panel.size',
@@ -393,7 +396,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private doUpdateLayoutConfiguration(skipLayout?: boolean): void {
 
-		// Sidebar position
+		// Sidebar position, change third panel position as well
 		const newSidebarPositionValue = this.configurationService.getValue<string>(Settings.SIDEBAR_POSITION);
 		const newSidebarPosition = (newSidebarPositionValue === 'right') ? Position.RIGHT : Position.LEFT;
 		if (newSidebarPosition !== this.getSideBarPosition()) {
@@ -429,34 +432,44 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private setSideBarPosition(position: Position): void {
 		const activityBar = this.getPart(Parts.ACTIVITYBAR_PART);
 		const sideBar = this.getPart(Parts.SIDEBAR_PART);
-		const wasHidden = this.state.sideBar.hidden;
+		const thirdPanelBar = this.getPart(Parts.THIRD_PANEL_PART);
+		const sideBarWasHidden = this.state.sideBar.hidden;
 		const newPositionValue = (position === Position.LEFT) ? 'left' : 'right';
 		const oldPositionValue = (this.state.sideBar.position === Position.LEFT) ? 'left' : 'right';
 		this.state.sideBar.position = position;
+		this.state.thirdPanel.position = (position === Position.LEFT) ? Position.RIGHT : Position.RIGHT;
 
 		// Adjust CSS
 		const activityBarContainer = assertIsDefined(activityBar.getContainer());
 		const sideBarContainer = assertIsDefined(sideBar.getContainer());
+		const thirdPanelContainer = assertIsDefined(thirdPanelBar.getContainer());
 		activityBarContainer.classList.remove(oldPositionValue);
 		sideBarContainer.classList.remove(oldPositionValue);
+		thirdPanelContainer.classList.remove(newPositionValue);
 		activityBarContainer.classList.add(newPositionValue);
 		sideBarContainer.classList.add(newPositionValue);
+		thirdPanelContainer.classList.add(oldPositionValue);
 
 		// Update Styles
 		activityBar.updateStyles();
 		sideBar.updateStyles();
+		thirdPanelBar.updateStyles();
 
 		// Layout
-		if (!wasHidden) {
+		if (!sideBarWasHidden) {
 			this.state.sideBar.width = this.workbenchGrid.getViewSize(this.sideBarPartView).width;
 		}
+
+		// this.state.thirdPanel.width = this.workbenchGrid.getViewSize(this.thirdPanelPartView).width;
 
 		if (position === Position.LEFT) {
 			this.workbenchGrid.moveViewTo(this.activityBarPartView, [2, 0]);
 			this.workbenchGrid.moveViewTo(this.sideBarPartView, [2, 1]);
+			this.workbenchGrid.moveViewTo(this.thirdPanelPartView, [2, 5]);
 		} else {
-			this.workbenchGrid.moveViewTo(this.sideBarPartView, [2, 4]);
-			this.workbenchGrid.moveViewTo(this.activityBarPartView, [2, 4]);
+			this.workbenchGrid.moveViewTo(this.sideBarPartView, [2, 5]);
+			this.workbenchGrid.moveViewTo(this.activityBarPartView, [2, 5]);
+			this.workbenchGrid.moveViewTo(this.thirdPanelPartView, [2, 0]);
 		}
 
 		this.layout();
@@ -518,6 +531,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Sidebar position
 		this.state.sideBar.position = (this.configurationService.getValue<string>(Settings.SIDEBAR_POSITION) === 'right') ? Position.RIGHT : Position.LEFT;
 
+		// Third panel visibility
+		this.state.thirdPanel.hidden = this.storageService.getBoolean(Storage.THIRD_PANEL_HIDDEN, StorageScope.WORKSPACE, this.contextService.getWorkbenchState() === WorkbenchState.EMPTY);
+
 		// Sidebar viewlet
 		if (!this.state.sideBar.hidden) {
 
@@ -535,6 +551,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.state.sideBar.hidden = true; // we hide sidebar if there is no viewlet to restore
 			}
 		}
+
+		// TODO@wendellhu: third panel restore thing
 
 		// Editor visibility
 		this.state.editor.hidden = this.storageService.getBoolean(Storage.EDITOR_HIDDEN, StorageScope.WORKSPACE, false);
@@ -1247,6 +1265,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			this.storageService.store(Storage.SIDEBAR_SIZE, sideBarSize, StorageScope.GLOBAL, StorageTarget.MACHINE);
 
+			const thirdPanelSize = this.state.thirdPanel.hidden
+				? grid.getViewCachedVisibleSize(this.thirdPanelPartView)
+				: grid.getViewSize(this.thirdPanelPartView).width;
+
+			this.storageService.store(Storage.THIRD_PANEL_SIZE, thirdPanelSize, StorageScope.GLOBAL, StorageTarget.MACHINE);
+
 			const panelSize = this.state.panel.hidden
 				? grid.getViewCachedVisibleSize(this.panelPartView)
 				: (this.state.panel.position === Position.BOTTOM ? grid.getViewSize(this.panelPartView).height : grid.getViewSize(this.panelPartView).width);
@@ -1438,8 +1462,39 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.container.classList.remove(Classes.THIRD_PANEL_HIDDEN);
 		}
 
+		if (hidden && this.secondViewletService.getActiveViewlet()) {
+			this.secondViewletService.hideActiveViewlet();
+
+			// Pass Focus to Editor or Panel if Sidebar is now hidden
+			const activePanel = this.panelService.getActivePanel();
+			if (this.hasFocus(Parts.PANEL_PART) && activePanel) {
+				activePanel.focus();
+			} else {
+				this.focus();
+			}
+		}
+
+		// If sidebar becomes visible, show last active Viewlet or default viewlet
+		else if (!hidden && !this.secondViewletService.getActiveViewlet()) {
+			const viewletToOpen = this.secondViewletService.getLastActiveViewletId();
+			if (viewletToOpen) {
+				const viewlet = this.secondViewletService.openViewlet(viewletToOpen, true);
+				if (!viewlet) {
+					this.secondViewletService.openViewlet(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.ThirdPanel)?.id, true);
+				}
+			}
+		}
+
 		// Propagate to grid
 		this.workbenchGrid.setViewVisible(this.thirdPanelPartView, !hidden);
+
+		// Remember in settings
+		const defaultHidden = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
+		if (hidden !== defaultHidden) {
+			this.storageService.store(Storage.THIRD_PANEL_HIDDEN, hidden ? 'true' : 'false', StorageScope.WORKSPACE, StorageTarget.USER);
+		} else {
+			this.storageService.remove(Storage.THIRD_PANEL_HIDDEN, StorageScope.WORKSPACE);
+		}
 	}
 
 	setSideBarHidden(hidden: boolean, skipLayout?: boolean): void {
@@ -1785,6 +1840,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const width = this.storageService.getNumber(Storage.GRID_WIDTH, StorageScope.GLOBAL, workbenchDimensions.width);
 		const height = this.storageService.getNumber(Storage.GRID_HEIGHT, StorageScope.GLOBAL, workbenchDimensions.height);
 		const sideBarSize = this.storageService.getNumber(Storage.SIDEBAR_SIZE, StorageScope.GLOBAL, Math.min(workbenchDimensions.width / 4, 300));
+		const thirdPanelSize = this.storageService.getNumber(Storage.THIRD_PANEL_SIZE, StorageScope.GLOBAL, this.thirdPanelPartView.minimumWidth);
 		const panelDimension = positionFromString(this.storageService.get(Storage.PANEL_DIMENSION, StorageScope.GLOBAL, 'bottom'));
 		const fallbackPanelSize = this.state.panel.position === Position.BOTTOM ? workbenchDimensions.height / 3 : workbenchDimensions.width / 4;
 		const panelSize = panelDimension === this.state.panel.position ? this.storageService.getNumber(Storage.PANEL_SIZE, StorageScope.GLOBAL, fallbackPanelSize) : fallbackPanelSize;
@@ -1793,7 +1849,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const bannerHeight = this.bannerPartView.minimumHeight;
 		const statusBarHeight = this.statusBarPartView.minimumHeight;
 		const activityBarWidth = this.activityBarPartView.minimumWidth;
-		const thirdPanelSize = this.thirdPanelPartView.minimumWidth;
 		const middleSectionHeight = height - titleBarHeight - statusBarHeight;
 		const editorSectionWidth = width
 			- (this.state.activityBar.hidden ? 0 : activityBarWidth)
