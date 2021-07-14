@@ -266,14 +266,7 @@ export class TerminalService implements ITerminalService {
 				const persistentProcessId = instanceToDetach?.persistentProcessId;
 				if (persistentProcessId) {
 					await instanceToDetach.detachFromProcess();
-					const process = await this._primaryOffProcessTerminalService?.acceptDetachedInstance(e.requestId, persistentProcessId);
-					if (process) {
-						const instance = this.createTerminal({
-							config: { attachPersistentProcess: process },
-							target: TerminalLocation.TerminalView
-						});
-						this.setActiveInstance(instance);
-					}
+					await this._primaryOffProcessTerminalService?.acceptDetachedInstance(e.requestId, persistentProcessId);
 				}
 			}
 		});
