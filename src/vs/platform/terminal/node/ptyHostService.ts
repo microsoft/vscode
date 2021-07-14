@@ -77,7 +77,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 	readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
 	private readonly _onProcessOrphanQuestion = this._register(new Emitter<{ id: number }>());
 	readonly onProcessOrphanQuestion = this._onProcessOrphanQuestion.event;
-	private readonly _onDidRequestDetach = this._register(new Emitter<{ workspaceId: string, instanceId: number }>());
+	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number, workspaceId: string, instanceId: number }>());
 	readonly onDidRequestDetach = this._onDidRequestDetach.event;
 
 	constructor(
@@ -242,12 +242,12 @@ export class PtyHostService extends Disposable implements IPtyService {
 		return await this._proxy.getTerminalLayoutInfo(args);
 	}
 
-	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<void> {
+	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<number> {
 		return this._proxy.requestDetachInstance(workspaceId, instanceId);
 	}
 
-	async acceptInstanceForAttachment(persistentProcessId: number): Promise<void> {
-		return this._proxy.acceptInstanceForAttachment(persistentProcessId);
+	async acceptDetachedInstance(requestId: number, persistentProcessId: number): Promise<IProcessDetails | undefined> {
+		return this._proxy.acceptDetachedInstance(requestId, persistentProcessId);
 	}
 
 	async restartPtyHost(): Promise<void> {

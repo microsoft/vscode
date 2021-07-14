@@ -36,7 +36,7 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 	readonly onPtyHostResponsive = this._onPtyHostResponsive.event;
 	private readonly _onPtyHostRestart = this._register(new Emitter<void>());
 	readonly onPtyHostRestart = this._onPtyHostRestart.event;
-	private readonly _onDidRequestDetach = this._register(new Emitter<{ workspaceId: string, instanceId: number }>());
+	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number, workspaceId: string, instanceId: number }>());
 	readonly onDidRequestDetach = this._onDidRequestDetach.event;
 
 	constructor(
@@ -125,12 +125,12 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		}
 	}
 
-	async acceptInstanceForAttachment(persistentProcessId: number): Promise<void> {
-		await this._localPtyService.acceptInstanceForAttachment(persistentProcessId);
+	async acceptDetachedInstance(requestId: number, persistentProcessId: number): Promise<IProcessDetails | undefined> {
+		return this._localPtyService.acceptDetachedInstance(requestId, persistentProcessId);
 	}
 
-	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<void> {
-		await this._localPtyService.requestDetachInstance(workspaceId, instanceId);
+	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<number> {
+		return this._localPtyService.requestDetachInstance(workspaceId, instanceId);
 	}
 
 	async updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void> {

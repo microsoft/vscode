@@ -20,14 +20,13 @@ import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnviro
 import { URI } from 'vs/base/common/uri';
 
 type WorkspaceId = string;
+let lastResolveInstanceRequestId = 0;
 
 export class PtyService extends Disposable implements IPtyService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _ptys: Map<number, PersistentTerminalProcess> = new Map();
 	private readonly _workspaceLayoutInfos = new Map<WorkspaceId, ISetTerminalLayoutInfoArgs>();
-
-	private _processIdToAttach: number | undefined = undefined;
 
 	private readonly _onHeartbeat = this._register(new Emitter<void>());
 	readonly onHeartbeat = this._onHeartbeat.event;
@@ -50,7 +49,7 @@ export class PtyService extends Disposable implements IPtyService {
 	readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
 	private readonly _onProcessOrphanQuestion = this._register(new Emitter<{ id: number }>());
 	readonly onProcessOrphanQuestion = this._onProcessOrphanQuestion.event;
-	private readonly _onDidRequestDetach = this._register(new Emitter<{ workspaceId: string, instanceId: number }>());
+	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number, workspaceId: string, instanceId: number }>());
 	readonly onDidRequestDetach = this._onDidRequestDetach.event;
 
 	constructor(
@@ -68,12 +67,27 @@ export class PtyService extends Disposable implements IPtyService {
 		}));
 	}
 
-	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<void> {
-		this._onDidRequestDetach.fire({ workspaceId, instanceId });
+	private _pendingDetachInstanceRequests: Map<number, (resolved: number) => void> = new Map();
+	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<number> {
+		return new Promise<number>(resolve => {
+			const requestId = ++lastResolveInstanceRequestId;
+			this._pendingDetachInstanceRequests.set(requestId, resolve);
+			this._onDidRequestDetach.fire({ requestId, workspaceId, instanceId });
+		});
 	}
 
-	async acceptInstanceForAttachment(persistentProcessId: number): Promise<void> {
-		this._processIdToAttach = persistentProcessId;
+	async acceptDetachedInstance(requestId: number, resolved: number): Promise<IProcessDetails | undefined> {
+		const request = this._pendingDetachInstanceRequests.get(requestId);
+		if (request) {
+			request(resolved);
+			const pty = this._throwIfNoPty(resolved);
+			const process = await this._buildProcessDetails(resolved, pty);
+			this._pendingDetachInstanceRequests.delete(requestId);
+			return process;
+		} else {
+			this._logService.warn(`Resolved variables received without matching request ${requestId}`);
+			return undefined;
+		}
 	}
 
 	async shutdownAll(): Promise<void> {
@@ -146,20 +160,11 @@ export class PtyService extends Disposable implements IPtyService {
 		}
 	}
 
-	async listProcesses(getDetachedInstance?: boolean): Promise<IProcessDetails[]> {
+	async listProcesses(): Promise<IProcessDetails[]> {
 		const persistentProcesses = Array.from(this._ptys.entries()).filter(([_, pty]) => pty.shouldPersistTerminal);
 		this._logService.info(`Listing ${persistentProcesses.length} persistent terminals, ${this._ptys.size} total terminals`);
 		const promises = persistentProcesses.map(async ([id, terminalProcessData]) => this._buildProcessDetails(id, terminalProcessData));
 		const allTerminals = await Promise.all(promises);
-		if (getDetachedInstance) {
-			if (!this._processIdToAttach) {
-				this._logService.info(`Tried to get a detached instance, but there was no processId to attach to`);
-				return [];
-			}
-			const result = allTerminals.filter(entry => entry.isOrphan && entry.id === this._processIdToAttach);
-			this._processIdToAttach = undefined;
-			return result;
-		}
 		return allTerminals.filter(entry => entry.isOrphan);
 	}
 

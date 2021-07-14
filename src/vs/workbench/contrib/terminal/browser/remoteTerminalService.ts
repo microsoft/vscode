@@ -42,7 +42,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 	readonly onPtyHostRestart = this._onPtyHostRestart.event;
 	private readonly _onPtyHostRequestResolveVariables = this._register(new Emitter<IRequestResolveVariablesEvent>());
 	readonly onPtyHostRequestResolveVariables = this._onPtyHostRequestResolveVariables.event;
-	private readonly _onDidRequestDetach = this._register(new Emitter<{ workspaceId: string, instanceId: number }>());
+	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number, workspaceId: string, instanceId: number }>());
 	readonly onDidRequestDetach = this._onDidRequestDetach.event;
 
 	constructor(
@@ -154,15 +154,15 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		}
 	}
 
-	async acceptInstanceForAttachment(persistentProcessId: number): Promise<void> {
-		this._remoteTerminalChannel?.acceptInstanceForAttachment(persistentProcessId);
+	async acceptDetachedInstance(requestId: number, persistentProcessId: number): Promise<IProcessDetails | undefined> {
+		return this._remoteTerminalChannel?.acceptDetachedInstance(requestId, persistentProcessId);
 	}
 
-	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<void> {
+	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<number> {
 		if (!this._remoteTerminalChannel) {
 			throw new Error(`Cannot request adopt instance when there is no remote!`);
 		}
-		return this._remoteTerminalChannel.requestAdoptInstance(workspaceId, instanceId);
+		return this._remoteTerminalChannel.requestDetachInstance(workspaceId, instanceId);
 	}
 
 	async createProcess(shellLaunchConfig: IShellLaunchConfig, configuration: ICompleteTerminalConfiguration, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper): Promise<ITerminalChildProcess> {

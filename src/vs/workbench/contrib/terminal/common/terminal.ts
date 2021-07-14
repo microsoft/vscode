@@ -142,7 +142,7 @@ export interface IOffProcessTerminalService {
 	 */
 	onPtyHostRestart: Event<void>;
 
-	onDidRequestDetach: Event<{ workspaceId: string, instanceId: number }>;
+	onDidRequestDetach: Event<{ requestId: number, workspaceId: string, instanceId: number }>;
 
 	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
 	listProcesses(getDetachedInstance?: boolean): Promise<IProcessDetails[]>;
@@ -156,8 +156,8 @@ export interface IOffProcessTerminalService {
 	updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<void>;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;
-	requestDetachInstance(workspaceId: string, instanceId: number): Promise<void>;
-	acceptInstanceForAttachment(persistentProcessId: number): Promise<void>;
+	requestDetachInstance(workspaceId: string, instanceId: number): Promise<number>;
+	acceptDetachedInstance(requestId: number, persistentProcessId: number): Promise<IProcessDetails | undefined>;
 }
 
 export const ILocalTerminalService = createDecorator<ILocalTerminalService>('localTerminalService');
