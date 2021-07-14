@@ -116,9 +116,6 @@ suite('ViewModelDecorations', () => {
 				new InlineDecoration(new Range(1, 2, 1, 2), 'b-dec4', InlineDecorationType.Before),
 				new InlineDecoration(new Range(1, 2, 5, 8), 'i-dec5', InlineDecorationType.Regular),
 				new InlineDecoration(new Range(1, 2, 1, 2), 'b-dec5', InlineDecorationType.Before),
-				new InlineDecoration(new Range(1, 14, 1, 14), 'i-dec6', InlineDecorationType.Regular),
-				new InlineDecoration(new Range(1, 14, 1, 14), 'b-dec6', InlineDecorationType.Before),
-				new InlineDecoration(new Range(1, 14, 1, 14), 'a-dec6', InlineDecorationType.After),
 			]);
 
 			const inlineDecorations2 = viewModel.getViewLineRenderingData(
@@ -132,6 +129,9 @@ suite('ViewModelDecorations', () => {
 				new InlineDecoration(new Range(2, 2, 2, 2), 'a-dec3', InlineDecorationType.After),
 				new InlineDecoration(new Range(1, 2, 3, 13), 'i-dec4', InlineDecorationType.Regular),
 				new InlineDecoration(new Range(1, 2, 5, 8), 'i-dec5', InlineDecorationType.Regular),
+				new InlineDecoration(new Range(2, 1, 2, 1), 'i-dec6', InlineDecorationType.Regular),
+				new InlineDecoration(new Range(2, 1, 2, 1), 'b-dec6', InlineDecorationType.Before),
+				new InlineDecoration(new Range(2, 1, 2, 1), 'a-dec6', InlineDecorationType.After),
 				new InlineDecoration(new Range(2, 1, 2, 3), 'i-dec7', InlineDecorationType.Regular),
 				new InlineDecoration(new Range(2, 1, 2, 1), 'b-dec7', InlineDecorationType.Before),
 				new InlineDecoration(new Range(2, 3, 2, 3), 'a-dec7', InlineDecorationType.After),
@@ -164,9 +164,6 @@ suite('ViewModelDecorations', () => {
 				new InlineDecoration(new Range(2, 3, 3, 13), 'i-dec11', InlineDecorationType.Regular),
 				new InlineDecoration(new Range(3, 13, 3, 13), 'a-dec11', InlineDecorationType.After),
 				new InlineDecoration(new Range(2, 3, 5, 8), 'i-dec12', InlineDecorationType.Regular),
-				new InlineDecoration(new Range(3, 13, 3, 13), 'i-dec13', InlineDecorationType.Regular),
-				new InlineDecoration(new Range(3, 13, 3, 13), 'b-dec13', InlineDecorationType.Before),
-				new InlineDecoration(new Range(3, 13, 3, 13), 'a-dec13', InlineDecorationType.After),
 			]);
 		});
 	});
