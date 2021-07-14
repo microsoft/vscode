@@ -57,6 +57,10 @@ export class InstallCountWidget extends ExtensionWidget {
 			return;
 		}
 
+		if (this.small && this.extension.state === ExtensionState.Installed) {
+			return;
+		}
+
 		const installLabel = InstallCountWidget.getInstallLabel(this.extension, this.small);
 		if (!installLabel) {
 			return;
@@ -113,6 +117,10 @@ export class RatingsWidget extends ExtensionWidget {
 		this.container.innerText = '';
 
 		if (!this.extension) {
+			return;
+		}
+
+		if (this.small && this.extension.state === ExtensionState.Installed) {
 			return;
 		}
 
@@ -429,7 +437,6 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		private readonly extensionStatusIconAction: ExtensionStatusIconAction,
 		private readonly tooltipAction: ExtensionToolTipAction,
 		private readonly recommendationWidget: RecommendationWidget,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
@@ -440,7 +447,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		this.hover.value = undefined;
 		if (this.extension) {
 			this.hover.value = setupCustomHover({
-				delay: this.configurationService.getValue<number>('workbench.hover.delay'),
+				delay: 500,
 				showHover: (options) => {
 					return this.hoverService.showHover({
 						...options,
@@ -460,9 +467,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 
 		markdown.appendMarkdown(`**${this.extension.displayName}**`);
-		if (this.extension.preview) {
-			markdown.appendMarkdown(`&nbsp;<span style="color:#ffffff;background-color:#d63f26;">&nbsp;&nbsp;*${localize('preview', "Preview")}*&nbsp;&nbsp;</span>`);
-		}
+		markdown.appendMarkdown(`&nbsp;\`${this.extension.identifier.id}\``);
 		markdown.appendText(`\n`);
 
 		if (this.extension.description) {

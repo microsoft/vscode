@@ -39,6 +39,7 @@ export interface ITemplateData {
 	icon: HTMLImageElement;
 	name: HTMLElement;
 	author: HTMLElement;
+	description: HTMLElement;
 	installCount: HTMLElement;
 	ratings: HTMLElement;
 	extension: IExtension | null;
@@ -86,14 +87,14 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const headerContainer = append(details, $('.header-container'));
 		const header = append(headerContainer, $('.header'));
 		const name = append(header, $('span.name'));
+		const installCount = append(header, $('span.install-count'));
+		const ratings = append(header, $('span.ratings'));
 		const syncIgnore = append(header, $('span.sync-ignored'));
 		const activationStatus = append(header, $('span.activation-status'));
 		const headerRemoteBadgeWidget = this.instantiationService.createInstance(RemoteBadgeWidget, header, false);
-		const author = append(details, $('.author'));
+		const description = append(details, $('.description.ellipsis'));
 		const footer = append(details, $('.footer'));
-		const info = append(footer, $('.info'));
-		const ratings = append(info, $('span.ratings'));
-		const installCount = append(info, $('span.install-count'));
+		const author = append(footer, $('.author.ellipsis'));
 		const actionbar = new ActionBar(footer, {
 			animated: false,
 			actionViewItemProvider: (action: IAction) => {
@@ -145,7 +146,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const disposable = combinedDisposable(...actions, ...widgets, actionbar, extensionContainers, extensionTooltipAction);
 
 		return {
-			root, element, icon, name, installCount, ratings, author, disposables: [disposable], actionbar,
+			root, element, icon, name, installCount, ratings, description, author, disposables: [disposable], actionbar,
 			extensionDisposables: [],
 			set extension(extension: IExtension) {
 				extensionContainers.extension = extension;
@@ -161,6 +162,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.extensionDisposables = dispose(data.extensionDisposables);
 		data.icon.src = '';
 		data.name.textContent = '';
+		data.description.textContent = '';
 		data.author.textContent = '';
 		data.installCount.style.display = 'none';
 		data.ratings.style.display = 'none';
@@ -203,6 +205,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		}
 
 		data.name.textContent = extension.displayName;
+		data.description.textContent = extension.description;
 		data.author.textContent = extension.publisherDisplayName;
 
 		data.installCount.style.display = '';

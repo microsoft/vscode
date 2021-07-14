@@ -106,6 +106,24 @@
 	display: none;
 }
 
+.extensions-viewlet.narrow > .extensions .extension-list-item {
+	padding-left: 8px;
+}
+
+.extensions-viewlet.narrow > .extensions .extension-list-item > .icon-container > .icon {
+	width: 24px;
+	height: 24px;
+	padding-right: 6px;
+}
+
+.extensions-viewlet:not(.narrow) > .extensions .extension-list-item > .details > .header-container > .header > .extension-remote-badge-container,
+.extensions-viewlet.narrow > .extensions .extension-list-item > .icon-container .extension-badge,
+.extensions-viewlet.mini > .extensions .extension-list-item > .icon-container > .icon,
+.extensions-viewlet.mini > .extensions .extension-list-item > .details > .header-container > .header > .ratings,
+.extensions-viewlet.mini > .extensions .extension-bookmark-container {
+	display: none;
+}
+
 .extensions-viewlet.narrow > .extensions .extension-list-item > .details > .footer > .monaco-action-bar > .actions-container .extension-action {
 	max-width: 100px;
 }
@@ -113,9 +131,7 @@
 .monaco-workbench.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension-list-item > .icon-container > .icon,
 .monaco-workbench.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension-list-item > .icon-container > .icon,
 .monaco-workbench.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension-list-item > .details > .header-container .codicon,
-.monaco-workbench.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension-list-item > .details > .header-container .codicon,
-.monaco-workbench.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension-list-item > .details .info .codicon,
-.monaco-workbench.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension-list-item > .details .info .codicon {
+.monaco-workbench.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension-list-item > .details > .header-container .codicon {
 	opacity: 0.5;
 }
 
