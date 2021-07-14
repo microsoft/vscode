@@ -12,7 +12,7 @@ steps:
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
-      SecretsFilter: 'github-distro-mixin-password,builds-docdb-key-readwrite,vscode-storage-key'
+      SecretsFilter: "github-distro-mixin-password,builds-docdb-key-readwrite,vscode-storage-key,ESRP-PKI,esrp-aad-username,esrp-aad-password"
 
   - task: DownloadPipelineArtifact@2
     inputs:
@@ -252,30 +252,25 @@ steps:
     displayName: Prepare snap package
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  # needed for code signing
   - task: UseDotNet@2
-    displayName: "Install .NET Core SDK 2.x"
     inputs:
       version: 2.x
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
-    inputs:
-      ConnectedServiceName: "ESRP CodeSign"
-      FolderPath: ".build/linux/rpm"
-      Pattern: "*.rpm"
-      signConfigType: inlineSignParams
-      inlineOperation: |
-        [
-          {
-            "keyCode": "CP-450779-Pgp",
-            "operationSetCode": "LinuxSign",
-            "parameters": [ ],
-            "toolName": "sign",
-            "toolVersion": "1.0"
-          }
-        ]
-      SessionTimeout: 120
+  - task: EsrpClientTool@1
+    displayName: Download ESRPClient
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  - script: |
+      set -e
+      yarn --cwd build
+      yarn --cwd build compile
+    displayName: Compile build tools
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  - script: |
+      set -e
+      node build/azure-pipelines/common/sign "$(esrpclient.toolpath)/$(esrpclient.toolname)" rpm $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) .build/linux/rpm '*.rpm'
     displayName: Codesign rpm
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 

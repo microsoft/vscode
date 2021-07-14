@@ -3122,7 +3122,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 
 	//#endregion
-	normalizePosition(position: Position, affinity: model.PositionNormalizationAffinity): Position {
+	normalizePosition(position: Position, affinity: model.PositionAffinity): Position {
 		return position;
 	}
 
@@ -3399,10 +3399,12 @@ export class ModelDecorationInjectedTextOptions implements model.InjectedTextOpt
 
 	public readonly content: string;
 	readonly inlineClassName: string | null;
+	readonly inlineClassNameAffectsLetterSpacing: boolean;
 
 	private constructor(options: model.InjectedTextOptions) {
 		this.content = options.content || '';
 		this.inlineClassName = options.inlineClassName || null;
+		this.inlineClassNameAffectsLetterSpacing = options.inlineClassNameAffectsLetterSpacing || false;
 	}
 }
 

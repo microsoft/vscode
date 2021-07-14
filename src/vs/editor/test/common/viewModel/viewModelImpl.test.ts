@@ -5,10 +5,11 @@
 
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
-import { EndOfLineSequence } from 'vs/editor/common/model';
+import { EndOfLineSequence, PositionAffinity } from 'vs/editor/common/model';
 import { testViewModel } from 'vs/editor/test/common/viewModel/testViewModel';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { ViewEvent } from 'vs/editor/common/view/viewEvents';
+import { Position } from 'vs/editor/common/core/position';
 
 suite('ViewModel', () => {
 
@@ -291,6 +292,57 @@ suite('ViewModel', () => {
 				]);
 
 				assert.strictEqual(viewModel.getLineCount(), 11);
+			}
+		);
+	});
+
+	test('normalizePosition with multiple touching injected text', () => {
+		testViewModel(
+			[
+				'just some text'
+			],
+			{},
+			(viewModel, model) => {
+				model.deltaDecorations([], [
+					{
+						range: new Range(1, 8, 1, 8),
+						options: {
+							description: 'test',
+							before: {
+								content: 'bar'
+							}
+						}
+					},
+					{
+						range: new Range(1, 8, 1, 8),
+						options: {
+							description: 'test',
+							before: {
+								content: 'bz'
+							}
+						}
+					},
+				]);
+
+				// just sobarbzme text
+
+				assert.deepStrictEqual(viewModel.normalizePosition(new Position(1, 8), PositionAffinity.None), new Position(1, 8));
+				assert.deepStrictEqual(viewModel.normalizePosition(new Position(1, 9), PositionAffinity.None), new Position(1, 8));
+				assert.deepStrictEqual(viewModel.normalizePosition(new Position(1, 11), PositionAffinity.None), new Position(1, 11));
+				assert.deepStrictEqual(viewModel.normalizePosition(new Position(1, 12), PositionAffinity.None), new Position(1, 11));
+				assert.deepStrictEqual(viewModel.normalizePosition(new Position(1, 13), PositionAffinity.None), new Position(1, 13));
+
+				assert.deepStrictEqual(viewModel.normalizePosition(new Position(1, 8), PositionAffinity.Left), new Position(1, 8));
+				assert.deepStrictEqual(viewModel.normalizePosition(new Position(1, 9), PositionAffinity.Left), new Position(1, 8));
+				assert.deepStrictEqual(viewModel.normalizePosition(new Position(1, 11), PositionAffinity.Left), new Position(1, 8));
+				assert.deepStrictEqual(viewModel.normalizePosition(new Position(1, 12), PositionAffinity.Left), new Position(1, 8));
+				assert.deepStrictEqual(viewModel.normalizePosition(new Position(1, 13), PositionAffinity.Left), new Position(1, 8));
+
+				assert.deepStrictEqual(viewModel.normalizePosition(new Position(1, 8), PositionAffinity.Right), new Position(1, 13));
+				assert.deepStrictEqual(viewModel.normalizePosition(new Position(1, 9), PositionAffinity.Right), new Position(1, 13));
+				assert.deepStrictEqual(viewModel.normalizePosition(new Position(1, 11), PositionAffinity.Right), new Position(1, 13));
+				assert.deepStrictEqual(viewModel.normalizePosition(new Position(1, 12), PositionAffinity.Right), new Position(1, 13));
+				assert.deepStrictEqual(viewModel.normalizePosition(new Position(1, 13), PositionAffinity.Right), new Position(1, 13));
 			}
 		);
 	});

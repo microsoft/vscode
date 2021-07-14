@@ -47,7 +47,7 @@ export class UntitledTextEditorHintContribution implements IEditorContribution {
 
 	private update(): void {
 		this.untitledTextHintContentWidget?.dispose();
-		const configValue = this.configurationService.getValue<'text' | 'hidden'>(untitledTextEditorHintSetting);
+		const configValue = this.configurationService.getValue(untitledTextEditorHintSetting);
 		const model = this.editor.getModel();
 
 		if (model && model.uri.scheme === Schemas.untitled && model.getModeId() === PLAINTEXT_MODE_ID && configValue === 'text') {

@@ -687,8 +687,6 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 			}
 			return;
 		} else {
-			const executionP = runCell(accessor, context);
-
 			// Try to select below, fall back on inserting
 			const nextCell = context.notebookEditor.viewModel.cellAt(idx + 1);
 			if (nextCell) {
@@ -700,7 +698,7 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 				}
 			}
 
-			return executionP;
+			return runCell(accessor, context);
 		}
 	}
 });

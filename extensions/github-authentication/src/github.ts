@@ -196,9 +196,13 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	public async createSession(scopes: string[]): Promise<vscode.AuthenticationSession> {
 		try {
 			/* __GDPR__
-				"login" : { }
+				"login" : {
+					"scopes": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+				}
 			*/
-			this.telemetryReporter?.sendTelemetryEvent('login');
+			this.telemetryReporter?.sendTelemetryEvent('login', {
+				scopes: JSON.stringify(scopes),
+			});
 
 			const token = await this._githubServer.login(scopes.join(' '));
 			this.afterTokenLoad(token);

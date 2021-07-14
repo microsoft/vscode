@@ -408,6 +408,10 @@ suite('SplitLinesCollection', () => {
 
 	function assertAllMinimapLinesRenderingData(splitLinesCollection: SplitLinesCollection, all: ITestMinimapLineRenderingData[]): void {
 		let lineCount = all.length;
+		for (let line = 1; line <= lineCount; line++) {
+			assert.strictEqual(splitLinesCollection.getViewLineData(line).content, splitLinesCollection.getViewLineContent(line));
+		}
+
 		for (let start = 1; start <= lineCount; start++) {
 			for (let end = start; end <= lineCount; end++) {
 				let count = end - start + 1;
@@ -419,6 +423,7 @@ suite('SplitLinesCollection', () => {
 						expected[i] = (needed[i] ? all[start - 1 + i] : null);
 					}
 					let actual = splitLinesCollection.getViewLinesData(start, end, needed);
+
 					assertMinimapLinesRenderingData(actual, expected);
 					// Comment out next line to test all possible combinations
 					break;

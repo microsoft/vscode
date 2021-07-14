@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { EditorActivation, EditorResolution, IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorsOrder, IEditorInputWithOptions, IEditorPane, IResourceDiffEditorInput, isEditorInputWithOptions, isResourceDiffEditorInput, isUntitledResourceEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput, UntypedEditorContext } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorsOrder, IEditorInputWithOptions, IEditorPane, IResourceDiffEditorInput, isEditorInputWithOptions, isResourceDiffEditorInput, isUntitledResourceEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart, registerTestFileEditor, TestEditorWithOptions, TestTextFileEditor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
@@ -998,6 +998,53 @@ suite('EditorService', () => {
 				await resetTestState();
 			}
 		}
+
+		// untyped default editor
+		{
+			// untyped default editor, options: revealIfVisible
+			{
+				let untypedEditor1: IResourceEditorInput = { resource: URI.file('file-1'), options: { revealIfVisible: true, pinned: true } };
+				let untypedEditor2: IResourceEditorInput = { resource: URI.file('file-2'), options: { pinned: true } };
+
+				let rootPane = await openEditor(untypedEditor1);
+				let sidePane = await openEditor(untypedEditor2, SIDE_GROUP);
+
+				assert.strictEqual(rootPane?.group?.count, 1);
+				assert.strictEqual(sidePane?.group?.count, 1);
+
+				accessor.editorGroupService.activateGroup(sidePane.group);
+
+				await openEditor(untypedEditor1);
+
+				assert.strictEqual(rootPane?.group?.count, 1);
+				assert.strictEqual(sidePane?.group?.count, 1);
+
+				await resetTestState();
+			}
+
+			// untyped default editor, options: revealIfOpened
+			{
+				let untypedEditor1: IResourceEditorInput = { resource: URI.file('file-1'), options: { revealIfOpened: true, pinned: true } };
+				let untypedEditor2: IResourceEditorInput = { resource: URI.file('file-2'), options: { pinned: true } };
+
+				let rootPane = await openEditor(untypedEditor1);
+				await openEditor(untypedEditor2);
+				assert.strictEqual(rootPane?.group?.activeEditor?.resource?.toString(), untypedEditor2.resource.toString());
+				let sidePane = await openEditor(untypedEditor2, SIDE_GROUP);
+
+				assert.strictEqual(rootPane?.group?.count, 2);
+				assert.strictEqual(sidePane?.group?.count, 1);
+
+				accessor.editorGroupService.activateGroup(sidePane.group);
+
+				await openEditor(untypedEditor1);
+
+				assert.strictEqual(rootPane?.group?.count, 2);
+				assert.strictEqual(sidePane?.group?.count, 1);
+
+				await resetTestState();
+			}
+		}
 	}
 
 	test('openEditor() applies options if editor already opened', async () => {
@@ -1312,7 +1359,7 @@ suite('EditorService', () => {
 		let model = await input.resolve() as UntitledTextEditorModel;
 		assert.strictEqual(model.textEditorModel?.getValue(), 'Hello Untitled');
 
-		// Untyped Input (untitled with mode)
+		// Untyped Input (untitled withtoUntyped2
 		input = service.createEditorInput({ resource: undefined, mode, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
 		assert(input instanceof UntitledTextEditorInput);
 		model = await input.resolve() as UntitledTextEditorModel;
@@ -1359,7 +1406,7 @@ suite('EditorService', () => {
 		assert(input instanceof DiffEditorInput);
 		assert.strictEqual(input.original.resource?.toString(), resourceDiffInput.original.resource.toString());
 		assert.strictEqual(input.modified.resource?.toString(), resourceDiffInput.modified.resource.toString());
-		const untypedDiffInput = input.toUntyped(0, UntypedEditorContext.Default) as IResourceDiffEditorInput;
+		const untypedDiffInput = input.toUntyped() as IResourceDiffEditorInput;
 		assert.strictEqual(untypedDiffInput.original.resource?.toString(), resourceDiffInput.original.resource.toString());
 		assert.strictEqual(untypedDiffInput.modified.resource?.toString(), resourceDiffInput.modified.resource.toString());
 	});
@@ -1966,11 +2013,11 @@ suite('EditorService', () => {
 		assert.strictEqual(editorContextKeyService, part.activeGroup.activeEditorPane?.scopedContextKeyService);
 	});
 
-	test('editorOverrideService - openEditor', async function () {
+	test('editorResolverService - openEditor', async function () {
 		const [, service, accessor] = await createEditorService();
-		const editorOverrideService = accessor.editorResolverService;
-		let overrideCount = 0;
-		const registrationDisposable = editorOverrideService.registerEditor(
+		const editorResolverService = accessor.editorResolverService;
+		let editorCount = 0;
+		const registrationDisposable = editorResolverService.registerEditor(
 			'*.md',
 			{
 				id: 'TestEditor',
@@ -1980,33 +2027,33 @@ suite('EditorService', () => {
 			},
 			{},
 			(editorInput) => {
-				overrideCount++;
+				editorCount++;
 				return ({ editor: service.createEditorInput(editorInput) });
 			},
 			undefined,
 			diffEditor => ({ editor: service.createEditorInput(diffEditor) })
 		);
-		assert.strictEqual(overrideCount, 0);
+		assert.strictEqual(editorCount, 0);
 		const input1 = { resource: URI.parse('file://test/path/resource1.txt') };
 		const input2 = { resource: URI.parse('file://test/path/resource1.md') };
 		// Open editor input 1 and it shouln't trigger override as the glob doesn't match
 		await service.openEditor(input1);
-		assert.strictEqual(overrideCount, 0);
+		assert.strictEqual(editorCount, 0);
 		// Open editor input 2 and it should trigger override as the glob doesn match
 		await service.openEditor(input2);
-		assert.strictEqual(overrideCount, 1);
+		assert.strictEqual(editorCount, 1);
 		// Because we specify an override we shouldn't see it triggered even if it matches
 		await service.openEditor({ ...input2, options: { override: 'default' } });
-		assert.strictEqual(overrideCount, 1);
+		assert.strictEqual(editorCount, 1);
 
 		registrationDisposable.dispose();
 	});
 
-	test('editorOverrideService - openEditors', async function () {
+	test('editorResolverService - openEditors', async function () {
 		const [, service, accessor] = await createEditorService();
-		const editorOverrideService = accessor.editorResolverService;
-		let overrideCount = 0;
-		const registrationDisposable = editorOverrideService.registerEditor(
+		const editorResolverService = accessor.editorResolverService;
+		let editorCount = 0;
+		const registrationDisposable = editorResolverService.registerEditor(
 			'*.md',
 			{
 				id: 'TestEditor',
@@ -2016,29 +2063,29 @@ suite('EditorService', () => {
 			},
 			{},
 			(editorInput) => {
-				overrideCount++;
+				editorCount++;
 				return ({ editor: service.createEditorInput(editorInput) });
 			},
 			undefined,
 			diffEditor => ({ editor: service.createEditorInput(diffEditor) })
 		);
-		assert.strictEqual(overrideCount, 0);
+		assert.strictEqual(editorCount, 0);
 		const input1 = new TestFileEditorInput(URI.parse('file://test/path/resource1.txt'), TEST_EDITOR_INPUT_ID);
 		const input2 = new TestFileEditorInput(URI.parse('file://test/path/resource2.txt'), TEST_EDITOR_INPUT_ID);
 		const input3 = new TestFileEditorInput(URI.parse('file://test/path/resource3.md'), TEST_EDITOR_INPUT_ID);
 		const input4 = new TestFileEditorInput(URI.parse('file://test/path/resource4.md'), TEST_EDITOR_INPUT_ID);
 		// Open editor input 1 and it shouln't trigger override as the glob doesn't match
 		await service.openEditors([{ editor: input1 }, { editor: input2 }, { editor: input3 }, { editor: input4 }]);
-		assert.strictEqual(overrideCount, 2);
+		assert.strictEqual(editorCount, 2);
 
 		registrationDisposable.dispose();
 	});
 
-	test('editorOverrideService - replaceEditors', async function () {
+	test('editorResolverService - replaceEditors', async function () {
 		const [part, service, accessor] = await createEditorService();
-		const editorOverrideService = accessor.editorResolverService;
-		let overrideCount = 0;
-		const registrationDisposable = editorOverrideService.registerEditor(
+		const editorResolverService = accessor.editorResolverService;
+		let editorCount = 0;
+		const registrationDisposable = editorResolverService.registerEditor(
 			'*.md',
 			{
 				id: 'TestEditor',
@@ -2048,22 +2095,22 @@ suite('EditorService', () => {
 			},
 			{},
 			(editorInput) => {
-				overrideCount++;
+				editorCount++;
 				return ({ editor: service.createEditorInput(editorInput) });
 			},
 			undefined,
 			diffEditor => ({ editor: service.createEditorInput(diffEditor) })
 		);
-		assert.strictEqual(overrideCount, 0);
+		assert.strictEqual(editorCount, 0);
 		const input1 = new TestFileEditorInput(URI.parse('file://test/path/resource2.md'), TEST_EDITOR_INPUT_ID);
 		// Open editor input 1 and it shouldn't trigger because I've disabled the override logic
 		await service.openEditor(input1, { override: EditorResolution.DISABLED });
-		assert.strictEqual(overrideCount, 0);
+		assert.strictEqual(editorCount, 0);
 		await service.replaceEditors([{
 			editor: input1,
 			replacement: input1,
 		}], part.activeGroup);
-		assert.strictEqual(overrideCount, 1);
+		assert.strictEqual(editorCount, 1);
 		registrationDisposable.dispose();
 	});
 

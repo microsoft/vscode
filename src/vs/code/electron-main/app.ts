@@ -363,7 +363,7 @@ export class CodeApplication extends Disposable {
 		// Explicitly opt out of the patch here before creating any windows.
 		// See: https://github.com/microsoft/vscode/issues/35361#issuecomment-399794085
 		try {
-			if (isMacintosh && this.configurationService.getValue<boolean>('window.nativeTabs') === true && !systemPreferences.getUserDefault('NSUseImprovedLayoutPass', 'boolean')) {
+			if (isMacintosh && this.configurationService.getValue('window.nativeTabs') === true && !systemPreferences.getUserDefault('NSUseImprovedLayoutPass', 'boolean')) {
 				systemPreferences.setUserDefault('NSUseImprovedLayoutPass', 'boolean', true as any);
 			}
 		} catch (error) {
@@ -976,7 +976,8 @@ export class CodeApplication extends Disposable {
 			const argvString = argvContent.value.toString();
 			const argvJSON = JSON.parse(stripComments(argvString));
 			if (argvJSON['enable-crash-reporter'] === undefined) {
-				const enableCrashReporter = this.configurationService.getValue<boolean>('telemetry.enableCrashReporter') ?? true;
+				const enableCrashReporterSetting = this.configurationService.getValue('telemetry.enableCrashReporter');
+				const enableCrashReporter = typeof enableCrashReporterSetting === 'boolean' ? enableCrashReporterSetting : true;
 				const additionalArgvContent = [
 					'',
 					'	// Allows to disable crash reporting.',

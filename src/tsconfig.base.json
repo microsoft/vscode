@@ -8,7 +8,7 @@
 		"noUnusedLocals": true,
 		"allowUnreachableCode": false,
 		"strict": true,
-		"strictOptionalProperties": false,
+		"exactOptionalPropertyTypes": false,
 		"useUnknownInCatchVariables": false,
 		"forceConsistentCasingInFileNames": true,
 		"baseUrl": ".",

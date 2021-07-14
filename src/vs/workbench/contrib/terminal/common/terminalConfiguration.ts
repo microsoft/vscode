@@ -26,6 +26,11 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true,
 		},
+		[TerminalSettingId.TabsEnableAnimation]: {
+			description: localize('terminal.integrated.tabs.enableAnimation', 'Controls whether terminal tab statuses support animation (eg. in progress tasks).'),
+			type: 'boolean',
+			default: true,
+		},
 		[TerminalSettingId.TabsHideCondition]: {
 			description: localize('terminal.integrated.tabs.hideCondition', 'Controls whether the terminal tabs view will hide under certain conditions.'),
 			type: 'string',

@@ -9,7 +9,7 @@ import { toResource } from 'vs/base/test/common/utils';
 import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
 import { workbenchInstantiationService, TestServiceAccessor, TestEditorService, getLastResolvedFileStat } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorFactoryRegistry, Verbosity, EditorExtensions, EditorInputCapabilities, UntypedEditorContext } from 'vs/workbench/common/editor';
+import { IEditorFactoryRegistry, Verbosity, EditorExtensions, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EncodingMode, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationResult, FileOperationError, NotModifiedSinceFileOperationError, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
@@ -62,7 +62,7 @@ suite('Files - FileEditorInput', () => {
 		assert.ok(!input.hasCapability(EditorInputCapabilities.Singleton));
 		assert.ok(!input.hasCapability(EditorInputCapabilities.RequiresTrust));
 
-		const untypedInput = input.toUntyped(0, UntypedEditorContext.Full);
+		const untypedInput = input.toUntyped({ preserveViewState: 0 });
 		assert.strictEqual(untypedInput.resource.toString(), input.resource.toString());
 
 		assert.strictEqual('file.js', input.getName());
@@ -192,10 +192,10 @@ suite('Files - FileEditorInput', () => {
 		assert.strictEqual(model.textEditorModel!.getValue(), 'My contents');
 		assert.strictEqual(input.isDirty(), true);
 
-		const untypedInput = input.toUntyped(0, UntypedEditorContext.Full);
+		const untypedInput = input.toUntyped({ preserveViewState: 0 });
 		assert.strictEqual(untypedInput.contents, 'My contents');
 
-		const untypedInputWithoutContents = input.toUntyped(0, UntypedEditorContext.Default);
+		const untypedInputWithoutContents = input.toUntyped();
 		assert.strictEqual(untypedInputWithoutContents.contents, undefined);
 
 		input.setPreferredContents('Other contents');

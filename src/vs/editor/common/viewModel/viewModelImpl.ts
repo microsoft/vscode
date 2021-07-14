@@ -12,7 +12,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IConfiguration, IViewState, ScrollType, ICursorState, ICommand, INewScrollPosition } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, IActiveIndentGuideInfo, ITextModel, TrackedRangeStickiness, TextModelResolvedOptions, IIdentifiedSingleEditOperation, ICursorStateComputer, PositionNormalizationAffinity } from 'vs/editor/common/model';
+import { EndOfLinePreference, IActiveIndentGuideInfo, ITextModel, TrackedRangeStickiness, TextModelResolvedOptions, IIdentifiedSingleEditOperation, ICursorStateComputer, PositionAffinity } from 'vs/editor/common/model';
 import { ModelDecorationOverviewRulerOptions, ModelDecorationMinimapOptions } from 'vs/editor/common/model/textModel';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { ColorId, LanguageId, TokenizationRegistry } from 'vs/editor/common/modes';
@@ -21,7 +21,7 @@ import { MinimapTokensColorTracker } from 'vs/editor/common/viewModel/minimapTok
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
 import { IViewModelLinesCollection, IdentityLinesCollection, SplitLinesCollection, ILineBreaksComputerFactory } from 'vs/editor/common/viewModel/splitLinesCollection';
-import { ICoordinatesConverter, ILineBreaksComputer, IOverviewRulerDecorations, IViewModel, MinimapLinesRenderingData, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { ICoordinatesConverter, InjectedText, ILineBreaksComputer, IOverviewRulerDecorations, IViewModel, MinimapLinesRenderingData, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as platform from 'vs/base/common/platform';
@@ -652,6 +652,10 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this._decorations.getDecorationsViewportData(visibleRange).decorations;
 	}
 
+	public getInjectedTextAt(viewPosition: Position): InjectedText | null {
+		return this._lines.getInjectedTextAt(viewPosition);
+	}
+
 	public getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData {
 		let mightContainRTL = this.model.mightContainRTL();
 		let mightContainNonBasicASCII = this.model.mightContainNonBasicASCII();
@@ -1062,7 +1066,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		}
 	}
 
-	normalizePosition(position: Position, affinity: PositionNormalizationAffinity): Position {
+	normalizePosition(position: Position, affinity: PositionAffinity): Position {
 		return this._lines.normalizePosition(position, affinity);
 	}
 

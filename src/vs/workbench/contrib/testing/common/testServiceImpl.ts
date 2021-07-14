@@ -16,7 +16,7 @@ import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/work
 import { MainThreadTestCollection } from 'vs/workbench/contrib/testing/common/mainThreadTestCollection';
 import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { RunTestsRequest, ITestIdWithSrc, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { RunTestsRequest, ITestIdWithSrc, TestsDiff, TestDiffOpType } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
@@ -195,6 +195,15 @@ export class TestService extends Disposable implements ITestService {
 		this.providerCount.set(this.testControllers.size);
 
 		return toDisposable(() => {
+			const diff: TestsDiff = [];
+			for (const root of this.collection.rootItems) {
+				if (root.controllerId === id) {
+					diff.push([TestDiffOpType.Remove, root.item.extId]);
+				}
+			}
+
+			this.publishDiff(id, diff);
+
 			if (this.testControllers.delete(id)) {
 				this.providerCount.set(this.testControllers.size);
 			}
