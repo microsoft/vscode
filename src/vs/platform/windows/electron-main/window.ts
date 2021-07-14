@@ -186,9 +186,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				title: this.productService.nameLong,
 				webPreferences: {
 					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
-					additionalArguments: this.environmentMainService.sandbox ?
-						[`--vscode-window-config=${this.configObjectUrl.resource.toString()}`, '--context-isolation' /* TODO@bpasero: Use process.contextIsolateed when 13-x-y is adopted (https://github.com/electron/electron/pull/28030) */] :
-						[`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
+					additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
 					v8CacheOptions: browserCodeLoadingCacheStrategy,
 					enableWebSQL: false,
 					spellcheck: false,

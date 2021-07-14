@@ -342,18 +342,13 @@
 	// Use `contextBridge` APIs to expose globals to VSCode
 	// only if context isolation is enabled, otherwise just
 	// add to the DOM global.
-	let useContextBridge = process.argv.includes('--context-isolation');
-	if (useContextBridge) {
+	if (process.contextIsolated) {
 		try {
 			contextBridge.exposeInMainWorld('vscode', globals);
 		} catch (error) {
 			console.error(error);
-
-			useContextBridge = false;
 		}
-	}
-
-	if (!useContextBridge) {
+	} else {
 		// @ts-ignore
 		window.vscode = globals;
 	}
