@@ -93,13 +93,21 @@ export interface IExtensionsWorkbenchService {
 	installVersion(extension: IExtension, version: string): Promise<IExtension>;
 	reinstall(extension: IExtension): Promise<IExtension>;
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
-	open(extension: IExtension, options?: { sideByside?: boolean, preserveFocus?: boolean, pinned?: boolean }): Promise<any>;
+	open(extension: IExtension, options?: { sideByside?: boolean, preserveFocus?: boolean, pinned?: boolean, tab?: string }): Promise<void>;
 	checkForUpdates(): Promise<void>;
 	getExtensionStatus(extension: IExtension): IExtensionsStatus | undefined;
 
 	// Sync APIs
 	isExtensionIgnoredToSync(extension: IExtension): boolean;
 	toggleExtensionIgnoredToSync(extension: IExtension): Promise<void>;
+}
+
+export const enum ExtensionEditorTab {
+	Readme = 'readme',
+	Contributions = 'contributions',
+	Changelog = 'changelog',
+	Dependencies = 'dependencies',
+	ExtensionPack = 'extensionPack',
 }
 
 export const ConfigurationKey = 'extensions';

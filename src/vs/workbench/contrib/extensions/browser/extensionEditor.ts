@@ -22,7 +22,7 @@ import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsServi
 import { IExtensionManifest, IKeyBinding, IView, IViewContainer } from 'vs/platform/extensions/common/extensions';
 import { ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
-import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, IExtension, ExtensionContainers } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, IExtension, ExtensionContainers, ExtensionEditorTab } from 'vs/workbench/contrib/extensions/common/extensions';
 import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -117,14 +117,6 @@ class NavBar extends Disposable {
 		return Promise.resolve(undefined);
 	}
 }
-
-const NavbarSection = {
-	Readme: 'readme',
-	Contributions: 'contributions',
-	Changelog: 'changelog',
-	Dependencies: 'dependencies',
-	ExtensionPack: 'extensionPack',
-};
 
 interface ILayoutParticipant {
 	layout(): void;
@@ -321,6 +313,12 @@ export class ExtensionEditor extends EditorPane {
 		}
 	}
 
+	async openTab(tab: ExtensionEditorTab): Promise<void> {
+		if (this.input && this.template) {
+			this.template.navbar._update(tab);
+		}
+	}
+
 	private async updateTemplate(input: ExtensionsInput, template: IExtensionEditorTemplate, preserveFocus: boolean): Promise<void> {
 		this.activeElement = null;
 		this.editorLoadComplete = false;
@@ -444,7 +442,7 @@ export class ExtensionEditor extends EditorPane {
 		template.navbar.clear();
 
 		if (extension.hasReadme()) {
-			template.navbar.push(NavbarSection.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
+			template.navbar.push(ExtensionEditorTab.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
 		}
 
 		const manifest = await this.extensionManifest.get().promise;
@@ -452,16 +450,16 @@ export class ExtensionEditor extends EditorPane {
 			combinedInstallAction.manifest = manifest;
 		}
 		if (manifest && manifest.contributes) {
-			template.navbar.push(NavbarSection.Contributions, localize('contributions', "Feature Contributions"), localize('contributionstooltip', "Lists contributions to VS Code by this extension"));
+			template.navbar.push(ExtensionEditorTab.Contributions, localize('contributions', "Feature Contributions"), localize('contributionstooltip', "Lists contributions to VS Code by this extension"));
 		}
 		if (extension.hasChangelog()) {
-			template.navbar.push(NavbarSection.Changelog, localize('changelog', "Changelog"), localize('changelogtooltip', "Extension update history, rendered from the extension's 'CHANGELOG.md' file"));
+			template.navbar.push(ExtensionEditorTab.Changelog, localize('changelog', "Changelog"), localize('changelogtooltip', "Extension update history, rendered from the extension's 'CHANGELOG.md' file"));
 		}
 		if (extension.dependencies.length) {
-			template.navbar.push(NavbarSection.Dependencies, localize('dependencies', "Dependencies"), localize('dependenciestooltip', "Lists extensions this extension depends on"));
+			template.navbar.push(ExtensionEditorTab.Dependencies, localize('dependencies', "Dependencies"), localize('dependenciestooltip', "Lists extensions this extension depends on"));
 		}
 		if (manifest && manifest.extensionPack?.length && !this.shallRenderAsExensionPack(manifest)) {
-			template.navbar.push(NavbarSection.ExtensionPack, localize('extensionpack', "Extension Pack"), localize('extensionpacktooltip', "Lists extensions those will be installed together with this extension"));
+			template.navbar.push(ExtensionEditorTab.ExtensionPack, localize('extensionpack', "Extension Pack"), localize('extensionpacktooltip', "Lists extensions those will be installed together with this extension"));
 		}
 
 		if (template.navbar.currentId) {
@@ -552,11 +550,11 @@ export class ExtensionEditor extends EditorPane {
 
 	private open(id: string, extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		switch (id) {
-			case NavbarSection.Readme: return this.openReadme(template, token);
-			case NavbarSection.Contributions: return this.openContributions(template, token);
-			case NavbarSection.Changelog: return this.openChangelog(template, token);
-			case NavbarSection.Dependencies: return this.openExtensionDependencies(extension, template, token);
-			case NavbarSection.ExtensionPack: return this.openExtensionPack(extension, template, token);
+			case ExtensionEditorTab.Readme: return this.openReadme(template, token);
+			case ExtensionEditorTab.Contributions: return this.openContributions(template, token);
+			case ExtensionEditorTab.Changelog: return this.openChangelog(template, token);
+			case ExtensionEditorTab.Dependencies: return this.openExtensionDependencies(extension, template, token);
+			case ExtensionEditorTab.ExtensionPack: return this.openExtensionPack(extension, template, token);
 		}
 		return Promise.resolve(null);
 	}

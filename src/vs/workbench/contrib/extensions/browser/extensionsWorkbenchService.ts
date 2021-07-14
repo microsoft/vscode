@@ -22,7 +22,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { URI } from 'vs/base/common/uri';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext, ExtensionEditorTab } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
@@ -43,6 +43,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { isBoolean } from 'vs/base/common/types';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IExtensionService, IExtensionsStatus } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -714,8 +715,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return text.substr(0, 350);
 	}
 
-	open(extension: IExtension, { sideByside, preserveFocus, pinned }: { sideByside?: boolean, preserveFocus?: boolean, pinned?: boolean } = { sideByside: false, preserveFocus: false, pinned: false }): Promise<any> {
-		return Promise.resolve(this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension), { preserveFocus, pinned }, sideByside ? SIDE_GROUP : ACTIVE_GROUP));
+	async open(extension: IExtension, options?: { sideByside?: boolean, preserveFocus?: boolean, pinned?: boolean, tab?: ExtensionEditorTab }): Promise<void> {
+		const editor = await this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension), { preserveFocus: options?.preserveFocus, pinned: options?.pinned }, options?.sideByside ? SIDE_GROUP : ACTIVE_GROUP);
+		if (options?.tab && editor instanceof ExtensionEditor) {
+			await editor.openTab(options.tab);
+		}
 	}
 
 	getExtensionStatus(extension: IExtension): IExtensionsStatus | undefined {
