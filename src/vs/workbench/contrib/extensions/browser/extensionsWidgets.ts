@@ -503,16 +503,12 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 			markdown.appendText(`\n`);
 		}
 
-		if (this.extension.repository || this.extension.licenseUrl) {
-			if (this.extension.repository) {
-				markdown.appendMarkdown(`[Repository](${URI.parse(`command:vscode.open?${encodeURIComponent(JSON.stringify([URI.parse(this.extension.repository)]))}`)})`);
-			}
-			if (this.extension.licenseUrl) {
-				if (this.extension.repository) {
-					markdown.appendText(`  |  `);
-				}
-				markdown.appendMarkdown(`[License](${URI.parse(`command:vscode.open?${encodeURIComponent(JSON.stringify([URI.parse(this.extension.licenseUrl)]))}`)})`);
-			}
+		if (this.extension.repository) {
+			markdown.appendMarkdown(`- [Repository](${URI.parse(`command:vscode.open?${encodeURIComponent(JSON.stringify([URI.parse(this.extension.repository)]))}`)})`);
+			markdown.appendText(`\n`);
+		}
+		if (this.extension.licenseUrl) {
+			markdown.appendMarkdown(`- [License](${URI.parse(`command:vscode.open?${encodeURIComponent(JSON.stringify([URI.parse(this.extension.licenseUrl)]))}`)})`);
 			markdown.appendText(`\n`);
 		}
 
