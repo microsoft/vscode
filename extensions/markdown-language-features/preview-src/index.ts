@@ -10,8 +10,6 @@ import { getEditorLineNumberForPageOffset, scrollToRevealSourceLine, getLineElem
 import { getSettings, getData } from './settings';
 import throttle = require('lodash.throttle');
 
-declare let acquireVsCodeApi: any;
-
 let scrollDisabledCount = 0;
 const marker = new ActiveLineMarker();
 const settings = getSettings();

@@ -390,8 +390,6 @@ BUILD_TARGETS.forEach(buildTarget => {
 	}
 });
 
-// Transifex Localizations
-
 const innoSetupConfig = {
 	'zh-cn': { codePage: 'CP936', defaultInfo: { name: 'Simplified Chinese', id: '$0804', } },
 	'zh-tw': { codePage: 'CP950', defaultInfo: { name: 'Traditional Chinese', id: '$0404' } },
@@ -406,6 +404,8 @@ const innoSetupConfig = {
 	'hu': { codePage: 'CP1250' },
 	'tr': { codePage: 'CP1254' }
 };
+
+// Transifex Localizations
 
 const apiHostname = process.env.TRANSIFEX_API_URL;
 const apiName = process.env.TRANSIFEX_API_NAME;
@@ -441,7 +441,7 @@ gulp.task(task.define(
 		function () {
 			const pathToMetadata = './out-vscode/nls.metadata.json';
 			const pathToExtensions = '.build/extensions/*';
-			const pathToSetup = 'build/win32/**/{Default.isl,messages.en.isl}';
+			const pathToSetup = 'build/win32/i18n/messages.en.isl';
 
 			return es.merge(
 				gulp.src(pathToMetadata).pipe(i18n.createXlfFilesForCoreBundle()),
@@ -467,8 +467,8 @@ gulp.task('vscode-translations-import', function () {
 		}
 	});
 	return es.merge([...i18n.defaultLanguages, ...i18n.extraLanguages].map(language => {
-		let id = language.transifexId || language.id;
-		return gulp.src(`${options.location}/${id}/setup/*/*.xlf`)
+		let id = language.id;
+		return gulp.src(`${options.location}/${id}/vscode-setup/messages.xlf`)
 			.pipe(i18n.prepareIslFiles(language, innoSetupConfig[language.id]))
 			.pipe(vfs.dest(`./build/win32/i18n`));
 	}));

@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { getMarks, mark } from 'vs/base/common/performance';
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, Event, RenderProcessGoneDetails, WebFrameMain } from 'electron';
+import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, Event, WebFrameMain } from 'electron';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -186,7 +186,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 						[`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
 					v8CacheOptions: browserCodeLoadingCacheStrategy,
 					enableWebSQL: false,
-					enableRemoteModule: false,
 					spellcheck: false,
 					nativeWindowOpen: true,
 					webviewTag: true,
@@ -207,9 +206,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			};
 
 			if (browserCodeLoadingCacheStrategy) {
-				this.logService.info(`window#ctor: using vscode-file:// protocol and V8 cache options: ${browserCodeLoadingCacheStrategy}`);
+				this.logService.info(`window: using vscode-file:// protocol and V8 cache options: ${browserCodeLoadingCacheStrategy}`);
 			} else {
-				this.logService.trace(`window#ctor: vscode-file:// protocol is explicitly disabled`);
+				this.logService.info(`window: vscode-file:// protocol is explicitly disabled`);
 			}
 
 			// Apply icon to window
@@ -420,7 +419,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Crashes & Unresponsive & Failed to load
 		this._win.on('unresponsive', () => this.onWindowError(WindowError.UNRESPONSIVE));
 		this._win.webContents.on('render-process-gone', (event, details) => this.onWindowError(WindowError.CRASHED, details));
-		this._win.webContents.on('did-fail-load', (event, errorCode, errorDescription) => this.onWindowError(WindowError.LOAD, errorDescription));
+		this._win.webContents.on('did-fail-load', (event, exitCode, reason) => this.onWindowError(WindowError.LOAD, { reason, exitCode }));
 
 		// Prevent windows/iframes from blocking the unload
 		// through DOM events. We have our own logic for
@@ -552,102 +551,121 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private async onWindowError(error: WindowError.UNRESPONSIVE): Promise<void>;
-	private async onWindowError(error: WindowError.CRASHED, details: RenderProcessGoneDetails): Promise<void>;
-	private async onWindowError(error: WindowError.LOAD, details: string): Promise<void>;
-	private async onWindowError(type: WindowError, details?: string | RenderProcessGoneDetails): Promise<void> {
+	private async onWindowError(error: WindowError.CRASHED, details: { reason: string, exitCode: number }): Promise<void>;
+	private async onWindowError(error: WindowError.LOAD, details: { reason: string, exitCode: number }): Promise<void>;
+	private async onWindowError(type: WindowError, details?: { reason: string, exitCode: number }): Promise<void> {
 
 		switch (type) {
 			case WindowError.CRASHED:
-				this.logService.error(`CodeWindow: renderer process crashed (detail: ${typeof details === 'string' ? details : details?.reason}, code: ${typeof details === 'string' ? '<unknown>' : details?.exitCode ?? '<unknown>'})`);
+				this.logService.error(`CodeWindow: renderer process crashed (reason: ${details?.reason || '<unknown>'}, code: ${details?.exitCode || '<unknown>'})`);
 				break;
 			case WindowError.UNRESPONSIVE:
 				this.logService.error('CodeWindow: detected unresponsive');
 				break;
 			case WindowError.LOAD:
-				this.logService.error(`CodeWindow: failed to load workbench window: ${typeof details === 'string' ? details : details?.reason}`);
+				this.logService.error(`CodeWindow: failed to load (reason: ${details?.reason || '<unknown>'}, code: ${details?.exitCode || '<unknown>'})`);
 				break;
-		}
-
-		// If we run extension tests from CLI, showing a dialog is not
-		// very helpful in this case. Rather, we bring down the test run
-		// to signal back a failing run.
-		if (this.isExtensionDevelopmentTestFromCli) {
-			this.lifecycleMainService.kill(1);
-			return;
 		}
 
 		// Telemetry
 		type WindowErrorClassification = {
 			type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 			reason: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+			code: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 		};
 		type WindowErrorEvent = {
 			type: WindowError;
 			reason: string | undefined;
+			code: number | undefined;
 		};
-		this.telemetryService.publicLog2<WindowErrorEvent, WindowErrorClassification>('windowerror', { type, reason: typeof details !== 'string' ? details?.reason : undefined });
+		this.telemetryService.publicLog2<WindowErrorEvent, WindowErrorClassification>('windowerror', { type, reason: details?.reason, code: details?.exitCode });
 
-		// Unresponsive
-		if (type === WindowError.UNRESPONSIVE) {
-			if (this.isExtensionDevelopmentHost || this.isExtensionTestHost || (this._win && this._win.webContents && this._win.webContents.isDevToolsOpened())) {
-				// TODO@electron Workaround for https://github.com/microsoft/vscode/issues/56994
-				// In certain cases the window can report unresponsiveness because a breakpoint was hit
-				// and the process is stopped executing. The most typical cases are:
-				// - devtools are opened and debugging happens
-				// - window is an extensions development host that is being debugged
-				// - window is an extension test development host that is being debugged
-				return;
-			}
+		// Inform User if non-recoverable
+		switch (type) {
+			case WindowError.UNRESPONSIVE:
+			case WindowError.CRASHED:
 
-			// Show Dialog
-			const result = await this.dialogMainService.showMessageBox({
-				title: this.productService.nameLong,
-				type: 'warning',
-				buttons: [mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")), mnemonicButtonLabel(localize({ key: 'wait', comment: ['&& denotes a mnemonic'] }, "&&Keep Waiting")), mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
-				message: localize('appStalled', "The window is no longer responding"),
-				detail: localize('appStalledDetail', "You can reopen or close the window or keep waiting."),
-				noLink: true
-			}, this._win);
+				// If we run extension tests from CLI, showing a dialog is not
+				// very helpful in this case. Rather, we bring down the test run
+				// to signal back a failing run.
+				if (this.isExtensionDevelopmentTestFromCli) {
+					this.lifecycleMainService.kill(1);
+					return;
+				}
 
-			if (!this._win) {
-				return; // Return early if the window has been going down already
-			}
+				// Unresponsive
+				if (type === WindowError.UNRESPONSIVE) {
+					if (this.isExtensionDevelopmentHost || this.isExtensionTestHost || (this._win && this._win.webContents && this._win.webContents.isDevToolsOpened())) {
+						// TODO@electron Workaround for https://github.com/microsoft/vscode/issues/56994
+						// In certain cases the window can report unresponsiveness because a breakpoint was hit
+						// and the process is stopped executing. The most typical cases are:
+						// - devtools are opened and debugging happens
+						// - window is an extensions development host that is being debugged
+						// - window is an extension test development host that is being debugged
+						return;
+					}
 
-			if (result.response === 0) {
-				this._win.webContents.forcefullyCrashRenderer(); // Calling reload() immediately after calling this method will force the reload to occur in a new process
-				this.reload();
-			} else if (result.response === 2) {
-				this.destroyWindow();
-			}
-		}
+					// Show Dialog
+					const result = await this.dialogMainService.showMessageBox({
+						title: this.productService.nameLong,
+						type: 'warning',
+						buttons: [
+							mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")),
+							mnemonicButtonLabel(localize({ key: 'wait', comment: ['&& denotes a mnemonic'] }, "&&Keep Waiting")),
+							mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))
+						],
+						message: localize('appStalled', "The window is not responding"),
+						detail: localize('appStalledDetail', "You can reopen or close the window or keep waiting."),
+						noLink: true,
+						defaultId: 0,
+						cancelId: 1
+					}, this._win);
 
-		// Crashed
-		else if (type === WindowError.CRASHED) {
-			let message: string;
-			if (typeof details === 'string' || !details) {
-				message = localize('appCrashed', "The window has crashed");
-			} else {
-				message = localize('appCrashedDetails', "The window has crashed (reason: '{0}')", details.reason);
-			}
+					if (!this._win) {
+						return; // Return early if the window has been going down already
+					}
 
-			const result = await this.dialogMainService.showMessageBox({
-				title: this.productService.nameLong,
-				type: 'warning',
-				buttons: [mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")), mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
-				message,
-				detail: localize('appCrashedDetail', "We are sorry for the inconvenience! You can reopen the window to continue where you left off."),
-				noLink: true
-			}, this._win);
+					if (result.response === 0) {
+						this._win.webContents.forcefullyCrashRenderer(); // Calling reload() immediately after calling this method will force the reload to occur in a new process
+						this.reload();
+					} else if (result.response === 2) {
+						this.destroyWindow();
+					}
+				}
 
-			if (!this._win) {
-				return; // Return early if the window has been going down already
-			}
+				// Crashed
+				else if (type === WindowError.CRASHED) {
+					let message: string;
+					if (!details) {
+						message = localize('appCrashed', "The window has crashed");
+					} else {
+						message = localize('appCrashedDetails', "The window has crashed (reason: '{0}', code: '{1}')", details.reason, details.exitCode ?? '<unknown>');
+					}
 
-			if (result.response === 0) {
-				this.reload();
-			} else if (result.response === 1) {
-				this.destroyWindow();
-			}
+					const result = await this.dialogMainService.showMessageBox({
+						title: this.productService.nameLong,
+						type: 'warning',
+						buttons: [
+							mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")),
+							mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))
+						],
+						message,
+						detail: localize('appCrashedDetail', "We are sorry for the inconvenience. You can reopen the window to continue where you left off."),
+						noLink: true,
+						defaultId: 0
+					}, this._win);
+
+					if (!this._win) {
+						return; // Return early if the window has been going down already
+					}
+
+					if (result.response === 0) {
+						this.reload();
+					} else if (result.response === 1) {
+						this.destroyWindow();
+					}
+				}
+				break;
 		}
 	}
 
@@ -806,7 +824,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		const configuration = Object.assign({}, this.currentConfig);
 
 		// Validate workspace
-		configuration.workspace = await this.validateWorkspace(configuration);
+		configuration.workspace = await this.validateWorkspaceBeforeReload(configuration);
 
 		// Delete some properties we do not want during reload
 		delete configuration.filesToOpenOrCreate;
@@ -829,7 +847,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this.load(configuration, { isReload: true, disableExtensions: cli?.['disable-extensions'] });
 	}
 
-	private async validateWorkspace(configuration: INativeWindowConfiguration): Promise<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined> {
+	private async validateWorkspaceBeforeReload(configuration: INativeWindowConfiguration): Promise<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined> {
 
 		// Multi folder
 		if (isWorkspaceIdentifier(configuration.workspace)) {

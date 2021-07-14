@@ -215,7 +215,13 @@ export class TaskQuickPick extends Disposable {
 				if (ContributedTask.is(task)) {
 					this.taskService.customize(task, undefined, true);
 				} else if (CustomTask.is(task) || ConfiguringTask.is(task)) {
-					if (!(await this.taskService.openConfig(task))) {
+					let canOpenConfig: boolean = false;
+					try {
+						canOpenConfig = await this.taskService.openConfig(task);
+					} catch (e) {
+						// do nothing.
+					}
+					if (!canOpenConfig) {
 						this.taskService.customize(task, undefined, true);
 					}
 				}

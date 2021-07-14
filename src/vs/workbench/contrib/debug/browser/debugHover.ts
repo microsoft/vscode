@@ -262,6 +262,7 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	private static readonly _HOVER_HIGHLIGHT_DECORATION_OPTIONS = ModelDecorationOptions.register({
+		description: 'bdebug-hover-highlight',
 		className: 'hoverHighlight'
 	});
 

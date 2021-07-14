@@ -49,6 +49,8 @@ import { AdapterManager } from 'vs/workbench/contrib/debug/browser/debugAdapterM
 import { ITextModel } from 'vs/editor/common/model';
 import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
+import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
+import { IEditorInput } from 'vs/workbench/common/editor';
 
 export class DebugService implements IDebugService {
 	declare readonly _serviceBrand: undefined;
@@ -75,6 +77,7 @@ export class DebugService implements IDebugService {
 	private previousState: State | undefined;
 	private sessionCancellationTokens = new Map<string, CancellationTokenSource>();
 	private activity: IDisposable | undefined;
+	private chosenEnvironments: { [key: string]: string };
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -119,6 +122,7 @@ export class DebugService implements IDebugService {
 			this.debugUx.set(this.debugStorage.loadDebugUxState());
 			this.breakpointsExist = CONTEXT_BREAKPOINTS_EXIST.bindTo(contextKeyService);
 		});
+		this.chosenEnvironments = this.debugStorage.loadChosenEnvironments();
 
 		this.model = this.instantiationService.createInstance(DebugModel, this.debugStorage);
 		this.telemetry = this.instantiationService.createInstance(DebugTelemetry, this.model);
@@ -129,7 +133,7 @@ export class DebugService implements IDebugService {
 		this.taskRunner = this.instantiationService.createInstance(DebugTaskRunner);
 
 		this.toDispose.push(this.fileService.onDidFilesChange(e => this.onFileChanges(e)));
-		this.toDispose.push(this.lifecycleService.onDidShutdown(this.dispose, this));
+		this.toDispose.push(this.lifecycleService.onWillShutdown(this.dispose, this));
 
 		this.toDispose.push(this.extensionHostDebugService.onAttachSession(event => {
 			const session = this.model.getSession(event.sessionId, true);
@@ -401,10 +405,18 @@ export class DebugService implements IDebugService {
 		}
 		const unresolvedConfig = deepClone(config);
 
+		let guess: Debugger | undefined;
+		let activeEditor: IEditorInput | undefined;
 		if (!type) {
-			const guess = await this.adapterManager.guessDebugger(false);
-			if (guess) {
-				type = guess.type;
+			activeEditor = this.editorService.activeEditor;
+			if (activeEditor && activeEditor.resource) {
+				type = this.chosenEnvironments[activeEditor.resource.toString()];
+			}
+			if (!type) {
+				guess = await this.adapterManager.guessDebugger(false);
+				if (guess) {
+					type = guess.type;
+				}
 			}
 		}
 
@@ -468,7 +480,13 @@ export class DebugService implements IDebugService {
 					return false;
 				}
 
-				return this.doCreateSession(sessionId, launch?.workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, options);
+				const result = await this.doCreateSession(sessionId, launch?.workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, options);
+				if (result && guess && activeEditor && activeEditor.resource) {
+					// Remeber user choice of environment per active editor to make starting debugging smoother #124770
+					this.chosenEnvironments[activeEditor.resource.toString()] = guess.type;
+					this.debugStorage.storeChosenEnvironments(this.chosenEnvironments);
+				}
+				return result;
 			} catch (err) {
 				if (err && err.message) {
 					await this.showError(err.message);
@@ -616,7 +634,7 @@ export class DebugService implements IDebugService {
 
 			const focusedSession = this.viewModel.focusedSession;
 			if (focusedSession && focusedSession.getId() === session.getId()) {
-				const { session } = getStackFrameThreadAndSessionToFocus(this.model, undefined);
+				const { session } = getStackFrameThreadAndSessionToFocus(this.model, undefined, undefined, undefined, focusedSession);
 				this.viewModel.setFocus(undefined, undefined, session, false);
 			}
 
@@ -1018,14 +1036,15 @@ export class DebugService implements IDebugService {
 	}
 }
 
-export function getStackFrameThreadAndSessionToFocus(model: IDebugModel, stackFrame: IStackFrame | undefined, thread?: IThread, session?: IDebugSession): { stackFrame: IStackFrame | undefined, thread: IThread | undefined, session: IDebugSession | undefined } {
+export function getStackFrameThreadAndSessionToFocus(model: IDebugModel, stackFrame: IStackFrame | undefined, thread?: IThread, session?: IDebugSession, avoidSession?: IDebugSession): { stackFrame: IStackFrame | undefined, thread: IThread | undefined, session: IDebugSession | undefined } {
 	if (!session) {
 		if (stackFrame || thread) {
 			session = stackFrame ? stackFrame.thread.session : thread!.session;
 		} else {
 			const sessions = model.getSessions();
 			const stoppedSession = sessions.find(s => s.state === State.Stopped);
-			session = stoppedSession || (sessions.length ? sessions[0] : undefined);
+			// Make sure to not focus session that is going down
+			session = stoppedSession || sessions.find(s => s !== avoidSession && s !== avoidSession?.parentSession) || (sessions.length ? sessions[0] : undefined);
 		}
 	}
 

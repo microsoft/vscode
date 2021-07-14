@@ -17,6 +17,7 @@ import { EditorTheme } from 'vs/editor/common/view/viewContext';
 import { ICursorSimpleModel, PartialCursorState, CursorState, IColumnSelectData, EditOperationType, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
+import { LineInjectedText } from 'vs/editor/common/model/textModelEvents';
 
 export interface IViewWhitespaceViewportData {
 	readonly id: string;
@@ -101,28 +102,59 @@ export class LineBreakData {
 	constructor(
 		public breakOffsets: number[],
 		public breakOffsetsVisibleColumn: number[],
-		public wrappedTextIndentLength: number
+		public wrappedTextIndentLength: number,
+		public injectionTexts: string[] | null,
+		public injectionOffsets: number[] | null
 	) { }
 
-	public static getInputOffsetOfOutputPosition(breakOffsets: number[], outputLineIndex: number, outputOffset: number): number {
+	public getInputOffsetOfOutputPosition(outputLineIndex: number, outputOffset: number): number {
+		let inputOffset = 0;
 		if (outputLineIndex === 0) {
-			return outputOffset;
+			inputOffset = outputOffset;
 		} else {
-			return breakOffsets[outputLineIndex - 1] + outputOffset;
+			inputOffset = this.breakOffsets[outputLineIndex - 1] + outputOffset;
 		}
+
+		if (this.injectionOffsets !== null) {
+			for (let i = 0; i < this.injectionOffsets.length; i++) {
+				if (inputOffset > this.injectionOffsets[i]) {
+					if (inputOffset < this.injectionOffsets[i] + this.injectionTexts![i].length) {
+						// `inputOffset` is within injected text
+						inputOffset = this.injectionOffsets[i];
+					} else {
+						inputOffset -= this.injectionTexts![i].length;
+					}
+				} else {
+					break;
+				}
+			}
+		}
+
+		return inputOffset;
 	}
 
-	public static getOutputPositionOfInputOffset(breakOffsets: number[], inputOffset: number): OutputPosition {
+	public getOutputPositionOfInputOffset(inputOffset: number): OutputPosition {
+		let delta = 0;
+		if (this.injectionOffsets !== null) {
+			for (let i = 0; i < this.injectionOffsets.length; i++) {
+				if (inputOffset < this.injectionOffsets[i]) {
+					break;
+				}
+				delta += this.injectionTexts![i].length;
+			}
+		}
+		inputOffset += delta;
+
 		let low = 0;
-		let high = breakOffsets.length - 1;
+		let high = this.breakOffsets.length - 1;
 		let mid = 0;
 		let midStart = 0;
 
 		while (low <= high) {
 			mid = low + ((high - low) / 2) | 0;
 
-			const midStop = breakOffsets[mid];
-			midStart = mid > 0 ? breakOffsets[mid - 1] : 0;
+			const midStop = this.breakOffsets[mid];
+			midStart = mid > 0 ? this.breakOffsets[mid - 1] : 0;
 
 			if (inputOffset < midStart) {
 				high = mid - 1;
@@ -141,7 +173,7 @@ export interface ILineBreaksComputer {
 	/**
 	 * Pass in `previousLineBreakData` if the only difference is in breaking columns!!!
 	 */
-	addRequest(lineText: string, previousLineBreakData: LineBreakData | null): void;
+	addRequest(lineText: string, injectedText: LineInjectedText[] | null, previousLineBreakData: LineBreakData | null): void;
 	finalize(): (LineBreakData | null)[];
 }
 

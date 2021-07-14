@@ -505,7 +505,7 @@ class DefaultExtensionResolver implements IExtensionResolver {
 	constructor(private root: string) { }
 
 	resolveExtensions(): Promise<IExtensionReference[]> {
-		return pfs.readDirsInDir(this.root)
+		return pfs.Promises.readDirsInDir(this.root)
 			.then(folders => folders.map(name => ({ name, path: path.join(this.root, name) })));
 	}
 }

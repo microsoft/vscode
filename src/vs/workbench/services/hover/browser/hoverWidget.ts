@@ -11,13 +11,13 @@ import { IHoverTarget, IHoverOptions } from 'vs/workbench/services/hover/browser
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { HoverPosition, HoverWidget as BaseHoverWidget, renderHoverAction } from 'vs/base/browser/ui/hover/hoverWidget';
+import { HoverAction, HoverPosition, HoverWidget as BaseHoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
+import { isString } from 'vs/base/common/types';
 
 const $ = dom.$;
 type TargetRect = {
@@ -29,6 +29,12 @@ type TargetRect = {
 	height: number,
 	center: { x: number, y: number },
 };
+
+const enum Constants {
+	PointerSize = 3,
+	HoverBorderWidth = 2,
+	HoverWindowEdgeMargin = 2,
+}
 
 export class HoverWidget extends Widget {
 	private readonly _messageListeners = new DisposableStore();
@@ -61,12 +67,11 @@ export class HoverWidget extends Widget {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@IWorkbenchLayoutService private readonly _workbenchLayoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
-		this._linkHandler = options.linkHandler || this._openerService.open;
+		this._linkHandler = options.linkHandler || (url => this._openerService.open(url, { allowCommands: (!isString(options.text) && options.text.isTrusted) }));
 
 		this._target = 'targetElements' in options.target ? options.target : new ElementHoverTarget(options.target);
 
@@ -127,7 +132,7 @@ export class HoverWidget extends Widget {
 			options.actions.forEach(action => {
 				const keybinding = this._keybindingService.lookupKeybinding(action.commandId);
 				const keybindingLabel = keybinding ? keybinding.getLabel() : null;
-				renderHoverAction(actionsElement, {
+				HoverAction.render(actionsElement, {
 					label: action.label,
 					commandId: action.commandId,
 					run: e => {
@@ -196,6 +201,36 @@ export class HoverWidget extends Widget {
 
 		this.adjustHorizontalHoverPosition(targetRect);
 		this.adjustVerticalHoverPosition(targetRect);
+
+		// Offset the hover position if there is a pointer so it aligns with the target element
+		this._hover.containerDomNode.style.paddingLeft = '';
+		this._hover.containerDomNode.style.paddingRight = '';
+		this._hover.containerDomNode.style.paddingTop = '';
+		this._hover.containerDomNode.style.paddingBottom = '';
+		this._hover.containerDomNode.style.left = '';
+		this._hover.containerDomNode.style.right = '';
+		if (this._hoverPointer) {
+			switch (this._hoverPosition) {
+				case HoverPosition.RIGHT:
+					this._hover.containerDomNode.style.paddingLeft = `${Constants.PointerSize}px`;
+					this._hover.containerDomNode.style.left = `-${Constants.PointerSize * 2}px`;
+					break;
+				case HoverPosition.LEFT:
+					this._hover.containerDomNode.style.paddingRight = `${Constants.PointerSize}px`;
+					this._hover.containerDomNode.style.right = `-${Constants.PointerSize * 2}px`;
+					break;
+				case HoverPosition.BELOW:
+					this._hover.containerDomNode.style.paddingTop = `${Constants.PointerSize}px`;
+					break;
+				case HoverPosition.ABOVE:
+					this._hover.containerDomNode.style.paddingBottom = `${Constants.PointerSize}px`;
+					break;
+			}
+
+			targetRect.center.x = targetRect.left + (width / 2);
+			targetRect.center.y = targetRect.top + (height / 2);
+		}
+
 		this.computeXCordinate(targetRect);
 		this.computeYCordinate(targetRect);
 
@@ -213,6 +248,8 @@ export class HoverWidget extends Widget {
 	}
 
 	private computeXCordinate(target: TargetRect): void {
+		const hoverWidth = this._hover.containerDomNode.clientWidth + Constants.HoverBorderWidth;
+
 		if (this._target.x !== undefined) {
 			this._x = this._target.x;
 		}
@@ -229,18 +266,19 @@ export class HoverWidget extends Widget {
 			if (this._hoverPointer) {
 				this._x = target.center.x - (this._hover.containerDomNode.clientWidth / 2);
 			} else {
-				if (target.left + this._hover.containerDomNode.clientWidth >= document.documentElement.clientWidth) {
-					this._hover.containerDomNode.classList.add('right-aligned');
-					this._x = document.documentElement.clientWidth - this._workbenchLayoutService.getWindowBorderWidth() - 1;
-				} else {
-					this._x = target.left;
-				}
+				this._x = target.left;
+			}
+
+			// Hover is going beyond window towards right end
+			if (this._x + hoverWidth >= document.documentElement.clientWidth) {
+				this._hover.containerDomNode.classList.add('right-aligned');
+				this._x = document.documentElement.clientWidth - hoverWidth - Constants.HoverWindowEdgeMargin;
 			}
 		}
 
-		// Hover on left is going beyond window
+		// Hover is going beyond window towards left end
 		if (this._x < document.documentElement.clientLeft) {
-			this._x = target.left;
+			this._x = target.left + Constants.HoverWindowEdgeMargin;
 		}
 
 	}
@@ -331,12 +369,12 @@ export class HoverWidget extends Widget {
 
 				// If hover is taller than target and aligned with target's bottom, then show the pointer at the center of target
 				if (hoverHeight > target.height && this._y === target.bottom) {
-					this._hoverPointer.style.top = `${target.center.y - target.top - 3}px`;
+					this._hoverPointer.style.top = `${target.center.y - target.top - Constants.PointerSize}px`;
 				}
 
 				// Otherwise show the pointer at the center of hover
 				else {
-					this._hoverPointer.style.top = `${Math.round((hoverHeight / 2)) - 3}px`;
+					this._hoverPointer.style.top = `${Math.round((hoverHeight / 2)) - Constants.PointerSize}px`;
 				}
 
 				break;
@@ -345,15 +383,16 @@ export class HoverWidget extends Widget {
 				this._hoverPointer.classList.add(this._hoverPosition === HoverPosition.ABOVE ? 'bottom' : 'top');
 				const hoverWidth = this._hover.containerDomNode.clientWidth;
 
-				// If hover is wider than target and aligned with target's left, then show the pointer at the center of target
-				if (hoverWidth > target.width && this._x === target.left) {
-					this._hoverPointer.style.left = `${target.center.x - target.left - 3}px`;
+				// Position pointer at the center of the hover
+				let pointerLeftPosition = Math.round((hoverWidth / 2)) - Constants.PointerSize;
+
+				// If pointer goes beyond target then position it at the center of the target
+				const pointerX = this._x + pointerLeftPosition;
+				if (pointerX < target.left || pointerX > target.right) {
+					pointerLeftPosition = target.center.x - this._x - Constants.PointerSize;
 				}
 
-				// Otherwise show the pointer at the center of hover
-				else {
-					this._hoverPointer.style.left = `${Math.round((hoverWidth / 2)) - 3}px`;
-				}
+				this._hoverPointer.style.left = `${pointerLeftPosition}px`;
 				break;
 		}
 	}

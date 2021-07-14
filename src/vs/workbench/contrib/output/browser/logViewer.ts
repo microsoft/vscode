@@ -44,6 +44,7 @@ export class LogViewerInput extends TextResourceEditorInput {
 			basename(outputChannelDescriptor.file.path),
 			dirname(outputChannelDescriptor.file.path),
 			undefined,
+			undefined,
 			textModelResolverService,
 			textFileService,
 			editorService,

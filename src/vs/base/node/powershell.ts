@@ -137,7 +137,7 @@ async function findPSCoreWindowsInstallation(
 
 	let highestSeenVersion: number = -1;
 	let pwshExePath: string | null = null;
-	for (const item of await pfs.readdir(powerShellInstallBaseDir)) {
+	for (const item of await pfs.Promises.readdir(powerShellInstallBaseDir)) {
 
 		let currentVersion: number = -1;
 		if (findPreview) {
@@ -210,7 +210,7 @@ async function findPSCoreMsix({ findPreview }: { findPreview?: boolean } = {}): 
 		: { pwshMsixDirRegex: PwshMsixRegex, pwshMsixName: 'PowerShell (Store)' };
 
 	// We should find only one such application, so return on the first one
-	for (const subdir of await pfs.readdir(msixAppDir)) {
+	for (const subdir of await pfs.Promises.readdir(msixAppDir)) {
 		if (pwshMsixDirRegex.test(subdir)) {
 			const pwshMsixPath = path.join(msixAppDir, subdir, 'pwsh.exe');
 			return new PossiblePowerShellExe(pwshMsixPath, pwshMsixName);

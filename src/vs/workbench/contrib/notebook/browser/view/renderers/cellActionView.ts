@@ -16,7 +16,7 @@ export class CodiconActionViewItem extends MenuEntryActionViewItem {
 		keybindingService: IKeybindingService,
 		notificationService: INotificationService,
 	) {
-		super(_action, keybindingService, notificationService);
+		super(_action, undefined, keybindingService, notificationService);
 	}
 	override updateLabel(): void {
 		if (this.options.label && this.label) {
@@ -33,7 +33,7 @@ export class ActionViewWithLabel extends MenuEntryActionViewItem {
 		keybindingService: IKeybindingService,
 		notificationService: INotificationService,
 	) {
-		super(_action, keybindingService, notificationService);
+		super(_action, undefined, keybindingService, notificationService);
 	}
 
 	override render(container: HTMLElement): void {

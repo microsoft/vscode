@@ -9,9 +9,9 @@ import { FuzzyScore } from 'vs/base/common/filters';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { MarshalledId } from 'vs/base/common/marshalling';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
-import { InternalTestItem, TestIdWithSrc } from 'vs/workbench/contrib/testing/common/testCollection';
+import { identifyTest, InternalTestItem, ITestIdWithSrc, ITestItemContext } from 'vs/workbench/contrib/testing/common/testCollection';
 
 /**
  * Describes a rendering of tests in the explorer view. Different
@@ -67,19 +67,14 @@ export interface IActionableTestTreeElement {
 	depth: number;
 
 	/**
-	 * Folder associated with this element.
-	 */
-	folder: IWorkspaceFolder;
-
-	/**
 	 * Tests to debug when the 'debug' context action is taken on this item.
 	 */
-	debuggable: Iterable<TestIdWithSrc>;
+	debuggable: Iterable<ITestIdWithSrc>;
 
 	/**
 	 * Tests to run when the 'debug' context action is taken on this item.
 	 */
-	runnable: Iterable<TestIdWithSrc>;
+	runnable: Iterable<ITestIdWithSrc>;
 
 	/**
 	 * State to show on the item. This is generally the item's computed state
@@ -102,61 +97,6 @@ let idCounter = 0;
 
 const getId = () => String(idCounter++);
 
-export class TestTreeWorkspaceFolder implements IActionableTestTreeElement {
-	/**
-	 * @inheritdoc
-	 */
-	public readonly parent = null;
-
-	/**
-	 * @inheritdoc
-	 */
-	public readonly children = new Set<TestItemTreeElement>();
-
-	/**
-	 * @inheritdoc
-	 */
-	public readonly treeId = getId();
-
-	/**
-	 * @inheritdoc
-	 */
-	public readonly depth = 0;
-
-	/**
-	 * Time it took this test/item to run.
-	 */
-	public duration: number | undefined;
-
-	/**
-	 * @inheritdoc
-	 */
-	public get runnable() {
-		return Iterable.concatNested(Iterable.map(this.children, c => c.runnable));
-	}
-
-	/**
-	 * @inheritdoc
-	 */
-	public get debuggable() {
-		return Iterable.concatNested(Iterable.map(this.children, c => c.debuggable));
-	}
-
-	/**
-	 * @inheritdoc
-	 */
-	public state = TestResultState.Unset;
-
-	/**
-	 * @inheritdoc
-	 */
-	public get label() {
-		return this.folder.name;
-	}
-
-	constructor(public readonly folder: IWorkspaceFolder) { }
-}
-
 export class TestItemTreeElement implements IActionableTestTreeElement {
 	/**
 	 * @inheritdoc
@@ -171,21 +111,14 @@ export class TestItemTreeElement implements IActionableTestTreeElement {
 	/**
 	 * @inheritdoc
 	 */
-	public depth: number = this.parent.depth + 1;
-
-	/**
-	 * @inheritdoc
-	 */
-	public get folder(): IWorkspaceFolder {
-		return this.parent.folder;
-	}
+	public depth: number = this.parent ? this.parent.depth + 1 : 0;
 
 	/**
 	 * @inheritdoc
 	 */
 	public get runnable() {
 		return this.test.item.runnable
-			? Iterable.single({ testId: this.test.item.extId, src: this.test.src })
+			? Iterable.single(identifyTest(this.test))
 			: Iterable.empty();
 	}
 
@@ -194,7 +127,7 @@ export class TestItemTreeElement implements IActionableTestTreeElement {
 	 */
 	public get debuggable() {
 		return this.test.item.debuggable
-			? Iterable.single({ testId: this.test.item.extId, src: this.test.src })
+			? Iterable.single(identifyTest(this.test))
 			: Iterable.empty();
 	}
 
@@ -236,8 +169,21 @@ export class TestItemTreeElement implements IActionableTestTreeElement {
 
 	constructor(
 		public readonly test: InternalTestItem,
-		public readonly parent: TestItemTreeElement | TestTreeWorkspaceFolder,
+		public readonly parent: TestItemTreeElement | null = null,
 	) { }
+
+	public toJSON() {
+		const context: ITestItemContext = {
+			$mid: MarshalledId.TestItemContext,
+			tests: [this.test],
+		};
+
+		for (let p = this.parent; p; p = p.parent) {
+			context.tests.unshift(p.test);
+		}
+
+		return context;
+	}
 }
 
 export class TestTreeErrorMessage {
@@ -254,7 +200,4 @@ export class TestTreeErrorMessage {
 	) { }
 }
 
-export const isActionableTestTreeElement = (t: unknown): t is (TestItemTreeElement | TestTreeWorkspaceFolder) =>
-	t instanceof TestItemTreeElement || t instanceof TestTreeWorkspaceFolder;
-
-export type TestExplorerTreeElement = TestItemTreeElement | TestTreeWorkspaceFolder | TestTreeErrorMessage;
+export type TestExplorerTreeElement = TestItemTreeElement | TestTreeErrorMessage;

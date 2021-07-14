@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { exists, Promises, writeFile } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
@@ -269,7 +269,7 @@ export class WorkspaceStorageMain extends BaseStorageMain implements IStorageMai
 		const workspaceStorageFolderPath = join(this.environmentService.workspaceStorageHome.fsPath, this.workspace.id);
 		const workspaceStorageDatabasePath = join(workspaceStorageFolderPath, WorkspaceStorageMain.WORKSPACE_STORAGE_NAME);
 
-		const storageExists = await exists(workspaceStorageFolderPath);
+		const storageExists = await Promises.exists(workspaceStorageFolderPath);
 		if (storageExists) {
 			return { storageFilePath: workspaceStorageDatabasePath, wasCreated: false };
 		}
@@ -294,9 +294,9 @@ export class WorkspaceStorageMain extends BaseStorageMain implements IStorageMai
 		if (meta) {
 			try {
 				const workspaceStorageMetaPath = join(workspaceStorageFolderPath, WorkspaceStorageMain.WORKSPACE_META_NAME);
-				const storageExists = await exists(workspaceStorageMetaPath);
+				const storageExists = await Promises.exists(workspaceStorageMetaPath);
 				if (!storageExists) {
-					await writeFile(workspaceStorageMetaPath, JSON.stringify(meta, undefined, 2));
+					await Promises.writeFile(workspaceStorageMetaPath, JSON.stringify(meta, undefined, 2));
 				}
 			} catch (error) {
 				this.logService.error(`StorageMain#ensureWorkspaceStorageFolderMeta(): Unable to create workspace storage metadata due to ${error}`);

@@ -1,0 +1,33 @@
+{
+	"fileTypes": [],
+	"injectionSelector": "L:text.html.markdown - (comment, string, meta.paragraph.markdown, markup.math.block.markdown)",
+	"patterns": [
+		{
+			"include": "#math_block"
+		}
+	],
+	"repository": {
+		"math_block": {
+			"name": "markup.math.block.markdown",
+			"contentName": "meta.embedded.math.markdown",
+			"begin": "(?<=(^|\\G)\\s*)(\\${1,2})(?=\\s*$)",
+			"beginCaptures": {
+				"1": {
+					"name": "punctuation.definition.math.begin.markdown"
+				}
+			},
+			"end": "^\\s*(\\${1,2})\\s*$",
+			"endCaptures": {
+				"1": {
+					"name": "punctuation.definition.math.end.markdown"
+				}
+			},
+			"patterns": [
+				{
+					"include": "text.html.markdown.math#math"
+				}
+			]
+		}
+	},
+	"scopeName": "markdown.math.block"
+}

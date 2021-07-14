@@ -62,6 +62,7 @@ export class PerfviewInput extends TextResourceEditorInput {
 			localize('name', "Startup Performance"),
 			undefined,
 			undefined,
+			undefined,
 			textModelResolverService,
 			textFileService,
 			editorService,

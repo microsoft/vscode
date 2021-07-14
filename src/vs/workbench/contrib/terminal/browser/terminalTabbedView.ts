@@ -7,7 +7,7 @@ import { LayoutPriority, Orientation, Sizing, SplitView } from 'vs/base/browser/
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITerminalInstance, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { TerminalTabsListSizes, TerminalTabList } from 'vs/workbench/contrib/terminal/browser/terminalTabsList';
 import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
@@ -71,6 +71,7 @@ export class TerminalTabbedView extends Disposable {
 	constructor(
 		parentElement: HTMLElement,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
@@ -100,7 +101,7 @@ export class TerminalTabbedView extends Disposable {
 		this._terminalContainer = $('.terminal-groups-container');
 		terminalOuterContainer.appendChild(this._terminalContainer);
 
-		this._findWidget = this._register(this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState()));
+		this._findWidget = this._register(this._instantiationService.createInstance(TerminalFindWidget, this._terminalGroupService.getFindState()));
 		terminalOuterContainer.appendChild(this._findWidget.getDomNode());
 
 		this._terminalService.setContainers(parentElement, this._terminalContainer);
@@ -128,8 +129,8 @@ export class TerminalTabbedView extends Disposable {
 				}
 			}
 		});
-		this._register(this._terminalService.onInstancesChanged(() => this._refreshShowTabs()));
-		this._register(this._terminalService.onGroupsChanged(() => this._refreshShowTabs()));
+		this._register(this._terminalGroupService.onDidChangeInstances(() => this._refreshShowTabs()));
+		this._register(this._terminalGroupService.onDidChangeGroups(() => this._refreshShowTabs()));
 		this._register(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
 		this._updateTheme();
 
@@ -138,7 +139,7 @@ export class TerminalTabbedView extends Disposable {
 
 		this._attachEventListeners(parentElement, this._terminalContainer);
 
-		this._terminalService.onPanelOrientationChanged((orientation) => {
+		this._terminalGroupService.onPanelOrientationChanged((orientation) => {
 			this._panelOrientation = orientation;
 		});
 
@@ -158,11 +159,11 @@ export class TerminalTabbedView extends Disposable {
 			return true;
 		}
 
-		if (hide === 'singleTerminal' && this._terminalService.terminalInstances.length > 1) {
+		if (hide === 'singleTerminal' && this._terminalGroupService.instances.length > 1) {
 			return true;
 		}
 
-		if (hide === 'singleGroup' && this._terminalService.terminalGroups.length > 1) {
+		if (hide === 'singleGroup' && this._terminalGroupService.groups.length > 1) {
 			return true;
 		}
 
@@ -208,7 +209,7 @@ export class TerminalTabbedView extends Disposable {
 		if (ctx) {
 			const style = window.getComputedStyle(this._tabListElement);
 			ctx.font = `${style.fontStyle} ${style.fontSize} ${style.fontFamily}`;
-			const maxInstanceWidth = this._terminalService.terminalInstances.reduce((p, c) => {
+			const maxInstanceWidth = this._terminalGroupService.instances.reduce((p, c) => {
 				return Math.max(p, ctx.measureText(c.title + (c.shellLaunchConfig.description || '')).width + this._getAdditionalWidth(c));
 			}, 0);
 			idealWidth = Math.ceil(Math.max(maxInstanceWidth, TerminalTabsListSizes.WideViewMinimumWidth));
@@ -226,7 +227,7 @@ export class TerminalTabbedView extends Disposable {
 		// Size to include padding, icon, status icon (if any), split annotation (if any), + a little more
 		const additionalWidth = 30;
 		const statusIconWidth = instance.statusList.statuses.length > 0 ? STATUS_ICON_WIDTH : 0;
-		const splitAnnotationWidth = (this._terminalService.getGroupForInstance(instance)?.terminalInstances.length || 0) > 1 ? SPLIT_ANNOTATION_WIDTH : 0;
+		const splitAnnotationWidth = (this._terminalGroupService.getGroupForInstance(instance)?.terminalInstances.length || 0) > 1 ? SPLIT_ANNOTATION_WIDTH : 0;
 		return additionalWidth + splitAnnotationWidth + statusIconWidth;
 	}
 
@@ -260,7 +261,7 @@ export class TerminalTabbedView extends Disposable {
 		}
 		this._splitView.addView({
 			element: terminalOuterContainer,
-			layout: width => this._terminalService.terminalGroups.forEach(tab => tab.layout(width, this._height || 0)),
+			layout: width => this._terminalGroupService.groups.forEach(tab => tab.layout(width, this._height || 0)),
 			minimumSize: 120,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: () => Disposable.None,
@@ -342,21 +343,21 @@ export class TerminalTabbedView extends Disposable {
 			event.stopPropagation();
 		}));
 		this._register(dom.addDisposableListener(terminalContainer, 'mousedown', async (event: MouseEvent) => {
-			if (this._terminalService.terminalInstances.length === 0) {
+			if (this._terminalGroupService.instances.length === 0) {
 				return;
 			}
 
 			if (event.which === 2 && isLinux) {
 				// Drop selection and focus terminal on Linux to enable middle button paste when click
 				// occurs on the selection itself.
-				const terminal = this._terminalService.getActiveInstance();
+				const terminal = this._terminalGroupService.activeInstance;
 				if (terminal) {
 					terminal.focus();
 				}
 			} else if (event.which === 3) {
 				const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
 				if (rightClickBehavior === 'copyPaste' || rightClickBehavior === 'paste') {
-					const terminal = this._terminalService.getActiveInstance();
+					const terminal = this._terminalGroupService.activeInstance;
 					if (!terminal) {
 						return;
 					}
@@ -490,7 +491,7 @@ export class TerminalTabbedView extends Disposable {
 
 	focusFindWidget() {
 		this._findWidgetVisible.set(true);
-		const activeInstance = this._terminalService.getActiveInstance();
+		const activeInstance = this._terminalGroupService.activeInstance;
 		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection!.indexOf('\n') === -1) {
 			this._findWidget!.reveal(activeInstance.selection);
 		} else {
@@ -505,7 +506,7 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	showFindWidget() {
-		const activeInstance = this._terminalService.getActiveInstance();
+		const activeInstance = this._terminalGroupService.activeInstance;
 		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection!.indexOf('\n') === -1) {
 			this._findWidget!.show(activeInstance.selection);
 		} else {
@@ -536,6 +537,6 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	private _focus() {
-		this._terminalService.getActiveInstance()?.focusWhenReady();
+		this._terminalGroupService.activeInstance?.focusWhenReady();
 	}
 }

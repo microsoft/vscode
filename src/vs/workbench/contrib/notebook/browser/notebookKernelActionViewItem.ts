@@ -37,7 +37,7 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 		);
 		this._register(_editor.onDidChangeModel(this._update, this));
 		this._register(_notebookKernelService.onDidChangeNotebookAffinity(this._update, this));
-		this._register(_notebookKernelService.onDidChangeNotebookKernelBinding(this._update, this));
+		this._register(_notebookKernelService.onDidChangeSelectedNotebooks(this._update, this));
 	}
 
 	override render(container: HTMLElement): void {

@@ -9,7 +9,7 @@ import { readFileSync } from 'fs';
 import { join } from 'vs/base/common/path';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileStorage } from 'vs/platform/state/electron-main/stateMainService';
-import { Promises, rimraf, writeFileSync } from 'vs/base/node/pfs';
+import { Promises, writeFileSync } from 'vs/base/node/pfs';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
@@ -40,7 +40,7 @@ flakySuite('StateMainService', () => {
 		fileService.dispose();
 		diskFileSystemProvider.dispose();
 
-		return rimraf(testDir);
+		return Promises.rm(testDir);
 	});
 
 	test('Basics', async function () {

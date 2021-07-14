@@ -6,7 +6,7 @@
 import { AbstractSideBySideEditorInputSerializer, SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID, Verbosity, IEditorDescriptor, IEditorPane } from 'vs/workbench/common/editor';
+import { TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID, Verbosity, IEditorDescriptor, IEditorPane, GroupIdentifier, IResourceDiffEditorInput, IEditorInput, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, UntypedEditorContext, isResourceDiffEditorInput } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
@@ -25,10 +25,14 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
  */
 export class DiffEditorInput extends SideBySideEditorInput {
 
-	static override readonly ID = 'workbench.editors.diffEditorInput';
+	static override readonly ID: string = 'workbench.editors.diffEditorInput';
 
 	override get typeId(): string {
 		return DiffEditorInput.ID;
+	}
+
+	override get editorId(): string | undefined {
+		return DEFAULT_EDITOR_ASSOCIATION.id;
 	}
 
 	private cachedModel: DiffEditorModel | undefined = undefined;
@@ -133,7 +137,27 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		return new DiffEditorModel(withNullAsUndefined(originalEditorModel), withNullAsUndefined(modifiedEditorModel));
 	}
 
-	override matches(otherInput: unknown): boolean {
+	override toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IResourceDiffEditorInput | undefined {
+		const originalResourceEditorInput = this.secondary.toUntyped(group, context);
+		const modifiedResourceEditorInput = this.primary.toUntyped(group, context);
+
+		if (originalResourceEditorInput && modifiedResourceEditorInput) {
+			return {
+				label: this.name,
+				description: this.description,
+				originalInput: originalResourceEditorInput,
+				modifiedInput: modifiedResourceEditorInput
+			};
+		}
+
+		return undefined;
+	}
+
+	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
+		if (isResourceDiffEditorInput(otherInput)) {
+			return this.modifiedInput.matches(otherInput.modifiedInput) && this.originalInput.matches(otherInput.originalInput);
+		}
+
 		if (!super.matches(otherInput)) {
 			return false;
 		}

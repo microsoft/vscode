@@ -3,10 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import minimist = require('minimist');
 import { Application, Quality } from '../../../../automation';
+import { afterSuite, beforeSuite } from '../../utils';
 
-export function setup() {
+export function setup(opts: minimist.ParsedArgs) {
 	describe('Extensions', () => {
+		beforeSuite(opts);
+		afterSuite();
+
 		it(`install and enable vscode-smoketest-check extension`, async function () {
 			const app = this.app as Application;
 

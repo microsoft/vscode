@@ -82,7 +82,7 @@
 		}
 
 		// Enable ASAR support
-		globalThis.MonacoBootstrap.enableASARSupport(configuration.appRoot);
+		globalThis.MonacoBootstrap.enableASARSupport(configuration.appRoot, true);
 
 		// Get the nls configuration into the process.env as early as possible
 		const nlsConfig = globalThis.MonacoBootstrap.setupNLS();
@@ -147,10 +147,10 @@
 			loaderConfig.amdModulesPattern = /^vs\//;
 		}
 
-		// Cached data config
-		if (configuration.nodeCachedDataDir) {
+		// Cached data config (node.js loading only)
+		if (!useCustomProtocol && configuration.codeCachePath) {
 			loaderConfig.nodeCachedData = {
-				path: configuration.nodeCachedDataDir,
+				path: configuration.codeCachePath,
 				seed: modulePaths.join('')
 			};
 		}

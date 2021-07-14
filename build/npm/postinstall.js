@@ -88,4 +88,4 @@ runtime "${runtime}"`;
 	yarnInstall(watchPath);
 }
 
-cp.execSync('git config pull.rebase true');
+cp.execSync('git config pull.rebase merges');

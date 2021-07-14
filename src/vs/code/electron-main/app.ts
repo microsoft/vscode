@@ -5,7 +5,7 @@
 
 import { release, hostname } from 'os';
 import { statSync } from 'fs';
-import { app, ipcMain, systemPreferences, contentTracing, protocol, BrowserWindow, dialog, session } from 'electron';
+import { app, ipcMain, systemPreferences, contentTracing, protocol, BrowserWindow, dialog, session, Session } from 'electron';
 import { IProcessEnvironment, isWindows, isMacintosh, isLinux, isLinuxSnap } from 'vs/base/common/platform';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
@@ -71,7 +71,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
 import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
 import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { stripComments } from 'vs/base/common/json';
 import { generateUuid } from 'vs/base/common/uuid';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -81,7 +81,6 @@ import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platfo
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 import { isEqualOrParent } from 'vs/base/common/extpath';
-import { RunOnceScheduler } from 'vs/base/common/async';
 import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
 import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/extensionUrlTrustService';
 import { once } from 'vs/base/common/functional';
@@ -89,6 +88,7 @@ import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { IExternalTerminalMainService } from 'vs/platform/externalTerminal/common/externalTerminal';
 import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
+import { UserConfigurationFileServiceId, UserConfigurationFileService } from 'vs/platform/configuration/common/userConfigurationFileService';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -113,7 +113,58 @@ export class CodeApplication extends Disposable {
 	) {
 		super();
 
+		this.configureSession();
 		this.registerListeners();
+	}
+
+	private configureSession(): void {
+
+		//#region Security related measures (https://electronjs.org/docs/tutorial/security)
+		//
+		// !!! DO NOT CHANGE without consulting the documentation !!!
+		//
+
+		const isUrlFromWebview = (requestingUrl: string) => requestingUrl.startsWith(`${Schemas.vscodeWebview}://`);
+
+		session.defaultSession.setPermissionRequestHandler((_webContents, permission /* 'media' | 'geolocation' | 'notifications' | 'midiSysex' | 'pointerLock' | 'fullscreen' | 'openExternal' */, callback, details) => {
+			if (isUrlFromWebview(details.requestingUrl)) {
+				return callback(permission === 'clipboard-read');
+			}
+
+			return callback(false);
+		});
+
+		session.defaultSession.setPermissionCheckHandler((_webContents, permission /* 'media' */, _origin, details) => {
+			if (isUrlFromWebview(details.requestingUrl)) {
+				return permission === 'clipboard-read';
+			}
+
+			return false;
+		});
+
+		//#endregion
+
+
+		//#region Code Cache
+
+		type SessionWithCodeCachePathSupport = typeof Session & {
+			/**
+			 * Sets code cache directory. By default, the directory will be `Code Cache` under
+			 * the respective user data folder.
+			 */
+			setCodeCachePath?(path: string): void;
+		};
+
+		const defaultSession = session.defaultSession as unknown as SessionWithCodeCachePathSupport;
+		if (typeof defaultSession.setCodeCachePath === 'function' && this.environmentMainService.codeCachePath) {
+			// Make sure to partition Chrome's code cache folder
+			// in the same way as our code cache path to help
+			// invalidate caches that we know are invalid
+			// (https://github.com/microsoft/vscode/issues/120655)
+			defaultSession.setCodeCachePath(join(this.environmentMainService.codeCachePath, 'chrome'));
+		}
+
+		//#endregion
 	}
 
 	private registerListeners(): void {
@@ -148,37 +199,6 @@ export class CodeApplication extends Disposable {
 		//
 		// !!! DO NOT CHANGE without consulting the documentation !!!
 		//
-		app.on('remote-require', (event, sender, module) => {
-			this.logService.trace('app#on(remote-require): prevented');
-
-			event.preventDefault();
-		});
-		app.on('remote-get-global', (event, sender, module) => {
-			this.logService.trace(`app#on(remote-get-global): prevented on ${module}`);
-
-			event.preventDefault();
-		});
-		app.on('remote-get-builtin', (event, sender, module) => {
-			this.logService.trace(`app#on(remote-get-builtin): prevented on ${module}`);
-
-			if (module !== 'clipboard') {
-				event.preventDefault();
-			}
-		});
-		app.on('remote-get-current-window', event => {
-			this.logService.trace(`app#on(remote-get-current-window): prevented`);
-
-			event.preventDefault();
-		});
-		app.on('remote-get-current-web-contents', event => {
-			if (this.environmentMainService.args.driver) {
-				return; // the driver needs access to web contents
-			}
-
-			this.logService.trace(`app#on(remote-get-current-web-contents): prevented`);
-
-			event.preventDefault();
-		});
 		app.on('web-contents-created', (event, contents) => {
 			contents.on('will-attach-webview', (event, webPreferences, params) => {
 
@@ -222,27 +242,10 @@ export class CodeApplication extends Disposable {
 				event.preventDefault();
 			});
 
-			contents.on('new-window', (event, url) => {
-				event.preventDefault(); // prevent code that wants to open links
-
+			contents.setWindowOpenHandler(({ url }) => {
 				this.nativeHostMainService?.openExternal(undefined, url);
-			});
 
-			const isUrlFromWebview = (requestingUrl: string) =>
-				requestingUrl.startsWith(`${Schemas.vscodeWebview}://`);
-
-			session.defaultSession.setPermissionRequestHandler((_webContents, permission /* 'media' | 'geolocation' | 'notifications' | 'midiSysex' | 'pointerLock' | 'fullscreen' | 'openExternal' */, callback, details) => {
-				if (isUrlFromWebview(details.requestingUrl)) {
-					return callback(permission === 'clipboard-read');
-				}
-				return callback(false);
-			});
-
-			session.defaultSession.setPermissionCheckHandler((_webContents, permission /* 'media' */, _origin, details) => {
-				if (isUrlFromWebview(details.requestingUrl)) {
-					return permission === 'clipboard-read';
-				}
-				return false;
+				return { action: 'deny' };
 			});
 		});
 
@@ -378,18 +381,6 @@ export class CodeApplication extends Disposable {
 		this.logService.debug('Starting VS Code');
 		this.logService.debug(`from: ${this.environmentMainService.appRoot}`);
 		this.logService.debug('args:', this.environmentMainService.args);
-
-		// TODO@bpasero TODO@deepak1556 workaround for #120655
-		try {
-			const cachedDataPath = URI.file(this.environmentMainService.chromeCachedDataDir);
-			this.logService.trace(`Deleting Chrome cached data path: ${cachedDataPath.fsPath}`);
-
-			await this.fileService.del(cachedDataPath, { recursive: true });
-		} catch (error) {
-			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
-				this.logService.error(error);
-			}
-		}
 
 		// Make sure we associate the program with the app user model id
 		// This will help Windows to associate the running program with
@@ -597,6 +588,9 @@ export class CodeApplication extends Disposable {
 		const launchChannel = ProxyChannel.fromService(accessor.get(ILaunchMainService), { disableMarshalling: true });
 		this.mainProcessNodeIpcServer.registerChannel('launch', launchChannel);
 
+		// Configuration
+		mainProcessElectronServer.registerChannel(UserConfigurationFileServiceId, ProxyChannel.fromService(new UserConfigurationFileService(this.environmentMainService, this.fileService, this.logService)));
+
 		// Update
 		const updateChannel = new UpdateChannel(accessor.get(IUpdateService));
 		mainProcessElectronServer.registerChannel('update', updateChannel);
@@ -678,16 +672,18 @@ export class CodeApplication extends Disposable {
 		// Check for initial URLs to handle from protocol link invocations
 		const pendingWindowOpenablesFromProtocolLinks: IWindowOpenable[] = [];
 		const pendingProtocolLinksToHandle = [
+
 			// Windows/Linux: protocol handler invokes CLI with --open-url
 			...this.environmentMainService.args['open-url'] ? this.environmentMainService.args._urls || [] : [],
 
 			// macOS: open-url events
 			...((<any>global).getOpenUrls() || []) as string[]
+
 		].map(url => {
 			try {
 				return { uri: URI.parse(url), url };
 			} catch {
-				return null;
+				return undefined;
 			}
 		}).filter((obj): obj is { uri: URI, url: string } => {
 			if (!obj) {
@@ -741,7 +737,7 @@ export class CodeApplication extends Disposable {
 						cli: { ...environmentService.args },
 						urisToOpen: [windowOpenableFromProtocolLink],
 						gotoLineMode: true
-						/* remoteAuthority will be determined based on windowOpenableFromProtocolLink */
+						// remoteAuthority: will be determined based on windowOpenableFromProtocolLink
 					});
 
 					window.focus(); // this should help ensuring that the right window gets focus when multiple are opened
@@ -804,7 +800,7 @@ export class CodeApplication extends Disposable {
 				urisToOpen: pendingWindowOpenablesFromProtocolLinks,
 				gotoLineMode: true,
 				initialStartup: true
-				/* remoteAuthority will be determined based on pendingWindowOpenablesFromProtocolLinks */
+				// remoteAuthority: will be determined based on pendingWindowOpenablesFromProtocolLinks
 			});
 		}
 
@@ -831,7 +827,7 @@ export class CodeApplication extends Disposable {
 				noRecentEntry,
 				waitMarkerFileURI,
 				initialStartup: true,
-				/* remoteAuthority will be determined based on macOpenFiles */
+				// remoteAuthority: will be determined based on macOpenFiles
 			});
 		}
 
@@ -858,6 +854,7 @@ export class CodeApplication extends Disposable {
 					mnemonicButtonLabel(localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Yes")),
 					mnemonicButtonLabel(localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&No")),
 				],
+				defaultId: 0,
 				cancelId: 1,
 				message: localize('confirmOpenMessage', "An external application wants to open '{0}' in {1}. Do you want to open this file or folder?", getPathLabel(uri.fsPath, this.environmentMainService), this.productService.nameShort),
 				detail: localize('confirmOpenDetail', "If you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should press 'No'"),
@@ -938,10 +935,16 @@ export class CodeApplication extends Disposable {
 
 			// Logging
 			let message: string;
-			if (typeof details === 'string') {
-				message = details;
-			} else {
-				message = `SharedProcess: crashed (detail: ${details.reason}, code: ${details.exitCode})`;
+			switch (type) {
+				case WindowError.UNRESPONSIVE:
+					message = 'SharedProcess: detected unresponsive window';
+					break;
+				case WindowError.CRASHED:
+					message = `SharedProcess: crashed (detail: ${details?.reason ?? '<unknown>'}, code: ${details?.exitCode ?? '<unknown>'})`;
+					break;
+				case WindowError.LOAD:
+					message = `SharedProcess: failed to load (detail: ${details?.reason ?? '<unknown>'}, code: ${details?.exitCode ?? '<unknown>'})`;
+					break;
 			}
 			onUnexpectedError(new Error(message));
 
@@ -949,18 +952,21 @@ export class CodeApplication extends Disposable {
 			type SharedProcessErrorClassification = {
 				type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 				reason: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+				code: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 				visible: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 				shuttingdown: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 			};
 			type SharedProcessErrorEvent = {
 				type: WindowError;
 				reason: string | undefined;
+				code: number | undefined;
 				visible: boolean;
 				shuttingdown: boolean;
 			};
 			telemetryService.publicLog2<SharedProcessErrorEvent, SharedProcessErrorClassification>('sharedprocesserror', {
 				type,
-				reason: typeof details !== 'string' ? details?.reason : undefined,
+				reason: details?.reason,
+				code: details?.exitCode,
 				visible: sharedProcess.isVisible(),
 				shuttingdown: willShutdown
 			});
@@ -995,14 +1001,7 @@ export class CodeApplication extends Disposable {
 		// Start to fetch shell environment (if needed) after window has opened
 		// Since this operation can take a long time, we want to warm it up while
 		// the window is opening.
-		// We also print a warning if the resolution takes longer than 10s.
-		(async () => {
-			const slowResolveShellEnvWarning = this._register(new RunOnceScheduler(() => this.logService.warn('Resolving your shell environment is taking more than 10s. Please review your shell configuration. Learn more at https://go.microsoft.com/fwlink/?linkid=2149667.'), 10000));
-			slowResolveShellEnvWarning.schedule();
-
-			await resolveShellEnv(this.logService, this.environmentMainService.args, process.env);
-			slowResolveShellEnvWarning.dispose();
-		})();
+		resolveShellEnv(this.logService, this.environmentMainService.args, process.env);
 
 		// If enable-crash-reporter argv is undefined then this is a fresh start,
 		// based on telemetry.enableCrashreporter settings, generate a UUID which
@@ -1050,10 +1049,13 @@ export class CodeApplication extends Disposable {
 
 			if (!timeout) {
 				dialogMainService.showMessageBox({
+					title: this.productService.nameLong,
 					type: 'info',
 					message: localize('trace.message', "Successfully created trace."),
 					detail: localize('trace.detail', "Please create an issue and manually attach the following file:\n{0}", path),
-					buttons: [localize('trace.ok', "OK")]
+					buttons: [mnemonicButtonLabel(localize({ key: 'trace.ok', comment: ['&& denotes a mnemonic'] }, "&&OK"))],
+					defaultId: 0,
+					noLink: true
 				}, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
 			} else {
 				this.logService.info(`Tracing: data recorded (after 30s timeout) to ${path}`);

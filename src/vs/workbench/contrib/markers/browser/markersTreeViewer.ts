@@ -32,7 +32,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { localize } from 'vs/nls';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
-import { fillResourceDragTransfers } from 'vs/workbench/browser/dnd';
+import { fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Range } from 'vs/editor/common/core/range';
@@ -48,13 +48,13 @@ import { textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { IFileService } from 'vs/platform/files/common/files';
-import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { DomEmitter } from 'vs/base/browser/event';
 
 interface IResourceMarkersTemplateData {
 	resourceLabel: IResourceLabel;
@@ -417,10 +417,10 @@ class MarkerWidget extends Disposable {
 					this._codeLink.setAttribute('href', codeLink);
 					this._codeLink.tabIndex = 0;
 
-					const onClick = Event.chain(domEvent(this._codeLink, 'click'))
+					const onClick = Event.chain(this._register(new DomEmitter(this._codeLink, 'click')).event)
 						.filter(e => ((this._clickModifierKey === 'meta' && e.metaKey) || (this._clickModifierKey === 'ctrl' && e.ctrlKey) || (this._clickModifierKey === 'alt' && e.altKey)))
 						.event;
-					const onEnterPress = Event.chain(domEvent(this._codeLink, 'keydown'))
+					const onEnterPress = Event.chain(this._register(new DomEmitter(this._codeLink, 'keydown')).event)
 						.map(e => new StandardKeyboardEvent(e))
 						.filter(e => e.keyCode === KeyCode.Enter)
 						.event;
@@ -898,7 +898,7 @@ export class ResourceDragAndDrop implements ITreeDragAndDrop<MarkerElement> {
 
 		if (resources.length) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
-			this.instantiationService.invokeFunction(accessor => fillResourceDragTransfers(accessor, resources, originalEvent));
+			this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, resources, originalEvent));
 		}
 	}
 

@@ -38,5 +38,10 @@ export const testStateNames: { [K in TestResultState]: string } = {
 	[TestResultState.Queued]: localize('testState.queued', 'Queued'),
 	[TestResultState.Running]: localize('testState.running', 'Running'),
 	[TestResultState.Skipped]: localize('testState.skipped', 'Skipped'),
-	[TestResultState.Unset]: localize('testState.unset', 'Unset'),
+	[TestResultState.Unset]: localize('testState.unset', 'Not yet run'),
 };
+
+export const labelForTestInState = (label: string, state: TestResultState) => localize({
+	key: 'testing.treeElementLabel',
+	comment: ['label then the unit tests state, for example "Addition Tests (Running)"'],
+}, '{0} ({1})', label, testStateNames[state]);

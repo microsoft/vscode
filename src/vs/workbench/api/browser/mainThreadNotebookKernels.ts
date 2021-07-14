@@ -4,22 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { flatten, isNonEmptyArray } from 'vs/base/common/arrays';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { combinedDisposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
-import { INotebookKernel, INotebookKernelChangeEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { ExtHostContext, ExtHostNotebookKernelsShape, IExtHostContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
+import { INotebookKernel, INotebookKernelChangeEvent, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { CellExecuteEditDto, ExtHostContext, ExtHostNotebookKernelsShape, IExtHostContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
 
 abstract class MainThreadKernel implements INotebookKernel {
 
 	private readonly _onDidChange = new Emitter<INotebookKernelChangeEvent>();
-	private readonly preloads: { uri: URI, provides: string[] }[];
+	private readonly preloads: { uri: URI, provides: string[]; }[];
 	readonly onDidChange: Event<INotebookKernelChangeEvent> = this._onDidChange.event;
 
 	readonly id: string;
@@ -44,7 +46,7 @@ abstract class MainThreadKernel implements INotebookKernel {
 
 	constructor(data: INotebookKernelDto2, private _modeService: IModeService) {
 		this.id = data.id;
-		this.viewType = data.viewType;
+		this.viewType = data.notebookType;
 		this.extension = data.extensionId;
 
 		this.implementsInterrupt = data.supportsInterrupt ?? false;
@@ -52,7 +54,7 @@ abstract class MainThreadKernel implements INotebookKernel {
 		this.description = data.description;
 		this.detail = data.detail;
 		this.supportedLanguages = isNonEmptyArray(data.supportedLanguages) ? data.supportedLanguages : _modeService.getRegisteredModes();
-		this.implementsExecutionOrder = data.hasExecutionOrder ?? false;
+		this.implementsExecutionOrder = data.supportsExecutionOrder ?? false;
 		this.localResourceRoot = URI.revive(data.extensionLocation);
 		this.preloads = data.preloads?.map(u => ({ uri: URI.revive(u.uri), provides: u.provides })) ?? [];
 	}
@@ -77,8 +79,8 @@ abstract class MainThreadKernel implements INotebookKernel {
 			this.supportedLanguages = isNonEmptyArray(data.supportedLanguages) ? data.supportedLanguages : this._modeService.getRegisteredModes();
 			event.supportedLanguages = true;
 		}
-		if (data.hasExecutionOrder !== undefined) {
-			this.implementsExecutionOrder = data.hasExecutionOrder;
+		if (data.supportsExecutionOrder !== undefined) {
+			this.implementsExecutionOrder = data.supportsExecutionOrder;
 			event.hasExecutionOrder = true;
 		}
 		this._onDidChange.fire(event);
@@ -101,6 +103,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		extHostContext: IExtHostContext,
 		@IModeService private readonly _modeService: IModeService,
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
+		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookEditorService notebookEditorService: INotebookEditorService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebookKernels);
@@ -125,7 +128,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			if (!editor.hasModel()) {
 				return;
 			}
-			const { selected } = this._notebookKernelService.getMatchingKernel(editor.viewModel.notebookDocument);
+			const { selected } = this._notebookKernelService.getMatchingKernel(editor.textModel);
 			if (!selected) {
 				return;
 			}
@@ -155,7 +158,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			if (!editor.hasModel()) {
 				continue;
 			}
-			if (this._notebookKernelService.getMatchingKernel(editor.viewModel.notebookDocument).selected !== kernel) {
+			if (this._notebookKernelService.getMatchingKernel(editor.textModel).selected !== kernel) {
 				// different kernel
 				continue;
 			}
@@ -186,7 +189,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			}
 		}(data, this._modeService);
 
-		const listener = this._notebookKernelService.onDidChangeNotebookKernelBinding(e => {
+		const listener = this._notebookKernelService.onDidChangeSelectedNotebooks(e => {
 			if (e.oldKernel === kernel.id) {
 				this._proxy.$acceptNotebookAssociation(handle, e.notebook, false);
 			} else if (e.newKernel === kernel.id) {
@@ -217,6 +220,25 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		const tuple = this._kernels.get(handle);
 		if (tuple) {
 			this._notebookKernelService.updateKernelNotebookAffinity(tuple[0], URI.revive(notebook), value);
+		}
+	}
+
+	// --- execution editss
+
+	async $applyExecutionEdits(resource: UriComponents, cellEdits: CellExecuteEditDto[]): Promise<void> {
+		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
+		if (!textModel) {
+			throw new Error(`Can't apply edits to unknown notebook model: ${URI.revive(resource).toString()}`);
+		}
+
+		const edits = cellEdits.map(NotebookDto.fromCellExecuteEditDto);
+
+		try {
+			textModel.applyEdits(edits, true, undefined, () => undefined, undefined, false);
+		} catch (e) {
+			// Clearing outputs at the same time as the EH calling append/replaceOutputItems is an expected race, and it should be a no-op.
+			// And any other failure should not throw back to the extension.
+			onUnexpectedError(e);
 		}
 	}
 }

@@ -274,6 +274,7 @@ class SimpleTunnelService implements ITunnelService {
 	canMakePublic = false;
 	onTunnelOpened = Event.None;
 	onTunnelClosed = Event.None;
+	onAddedTunnelProvider = Event.None;
 	hasTunnelProvider = false;
 
 	canTunnel(uri: URI): boolean { return false; }

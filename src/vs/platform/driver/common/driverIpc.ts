@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IDriverOptions, IElement, IWindowDriver, IWindowDriverRegistry } from 'vs/platform/driver/common/driver';
+import { IDriverOptions, IElement, ILocalizedStrings as ILocalizedStrings, IWindowDriver, IWindowDriverRegistry } from 'vs/platform/driver/common/driver';
 
 export class WindowDriverChannel implements IServerChannel {
 
@@ -27,6 +27,7 @@ export class WindowDriverChannel implements IServerChannel {
 			case 'typeInEditor': return this.driver.typeInEditor(arg[0], arg[1]);
 			case 'getTerminalBuffer': return this.driver.getTerminalBuffer(arg);
 			case 'writeInTerminal': return this.driver.writeInTerminal(arg[0], arg[1]);
+			case 'getLocalizedStrings': return this.driver.getLocalizedStrings();
 		}
 
 		throw new Error(`Call not found: ${command}`);
@@ -77,6 +78,10 @@ export class WindowDriverChannelClient implements IWindowDriver {
 
 	writeInTerminal(selector: string, text: string): Promise<void> {
 		return this.channel.call('writeInTerminal', [selector, text]);
+	}
+
+	getLocalizedStrings(): Promise<ILocalizedStrings> {
+		return this.channel.call('getLocalizedStrings');
 	}
 }
 

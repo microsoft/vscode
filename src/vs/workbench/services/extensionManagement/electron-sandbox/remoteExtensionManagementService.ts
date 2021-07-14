@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionManagementService, ILocalExtension, IGalleryExtension, IExtensionGalleryService, InstallOperation, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, ILocalExtension, IGalleryExtension, IExtensionGalleryService, InstallOperation, InstallOptions, InstallVSIXOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -41,8 +41,8 @@ export class NativeRemoteExtensionManagementService extends WebRemoteExtensionMa
 		this.localExtensionManagementService = localExtensionManagementServer.extensionManagementService;
 	}
 
-	override async install(vsix: URI): Promise<ILocalExtension> {
-		const local = await super.install(vsix);
+	override async install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension> {
+		const local = await super.install(vsix, options);
 		await this.installUIDependenciesAndPackedExtensions(local);
 		return local;
 	}

@@ -12,7 +12,7 @@ import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench
 import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
 import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 
-suite('Resource text editors', () => {
+suite('TextResourceEditorInput', () => {
 
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
@@ -26,7 +26,7 @@ suite('Resource text editors', () => {
 		const resource = URI.from({ scheme: 'inmemory', authority: null!, path: 'thePath' });
 		accessor.modelService.createModel('function test() {}', accessor.modeService.create('text'), resource);
 
-		const input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', undefined);
+		const input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', undefined, undefined);
 
 		const model = await input.resolve();
 
@@ -34,7 +34,7 @@ suite('Resource text editors', () => {
 		assert.strictEqual(snapshotToString(((model as TextResourceEditorModel).createSnapshot()!)), 'function test() {}');
 	});
 
-	test('custom mode', async () => {
+	test('preferred mode (via ctor)', async () => {
 		ModesRegistry.registerLanguage({
 			id: 'resource-input-test',
 		});
@@ -42,7 +42,7 @@ suite('Resource text editors', () => {
 		const resource = URI.from({ scheme: 'inmemory', authority: null!, path: 'thePath' });
 		accessor.modelService.createModel('function test() {}', accessor.modeService.create('text'), resource);
 
-		const input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', 'resource-input-test');
+		const input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', 'resource-input-test', undefined);
 
 		const model = await input.resolve();
 		assert.ok(model);
@@ -50,5 +50,59 @@ suite('Resource text editors', () => {
 
 		input.setMode('text');
 		assert.strictEqual(model.textEditorModel?.getModeId(), PLAINTEXT_MODE_ID);
+
+		await input.resolve();
+		assert.strictEqual(model.textEditorModel?.getModeId(), PLAINTEXT_MODE_ID);
+	});
+
+	test('preferred mode (via setPreferredMode)', async () => {
+		ModesRegistry.registerLanguage({
+			id: 'resource-input-test',
+		});
+
+		const resource = URI.from({ scheme: 'inmemory', authority: null!, path: 'thePath' });
+		accessor.modelService.createModel('function test() {}', accessor.modeService.create('text'), resource);
+
+		const input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', undefined, undefined);
+		input.setPreferredMode('resource-input-test');
+
+		const model = await input.resolve();
+		assert.ok(model);
+		assert.strictEqual(model.textEditorModel?.getModeId(), 'resource-input-test');
+	});
+
+	test('preferred contents (via ctor)', async () => {
+		const resource = URI.from({ scheme: 'inmemory', authority: null!, path: 'thePath' });
+		accessor.modelService.createModel('function test() {}', accessor.modeService.create('text'), resource);
+
+		const input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', undefined, 'My Resource Input Contents');
+
+		const model = await input.resolve();
+		assert.ok(model);
+		assert.strictEqual(model.textEditorModel?.getValue(), 'My Resource Input Contents');
+
+		model.textEditorModel.setValue('Some other contents');
+		assert.strictEqual(model.textEditorModel?.getValue(), 'Some other contents');
+
+		await input.resolve();
+		assert.strictEqual(model.textEditorModel?.getValue(), 'Some other contents'); // preferred contents only used once
+	});
+
+	test('preferred contents (via setPreferredContents)', async () => {
+		const resource = URI.from({ scheme: 'inmemory', authority: null!, path: 'thePath' });
+		accessor.modelService.createModel('function test() {}', accessor.modeService.create('text'), resource);
+
+		const input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', undefined, undefined);
+		input.setPreferredContents('My Resource Input Contents');
+
+		const model = await input.resolve();
+		assert.ok(model);
+		assert.strictEqual(model.textEditorModel?.getValue(), 'My Resource Input Contents');
+
+		model.textEditorModel.setValue('Some other contents');
+		assert.strictEqual(model.textEditorModel?.getValue(), 'Some other contents');
+
+		await input.resolve();
+		assert.strictEqual(model.textEditorModel?.getValue(), 'Some other contents'); // preferred contents only used once
 	});
 });

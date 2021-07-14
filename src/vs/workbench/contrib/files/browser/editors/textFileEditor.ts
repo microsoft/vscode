@@ -32,6 +32,7 @@ import { createErrorWithActions } from 'vs/base/common/errors';
 import { EditorActivation, EditorOverride, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
+import { MutableDisposable } from 'vs/base/common/lifecycle';
 
 /**
  * An implementation of editor for file system resources.
@@ -39,6 +40,8 @@ import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 export class TextFileEditor extends BaseTextEditor {
 
 	static readonly ID = TEXT_FILE_EDITOR_ID;
+
+	private readonly inputListener = this._register(new MutableDisposable());
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -64,14 +67,16 @@ export class TextFileEditor extends BaseTextEditor {
 		this._register(this.fileService.onDidRunOperation(e => this.onDidRunOperation(e)));
 
 		// Listen to file system provider changes
-		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onDidFileSystemProviderChange(e.scheme)));
-		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onDidFileSystemProviderChange(e.scheme)));
+		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onDidChangeFileSystemProvider(e.scheme)));
+		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onDidChangeFileSystemProvider(e.scheme)));
 	}
 
 	private onDidFilesChange(e: FileChangesEvent): void {
-		const deleted = e.getDeleted();
-		if (deleted?.length) {
-			this.clearTextEditorViewState(deleted.map(({ resource }) => resource));
+		const deleted = e.rawDeleted;
+		if (deleted) {
+			for (const [resource] of deleted) {
+				this.clearTextEditorViewState(resource);
+			}
 		}
 	}
 
@@ -81,10 +86,21 @@ export class TextFileEditor extends BaseTextEditor {
 		}
 	}
 
-	private onDidFileSystemProviderChange(scheme: string): void {
+	private onDidChangeFileSystemProvider(scheme: string): void {
+		if (this.input?.resource.scheme === scheme) {
+			this.updateReadonly(this.input);
+		}
+	}
+
+	private onDidChangeInputCapabilities(input: FileEditorInput): void {
+		if (this.input === input) {
+			this.updateReadonly(input);
+		}
+	}
+
+	private updateReadonly(input: FileEditorInput): void {
 		const control = this.getControl();
-		const input = this.input;
-		if (control && input?.resource.scheme === scheme) {
+		if (control) {
 			control.updateOptions({ readOnly: input.hasCapability(EditorInputCapabilities.Readonly) });
 		}
 	}
@@ -106,6 +122,9 @@ export class TextFileEditor extends BaseTextEditor {
 	}
 
 	override async setInput(input: FileEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+
+		// Update our listener for input capabilities
+		this.inputListener.value = input.onDidChangeCapabilities(() => this.onDidChangeInputCapabilities(input));
 
 		// Update/clear view settings if input changes
 		this.doSaveOrClearTextEditorViewState(this.input);
@@ -229,6 +248,9 @@ export class TextFileEditor extends BaseTextEditor {
 
 	override clearInput(): void {
 
+		// Clear input listener
+		this.inputListener.clear();
+
 		// Update/clear editor view state in settings
 		this.doSaveOrClearTextEditorViewState(this.input);
 
@@ -258,7 +280,7 @@ export class TextFileEditor extends BaseTextEditor {
 		// If the user configured to not restore view state, we clear the view
 		// state unless the editor is still opened in the group.
 		if (!this.shouldRestoreTextEditorViewState(input) && (!this.group || !this.group.contains(input))) {
-			this.clearTextEditorViewState([input.resource], this.group);
+			this.clearTextEditorViewState(input.resource, this.group);
 		}
 
 		// Otherwise we save the view state to restore it later

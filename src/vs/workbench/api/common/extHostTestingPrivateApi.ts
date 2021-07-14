@@ -18,11 +18,10 @@ export type ExtHostTestItemEvent =
 	| [evt: ExtHostTestItemEventType.NewChild, item: TestItemImpl]
 	| [evt: ExtHostTestItemEventType.Disposed]
 	| [evt: ExtHostTestItemEventType.Invalidated]
-	| [evt: ExtHostTestItemEventType.SetProp, key: keyof vscode.TestItem<never>, value: any];
+	| [evt: ExtHostTestItemEventType.SetProp, key: keyof vscode.TestItem, value: any];
 
 export interface IExtHostTestItemApi {
 	children: Map<string, TestItemImpl>;
-	parent?: TestItemImpl;
 	bus: Emitter<ExtHostTestItemEvent>;
 }
 

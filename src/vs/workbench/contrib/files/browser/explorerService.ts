@@ -78,13 +78,16 @@ export class ExplorerService implements IExplorerService {
 			// Or if they affect not yet resolved parts of the explorer. If that is the case we will not refresh.
 			events.forEach(e => {
 				if (!shouldRefresh) {
-					const added = e.getAdded();
-					if (added.some(a => {
-						const parent = this.model.findClosest(dirname(a.resource));
-						// Parent of the added resource is resolved and the explorer model is not aware of the added resource - we need to refresh
-						return parent && !parent.getChild(basename(a.resource));
-					})) {
-						shouldRefresh = true;
+					const added = e.rawAdded;
+					if (added) {
+						for (const [resource] of added) {
+							const parent = this.model.findClosest(dirname(resource));
+							// Parent of the added resource is resolved and the explorer model is not aware of the added resource - we need to refresh
+							if (parent && !parent.getChild(basename(resource))) {
+								shouldRefresh = true;
+								break;
+							}
+						}
 					}
 				}
 			});
@@ -344,7 +347,6 @@ export class ExplorerService implements IExplorerService {
 					const parent = element.parent;
 					// Remove Element from Parent (Model)
 					parent.removeChild(element);
-					this.view?.focusNeighbourIfItemFocused(element);
 					// Refresh Parent (View)
 					await this.view?.refresh(false, parent);
 				}

@@ -5,8 +5,8 @@
 
 import * as assert from 'assert';
 import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, TestEditorPart, ITestInstantiationService, TestServiceAccessor, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
-import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupChangeKind, GroupLocation } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { CloseDirection, IEditorPartOptions, EditorsOrder } from 'vs/workbench/common/editor';
+import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupChangeKind, GroupLocation, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { CloseDirection, IEditorPartOptions, EditorsOrder, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -60,6 +60,7 @@ suite('EditorGroupsService', () => {
 
 		// always a root group
 		const rootGroup = part.groups[0];
+		assert.strictEqual(isEditorGroup(rootGroup), true);
 		assert.strictEqual(part.groups.length, 1);
 		assert.strictEqual(part.count, 1);
 		assert.strictEqual(rootGroup, part.getGroup(rootGroup.id));
@@ -378,6 +379,7 @@ suite('EditorGroupsService', () => {
 		let editorCloseCounter = 0;
 		let editorPinCounter = 0;
 		let editorStickyCounter = 0;
+		let editorCapabilitiesCounter = 0;
 		const editorGroupChangeListener = group.onDidGroupChange(e => {
 			if (e.kind === GroupChangeKind.EDITOR_OPEN) {
 				assert.ok(e.editor);
@@ -391,6 +393,9 @@ suite('EditorGroupsService', () => {
 			} else if (e.kind === GroupChangeKind.EDITOR_PIN) {
 				assert.ok(e.editor);
 				editorPinCounter++;
+			} else if (e.kind === GroupChangeKind.EDITOR_CAPABILITIES) {
+				assert.ok(e.editor);
+				editorCapabilitiesCounter++;
 			} else if (e.kind === GroupChangeKind.EDITOR_STICKY) {
 				assert.ok(e.editor);
 				editorStickyCounter++;
@@ -419,12 +424,19 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group.contains(inputInactive), true);
 		assert.strictEqual(group.isEmpty, false);
 		assert.strictEqual(group.count, 2);
+		assert.strictEqual(editorCapabilitiesCounter, 0);
 		assert.strictEqual(editorDidOpenCounter, 2);
 		assert.strictEqual(activeEditorChangeCounter, 1);
 		assert.strictEqual(group.getEditorByIndex(0), input);
 		assert.strictEqual(group.getEditorByIndex(1), inputInactive);
 		assert.strictEqual(group.getIndexOfEditor(input), 0);
 		assert.strictEqual(group.getIndexOfEditor(inputInactive), 1);
+
+		input.capabilities = EditorInputCapabilities.RequiresTrust;
+		assert.strictEqual(editorCapabilitiesCounter, 1);
+
+		inputInactive.capabilities = EditorInputCapabilities.Singleton;
+		assert.strictEqual(editorCapabilitiesCounter, 2);
 
 		assert.strictEqual(group.previewEditor, inputInactive);
 		assert.strictEqual(group.isPinned(inputInactive), false);

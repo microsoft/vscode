@@ -6,9 +6,10 @@
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IEditorModel, IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { firstOrDefault } from 'vs/base/common/arrays';
-import { IEditorInput, EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane } from 'vs/workbench/common/editor';
+import { IEditorInput, EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane, IUntypedEditorInput, UntypedEditorContext, EditorResourceAccessor } from 'vs/workbench/common/editor';
+import { isEqual } from 'vs/base/common/resources';
 
 /**
  * Editor inputs are lightweight objects that can be passed to the workbench API to open inside the editor part.
@@ -22,6 +23,9 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	protected readonly _onDidChangeLabel = this._register(new Emitter<void>());
 	readonly onDidChangeLabel = this._onDidChangeLabel.event;
 
+	protected readonly _onDidChangeCapabilities = this._register(new Emitter<void>());
+	readonly onDidChangeCapabilities = this._onDidChangeCapabilities.event;
+
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
 
@@ -30,6 +34,10 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	abstract get typeId(): string;
 
 	abstract get resource(): URI | undefined;
+
+	get editorId(): string | undefined {
+		return undefined;
+	}
 
 	get capabilities(): EditorInputCapabilities {
 		return EditorInputCapabilities.Readonly;
@@ -45,6 +53,10 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 
 	getName(): string {
 		return `Editor ${this.typeId}`;
+	}
+
+	getLabelExtraClasses(): string[] {
+		return [];
 	}
 
 	getDescription(verbosity?: Verbosity): string | undefined {
@@ -103,8 +115,25 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return this;
 	}
 
-	matches(otherInput: unknown): boolean {
-		return this === otherInput;
+	matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
+
+		// Typed inputs: via  === check
+		if (isEditorInput(otherInput)) {
+			return this === otherInput;
+		}
+
+		// Untyped inputs: go into properties
+		const otherInputEditorId = otherInput.options?.override;
+
+		if (this.editorId === undefined) {
+			return false; // untyped inputs can only match for editors that have adopted `editorId`
+		}
+
+		if (this.editorId !== otherInputEditorId) {
+			return false; // untyped input uses another `editorId`
+		}
+
+		return isEqual(this.resource, EditorResourceAccessor.getCanonicalUri(otherInput));
 	}
 
 	/**
@@ -118,7 +147,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return firstOrDefault(editors);
 	}
 
-	asResourceEditorInput(groupId: GroupIdentifier): IResourceEditorInput | undefined {
+	toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IUntypedEditorInput | undefined {
 		return undefined;
 	}
 
@@ -134,4 +163,8 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 
 		super.dispose();
 	}
+}
+
+export function isEditorInput(editor: unknown): editor is IEditorInput {
+	return editor instanceof EditorInput;
 }

@@ -26,7 +26,7 @@ import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminal
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { localize } from 'vs/nls';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { IProcessEnvironment, OperatingSystem, OS } from 'vs/base/common/platform';
+import { IProcessEnvironment, isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICompleteTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 
@@ -174,8 +174,16 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		});
 	}
 
-	detachFromProcess(): void {
-		this._process?.detach?.();
+	async detachFromProcess(): Promise<void> {
+		if (!this._process) {
+			return;
+		}
+		if (this._process.detach) {
+			await this._process.detach();
+		} else {
+			throw new Error('This terminal process does not support detaching');
+		}
+		this._process = null;
 	}
 
 	async createProcess(
@@ -240,19 +248,19 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					});
 					const terminalConfig = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
 					const configuration: ICompleteTerminalConfiguration = {
-						'terminal.integrated.automationShell.windows': this._terminalProfileResolverService.getSafeConfigValueFullKey(TerminalSettingId.AutomationShellWindows) as string,
-						'terminal.integrated.automationShell.osx': this._terminalProfileResolverService.getSafeConfigValueFullKey(TerminalSettingId.AutomationShellMacOs) as string,
-						'terminal.integrated.automationShell.linux': this._terminalProfileResolverService.getSafeConfigValueFullKey(TerminalSettingId.AutomationShellLinux) as string,
-						'terminal.integrated.shell.windows': this._terminalProfileResolverService.getSafeConfigValueFullKey(TerminalSettingId.ShellWindows) as string,
-						'terminal.integrated.shell.osx': this._terminalProfileResolverService.getSafeConfigValueFullKey(TerminalSettingId.ShellMacOs) as string,
-						'terminal.integrated.shell.linux': this._terminalProfileResolverService.getSafeConfigValueFullKey(TerminalSettingId.ShellLinux) as string,
-						'terminal.integrated.shellArgs.windows': this._terminalProfileResolverService.getSafeConfigValueFullKey(TerminalSettingId.ShellArgsWindows) as string | string[],
-						'terminal.integrated.shellArgs.osx': this._terminalProfileResolverService.getSafeConfigValueFullKey(TerminalSettingId.ShellArgsMacOs) as string | string[],
-						'terminal.integrated.shellArgs.linux': this._terminalProfileResolverService.getSafeConfigValueFullKey(TerminalSettingId.ShellArgsLinux) as string | string[],
-						'terminal.integrated.env.windows': this._terminalProfileResolverService.getSafeConfigValueFullKey(TerminalSettingId.EnvWindows) as ITerminalEnvironment,
-						'terminal.integrated.env.osx': this._terminalProfileResolverService.getSafeConfigValueFullKey(TerminalSettingId.EnvMacOs) as ITerminalEnvironment,
-						'terminal.integrated.env.linux': this._terminalProfileResolverService.getSafeConfigValueFullKey(TerminalSettingId.EnvLinux) as ITerminalEnvironment,
-						'terminal.integrated.cwd': this._terminalProfileResolverService.getSafeConfigValueFullKey(TerminalSettingId.Cwd) as string,
+						'terminal.integrated.automationShell.windows': this._configurationService.getValue(TerminalSettingId.AutomationShellWindows) as string,
+						'terminal.integrated.automationShell.osx': this._configurationService.getValue(TerminalSettingId.AutomationShellMacOs) as string,
+						'terminal.integrated.automationShell.linux': this._configurationService.getValue(TerminalSettingId.AutomationShellLinux) as string,
+						'terminal.integrated.shell.windows': this._configurationService.getValue(TerminalSettingId.ShellWindows) as string,
+						'terminal.integrated.shell.osx': this._configurationService.getValue(TerminalSettingId.ShellMacOs) as string,
+						'terminal.integrated.shell.linux': this._configurationService.getValue(TerminalSettingId.ShellLinux) as string,
+						'terminal.integrated.shellArgs.windows': this._configurationService.getValue(TerminalSettingId.ShellArgsWindows) as string | string[],
+						'terminal.integrated.shellArgs.osx': this._configurationService.getValue(TerminalSettingId.ShellArgsMacOs) as string | string[],
+						'terminal.integrated.shellArgs.linux': this._configurationService.getValue(TerminalSettingId.ShellArgsLinux) as string | string[],
+						'terminal.integrated.env.windows': this._configurationService.getValue(TerminalSettingId.EnvWindows) as ITerminalEnvironment,
+						'terminal.integrated.env.osx': this._configurationService.getValue(TerminalSettingId.EnvMacOs) as ITerminalEnvironment,
+						'terminal.integrated.env.linux': this._configurationService.getValue(TerminalSettingId.EnvLinux) as ITerminalEnvironment,
+						'terminal.integrated.cwd': this._configurationService.getValue(TerminalSettingId.Cwd) as string,
 						'terminal.integrated.detectLocale': terminalConfig.detectLocale
 					};
 					newProcess = await this._remoteTerminalService.createProcess(shellLaunchConfig, configuration, activeWorkspaceRootUri, cols, rows, shouldPersist, this._configHelper);
@@ -331,7 +339,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			// Error
 			return result;
 		}
-
 		return undefined;
 	}
 
@@ -354,9 +361,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 	// Fetch any extension environment additions and apply them
 	private async _setupEnvVariableInfo(variableResolver: terminalEnvironment.VariableResolver | undefined, shellLaunchConfig: IShellLaunchConfig): Promise<IProcessEnvironment> {
-		// const platformKey = isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
-		// this._configurationService.getValue<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
-		const envFromConfigValue = this._terminalProfileResolverService.getSafeConfigValue('env', OS) as ITerminalEnvironment | undefined;
+		const platformKey = isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
+		const envFromConfigValue = this._configurationService.getValue<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
 		this._configHelper.showRecommendations(shellLaunchConfig);
 
 		let baseEnv: IProcessEnvironment;
@@ -367,8 +373,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}
 
 		const env = terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, envFromConfigValue, variableResolver, this._productService.version, this._configHelper.config.detectLocale, baseEnv);
-
-		if (!shellLaunchConfig.strictEnv && !shellLaunchConfig.hideFromUser) {
+		if (!this._isDisposed && !shellLaunchConfig.strictEnv && !shellLaunchConfig.hideFromUser) {
 			this._extEnvironmentVariableCollection = this._environmentVariableService.mergedCollection;
 			this._register(this._environmentVariableService.onDidChangeCollections(newCollection => this._onEnvironmentVariableCollectionChange(newCollection)));
 			// For remote terminals, this is a copy of the mergedEnvironmentCollection created on

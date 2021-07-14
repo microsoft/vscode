@@ -12,6 +12,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
 import { timeout } from 'vs/base/common/async';
 import { MainContext, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
+import { FileAccess } from 'vs/base/common/network';
 
 namespace TrustedFunction {
 
@@ -91,7 +92,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		if (extensionId) {
 			performance.mark(`code/extHost/willFetchExtensionCode/${extensionId.value}`);
 		}
-		const response = await fetch(module.toString(true));
+		const response = await fetch(FileAccess.asBrowserUri(module).toString(true));
 		if (extensionId) {
 			performance.mark(`code/extHost/didFetchExtensionCode/${extensionId.value}`);
 		}

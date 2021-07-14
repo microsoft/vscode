@@ -166,6 +166,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (activeEditor) {
 			this.activeEditorListeners.add(activeEditor.onDidChangeDirty(() => this.titleUpdater.schedule()));
 			this.activeEditorListeners.add(activeEditor.onDidChangeLabel(() => this.titleUpdater.schedule()));
+			this.activeEditorListeners.add(activeEditor.onDidChangeCapabilities(() => this.titleUpdater.schedule()));
 		}
 	}
 

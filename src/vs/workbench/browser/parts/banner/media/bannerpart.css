@@ -43,10 +43,6 @@
 	text-decoration: underline;
 }
 
-.monaco-workbench .part.banner .message-actions-container a:hover {
-	text-decoration: none;
-}
-
 .monaco-workbench .part.banner .action-container {
 	padding: 0 10px 0 6px;
 }

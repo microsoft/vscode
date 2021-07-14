@@ -5,8 +5,8 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
+import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -23,41 +23,55 @@ import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
+import { HoverWidget, HoverAction } from 'vs/base/browser/ui/hover/hoverWidget';
 import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/markerHoverParticipant';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/markdownHoverParticipant';
+import { InlineCompletionsHoverParticipant } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsHoverParticipant';
 import { ColorHoverParticipant } from 'vs/editor/contrib/hover/colorHoverParticipant';
+import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IEditorHoverStatusBar, IHoverPart, HoverAnchor, IEditorHoverParticipant, HoverAnchorType, IEditorHover, HoverRangeAnchor, IEditorHoverAction } from 'vs/editor/contrib/hover/hoverTypes';
 
-export interface IHoverPart {
-	readonly owner: IEditorHoverParticipant;
-	readonly range: Range;
-	/**
-	 * Force the hover to always be rendered at this specific range,
-	 * even in the case of multiple hover parts.
-	 */
-	readonly forceShowAtRange?: boolean;
-	equals(other: IHoverPart): boolean;
-}
+const $ = dom.$;
 
-export interface IEditorHover {
-	hide(): void;
-	onContentsChanged(): void;
-	setColorPicker(widget: ColorPickerWidget): void;
-}
+class EditorHoverStatusBar extends Disposable implements IEditorHoverStatusBar {
 
-export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
-	computeSync(hoverRange: Range, lineDecorations: IModelDecoration[]): T[];
-	computeAsync?(range: Range, lineDecorations: IModelDecoration[], token: CancellationToken): Promise<T[]>;
-	createLoadingMessage?(range: Range): T;
-	renderHoverParts(hoverParts: T[], fragment: DocumentFragment): IDisposable;
+	public readonly hoverElement: HTMLElement;
+	private readonly actionsElement: HTMLElement;
+	private _hasContent: boolean = false;
+
+	public get hasContent() {
+		return this._hasContent;
+	}
+
+	constructor(
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+	) {
+		super();
+		this.hoverElement = $('div.hover-row.status-bar');
+		this.actionsElement = dom.append(this.hoverElement, $('div.actions'));
+	}
+
+	public addAction(actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }): IEditorHoverAction {
+		const keybinding = this._keybindingService.lookupKeybinding(actionOptions.commandId);
+		const keybindingLabel = keybinding ? keybinding.getLabel() : null;
+		this._hasContent = true;
+		return this._register(HoverAction.render(this.actionsElement, actionOptions, keybindingLabel));
+	}
+
+	public append(element: HTMLElement): HTMLElement {
+		const result = dom.append(this.actionsElement, element);
+		this._hasContent = true;
+		return result;
+	}
 }
 
 class ModesContentComputer implements IHoverComputer<IHoverPart[]> {
 
 	private readonly _editor: ICodeEditor;
 	private _result: IHoverPart[];
-	private _range: Range | null;
+	private _anchor: HoverAnchor | null;
 
 	constructor(
 		editor: ICodeEditor,
@@ -65,11 +79,11 @@ class ModesContentComputer implements IHoverComputer<IHoverPart[]> {
 	) {
 		this._editor = editor;
 		this._result = [];
-		this._range = null;
+		this._anchor = null;
 	}
 
-	public setRange(range: Range): void {
-		this._range = range;
+	public setAnchor(anchor: HoverAnchor): void {
+		this._anchor = anchor;
 		this._result = [];
 	}
 
@@ -77,9 +91,13 @@ class ModesContentComputer implements IHoverComputer<IHoverPart[]> {
 		this._result = [];
 	}
 
-	private static _getLineDecorations(editor: IActiveCodeEditor, hoverRange: Range): IModelDecoration[] {
+	private static _getLineDecorations(editor: IActiveCodeEditor, anchor: HoverAnchor): IModelDecoration[] {
+		if (anchor.type !== HoverAnchorType.Range) {
+			return [];
+		}
+
 		const model = editor.getModel();
-		const lineNumber = hoverRange.startLineNumber;
+		const lineNumber = anchor.range.startLineNumber;
 		const maxColumn = model.getLineMaxColumn(lineNumber);
 		return editor.getLineDecorations(lineNumber).filter((d) => {
 			if (d.options.isWholeLine) {
@@ -88,7 +106,7 @@ class ModesContentComputer implements IHoverComputer<IHoverPart[]> {
 
 			const startColumn = (d.range.startLineNumber === lineNumber) ? d.range.startColumn : 1;
 			const endColumn = (d.range.endLineNumber === lineNumber) ? d.range.endColumn : maxColumn;
-			if (startColumn > hoverRange.startColumn || hoverRange.endColumn > endColumn) {
+			if (startColumn > anchor.range.startColumn || anchor.range.endColumn > endColumn) {
 				return false;
 			}
 			return true;
@@ -96,40 +114,35 @@ class ModesContentComputer implements IHoverComputer<IHoverPart[]> {
 	}
 
 	public async computeAsync(token: CancellationToken): Promise<IHoverPart[]> {
-		const range = this._range;
+		const anchor = this._anchor;
 
-		if (!this._editor.hasModel() || !range) {
+		if (!this._editor.hasModel() || !anchor) {
 			return Promise.resolve([]);
 		}
 
-		const lineDecorations = ModesContentComputer._getLineDecorations(this._editor, range);
+		const lineDecorations = ModesContentComputer._getLineDecorations(this._editor, anchor);
 
-		const allResults = await Promise.all(this._participants.map(p => this._computeAsync(p, lineDecorations, range, token)));
+		const allResults = await Promise.all(this._participants.map(p => this._computeAsync(p, lineDecorations, anchor, token)));
 		return flatten(allResults);
 	}
 
-	private async _computeAsync(participant: IEditorHoverParticipant, lineDecorations: IModelDecoration[], range: Range, token: CancellationToken): Promise<IHoverPart[]> {
+	private async _computeAsync(participant: IEditorHoverParticipant, lineDecorations: IModelDecoration[], anchor: HoverAnchor, token: CancellationToken): Promise<IHoverPart[]> {
 		if (!participant.computeAsync) {
 			return [];
 		}
-		return participant.computeAsync(range, lineDecorations, token);
+		return participant.computeAsync(anchor, lineDecorations, token);
 	}
 
 	public computeSync(): IHoverPart[] {
-		if (!this._editor.hasModel() || !this._range) {
+		if (!this._editor.hasModel() || !this._anchor) {
 			return [];
 		}
 
-		if (this._range.startLineNumber > this._editor.getModel().getLineCount()) {
-			// Illegal line number => no results
-			return [];
-		}
-
-		const lineDecorations = ModesContentComputer._getLineDecorations(this._editor, this._range);
+		const lineDecorations = ModesContentComputer._getLineDecorations(this._editor, this._anchor);
 
 		let result: IHoverPart[] = [];
 		for (const participant of this._participants) {
-			result = result.concat(participant.computeSync(this._range, lineDecorations));
+			result = result.concat(participant.computeSync(this._anchor, lineDecorations));
 		}
 
 		return coalesce(result);
@@ -149,11 +162,13 @@ class ModesContentComputer implements IHoverComputer<IHoverPart[]> {
 	}
 
 	public getResultWithLoadingMessage(): IHoverPart[] {
-		if (this._range) {
+		if (this._anchor) {
 			for (const participant of this._participants) {
 				if (participant.createLoadingMessage) {
-					const loadingMessage = participant.createLoadingMessage(this._range);
-					return this._result.slice(0).concat([loadingMessage]);
+					const loadingMessage = participant.createLoadingMessage(this._anchor);
+					if (loadingMessage) {
+						return this._result.slice(0).concat([loadingMessage]);
+					}
 				}
 			}
 		}
@@ -164,6 +179,8 @@ class ModesContentComputer implements IHoverComputer<IHoverPart[]> {
 export class ModesContentHoverWidget extends Widget implements IContentWidget, IEditorHover {
 
 	static readonly ID = 'editor.contrib.modesContentHoverWidget';
+
+	private readonly _participants: IEditorHoverParticipant[];
 
 	private readonly _hover: HoverWidget;
 	private readonly _id: string;
@@ -177,7 +194,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 	public readonly allowEditorOverflow = true;
 
 	private _messages: IHoverPart[];
-	private _lastRange: Range | null;
+	private _lastAnchor: HoverAnchor | null;
 	private readonly _computer: ModesContentComputer;
 	private readonly _hoverOperation: HoverOperation<IHoverPart[]>;
 	private _highlightDecorations: string[];
@@ -189,14 +206,16 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 	constructor(
 		editor: ICodeEditor,
 		private readonly _hoverVisibleKey: IContextKey<boolean>,
-		instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
 
-		const participants = [
+		this._participants = [
 			instantiationService.createInstance(ColorHoverParticipant, editor, this),
 			instantiationService.createInstance(MarkdownHoverParticipant, editor, this),
-			instantiationService.createInstance(MarkerHoverParticipant, editor, this)
+			instantiationService.createInstance(InlineCompletionsHoverParticipant, editor, this),
+			instantiationService.createInstance(MarkerHoverParticipant, editor, this),
 		];
 
 		this._hover = this._register(new HoverWidget());
@@ -227,8 +246,8 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		this._stoleFocus = false;
 
 		this._messages = [];
-		this._lastRange = null;
-		this._computer = new ModesContentComputer(this._editor, participants);
+		this._lastAnchor = null;
+		this._computer = new ModesContentComputer(this._editor, this._participants);
 		this._highlightDecorations = [];
 		this._isChangingDecorations = false;
 		this._shouldFocus = false;
@@ -254,9 +273,9 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 			this._hoverOperation.setHoverTime(this._editor.getOption(EditorOption.hover).delay);
 		}));
 		this._register(TokenizationRegistry.onDidChange(() => {
-			if (this._isVisible && this._lastRange && this._messages.length > 0) {
+			if (this._isVisible && this._lastAnchor && this._messages.length > 0) {
 				this._hover.contentsDomNode.textContent = '';
-				this._renderMessages(this._lastRange, this._messages);
+				this._renderMessages(this._lastAnchor, this._messages);
 			}
 		}));
 	}
@@ -275,7 +294,60 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		return this._hover.containerDomNode;
 	}
 
-	public showAt(position: Position, range: Range | null, focus: boolean): void {
+	private _shouldShowAt(mouseEvent: IEditorMouseEvent): boolean {
+		const targetType = mouseEvent.target.type;
+		if (targetType === MouseTargetType.CONTENT_TEXT) {
+			return true;
+		}
+
+		if (targetType === MouseTargetType.CONTENT_EMPTY) {
+			const epsilon = this._editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth / 2;
+			const data = <IEmptyContentData>mouseEvent.target.detail;
+			if (data && !data.isAfterLines && typeof data.horizontalDistanceToText === 'number' && data.horizontalDistanceToText < epsilon) {
+				// Let hover kick in even when the mouse is technically in the empty area after a line, given the distance is small enough
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	public maybeShowAt(mouseEvent: IEditorMouseEvent): boolean {
+		const anchorCandidates: HoverAnchor[] = [];
+
+		for (const participant of this._participants) {
+			if (typeof participant.suggestHoverAnchor === 'function') {
+				const anchor = participant.suggestHoverAnchor(mouseEvent);
+				if (anchor) {
+					anchorCandidates.push(anchor);
+				}
+			}
+		}
+
+		if (this._shouldShowAt(mouseEvent) && mouseEvent.target.range) {
+			// TODO@rebornix. This should be removed if we move Color Picker out of Hover component.
+			// Check if mouse is hovering on color decorator
+			const hoverOnColorDecorator = [...mouseEvent.target.element?.classList.values() || []].find(className => className.startsWith('ced-colorBox'))
+				&& mouseEvent.target.range.endColumn - mouseEvent.target.range.startColumn === 1;
+			const showAtRange = (
+				hoverOnColorDecorator // shift the mouse focus by one as color decorator is a `before` decoration of next character.
+					? new Range(mouseEvent.target.range.startLineNumber, mouseEvent.target.range.startColumn + 1, mouseEvent.target.range.endLineNumber, mouseEvent.target.range.endColumn + 1)
+					: mouseEvent.target.range
+			);
+			anchorCandidates.push(new HoverRangeAnchor(0, showAtRange));
+		}
+
+		if (anchorCandidates.length === 0) {
+			return false;
+		}
+
+		anchorCandidates.sort((a, b) => b.priority - a.priority);
+		this._startShowingAt(anchorCandidates[0], HoverStartMode.Delayed, false);
+
+		return true;
+	}
+
+	private _showAt(position: Position, range: Range | null, focus: boolean): void {
 		// Position has changed
 		this._showAtPosition = position;
 		this._showAtRange = range;
@@ -347,8 +419,12 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		}
 	}
 
-	public startShowingAt(range: Range, mode: HoverStartMode, focus: boolean): void {
-		if (this._lastRange && this._lastRange.equalsRange(range)) {
+	public startShowingAtRange(range: Range, mode: HoverStartMode, focus: boolean): void {
+		this._startShowingAt(new HoverRangeAnchor(0, range), mode, focus);
+	}
+
+	private _startShowingAt(anchor: HoverAnchor, mode: HoverStartMode, focus: boolean): void {
+		if (this._lastAnchor && this._lastAnchor.equals(anchor)) {
 			// We have to show the widget at the exact same range as before, so no work is needed
 			return;
 		}
@@ -359,36 +435,29 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 			// The range might have changed, but the hover is visible
 			// Instead of hiding it completely, filter out messages that are still in the new range and
 			// kick off a new computation
-			if (!this._showAtPosition || this._showAtPosition.lineNumber !== range.startLineNumber) {
+			if (!this._showAtPosition || !this._lastAnchor || !anchor.canAdoptVisibleHover(this._lastAnchor, this._showAtPosition)) {
 				this.hide();
 			} else {
-				let filteredMessages: IHoverPart[] = [];
-				for (let i = 0, len = this._messages.length; i < len; i++) {
-					const msg = this._messages[i];
-					const rng = msg.range;
-					if (rng && rng.startColumn <= range.startColumn && rng.endColumn >= range.endColumn) {
-						filteredMessages.push(msg);
-					}
-				}
-				if (filteredMessages.length > 0) {
-					if (hoverContentsEquals(filteredMessages, this._messages)) {
-						return;
-					}
-					this._renderMessages(range, filteredMessages);
-				} else {
+				const filteredMessages = this._messages.filter((m) => m.isValidForHoverAnchor(anchor));
+				if (filteredMessages.length === 0) {
 					this.hide();
+				} else if (filteredMessages.length === this._messages.length) {
+					// no change
+					return;
+				} else {
+					this._renderMessages(anchor, filteredMessages);
 				}
 			}
 		}
 
-		this._lastRange = range;
-		this._computer.setRange(range);
+		this._lastAnchor = anchor;
+		this._computer.setAnchor(anchor);
 		this._shouldFocus = focus;
 		this._hoverOperation.start(mode);
 	}
 
 	public hide(): void {
-		this._lastRange = null;
+		this._lastAnchor = null;
 		this._hoverOperation.cancel();
 
 		if (this._isVisible) {
@@ -432,14 +501,14 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 	private _withResult(result: IHoverPart[], complete: boolean): void {
 		this._messages = result;
 
-		if (this._lastRange && this._messages.length > 0) {
-			this._renderMessages(this._lastRange, this._messages);
+		if (this._lastAnchor && this._messages.length > 0) {
+			this._renderMessages(this._lastAnchor, this._messages);
 		} else if (complete) {
 			this.hide();
 		}
 	}
 
-	private _renderMessages(renderRange: Range, messages: IHoverPart[]): void {
+	private _renderMessages(anchor: HoverAnchor, messages: IHoverPart[]): void {
 		if (this._renderDisposable) {
 			this._renderDisposable.dispose();
 			this._renderDisposable = null;
@@ -469,8 +538,14 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 			dest.push(msg);
 		}
 
+		const statusBar = disposables.add(new EditorHoverStatusBar(this._keybindingService));
+
 		for (const [participant, participantHoverParts] of hoverParts) {
-			disposables.add(participant.renderHoverParts(participantHoverParts, fragment));
+			disposables.add(participant.renderHoverParts(participantHoverParts, fragment, statusBar));
+		}
+
+		if (statusBar.hasContent) {
+			fragment.appendChild(statusBar.hoverElement);
 		}
 
 		this._renderDisposable = disposables;
@@ -479,9 +554,9 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 
 		if (fragment.hasChildNodes()) {
 			if (forceShowAtRange) {
-				this.showAt(forceShowAtRange.getStartPosition(), forceShowAtRange, this._shouldFocus);
+				this._showAt(forceShowAtRange.getStartPosition(), forceShowAtRange, this._shouldFocus);
 			} else {
-				this.showAt(new Position(renderRange.startLineNumber, renderColumn), highlightRange, this._shouldFocus);
+				this._showAt(new Position(anchor.range.startLineNumber, renderColumn), highlightRange, this._shouldFocus);
 			}
 			this._updateContents(fragment);
 		}
@@ -498,20 +573,9 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 	}
 
 	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
+		description: 'content-hover-highlight',
 		className: 'hoverHighlight'
 	});
-}
-
-function hoverContentsEquals(first: IHoverPart[], second: IHoverPart[]): boolean {
-	if (first.length !== second.length) {
-		return false;
-	}
-	for (let i = 0; i < first.length; i++) {
-		if (!first[i].equals(second[i])) {
-			return false;
-		}
-	}
-	return true;
 }
 
 registerThemingParticipant((theme, collector) => {

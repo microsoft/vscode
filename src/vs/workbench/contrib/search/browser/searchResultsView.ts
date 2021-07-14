@@ -27,7 +27,7 @@ import { RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import { FileMatch, Match, RenderableMatch, SearchModel, FolderMatch } from 'vs/workbench/contrib/search/common/searchModel';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { fillResourceDragTransfers } from 'vs/workbench/browser/dnd';
+import { fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 
 interface IFolderMatchTemplate {
@@ -377,7 +377,7 @@ export class SearchDND implements ITreeDragAndDrop<RenderableMatch> {
 
 		if (resources.length) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
-			this.instantiationService.invokeFunction(accessor => fillResourceDragTransfers(accessor, resources, originalEvent));
+			this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, resources, originalEvent));
 		}
 	}
 

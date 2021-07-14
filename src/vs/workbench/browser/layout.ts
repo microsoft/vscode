@@ -10,7 +10,7 @@ import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { isWindows, isLinux, isMacintosh, isWeb, isNative, isIOS } from 'vs/base/common/platform';
-import { IResourceDiffEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
+import { IResourceDiffEditorInput, IUntypedEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
@@ -28,7 +28,7 @@ import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, IPath } from
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedLeafNode, Direction, IViewSize } from 'vs/base/browser/ui/grid/grid';
 import { Part } from 'vs/workbench/browser/part';
@@ -211,7 +211,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			centered: false,
 			restoreCentered: false,
 			restoreEditors: false,
-			editorsToOpen: [] as Promise<IResourceEditorInputType[]> | IResourceEditorInputType[]
+			editorsToOpen: [] as Promise<IUntypedEditorInput[]> | IUntypedEditorInput[]
 		},
 
 		panel: {
@@ -615,7 +615,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	private resolveEditorsToOpen(fileService: IFileService): Promise<IResourceEditorInputType[]> | IResourceEditorInputType[] {
+	private resolveEditorsToOpen(fileService: IFileService): Promise<IUntypedEditorInput[]> | IUntypedEditorInput[] {
 		const initialFilesToOpen = this.getInitialFilesToOpen();
 
 		// Only restore editors if we are not instructed to open files initially
@@ -630,8 +630,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return pathsToEditors(initialFilesToOpen.filesToDiff, fileService).then(filesToDiff => {
 				if (filesToDiff.length === 2) {
 					const diffEditorInput: IResourceDiffEditorInput[] = [{
-						leftEditor: { resource: filesToDiff[0].resource },
-						rightEditor: { resource: filesToDiff[1].resource },
+						originalInput: { resource: filesToDiff[0].resource },
+						modifiedInput: { resource: filesToDiff[1].resource },
 						options: { pinned: true },
 						forceFile: true
 					}];
@@ -722,7 +722,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// signaling that layout is restored, but we do
 			// not need to await the editors from having
 			// fully loaded.
-			let editors: IResourceEditorInputType[];
+			let editors: IUntypedEditorInput[];
 			if (Array.isArray(this.state.editor.editorsToOpen)) {
 				editors = this.state.editor.editorsToOpen;
 			} else {
@@ -731,7 +731,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			let openEditorsPromise: Promise<unknown> | undefined = undefined;
 			if (editors.length) {
-				openEditorsPromise = this.editorService.openEditors(editors);
+				openEditorsPromise = this.editorService.openEditors(editors, undefined, { validateTrust: true });
 			}
 
 			// do not block the overall layout ready flow from potentially

@@ -239,6 +239,7 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 		}
 
 		return {
+			description: 'marker-decoration',
 			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 			className,
 			showIfCollapsed: true,

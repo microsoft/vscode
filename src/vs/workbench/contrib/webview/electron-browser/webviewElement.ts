@@ -29,8 +29,9 @@ import { WebviewIgnoreMenuShortcutsManager } from 'vs/workbench/contrib/webview/
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> implements Webview, WebviewFindDelegate {
-
 	private static _webviewKeyboardHandler: WebviewIgnoreMenuShortcutsManager | undefined;
+
+	public readonly checkImeCompletionState = false;
 
 	private static getWebviewKeyboardHandler(
 		configService: IConfigurationService,
@@ -159,7 +160,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		// and not the `vscode-file` URI because preload scripts are loaded
 		// via node.js from the main side and only allow `file:` protocol
 		this.element!.preload = FileAccess.asFileUri('./pre/electron-index.js', require).toString(true);
-		this.element!.src = `${Schemas.vscodeWebview}://${this.id}/electron-browser-index.html?platform=electron&id=${this.id}&vscode-resource-base-authority=${encodeURIComponent(this.webviewRootResourceAuthority)}`;
+		this.element!.src = `${Schemas.vscodeWebview}://${this.id}/electron-browser-index.html?platform=electron&id=${this.id}&vscode-resource-base-authority=${encodeURIComponent(this.webviewRootResourceAuthority)}&swVersion=${this._expectedServiceWorkerVersion}`;
 	}
 
 	protected createElement(options: WebviewOptions) {
@@ -222,6 +223,9 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 	private readonly _hasFindResult = this._register(new Emitter<boolean>());
 	public readonly hasFindResult: Event<boolean> = this._hasFindResult.event;
 
+	private readonly _onDidStopFind = this._register(new Emitter<void>());
+	public readonly onDidStopFind: Event<void> = this._onDidStopFind.event;
+
 	public startFind(value: string, options?: FindInPageOptions) {
 		if (!value || !this.element) {
 			return;
@@ -274,6 +278,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		}
 		this._findStarted = false;
 		this.element.stopFindInPage(keepSelection ? 'keepSelection' : 'clearSelection');
+		this._onDidStopFind.fire();
 	}
 
 	public showFind() {

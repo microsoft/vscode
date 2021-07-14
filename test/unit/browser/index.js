@@ -146,8 +146,7 @@ function consoleLogFn(msg) {
 }
 
 async function runTestsInBrowser(testModules, browserType) {
-	const args = process.platform === 'linux' && browserType === 'chromium' ? ['--disable-setuid-sandbox'] : undefined; // setuid sandboxes requires root and is used in containers so we disable this to support our CI
-	const browser = await playwright[browserType].launch({ headless: !Boolean(argv.debug), args });
+	const browser = await playwright[browserType].launch({ headless: !Boolean(argv.debug) });
 	const context = await browser.newContext();
 	const page = await context.newPage();
 	const target = url.pathToFileURL(path.join(__dirname, 'renderer.html'));

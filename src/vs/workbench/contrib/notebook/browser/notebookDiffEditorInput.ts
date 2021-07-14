@@ -3,23 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as glob from 'vs/base/common/glob';
-import { IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorInputCapabilities } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { GroupIdentifier, IEditorInput, IResourceDiffEditorInput, isResourceDiffEditorInput, IUntypedEditorInput, UntypedEditorContext } from 'vs/workbench/common/editor';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
-import { IReference } from 'vs/base/common/lifecycle';
 import { INotebookDiffEditorModel, IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { Schemas } from 'vs/base/common/network';
-
-interface NotebookEditorInputOptions {
-	startDirty?: boolean;
-}
+import { IFileService } from 'vs/platform/files/common/files';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 class NotebookDiffEditorModel extends EditorModel implements INotebookDiffEditorModel {
 	constructor(
@@ -28,185 +21,95 @@ class NotebookDiffEditorModel extends EditorModel implements INotebookDiffEditor
 	) {
 		super();
 	}
-
-	async load(): Promise<NotebookDiffEditorModel> {
-		await this.original.load();
-		await this.modified.load();
-
-		return this;
-	}
-
-	async resolveOriginalFromDisk() {
-		await this.original.load({ forceReadFromFile: true });
-	}
-
-	async resolveModifiedFromDisk() {
-		await this.modified.load({ forceReadFromFile: true });
-	}
-
-	override dispose(): void {
-		super.dispose();
-	}
 }
 
-export class NotebookDiffEditorInput extends EditorInput {
-	static create(instantiationService: IInstantiationService, resource: URI, name: string, originalResource: URI, originalName: string, textDiffName: string, viewType: string | undefined, options: NotebookEditorInputOptions = {}) {
-		return instantiationService.createInstance(NotebookDiffEditorInput, resource, name, originalResource, originalName, textDiffName, viewType, options);
+export class NotebookDiffEditorInput extends DiffEditorInput {
+	static create(instantiationService: IInstantiationService, resource: URI, name: string | undefined, description: string | undefined, originalResource: URI, viewType: string) {
+		const originalInput = NotebookEditorInput.create(instantiationService, originalResource, viewType);
+		const modifiedInput = NotebookEditorInput.create(instantiationService, resource, viewType);
+		return instantiationService.createInstance(NotebookDiffEditorInput, name, description, originalInput, modifiedInput, viewType);
 	}
 
-	static readonly ID: string = 'workbench.input.diffNotebookInput';
+	static override readonly ID: string = 'workbench.input.diffNotebookInput';
 
-	private _modifiedTextModel: IReference<IResolvedNotebookEditorModel> | null = null;
-	private _originalTextModel: IReference<IResolvedNotebookEditorModel> | null = null;
-	private _defaultDirtyState: boolean = false;
+	private _modifiedTextModel: IResolvedNotebookEditorModel | null = null;
+	private _originalTextModel: IResolvedNotebookEditorModel | null = null;
+
+	override get resource() {
+		return this.modifiedInput.resource;
+	}
+
+	override get editorId() {
+		return this.viewType;
+	}
 
 	constructor(
-		public readonly resource: URI,
-		public readonly name: string,
-		public readonly originalResource: URI,
-		public readonly originalName: string,
-		public readonly textDiffName: string,
-		public readonly viewType: string | undefined,
-		public readonly options: NotebookEditorInputOptions,
-		@INotebookService private readonly _notebookService: INotebookService,
-		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
-		@IFileDialogService private readonly _fileDialogService: IFileDialogService
+		name: string | undefined,
+		description: string | undefined,
+		override readonly originalInput: NotebookEditorInput,
+		override readonly modifiedInput: NotebookEditorInput,
+		public readonly viewType: string,
+		@IFileService fileService: IFileService,
+		@ILabelService labelService: ILabelService,
 	) {
-		super();
-		this._defaultDirtyState = !!options.startDirty;
+		super(
+			name,
+			description,
+			originalInput,
+			modifiedInput,
+			undefined,
+			labelService,
+			fileService
+		);
 	}
 
 	override get typeId(): string {
 		return NotebookDiffEditorInput.ID;
 	}
 
-	override get capabilities(): EditorInputCapabilities {
-		let capabilities = EditorInputCapabilities.None;
+	override async resolve(): Promise<NotebookDiffEditorModel> {
 
-		if (this._modifiedTextModel?.object.resource.scheme === Schemas.untitled) {
-			capabilities |= EditorInputCapabilities.Untitled;
+		const [originalEditorModel, modifiedEditorModel] = await Promise.all([
+			this.originalInput.resolve(),
+			this.modifiedInput.resolve(),
+		]);
+
+		this._originalTextModel?.dispose();
+		this._modifiedTextModel?.dispose();
+
+		// TODO@rebornix check how we restore the editor in text diff editor
+		if (!modifiedEditorModel) {
+			throw new Error(`Fail to resolve modified editor model for resource ${this.modifiedInput.resource} with notebookType ${this.viewType}`);
 		}
 
-		return capabilities;
-	}
-
-	override getName(): string {
-		return this.textDiffName;
-	}
-
-	override isDirty() {
-		if (!this._modifiedTextModel) {
-			return this._defaultDirtyState;
+		if (!originalEditorModel) {
+			throw new Error(`Fail to resolve original editor model for resource ${this.originalInput.resource} with notebookType ${this.viewType}`);
 		}
-		return this._modifiedTextModel.object.isDirty();
+
+		this._originalTextModel = originalEditorModel;
+		this._modifiedTextModel = modifiedEditorModel;
+		return new NotebookDiffEditorModel(this._originalTextModel, this._modifiedTextModel);
 	}
 
-	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
-		if (this._modifiedTextModel) {
-
-			if (this.hasCapability(EditorInputCapabilities.Untitled)) {
-				return this.saveAs(group, options);
-			} else {
-				await this._modifiedTextModel.object.save();
+	override toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IResourceDiffEditorInput {
+		return {
+			originalInput: { resource: this.originalInput.resource },
+			modifiedInput: { resource: this.resource },
+			options: {
+				override: this.viewType
 			}
-
-			return this;
-		}
-
-		return undefined;
+		};
 	}
 
-	override async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
-		if (!this._modifiedTextModel || !this.viewType) {
-			return undefined;
-		}
-
-		const provider = this._notebookService.getContributedNotebookType(this.viewType!);
-
-		if (!provider) {
-			return undefined;
-		}
-
-		const dialogPath = this._modifiedTextModel.object.resource;
-		const target = await this._fileDialogService.pickFileToSave(dialogPath, options?.availableFileSystems);
-		if (!target) {
-			return undefined; // save cancelled
-		}
-
-		if (!provider.matches(target)) {
-			const patterns = provider.selectors.map(pattern => {
-				if (typeof pattern === 'string') {
-					return pattern;
-				}
-
-				if (glob.isRelativePattern(pattern)) {
-					return `${pattern} (base ${pattern.base})`;
-				}
-
-				return `${pattern.include} (exclude: ${pattern.exclude})`;
-			}).join(', ');
-			throw new Error(`File name ${target} is not supported by ${provider.providerDisplayName}.
-
-Please make sure the file name matches following patterns:
-${patterns}
-`);
-		}
-
-		if (!await this._modifiedTextModel.object.saveAs(target)) {
-			return undefined;
-		}
-
-		return this._move(group, target)?.editor;
-	}
-
-	// called when users rename a notebook document
-	override rename(group: GroupIdentifier, target: URI): IMoveResult | undefined {
-		if (this._modifiedTextModel) {
-			const contributedNotebookProviders = this._notebookService.getContributedNotebookTypes(target);
-
-			if (contributedNotebookProviders.find(provider => provider.id === this._modifiedTextModel!.object.viewType)) {
-				return this._move(group, target);
-			}
-		}
-		return undefined;
-	}
-
-	private _move(group: GroupIdentifier, newResource: URI): { editor: IEditorInput } | undefined {
-		return undefined;
-	}
-
-	override async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
-		if (this._modifiedTextModel && this._modifiedTextModel.object.isDirty()) {
-			await this._modifiedTextModel.object.revert(options);
-		}
-
-		return;
-	}
-
-	override async resolve(): Promise<INotebookDiffEditorModel | null> {
-		if (!await this._notebookService.canResolve(this.viewType!)) {
-			return null;
-		}
-
-		if (!this._modifiedTextModel) {
-			this._modifiedTextModel = await this._notebookModelResolverService.resolve(this.resource, this.viewType!);
-			this._register(this._modifiedTextModel.object.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
-			if (this._modifiedTextModel.object.isDirty() !== this._defaultDirtyState) {
-				this._onDidChangeDirty.fire();
-			}
-
-		}
-		if (!this._originalTextModel) {
-			this._originalTextModel = await this._notebookModelResolverService.resolve(this.originalResource, this.viewType!);
-		}
-
-		return new NotebookDiffEditorModel(this._originalTextModel.object, this._modifiedTextModel.object);
-	}
-
-	override matches(otherInput: unknown): boolean {
-		if (this === otherInput) {
+	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
+		if (super.matches(otherInput)) {
 			return true;
 		}
+
+		if (isResourceDiffEditorInput(otherInput)) {
+			return this.primary.matches(otherInput.modifiedInput) && this.secondary.matches(otherInput.originalInput) && this.editorId !== undefined && this.editorId === otherInput.options?.override;
+		}
+
 		if (otherInput instanceof NotebookDiffEditorInput) {
 			return this.viewType === otherInput.viewType
 				&& isEqual(this.resource, otherInput.resource);

@@ -5,13 +5,14 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInput, IEditorPane, GroupIdentifier, IEditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IEditorMoveEvent, IEditorOpenEvent } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorPane, GroupIdentifier, IEditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IEditorMoveEvent, IEditorOpenEvent, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
+import { isEditorInput } from 'vs/workbench/common/editor/editorInput';
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
 
@@ -108,6 +109,12 @@ export interface IEditorReplacement {
 	 * save the document. Only use this if you really need to!
 	 */
 	forceReplaceDirty?: boolean;
+}
+
+export function isEditorReplacement(obj: unknown): obj is IEditorReplacement {
+	const candidate = obj as IEditorReplacement | undefined;
+
+	return !!candidate && isEditorInput(candidate.editor) && isEditorInput(candidate.replacement);
 }
 
 export const enum GroupsOrder {
@@ -372,6 +379,7 @@ export const enum GroupChangeKind {
 	EDITOR_MOVE,
 	EDITOR_ACTIVE,
 	EDITOR_LABEL,
+	EDITOR_CAPABILITIES,
 	EDITOR_PIN,
 	EDITOR_STICKY,
 	EDITOR_DIRTY
@@ -545,14 +553,14 @@ export interface IEditorGroup {
 	/**
 	 * Find out if the provided editor is active in the group.
 	 */
-	isActive(editor: IEditorInput): boolean;
+	isActive(editor: IEditorInput | IUntypedEditorInput): boolean;
 
 	/**
 	 * Find out if a certain editor is included in the group.
 	 *
 	 * @param candidate the editor to find
 	 */
-	contains(candidate: IEditorInput): boolean;
+	contains(candidate: IEditorInput | IUntypedEditorInput): boolean;
 
 	/**
 	 * Move an editor from this group either within this group or to another group.
@@ -636,6 +644,11 @@ export interface IEditorGroup {
 	focus(): void;
 }
 
+export function isEditorGroup(obj: unknown): obj is IEditorGroup {
+	const group = obj as IEditorGroup | undefined;
+
+	return !!group && typeof group.id === 'number' && Array.isArray(group.editors);
+}
 
 //#region Editor Group Helpers
 

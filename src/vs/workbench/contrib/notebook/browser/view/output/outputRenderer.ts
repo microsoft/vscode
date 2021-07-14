@@ -68,6 +68,6 @@ export class OutputRenderer {
 			return this._renderMessage(container, localize('empty', "Cell has no output"));
 		}
 
-		return renderer.render(viewModel, [first], container, notebookUri);
+		return renderer.render(viewModel, first, container, notebookUri);
 	}
 }

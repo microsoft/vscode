@@ -668,8 +668,7 @@ import { assertNoRpc } from '../utils';
 			});
 		});
 
-		// https://github.com/microsoft/vscode/issues/119826
-		suite.skip('environmentVariableCollection', () => {
+		suite('environmentVariableCollection', () => {
 			test('should have collection variables apply to terminals immediately after setting', (done) => {
 				// Text to match on before passing the test
 				const expectedText = [

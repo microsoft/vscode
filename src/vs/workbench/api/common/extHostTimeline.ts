@@ -13,6 +13,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ThemeIcon } from 'vs/workbench/api/common/extHostTypes';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { MarshalledId } from 'vs/base/common/marshalling';
 
 export interface IExtHostTimeline extends ExtHostTimelineShape {
 	readonly _serviceBrand: undefined;
@@ -38,7 +39,7 @@ export class ExtHostTimeline implements IExtHostTimeline {
 
 		commands.registerArgumentProcessor({
 			processArgument: arg => {
-				if (arg && arg.$mid === 11) {
+				if (arg && arg.$mid === MarshalledId.TimelineActionContext) {
 					const uri = arg.uri === undefined ? undefined : URI.revive(arg.uri);
 					return this._itemsBySourceAndUriMap.get(arg.source)?.get(getUriKey(uri))?.get(arg.handle);
 				}

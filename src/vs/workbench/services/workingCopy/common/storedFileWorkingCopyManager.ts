@@ -9,7 +9,7 @@ import { StoredFileWorkingCopy, StoredFileWorkingCopyState, IStoredFileWorkingCo
 import { SaveReason } from 'vs/workbench/common/editor';
 import { ResourceMap } from 'vs/base/common/map';
 import { Promises, ResourceQueue } from 'vs/base/common/async';
-import { FileChangesEvent, FileChangeType, FileOperation, IFileService } from 'vs/platform/files/common/files';
+import { FileChangesEvent, FileChangeType, FileOperation, IFileService, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent } from 'vs/platform/files/common/files';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { VSBufferReadableStream } from 'vs/base/common/buffer';
@@ -171,6 +171,10 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 		// Update working copies from file change events
 		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
 
+		// File system provider changes
+		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onDidChangeFileSystemProviderCapabilities(e)));
+		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onDidChangeFileSystemProviderRegistrations(e)));
+
 		// Working copy operations
 		this._register(this.workingCopyFileService.onWillRunWorkingCopyFileOperation(e => this.onWillRunWorkingCopyFileOperation(e)));
 		this._register(this.workingCopyFileService.onDidFailWorkingCopyFileOperation(e => this.onDidFailWorkingCopyFileOperation(e)));
@@ -191,19 +195,54 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 		}
 	}
 
-	//#region Resolve from file changes
+	//#region Resolve from file or file provider changes
+
+	private onDidChangeFileSystemProviderCapabilities(e: IFileSystemProviderCapabilitiesChangeEvent): void {
+
+		// Resolve working copies again for file systems that changed
+		// capabilities to fetch latest metadata (e.g. readonly)
+		// into all working copies.
+		this.queueWorkingCopyResolves(e.scheme);
+	}
+
+	private onDidChangeFileSystemProviderRegistrations(e: IFileSystemProviderRegistrationEvent): void {
+		if (!e.added) {
+			return; // only if added
+		}
+
+		// Resolve working copies again for file systems that registered
+		// to account for capability changes: extensions may unregister
+		// and register the same provider with different capabilities,
+		// so we want to ensure to fetch latest metadata (e.g. readonly)
+		// into all working copies.
+		this.queueWorkingCopyResolves(e.scheme);
+	}
 
 	private onDidFilesChange(e: FileChangesEvent): void {
+
+		// Trigger a resolve for any update or add event that impacts
+		// the working copy. We also consider the added event
+		// because it could be that a file was added and updated
+		// right after.
+		this.queueWorkingCopyResolves(e);
+	}
+
+	private queueWorkingCopyResolves(scheme: string): void;
+	private queueWorkingCopyResolves(e: FileChangesEvent): void;
+	private queueWorkingCopyResolves(schemeOrEvent: string | FileChangesEvent): void {
 		for (const workingCopy of this.workingCopies) {
 			if (workingCopy.isDirty() || !workingCopy.isResolved()) {
 				continue; // require a resolved, saved working copy to continue
 			}
 
-			// Trigger a resolve for any update or add event that impacts
-			// the working copy. We also consider the added event
-			// because it could be that a file was added and updated
-			// right after.
-			if (e.contains(workingCopy.resource, FileChangeType.UPDATED, FileChangeType.ADDED)) {
+			let resolveWorkingCopy = false;
+			if (typeof schemeOrEvent === 'string') {
+				resolveWorkingCopy = schemeOrEvent === workingCopy.resource.scheme;
+			} else {
+				resolveWorkingCopy = schemeOrEvent.contains(workingCopy.resource, FileChangeType.UPDATED, FileChangeType.ADDED);
+			}
+
+			if (resolveWorkingCopy) {
 				this.queueWorkingCopyResolve(workingCopy);
 			}
 		}

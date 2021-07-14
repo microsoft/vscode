@@ -9,7 +9,10 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
 
-export class OneCursor {
+/**
+ * Represents a single cursor.
+*/
+export class Cursor {
 
 	public modelState!: SingleCursorState;
 	public viewState!: SingleCursorState;

@@ -187,12 +187,6 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		const result = await this.nativeHostService.showOpenDialog(newOptions);
 		return result && Array.isArray(result.filePaths) && result.filePaths.length > 0 ? result.filePaths.map(URI.file) : undefined;
 	}
-
-	protected addFileSchemaIfNeeded(schema: string): string[] {
-		// Include File schema unless the schema is web
-		// Don't allow untitled schema through.
-		return schema === Schemas.untitled ? [Schemas.file] : (schema !== Schemas.file ? [schema, Schemas.file] : [schema]);
-	}
 }
 
 registerSingleton(IFileDialogService, FileDialogService, true);

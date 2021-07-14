@@ -18,3 +18,7 @@
 	text-decoration: underline;
 	text-underline-position: under;
 }
+
+.monaco-editor .ghost-text-hidden {
+	opacity: 0;
+}

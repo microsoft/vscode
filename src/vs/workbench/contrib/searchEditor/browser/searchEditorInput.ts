@@ -16,7 +16,7 @@ import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, EditorResourceAccessor, IMoveResult, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, EditorResourceAccessor, IMoveResult, EditorInputCapabilities, IUntypedEditorInput, UntypedEditorContext } from 'vs/workbench/common/editor';
 import { Memento } from 'vs/workbench/common/memento';
 import { SearchEditorFindMatchClass, SearchEditorScheme, SearchEditorWorkingCopyTypeId } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { SearchConfigurationModel, SearchEditorModel, searchEditorModelFactory } from 'vs/workbench/contrib/searchEditor/browser/searchEditorModel';
@@ -30,6 +30,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ISearchComplete, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import { bufferToReadable, VSBuffer } from 'vs/base/common/buffer';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 
 export type SearchConfiguration = {
 	query: string,
@@ -51,6 +52,10 @@ export class SearchEditorInput extends EditorInput {
 
 	override get typeId(): string {
 		return SearchEditorInput.ID;
+	}
+
+	override get editorId(): string | undefined {
+		return this.typeId;
 	}
 
 	override get capabilities(): EditorInputCapabilities {
@@ -147,10 +152,12 @@ export class SearchEditorInput extends EditorInput {
 			this._cachedResultsModel = data.resultsModel;
 			this._cachedConfigurationModel = data.configurationModel;
 			this._onDidChangeLabel.fire();
-			this._register(this._cachedConfigurationModel.onConfigDidUpdate(() => {
-				this._onDidChangeLabel.fire();
-				this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE).searchConfig = this._cachedConfigurationModel?.config;
-			}));
+			if (!this.isDisposed()) {
+				this._register(this._cachedConfigurationModel.onConfigDidUpdate(() => {
+					this._onDidChangeLabel.fire();
+					this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE).searchConfig = this._cachedConfigurationModel?.config;
+				}));
+			}
 			return data;
 		});
 	}
@@ -212,8 +219,10 @@ export class SearchEditorInput extends EditorInput {
 		super.dispose();
 	}
 
-	override matches(other: unknown) {
-		if (this === other) { return true; }
+	override matches(other: IEditorInput | IUntypedEditorInput): boolean {
+		if (super.matches(other)) {
+			return true;
+		}
 
 		if (other instanceof SearchEditorInput) {
 			return !!(other.modelUri.fragment && other.modelUri.fragment === this.modelUri.fragment) || !!(other.backingUri && isEqual(other.backingUri, this.backingUri));
@@ -230,7 +239,7 @@ export class SearchEditorInput extends EditorInput {
 
 	async setMatchRanges(ranges: Range[]) {
 		this.oldDecorationsIDs = (await this.getModels()).resultsModel.deltaDecorations(this.oldDecorationsIDs, ranges.map(range =>
-			({ range, options: { className: SearchEditorFindMatchClass, stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
+			({ range, options: { description: 'search-editor-find-match', className: SearchEditorFindMatchClass, stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
 	}
 
 	override async revert(group: GroupIdentifier, options?: IRevertOptions) {
@@ -266,6 +275,19 @@ export class SearchEditorInput extends EditorInput {
 		const query = (await this.getModels()).configurationModel.config.query;
 		const searchFileName = (query.replace(/[^\w \-_]+/g, '_') || 'Search') + SEARCH_EDITOR_EXT;
 		return joinPath(await this.fileDialogService.defaultFilePath(this.pathService.defaultUriScheme), searchFileName);
+	}
+
+	override toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IResourceEditorInput | undefined {
+		if (this.hasCapability(EditorInputCapabilities.Untitled)) {
+			return undefined;
+		}
+
+		return {
+			resource: this.resource,
+			options: {
+				override: SearchEditorInput.ID
+			}
+		};
 	}
 }
 

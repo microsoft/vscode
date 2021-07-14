@@ -7,7 +7,7 @@ import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event } from 'vs/base/common/event';
-import { IDriver, IElement, IWindowDriverRegistry } from 'vs/platform/driver/common/driver';
+import { IDriver, IElement, IWindowDriverRegistry, ILocalizedStrings } from 'vs/platform/driver/common/driver';
 
 export class DriverChannel implements IServerChannel {
 
@@ -34,6 +34,7 @@ export class DriverChannel implements IServerChannel {
 			case 'typeInEditor': return this.driver.typeInEditor(arg[0], arg[1], arg[2]);
 			case 'getTerminalBuffer': return this.driver.getTerminalBuffer(arg[0], arg[1]);
 			case 'writeInTerminal': return this.driver.writeInTerminal(arg[0], arg[1], arg[2]);
+			case 'getLocalizedStrings': return this.driver.getLocalizedStrings(arg);
 		}
 
 		throw new Error(`Call not found: ${command}`);
@@ -104,6 +105,10 @@ export class DriverChannelClient implements IDriver {
 
 	writeInTerminal(windowId: number, selector: string, text: string): Promise<void> {
 		return this.channel.call('writeInTerminal', [windowId, selector, text]);
+	}
+
+	getLocalizedStrings(windowId: number): Promise<ILocalizedStrings> {
+		return this.channel.call('getLocalizedStrings', windowId);
 	}
 }
 

@@ -78,15 +78,22 @@ export interface IBaseTextResourceEditorInput extends IBaseResourceEditorInput {
 	options?: ITextEditorOptions;
 
 	/**
+	 * The contents of the text input if known. If provided,
+	 * the input will not attempt to load the contents from
+	 * disk and may appear dirty.
+	 */
+	contents?: string;
+
+	/**
 	 * The encoding of the text input if known.
 	 */
-	readonly encoding?: string;
+	encoding?: string;
 
 	/**
 	 * The identifier of the language mode of the text input
 	 * if known to use when displaying the contents.
 	 */
-	readonly mode?: string;
+	mode?: string;
 }
 
 export interface IResourceEditorInput extends IBaseResourceEditorInput {
@@ -95,6 +102,12 @@ export interface IResourceEditorInput extends IBaseResourceEditorInput {
 	 * The resource URI of the resource to open.
 	 */
 	readonly resource: URI;
+}
+
+export function isResourceEditorInput(editor: unknown): editor is IResourceEditorInput {
+	const candidate = editor as IResourceEditorInput | undefined;
+
+	return URI.isUri(candidate?.resource);
 }
 
 export interface ITextResourceEditorInput extends IResourceEditorInput, IBaseTextResourceEditorInput {
@@ -107,19 +120,24 @@ export interface ITextResourceEditorInput extends IResourceEditorInput, IBaseTex
 
 /**
  * This identifier allows to uniquely identify an editor with a
- * resource and type identifier.
+ * resource, type and editor identifier.
  */
 export interface IResourceEditorInputIdentifier {
-
-	/**
-	 * The resource URI of the editor.
-	 */
-	readonly resource: URI;
 
 	/**
 	 * The type of the editor.
 	 */
 	readonly typeId: string;
+
+	/**
+	 * The identifier of the editor if provided.
+	 */
+	readonly editorId: string | undefined;
+
+	/**
+	 * The resource URI of the editor.
+	 */
+	readonly resource: URI;
 }
 
 export enum EditorActivation {
@@ -128,7 +146,7 @@ export enum EditorActivation {
 	 * Activate the editor after it opened. This will automatically restore
 	 * the editor if it is minimized.
 	 */
-	ACTIVATE,
+	ACTIVATE = 1,
 
 	/**
 	 * Only restore the editor if it is minimized but do not activate it.
@@ -154,12 +172,17 @@ export enum EditorOverride {
 	/**
 	 * Displays a picker and allows the user to decide which editor to use
 	 */
-	PICK = 1,
+	PICK,
 
 	/**
 	 * Disables overrides
 	 */
-	DISABLED
+	DISABLED,
+
+	/**
+	 * Only exclusive overrides are considered
+	 */
+	EXCLUSIVE_ONLY
 }
 
 export enum EditorOpenContext {

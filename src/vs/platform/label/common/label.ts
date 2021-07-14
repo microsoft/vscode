@@ -25,6 +25,7 @@ export interface ILabelService {
 	getUriBasenameLabel(resource: URI): string;
 	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | IWorkspace), options?: { verbose: boolean }): string;
 	getHostLabel(scheme: string, authority?: string): string;
+	getHostTooltip(scheme: string, authority?: string): string | undefined;
 	getSeparator(scheme: string, authority?: string): '/' | '\\';
 
 	registerFormatter(formatter: ResourceLabelFormatter): IDisposable;
@@ -48,6 +49,7 @@ export interface ResourceLabelFormatting {
 	tildify?: boolean;
 	normalizeDriveLetter?: boolean;
 	workspaceSuffix?: string;
+	workspaceTooltip?: string;
 	authorityPrefix?: string;
 	stripPathStartingSeparator?: boolean;
 }

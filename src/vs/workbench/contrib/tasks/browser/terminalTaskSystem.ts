@@ -28,7 +28,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ITerminalProfileResolverService, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ITerminalService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalService, ITerminalInstance, ITerminalGroupService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind, ProblemHandlingStrategy } from 'vs/workbench/contrib/tasks/common/problemCollectors';
 import {
@@ -204,6 +204,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	constructor(
 		private terminalService: ITerminalService,
+		private terminalGroupService: ITerminalGroupService,
 		private outputService: IOutputService,
 		private panelService: IPanelService,
 		private viewsService: IViewsService,
@@ -309,7 +310,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		if (!terminalData) {
 			return false;
 		}
-		const activeTerminalInstance = this.terminalService.getActiveInstance();
+		const activeTerminalInstance = this.terminalService.activeInstance;
 		const isPanelShowingTerminal = !!this.viewsService.getActiveViewWithId(TERMINAL_VIEW_ID);
 		return isPanelShowingTerminal && (activeTerminalInstance?.instanceId === terminalData.terminal.instanceId);
 	}
@@ -336,12 +337,12 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			if (isTerminalInPanel) {
 				this.previousPanelId = this.panelService.getActivePanel()?.getId();
 				if (this.previousPanelId === TERMINAL_VIEW_ID) {
-					this.previousTerminalInstance = this.terminalService.getActiveInstance() ?? undefined;
+					this.previousTerminalInstance = this.terminalService.activeInstance ?? undefined;
 				}
 			}
 			this.terminalService.setActiveInstance(terminalData.terminal);
 			if (CustomTask.is(task) || ContributedTask.is(task)) {
-				this.terminalService.showPanel(task.command.presentation!.focus);
+				this.terminalGroupService.showPanel(task.command.presentation!.focus);
 			}
 		}
 		return true;
@@ -771,7 +772,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 								this.viewsService.openView(Constants.MARKERS_VIEW_ID, true);
 							} else if (reveal === RevealKind.Silent) {
 								this.terminalService.setActiveInstance(terminal!);
-								this.terminalService.showPanel(false);
+								this.terminalGroupService.showPanel(false);
 							}
 						}
 					}
@@ -840,7 +841,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						(watchingProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error))) {
 						try {
 							this.terminalService.setActiveInstance(terminal!);
-							this.terminalService.showPanel(false);
+							this.terminalGroupService.showPanel(false);
 						} catch (e) {
 							// If the terminal has already been disposed, then setting the active instance will fail. #99828
 							// There is nothing else to do here.
@@ -925,7 +926,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						(startStopProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error))) {
 						try {
 							this.terminalService.setActiveInstance(terminal);
-							this.terminalService.showPanel(false);
+							this.terminalGroupService.showPanel(false);
 						} catch (e) {
 							// If the terminal has already been disposed, then setting the active instance will fail. #99828
 							// There is nothing else to do here.
@@ -958,7 +959,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			this.viewsService.openView(Constants.MARKERS_VIEW_ID);
 		} else if (task.command.presentation && (task.command.presentation.reveal === RevealKind.Always)) {
 			this.terminalService.setActiveInstance(terminal);
-			this.terminalService.showPanel(task.command.presentation.focus);
+			this.terminalGroupService.showPanel(task.command.presentation.focus);
 		}
 		this.activeTasks[task.getMapKey()] = { terminal, task, promise };
 		this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Changed));
@@ -1169,19 +1170,23 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		let options = await this.resolveOptions(resolver, task.command.options);
 		const presentationOptions = task.command.presentation;
 
-		let waitOnExit: boolean | string = presentationOptions?.close ? !presentationOptions.close : false;
+		let waitOnExit: boolean | string = false;
 		if (!presentationOptions) {
 			throw new Error('Task presentation options should not be undefined here.');
 		}
 
-		if ((presentationOptions.close === undefined) && ((presentationOptions.reveal !== RevealKind.Never) || !task.configurationProperties.isBackground)) {
-			if (presentationOptions.panel === PanelKind.New) {
-				waitOnExit = nls.localize('closeTerminal', 'Press any key to close the terminal.');
-			} else if (presentationOptions.showReuseMessage) {
-				waitOnExit = nls.localize('reuseTerminal', 'Terminal will be reused by tasks, press any key to close it.');
-			} else {
-				waitOnExit = true;
+		if ((presentationOptions.close === undefined) || (presentationOptions.close === false)) {
+			if ((presentationOptions.reveal !== RevealKind.Never) || !task.configurationProperties.isBackground) {
+				if (presentationOptions.panel === PanelKind.New) {
+					waitOnExit = nls.localize('closeTerminal', 'Press any key to close the terminal.');
+				} else if (presentationOptions.showReuseMessage) {
+					waitOnExit = nls.localize('reuseTerminal', 'Terminal will be reused by tasks, press any key to close it.');
+				} else {
+					waitOnExit = true;
+				}
 			}
+		} else {
+			waitOnExit = !presentationOptions.close;
 		}
 
 		let commandExecutable: string | undefined;
@@ -1275,7 +1280,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 		if (!result) {
 			// Either no group is used, no terminal with the group exists or splitting an existing terminal failed.
-			result = this.terminalService.createTerminal(launchConfigs);
+			result = this.terminalService.createTerminal({ config: launchConfigs });
 		}
 
 		const terminalKey = result.instanceId.toString();

@@ -13,6 +13,7 @@ import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { requireToContent } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughContentProvider';
 import { Dimension } from 'vs/base/browser/dom';
+import { IEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 
 export class WalkThroughModel extends EditorModel {
 
@@ -125,16 +126,13 @@ export class WalkThroughInput extends EditorInput {
 		return this.promise;
 	}
 
-	override matches(otherInput: unknown): boolean {
-		if (super.matches(otherInput) === true) {
+	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
+		if (super.matches(otherInput)) {
 			return true;
 		}
 
 		if (otherInput instanceof WalkThroughInput) {
-			let otherResourceEditorInput = <WalkThroughInput>otherInput;
-
-			// Compare by properties
-			return isEqual(otherResourceEditorInput.options.resource, this.options.resource);
+			return isEqual(otherInput.options.resource, this.options.resource);
 		}
 
 		return false;

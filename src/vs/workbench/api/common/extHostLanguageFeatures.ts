@@ -19,7 +19,7 @@ import { regExpLeadsToEndlessLoop, regExpFlags } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
 import { isFalsyOrEmpty, isNonEmptyArray, coalesce, asArray } from 'vs/base/common/arrays';
-import { isObject } from 'vs/base/common/types';
+import { isArray, isObject } from 'vs/base/common/types';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -987,8 +987,7 @@ class SuggestAdapter {
 			//
 			x: id,
 			//
-			[extHostProtocol.ISuggestDataDtoField.label]: item.label ?? '',
-			[extHostProtocol.ISuggestDataDtoField.label2]: item.label2,
+			[extHostProtocol.ISuggestDataDtoField.label]: item.label,
 			[extHostProtocol.ISuggestDataDtoField.kind]: item.kind !== undefined ? typeConvert.CompletionItemKind.from(item.kind) : undefined,
 			[extHostProtocol.ISuggestDataDtoField.kindModifier]: item.tags && item.tags.map(typeConvert.CompletionItemTag.from),
 			[extHostProtocol.ISuggestDataDtoField.detail]: item.detail,
@@ -1066,13 +1065,14 @@ class InlineCompletionAdapter {
 			return undefined;
 		}
 
-		const pid = this._cache.add(result.items);
+		const normalizedResult: vscode.InlineCompletionList = isArray(result) ? { items: result } : result;
 
+		const pid = this._cache.add(normalizedResult.items);
 		let disposableStore: DisposableStore | undefined = undefined;
 
 		return {
 			pid,
-			items: result.items.map<extHostProtocol.IdentifiableInlineCompletion>((item, idx) => {
+			items: normalizedResult.items.map<extHostProtocol.IdentifiableInlineCompletion>((item, idx) => {
 				let command: modes.Command | undefined = undefined;
 				if (item.command) {
 					if (!disposableStore) {
@@ -1198,50 +1198,62 @@ class LinkProviderAdapter {
 		private readonly _provider: vscode.DocumentLinkProvider
 	) { }
 
-	provideLinks(resource: URI, token: CancellationToken): Promise<extHostProtocol.ILinksListDto | undefined> {
+	async provideLinks(resource: URI, token: CancellationToken): Promise<extHostProtocol.ILinksListDto | undefined> {
 		const doc = this._documents.getDocument(resource);
 
-		return asPromise(() => this._provider.provideDocumentLinks(doc, token)).then(links => {
-			if (!Array.isArray(links) || links.length === 0) {
-				// bad result
-				return undefined;
-			}
+		const links = await asPromise(() => this._provider.provideDocumentLinks(doc, token));
+		if (!Array.isArray(links) || links.length === 0) {
+			// bad result
+			return undefined;
+		}
+		if (token.isCancellationRequested) {
+			// cancelled -> return without further ado, esp no caching
+			// of results as they will leak
+			return undefined;
+		}
+		if (typeof this._provider.resolveDocumentLink !== 'function') {
+			// no resolve -> no caching
+			return { links: links.filter(LinkProviderAdapter._validateLink).map(typeConvert.DocumentLink.from) };
 
-			if (token.isCancellationRequested) {
-				// cancelled -> return without further ado, esp no caching
-				// of results as they will leak
-				return undefined;
-			}
+		} else {
+			// cache links for future resolving
+			const pid = this._cache.add(links);
+			const result: extHostProtocol.ILinksListDto = { links: [], id: pid };
+			for (let i = 0; i < links.length; i++) {
 
-			if (typeof this._provider.resolveDocumentLink !== 'function') {
-				// no resolve -> no caching
-				return { links: links.map(typeConvert.DocumentLink.from) };
-
-			} else {
-				// cache links for future resolving
-				const pid = this._cache.add(links);
-				const result: extHostProtocol.ILinksListDto = { links: [], id: pid };
-				for (let i = 0; i < links.length; i++) {
-					const dto: extHostProtocol.ILinkDto = typeConvert.DocumentLink.from(links[i]);
-					dto.cacheId = [pid, i];
-					result.links.push(dto);
+				if (!LinkProviderAdapter._validateLink(links[i])) {
+					continue;
 				}
-				return result;
+
+				const dto: extHostProtocol.ILinkDto = typeConvert.DocumentLink.from(links[i]);
+				dto.cacheId = [pid, i];
+				result.links.push(dto);
 			}
-		});
+			return result;
+		}
 	}
 
-	resolveLink(id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<extHostProtocol.ILinkDto | undefined> {
+	private static _validateLink(link: vscode.DocumentLink): boolean {
+		if (link.target && link.target.path.length > 50_000) {
+			console.warn('DROPPING link because it is too long');
+			return false;
+		}
+		return true;
+	}
+
+	async resolveLink(id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<extHostProtocol.ILinkDto | undefined> {
 		if (typeof this._provider.resolveDocumentLink !== 'function') {
-			return Promise.resolve(undefined);
+			return undefined;
 		}
 		const item = this._cache.get(...id);
 		if (!item) {
-			return Promise.resolve(undefined);
+			return undefined;
 		}
-		return asPromise(() => this._provider.resolveDocumentLink!(item, token)).then(value => {
-			return value && typeConvert.DocumentLink.from(value) || undefined;
-		});
+		const link = await asPromise(() => this._provider.resolveDocumentLink!(item, token));
+		if (!link || !LinkProviderAdapter._validateLink(link)) {
+			return undefined;
+		}
+		return typeConvert.DocumentLink.from(link);
 	}
 
 	releaseLinks(id: number): any {

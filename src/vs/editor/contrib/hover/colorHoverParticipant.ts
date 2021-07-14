@@ -8,7 +8,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { DocumentColorProvider, IColorInformation } from 'vs/editor/common/modes';
 import { IIdentifiedSingleEditOperation, IModelDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { IEditorHover, IEditorHoverParticipant, IHoverPart } from 'vs/editor/contrib/hover/modesContentHover';
+import { HoverAnchor, HoverAnchorType, IEditorHover, IEditorHoverParticipant, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { getColorPresentations } from 'vs/editor/contrib/colorPicker/color';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
@@ -33,8 +33,12 @@ export class ColorHover implements IHoverPart {
 		public readonly provider: DocumentColorProvider
 	) { }
 
-	equals(other: IHoverPart): boolean {
-		return false;
+	public isValidForHoverAnchor(anchor: HoverAnchor): boolean {
+		return (
+			anchor.type === HoverAnchorType.Range
+			&& this.range.startColumn <= anchor.range.startColumn
+			&& this.range.endColumn >= anchor.range.endColumn
+		);
 	}
 }
 
@@ -46,11 +50,11 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		@IThemeService private readonly _themeService: IThemeService,
 	) { }
 
-	public computeSync(hoverRange: Range, lineDecorations: IModelDecoration[]): ColorHover[] {
+	public computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): ColorHover[] {
 		return [];
 	}
 
-	public async computeAsync(range: Range, lineDecorations: IModelDecoration[], token: CancellationToken): Promise<ColorHover[]> {
+	public async computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): Promise<ColorHover[]> {
 		if (!this._editor.hasModel()) {
 			return [];
 		}
@@ -79,7 +83,7 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		return new ColorHover(this, Range.lift(colorInfo.range), model, provider);
 	}
 
-	public renderHoverParts(hoverParts: ColorHover[], fragment: DocumentFragment): IDisposable {
+	public renderHoverParts(hoverParts: ColorHover[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable {
 		if (hoverParts.length === 0 || !this._editor.hasModel()) {
 			return Disposable.None;
 		}

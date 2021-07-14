@@ -10,10 +10,10 @@ import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { flakySuite, getRandomTestPath, getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 import { join, basename, dirname, posix } from 'vs/base/common/path';
-import { copy, Promises, rimraf, rimrafSync } from 'vs/base/node/pfs';
+import { Promises, rimrafSync } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, createReadStream } from 'fs';
-import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType, IFileChange, FileChangesEvent, FileOperationError, etag, IStat, IFileStatWithMetadata, IReadFileOptions, FilePermission } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType, IFileChange, FileOperationError, etag, IStat, IFileStatWithMetadata, IReadFileOptions, FilePermission, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -154,13 +154,13 @@ flakySuite('Disk File Service', function () {
 
 		const sourceDir = getPathFromAmdModule(require, './fixtures/service');
 
-		await copy(sourceDir, testDir, { preserveSymlinks: false });
+		await Promises.copy(sourceDir, testDir, { preserveSymlinks: false });
 	});
 
 	teardown(() => {
 		disposables.clear();
 
-		return rimraf(testDir);
+		return Promises.rm(testDir);
 	});
 
 	test('createFolder', async () => {
@@ -1491,6 +1491,7 @@ flakySuite('Disk File Service', function () {
 
 		assert.ok(error);
 		assert.strictEqual(error!.fileOperationResult, FileOperationResult.FILE_NOT_MODIFIED_SINCE);
+		assert.ok(error instanceof NotModifiedSinceFileOperationError && error.stat);
 		assert.strictEqual(fileProvider.totalBytesRead, 0);
 	}
 
@@ -2278,23 +2279,23 @@ flakySuite('Disk File Service', function () {
 				}
 			}
 
-			function printEvents(event: FileChangesEvent): string {
-				return event.changes.map(change => `Change: type ${toString(change.type)} path ${change.resource.toString()}`).join('\n');
+			function printEvents(raw: readonly IFileChange[]): string {
+				return raw.map(change => `Change: type ${toString(change.type)} path ${change.resource.toString()}`).join('\n');
 			}
 
-			const listenerDisposable = service.onDidFilesChange(event => {
+			const listenerDisposable = service.onDidChangeFilesRaw(({ changes }) => {
 				watcherDisposable.dispose();
 				listenerDisposable.dispose();
 
 				try {
-					assert.strictEqual(event.changes.length, expected.length, `Expected ${expected.length} events, but got ${event.changes.length}. Details (${printEvents(event)})`);
+					assert.strictEqual(changes.length, expected.length, `Expected ${expected.length} events, but got ${changes.length}. Details (${printEvents(changes)})`);
 
 					if (expected.length === 1) {
-						assert.strictEqual(event.changes[0].type, expected[0][0], `Expected ${toString(expected[0][0])} but got ${toString(event.changes[0].type)}. Details (${printEvents(event)})`);
-						assert.strictEqual(event.changes[0].resource.fsPath, expected[0][1].fsPath);
+						assert.strictEqual(changes[0].type, expected[0][0], `Expected ${toString(expected[0][0])} but got ${toString(changes[0].type)}. Details (${printEvents(changes)})`);
+						assert.strictEqual(changes[0].resource.fsPath, expected[0][1].fsPath);
 					} else {
 						for (const expect of expected) {
-							assert.strictEqual(hasChange(event.changes, expect[0], expect[1]), true, `Unable to find ${toString(expect[0])} for ${expect[1].fsPath}. Details (${printEvents(event)})`);
+							assert.strictEqual(hasChange(changes, expect[0], expect[1]), true, `Unable to find ${toString(expect[0])} for ${expect[1].fsPath}. Details (${printEvents(changes)})`);
 						}
 					}
 

@@ -39,17 +39,13 @@ const enum Constants {
 	IsForValidationMaskInverse = 0b11111011,
 	IsForValidationOffset = 2,
 
-	IsInOverviewRulerMask = 0b00001000,
-	IsInOverviewRulerMaskInverse = 0b11110111,
-	IsInOverviewRulerOffset = 3,
+	StickinessMask = 0b00011000,
+	StickinessMaskInverse = 0b11100111,
+	StickinessOffset = 3,
 
-	StickinessMask = 0b00110000,
-	StickinessMaskInverse = 0b11001111,
-	StickinessOffset = 4,
-
-	CollapseOnReplaceEditMask = 0b01000000,
-	CollapseOnReplaceEditMaskInverse = 0b10111111,
-	CollapseOnReplaceEditOffset = 6,
+	CollapseOnReplaceEditMask = 0b00100000,
+	CollapseOnReplaceEditMaskInverse = 0b11011111,
+	CollapseOnReplaceEditOffset = 5,
 
 	/**
 	 * Due to how deletion works (in order to avoid always walking the right subtree of the deleted node),
@@ -96,14 +92,6 @@ function getNodeIsForValidation(node: IntervalNode): boolean {
 function setNodeIsForValidation(node: IntervalNode, value: boolean): void {
 	node.metadata = (
 		(node.metadata & Constants.IsForValidationMaskInverse) | ((value ? 1 : 0) << Constants.IsForValidationOffset)
-	);
-}
-export function getNodeIsInOverviewRuler(node: IntervalNode): boolean {
-	return ((node.metadata & Constants.IsInOverviewRulerMask) >>> Constants.IsInOverviewRulerOffset) === 1;
-}
-function setNodeIsInOverviewRuler(node: IntervalNode, value: boolean): void {
-	node.metadata = (
-		(node.metadata & Constants.IsInOverviewRulerMaskInverse) | ((value ? 1 : 0) << Constants.IsInOverviewRulerOffset)
 	);
 }
 function getNodeStickiness(node: IntervalNode): TrackedRangeStickiness {
@@ -170,7 +158,6 @@ export class IntervalNode implements IModelDecoration {
 		this.options = null!;
 		setNodeIsForValidation(this, false);
 		_setNodeStickiness(this, TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
-		setNodeIsInOverviewRuler(this, false);
 		setCollapseOnReplaceEdit(this, false);
 
 		this.cachedVersionId = 0;
@@ -200,7 +187,6 @@ export class IntervalNode implements IModelDecoration {
 			|| className === ClassName.EditorInfoDecoration
 		));
 		_setNodeStickiness(this, <number>this.options.stickiness);
-		setNodeIsInOverviewRuler(this, (this.options.overviewRuler && this.options.overviewRuler.color) ? true : false);
 		setCollapseOnReplaceEdit(this, this.options.collapseOnReplaceEdit);
 	}
 

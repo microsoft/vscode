@@ -48,9 +48,9 @@ registerAction2(class extends Action2 {
 
 			await editorService.openEditor(
 				{
-					leftEditor: { resource: diffEditorInput.originalResource },
-					rightEditor: { resource: diffEditorInput.resource },
-					label: diffEditorInput.textDiffName,
+					originalInput: { resource: diffEditorInput.originalInput.resource },
+					modifiedInput: { resource: diffEditorInput.resource },
+					label: diffEditorInput.getName(),
 					options: {
 						preserveFocus: false,
 						override: EditorOverride.DISABLED
@@ -76,7 +76,7 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase; }) {
 		if (!context) {
 			return;
 		}
@@ -131,7 +131,7 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase; }) {
 		if (!context) {
 			return;
 		}
@@ -156,7 +156,7 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase; }) {
 		if (!context) {
 			return;
 		}
@@ -168,7 +168,7 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		modified.textModel.spliceNotebookCellOutputs([[0, modified.outputs.length, original.outputs]]);
+		modified.textModel.spliceNotebookCellOutputs({ start: 0, deleteCount: modified.outputs.length, newOutputs: original.outputs });
 	}
 });
 
@@ -190,7 +190,7 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase; }) {
 		if (!context) {
 			return;
 		}

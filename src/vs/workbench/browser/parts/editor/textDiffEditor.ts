@@ -22,7 +22,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { ScrollType, IDiffEditorViewState, IDiffEditorModel } from 'vs/editor/common/editorCommon';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -43,6 +43,8 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 
 	private diffNavigator: DiffNavigator | undefined;
 	private readonly diffNavigatorDisposables = this._register(new DisposableStore());
+
+	private readonly inputListener = this._register(new MutableDisposable());
 
 	override get scopedContextKeyService(): IContextKeyService | undefined {
 		const control = this.getControl();
@@ -69,21 +71,29 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorService, editorGroupService);
 
 		// Listen to file system provider changes
-		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onDidFileSystemProviderChange(e.scheme)));
-		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onDidFileSystemProviderChange(e.scheme)));
+		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onDidChangeFileSystemProvider(e.scheme)));
+		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onDidChangeFileSystemProvider(e.scheme)));
 	}
 
-	private onDidFileSystemProviderChange(scheme: string): void {
-		const control = this.getControl();
-		const input = this.input;
+	private onDidChangeFileSystemProvider(scheme: string): void {
+		if (this.input instanceof DiffEditorInput && (this.input.originalInput.resource?.scheme === scheme || this.input.modifiedInput.resource?.scheme === scheme)) {
+			this.updateReadonly(this.input);
+		}
+	}
 
-		if (control && input instanceof DiffEditorInput) {
-			if (input.originalInput.resource?.scheme === scheme || input.modifiedInput.resource?.scheme === scheme) {
-				control.updateOptions({
-					readOnly: input.modifiedInput.hasCapability(EditorInputCapabilities.Readonly),
-					originalEditable: !input.originalInput.hasCapability(EditorInputCapabilities.Readonly)
-				});
-			}
+	private onDidChangeInputCapabilities(input: DiffEditorInput): void {
+		if (this.input === input) {
+			this.updateReadonly(input);
+		}
+	}
+
+	private updateReadonly(input: DiffEditorInput): void {
+		const control = this.getControl();
+		if (control) {
+			control.updateOptions({
+				readOnly: input.modifiedInput.hasCapability(EditorInputCapabilities.Readonly),
+				originalEditable: !input.originalInput.hasCapability(EditorInputCapabilities.Readonly)
+			});
 		}
 	}
 
@@ -108,6 +118,9 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 	}
 
 	override async setInput(input: DiffEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+
+		// Update our listener for input capabilities
+		this.inputListener.value = input.onDidChangeCapabilities(() => this.onDidChangeInputCapabilities(input));
 
 		// Dispose previous diff navigator
 		this.diffNavigatorDisposables.clear();
@@ -268,6 +281,9 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 
 	override clearInput(): void {
 
+		// Clear input listener
+		this.inputListener.clear();
+
 		// Dispose previous diff navigator
 		this.diffNavigatorDisposables.clear();
 
@@ -316,7 +332,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 
 		// Clear view state if input is disposed or we are configured to not storing any state
 		if (input.isDisposed() || (!this.shouldRestoreTextEditorViewState(input) && (!this.group || !this.group.contains(input)))) {
-			super.clearTextEditorViewState([resource], this.group);
+			super.clearTextEditorViewState(resource, this.group);
 		}
 
 		// Otherwise save it

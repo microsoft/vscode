@@ -11,10 +11,9 @@ import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/co
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IMessage } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionIdentifier, IExtensionDescription, EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription, EXTENSION_CATEGORIES, ExtensionKind } from 'vs/platform/extensions/common/extensions';
 
 const schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
-export type ExtensionKind = 'workspace' | 'ui' | undefined;
 
 export class ExtensionMessageCollector {
 
@@ -63,9 +62,9 @@ export interface IExtensionPointUser<T> {
 export type IExtensionPointHandler<T> = (extensions: readonly IExtensionPointUser<T>[], delta: ExtensionPointUserDelta<T>) => void;
 
 export interface IExtensionPoint<T> {
-	name: string;
+	readonly name: string;
 	setHandler(handler: IExtensionPointHandler<T>): void;
-	defaultExtensionKind: ExtensionKind;
+	readonly defaultExtensionKind: ExtensionKind[] | undefined;
 }
 
 export class ExtensionPointUserDelta<T> {
@@ -104,13 +103,13 @@ export class ExtensionPointUserDelta<T> {
 export class ExtensionPoint<T> implements IExtensionPoint<T> {
 
 	public readonly name: string;
-	public readonly defaultExtensionKind: ExtensionKind;
+	public readonly defaultExtensionKind: ExtensionKind[] | undefined;
 
 	private _handler: IExtensionPointHandler<T> | null;
 	private _users: IExtensionPointUser<T>[] | null;
 	private _delta: ExtensionPointUserDelta<T> | null;
 
-	constructor(name: string, defaultExtensionKind: ExtensionKind) {
+	constructor(name: string, defaultExtensionKind: ExtensionKind[] | undefined) {
 		this.name = name;
 		this.defaultExtensionKind = defaultExtensionKind;
 		this._handler = null;
@@ -312,7 +311,7 @@ export const schema: IJSONSchema = {
 					},
 					{
 						label: 'onNotebook',
-						body: 'onNotebook:${10:viewType}',
+						body: 'onNotebook:${1:type}',
 						description: nls.localize('vscode.extension.activationEvents.onNotebook', 'An activation event emitted whenever the specified notebook document is opened.'),
 					},
 					{
@@ -324,6 +323,11 @@ export const schema: IJSONSchema = {
 						label: 'onRenderer',
 						description: nls.localize('vscode.extension.activationEvents.onRenderer', 'An activation event emitted whenever a notebook output renderer is used.'),
 						body: 'onRenderer:${11:rendererId}'
+					},
+					{
+						label: 'onTerminalProfile',
+						body: 'onTerminalProfile:${1:terminalType}',
+						description: nls.localize('vscode.extension.activationEvents.onTerminalProfile', 'An activation event emitted when a specific terminal profile is launched.'),
 					},
 					{
 						label: '*',
@@ -506,7 +510,7 @@ export interface IExtensionPointDescriptor {
 	extensionPoint: string;
 	deps?: IExtensionPoint<any>[];
 	jsonSchema: IJSONSchema;
-	defaultExtensionKind?: ExtensionKind;
+	defaultExtensionKind?: ExtensionKind[];
 }
 
 export class ExtensionsRegistryImpl {

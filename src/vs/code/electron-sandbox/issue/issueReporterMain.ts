@@ -140,6 +140,7 @@ export class IssueReporter extends Disposable {
 		this.applyStyles(configuration.data.styles);
 		this.handleExtensionData(configuration.data.enabledExtensions);
 		this.updateExperimentsInfo(configuration.data.experiments);
+		this.updateRestrictedMode(configuration.data.restrictedMode);
 	}
 
 	render(): void {
@@ -1157,6 +1158,10 @@ export class IssueReporter extends Disposable {
 
 			reset(target, this.getExtensionTableHtml(extensions), document.createTextNode(themeExclusionStr));
 		}
+	}
+
+	private updateRestrictedMode(restrictedMode: boolean) {
+		this.issueReporterModel.update({ restrictedMode });
 	}
 
 	private updateExperimentsInfo(experimentInfo: string | undefined) {

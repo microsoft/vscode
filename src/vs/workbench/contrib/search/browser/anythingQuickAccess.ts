@@ -51,7 +51,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { Codicon } from 'vs/base/common/codicons';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { stripIcons } from 'vs/base/common/iconLabels';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { isEditorInput } from 'vs/workbench/common/editor/editorInput';
 
 interface IAnythingQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource { }
 
@@ -872,17 +872,20 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		let label: string;
 		let description: string | undefined = undefined;
 		let isDirty: boolean | undefined = undefined;
+		let extraClasses: string[];
 
-		if (resourceOrEditor instanceof EditorInput) {
+		if (isEditorInput(resourceOrEditor)) {
 			resource = EditorResourceAccessor.getOriginalUri(resourceOrEditor);
 			label = resourceOrEditor.getName();
 			description = resourceOrEditor.getDescription();
 			isDirty = resourceOrEditor.isDirty() && !resourceOrEditor.isSaving();
+			extraClasses = resourceOrEditor.getLabelExtraClasses();
 		} else {
-			resource = URI.isUri(resourceOrEditor) ? resourceOrEditor : (resourceOrEditor as IResourceEditorInput).resource;
+			resource = URI.isUri(resourceOrEditor) ? resourceOrEditor : resourceOrEditor.resource;
 			label = basenameOrAuthority(resource);
 			description = this.labelService.getUriLabel(dirname(resource), { relative: true });
 			isDirty = this.workingCopyService.isDirty(resource) && !configuration.shortAutoSaveDelay;
+			extraClasses = [];
 		}
 
 		const labelAndDescription = description ? `${label} ${description}` : label;
@@ -891,7 +894,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			label,
 			ariaLabel: isDirty ? localize('filePickAriaLabelDirty', "{0} dirty", labelAndDescription) : labelAndDescription,
 			description,
-			iconClasses: getIconClasses(this.modelService, this.modeService, resource),
+			iconClasses: getIconClasses(this.modelService, this.modeService, resource).concat(extraClasses),
 			buttons: (() => {
 				const openSideBySideDirection = configuration.openSideBySideDirection;
 				const buttons: IQuickInputButton[] = [];
@@ -940,6 +943,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	}
 
 	private async openAnything(resourceOrEditor: URI | IEditorInput | IResourceEditorInput, options: { keyMods?: IKeyMods, preserveFocus?: boolean, range?: IRange, forceOpenSideBySide?: boolean, forcePinned?: boolean }): Promise<void> {
+
+		// Craft some editor options based on quick access usage
 		const editorOptions: ITextEditorOptions = {
 			preserveFocus: options.preserveFocus,
 			pinned: options.keyMods?.ctrlCmd || options.forcePinned || this.configuration.openEditorPinned,
@@ -953,14 +958,30 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			await this.pickState.restoreEditorViewState();
 		}
 
-		// Open editor
-		if (resourceOrEditor instanceof EditorInput) {
+		// Open editor (typed)
+		if (isEditorInput(resourceOrEditor)) {
 			await this.editorService.openEditor(resourceOrEditor, editorOptions);
-		} else {
-			await this.editorService.openEditor({
-				resource: URI.isUri(resourceOrEditor) ? resourceOrEditor : resourceOrEditor.resource,
-				options: editorOptions
-			}, targetGroup);
+		}
+
+		// Open editor (untyped)
+		else {
+			let resourceEditorInput: IResourceEditorInput;
+			if (URI.isUri(resourceOrEditor)) {
+				resourceEditorInput = {
+					resource: resourceOrEditor,
+					options
+				};
+			} else {
+				resourceEditorInput = {
+					...resourceOrEditor,
+					options: {
+						...resourceOrEditor.options,
+						...editorOptions
+					}
+				};
+			}
+
+			await this.editorService.openEditor(resourceEditorInput, targetGroup);
 		}
 
 	}

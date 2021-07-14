@@ -180,9 +180,9 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				}
 
 				if (this._isExtensionDevHost) {
-					// Unset `VSCODE_NODE_CACHED_DATA_DIR` when developing extensions because it might
+					// Unset `VSCODE_CODE_CACHE_PATH` when developing extensions because it might
 					// be that dependencies, that otherwise would be cached, get modified.
-					delete env['VSCODE_NODE_CACHED_DATA_DIR'];
+					delete env['VSCODE_CODE_CACHE_PATH'];
 				}
 
 				const opts = {

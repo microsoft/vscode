@@ -81,7 +81,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 
 			// When at a markdown file, apply existing scroll settings
 			if (textEditor && textEditor.document && isMarkdownFile(textEditor.document)) {
-				const line = this._topmostLineMonitor.getPreviousEditorLineByUri(textEditor.document.uri);
+				const line = this._topmostLineMonitor.getPreviousStaticEditorLineByUri(textEditor.document.uri);
 				if (line) {
 					scrollEditorToLine(line, textEditor);
 				}
@@ -172,7 +172,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		document: vscode.TextDocument,
 		webview: vscode.WebviewPanel
 	): Promise<void> {
-		const lineNumber = this._topmostLineMonitor.getPreviousEditorLineByUri(document.uri);
+		const lineNumber = this._topmostLineMonitor.getPreviousTextEditorLineByUri(document.uri);
 		const preview = StaticMarkdownPreview.revive(
 			document.uri,
 			webview,

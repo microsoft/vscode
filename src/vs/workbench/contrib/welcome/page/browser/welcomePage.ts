@@ -10,7 +10,7 @@ import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/c
 import * as arrays from 'vs/base/common/arrays';
 import { WalkThroughInput } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughInput';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
@@ -48,63 +48,15 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { GettingStartedInput, gettingStartedInputTypeId } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
 import { welcomeButtonBackground, welcomeButtonHoverBackground, welcomePageBackground } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
-import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationNode, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
-
-export const DEFAULT_STARTUP_EDITOR_CONFIG: IConfigurationNode = {
-	...workbenchConfigurationNodeBase,
-	'properties': {
-		'workbench.startupEditor': {
-			'scope': ConfigurationScope.RESOURCE,
-			'type': 'string',
-			'enum': ['none', 'welcomePage', 'readme', 'newUntitledFile', 'welcomePageInEmptyWorkbench', 'gettingStarted'],
-			'enumDescriptions': [...[
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.none' }, "Start without an editor."),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePage' }, "Open the Welcome page."),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.readme' }, "Open the README when opening a folder that contains one, fallback to 'welcomePage' otherwise."),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.newUntitledFile' }, "Open a new untitled file (only applies when opening an empty window)."),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePageInEmptyWorkbench' }, "Open the Welcome page when opening an empty workbench."),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.gettingStarted' }, "Open the Getting Started page.")]
-			],
-			'default': 'welcomePage',
-			'description': localize('workbench.startupEditor', "Controls which editor is shown at startup, if none are restored from the previous session.")
-		},
-	}
-};
-
-export const EXPERIMENTAL_GETTING_STARTED_STARTUP_EDITOR_CONFIG: IConfigurationNode = {
-	...workbenchConfigurationNodeBase,
-	'properties': {
-		'workbench.startupEditor': {
-			'scope': ConfigurationScope.RESOURCE,
-			'type': 'string',
-			'enum': ['none', 'welcomePage', 'readme', 'newUntitledFile', 'welcomePageInEmptyWorkbench', 'gettingStarted'],
-			'enumDescriptions': [...[
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.none' }, "Start without an editor."),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePage' }, "Open the Welcome page."),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.readme' }, "Open the README when opening a folder that contains one, fallback to 'welcomePage' otherwise."),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.newUntitledFile' }, "Open a new untitled file (only applies when opening an empty window)."),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePageInEmptyWorkbench' }, "Open the Welcome page when opening an empty workbench."),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.gettingStarted' }, "Open the Getting Started page.")]
-			],
-			'default': 'gettingStarted',
-			'description': localize('workbench.startupEditor', "Controls which editor is shown at startup, if none are restored from the previous session.")
-		},
-	}
-};
 
 const configurationKey = 'workbench.startupEditor';
 const oldConfigurationKey = 'workbench.welcome.enabled';
 const telemetryFrom = 'welcomePage';
 
 export class WelcomePageContribution implements IWorkbenchContribution {
-	private experimentManagementComplete: Promise<void>;
-	private tasExperimentService: ITASExperimentService | undefined;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -116,64 +68,13 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ICommandService private readonly commandService: ICommandService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ILogService private readonly logService: ILogService,
-		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
-		this.tasExperimentService = tasExperimentService;
-
-		// Run immediately to minimize time spent waiting for exp service.
-		this.experimentManagementComplete = this.manageDefaultValuesForGettingStartedExperiment().catch(onUnexpectedError);
 		this.run().then(undefined, onUnexpectedError);
 	}
 
-	private async manageDefaultValuesForGettingStartedExperiment() {
-		const config = this.configurationService.inspect(configurationKey);
-
-		if (this.lifecycleService.startupKind === StartupKind.ReloadedWindow || config.value !== config.defaultValue) {
-			return;
-		}
-
-		if (this.configurationService.getValue('workbench.gettingStartedTreatmentOverride')) {
-			await new Promise(resolve => setTimeout(resolve, 1000));
-			Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).deregisterConfigurations([DEFAULT_STARTUP_EDITOR_CONFIG]);
-			Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration(EXPERIMENTAL_GETTING_STARTED_STARTUP_EDITOR_CONFIG);
-		}
-
-		let someValueReturned = false;
-		type GettingStartedTreatmentData = { value: string; };
-		type GettingStartedTreatmentClassification = { value: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' }; };
-
-		const tasUseGettingStartedAsDefault = this.tasExperimentService?.getTreatment<boolean>('StartupGettingStarted')
-			.then(result => {
-				this.logService.trace('StartupGettingStarted:', result);
-				this.telemetryService.publicLog2<GettingStartedTreatmentData, GettingStartedTreatmentClassification>('gettingStartedTreatmentValue', { value: '' + !!result });
-				someValueReturned = true;
-				return result;
-			})
-			.catch(error => {
-				this.logService.error('Recieved error when consulting experiment service for getting started experiment', error);
-				this.telemetryService.publicLog2<GettingStartedTreatmentData, GettingStartedTreatmentClassification>('gettingStartedTreatmentValue', { value: 'err' });
-				someValueReturned = true;
-				return false;
-			});
-
-		const fallback = new Promise<false>(c => setTimeout(() => c(false), 2000)).then(
-			() => {
-				if (!someValueReturned) { this.logService.trace('Unable to read getting started treatment data in time, falling back to welcome'); }
-				someValueReturned = true;
-			}
-		);
-
-		const useGettingStartedAsDefault = !!await Promise.race([tasUseGettingStartedAsDefault, fallback]);
-		if (useGettingStartedAsDefault) {
-			Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).deregisterConfigurations([DEFAULT_STARTUP_EDITOR_CONFIG]);
-			Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration(EXPERIMENTAL_GETTING_STARTED_STARTUP_EDITOR_CONFIG);
-		}
-	}
-
 	private async run() {
-		const enabled = isWelcomePageEnabled(this.configurationService, this.contextService);
+		const enabled = isWelcomePageEnabled(this.configurationService, this.contextService, this.environmentService);
 		if (enabled && this.lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
 			const hasBackups = await this.workingCopyBackupService.hasBackups();
 			if (hasBackups) { return; }
@@ -222,10 +123,8 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 	}
 
 	private async openWelcome() {
-		await this.experimentManagementComplete;
-
 		const startupEditorSetting = this.configurationService.getValue(configurationKey);
-		const startupEditorTypeID = startupEditorSetting === 'gettingStarted' ? gettingStartedInputTypeId : welcomeInputTypeId;
+		const startupEditorTypeID = (startupEditorSetting === 'welcomePage' || startupEditorSetting === 'welcomePageInEmptyWorkbench') ? gettingStartedInputTypeId : welcomeInputTypeId;
 		const editor = this.editorService.activeEditor;
 
 		// Ensure that the welcome editor won't get opened more than once
@@ -241,7 +140,11 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 	}
 }
 
-function isWelcomePageEnabled(configurationService: IConfigurationService, contextService: IWorkspaceContextService) {
+function isWelcomePageEnabled(configurationService: IConfigurationService, contextService: IWorkspaceContextService, environmentService: IWorkbenchEnvironmentService) {
+	if (environmentService.skipWelcome) {
+		return false;
+	}
+
 	const startupEditor = configurationService.inspect<string>(configurationKey);
 	if (!startupEditor.userValue && !startupEditor.workspaceValue) {
 		const welcomeEnabled = configurationService.inspect(oldConfigurationKey);
@@ -252,7 +155,10 @@ function isWelcomePageEnabled(configurationService: IConfigurationService, conte
 	if (startupEditor.value === 'readme' && startupEditor.userValue !== 'readme') {
 		console.error('Warning: `workbench.startupEditor: readme` setting ignored due to being set somewhere other than user settings');
 	}
-	return startupEditor.value === 'welcomePage' || startupEditor.value === 'gettingStarted' || startupEditor.userValue === 'readme' || startupEditor.value === 'welcomePageInEmptyWorkbench' && contextService.getWorkbenchState() === WorkbenchState.EMPTY;
+	return startupEditor.value === 'welcomePage'
+		|| startupEditor.value === 'legacy_welcomePage'
+		|| startupEditor.userValue === 'readme'
+		|| (contextService.getWorkbenchState() === WorkbenchState.EMPTY && (startupEditor.value === 'legacy_welcomePageInEmptyWorkbench' || startupEditor.value === 'welcomePageInEmptyWorkbench'));
 }
 
 export class WelcomePageAction extends Action {

@@ -48,6 +48,8 @@ export namespace TsServerLogLevel {
 export const enum SeparateSyntaxServerConfiguration {
 	Disabled,
 	Enabled,
+	/** Use a single syntax server for every request, even on desktop */
+	ForAllRequests,
 }
 
 export class ImplicitProjectConfiguration {
@@ -180,7 +182,10 @@ export class TypeScriptServiceConfiguration {
 	}
 
 	private static readUseSeparateSyntaxServer(configuration: vscode.WorkspaceConfiguration): SeparateSyntaxServerConfiguration {
-		const value = configuration.get('typescript.tsserver.useSeparateSyntaxServer', true);
+		const value = configuration.get<boolean | string>('typescript.tsserver.useSeparateSyntaxServer', true);
+		if (value === 'forAllRequests') {
+			return SeparateSyntaxServerConfiguration.ForAllRequests;
+		}
 		if (value === true) {
 			return SeparateSyntaxServerConfiguration.Enabled;
 		}

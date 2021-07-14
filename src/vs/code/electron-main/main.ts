@@ -209,7 +209,7 @@ class CodeMain {
 			// Environment service (paths)
 			Promise.all<string | undefined>([
 				environmentMainService.extensionsPath,
-				environmentMainService.nodeCachedDataDir,
+				environmentMainService.codeCachePath,
 				environmentMainService.logsPath,
 				environmentMainService.globalStorageHome.fsPath,
 				environmentMainService.workspaceStorageHome.fsPath,
@@ -375,6 +375,7 @@ class CodeMain {
 			buttons: [mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
 			message,
 			detail,
+			defaultId: 0,
 			noLink: true
 		});
 	}

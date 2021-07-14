@@ -14,9 +14,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
-import { EventType, $, isHTMLElement } from 'vs/base/browser/dom';
+import { EventType, $, isHTMLElement, addDisposableListener } from 'vs/base/browser/dom';
 import { attachMenuStyler } from 'vs/platform/theme/common/styler';
-import { domEvent } from 'vs/base/browser/event';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 
@@ -75,7 +74,9 @@ export class ContextMenuHandler {
 					this.block.style.width = '100%';
 					this.block.style.height = '100%';
 					this.block.style.zIndex = '-1';
-					domEvent(this.block, EventType.MOUSE_DOWN)((e: MouseEvent) => e.stopPropagation());
+
+					// TODO@Steven: this is never getting disposed
+					addDisposableListener(this.block, EventType.MOUSE_DOWN, e => e.stopPropagation());
 				}
 
 				const menuDisposables = new DisposableStore();
@@ -94,8 +95,8 @@ export class ContextMenuHandler {
 
 				menu.onDidCancel(() => this.contextViewService.hideContextView(true), null, menuDisposables);
 				menu.onDidBlur(() => this.contextViewService.hideContextView(true), null, menuDisposables);
-				domEvent(window, EventType.BLUR)(() => { this.contextViewService.hideContextView(true); }, null, menuDisposables);
-				domEvent(window, EventType.MOUSE_DOWN)((e: MouseEvent) => {
+				menuDisposables.add(addDisposableListener(window, EventType.BLUR, () => this.contextViewService.hideContextView(true)));
+				menuDisposables.add(addDisposableListener(window, EventType.MOUSE_DOWN, (e: MouseEvent) => {
 					if (e.defaultPrevented) {
 						return;
 					}
@@ -117,7 +118,7 @@ export class ContextMenuHandler {
 					}
 
 					this.contextViewService.hideContextView(true);
-				}, null, menuDisposables);
+				}));
 
 				return combinedDisposable(menuDisposables, menu);
 			},

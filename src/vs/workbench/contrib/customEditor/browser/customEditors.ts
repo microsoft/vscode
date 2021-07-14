@@ -6,23 +6,25 @@
 import { coalesce } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { EditorExtensions, GroupIdentifier, IEditorInput, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { EditorExtensions, GroupIdentifier, IEditorInput, IEditorInputFactoryRegistry, IResourceDiffEditorInput, IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { CONTEXT_ACTIVE_CUSTOM_EDITOR_ID, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorInfo, CustomEditorInfoCollection, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ContributedEditorPriority, IEditorOverrideService, IEditorType } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { RegisteredEditorPriority, IEditorOverrideService, IEditorType } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { ContributedCustomEditors } from '../common/contributedCustomEditors';
@@ -32,6 +34,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	_serviceBrand: any;
 
 	private readonly _contributedEditors: ContributedCustomEditors;
+	private _untitledCounter = 0;
 	private readonly _editorOverrideDisposables: IDisposable[] = [];
 	private readonly _editorCapabilities = new Map<string, CustomEditorCapabilities>();
 
@@ -111,22 +114,24 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 				if (!globPattern.filenamePattern) {
 					continue;
 				}
-				this._editorOverrideDisposables.push(this._register(this.extensionContributedEditorService.registerContributionPoint(
+				this._editorOverrideDisposables.push(this._register(this.extensionContributedEditorService.registerEditor(
 					globPattern.filenamePattern,
 					{
 						id: contributedEditor.id,
 						label: contributedEditor.displayName,
 						detail: contributedEditor.providerDisplayName,
-						describes: (currentEditor) => currentEditor instanceof CustomEditorInput && currentEditor.viewType === contributedEditor.id,
 						priority: contributedEditor.priority,
 					},
 					{
 						singlePerResource: () => !this.getCustomEditorCapabilities(contributedEditor.id)?.supportsMultipleEditorsPerDocument ?? true
 					},
-					(resource, options, group) => {
+					({ resource }, group) => {
 						return { editor: CustomEditorInput.create(this.instantiationService, resource, contributedEditor.id, group.id) };
 					},
-					(diffEditorInput, options, group) => {
+					({ resource }, group) => {
+						return { editor: CustomEditorInput.create(this.instantiationService, resource ?? URI.from({ scheme: Schemas.untitled, authority: `Untitled-${this._untitledCounter++}` }), contributedEditor.id, group.id) };
+					},
+					(diffEditorInput, group) => {
 						return { editor: this.createDiffEditorInput(diffEditorInput, contributedEditor.id, group) };
 					}
 				)));
@@ -135,20 +140,23 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	}
 
 	private createDiffEditorInput(
-		editor: DiffEditorInput,
+		editor: IResourceDiffEditorInput,
 		editorID: string,
 		group: IEditorGroup
 	): DiffEditorInput {
-		const createEditorForSubInput = (subInput: IEditorInput, editorID: string, customClasses: string): EditorInput | undefined => {
+		const createEditorForSubInput = (subInput: IResourceEditorInput | IUntitledTextResourceEditorInput, editorID: string, customClasses: string): EditorInput | undefined => {
+			if (!subInput.resource) {
+				return;
+			}
 			// We check before calling this call back that both resources are defined
-			const input = CustomEditorInput.create(this.instantiationService, subInput.resource!, editorID, group.id, { customClasses });
+			const input = CustomEditorInput.create(this.instantiationService, subInput.resource, editorID, group.id, { customClasses });
 			return input instanceof EditorInput ? input : undefined;
 		};
 
-		const modifiedOverride = createEditorForSubInput(editor.modifiedInput, editorID, 'modified');
-		const originalOverride = createEditorForSubInput(editor.originalInput, editorID, 'original');
+		const modifiedOverride = createEditorForSubInput(editor.modifiedInput, editorID, 'modified') ?? this.editorService.createEditorInput(editor.modifiedInput);
+		const originalOverride = createEditorForSubInput(editor.originalInput, editorID, 'original') ?? this.editorService.createEditorInput(editor.originalInput);
 
-		return this.instantiationService.createInstance(DiffEditorInput, editor.getName(), editor.getDescription(), originalOverride || editor.originalInput, modifiedOverride || editor.modifiedInput, true);
+		return this.instantiationService.createInstance(DiffEditorInput, undefined, undefined, originalOverride, modifiedOverride, true);
 	}
 
 	public get models() { return this._models; }
@@ -210,7 +218,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		const possibleEditors = this.getAllCustomEditors(newResource);
 
 		// See if we have any non-optional custom editor for this resource
-		if (!possibleEditors.allEditors.some(editor => editor.priority !== ContributedEditorPriority.option)) {
+		if (!possibleEditors.allEditors.some(editor => editor.priority !== RegisteredEditorPriority.option)) {
 			return;
 		}
 

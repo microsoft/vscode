@@ -12,7 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensions, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
-import { ITerminalExternalLinkProvider, ITerminalInstance, ITerminalInstanceService, ITerminalLink, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalExternalLinkProvider, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalLink, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
 import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { deserializeEnvironmentVariableCollection, serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
@@ -33,6 +33,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private _extHostTerminalIds = new Map<string, number>();
 	private readonly _toDispose = new DisposableStore();
 	private readonly _terminalProcessProxies = new Map<number, ITerminalProcessExtHostProxy>();
+	private readonly _profileProviders = new Map<string, IDisposable>();
 	private _dataEventTracker: TerminalDataEventTracker | undefined;
 	/**
 	 * A single shared terminal link provider for the exthost. When an ext registers a link
@@ -52,30 +53,31 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
 		@ILogService private readonly _logService: ILogService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService
 	) {
 		this._proxy = _extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
 
 		// ITerminalService listeners
-		this._toDispose.add(_terminalService.onInstanceCreated((instance) => {
+		this._toDispose.add(_terminalService.onDidCreateInstance((instance) => {
 			this._onTerminalOpened(instance);
 			this._onInstanceDimensionsChanged(instance);
 		}));
 
-		this._toDispose.add(_terminalService.onInstanceDisposed(instance => this._onTerminalDisposed(instance)));
+		this._toDispose.add(_terminalService.onDidDisposeInstance(instance => this._onTerminalDisposed(instance)));
 		this._toDispose.add(_terminalService.onInstanceProcessIdReady(instance => this._onTerminalProcessIdReady(instance)));
 		this._toDispose.add(_terminalService.onInstanceDimensionsChanged(instance => this._onInstanceDimensionsChanged(instance)));
 		this._toDispose.add(_terminalService.onInstanceMaximumDimensionsChanged(instance => this._onInstanceMaximumDimensionsChanged(instance)));
 		this._toDispose.add(_terminalService.onInstanceRequestStartExtensionTerminal(e => this._onRequestStartExtensionTerminal(e)));
-		this._toDispose.add(_terminalService.onActiveInstanceChanged(instance => this._onActiveTerminalChanged(instance ? instance.instanceId : null)));
+		this._toDispose.add(_terminalService.onDidChangeActiveInstance(instance => this._onActiveTerminalChanged(instance ? instance.instanceId : null)));
 		this._toDispose.add(_terminalService.onInstanceTitleChanged(instance => instance && this._onTitleChanged(instance.instanceId, instance.title)));
 
 		// Set initial ext host state
-		this._terminalService.terminalInstances.forEach(t => {
+		this._terminalService.instances.forEach(t => {
 			this._onTerminalOpened(t);
 			t.processReady.then(() => this._onTerminalProcessIdReady(t));
 		});
-		const activeInstance = this._terminalService.getActiveInstance();
+		const activeInstance = this._terminalService.activeInstance;
 		if (activeInstance) {
 			this._proxy.$acceptActiveTerminalChanged(activeInstance.instanceId);
 		}
@@ -142,7 +144,19 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			isExtensionOwnedTerminal: launchConfig.isExtensionOwnedTerminal,
 			useShellEnvironment: launchConfig.useShellEnvironment
 		};
-		const terminal = this._terminalService.createTerminal(shellLaunchConfig);
+		let terminal: ITerminalInstance | undefined;
+		if (launchConfig.isSplitTerminal) {
+			const activeInstance = this._terminalService.getInstanceHost(launchConfig.target).activeInstance;
+			if (activeInstance) {
+				terminal = withNullAsUndefined(this._terminalService.splitInstance(activeInstance, shellLaunchConfig));
+			}
+		}
+		if (!terminal) {
+			terminal = this._terminalService.createTerminal({
+				config: shellLaunchConfig,
+				target: launchConfig.target
+			});
+		}
 		this._extHostTerminalIds.set(extHostTerminalId, terminal.instanceId);
 	}
 
@@ -150,15 +164,15 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		const terminalInstance = this._getTerminalInstance(id);
 		if (terminalInstance) {
 			this._terminalService.setActiveInstance(terminalInstance);
-			this._terminalService.showPanel(!preserveFocus);
+			this._terminalGroupService.showPanel(!preserveFocus);
 		}
 	}
 
 	public $hide(id: TerminalIdentifier): void {
 		const rendererId = this._getTerminalId(id);
-		const instance = this._terminalService.getActiveInstance();
+		const instance = this._terminalService.activeInstance;
 		if (instance && instance.instanceId === rendererId) {
-			this._terminalService.hidePanel();
+			this._terminalGroupService.hidePanel();
 		}
 	}
 
@@ -176,7 +190,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 				this._onTerminalData(id, data);
 			});
 			// Send initial events if they exist
-			this._terminalService.terminalInstances.forEach(t => {
+			this._terminalService.instances.forEach(t => {
 				t.initialDataEvents?.forEach(d => this._onTerminalData(t.instanceId, d));
 			});
 		}
@@ -199,6 +213,20 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	public $registerProcessSupport(isSupported: boolean): void {
 		this._terminalService.registerProcessSupport(isSupported);
+	}
+
+	public $registerProfileProvider(id: string, extensionIdentifier: string): void {
+		// Proxy profile provider requests through the extension host
+		this._profileProviders.set(id, this._terminalService.registerTerminalProfileProvider(extensionIdentifier, id, {
+			createContributedTerminalProfile: async (options) => {
+				return this._proxy.$createContributedProfileTerminal(id, options);
+			}
+		}));
+	}
+
+	public $unregisterProfileProvider(id: string): void {
+		this._profileProviders.get(id)?.dispose();
+		this._profileProviders.delete(id);
 	}
 
 	private _onActiveTerminalChanged(terminalId: number | null): void {
@@ -358,9 +386,9 @@ class TerminalDataEventTracker extends Disposable {
 
 		this._register(this._bufferer = new TerminalDataBufferer(this._callback));
 
-		this._terminalService.terminalInstances.forEach(instance => this._registerInstance(instance));
-		this._register(this._terminalService.onInstanceCreated(instance => this._registerInstance(instance)));
-		this._register(this._terminalService.onInstanceDisposed(instance => this._bufferer.stopBuffering(instance.instanceId)));
+		this._terminalService.instances.forEach(instance => this._registerInstance(instance));
+		this._register(this._terminalService.onDidCreateInstance(instance => this._registerInstance(instance)));
+		this._register(this._terminalService.onDidDisposeInstance(instance => this._bufferer.stopBuffering(instance.instanceId)));
 	}
 
 	private _registerInstance(instance: ITerminalInstance): void {

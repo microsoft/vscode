@@ -7,7 +7,7 @@ import * as nativeWatchdog from 'native-watchdog';
 import * as net from 'net';
 import * as minimist from 'minimist';
 import * as performance from 'vs/base/common/performance';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { PersistentProtocol, ProtocolConstants, BufferedEmitter } from 'vs/base/parts/ipc/common/ipc.net';
@@ -18,7 +18,7 @@ import { MessageType, createMessageOfType, isMessageOfType, IExtHostSocketMessag
 import { ExtensionHostMain, IExitFn } from 'vs/workbench/services/extensions/common/extensionHostMain';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IURITransformer, URITransformer, IRawURITransformer } from 'vs/base/common/uriIpc';
-import { exists } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import { realpath } from 'vs/base/node/extpath';
 import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -245,11 +245,13 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 					if (idx >= 0) {
 						promise.catch(e => {
 							unhandledPromises.splice(idx, 1);
-							console.warn(`rejected promise not handled within 1 second: ${e}`);
-							if (e && e.stack) {
-								console.warn(`stack trace: ${e.stack}`);
+							if (!isPromiseCanceledError(e)) {
+								console.warn(`rejected promise not handled within 1 second: ${e}`);
+								if (e && e.stack) {
+									console.warn(`stack trace: ${e.stack}`);
+								}
+								onUnexpectedError(reason);
 							}
-							onUnexpectedError(reason);
 						});
 					}
 				}, 1000);
@@ -326,7 +328,7 @@ export async function startExtensionHostProcess(): Promise<void> {
 	const hostUtils = new class NodeHost implements IHostUtils {
 		declare readonly _serviceBrand: undefined;
 		exit(code: number) { nativeExit(code); }
-		exists(path: string) { return exists(path); }
+		exists(path: string) { return Promises.exists(path); }
 		realpath(path: string) { return realpath(path); }
 	};
 

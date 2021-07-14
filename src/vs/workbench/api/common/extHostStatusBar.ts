@@ -11,6 +11,7 @@ import { localize } from 'vs/nls';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
 
 export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 
@@ -36,6 +37,7 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 
 	private _text: string = '';
 	private _tooltip?: string;
+	private _tooltip2?: vscode.MarkdownString | string;
 	private _name?: string;
 	private _color?: string | ThemeColor;
 	private _backgroundColor?: ThemeColor;
@@ -87,6 +89,10 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 		return this._tooltip;
 	}
 
+	public get tooltip2(): string | vscode.MarkdownString | undefined {
+		return this._tooltip2;
+	}
+
 	public get color(): string | ThemeColor | undefined {
 		return this._color;
 	}
@@ -115,6 +121,11 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 
 	public set tooltip(tooltip: string | undefined) {
 		this._tooltip = tooltip;
+		this.update();
+	}
+
+	public set tooltip2(tooltip: vscode.MarkdownString | string | undefined) {
+		this._tooltip2 = tooltip;
 		this.update();
 	}
 
@@ -209,8 +220,10 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 				color = ExtHostStatusBarEntry.ALLOWED_BACKGROUND_COLORS.get(this._backgroundColor.id);
 			}
 
+			const tooltip = this._tooltip2 !== undefined ? MarkdownString.fromStrict(this._tooltip2) : this.tooltip;
+
 			// Set to status bar
-			this.#proxy.$setEntry(this._entryId, id, name, this._text, this._tooltip, this._command?.internal, color,
+			this.#proxy.$setEntry(this._entryId, id, name, this._text, tooltip, this._command?.internal, color,
 				this._backgroundColor, this._alignment === ExtHostStatusBarAlignment.Left ? MainThreadStatusBarAlignment.LEFT : MainThreadStatusBarAlignment.RIGHT,
 				this._priority, this._accessibilityInformation);
 		}, 0);

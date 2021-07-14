@@ -23,8 +23,7 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 1, end: 2 }] });
 				await moveCellRange({ notebookEditor: editor, cell: viewModel.cellAt(1)! }, 'down');
 				assert.strictEqual(viewModel.cellAt(2)?.getText(), 'var b = 1;');
@@ -40,8 +39,7 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 0, end: 2 }] });
 				await moveCellRange({ notebookEditor: editor, cell: viewModel.cellAt(1)! }, 'down');
 				assert.strictEqual(viewModel.cellAt(0)?.getText(), '# header b');
@@ -59,8 +57,7 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				const foldingModel = new FoldingModel();
 				foldingModel.attachViewModel(viewModel);
 				updateFoldingStateAtIndex(foldingModel, 0, true);
@@ -86,8 +83,7 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 1, end: 2 }] });
 				await copyCellRange({ notebookEditor: editor, cell: viewModel.cellAt(1)! }, 'down');
 				assert.strictEqual(viewModel.length, 6);
@@ -105,8 +101,7 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] });
 				await copyCellRange({ notebookEditor: editor, cell: viewModel.cellAt(1)!, ui: true }, 'down');
 				assert.strictEqual(viewModel.length, 6);
@@ -124,8 +119,7 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 0, end: 2 }] });
 				await copyCellRange({ notebookEditor: editor, cell: viewModel.cellAt(1)! }, 'down');
 				assert.strictEqual(viewModel.length, 7);
@@ -145,8 +139,7 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				const foldingModel = new FoldingModel();
 				foldingModel.attachViewModel(viewModel);
 				updateFoldingStateAtIndex(foldingModel, 0, true);
@@ -174,15 +167,14 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor, accessor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel, accessor) => {
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 3, end: 4 }, selections: [{ start: 3, end: 4 }] });
-				const ret = await joinNotebookCells(editor.viewModel, { start: 3, end: 4 }, 'below');
+				const ret = await joinNotebookCells(viewModel, { start: 3, end: 4 }, 'below');
 				assert.strictEqual(ret?.edits.length, 2);
 				assert.deepStrictEqual(ret?.edits[0], new ResourceTextEdit(viewModel.cellAt(3)!.uri, {
 					range: new Range(1, 11, 1, 11), text: viewModel.cellAt(4)!.textBuffer.getEOL() + 'var c = 3;'
 				}));
-				assert.deepStrictEqual(ret?.edits[1], new ResourceNotebookCellEdit(viewModel.notebookDocument.uri,
+				assert.deepStrictEqual(ret?.edits[1], new ResourceNotebookCellEdit(editor.textModel.uri,
 					{
 						editType: CellEditType.Replace,
 						index: 4,
@@ -202,15 +194,14 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor, accessor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel, accessor) => {
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 3, end: 4 }, selections: [{ start: 3, end: 4 }] });
-				const ret = await joinNotebookCells(editor.viewModel, { start: 4, end: 5 }, 'above');
+				const ret = await joinNotebookCells(viewModel, { start: 4, end: 5 }, 'above');
 				assert.strictEqual(ret?.edits.length, 2);
 				assert.deepStrictEqual(ret?.edits[0], new ResourceTextEdit(viewModel.cellAt(3)!.uri, {
 					range: new Range(1, 11, 1, 11), text: viewModel.cellAt(4)!.textBuffer.getEOL() + 'var c = 3;'
 				}));
-				assert.deepStrictEqual(ret?.edits[1], new ResourceNotebookCellEdit(viewModel.notebookDocument.uri,
+				assert.deepStrictEqual(ret?.edits[1], new ResourceNotebookCellEdit(editor.textModel.uri,
 					{
 						editType: CellEditType.Replace,
 						index: 4,
@@ -228,15 +219,14 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor, accessor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel, accessor) => {
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 0, end: 2 }] });
-				const ret = await joinNotebookCells(editor.viewModel, { start: 0, end: 2 }, 'below');
+				const ret = await joinNotebookCells(viewModel, { start: 0, end: 2 }, 'below');
 				assert.strictEqual(ret?.edits.length, 2);
 				assert.deepStrictEqual(ret?.edits[0], new ResourceTextEdit(viewModel.cellAt(0)!.uri, {
 					range: new Range(1, 11, 1, 11), text: viewModel.cellAt(1)!.textBuffer.getEOL() + 'var b = 2;' + viewModel.cellAt(2)!.textBuffer.getEOL() + 'var c = 3;'
 				}));
-				assert.deepStrictEqual(ret?.edits[1], new ResourceNotebookCellEdit(viewModel.notebookDocument.uri,
+				assert.deepStrictEqual(ret?.edits[1], new ResourceNotebookCellEdit(editor.textModel.uri,
 					{
 						editType: CellEditType.Replace,
 						index: 1,
@@ -254,15 +244,14 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor, accessor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel, accessor) => {
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 2, end: 3 }, selections: [{ start: 1, end: 3 }] });
 				const ret = await joinNotebookCells(editor.viewModel, { start: 1, end: 3 }, 'above');
 				assert.strictEqual(ret?.edits.length, 2);
 				assert.deepStrictEqual(ret?.edits[0], new ResourceTextEdit(viewModel.cellAt(0)!.uri, {
 					range: new Range(1, 11, 1, 11), text: viewModel.cellAt(1)!.textBuffer.getEOL() + 'var b = 2;' + viewModel.cellAt(2)!.textBuffer.getEOL() + 'var c = 3;'
 				}));
-				assert.deepStrictEqual(ret?.edits[1], new ResourceNotebookCellEdit(viewModel.notebookDocument.uri,
+				assert.deepStrictEqual(ret?.edits[1], new ResourceNotebookCellEdit(editor.textModel.uri,
 					{
 						editType: CellEditType.Replace,
 						index: 1,
@@ -280,9 +269,9 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
-				viewModel.setSelections({ start: 0, end: 1 }, [{ start: 0, end: 1 }]);
+			async (editor, viewModel) => {
+				editor.setFocus({ start: 0, end: 1 });
+				editor.setSelections([{ start: 0, end: 1 }]);
 				runDeleteAction(viewModel, viewModel.cellAt(0)!);
 				assert.strictEqual(viewModel.length, 2);
 			});
@@ -295,9 +284,9 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
-				viewModel.setSelections({ start: 0, end: 1 }, [{ start: 0, end: 2 }]);
+			async (editor, viewModel) => {
+				editor.setFocus({ start: 0, end: 1 });
+				editor.setSelections([{ start: 0, end: 2 }]);
 				runDeleteAction(viewModel, viewModel.cellAt(0)!);
 				assert.strictEqual(viewModel.length, 1);
 			});
@@ -311,9 +300,9 @@ suite('CellOperations', () => {
 				['var c = 3;', 'javascript', CellKind.Code, [], {}],
 				['var d = 4;', 'javascript', CellKind.Code, [], {}],
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
-				viewModel.setSelections({ start: 0, end: 1 }, [{ start: 2, end: 4 }]);
+			async (editor, viewModel) => {
+				editor.setFocus({ start: 0, end: 1 });
+				editor.setSelections([{ start: 2, end: 4 }]);
 				runDeleteAction(viewModel, viewModel.cellAt(0)!);
 				assert.strictEqual(viewModel.length, 3);
 			});
@@ -326,9 +315,9 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
-				viewModel.setSelections({ start: 0, end: 1 }, [{ start: 0, end: 1 }]);
+			async (editor, viewModel) => {
+				editor.setFocus({ start: 0, end: 1 });
+				editor.setSelections([{ start: 0, end: 1 }]);
 				runDeleteAction(viewModel, viewModel.cellAt(2)!);
 				assert.strictEqual(viewModel.length, 2);
 				assert.strictEqual(viewModel.cellAt(0)?.getText(), 'var a = 1;');
@@ -345,12 +334,12 @@ suite('CellOperations', () => {
 				['var d = 4;', 'javascript', CellKind.Code, [], {}],
 				['var e = 5;', 'javascript', CellKind.Code, [], {}],
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
-				viewModel.setSelections({ start: 0, end: 1 }, [{ start: 0, end: 1 }, { start: 3, end: 5 }]);
+			async (editor, viewModel) => {
+				editor.setFocus({ start: 0, end: 1 });
+				editor.setSelections([{ start: 0, end: 1 }, { start: 3, end: 5 }]);
 				runDeleteAction(viewModel, viewModel.cellAt(1)!);
 				assert.strictEqual(viewModel.length, 4);
-				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
+				assert.deepStrictEqual(editor.getFocus(), { start: 0, end: 1 });
 				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 0, end: 1 }, { start: 2, end: 4 }]);
 			});
 	});
@@ -364,12 +353,12 @@ suite('CellOperations', () => {
 				['var d = 4;', 'javascript', CellKind.Code, [], {}],
 				['var e = 5;', 'javascript', CellKind.Code, [], {}],
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
-				viewModel.setSelections({ start: 0, end: 1 }, [{ start: 2, end: 3 }]);
+			async (editor, viewModel) => {
+				editor.setFocus({ start: 0, end: 1 });
+				editor.setSelections([{ start: 2, end: 3 }]);
 				runDeleteAction(viewModel, viewModel.cellAt(0)!);
 				assert.strictEqual(viewModel.length, 4);
-				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
+				assert.deepStrictEqual(editor.getFocus(), { start: 0, end: 1 });
 				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 1, end: 2 }]);
 			});
 	});
@@ -383,12 +372,12 @@ suite('CellOperations', () => {
 				['var d = 4;', 'javascript', CellKind.Code, [], {}],
 				['var e = 5;', 'javascript', CellKind.Code, [], {}],
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
-				viewModel.setSelections({ start: 2, end: 3 }, [{ start: 3, end: 5 }]);
+			async (editor, viewModel) => {
+				editor.setFocus({ start: 2, end: 3 });
+				editor.setSelections([{ start: 3, end: 5 }]);
 				runDeleteAction(viewModel, viewModel.cellAt(0)!);
 				assert.strictEqual(viewModel.length, 4);
-				assert.deepStrictEqual(viewModel.getFocus(), { start: 1, end: 2 });
+				assert.deepStrictEqual(editor.getFocus(), { start: 1, end: 2 });
 				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 2, end: 4 }]);
 			});
 	});
@@ -401,12 +390,12 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
-				viewModel.setSelections({ start: 2, end: 3 }, [{ start: 2, end: 3 }]);
+			async (editor, viewModel) => {
+				editor.setFocus({ start: 2, end: 3 });
+				editor.setSelections([{ start: 2, end: 3 }]);
 				runDeleteAction(viewModel, viewModel.cellAt(2)!);
 				assert.strictEqual(viewModel.length, 2);
-				assert.deepStrictEqual(viewModel.getFocus(), { start: 1, end: 2 });
+				assert.deepStrictEqual(editor.getFocus(), { start: 1, end: 2 });
 			});
 	});
 
@@ -418,12 +407,12 @@ suite('CellOperations', () => {
 				['var c = 3;', 'javascript', CellKind.Code, [], {}],
 				['var d = 4;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
-				viewModel.setSelections({ start: 0, end: 1 }, [{ start: 0, end: 1 }, { start: 3, end: 4 }]);
+			async (editor, viewModel) => {
+				editor.setFocus({ start: 0, end: 1 });
+				editor.setSelections([{ start: 0, end: 1 }, { start: 3, end: 4 }]);
 				runDeleteAction(viewModel, viewModel.cellAt(0)!);
 				assert.strictEqual(viewModel.length, 2);
-				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
+				assert.deepStrictEqual(editor.getFocus(), { start: 0, end: 1 });
 			});
 	});
 
@@ -436,12 +425,12 @@ suite('CellOperations', () => {
 				['var d = 4;', 'javascript', CellKind.Code, [], {}],
 				['var e = 5;', 'javascript', CellKind.Code, [], {}],
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
-				viewModel.setSelections({ start: 1, end: 2 }, [{ start: 1, end: 2 }, { start: 3, end: 5 }]);
+			async (editor, viewModel) => {
+				editor.setFocus({ start: 1, end: 2 });
+				editor.setSelections([{ start: 1, end: 2 }, { start: 3, end: 5 }]);
 				runDeleteAction(viewModel, viewModel.cellAt(1)!);
 				assert.strictEqual(viewModel.length, 2);
-				assert.deepStrictEqual(viewModel.getFocus(), { start: 1, end: 2 });
+				assert.deepStrictEqual(editor.getFocus(), { start: 1, end: 2 });
 			});
 	});
 });

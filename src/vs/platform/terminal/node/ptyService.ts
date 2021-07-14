@@ -144,10 +144,14 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	async start(id: number): Promise<ITerminalLaunchError | undefined> {
-		return this._throwIfNoPty(id).start();
+		this._logService.trace('ptyService#start', id);
+		const pty = this._ptys.get(id);
+		return pty ? pty.start() : { message: `Could not find pty with id "${id}"` };
 	}
+
 	async shutdown(id: number, immediate: boolean): Promise<void> {
 		// Don't throw if the pty is already shutdown
+		this._logService.trace('ptyService#shutDown', id, immediate);
 		return this._ptys.get(id)?.shutdown(immediate);
 	}
 	async input(id: number, data: string): Promise<void> {
@@ -204,9 +208,11 @@ export class PtyService extends Disposable implements IPtyService {
 
 	async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
 		const layout = this._workspaceLayoutInfos.get(args.workspaceId);
+		this._logService.trace('ptyService#getLayoutInfo', args);
 		if (layout) {
 			const expandedTabs = await Promise.all(layout.tabs.map(async tab => this._expandTerminalTab(tab)));
 			const tabs = expandedTabs.filter(t => t.terminals.length > 0);
+			this._logService.trace('ptyService#returnLayoutInfo', tabs);
 			return { tabs };
 		}
 		return undefined;
@@ -331,6 +337,7 @@ export class PersistentTerminalProcess extends Disposable {
 		private _color?: string
 	) {
 		super();
+		this._logService.trace('persistentTerminalProcess#ctor', _persistentProcessId, arguments);
 		this._recorder = new TerminalRecorder(cols, rows);
 		this._orphanQuestionBarrier = null;
 		this._orphanQuestionReplyTime = 0;
@@ -361,10 +368,13 @@ export class PersistentTerminalProcess extends Disposable {
 	}
 
 	attach(): void {
+		this._logService.trace('persistentTerminalProcess#attach', this._persistentProcessId);
 		this._disconnectRunner1.cancel();
+		this._disconnectRunner2.cancel();
 	}
 
 	async detach(): Promise<void> {
+		this._logService.trace('persistentTerminalProcess#detach', this._persistentProcessId);
 		if (this.shouldPersistTerminal) {
 			this._disconnectRunner1.schedule();
 		} else {
@@ -373,6 +383,7 @@ export class PersistentTerminalProcess extends Disposable {
 	}
 
 	async start(): Promise<ITerminalLaunchError | undefined> {
+		this._logService.trace('persistentTerminalProcess#start', this._persistentProcessId, this._isStarted);
 		if (!this._isStarted) {
 			const result = await this._terminalProcess.start();
 			if (result) {

@@ -20,10 +20,10 @@ module.exports = new class NoNlsInStandaloneEditorRule {
             || /vs(\/|\\)editor(\/|\\)editor.api/.test(fileName)
             || /vs(\/|\\)editor(\/|\\)editor.main/.test(fileName)
             || /vs(\/|\\)editor(\/|\\)editor.worker/.test(fileName)) {
-            return (0, utils_1.createImportRuleListener)((node, path) => {
+            return utils_1.createImportRuleListener((node, path) => {
                 // resolve relative paths
                 if (path[0] === '.') {
-                    path = (0, path_1.join)(context.getFilename(), path);
+                    path = path_1.join(context.getFilename(), path);
                 }
                 if (/vs(\/|\\)nls/.test(path)) {
                     context.report({

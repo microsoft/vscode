@@ -8,6 +8,8 @@ import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/
 import * as nls from 'vs/nls';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IWebviewService, Webview } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 
 const PRIORITY = 100;
@@ -20,6 +22,13 @@ function overrideCommandForWebview(command: MultiCommand | undefined, f: (webvie
 			f(webview);
 			return true;
 		}
+
+		const editorService = accessor.get(IEditorService);
+		if (editorService.activeEditor instanceof WebviewInput) {
+			f(editorService.activeEditor.webview);
+			return true;
+		}
+
 		return false;
 	});
 }

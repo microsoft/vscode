@@ -83,6 +83,10 @@ class ResourceLabelFormattersHandler implements IWorkbenchContribution {
 	constructor(@ILabelService labelService: ILabelService) {
 		resourceLabelFormattersExtPoint.setHandler((extensions, delta) => {
 			delta.added.forEach(added => added.value.forEach(formatter => {
+				if (!added.description.enableProposedApi && formatter.formatting.workspaceTooltip) {
+					// workspaceTooltip is only proposed
+					formatter.formatting.workspaceTooltip = undefined;
+				}
 				this.formattersDisposables.set(formatter, labelService.registerFormatter(formatter));
 			}));
 			delta.removed.forEach(removed => removed.value.forEach(formatter => {
@@ -247,6 +251,11 @@ export class LabelService extends Disposable implements ILabelService {
 	getHostLabel(scheme: string, authority?: string): string {
 		const formatter = this.findFormatting(URI.from({ scheme, authority }));
 		return formatter?.workspaceSuffix || '';
+	}
+
+	getHostTooltip(scheme: string, authority?: string): string | undefined {
+		const formatter = this.findFormatting(URI.from({ scheme, authority }));
+		return formatter?.workspaceTooltip;
 	}
 
 	registerFormatter(formatter: ResourceLabelFormatter): IDisposable {

@@ -17,7 +17,7 @@ module.exports = new class {
         };
     }
     create(context) {
-        const fileDirname = (0, path_1.dirname)(context.getFilename());
+        const fileDirname = path_1.dirname(context.getFilename());
         const parts = fileDirname.split(/\\|\//);
         const ruleArgs = context.options[0];
         let config;
@@ -39,11 +39,11 @@ module.exports = new class {
             // nothing
             return {};
         }
-        return (0, utils_1.createImportRuleListener)((node, path) => {
+        return utils_1.createImportRuleListener((node, path) => {
             if (path[0] === '.') {
-                path = (0, path_1.join)((0, path_1.dirname)(context.getFilename()), path);
+                path = path_1.join(path_1.dirname(context.getFilename()), path);
             }
-            const parts = (0, path_1.dirname)(path).split(/\\|\//);
+            const parts = path_1.dirname(path).split(/\\|\//);
             for (let i = parts.length - 1; i >= 0; i--) {
                 const part = parts[i];
                 if (config.allowed.has(part)) {

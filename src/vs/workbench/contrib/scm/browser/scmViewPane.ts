@@ -1239,7 +1239,7 @@ class ViewModel {
 	}
 
 	focus() {
-		if (this.tree.getFocus().length === 0 && !platform.isIOS) {
+		if (this.tree.getFocus().length === 0) {
 			for (const repository of this.scmViewService.visibleRepositories) {
 				const widget = this.inputRenderer.getRenderedInputWidget(repository.input);
 

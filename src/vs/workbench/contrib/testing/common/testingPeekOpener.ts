@@ -18,6 +18,11 @@ export interface ITestingPeekOpener {
 	tryPeekFirstError(result: ITestResult, test: TestResultItem, options?: Partial<ITextEditorOptions>): Promise<boolean>;
 
 	/**
+	 * Opens the peek. Shows any available message.
+	 */
+	open(): void;
+
+	/**
 	 * Closes peeks for all visible editors.
 	 */
 	closeAllPeeks(): void;

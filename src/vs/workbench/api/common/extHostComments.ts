@@ -8,6 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { MarshalledId } from 'vs/base/common/marshalling';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
 import * as modes from 'vs/editor/common/modes';
@@ -41,7 +42,7 @@ export class ExtHostComments implements ExtHostCommentsShape, IDisposable {
 
 		commands.registerArgumentProcessor({
 			processArgument: arg => {
-				if (arg && arg.$mid === 6) {
+				if (arg && arg.$mid === MarshalledId.CommentController) {
 					const commentController = this._commentControllers.get(arg.handle);
 
 					if (!commentController) {
@@ -49,7 +50,7 @@ export class ExtHostComments implements ExtHostCommentsShape, IDisposable {
 					}
 
 					return commentController;
-				} else if (arg && arg.$mid === 7) {
+				} else if (arg && arg.$mid === MarshalledId.CommentThread) {
 					const commentController = this._commentControllers.get(arg.commentControlHandle);
 
 					if (!commentController) {
@@ -63,7 +64,7 @@ export class ExtHostComments implements ExtHostCommentsShape, IDisposable {
 					}
 
 					return commentThread;
-				} else if (arg && arg.$mid === 8) {
+				} else if (arg && arg.$mid === MarshalledId.CommentThreadReply) {
 					const commentController = this._commentControllers.get(arg.thread.commentControlHandle);
 
 					if (!commentController) {
@@ -80,7 +81,7 @@ export class ExtHostComments implements ExtHostCommentsShape, IDisposable {
 						thread: commentThread,
 						text: arg.text
 					};
-				} else if (arg && arg.$mid === 9) {
+				} else if (arg && arg.$mid === MarshalledId.CommentNode) {
 					const commentController = this._commentControllers.get(arg.thread.commentControlHandle);
 
 					if (!commentController) {
@@ -103,7 +104,7 @@ export class ExtHostComments implements ExtHostCommentsShape, IDisposable {
 
 					return comment;
 
-				} else if (arg && arg.$mid === 10) {
+				} else if (arg && arg.$mid === MarshalledId.CommentThreadNode) {
 					const commentController = this._commentControllers.get(arg.thread.commentControlHandle);
 
 					if (!commentController) {

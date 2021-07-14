@@ -33,7 +33,7 @@ import { createAndBindHistoryNavigationWidgetScopedContextKeyService } from 'vs/
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { getSimpleEditorOptions, getSimpleCodeEditorWidgetOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
-import { transparent, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorForeground, resolveColorValue } from 'vs/platform/theme/common/colorRegistry';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
 import { CompletionContext, CompletionList, CompletionProviderRegistry, CompletionItem, completionKindFromString, CompletionItemKind, CompletionItemInsertTextRule } from 'vs/editor/common/modes';
@@ -68,6 +68,7 @@ const $ = dom.$;
 
 const HISTORY_STORAGE_KEY = 'debug.repl.history';
 const FILTER_HISTORY_STORAGE_KEY = 'debug.repl.filterHistory';
+const FILTER_VALUE_STORAGE_KEY = 'debug.repl.filterValue';
 const DECORATION_KEY = 'replinputdecoration';
 const FILTER_ACTION_ID = `workbench.actions.treeView.repl.filter`;
 
@@ -132,10 +133,11 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		this.history = new HistoryNavigator(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')), 50);
 		this.filter = new ReplFilter();
 		this.filterState = new ReplFilterState(this);
+		this.filter.filterQuery = this.filterState.filterText = this.storageService.get(FILTER_VALUE_STORAGE_KEY, StorageScope.WORKSPACE, '');
 		this.multiSessionRepl = CONTEXT_MULTI_SESSION_REPL.bindTo(contextKeyService);
-		this.multiSessionRepl.set(this.isMultiSessionView);
 
-		codeEditorService.registerDecorationType(DECORATION_KEY, {});
+		codeEditorService.registerDecorationType('repl-decoration', DECORATION_KEY, {});
+		this.multiSessionRepl.set(this.isMultiSessionView);
 		this.registerListeners();
 	}
 
@@ -227,10 +229,10 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			}
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => {
-			if (!visible) {
-				dispose(this.model);
-			} else {
-				this.model = this.modelService.getModel(Repl.URI) || this.modelService.createModel('', null, Repl.URI, true);
+			if (visible) {
+				if (!this.model) {
+					this.model = this.modelService.getModel(Repl.URI) || this.modelService.createModel('', null, Repl.URI, true);
+				}
 				this.setMode();
 				this.replInput.setModel(this.model);
 				this.updateInputDecoration();
@@ -271,9 +273,10 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	}
 
 	getFilterStats(): { total: number, filtered: number } {
+		// This could be called before the tree is created when setting this.filterState.filterText value
 		return {
-			total: this.tree.getNode().children.length,
-			filtered: this.tree.getNode().children.filter(c => c.visible).length
+			total: this.tree?.getNode().children.length ?? 0,
+			filtered: this.tree?.getNode().children.filter(c => c.visible).length ?? 0
 		};
 	}
 
@@ -433,9 +436,11 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			const lineDelimiter = this.textResourcePropertiesService.getEOL(this.model.uri);
 			const traverseAndAppend = (node: ITreeNode<IReplElement, FuzzyScore>) => {
 				node.children.forEach(child => {
-					text += child.element.toString().trimRight() + lineDelimiter;
-					if (!child.collapsed && child.children.length) {
-						traverseAndAppend(child);
+					if (child.visible) {
+						text += child.element.toString().trimRight() + lineDelimiter;
+						if (!child.collapsed && child.children.length) {
+							traverseAndAppend(child);
+						}
 					}
 				});
 			};
@@ -657,7 +662,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 		const decorations: IDecorationOptions[] = [];
 		if (this.isReadonly && this.replInput.hasTextFocus() && !this.replInput.getValue()) {
-			const transparentForeground = transparent(editorForeground, 0.4)(this.themeService.getColorTheme());
+			const transparentForeground = resolveColorValue(editorForeground, this.themeService.getColorTheme())?.transparent(0.4);
 			decorations.push({
 				range: {
 					startLineNumber: 0,
@@ -674,7 +679,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			});
 		}
 
-		this.replInput.setDecorations(DECORATION_KEY, decorations);
+		this.replInput.setDecorations('repl-decoration', DECORATION_KEY, decorations);
 	}
 
 	override saveState(): void {
@@ -690,6 +695,12 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 				this.storageService.store(FILTER_HISTORY_STORAGE_KEY, JSON.stringify(filterHistory), StorageScope.WORKSPACE, StorageTarget.USER);
 			} else {
 				this.storageService.remove(FILTER_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
+			}
+			const filterValue = this.filterState.filterText;
+			if (filterValue) {
+				this.storageService.store(FILTER_VALUE_STORAGE_KEY, filterValue, StorageScope.WORKSPACE, StorageTarget.USER);
+			} else {
+				this.storageService.remove(FILTER_VALUE_STORAGE_KEY, StorageScope.WORKSPACE);
 			}
 		}
 

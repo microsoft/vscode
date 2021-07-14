@@ -29,7 +29,7 @@ export class CursorModelState {
 	public readonly modelVersionId: number;
 	public readonly cursorState: CursorState[];
 
-	constructor(model: ITextModel, cursor: Cursor) {
+	constructor(model: ITextModel, cursor: CursorsController) {
 		this.modelVersionId = model.getVersionId();
 		this.cursorState = cursor.getCursorStates();
 	}
@@ -119,7 +119,7 @@ class AutoClosedAction {
 	}
 }
 
-export class Cursor extends Disposable {
+export class CursorsController extends Disposable {
 
 	public static readonly MAX_CURSOR_COUNT = 10000;
 
@@ -216,8 +216,8 @@ export class Cursor extends Disposable {
 
 	public setStates(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, reason: CursorChangeReason, states: PartialCursorState[] | null): boolean {
 		let reachedMaxCursorCount = false;
-		if (states !== null && states.length > Cursor.MAX_CURSOR_COUNT) {
-			states = states.slice(0, Cursor.MAX_CURSOR_COUNT);
+		if (states !== null && states.length > CursorsController.MAX_CURSOR_COUNT) {
+			states = states.slice(0, CursorsController.MAX_CURSOR_COUNT);
 			reachedMaxCursorCount = true;
 		}
 
@@ -415,6 +415,7 @@ export class Cursor extends Disposable {
 			autoClosedCharactersDeltaDecorations.push({
 				range: autoClosedCharactersRanges[i],
 				options: {
+					description: 'auto-closed-character',
 					inlineClassName: 'auto-closed-character',
 					stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 				}
@@ -422,6 +423,7 @@ export class Cursor extends Disposable {
 			autoClosedEnclosingDeltaDecorations.push({
 				range: autoClosedEnclosingRanges[i],
 				options: {
+					description: 'auto-closed-enclosing',
 					stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 				}
 			});

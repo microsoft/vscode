@@ -14,7 +14,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { NotebookProviderInfoStore } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { EditorOverrideService } from 'vs/workbench/services/editor/browser/editorOverrideService';
-import { ContributedEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IExtensionService, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
@@ -45,7 +45,7 @@ suite('NotebookProviderInfoStore', function () {
 			id: 'foo',
 			displayName: 'foo',
 			selectors: [{ filenamePattern: '*.foo' }],
-			priority: ContributedEditorPriority.default,
+			priority: RegisteredEditorPriority.default,
 			exclusive: false,
 			providerDisplayName: 'foo',
 		});
@@ -54,7 +54,7 @@ suite('NotebookProviderInfoStore', function () {
 			id: 'bar',
 			displayName: 'bar',
 			selectors: [{ filenamePattern: '*.bar' }],
-			priority: ContributedEditorPriority.default,
+			priority: RegisteredEditorPriority.default,
 			exclusive: false,
 			providerDisplayName: 'bar',
 		});

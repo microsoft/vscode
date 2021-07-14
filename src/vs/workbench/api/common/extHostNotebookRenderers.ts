@@ -19,10 +19,6 @@ export class ExtHostNotebookRenderers implements ExtHostNotebookRenderersShape {
 
 	public $postRendererMessage(editorId: string, rendererId: string, message: unknown): void {
 		const editor = this._extHostNotebook.getEditorById(editorId);
-		if (!editor) {
-			return;
-		}
-
 		this._rendererMessageEmitters.get(rendererId)?.fire({ editor: editor.apiEditor, message });
 	}
 

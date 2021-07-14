@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITunnelService, TunnelOptions, RemoteTunnel, TunnelCreationOptions, ITunnel } from 'vs/platform/remote/common/tunnel';
+import { ITunnelService, TunnelOptions, RemoteTunnel, TunnelCreationOptions, ITunnel, TunnelProtocol } from 'vs/platform/remote/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -54,6 +54,7 @@ export class TunnelFactoryContribution extends Disposable implements IWorkbenchC
 							// To make sure this doesn't happen, resolve the uri immediately.
 							localAddress: await this.resolveExternalUri(localAddress),
 							public: !!tunnel.public,
+							protocol: tunnel.protocol ?? TunnelProtocol.Http,
 							dispose: async () => { await tunnel.dispose(); }
 						};
 						resolve(remoteTunnel);

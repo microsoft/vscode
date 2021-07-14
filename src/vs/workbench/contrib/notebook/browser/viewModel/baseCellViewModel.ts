@@ -18,6 +18,7 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
+import { Mimes } from 'vs/base/common/mime';
 
 export abstract class BaseCellViewModel extends Disposable {
 
@@ -44,6 +45,20 @@ export abstract class BaseCellViewModel extends Disposable {
 	}
 	get language() {
 		return this.model.language;
+	}
+
+	get mime(): string {
+		if (typeof this.model.mime === 'string') {
+			return this.model.mime;
+		}
+
+		switch (this.language) {
+			case 'markdown':
+				return Mimes.markdown;
+
+			default:
+				return Mimes.text;
+		}
 	}
 
 	abstract cellKind: CellKind;
@@ -157,19 +172,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		}));
 	}
 
-	getEditorStatusbarHeight() {
-		return this.statusBarIsVisible() ? this._viewContext.notebookOptions.computeStatusBarHeight() : 0;
-	}
 
-	private statusBarIsVisible(): boolean {
-		if (this._viewContext.notebookOptions.getLayoutConfiguration().showCellStatusBar) {
-			return true;
-		} else if (this._viewContext.notebookOptions.getLayoutConfiguration().showCellStatusBarAfterExecute) {
-			return typeof this.internalMetadata.lastRunSuccess === 'boolean' || this.internalMetadata.runState !== undefined;
-		} else {
-			return false;
-		}
-	}
 
 	abstract hasDynamicHeight(): boolean;
 	abstract getHeight(lineHeight: number): number;
@@ -411,7 +414,7 @@ export abstract class BaseCellViewModel extends Disposable {
 			return 0;
 		}
 
-		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding();
+		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding(this.internalMetadata);
 		return this._textEditor.getTopForLineNumber(line) + editorPadding.top;
 	}
 
@@ -420,7 +423,7 @@ export abstract class BaseCellViewModel extends Disposable {
 			return 0;
 		}
 
-		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding();
+		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding(this.internalMetadata);
 		return this._textEditor.getTopForPosition(line, column) + editorPadding.top;
 	}
 

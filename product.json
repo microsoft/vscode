@@ -26,10 +26,10 @@
 	"extensionAllowedProposedApi": [
 		"ms-vscode.vscode-js-profile-flame",
 		"ms-vscode.vscode-js-profile-table",
-		"ms-vscode.github-browser",
-		"ms-vscode.github-richnav",
 		"ms-vscode.remotehub",
-		"ms-vscode.remotehub-insiders"
+		"ms-vscode.remotehub-insiders",
+		"GitHub.remotehub",
+		"GitHub.remotehub-insiders"
 	],
 	"builtInExtensions": [
 		{
@@ -94,7 +94,7 @@
 		},
 		{
 			"name": "ms-vscode.js-debug",
-			"version": "1.56.2",
+			"version": "1.58.0",
 			"repo": "https://github.com/microsoft/vscode-js-debug",
 			"metadata": {
 				"id": "25629058-ddac-4e17-abba-74678e126c5d",
@@ -113,38 +113,6 @@
 			"repo": "https://github.com/microsoft/vscode-js-profile-visualizer",
 			"metadata": {
 				"id": "7e52b41b-71ad-457b-ab7e-0620f1fc4feb",
-				"publisherId": {
-					"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
-					"publisherName": "ms-vscode",
-					"displayName": "Microsoft",
-					"flags": "verified"
-				},
-				"publisherDisplayName": "Microsoft"
-			}
-		},
-		{
-			"name": "ms-vscode.remotehub",
-			"version": "0.5.4",
-			"repo": "https://github.com/microsoft/vscode-remotehub",
-			"metadata": {
-				"id": "ed0ffe1d-36f0-49a0-bafe-da68355eb33a",
-				"publisherId": {
-					"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
-					"publisherName": "ms-vscode",
-					"displayName": "Microsoft",
-					"flags": "verified"
-				},
-				"publisherDisplayName": "Microsoft"
-			}
-		}
-	],
-	"webBuiltInExtensions": [
-		{
-			"name": "ms-vscode.remotehub",
-			"version": "0.5.4",
-			"repo": "https://github.com/microsoft/vscode-remotehub",
-			"metadata": {
-				"id": "ed0ffe1d-36f0-49a0-bafe-da68355eb33a",
 				"publisherId": {
 					"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
 					"publisherName": "ms-vscode",

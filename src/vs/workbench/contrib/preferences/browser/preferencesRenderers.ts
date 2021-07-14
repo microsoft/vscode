@@ -1180,7 +1180,7 @@ class WorkspaceConfigurationRenderer extends Disposable {
 									endColumn: setting.valueRange.endColumn
 								});
 							}
-						} else if (setting.key !== 'settings' && setting.key !== 'remoteAuthority') {
+						} else if (setting.key !== 'settings' && setting.key !== 'remoteAuthority' && setting.key !== 'transient') {
 							markerData.push({
 								severity: MarkerSeverity.Hint,
 								tags: [MarkerTag.Unnecessary],
@@ -1201,6 +1201,7 @@ class WorkspaceConfigurationRenderer extends Disposable {
 	}
 
 	private static readonly _DIM_CONFIGURATION_ = ModelDecorationOptions.register({
+		description: 'dim-configuration',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		inlineClassName: 'dim-configuration'
 	});

@@ -7,7 +7,6 @@ import 'vs/css!./dialog';
 import * as nls from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { $, hide, show, EventHelper, clearNode, isAncestor, addDisposableListener, EventType } from 'vs/base/browser/dom';
-import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Color } from 'vs/base/common/color';
@@ -87,7 +86,7 @@ export class Dialog extends Disposable {
 	private readonly inputs: InputBox[];
 	private readonly buttons: string[];
 
-	constructor(private container: HTMLElement, private message: string, buttons: string[], private options: IDialogOptions) {
+	constructor(private container: HTMLElement, private message: string, buttons: string[] | undefined, private options: IDialogOptions) {
 		super();
 
 		this.modalElement = this.container.appendChild($(`.monaco-dialog-modal-block.dimmed`));
@@ -96,7 +95,7 @@ export class Dialog extends Disposable {
 		this.element.setAttribute('role', 'dialog');
 		hide(this.element);
 
-		this.buttons = buttons.length ? buttons : [nls.localize('ok', "OK")]; // If no button is provided, default to OK
+		this.buttons = Array.isArray(buttons) && buttons.length ? buttons : [nls.localize('ok', "OK")]; // If no button is provided, default to OK
 		const buttonsRowElement = this.element.appendChild($('.dialog-buttons-row'));
 		this.buttonsContainer = buttonsRowElement.appendChild($('.dialog-buttons'));
 
@@ -220,7 +219,7 @@ export class Dialog extends Disposable {
 			});
 
 			// Handle keyboard events gloably: Tab, Arrow-Left/Right
-			this._register(domEvent(window, 'keydown', true)((e: KeyboardEvent) => {
+			this._register(addDisposableListener(window, 'keydown', e => {
 				const evt = new StandardKeyboardEvent(e);
 
 				if (evt.equals(KeyMod.Alt)) {
@@ -321,9 +320,9 @@ export class Dialog extends Disposable {
 				} else if (this.options.keyEventProcessor) {
 					this.options.keyEventProcessor(evt);
 				}
-			}));
+			}, true));
 
-			this._register(domEvent(window, 'keyup', true)((e: KeyboardEvent) => {
+			this._register(addDisposableListener(window, 'keyup', e => {
 				EventHelper.stop(e, true);
 				const evt = new StandardKeyboardEvent(e);
 
@@ -333,10 +332,10 @@ export class Dialog extends Disposable {
 						checkboxChecked: this.checkbox ? this.checkbox.checked : undefined
 					});
 				}
-			}));
+			}, true));
 
 			// Detect focus out
-			this._register(domEvent(this.element, 'focusout', false)((e: FocusEvent) => {
+			this._register(addDisposableListener(this.element, 'focusout', e => {
 				if (!!e.relatedTarget && !!this.element) {
 					if (!isAncestor(e.relatedTarget as HTMLElement, this.element)) {
 						this.focusToReturn = e.relatedTarget as HTMLElement;
@@ -347,7 +346,7 @@ export class Dialog extends Disposable {
 						}
 					}
 				}
-			}));
+			}, false));
 
 			const spinModifierClassName = 'codicon-modifier-spin';
 

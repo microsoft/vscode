@@ -9,7 +9,7 @@ import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/wor
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { TERMINAL_ACTION_CATEGORY, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Action } from 'vs/base/common/actions';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export function registerRemoteContributions() {
@@ -24,6 +24,7 @@ export class CreateNewLocalTerminalAction extends Action {
 	constructor(
 		id: string, label: string,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@INativeEnvironmentService private readonly _nativeEnvironmentService: INativeEnvironmentService
 	) {
 		super(id, label);
@@ -36,6 +37,6 @@ export class CreateNewLocalTerminalAction extends Action {
 		}
 
 		this._terminalService.setActiveInstance(instance);
-		return this._terminalService.showPanel(true);
+		return this._terminalGroupService.showPanel(true);
 	}
 }

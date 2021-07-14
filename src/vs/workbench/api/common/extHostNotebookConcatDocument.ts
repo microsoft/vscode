@@ -123,7 +123,7 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 
 	offsetAt(position: vscode.Position): number {
 		const idx = this._cellLines.getIndexOf(position.line);
-		const offset1 = this._cellLengths.getAccumulatedValue(idx.index - 1);
+		const offset1 = this._cellLengths.getPrefixSum(idx.index - 1);
 		const offset2 = this._cells[idx.index].document.offsetAt(position.with(idx.remainder));
 		return offset1 + offset2;
 	}
@@ -131,13 +131,13 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 	positionAt(locationOrOffset: vscode.Location | number): vscode.Position {
 		if (typeof locationOrOffset === 'number') {
 			const idx = this._cellLengths.getIndexOf(locationOrOffset);
-			const lineCount = this._cellLines.getAccumulatedValue(idx.index - 1);
+			const lineCount = this._cellLines.getPrefixSum(idx.index - 1);
 			return this._cells[idx.index].document.positionAt(idx.remainder).translate(lineCount);
 		}
 
 		const idx = this._cellUris.get(locationOrOffset.uri);
 		if (idx !== undefined) {
-			const line = this._cellLines.getAccumulatedValue(idx - 1);
+			const line = this._cellLines.getPrefixSum(idx - 1);
 			return new types.Position(line + locationOrOffset.range.start.line, locationOrOffset.range.start.character);
 		}
 		// do better?
@@ -180,7 +180,7 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 		const cellPosition = new types.Position(startIdx.remainder, position.character);
 		const validCellPosition = this._cells[startIdx.index].document.validatePosition(cellPosition);
 
-		const line = this._cellLines.getAccumulatedValue(startIdx.index - 1);
+		const line = this._cellLines.getPrefixSum(startIdx.index - 1);
 		return new types.Position(line + validCellPosition.line, validCellPosition.character);
 	}
 }

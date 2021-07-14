@@ -86,6 +86,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			try {
 				await this._githubServer.getUserInfo(session.accessToken);
 				this.afterTokenLoad(session.accessToken);
+				Logger.info(`Verified sesion with the following scopes: ${session.scopes}`);
 				verifiedSessions.push(session);
 			} catch (e) {
 				// Remove sessions that return unauthorized response
@@ -125,7 +126,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			}
 		});
 
-		this._sessions.map(session => {
+		this._sessions.forEach(session => {
 			const matchesExisting = storedSessions.some(s => s.id === session.id);
 			// Another window has logged out, remove from our state
 			if (!matchesExisting) {
@@ -156,6 +157,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 						userInfo = await this._githubServer.getUserInfo(session.accessToken);
 					}
 
+					Logger.trace(`Read the following session from the keychain with the following scopes: ${session.scopes}`);
 					return {
 						id: session.id,
 						account: {
@@ -198,7 +200,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			*/
 			this.telemetryReporter?.sendTelemetryEvent('login');
 
-			const token = await this._githubServer.login(scopes.sort().join(' '));
+			const token = await this._githubServer.login(scopes.join(' '));
 			this.afterTokenLoad(token);
 			const session = await this.tokenToSession(token, scopes);
 			await this.setToken(session);
@@ -209,7 +211,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			return session;
 		} catch (e) {
 			// If login was cancelled, do not notify user.
-			if (e.message === 'Cancelled') {
+			if (e === 'Cancelled') {
 				/* __GDPR__
 					"loginCancelled" : { }
 				*/

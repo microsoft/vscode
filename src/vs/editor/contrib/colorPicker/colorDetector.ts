@@ -178,7 +178,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			let key = 'colorBox-' + subKey;
 
 			if (!this._decorationsTypes.has(key) && !newDecorationsTypes[key]) {
-				this._codeEditorService.registerDecorationType(key, {
+				this._codeEditorService.registerDecorationType('color-detector-color', key, {
 					before: {
 						contentText: ' ',
 						border: 'solid 0.1em #000',

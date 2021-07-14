@@ -29,12 +29,13 @@ export enum SettingValueType {
 	Integer = 'integer',
 	Number = 'number',
 	Boolean = 'boolean',
-	ArrayOfString = 'array-of-string',
+	StringOrEnumArray = 'string-or-enum-array',
 	Exclude = 'exclude',
 	Complex = 'complex',
 	NullableInteger = 'nullable-integer',
 	NullableNumber = 'nullable-number',
-	Object = 'object'
+	Object = 'object',
+	BooleanObject = 'boolean-object'
 }
 
 export interface ISettingsGroup {
@@ -75,12 +76,14 @@ export interface ISetting {
 	enum?: string[];
 	enumDescriptions?: string[];
 	enumDescriptionsAreMarkdown?: boolean;
+	uniqueItems?: boolean;
 	tags?: string[];
 	disallowSyncIgnore?: boolean;
 	restricted?: boolean;
 	extensionInfo?: IConfigurationExtensionInfo;
 	validator?: (value: any) => string | null;
 	enumItemLabels?: string[];
+	allKeysAreBoolean?: boolean;
 }
 
 export interface IExtensionSetting extends ISetting {

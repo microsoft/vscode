@@ -163,7 +163,7 @@ export class InlayHintsController implements IEditorContribution {
 					borderRadius: `${(fontSize / 4) | 0}px`,
 				};
 				const key = 'inlayHints-' + hash(before).toString(16);
-				this._codeEditorService.registerDecorationType(key, { before }, undefined, this._editor);
+				this._codeEditorService.registerDecorationType('inlay-hints-controller', key, { before }, undefined, this._editor);
 
 				// decoration types are ref-counted which means we only need to
 				// call register und remove equally often

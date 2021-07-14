@@ -143,7 +143,13 @@ export class BowerJSONContribution implements IJSONContribution {
 
 	public resolveSuggestion(_resource: Uri | undefined, item: CompletionItem): Thenable<CompletionItem | null> | null {
 		if (item.kind === CompletionItemKind.Property && item.documentation === '') {
-			return this.getInfo(item.label).then(documentation => {
+
+			let label = item.label;
+			if (typeof label !== 'string') {
+				label = label.label;
+			}
+
+			return this.getInfo(label).then(documentation => {
 				if (documentation) {
 					item.documentation = documentation;
 					return item;

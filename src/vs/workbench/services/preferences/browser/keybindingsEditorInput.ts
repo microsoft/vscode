@@ -6,6 +6,7 @@
 import { OS } from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { KeybindingsEditorModel } from 'vs/workbench/services/preferences/browser/keybindingsEditorModel';
 
@@ -42,8 +43,8 @@ export class KeybindingsEditorInput extends EditorInput {
 		return this.keybindingsModel;
 	}
 
-	override matches(otherInput: unknown): boolean {
-		return otherInput instanceof KeybindingsEditorInput;
+	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
+		return super.matches(otherInput) || otherInput instanceof KeybindingsEditorInput;
 	}
 
 	override dispose(): void {

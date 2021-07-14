@@ -6,10 +6,10 @@
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
-export interface INotebookKernelBindEvent {
+export interface ISelectedNotebooksChangeEvent {
 	notebook: URI;
 	oldKernel: string | undefined;
 	newKernel: string | undefined;
@@ -21,6 +21,37 @@ export interface INotebookKernelMatchResult {
 	readonly all: INotebookKernel[];
 }
 
+
+export interface INotebookKernelChangeEvent {
+	label?: true;
+	description?: true;
+	detail?: true;
+	supportedLanguages?: true;
+	hasExecutionOrder?: true;
+}
+
+export interface INotebookKernel {
+
+	readonly id: string;
+	readonly viewType: string;
+	readonly onDidChange: Event<Readonly<INotebookKernelChangeEvent>>;
+	readonly extension: ExtensionIdentifier;
+
+	readonly localResourceRoot: URI;
+	readonly preloadUris: URI[];
+	readonly preloadProvides: string[];
+
+	label: string;
+	description?: string;
+	detail?: string;
+	supportedLanguages: string[];
+	implementsInterrupt?: boolean;
+	implementsExecutionOrder?: boolean;
+
+	executeNotebookCellsRequest(uri: URI, cellHandles: number[]): Promise<void>;
+	cancelNotebookCellExecution(uri: URI, cellHandles: number[]): Promise<void>;
+}
+
 export interface INotebookTextModelLike { uri: URI; viewType: string; }
 
 export const INotebookKernelService = createDecorator<INotebookKernelService>('INotebookKernelService');
@@ -30,7 +61,7 @@ export interface INotebookKernelService {
 
 	readonly onDidAddKernel: Event<INotebookKernel>;
 	readonly onDidRemoveKernel: Event<INotebookKernel>;
-	readonly onDidChangeNotebookKernelBinding: Event<INotebookKernelBindEvent>;
+	readonly onDidChangeSelectedNotebooks: Event<ISelectedNotebooksChangeEvent>;
 	readonly onDidChangeNotebookAffinity: Event<void>
 
 	registerKernel(kernel: INotebookKernel): IDisposable;

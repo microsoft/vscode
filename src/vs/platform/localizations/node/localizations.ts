@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Promises, writeFile } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import { createHash } from 'crypto';
 import { IExtensionManagementService, ILocalExtension, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -171,7 +171,7 @@ class LanguagePacksCache extends Disposable {
 					this.initializedCache = true;
 					const raw = JSON.stringify(this.languagePacks);
 					this.logService.debug('Writing language packs', raw);
-					return writeFile(this.languagePacksFilePath, raw);
+					return Promises.writeFile(this.languagePacksFilePath, raw);
 				})
 				.then(() => result, error => this.logService.error(error));
 		});

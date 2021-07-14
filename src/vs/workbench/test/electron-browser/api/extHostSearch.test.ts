@@ -883,14 +883,16 @@ suite('ExtHostSearch', () => {
 		});
 
 		test('basic sibling clause', async () => {
-			mockPFS.readdir = (_path: string): any => {
-				if (_path === rootFolderA.fsPath) {
-					return Promise.resolve([
-						'file1.js',
-						'file1.ts'
-					]);
-				} else {
-					return Promise.reject(new Error('Wrong path'));
+			(mockPFS as any).Promises = {
+				readdir: (_path: string): any => {
+					if (_path === rootFolderA.fsPath) {
+						return Promise.resolve([
+							'file1.js',
+							'file1.ts'
+						]);
+					} else {
+						return Promise.reject(new Error('Wrong path'));
+					}
 				}
 			};
 
@@ -926,21 +928,23 @@ suite('ExtHostSearch', () => {
 		});
 
 		test('multiroot sibling clause', async () => {
-			mockPFS.readdir = (_path: string): any => {
-				if (_path === joinPath(rootFolderA, 'folder').fsPath) {
-					return Promise.resolve([
-						'fileA.scss',
-						'fileA.css',
-						'file2.css'
-					]);
-				} else if (_path === rootFolderB.fsPath) {
-					return Promise.resolve([
-						'fileB.ts',
-						'fileB.js',
-						'file3.js'
-					]);
-				} else {
-					return Promise.reject(new Error('Wrong path'));
+			(mockPFS as any).Promises = {
+				readdir: (_path: string): any => {
+					if (_path === joinPath(rootFolderA, 'folder').fsPath) {
+						return Promise.resolve([
+							'fileA.scss',
+							'fileA.css',
+							'file2.css'
+						]);
+					} else if (_path === rootFolderB.fsPath) {
+						return Promise.resolve([
+							'fileB.ts',
+							'fileB.js',
+							'file3.js'
+						]);
+					} else {
+						return Promise.reject(new Error('Wrong path'));
+					}
 				}
 			};
 

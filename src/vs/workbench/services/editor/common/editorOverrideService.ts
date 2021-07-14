@@ -12,18 +12,17 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorInput, IEditorInputWithOptions, IEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { IEditorInputWithOptions, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export const IEditorOverrideService = createDecorator<IEditorOverrideService>('editorOverrideService');
 
 //#region Editor Associations
 
-// Static values for editor contributions
+// Static values for registered editors
 
 export type EditorAssociation = {
 	readonly viewType: string;
@@ -33,12 +32,6 @@ export type EditorAssociation = {
 export type EditorAssociations = readonly EditorAssociation[];
 
 export const editorsAssociationsSettingId = 'workbench.editorAssociations';
-
-export const DEFAULT_EDITOR_ASSOCIATION: IEditorType = {
-	id: 'default',
-	displayName: localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
-	providerDisplayName: localize('builtinProviderDisplayName', "Built-in")
-};
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -65,22 +58,30 @@ configurationRegistry.registerConfiguration(editorAssociationsConfigurationNode)
 //#endregion
 
 //#region EditorOverrideService types
-export enum ContributedEditorPriority {
+export enum RegisteredEditorPriority {
 	builtin = 'builtin',
 	option = 'option',
 	exclusive = 'exclusive',
 	default = 'default'
 }
 
-export type ContributionPointOptions = {
+/**
+ * If we didn't resolve an override dictates what to do with the opening state
+ * ABORT = Do not continue with opening the editor
+ * NONE = Continue as if the override has been disabled as the service could not resolve one
+ */
+export const enum OverrideStatus {
+	ABORT = 1,
+	NONE = 2,
+}
+
+export type ReturnedOverride = IEditorInputWithOptions | OverrideStatus;
+
+export type RegisteredEditorOptions = {
 	/**
 	 * If your editor cannot be opened in multiple groups for the same resource
 	 */
 	singlePerResource?: boolean | (() => boolean);
-	/**
-	 * If your editor supports diffs
-	 */
-	canHandleDiff?: boolean | (() => boolean);
 
 	/**
 	 * Whether or not you can support opening the given resource.
@@ -89,17 +90,18 @@ export type ContributionPointOptions = {
 	canSupportResource?: (resource: URI) => boolean;
 };
 
-export type ContributedEditorInfo = {
+export type RegisteredEditorInfo = {
 	id: string;
-	describes: (currentEditor: IEditorInput) => boolean;
 	label: string;
 	detail?: string;
-	priority: ContributedEditorPriority;
+	priority: RegisteredEditorPriority;
 };
 
-export type EditorInputFactoryFunction = (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup) => IEditorInputWithOptions;
+export type EditorInputFactoryFunction = (editorInput: IResourceEditorInput | ITextResourceEditorInput, group: IEditorGroup) => IEditorInputWithOptions;
 
-export type DiffEditorInputFactoryFunction = (diffEditorInput: DiffEditorInput, options: IEditorOptions | undefined, group: IEditorGroup) => IEditorInputWithOptions;
+export type UntitledEditorInputFactoryFunction = (untitledEditorInput: IUntitledTextResourceEditorInput, group: IEditorGroup) => IEditorInputWithOptions;
+
+export type DiffEditorInputFactoryFunction = (diffEditorInput: IResourceDiffEditorInput, group: IEditorGroup) => IEditorInputWithOptions;
 
 export interface IEditorOverrideService {
 	readonly _serviceBrand: undefined;
@@ -118,28 +120,37 @@ export interface IEditorOverrideService {
 	updateUserAssociations(globPattern: string, editorID: string): void;
 
 	/**
-	 * Registers a specific editor contribution.
-	 * @param globPattern The glob pattern for this contribution point
-	 * @param editorInfo Information about the contribution point
-	 * @param options Specific options which apply to this contribution
+	 * Registers a specific editor.
+	 * @param globPattern The glob pattern for this registration
+	 * @param editorInfo Information about the registration
+	 * @param options Specific options which apply to this registration
 	 * @param createEditorInput The factory method for creating inputs
 	 */
-	registerContributionPoint(
+	registerEditor(
 		globPattern: string | glob.IRelativePattern,
-		editorInfo: ContributedEditorInfo,
-		options: ContributionPointOptions,
+		editorInfo: RegisteredEditorInfo,
+		options: RegisteredEditorOptions,
 		createEditorInput: EditorInputFactoryFunction,
+		createUntitledEditorInput?: UntitledEditorInputFactoryFunction | undefined,
 		createDiffEditorInput?: DiffEditorInputFactoryFunction
 	): IDisposable;
+
+	/**
+	 * Populates the override field of the untyped editor input
+	 * @param editor The editor input
+	 * @returns If one is populated whether or not there was a conflicting default, else undefined
+	 */
+	populateEditorId(editor: IUntypedEditorInput): Promise<{ conflictingDefault: boolean } | undefined>
 
 	/**
 	 * Given an editor determines if there's a suitable override for it, if so returns an IEditorInputWithOptions for opening
 	 * @param editor The editor to override
 	 * @param options The current options for the editor
 	 * @param group The current group
-	 * @returns An IEditorInputWithOptionsAndGroup if there is an available override or undefined if there is not
+	 * @param conflictingDefault Whether or not to show the conflicting default prompt
+	 * @returns An IEditorInputWithOptionsAndGroup if there is an available override or a status of how to proceed
 	 */
-	resolveEditorOverride(editor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup): Promise<IEditorInputWithOptionsAndGroup | undefined>;
+	resolveEditorInput(editor: IUntypedEditorInput, group: IEditorGroup, conflictingDefault?: boolean): Promise<ReturnedOverride>;
 
 	/**
 	 * Given a resource returns all the editor ids that match that resource
@@ -152,16 +163,16 @@ export interface IEditorOverrideService {
 //#endregion
 
 //#region Util functions
-export function priorityToRank(priority: ContributedEditorPriority): number {
+export function priorityToRank(priority: RegisteredEditorPriority): number {
 	switch (priority) {
-		case ContributedEditorPriority.exclusive:
+		case RegisteredEditorPriority.exclusive:
 			return 5;
-		case ContributedEditorPriority.default:
+		case RegisteredEditorPriority.default:
 			return 4;
-		case ContributedEditorPriority.builtin:
+		case RegisteredEditorPriority.builtin:
 			return 3;
 		// Text editor is priority 2
-		case ContributedEditorPriority.option:
+		case RegisteredEditorPriority.option:
 		default:
 			return 1;
 	}
@@ -171,6 +182,8 @@ export function globMatchesResource(globPattern: string | glob.IRelativePattern,
 	const excludedSchemes = new Set([
 		Schemas.extension,
 		Schemas.webviewPanel,
+		Schemas.vscodeWorkspaceTrust,
+		Schemas.walkThrough
 	]);
 	// We want to say that the above schemes match no glob patterns
 	if (excludedSchemes.has(resource.scheme)) {
@@ -178,6 +191,6 @@ export function globMatchesResource(globPattern: string | glob.IRelativePattern,
 	}
 	const matchOnPath = typeof globPattern === 'string' && globPattern.indexOf(posix.sep) >= 0;
 	const target = matchOnPath ? `${resource.scheme}:${resource.path}` : basename(resource);
-	return glob.match(globPattern, target.toLowerCase());
+	return glob.match(typeof globPattern === 'string' ? globPattern.toLowerCase() : globPattern, target.toLowerCase());
 }
 //#endregion

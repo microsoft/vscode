@@ -15,7 +15,7 @@ module.exports = new (_a = class TranslationRemind {
             };
         }
         create(context) {
-            return (0, utils_1.createImportRuleListener)((node, path) => this._checkImport(context, node, path));
+            return utils_1.createImportRuleListener((node, path) => this._checkImport(context, node, path));
         }
         _checkImport(context, node, path) {
             if (path !== TranslationRemind.NLS_MODULE) {
@@ -31,7 +31,7 @@ module.exports = new (_a = class TranslationRemind {
             let resourceDefined = false;
             let json;
             try {
-                json = (0, fs_1.readFileSync)('./build/lib/i18n.resources.json', 'utf8');
+                json = fs_1.readFileSync('./build/lib/i18n.resources.json', 'utf8');
             }
             catch (e) {
                 console.error('[translation-remind rule]: File with resources to pull from Transifex was not found. Aborting translation resource check for newly defined workbench part/service.');

@@ -154,7 +154,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 
 		// Clear view state if input is disposed
 		if (input.isDisposed()) {
-			super.clearTextEditorViewState([resource]);
+			super.clearTextEditorViewState(resource);
 		}
 
 		// Otherwise save it
