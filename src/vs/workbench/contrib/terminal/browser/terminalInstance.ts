@@ -1072,6 +1072,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._wrapperElement.classList.toggle('active', visible);
 		}
 		if (visible && this._xterm && this._xtermCore) {
+			// Resize to re-evaluate dimensions, this will ensure when switching to a terminal it is
+			// using the most up to date dimensions (eg. when terminal is created in the background
+			// using cached dimensions of a split terminal).
+			this._resize();
+
 			// Trigger a manual scroll event which will sync the viewport and scroll bar. This is
 			// necessary if the number of rows in the terminal has decreased while it was in the
 			// background since scrollTop changes take no effect but the terminal's position does
