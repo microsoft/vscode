@@ -45,6 +45,7 @@ import { containsDragType } from 'vs/workbench/browser/dnd';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 
 const $ = DOM.$;
 
@@ -617,6 +618,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		let sourceInstances: ITerminalInstance[] | undefined;
 		const terminalResources = originalEvent.dataTransfer?.getData(DataTransfers.RESOURCES);
 		const terminals = originalEvent.dataTransfer?.getData(DataTransfers.TERMINALS);
+		let promises: Promise<IProcessDetails | undefined>[] = [];
 		if (terminals && terminalResources) {
 			const json = JSON.parse(terminalResources);
 			for (const entry of json) {
@@ -628,13 +630,15 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 						sourceInstances = [instance];
 						this._terminalService.moveToTerminalView(instance);
 					} else if (workspaceId !== this._workspaceContextService.getWorkspace().id) {
-						const attachPersistentProcess = await this._localTerminalService.requestDetachInstance(workspaceId, Number.parseInt(instanceId));
-						const instance = this._terminalService.createTerminal({
-							config: { attachPersistentProcess }
-						});
-						this._terminalService.setActiveInstance(instance);
+						promises.push(this._localTerminalService.requestDetachInstance(workspaceId, Number.parseInt(instanceId)));
 					}
 				}
+			}
+			let processes = await Promise.all(promises);
+			processes = processes.filter(p => p !== undefined);
+			for (const r of processes) {
+				const instance = this._terminalService.createTerminal({ config: { attachPersistentProcess: r } });
+				this._terminalService.setActiveInstance(instance);
 			}
 			return;
 		}
