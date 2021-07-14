@@ -298,6 +298,51 @@
 	margin-left: 20px;
 }
 
+.extension-editor > .body > .content > .details {
+	height: 100%;
+	display: flex;
+}
+
+.extension-editor > .body > .content > .details > .readme-container {
+	margin: 0px auto;
+	max-width: 800px;
+	height: 100%;
+	flex: 1;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container {
+	width: 300px;
+	margin: 20px 10px
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .additional-details-title {
+	font-size: 120%;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container > .categories-container > .categories,
+.extension-editor > .body > .content > .details > .additional-details-container > .resources-container > .resources {
+	margin: 15px 0px;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container > .categories-container > .categories > .category {
+	display: inline-block;
+	border: 1px solid #ababab;
+	padding: 2px 4px;
+	border-radius: 4px;
+	font-size: 90%;
+	margin: 0px 6px 3px 0px;
+	cursor: pointer;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container > .resources-container > .resources > .resource {
+	display: block;
+	cursor: pointer;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container > .resources-container > .resources > .resource:hover {
+	text-decoration: underline;
+}
+
 .extension-editor > .body > .content > .extension-pack-readme {
 	height: 100%;
 }

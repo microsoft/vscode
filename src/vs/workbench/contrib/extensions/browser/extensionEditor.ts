@@ -228,9 +228,9 @@ export class ExtensionEditor extends EditorPane {
 		const installCount = append(append(subtitle, $('.subtitle-entry')), $('span.install', { title: localize('install count', "Install count"), tabIndex: 0 }));
 		const rating = append(append(subtitle, $('.subtitle-entry')), $('span.rating.clickable', { title: localize('rating', "Rating"), tabIndex: 0 }));
 		const repository = append(append(subtitle, $('.subtitle-entry')), $('span.repository.clickable', { tabIndex: 0 }));
-		repository.textContent = localize('repository', 'Repository');
+		repository.textContent = localize('repository', "Repository");
 		const license = append(append(subtitle, $('.subtitle-entry')), $('span.license.clickable', { tabIndex: 0 }));
-		license.textContent = localize('license', 'License');
+		license.textContent = localize('license', "License");
 		const version = append(append(subtitle, $('.subtitle-entry')), $('span.version', { title: localize('version', 'Version'), tabIndex: 0 }));
 
 		const description = append(details, $('.description'));
@@ -564,7 +564,7 @@ export class ExtensionEditor extends EditorPane {
 
 	private open(id: string, extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		switch (id) {
-			case ExtensionEditorTab.Readme: return this.openReadme(template, token);
+			case ExtensionEditorTab.Readme: return this.showDetailsSection(extension, template, token);
 			case ExtensionEditorTab.Contributions: return this.openContributions(template, token);
 			case ExtensionEditorTab.Changelog: return this.openChangelog(template, token);
 			case ExtensionEditorTab.Dependencies: return this.openExtensionDependencies(extension, template, token);
@@ -710,6 +710,56 @@ export class ExtensionEditor extends EditorPane {
 				${body}
 			</body>
 		</html>`;
+	}
+
+	private async showDetailsSection(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+		const details = append(template.content, $('.details'));
+		const readmeContainer = append(details, $('.readme-container'));
+		const additionalDetailsContainer = append(details, $('.additional-details-container'));
+		template = { ...template, ...{ content: readmeContainer } };
+		const activeElement = await this.openReadme(template, token);
+		this.renderAdditionalDetails(additionalDetailsContainer, extension);
+		return activeElement;
+	}
+
+	private renderAdditionalDetails(container: HTMLElement, extension: IExtension): void {
+		this.renderCategories(container, extension);
+		this.renderResources(container, extension);
+	}
+
+	private renderCategories(container: HTMLElement, extension: IExtension): void {
+		const categoriesContainer = append(container, $('.categories-container'));
+		append(categoriesContainer, $('.additional-details-title', undefined, localize('categories', "Categories")));
+		const categoriesElement = append(categoriesContainer, $('.categories'));
+		if (extension.categories.length) {
+			append(categoriesElement, ...extension.categories.map(category => $('span.category', undefined, category)));
+		} else {
+			append(categoriesElement, $('span', undefined, localize('none', "None")));
+		}
+	}
+
+	private renderResources(container: HTMLElement, extension: IExtension): void {
+		const resourcesContainer = append(container, $('.resources-container'));
+		append(resourcesContainer, $('.additional-details-title', undefined, localize('resources', "Resources")));
+		const resourcesElement = append(resourcesContainer, $('.resources'));
+		const resources: [string, URI][] = [];
+		if (extension.url) {
+			resources.push([localize('Marketplace', "Marketplace"), URI.parse(extension.url)]);
+			resources.push([localize('Reviews', "Ratings & Reviews"), URI.parse(`${extension.url}&ssr=false#review-details`)]);
+		}
+		if (extension.repository) {
+			resources.push([localize('repository', "Repository"), URI.parse(extension.repository)]);
+		}
+		if (extension.url && extension.licenseUrl) {
+			resources.push([localize('license', "License"), URI.parse(extension.licenseUrl)]);
+		}
+		if (resources.length) {
+			for (const [label, uri] of resources) {
+				this.transientDisposables.add(this.onClick(append(resourcesElement, $('a.resource', undefined, label)), () => this.openerService.open(uri)));
+			}
+		} else {
+			append(resourcesElement, $('span', undefined, localize('none', "None")));
+		}
 	}
 
 	private async openReadme(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
@@ -1567,13 +1617,13 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
-		collector.addRule(`.monaco-workbench .extension-editor .subcontent a { color: ${link}; }`);
+		collector.addRule(`.monaco-workbench .extension-editor .content a { color: ${link}; }`);
 	}
 
 	const activeLink = theme.getColor(textLinkActiveForeground);
 	if (activeLink) {
-		collector.addRule(`.monaco-workbench .extension-editor .subcontent a:hover,
-			.monaco-workbench .extension-editor .subcontent a:active { color: ${activeLink}; }`);
+		collector.addRule(`.monaco-workbench .extension-editor .content a:hover,
+			.monaco-workbench .extension-editor .content a:active { color: ${activeLink}; }`);
 	}
 
 });
