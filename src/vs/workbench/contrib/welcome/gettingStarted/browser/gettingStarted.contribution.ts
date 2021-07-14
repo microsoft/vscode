@@ -240,7 +240,8 @@ registerAction2(class extends Action2 {
 			id: x.id,
 			label: x.title,
 			detail: x.description,
-		})), { canPickMany: false, title: localize('pickWalkthroughs', "Open Walkthrough...") });
+			description: x.source,
+		})), { canPickMany: false, matchOnDescription: true, matchOnDetail: true, title: localize('pickWalkthroughs', "Open Walkthrough...") });
 		if (selection) {
 			commandService.executeCommand('workbench.action.openWalkthrough', selection.id);
 		}
