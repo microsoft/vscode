@@ -13,9 +13,9 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { Event } from 'vs/base/common/event';
 import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { UpdateAction, ManageExtensionAction, ReloadAction, ExtensionStatusLabelAction, RemoteInstallAction, ExtensionStatusIconAction, ExtensionToolTipAction, LocalInstallAction, ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction, WebInstallAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { UpdateAction, ManageExtensionAction, ReloadAction, ExtensionStatusLabelAction, RemoteInstallAction, ExtensionStatusIconAction, ExtensionToolTipAction, LocalInstallAction, ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction, WebInstallAction, ExtensionRuntimeStatusIconAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { Label, RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, TooltipWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
+import { RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget, ExtensionHoverWidget, ExtensionActivationStatusWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -24,8 +24,7 @@ import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/
 import { foreground, listActiveSelectionForeground, listActiveSelectionBackground, listInactiveSelectionForeground, listInactiveSelectionBackground, listFocusForeground, listFocusBackground, listHoverForeground, listHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { localize } from 'vs/nls';
-import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
+import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 
 export const EXTENSION_LIST_ELEMENT_HEIGHT = 62;
 
@@ -39,11 +38,9 @@ export interface ITemplateData {
 	element: HTMLElement;
 	icon: HTMLImageElement;
 	name: HTMLElement;
+	author: HTMLElement;
 	installCount: HTMLElement;
 	ratings: HTMLElement;
-	author: HTMLElement;
-	description: HTMLElement;
-	workspaceTrustDescription: HTMLElement;
 	extension: IExtension | null;
 	disposables: IDisposable[];
 	extensionDisposables: IDisposable[];
@@ -57,16 +54,22 @@ export class Delegate implements IListVirtualDelegate<IExtension> {
 
 const actionOptions = { icon: true, label: true, tabOnlyOnFocus: true };
 
+export type ExtensionListRendererOptions = {
+	hoverOptions: {
+		position: () => HoverPosition
+	}
+};
+
 export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	constructor(
 		private extensionViewState: IExtensionsViewState,
+		private readonly options: ExtensionListRendererOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) { }
 
@@ -83,15 +86,14 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const headerContainer = append(details, $('.header-container'));
 		const header = append(headerContainer, $('.header'));
 		const name = append(header, $('span.name'));
-		const version = append(header, $('span.version'));
-		const installCount = append(header, $('span.install-count'));
-		const ratings = append(header, $('span.ratings'));
 		const syncIgnore = append(header, $('span.sync-ignored'));
+		const activationStatus = append(header, $('span.activation-status'));
 		const headerRemoteBadgeWidget = this.instantiationService.createInstance(RemoteBadgeWidget, header, false);
-		const description = append(details, $('.description.ellipsis'));
-		const workspaceTrustDescription = append(details, $('.workspace-trust-description.ellipsis'));
+		const author = append(details, $('.author'));
 		const footer = append(details, $('.footer'));
-		const author = append(footer, $('.author.ellipsis'));
+		const info = append(footer, $('.info'));
+		const ratings = append(info, $('span.ratings'));
+		const installCount = append(info, $('span.install-count'));
 		const actionbar = new ActionBar(footer, {
 			animated: false,
 			actionViewItemProvider: (action: IAction) => {
@@ -108,7 +110,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		actionbar.setFocusable(false);
 		actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));
 
-		const systemDisabledWarningAction = this.instantiationService.createInstance(ExtensionStatusIconAction);
+		const extensionStatusIconAction = this.instantiationService.createInstance(ExtensionStatusIconAction);
 		const reloadAction = this.instantiationService.createInstance(ReloadAction);
 		const actions = [
 			this.instantiationService.createInstance(ExtensionStatusLabelAction),
@@ -119,21 +121,23 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			this.instantiationService.createInstance(RemoteInstallAction, false),
 			this.instantiationService.createInstance(LocalInstallAction),
 			this.instantiationService.createInstance(WebInstallAction),
-			systemDisabledWarningAction,
+			extensionStatusIconAction,
+			this.instantiationService.createInstance(ExtensionRuntimeStatusIconAction),
 			this.instantiationService.createInstance(ManageExtensionAction)
 		];
-		const extensionTooltipAction = this.instantiationService.createInstance(ExtensionToolTipAction, systemDisabledWarningAction, reloadAction);
-		const tooltipWidget = this.instantiationService.createInstance(TooltipWidget, root, extensionTooltipAction, recommendationWidget);
+		const extensionTooltipAction = this.instantiationService.createInstance(ExtensionToolTipAction, extensionStatusIconAction, reloadAction);
+		const extensionHoverWidget = this.instantiationService.createInstance(ExtensionHoverWidget, { target: root, showInfo: false, position: this.options.hoverOptions.position }, extensionStatusIconAction, extensionTooltipAction, recommendationWidget);
+
 		const widgets = [
 			recommendationWidget,
 			iconRemoteBadgeWidget,
 			extensionPackBadgeWidget,
 			headerRemoteBadgeWidget,
-			tooltipWidget,
-			this.instantiationService.createInstance(Label, version, (e: IExtension) => e.version),
+			extensionHoverWidget,
 			this.instantiationService.createInstance(SyncIgnoredWidget, syncIgnore),
+			this.instantiationService.createInstance(ExtensionActivationStatusWidget, activationStatus, true),
 			this.instantiationService.createInstance(InstallCountWidget, installCount, true),
-			this.instantiationService.createInstance(RatingsWidget, ratings, true)
+			this.instantiationService.createInstance(RatingsWidget, ratings, true),
 		];
 		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets, extensionTooltipAction]);
 
@@ -141,7 +145,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const disposable = combinedDisposable(...actions, ...widgets, actionbar, extensionContainers, extensionTooltipAction);
 
 		return {
-			root, element, icon, name, installCount, ratings, author, description, workspaceTrustDescription, disposables: [disposable], actionbar,
+			root, element, icon, name, installCount, ratings, author, disposables: [disposable], actionbar,
 			extensionDisposables: [],
 			set extension(extension: IExtension) {
 				extensionContainers.extension = extension;
@@ -158,7 +162,6 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.icon.src = '';
 		data.name.textContent = '';
 		data.author.textContent = '';
-		data.description.textContent = '';
 		data.installCount.style.display = 'none';
 		data.ratings.style.display = 'none';
 		data.extension = null;
@@ -201,27 +204,10 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		data.name.textContent = extension.displayName;
 		data.author.textContent = extension.publisherDisplayName;
-		data.description.textContent = extension.description;
-
-		if (extension.local?.manifest.capabilities?.untrustedWorkspaces?.supported) {
-			const untrustedWorkspaceCapability = extension.local.manifest.capabilities.untrustedWorkspaces;
-			const untrustedWorkspaceSupported = this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(extension.local.manifest);
-			if (untrustedWorkspaceSupported !== true && untrustedWorkspaceCapability.supported !== true) {
-				data.workspaceTrustDescription.textContent = untrustedWorkspaceCapability.description;
-			} else if (untrustedWorkspaceSupported === false) {
-				data.workspaceTrustDescription.textContent = localize('onStartDefaultText', "A trusted workspace is required to enable this extension.");
-			} else if (untrustedWorkspaceSupported === 'limited') {
-				data.workspaceTrustDescription.textContent = localize('onDemandDefaultText', "Some features require a trusted workspace.");
-			}
-		}
 
 		data.installCount.style.display = '';
 		data.ratings.style.display = '';
 		data.extension = extension;
-
-		if (extension.gallery && extension.gallery.properties && extension.gallery.properties.localizedLanguages && extension.gallery.properties.localizedLanguages.length) {
-			data.description.textContent = extension.gallery.properties.localizedLanguages.map(name => name[0].toLocaleUpperCase() + name.slice(1)).join(', ');
-		}
 
 		this.extensionViewState.onFocus(e => {
 			if (areSameExtensions(extension.identifier, e.identifier)) {

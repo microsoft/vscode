@@ -42,6 +42,7 @@ import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDa
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { isBoolean } from 'vs/base/common/types';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
+import { IExtensionService, IExtensionsStatus } from 'vs/workbench/services/extensions/common/extensions';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -543,6 +544,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@ILogService private readonly logService: ILogService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
 		super();
 		this.hasOutdatedExtensionsContextKey = HasOutdatedExtensionsContext.bindTo(contextKeyService);
@@ -714,6 +716,16 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	open(extension: IExtension, { sideByside, preserveFocus, pinned }: { sideByside?: boolean, preserveFocus?: boolean, pinned?: boolean } = { sideByside: false, preserveFocus: false, pinned: false }): Promise<any> {
 		return Promise.resolve(this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension), { preserveFocus, pinned }, sideByside ? SIDE_GROUP : ACTIVE_GROUP));
+	}
+
+	getExtensionStatus(extension: IExtension): IExtensionsStatus | undefined {
+		const extensionsStatus = this.extensionService.getExtensionsStatus();
+		for (const id of Object.keys(extensionsStatus)) {
+			if (areSameExtensions({ id }, extension.identifier)) {
+				return extensionsStatus[id];
+			}
+		}
+		return undefined;
 	}
 
 	private getPrimaryExtension(extensions: IExtension[]): IExtension {

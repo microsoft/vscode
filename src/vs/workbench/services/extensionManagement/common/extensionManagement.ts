@@ -81,7 +81,7 @@ export interface IWorkbenchExtensionEnablementService {
 	/**
 	 * Returns the enablement states for the dependencies of the given extension
 	 */
-	getDependenciesEnablementStates(extension: IExtension): EnablementState[];
+	getDependenciesEnablementStates(extension: IExtension): [IExtension, EnablementState][];
 
 	/**
 	 * Returns `true` if the enablement can be changed.

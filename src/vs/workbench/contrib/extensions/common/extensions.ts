@@ -15,6 +15,7 @@ import { IExtensionManifest, ExtensionType } from 'vs/platform/extensions/common
 import { URI } from 'vs/base/common/uri';
 import { IView, IViewPaneContainer } from 'vs/workbench/common/views';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IExtensionsStatus } from 'vs/workbench/services/extensions/common/extensions';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
 
@@ -94,6 +95,7 @@ export interface IExtensionsWorkbenchService {
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
 	open(extension: IExtension, options?: { sideByside?: boolean, preserveFocus?: boolean, pinned?: boolean }): Promise<any>;
 	checkForUpdates(): Promise<void>;
+	getExtensionStatus(extension: IExtension): IExtensionsStatus | undefined;
 
 	// Sync APIs
 	isExtensionIgnoredToSync(extension: IExtension): boolean;

@@ -76,42 +76,19 @@
 
 .extension-list-item > .details > .header-container > .header > .name {
 	font-weight: bold;
-}
-
-.extension-list-item > .details > .header-container > .header > .version {
 	flex: 1;
-	opacity: 0.85;
-	font-size: 80%;
-	padding: 2px 0px 0px 6px;
-	min-width: 36px;
 }
 
-.extension-list-item > .details > .header-container > .header > .name,
-.extension-list-item > .details > .header-container > .header > .version {
+.extension-list-item > .details > .header-container > .header > .name {
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	overflow: hidden;
-}
-
-.extension-list-item > .details > .header-container > .header > .install-count,
-.extension-list-item > .details > .header-container > .header > .ratings {
-	display: flex;
-	align-items: center;
-}
-
-.extension-list-item > .details > .header-container > .header > .install-count:not(:empty) {
-	font-size: 80%;
-	margin: 0 6px;
 }
 
 .extension-list-item > .details > .header-container > .header .codicon {
 	font-size: 120%;
 	margin-right: 2px;
 	-webkit-mask: inherit;
-}
-
-.extension-list-item > .details > .header-container > .header > .ratings {
-	text-align: right;
 }
 
 .extension-list-item > .details > .header-container > .header > .extension-remote-badge-container {
@@ -148,13 +125,42 @@
 	font-size: 100%;
 }
 
-.extension-list-item > .details > .description {
+/* .extension-list-item > .details > .description {
 	padding-right: 11px;
+} */
+
+
+.extension-list-item > .details .info {
+	display: flex;
+	flex: 1;
 }
 
-.extension-list-item > .details > .workspace-trust-description {
-	display: none;
-	padding-right: 11px;
+.extension-list-item > .details .header .codicon,
+.extension-list-item > .details .info .codicon {
+	font-size: 120%;
+	margin-right: 2px;
+	-webkit-mask: inherit;
+}
+
+.extension-list-item > .details .activation-status,
+.extension-list-item > .details .info > .install-count,
+.extension-list-item > .details .info > .ratings {
+	display: flex;
+	align-items: center;
+}
+
+.extension-list-item > .details .activation-status:not(:empty),
+.extension-list-item > .details .info > .install-count:not(:empty) {
+	font-size: 80%;
+	margin-right: 6px;
+}
+
+.extension-list-item > .details .info > .ratings {
+	text-align: right;
+}
+
+.extension-list-item > .details .info > .ratings:not(:empty) {
+	margin-right: 6px;
 }
 
 .extension-list-item > .details > .footer {
@@ -165,10 +171,11 @@
 	overflow: hidden;
 }
 
-.extension-list-item > .details > .footer > .author {
+.extension-list-item > .details .author {
 	flex: 1;
 	font-size: 90%;
 	font-weight: 600;
+	padding-right: 11px;
 }
 
 .extension-list-item .ellipsis {
@@ -196,4 +203,8 @@
 
 .extension-list-item .monaco-action-bar > .actions-container > .action-item.disabled {
 	min-width: 0;
+}
+
+.monaco-workbench .workbench-hover.extension-hover {
+	max-width: 450px;
 }

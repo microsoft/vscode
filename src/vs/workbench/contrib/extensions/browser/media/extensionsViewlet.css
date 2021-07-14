@@ -102,14 +102,7 @@
 	background: url('loading.svg') center center no-repeat;
 }
 
-.extensions-viewlet.narrow > .extensions .extension-list-item > .icon-container,
 .extensions-viewlet > .extensions .extension-list-item.loading > .icon-container {
-	display: none;
-}
-
-.extensions-viewlet:not(.narrow) > .extensions .extension-list-item > .details > .header-container > .header > .extension-remote-badge-container,
-.extensions-viewlet.narrow > .extensions .extension-list-item > .details > .header-container > .header > .ratings,
-.extensions-viewlet.narrow > .extensions .extension-list-item > .details > .header-container > .header > .install-count {
 	display: none;
 }
 
