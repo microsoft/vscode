@@ -1780,3 +1780,22 @@ export namespace CodeActionTriggerKind {
 		}
 	}
 }
+
+export namespace TypeHierarchyItem {
+
+	export function to(item: extHostProtocol.ITypeHierarchyItemDto): types.TypeHierarchyItem {
+		const result = new types.TypeHierarchyItem(
+			SymbolKind.to(item.kind),
+			item.name,
+			item.detail || '',
+			URI.revive(item.uri),
+			Range.to(item.range),
+			Range.to(item.selectionRange)
+		);
+
+		result._sessionId = item._sessionId;
+		result._itemId = item._itemId;
+
+		return result;
+	}
+}

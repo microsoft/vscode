@@ -59,6 +59,7 @@ import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/que
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { ExtensionRunTestsRequest, ISerializedTestResults, ITestItem, ITestMessage, ITestRunTask, RunTestForControllerRequest, RunTestsRequest, ITestIdWithSrc, TestsDiff, IFileCoverage, CoverageDetails } from 'vs/workbench/contrib/testing/common/testCollection';
 import { InternalTimelineOptions, Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
+import { TypeHierarchyItem } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ActivationKind, ExtensionHostKind, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
 import { createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId, IRPCProtocol } from 'vs/workbench/services/extensions/common/proxyIdentifier';
@@ -413,6 +414,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$emitFoldingRangeEvent(eventHandle: number, event?: any): void;
 	$registerSelectionRangeProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerCallHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void;
+	$registerTypeHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: ILanguageConfigurationDto): void;
 }
 
@@ -1627,6 +1629,8 @@ export interface IInlineValueContextDto {
 	stoppedLocation: IRange;
 }
 
+export type ITypeHierarchyItemDto = Dto<TypeHierarchyItem>;
+
 export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: UriComponents, token: CancellationToken): Promise<modes.DocumentSymbol[] | undefined>;
 	$provideCodeLenses(handle: number, resource: UriComponents, token: CancellationToken): Promise<ICodeLensListDto | undefined>;
@@ -1677,6 +1681,10 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideCallHierarchyOutgoingCalls(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<IOutgoingCallDto[] | undefined>;
 	$releaseCallHierarchy(handle: number, sessionId: string): void;
 	$setWordDefinitions(wordDefinitions: ILanguageWordDefinitionDto[]): void;
+	$prepareTypeHierarchy(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<ITypeHierarchyItemDto[] | undefined>;
+	$provideTypeHierarchySupertypes(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<ITypeHierarchyItemDto[] | undefined>;
+	$provideTypeHierarchySubtypes(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<ITypeHierarchyItemDto[] | undefined>;
+	$releaseTypeHierarchy(handle: number, sessionId: string): void;
 }
 
 export interface ExtHostQuickOpenShape {
