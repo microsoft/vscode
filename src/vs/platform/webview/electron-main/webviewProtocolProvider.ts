@@ -21,7 +21,7 @@ export class WebviewProtocolProvider extends Disposable {
 	constructor() {
 		super();
 
-		// Register the protocol loading webview html
+		// Register the protocol for loading webview html
 		const webviewHandler = this.handleWebviewRequest.bind(this);
 		protocol.registerFileProtocol(Schemas.vscodeWebview, webviewHandler);
 	}
