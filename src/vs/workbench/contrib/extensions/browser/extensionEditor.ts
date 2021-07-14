@@ -799,7 +799,7 @@ export class ExtensionEditor extends EditorPane {
 		const resources: [string, URI][] = [];
 		if (extension.url) {
 			resources.push([localize('Marketplace', "Marketplace"), URI.parse(extension.url)]);
-			resources.push([localize('Reviews', "Ratings & Reviews"), URI.parse(`${extension.url}&ssr=false#review-details`)]);
+			resources.push([localize('Reviews', "Rating & Review"), URI.parse(`${extension.url}&ssr=false#review-details`)]);
 		}
 		if (extension.repository) {
 			resources.push([localize('repository', "Repository"), URI.parse(extension.repository)]);
