@@ -48,12 +48,15 @@ const enum ActionOrder {
 	Run = 10,
 	Debug,
 	Coverage,
+	RunUsing,
 	AutoRun,
 
 	// Submenu:
 	Collapse,
 	DisplayMode,
 	Sort,
+	GoToTest,
+	HideTest,
 }
 
 const hasAnyTestProvider = ContextKeyGreaterExpr.create(TestingContextKeys.providerCount.key, 0);
@@ -90,6 +93,7 @@ export class UnhideTestAction extends Action2 {
 			title: localize('unhideTest', 'Unhide Test'),
 			menu: {
 				id: MenuId.TestItem,
+				order: ActionOrder.HideTest,
 				when: TestingContextKeys.testItemIsHidden.isEqualTo(true)
 			},
 		});
@@ -130,6 +134,46 @@ export class DebugAction extends Action2 {
 	}
 }
 
+export class RunUsingProfileAction extends Action2 {
+	public static readonly ID = 'testing.runUsing';
+	constructor() {
+		super({
+			id: RunUsingProfileAction.ID,
+			title: localize('testing.runUsing', 'Execute Using Profile...'),
+			icon: icons.testingDebugIcon,
+			menu: {
+				id: MenuId.TestItem,
+				order: ActionOrder.RunUsing,
+				when: TestingContextKeys.hasNonDefaultProfile.isEqualTo(true),
+			},
+		});
+	}
+
+	public override async run(acessor: ServicesAccessor, ...elements: IActionableTestTreeElement[]): Promise<any> {
+		const testElements = elements.filter((e): e is TestItemTreeElement => e instanceof TestItemTreeElement);
+		if (testElements.length === 0) {
+			return;
+		}
+
+		const commandService = acessor.get(ICommandService);
+		const testService = acessor.get(ITestService);
+		const controllerId = testElements[0].test.controllerId;
+		const profile: ITestRunConfiguration | undefined = await commandService.executeCommand('vscode.pickTestProfile', { onlyControllerId: controllerId });
+		if (!profile) {
+			return;
+		}
+
+		testService.runResolvedTests({
+			targets: [{
+				profileGroup: profile.group,
+				profileId: profile.profileId,
+				controllerId: profile.controllerId,
+				testIds: testElements.filter(t => controllerId === t.test.controllerId).map(t => t.test.item.extId)
+			}]
+		});
+	}
+}
+
 export class RunAction extends Action2 {
 	public static readonly ID = 'testing.run';
 	constructor() {
@@ -157,12 +201,38 @@ export class RunAction extends Action2 {
 	}
 }
 
-export class ConfigureTestsAction extends Action2 {
-	public static readonly ID = 'testing.configureTests';
+export class SelectDefaultTestProfiles extends Action2 {
+	public static readonly ID = 'testing.selectDefaultTestProfiles';
 	constructor() {
 		super({
-			id: ConfigureTestsAction.ID,
-			title: localize('testing.configureTests', 'Configure Tests'),
+			id: SelectDefaultTestProfiles.ID,
+			title: localize('testing.selectDefaultTestProfiles', 'Select Default Profile'),
+			icon: icons.testingUpdateConfiguration,
+			category,
+		});
+	}
+
+	public override async run(acessor: ServicesAccessor, onlyGroup: TestRunConfigurationBitset) {
+		const commands = acessor.get(ICommandService);
+		const testConfigurationService = acessor.get(ITestConfigurationService);
+		const configurations = await commands.executeCommand<ITestRunConfiguration[]>('vscode.pickMultipleTestProfiles', {
+			showConfigureButtons: false,
+			selected: testConfigurationService.getGroupDefaultConfigurations(onlyGroup),
+			onlyGroup,
+		});
+
+		if (configurations?.length) {
+			testConfigurationService.setGroupDefaultConfigurations(onlyGroup, configurations);
+		}
+	}
+}
+
+export class ConfigureTestProfilesAction extends Action2 {
+	public static readonly ID = 'testing.configureProfile';
+	constructor() {
+		super({
+			id: ConfigureTestProfilesAction.ID,
+			title: localize('testing.configureProfile', 'Configure Test Profiles'),
 			icon: icons.testingUpdateConfiguration,
 			f1: true,
 			category,
@@ -173,17 +243,18 @@ export class ConfigureTestsAction extends Action2 {
 		});
 	}
 
-	public override async run(acessor: ServicesAccessor) {
+	public override async run(acessor: ServicesAccessor, onlyGroup?: TestRunConfigurationBitset) {
 		const commands = acessor.get(ICommandService);
 		const testConfigurationService = acessor.get(ITestConfigurationService);
-		const configuration = await commands.executeCommand<ITestRunConfiguration>('vscode.pickTestConfiguration', {
-			placeholder: localize('configureTests', 'Select a configuration to update'),
+		const configuration = await commands.executeCommand<ITestRunConfiguration>('vscode.pickTestProfile', {
+			placeholder: localize('configureProfile', 'Select a profile to update'),
 			showConfigureButtons: false,
 			onlyConfigurable: true,
+			onlyGroup,
 		});
 
 		if (configuration) {
-			testConfigurationService.configure(configuration.controllerId, configuration.configId);
+			testConfigurationService.configure(configuration.controllerId, configuration.profileId);
 		}
 	}
 }
@@ -569,6 +640,7 @@ export class GoToTest extends Action2 {
 			menu: {
 				id: MenuId.TestItem,
 				when: TestingContextKeys.testItemHasUri.isEqualTo(true),
+				order: ActionOrder.GoToTest,
 			},
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib - 10,
@@ -1088,7 +1160,7 @@ export const allTestActions = [
 	CancelTestRunAction,
 	ClearTestResultsAction,
 	CollapseAllAction,
-	ConfigureTestsAction,
+	ConfigureTestProfilesAction,
 	DebugAction,
 	DebugAllAction,
 	DebugAtCursor,
@@ -1106,7 +1178,9 @@ export const allTestActions = [
 	RunAtCursor,
 	RunCurrentFile,
 	RunSelectedAction,
+	RunUsingProfileAction,
 	SearchForTestExtension,
+	SelectDefaultTestProfiles,
 	ShowMostRecentOutputAction,
 	TestingSortByLocationAction,
 	TestingSortByStatusAction,

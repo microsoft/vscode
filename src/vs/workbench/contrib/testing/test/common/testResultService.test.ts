@@ -35,9 +35,8 @@ suite('Workbench - Test Results Service', () => {
 
 	const defaultOpts = (testIds: string[]): ResolvedTestRunRequest => ({
 		targets: [{
-			configGroup: TestRunConfigurationBitset.Run,
-			configId: 0,
-			configLabel: 'Run Tests',
+			profileGroup: TestRunConfigurationBitset.Run,
+			profileId: 0,
 			controllerId: 'ctrlId',
 			testIds,
 		}]
@@ -204,7 +203,7 @@ suite('Workbench - Test Results Service', () => {
 
 		setup(() => {
 			storage = new InMemoryResultStorage(new TestStorageService(), new NullLogService());
-			results = new TestTestResultService(new MockContextKeyService(), storage, new TestConfigurationService(new MockContextKeyService()));
+			results = new TestTestResultService(new MockContextKeyService(), storage, new TestConfigurationService(new MockContextKeyService(), new TestStorageService()));
 		});
 
 		test('pushes new result', () => {
@@ -221,7 +220,7 @@ suite('Workbench - Test Results Service', () => {
 			results = new TestResultService(
 				new MockContextKeyService(),
 				storage,
-				new TestConfigurationService(new MockContextKeyService()),
+				new TestConfigurationService(new MockContextKeyService(), new TestStorageService()),
 			);
 
 			assert.strictEqual(0, results.results.length);

@@ -14,14 +14,14 @@ export namespace TestingContextKeys {
 	export const hasDebuggableTests = new RawContextKey('testing.hasDebuggableTests', false, { type: 'boolean', description: localize('testing.hasDebuggableTests', 'Indicates whether any test controller has registered a debug configuration') });
 	export const hasRunnableTests = new RawContextKey('testing.hasRunnableTests', false, { type: 'boolean', description: localize('testing.hasRunnableTests', 'Indicates whether any test controller has registered a run configuration') });
 	export const hasCoverableTests = new RawContextKey('testing.hasCoverableTests', false, { type: 'boolean', description: localize('testing.hasCoverableTests', 'Indicates whether any test controller has registered a coverage configuration') });
-	export const hasNonDefaultConfig = new RawContextKey('testing.hasNonDefaultConfig', false, { type: 'boolean', description: localize('testing.hasNonDefaultConfig', 'Indicates whether any test controller has registered a non-default configuration') });
+	export const hasNonDefaultProfile = new RawContextKey('testing.hasNonDefaultConfig', false, { type: 'boolean', description: localize('testing.hasNonDefaultConfig', 'Indicates whether any test controller has registered a non-default configuration') });
 	export const hasConfigurableConfig = new RawContextKey('testing.hasConfigurableConfig', false, { type: 'boolean', description: localize('testing.hasConfigurableConfig', 'Indicates whether any test configuration can be configured') });
 
 	export const capabilityToContextKey: { [K in TestRunConfigurationBitset]: RawContextKey<boolean> } = {
 		[TestRunConfigurationBitset.Run]: hasRunnableTests,
 		[TestRunConfigurationBitset.Coverage]: hasCoverableTests,
 		[TestRunConfigurationBitset.Debug]: hasDebuggableTests,
-		[TestRunConfigurationBitset.HasNonDefaultConfig]: hasNonDefaultConfig,
+		[TestRunConfigurationBitset.HasNonDefaultConfig]: hasNonDefaultProfile,
 		[TestRunConfigurationBitset.HasConfigurable]: hasConfigurableConfig,
 	};
 

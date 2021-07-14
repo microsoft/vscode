@@ -41,7 +41,7 @@ export const testRunConfigurationBitsetList = [
  */
 export interface ITestRunConfiguration {
 	controllerId: string;
-	configId: number;
+	profileId: number;
 	label: string;
 	group: TestRunConfigurationBitset;
 	isDefault: boolean;
@@ -62,9 +62,8 @@ export interface ResolvedTestRunRequest {
 	targets: {
 		testIds: string[];
 		controllerId: string;
-		configLabel: string;
-		configGroup: TestRunConfigurationBitset;
-		configId: number;
+		profileGroup: TestRunConfigurationBitset;
+		profileId: number;
 	}[]
 	exclude?: ITestIdWithSrc[];
 	isAutoRun?: boolean;

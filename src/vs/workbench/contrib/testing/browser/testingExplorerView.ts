@@ -27,6 +27,7 @@ import { localize } from 'vs/nls';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -54,7 +55,7 @@ import { ITestExplorerFilterState, TestExplorerFilterState, TestingExplorerFilte
 import { ITestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { labelForTestInState, TestExplorerStateFilter, TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
-import { identifyTest, TestIdPath, TestItemExpandState, TestRunConfigurationBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { identifyTest, ITestRunConfiguration, TestIdPath, TestItemExpandState, TestRunConfigurationBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { capabilityContextKeys, ITestConfigurationService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
@@ -62,7 +63,7 @@ import { cmpPriority, isFailedState, isStateWithResult } from 'vs/workbench/cont
 import { getPathForTestInResult, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService, testCollectionIsEmpty } from 'vs/workbench/contrib/testing/common/testService';
-import { DebugAllAction, GoToTest, RunAllAction } from './testExplorerActions';
+import { ConfigureTestProfilesAction, DebugAllAction, GoToTest, RunAllAction, SelectDefaultTestProfiles } from './testExplorerActions';
 
 export class TestingExplorerView extends ViewPane {
 	public viewModel!: TestingExplorerViewModel;
@@ -87,6 +88,7 @@ export class TestingExplorerView extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ITestingProgressUiService private readonly testProgressService: ITestingProgressUiService,
 		@ITestConfigurationService private readonly testConfigurationService: ITestConfigurationService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.location.set(viewDescriptorService.getViewLocationById(Testing.ExplorerViewId) ?? ViewContainerLocation.Sidebar);
@@ -101,6 +103,8 @@ export class TestingExplorerView extends ViewPane {
 		this._register(testService.collection.onBusyProvidersChange(busy => {
 			this.updateDiscoveryProgress(busy);
 		}));
+
+		this._register(testConfigurationService.onDidChange(() => this.updateActions()));
 	}
 
 	/**
@@ -171,9 +175,11 @@ export class TestingExplorerView extends ViewPane {
 
 	/** @inheritdoc */
 	private getTestConfigGroupActions(group: TestRunConfigurationBitset) {
-		const actions: IAction[] = [];
+		const profileActions: IAction[] = [];
 
 		let participatingGroups = 0;
+		let hasConfigurable = false;
+		const defaults = this.testConfigurationService.getGroupDefaultConfigurations(group);
 		for (const { configs, controller } of this.testConfigurationService.all()) {
 			let hasAdded = false;
 
@@ -185,19 +191,19 @@ export class TestingExplorerView extends ViewPane {
 				if (!hasAdded) {
 					hasAdded = true;
 					participatingGroups++;
-					actions.push(new Action(`${controller.id}.$root`, controller.label.value, undefined, false));
+					profileActions.push(new Action(`${controller.id}.$root`, controller.label.value, undefined, false));
 				}
 
-				actions.push(new Action(
-					`${controller.id}.${config.configId}`,
-					config.label,
+				hasConfigurable = hasConfigurable || config.hasConfigurationHandler;
+				profileActions.push(new Action(
+					`${controller.id}.${config.profileId}`,
+					defaults.includes(config) ? localize('defaultTestProfile', '{0} (Default)', config.label) : config.label,
 					undefined,
 					undefined,
 					() => this.testService.runResolvedTests({
 						targets: [{
-							configGroup: config.group,
-							configId: config.configId,
-							configLabel: config.label,
+							profileGroup: config.group,
+							profileId: config.profileId,
 							controllerId: config.controllerId,
 							testIds: this.getSelectedOrVisibleItems()
 								.filter(i => i.controllerId === config.controllerId)
@@ -210,10 +216,31 @@ export class TestingExplorerView extends ViewPane {
 
 		// If there's only one group, don't add a heading for it in the dropdown.
 		if (participatingGroups === 1) {
-			actions.shift();
+			profileActions.shift();
 		}
 
-		return actions;
+		let postActions: IAction[] = [];
+		if (profileActions.length > 1) {
+			postActions.push(new Action(
+				'selectDefaultTestConfigurations',
+				localize('selectDefaultConfigs', 'Select Default Profile'),
+				undefined,
+				undefined,
+				() => this.commandService.executeCommand<ITestRunConfiguration>(SelectDefaultTestProfiles.ID, group),
+			));
+		}
+
+		if (hasConfigurable) {
+			postActions.push(new Action(
+				'configureTestProfiles',
+				localize('configureTestProfiles', 'Configure Test Profiles'),
+				undefined,
+				undefined,
+				() => this.commandService.executeCommand<ITestRunConfiguration>(ConfigureTestProfilesAction.ID, group),
+			));
+		}
+
+		return Separator.join(profileActions, postActions);
 	}
 
 	/**

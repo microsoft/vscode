@@ -172,8 +172,6 @@ export interface ITestRootProvider {
 export interface AmbiguousRunTestsRequest {
 	/** Group to run */
 	group: TestRunConfigurationBitset;
-	/** If there is a configuration in the group with this label, use it */
-	preferGroupLabel?: string;
 	/** Tests to run. Allowed to be from different controllers */
 	tests: ITestIdWithSrc[];
 	/** Tests to exclude. If not given, the current UI excluded tests are used */

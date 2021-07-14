@@ -142,7 +142,7 @@ export class TestResultService implements ITestResultService {
 			config = this.testConfiguration.getControllerGroupConfigurations(req.controllerId, TestRunConfigurationBitset.Run)[0];
 		} else {
 			const configs = this.testConfiguration.getControllerGroupConfigurations(req.controllerId, req.config.group);
-			config = configs.find(c => c.configId === req.config!.id) || configs[0];
+			config = configs.find(c => c.profileId === req.config!.id) || configs[0];
 		}
 
 		const resolved: ResolvedTestRunRequest = {
@@ -153,9 +153,8 @@ export class TestResultService implements ITestResultService {
 
 		if (config) {
 			resolved.targets.push({
-				configGroup: config.group,
-				configId: config.configId,
-				configLabel: config.label,
+				profileGroup: config.group,
+				profileId: config.profileId,
 				controllerId: req.controllerId,
 				testIds: req.tests,
 			});

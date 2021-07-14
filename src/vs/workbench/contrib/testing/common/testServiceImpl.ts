@@ -94,17 +94,36 @@ export class TestService extends Disposable implements ITestService {
 	 */
 	public async runTests(req: AmbiguousRunTestsRequest, token = CancellationToken.None): Promise<ITestResult> {
 		const resolved: ResolvedTestRunRequest = { targets: [], exclude: req.exclude, isAutoRun: req.isAutoRun };
-		for (const byController of groupBy(req.tests, (a, b) => a.controllerId === b.controllerId ? 0 : 1)) {
-			const groups = this.testConfigurationService.getControllerGroupConfigurations(byController[0].controllerId, req.group);
-			const group = req.preferGroupLabel ? (groups.find(g => g.label === req.preferGroupLabel) || groups[0]) : groups[0];
-			if (group) {
+
+		// First, try to run the tests using the default run configurations...
+		const defaultConfigs = this.testConfigurationService.getGroupDefaultConfigurations(req.group);
+		for (const config of defaultConfigs) {
+			const testIds = req.tests.filter(t => t.controllerId === config.controllerId).map(t => t.testId);
+			if (testIds.length) {
 				resolved.targets.push({
-					testIds: byController.map(t => t.testId),
-					configLabel: group.label,
-					configGroup: group.group,
-					configId: group.configId,
-					controllerId: group.controllerId,
+					testIds: testIds,
+					profileGroup: config.group,
+					profileId: config.profileId,
+					controllerId: config.controllerId,
 				});
+			}
+		}
+
+		// If no tests are covered by the defaults, just use whatever the defaults
+		// for their controller are. This can happen if the user chose specific
+		// configs for the run button, but then asked to run a single test from the
+		// explorer or decoration. We shouldn't no-op.
+		if (resolved.targets.length === 0) {
+			for (const byController of groupBy(req.tests, (a, b) => a.controllerId === b.controllerId ? 0 : 1)) {
+				const configs = this.testConfigurationService.getControllerGroupConfigurations(byController[0].controllerId, req.group);
+				if (configs.length) {
+					resolved.targets.push({
+						testIds: byController.map(t => t.testId),
+						profileGroup: req.group,
+						profileId: configs[0].profileId,
+						controllerId: configs[0].controllerId,
+					});
+				}
 			}
 		}
 
@@ -138,7 +157,7 @@ export class TestService extends Disposable implements ITestService {
 					{
 						runId: result.id,
 						excludeExtIds: req.exclude!.filter(t => t.controllerId === group.controllerId).map(t => t.testId),
-						configId: group.configId,
+						configId: group.profileId,
 						controllerId: group.controllerId,
 						testIds: group.testIds,
 					},

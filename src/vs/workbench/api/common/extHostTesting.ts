@@ -149,9 +149,8 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		await this.proxy.$runTests({
 			targets: [{
 				testIds: req.tests.map(t => t.id),
-				configGroup: configGroupToBitset[config.group],
-				configLabel: config.label,
-				configId: config.configId,
+				profileGroup: configGroupToBitset[config.group],
+				profileId: config.configId,
 				controllerId: config.controllerId,
 			}],
 			exclude: req.exclude
@@ -256,7 +255,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		const tracker = this.runTracker.prepareForMainThreadTestRun(publicReq, TestRunDto.fromInternal(req), token);
 
 		try {
-			configuration.runHandler(publicReq, token);
+			await configuration.runHandler(publicReq, token);
 		} finally {
 			if (tracker.isRunning && !token.isCancellationRequested) {
 				await Event.toPromise(tracker.onEnd);
@@ -866,7 +865,7 @@ export class TestRunConfigurationImpl implements vscode.TestRunConfiguration {
 		}
 
 		this.#proxy.$publishTestRunConfig({
-			configId,
+			profileId: configId,
 			controllerId,
 			label: _label,
 			group: groupBitset,

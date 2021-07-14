@@ -420,17 +420,16 @@ abstract class RunTestDecoration extends Disposable {
 		}
 
 		if (capabilities & TestRunConfigurationBitset.HasNonDefaultConfig) {
-			testActions.push(new Action('testing.gutter.runUsing', localize('run using', 'Run Using...'), undefined, undefined, async () => {
-				const config: ITestRunConfiguration | undefined = await this.commandService.executeCommand('vscode.pickTestConfiguration', test.controllerId);
+			testActions.push(new Action('testing.runUsing', localize('testing.runUsing', 'Execute Using Profile...'), undefined, undefined, async () => {
+				const config: ITestRunConfiguration | undefined = await this.commandService.executeCommand('vscode.pickTestProfile', { onlyControllerId: test.controllerId });
 				if (!config) {
 					return;
 				}
 
 				this.testService.runResolvedTests({
 					targets: [{
-						configGroup: config.group,
-						configId: config.configId,
-						configLabel: config.label,
+						profileGroup: config.group,
+						profileId: config.profileId,
 						controllerId: config.controllerId,
 						testIds: [test.item.extId]
 					}]
