@@ -323,7 +323,7 @@ class ToggleThirdPanelAction extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_B
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_B
 			}
 		});
 	}

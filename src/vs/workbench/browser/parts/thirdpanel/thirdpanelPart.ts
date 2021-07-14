@@ -253,13 +253,13 @@ class FocusThirdPanelAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.focusThirdPanel',
-			title: { value: 'focusThirdPanel', original: 'Focus into Third Panel' }, // TODO@wendell: i18n
+			title: { value: 'Focus Third Panel', original: 'Focus into Third Panel' }, // TODO@wendell: i18n
 			category: CATEGORIES.View,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: null,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_0
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_0
 			}
 		});
 	}
@@ -278,29 +278,6 @@ class FocusThirdPanelAction extends Action2 {
 	}
 }
 
-class ToggleThirdPanelAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.toggleThirdPanel',
-			title: 'Toggle Third Panel',
-			category: CATEGORIES.View,
-			f1: true,
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_B
-			}
-		});
-	}
-
-	run(accessor: ServicesAccessor): void {
-		const layoutService = accessor.get(IWorkbenchLayoutService);
-
-		layoutService.setThirdLayoutHidden(layoutService.isVisible(Parts.THIRD_PANEL_PART));
-	}
-}
-
-
 registerAction2(FocusThirdPanelAction);
-registerAction2(ToggleThirdPanelAction);
 
 registerSingleton(ISecondViewletService, ThirdPanelPart);
