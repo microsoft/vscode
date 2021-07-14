@@ -8,6 +8,8 @@
 	overflow: hidden;
 	display: flex;
 	flex-direction: column;
+	margin: 0px auto;
+	max-width: 1000px;
 }
 
 .extension-editor .clickable {
@@ -305,14 +307,15 @@
 
 .extension-editor > .body > .content > .details > .readme-container {
 	margin: 0px auto;
-	max-width: 800px;
+	max-width: 75%;
 	height: 100%;
 	flex: 1;
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container {
-	width: 300px;
-	margin: 20px 10px
+	width: 25%;
+	min-width: 170px;
+	margin: 20px 0 0 20px;
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container .additional-details-title {
@@ -326,9 +329,9 @@
 
 .extension-editor > .body > .content > .details > .additional-details-container > .categories-container > .categories > .category {
 	display: inline-block;
-	border: 1px solid #ababab;
+	border: 1px solid rgba(136, 136, 136, 0.45);
 	padding: 2px 4px;
-	border-radius: 4px;
+	border-radius: 2px;
 	font-size: 90%;
 	margin: 0px 6px 3px 0px;
 	cursor: pointer;

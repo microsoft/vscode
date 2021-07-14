@@ -61,7 +61,7 @@ import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/co
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
-import { editorBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { buttonForeground, buttonHoverBackground, editorBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -135,12 +135,10 @@ interface IExtensionEditorTemplate {
 	identifier: HTMLElement;
 	preview: HTMLElement;
 	builtin: HTMLElement;
-	license: HTMLElement;
 	version: HTMLElement;
 	publisher: HTMLElement;
 	installCount: HTMLElement;
 	rating: HTMLElement;
-	repository: HTMLElement;
 	description: HTMLElement;
 	extensionActionBar: ActionBar;
 	navbar: NavBar;
@@ -227,10 +225,6 @@ export class ExtensionEditor extends EditorPane {
 		const publisher = append(append(subtitle, $('.subtitle-entry')), $('span.publisher.clickable', { title: localize('publisher', "Publisher name"), tabIndex: 0 }));
 		const installCount = append(append(subtitle, $('.subtitle-entry')), $('span.install', { title: localize('install count', "Install count"), tabIndex: 0 }));
 		const rating = append(append(subtitle, $('.subtitle-entry')), $('span.rating.clickable', { title: localize('rating', "Rating"), tabIndex: 0 }));
-		const repository = append(append(subtitle, $('.subtitle-entry')), $('span.repository.clickable', { tabIndex: 0 }));
-		repository.textContent = localize('repository', "Repository");
-		const license = append(append(subtitle, $('.subtitle-entry')), $('span.license.clickable', { tabIndex: 0 }));
-		license.textContent = localize('license', "License");
 		const version = append(append(subtitle, $('.subtitle-entry')), $('span.version', { title: localize('version', 'Version'), tabIndex: 0 }));
 
 		const description = append(details, $('.description'));
@@ -282,13 +276,11 @@ export class ExtensionEditor extends EditorPane {
 			version,
 			ignoreActionbar,
 			installCount,
-			license,
 			name,
 			navbar,
 			preview,
 			publisher,
 			rating,
-			repository,
 			subtext,
 			subtextContainer
 		};
@@ -375,12 +367,6 @@ export class ExtensionEditor extends EditorPane {
 		template.rating.parentElement?.classList.toggle('hide', !extension.url);
 		template.rating.classList.toggle('clickable', !!extension.url);
 
-		template.repository.parentElement?.classList.toggle('hide', !extension.repository);
-		if (extension.repository) {
-			this.transientDisposables.add(this.onClick(template.repository, () => this.openerService.open(URI.parse(extension.repository!))));
-		}
-
-		template.license.parentElement?.classList.toggle('hide', !extension.url || !extension.licenseUrl);
 		template.version.textContent = `v${extension.version}`;
 
 		if (extension.url) {
@@ -391,9 +377,6 @@ export class ExtensionEditor extends EditorPane {
 					.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 					.then(viewlet => viewlet.search(`publisher:"${extension.publisherDisplayName}"`));
 			}));
-			if (extension.licenseUrl) {
-				this.transientDisposables.add(this.onClick(template.license, () => this.openerService.open(URI.parse(extension.licenseUrl!))));
-			}
 		}
 
 		const widgets = [
@@ -564,19 +547,19 @@ export class ExtensionEditor extends EditorPane {
 
 	private open(id: string, extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		switch (id) {
-			case ExtensionEditorTab.Readme: return this.showDetailsSection(extension, template, token);
+			case ExtensionEditorTab.Readme: return this.openDetails(extension, template, token);
 			case ExtensionEditorTab.Contributions: return this.openContributions(template, token);
 			case ExtensionEditorTab.Changelog: return this.openChangelog(template, token);
 			case ExtensionEditorTab.Dependencies: return this.openExtensionDependencies(extension, template, token);
 			case ExtensionEditorTab.ExtensionPack: return this.openExtensionPack(extension, template, token);
-			case ExtensionEditorTab.RuntimeStatus: return this.showRuntimeStatus(extension, template, token);
+			case ExtensionEditorTab.RuntimeStatus: return this.openRuntimeStatus(extension, template, token);
 		}
 		return Promise.resolve(null);
 	}
 
-	private async openMarkdown(cacheResult: CacheResult<string>, noContentCopy: string, template: IExtensionEditorTemplate, webviewIndex: WebviewIndex, token: CancellationToken): Promise<IActiveElement | null> {
+	private async openMarkdown(cacheResult: CacheResult<string>, noContentCopy: string, container: HTMLElement, webviewIndex: WebviewIndex, token: CancellationToken): Promise<IActiveElement | null> {
 		try {
-			const body = await this.renderMarkdown(cacheResult, template);
+			const body = await this.renderMarkdown(cacheResult, container);
 			if (token.isCancellationRequested) {
 				return Promise.resolve(null);
 			}
@@ -589,8 +572,8 @@ export class ExtensionEditor extends EditorPane {
 			webview.initialScrollProgress = this.initialScrollProgress.get(webviewIndex) || 0;
 
 			webview.claim(this, this.scopedContextKeyService);
-			setParentFlowTo(webview.container, template.content);
-			webview.layoutWebviewOverElement(template.content);
+			setParentFlowTo(webview.container, container);
+			webview.layoutWebviewOverElement(container);
 
 			webview.html = body;
 			webview.claim(this, undefined);
@@ -601,7 +584,7 @@ export class ExtensionEditor extends EditorPane {
 
 			const removeLayoutParticipant = arrays.insert(this.layoutParticipants, {
 				layout: () => {
-					webview.layoutWebviewOverElement(template.content);
+					webview.layoutWebviewOverElement(container);
 				}
 			});
 			this.contentDisposables.add(toDisposable(removeLayoutParticipant));
@@ -611,7 +594,7 @@ export class ExtensionEditor extends EditorPane {
 
 			this.contentDisposables.add(this.themeService.onDidColorThemeChange(async () => {
 				// Render again since syntax highlighting of code blocks may have changed
-				const body = await this.renderMarkdown(cacheResult, template);
+				const body = await this.renderMarkdown(cacheResult, container);
 				if (!isDisposed) { // Make sure we weren't disposed of in the meantime
 					webview.html = body;
 				}
@@ -632,14 +615,14 @@ export class ExtensionEditor extends EditorPane {
 
 			return webview;
 		} catch (e) {
-			const p = append(template.content, $('p.nocontent'));
+			const p = append(container, $('p.nocontent'));
 			p.textContent = noContentCopy;
 			return p;
 		}
 	}
 
-	private async renderMarkdown(cacheResult: CacheResult<string>, template: IExtensionEditorTemplate) {
-		const contents = await this.loadContents(() => cacheResult, template);
+	private async renderMarkdown(cacheResult: CacheResult<string>, container: HTMLElement) {
+		const contents = await this.loadContents(() => cacheResult, container);
 		const content = await renderMarkdownDocument(contents, this.extensionService, this.modeService);
 		return this.renderBody(content);
 	}
@@ -712,14 +695,60 @@ export class ExtensionEditor extends EditorPane {
 		</html>`;
 	}
 
-	private async showDetailsSection(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+	private async openDetails(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		const details = append(template.content, $('.details'));
 		const readmeContainer = append(details, $('.readme-container'));
 		const additionalDetailsContainer = append(details, $('.additional-details-container'));
-		template = { ...template, ...{ content: readmeContainer } };
-		const activeElement = await this.openReadme(template, token);
+
+		let activeElement: IActiveElement | null = null;
+		const manifest = await this.extensionManifest!.get().promise;
+		if (manifest && manifest.extensionPack?.length && this.shallRenderAsExensionPack(manifest)) {
+			activeElement = await this.openExtensionPackReadme(manifest, readmeContainer, token);
+		} else {
+			activeElement = await this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), readmeContainer, WebviewIndex.Readme, token);
+		}
+
 		this.renderAdditionalDetails(additionalDetailsContainer, extension);
 		return activeElement;
+	}
+
+	private shallRenderAsExensionPack(manifest: IExtensionManifest): boolean {
+		return !!(manifest.categories?.some(category => category.toLowerCase() === 'extension packs'));
+	}
+
+	private async openExtensionPackReadme(manifest: IExtensionManifest, container: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {
+		if (token.isCancellationRequested) {
+			return Promise.resolve(null);
+		}
+
+		const extensionPackReadme = append(container, $('div', { class: 'extension-pack-readme' }));
+		extensionPackReadme.style.margin = '0 auto';
+		extensionPackReadme.style.maxWidth = '882px';
+
+		const extensionPack = append(extensionPackReadme, $('div', { class: 'extension-pack' }));
+		if (manifest.extensionPack!.length <= 3) {
+			extensionPackReadme.classList.add('one-row');
+		} else if (manifest.extensionPack!.length <= 6) {
+			extensionPackReadme.classList.add('two-rows');
+		} else if (manifest.extensionPack!.length <= 9) {
+			extensionPackReadme.classList.add('three-rows');
+		} else {
+			extensionPackReadme.classList.add('more-rows');
+		}
+
+		const extensionPackHeader = append(extensionPack, $('div.header'));
+		extensionPackHeader.textContent = localize('extension pack', "Extension Pack ({0})", manifest.extensionPack!.length);
+		const extensionPackContent = append(extensionPack, $('div', { class: 'extension-pack-content' }));
+		extensionPackContent.setAttribute('tabindex', '0');
+		append(extensionPack, $('div.footer'));
+		const readmeContent = append(extensionPackReadme, $('div.readme-content'));
+
+		await Promise.all([
+			this.renderExtensionPack(manifest, extensionPackContent, token),
+			this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), readmeContent, WebviewIndex.Readme, token),
+		]);
+
+		return { focus: () => extensionPackContent.focus() };
 	}
 
 	private renderAdditionalDetails(container: HTMLElement, extension: IExtension): void {
@@ -732,7 +761,13 @@ export class ExtensionEditor extends EditorPane {
 		append(categoriesContainer, $('.additional-details-title', undefined, localize('categories', "Categories")));
 		const categoriesElement = append(categoriesContainer, $('.categories'));
 		if (extension.categories.length) {
-			append(categoriesElement, ...extension.categories.map(category => $('span.category', undefined, category)));
+			for (const category of extension.categories) {
+				this.transientDisposables.add(this.onClick(append(categoriesElement, $('span.category', undefined, category)), () => {
+					this.viewletService.openViewlet(VIEWLET_ID, true)
+						.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
+						.then(viewlet => viewlet.search(`@category:"${category}"`));
+				}));
+			}
 		} else {
 			append(categoriesElement, $('span', undefined, localize('none', "None")));
 		}
@@ -762,60 +797,13 @@ export class ExtensionEditor extends EditorPane {
 		}
 	}
 
-	private async openReadme(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
-		const manifest = await this.extensionManifest!.get().promise;
-		if (manifest && manifest.extensionPack?.length && this.shallRenderAsExensionPack(manifest)) {
-			return this.openExtensionPackReadme(manifest, template, token);
-		}
-		return this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), template, WebviewIndex.Readme, token);
-	}
-
-	private shallRenderAsExensionPack(manifest: IExtensionManifest): boolean {
-		return !!(manifest.categories?.some(category => category.toLowerCase() === 'extension packs'));
-	}
-
-	private async openExtensionPackReadme(manifest: IExtensionManifest, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
-		if (token.isCancellationRequested) {
-			return Promise.resolve(null);
-		}
-
-		const extensionPackReadme = append(template.content, $('div', { class: 'extension-pack-readme' }));
-		extensionPackReadme.style.margin = '0 auto';
-		extensionPackReadme.style.maxWidth = '882px';
-
-		const extensionPack = append(extensionPackReadme, $('div', { class: 'extension-pack' }));
-		if (manifest.extensionPack!.length <= 3) {
-			extensionPackReadme.classList.add('one-row');
-		} else if (manifest.extensionPack!.length <= 6) {
-			extensionPackReadme.classList.add('two-rows');
-		} else if (manifest.extensionPack!.length <= 9) {
-			extensionPackReadme.classList.add('three-rows');
-		} else {
-			extensionPackReadme.classList.add('more-rows');
-		}
-
-		const extensionPackHeader = append(extensionPack, $('div.header'));
-		extensionPackHeader.textContent = localize('extension pack', "Extension Pack ({0})", manifest.extensionPack!.length);
-		const extensionPackContent = append(extensionPack, $('div', { class: 'extension-pack-content' }));
-		extensionPackContent.setAttribute('tabindex', '0');
-		append(extensionPack, $('div.footer'));
-		const readmeContent = append(extensionPackReadme, $('div.readme-content'));
-
-		await Promise.all([
-			this.renderExtensionPack(manifest, extensionPackContent, token),
-			this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), { ...template, ...{ content: readmeContent } }, WebviewIndex.Readme, token),
-		]);
-
-		return { focus: () => extensionPackContent.focus() };
-	}
-
 	private openChangelog(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
-		return this.openMarkdown(this.extensionChangelog!.get(), localize('noChangelog', "No Changelog available."), template, WebviewIndex.Changelog, token);
+		return this.openMarkdown(this.extensionChangelog!.get(), localize('noChangelog', "No Changelog available."), template.content, WebviewIndex.Changelog, token);
 	}
 
 	private openContributions(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		const content = $('div', { class: 'subcontent', tabindex: '0' });
-		return this.loadContents(() => this.extensionManifest!.get(), template)
+		return this.loadContents(() => this.extensionManifest!.get(), template.content)
 			.then(manifest => {
 				if (token.isCancellationRequested) {
 					return null;
@@ -938,7 +926,7 @@ export class ExtensionEditor extends EditorPane {
 		return Promise.resolve({ focus() { dependenciesTree.domFocus(); } });
 	}
 
-	private async showRuntimeStatus(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+	private async openRuntimeStatus(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		const content = $('div', { class: 'subcontent', tabindex: '0' });
 
 		const scrollableContent = new DomScrollableElement(content, {});
@@ -1525,11 +1513,11 @@ export class ExtensionEditor extends EditorPane {
 		return null;
 	}
 
-	private loadContents<T>(loadingTask: () => CacheResult<T>, template: IExtensionEditorTemplate): Promise<T> {
-		template.content.classList.add('loading');
+	private loadContents<T>(loadingTask: () => CacheResult<T>, container: HTMLElement): Promise<T> {
+		container.classList.add('loading');
 
 		const result = this.contentDisposables.add(loadingTask());
-		const onDone = () => template.content.classList.remove('loading');
+		const onDone = () => container.classList.remove('loading');
 		result.promise.then(onDone, onDone);
 
 		return result.promise;
@@ -1624,6 +1612,16 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	if (activeLink) {
 		collector.addRule(`.monaco-workbench .extension-editor .content a:hover,
 			.monaco-workbench .extension-editor .content a:active { color: ${activeLink}; }`);
+	}
+
+	const buttonHoverBackgroundColor = theme.getColor(buttonHoverBackground);
+	if (buttonHoverBackgroundColor) {
+		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container > .categories-container > .categories > .category:hover { background-color: ${buttonHoverBackgroundColor}; border-color: ${buttonHoverBackgroundColor}; }`);
+	}
+
+	const buttonForegroundColor = theme.getColor(buttonForeground);
+	if (buttonForegroundColor) {
+		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container > .categories-container > .categories > .category:hover { color: ${buttonForegroundColor}; }`);
 	}
 
 });
