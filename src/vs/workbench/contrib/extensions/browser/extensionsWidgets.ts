@@ -5,8 +5,8 @@
 
 import 'vs/css!./media/extensionsWidgets';
 import { Disposable, toDisposable, DisposableStore, MutableDisposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IExtension, IExtensionsWorkbenchService, IExtensionContainer, ExtensionState } from 'vs/workbench/contrib/extensions/common/extensions';
-import { append, $, addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { IExtension, IExtensionsWorkbenchService, IExtensionContainer, ExtensionState, ExtensionEditorTab } from 'vs/workbench/contrib/extensions/common/extensions';
+import { append, $ } from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { EnablementState, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -24,12 +24,12 @@ import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, ratingIcon, 
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { RunOnceScheduler } from 'vs/base/common/async';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import Severity from 'vs/base/common/severity';
+import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension | null = null;
@@ -420,8 +420,6 @@ export type ExtensionHoverOptions = {
 
 export class ExtensionHoverWidget extends ExtensionWidget {
 
-	private readonly hoverDisposables = this._register(new DisposableStore());
-	private readonly showHoverScheduler = new RunOnceScheduler(() => this.showHover(), 0);
 	private readonly hover = this._register(new MutableDisposable<IDisposable>());
 
 	constructor(
@@ -429,42 +427,30 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		private readonly extensionStatusIconAction: ExtensionStatusIconAction,
 		private readonly tooltipAction: ExtensionToolTipAction,
 		private readonly recommendationWidget: RecommendationWidget,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
-		this.hoverDisposables.add(addDisposableListener(this.options.target, EventType.MOUSE_OVER, (e) => {
-			if ((e.target as HTMLElement).title) {
-				this.disposeHover();
-				return;
-			}
-			if (!this.showHoverScheduler.isScheduled()) {
-				this.showHoverScheduler.schedule(configurationService.getValue<number>('workbench.hover.delay'));
-			}
-		}, true));
-		this.hoverDisposables.add(addDisposableListener(this.options.target, EventType.MOUSE_LEAVE, (e) => {
-			if (e.target === this.options.target) {
-				this.disposeHover();
-			}
-		}, true));
-		this.hoverDisposables.add(toDisposable(() => this.disposeHover()));
-	}
-
-	private disposeHover(): void {
-		this.hover.value = undefined;
-		this.showHoverScheduler.cancel();
 	}
 
 	render(): void {
-		this.disposeHover();
+		this.hover.value = undefined;
+		if (this.extension) {
+			this.hover.value = setupCustomHover({
+				delay: this.configurationService.getValue<number>('workbench.hover.delay'),
+				showHover: (options) => {
+					return this.hoverService.showHover({ ...options, hoverPosition: this.options.position() });
+				},
+				placement: 'element'
+			}, this.options.target, { markdown: () => Promise.resolve(this.getHoverMarkdown()), markdownNotSupportedFallback: undefined });
+		}
 	}
 
-	private showHover(): void {
+	private getHoverMarkdown(): MarkdownString | undefined {
 		if (!this.extension) {
-			return;
+			return undefined;
 		}
-
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 		markdown.appendMarkdown(this.extension.description || this.extension.displayName);
 		markdown.appendText(`\n`);
@@ -521,7 +507,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 				}
 				markdown.appendMarkdown(` ${toolTip}`);
 				if (this.extension.enablementState === EnablementState.DisabledByExtensionDependency && this.extension.local) {
-					markdown.appendMarkdown(` [${localize('dependencies', "Show Dependencies")}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, 'dependencies']))}`)})`);
+					markdown.appendMarkdown(` [${localize('dependencies', "Show Dependencies")}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.Dependencies]))}`)})`);
 				}
 			}
 
@@ -546,13 +532,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 			}
 		}
 
-		this.hover.value = this.hoverService.showHover({
-			target: this.options.target,
-			text: markdown,
-			showPointer: true,
-			hoverPosition: this.options.position(),
-			additionalClasses: ['extension-hover']
-		}, true);
+		return markdown;
 	}
 
 	private getTooltip(): string {
