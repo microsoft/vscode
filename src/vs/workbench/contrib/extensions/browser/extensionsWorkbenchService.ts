@@ -293,6 +293,17 @@ ${this.description}
 		return Promise.reject(new Error('not available'));
 	}
 
+	get categories(): readonly string[] {
+		const { local, gallery } = this;
+		if (local && local.manifest.categories && !this.outdated) {
+			return local.manifest.categories;
+		}
+		if (gallery) {
+			return gallery.categories;
+		}
+		return [];
+	}
+
 	get dependencies(): string[] {
 		const { local, gallery } = this;
 		if (local && local.manifest.extensionDependencies && !this.outdated) {

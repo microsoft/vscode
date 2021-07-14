@@ -85,6 +85,7 @@ export interface IGalleryExtension {
 	installCount: number;
 	rating: number;
 	ratingCount: number;
+	categories: readonly string[];
 	assetUri: URI;
 	assetTypes: string[];
 	assets: IGalleryExtensionAssets;

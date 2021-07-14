@@ -385,7 +385,7 @@ export class ExtensionEditor extends EditorPane {
 
 		if (extension.url) {
 			this.transientDisposables.add(this.onClick(template.name, () => this.openerService.open(URI.parse(extension.url!))));
-			this.transientDisposables.add(this.onClick(template.rating, () => this.openerService.open(URI.parse(`${extension.url}#review-details`))));
+			this.transientDisposables.add(this.onClick(template.rating, () => this.openerService.open(URI.parse(`${extension.url}&ssr=false#review-details`))));
 			this.transientDisposables.add(this.onClick(template.publisher, () => {
 				this.viewletService.openViewlet(VIEWLET_ID, true)
 					.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)

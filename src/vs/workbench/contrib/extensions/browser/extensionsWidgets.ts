@@ -141,8 +141,10 @@ export class RatingsWidget extends ExtensionWidget {
 					append(this.container, $('span' + ThemeIcon.asCSSSelector(starEmptyIcon)));
 				}
 			}
-			this.container.title = this.extension.ratingCount === 1 ? localize('ratedBySingleUser', "Rated by 1 user")
-				: typeof this.extension.ratingCount === 'number' && this.extension.ratingCount > 1 ? localize('ratedByUsers', "Rated by {0} users", this.extension.ratingCount) : localize('noRating', "No rating");
+			if (this.extension.ratingCount) {
+				const ratingCountElemet = append(this.container, $('span', undefined, ` (${this.extension.ratingCount})`));
+				ratingCountElemet.style.paddingLeft = '1px';
+			}
 		}
 	}
 }
@@ -456,8 +458,17 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 			return undefined;
 		}
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
-		markdown.appendMarkdown(this.extension.description || this.extension.displayName);
+
+		markdown.appendMarkdown(`**${this.extension.displayName}**`);
+		if (this.extension.preview) {
+			markdown.appendMarkdown(`&nbsp;<span style="background-color:#d63f26;">&nbsp;&nbsp;*${localize('preview', "Preview")}*&nbsp;&nbsp;</span>`);
+		}
 		markdown.appendText(`\n`);
+
+		if (this.extension.description) {
+			markdown.appendMarkdown(this.extension.description);
+			markdown.appendText(`\n`);
+		}
 
 		let addSeparator = false;
 		markdown.appendMarkdown(`\`v${this.extension.version}\``);
@@ -482,6 +493,13 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 			}
 		}
 
+		if (this.extension.ratingCount && this.extension.url) {
+			if (addSeparator) {
+				markdown.appendText(`  |  `);
+			}
+			markdown.appendMarkdown(`[Reviews](${URI.parse(`command:vscode.open?${encodeURIComponent(JSON.stringify([URI.parse(`${this.extension.url}&ssr=false#review-details`)]))}`)})`);
+			addSeparator = true;
+		}
 		if (this.extension.repository) {
 			if (addSeparator) {
 				markdown.appendText(`  |  `);
@@ -495,6 +513,14 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 			}
 			markdown.appendMarkdown(`[License](${URI.parse(`command:vscode.open?${encodeURIComponent(JSON.stringify([URI.parse(this.extension.licenseUrl)]))}`)})`);
 			addSeparator = true;
+		}
+
+		if (this.extension.categories.length) {
+			markdown.appendText(`\n`);
+			for (const category of this.extension.categories) {
+				markdown.appendMarkdown(`<span style="color:#000000;background-color:#dcdcdc;">&nbsp;&nbsp;${category}&nbsp;&nbsp;</span>`);
+				markdown.appendText('  ');
+			}
 		}
 
 		const toolTip = this.getTooltip();

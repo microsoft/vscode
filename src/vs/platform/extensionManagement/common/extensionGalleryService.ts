@@ -56,6 +56,7 @@ interface IRawGalleryExtension {
 	readonly versions: IRawGalleryExtensionVersion[];
 	readonly statistics: IRawGalleryExtensionStatistics[];
 	readonly tags: string[] | undefined;
+	readonly categories: string[] | undefined;
 	readonly flags: string;
 }
 
@@ -334,6 +335,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 		rating: getStatistic(galleryExtension.statistics, 'averagerating'),
 		ratingCount: getStatistic(galleryExtension.statistics, 'ratingcount'),
 		assetUri: URI.parse(version.assetUri),
+		categories: galleryExtension.categories || [],
 		webExtension: !!galleryExtension.tags?.includes(WEB_EXTENSION_TAG),
 		assetTypes: version.files.map(({ assetType }) => assetType),
 		assets,

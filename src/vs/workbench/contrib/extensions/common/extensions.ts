@@ -58,6 +58,7 @@ export interface IExtension {
 	readonly ratingCount?: number;
 	readonly outdated: boolean;
 	readonly enablementState: EnablementState;
+	readonly categories: readonly string[];
 	readonly dependencies: string[];
 	readonly extensionPack: string[];
 	readonly telemetryData: any;
