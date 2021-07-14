@@ -913,27 +913,32 @@ declare module 'vscode' {
 		dragAndDropController?: DragAndDropController<T>;
 	}
 
-	export class DragAndDropData {
-		asString: string;
-		// Later, if we want, we can support an optional asFile
+	export interface TreeDataTransferItem {
+		asString(): Thenable<string>;
 	}
 
-	export class DragAndDropDataTransfer {
-		// Should we have a general "tree item" type? Or, should we ask each extension author to make up their own type?
-		types: string[];
-		data: DragAndDropData[];
+	export interface TreeDataTransfer {
+		/**
+		 * A map containing a mapping of the mime type of the corresponding data.
+		 * The type for tree elements is text/treeitem.
+		 * For example, you can reconstruct the your tree elements:
+		 * ```ts
+		 * JSON.parse(await (items.get('text/treeitems')!.asString()))
+		 * ```
+		 */
+		items: Map<string, TreeDataTransferItem>;
 	}
 
 	export interface DragAndDropController<T> extends Disposable {
 		readonly supportedTypes: string[];
+
 		/**
 		 * Extensions should fire `TreeDataProvider.onDidChangeTreeData` for any elements that need to be refreshed.
 		 *
 		 * @param source
 		 * @param target
 		 */
-		onDrop(source: DataTransfer, target: T): Thenable<void>;
-		onDrop(source: DragAndDropDataTransfer, target: T): Thenable<void>;
+		onDrop(source: TreeDataTransfer, target: T): Thenable<void>;
 	}
 	//#endregion
 
