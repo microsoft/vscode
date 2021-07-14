@@ -158,6 +158,22 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 	return Object.keys(data).map(key => {
 		if (isDefined(objectProperties) && key in objectProperties) {
 			const defaultValue = elementDefaultValue[key];
+
+			if (element.setting.allKeysAreBoolean) {
+				return {
+					key: {
+						type: 'string',
+						data: key
+					},
+					value: {
+						type: 'boolean',
+						data: data[key],
+						description: objectProperties[key].description
+					},
+					removable: false
+				} as IObjectDataItem;
+			}
+
 			const valueEnumOptions = getEnumOptionsFromSchema(objectProperties[key]);
 
 			return {
