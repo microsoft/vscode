@@ -18,7 +18,7 @@ export class GhostText {
 }
 
 export interface GhostTextPart {
-	readonly lines: string[];
+	readonly lines: readonly string[];
 	readonly column: number;
 }
 
