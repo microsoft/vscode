@@ -170,10 +170,10 @@ pify@^4.0.1:
   resolved "https://registry.yarnpkg.com/pify/-/pify-4.0.1.tgz#4b2cd25c50d598735c50292224fd8c6df41e3231"
   integrity sha512-uB80kBFb/tfd68bVleG9T5GGsGPjJrLAUpR5PZIrhBnIaRTQRjqdJSsIKkOP6OAIFbj7GOrcudc5pNjZ+geV2g==
 
-request-light@^0.5.2:
-  version "0.5.2"
-  resolved "https://registry.yarnpkg.com/request-light/-/request-light-0.5.2.tgz#da70c743d37aaa9c0db61fa1b8e425521ce54ff0"
-  integrity sha512-8Gvq+Uh19/5qg0V7tKYUqrnlXbmkAiL6Y5mKxi8ww0Dw8hhlhtP9B4oSioioPDYtG8+YAfmRGnrI7syi5uZsuw==
+request-light@^0.5.3:
+  version "0.5.3"
+  resolved "https://registry.yarnpkg.com/request-light/-/request-light-0.5.3.tgz#bc5b103b939cde7c0653fff8ab4f43440779a5fb"
+  integrity sha512-wlHI5WbSZ2PcoLW2qE616PKDFCFJWaJjgRg2VaNXF9pa8MJ7+dKveJzw2HhJF8Et5uOmh9nAUJUX4iFI3Mvm/g==
 
 sprintf-js@~1.0.2:
   version "1.0.3"
