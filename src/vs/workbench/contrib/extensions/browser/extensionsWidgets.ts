@@ -425,7 +425,6 @@ export class ExtensionActivationStatusWidget extends ExtensionWidget {
 export type ExtensionHoverOptions = {
 	position: () => HoverPosition;
 	readonly target: HTMLElement;
-	readonly showInfo?: boolean;
 };
 
 export class ExtensionHoverWidget extends ExtensionWidget {
@@ -470,61 +469,57 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		markdown.appendMarkdown(`&nbsp;\`${this.extension.identifier.id}\``);
 		markdown.appendText(`\n`);
 
+		const installLabel = InstallCountWidget.getInstallLabel(this.extension, false);
+		if (this.extension.rating || installLabel) {
+			if (installLabel) {
+				markdown.appendMarkdown(`$(${installCountIcon.id}) ${installLabel}`);
+			}
+			if (this.extension.rating) {
+				if (installLabel) {
+					markdown.appendText(`  |  `);
+				}
+				const rating = Math.round(this.extension.rating * 2) / 2;
+				for (let i = 1; i <= 5; i++) {
+					if (rating >= i) {
+						markdown.appendMarkdown(`$(${starFullIcon.id})`);
+					} else if (rating >= i - 0.5) {
+						markdown.appendMarkdown(`$(${starHalfIcon.id})`);
+					} else {
+						markdown.appendMarkdown(`$(${starEmptyIcon.id})`);
+					}
+				}
+				if (this.extension.ratingCount) {
+					markdown.appendMarkdown(`&nbsp;(${this.extension.ratingCount})`);
+				}
+			}
+			markdown.appendText(`  |  `);
+		}
+
+		markdown.appendMarkdown(`v${this.extension.version}`);
+		markdown.appendText(`\n`);
+
 		if (this.extension.description) {
 			markdown.appendMarkdown(this.extension.description);
 			markdown.appendText(`\n`);
 		}
 
-		let addSeparator = false;
-		markdown.appendMarkdown(`\`v${this.extension.version}\``);
-		addSeparator = true;
-
-		if (this.options.showInfo) {
-			if (this.extension.rating) {
-				if (addSeparator) {
+		if (this.extension.repository || this.extension.licenseUrl) {
+			if (this.extension.repository) {
+				markdown.appendMarkdown(`[Repository](${URI.parse(`command:vscode.open?${encodeURIComponent(JSON.stringify([URI.parse(this.extension.repository)]))}`)})`);
+			}
+			if (this.extension.licenseUrl) {
+				if (this.extension.repository) {
 					markdown.appendText(`  |  `);
 				}
-				const rating = Math.round(this.extension.rating * 2) / 2;
-				markdown.appendMarkdown(`$(${starFullIcon.id}) ${rating}`);
-				addSeparator = true;
+				markdown.appendMarkdown(`[License](${URI.parse(`command:vscode.open?${encodeURIComponent(JSON.stringify([URI.parse(this.extension.licenseUrl)]))}`)})`);
 			}
-			const installLabel = InstallCountWidget.getInstallLabel(this.extension, true);
-			if (installLabel) {
-				if (addSeparator) {
-					markdown.appendText(`  |  `);
-				}
-				markdown.appendMarkdown(`$(${installCountIcon.id}) ${installLabel}`);
-				addSeparator = true;
-			}
-		}
-
-		if (this.extension.ratingCount && this.extension.url) {
-			if (addSeparator) {
-				markdown.appendText(`  |  `);
-			}
-			markdown.appendMarkdown(`[Reviews](${URI.parse(`command:vscode.open?${encodeURIComponent(JSON.stringify([URI.parse(`${this.extension.url}&ssr=false#review-details`)]))}`)})`);
-			addSeparator = true;
-		}
-		if (this.extension.repository) {
-			if (addSeparator) {
-				markdown.appendText(`  |  `);
-			}
-			markdown.appendMarkdown(`[Repository](${URI.parse(`command:vscode.open?${encodeURIComponent(JSON.stringify([URI.parse(this.extension.repository)]))}`)})`);
-			addSeparator = true;
-		}
-		if (this.extension.licenseUrl) {
-			if (addSeparator) {
-				markdown.appendText(`  |  `);
-			}
-			markdown.appendMarkdown(`[License](${URI.parse(`command:vscode.open?${encodeURIComponent(JSON.stringify([URI.parse(this.extension.licenseUrl)]))}`)})`);
-			addSeparator = true;
+			markdown.appendText(`\n`);
 		}
 
 		const toolTip = this.getTooltip();
 		const extensionStatus = this.extensionsWorkbenchService.getExtensionStatus(this.extension);
 
 		if (toolTip || extensionStatus) {
-			markdown.appendText(`\n`);
 			markdown.appendMarkdown(`---`);
 			markdown.appendText(`\n`);
 
@@ -581,5 +576,6 @@ registerThemingParticipant((theme, collector) => {
 	if (extensionRatingIcon) {
 		collector.addRule(`.extension-ratings .codicon-extensions-star-full, .extension-ratings .codicon-extensions-star-half { color: ${extensionRatingIcon}; }`);
 		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(starFullIcon)} { color: ${extensionRatingIcon}; }`);
+		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(starHalfIcon)} { color: ${extensionRatingIcon}; }`);
 	}
 });
