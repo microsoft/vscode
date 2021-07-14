@@ -125,12 +125,12 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		}
 	}
 
-	async acceptDetachedInstance(requestId: number, persistentProcessId: number): Promise<IProcessDetails | undefined> {
-		return this._localPtyService.acceptDetachedInstance(requestId, persistentProcessId);
-	}
-
 	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
 		return this._localPtyService.requestDetachInstance(workspaceId, instanceId);
+	}
+
+	async acceptDetachedInstance(requestId: number, persistentProcessId: number): Promise<IProcessDetails | undefined> {
+		return this._localPtyService.acceptDetachedInstance(requestId, persistentProcessId);
 	}
 
 	async updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void> {
@@ -161,8 +161,8 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		return undefined;
 	}
 
-	async listProcesses(getDetachedInstance?: boolean): Promise<IProcessDetails[]> {
-		return this._localPtyService.listProcesses(getDetachedInstance);
+	async listProcesses(): Promise<IProcessDetails[]> {
+		return this._localPtyService.listProcesses();
 	}
 
 	async reduceConnectionGraceTime(): Promise<void> {

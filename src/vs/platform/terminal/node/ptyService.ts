@@ -85,7 +85,7 @@ export class PtyService extends Disposable implements IPtyService {
 			request(process);
 			return process;
 		} else {
-			this._logService.warn(`accept detached instance without receiving a matching request ${requestId}`);
+			this._logService.warn(`Accept detached instance was called without receiving a matching request ${requestId} for process ${processId}`);
 			return undefined;
 		}
 	}

@@ -154,16 +154,17 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		}
 	}
 
-	async acceptDetachedInstance(requestId: number, persistentProcessId: number): Promise<IProcessDetails | undefined> {
-		return this._remoteTerminalChannel?.acceptDetachedInstance(requestId, persistentProcessId);
-	}
-
 	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
 		if (!this._remoteTerminalChannel) {
 			throw new Error(`Cannot request adopt instance when there is no remote!`);
 		}
 		return this._remoteTerminalChannel.requestDetachInstance(workspaceId, instanceId);
 	}
+
+	async acceptDetachedInstance(requestId: number, persistentProcessId: number): Promise<IProcessDetails | undefined> {
+		return this._remoteTerminalChannel?.acceptDetachedInstance(requestId, persistentProcessId);
+	}
+
 
 	async createProcess(shellLaunchConfig: IShellLaunchConfig, configuration: ICompleteTerminalConfiguration, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper): Promise<ITerminalChildProcess> {
 		if (!this._remoteTerminalChannel) {
@@ -214,8 +215,8 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		return undefined;
 	}
 
-	async listProcesses(getDetachedInstance?: boolean): Promise<IProcessDetails[]> {
-		const terms = this._remoteTerminalChannel ? await this._remoteTerminalChannel.listProcesses(getDetachedInstance) : [];
+	async listProcesses(): Promise<IProcessDetails[]> {
+		const terms = this._remoteTerminalChannel ? await this._remoteTerminalChannel.listProcesses() : [];
 		return terms.map(termDto => {
 			return <IProcessDetails>{
 				id: termDto.id,

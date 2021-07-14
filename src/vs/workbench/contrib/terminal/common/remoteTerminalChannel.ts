@@ -200,10 +200,10 @@ export class RemoteTerminalChannelClient {
 	}
 
 	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
-		return this._channel.call('$acceptDetachedInstance', [workspaceId, instanceId]);
+		return this._channel.call('$requestDetachInstance', [workspaceId, instanceId]);
 	}
 	acceptDetachedInstance(requestId: number, persistentProcessId: number): Promise<IProcessDetails | undefined> {
-		return this._channel.call('$acceptInstanceForAttachment', [requestId, persistentProcessId]);
+		return this._channel.call('$acceptDetachedInstance', [requestId, persistentProcessId]);
 	}
 	attachToProcess(id: number): Promise<void> {
 		return this._channel.call('$attachToProcess', [id]);
@@ -211,8 +211,8 @@ export class RemoteTerminalChannelClient {
 	detachFromProcess(id: number): Promise<void> {
 		return this._channel.call('$detachFromProcess', [id]);
 	}
-	listProcesses(getDetachedInstance?: boolean): Promise<IProcessDetails[]> {
-		return this._channel.call('$listProcesses', [getDetachedInstance]);
+	listProcesses(): Promise<IProcessDetails[]> {
+		return this._channel.call('$listProcesses');
 	}
 	reduceConnectionGraceTime(): Promise<void> {
 		return this._channel.call('$reduceConnectionGraceTime');

@@ -145,7 +145,7 @@ export interface IOffProcessTerminalService {
 	onDidRequestDetach: Event<{ requestId: number, workspaceId: string, instanceId: number }>;
 
 	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
-	listProcesses(getDetachedInstance?: boolean): Promise<IProcessDetails[]>;
+	listProcesses(): Promise<IProcessDetails[]>;
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
 	getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
 	getWslPath(original: string): Promise<string>;

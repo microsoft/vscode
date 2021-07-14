@@ -207,9 +207,9 @@ export interface IPtyService {
 	detachFromProcess(id: number): Promise<void>;
 
 	/**
-	 * Lists orphaned processes, ie. those without a connected frontend, unless only the detached one (via a drop between windows) is requested.
+	 * Lists all orphaned processes, ie. those without a connected frontend.
 	 */
-	listProcesses(getDetachedInstance?: boolean): Promise<IProcessDetails[]>;
+	listProcesses(): Promise<IProcessDetails[]>;
 
 	start(id: number): Promise<ITerminalLaunchError | undefined>;
 	shutdown(id: number, immediate: boolean): Promise<void>;
