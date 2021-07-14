@@ -641,40 +641,41 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 					}
 				}
 			}
+		}
 
-			if (sourceInstances === undefined) {
-				if (!(data instanceof ElementsDragAndDropData)) {
-					this._handleExternalDrop(targetInstance, originalEvent);
-					return;
-				}
-
-				const draggedElement = data.getData();
-				if (!draggedElement || !Array.isArray(draggedElement)) {
-					return;
-				}
-
-				sourceInstances = [];
-				for (const e of draggedElement) {
-					if ('instanceId' in e) {
-						sourceInstances.push(e as ITerminalInstance);
-					}
-				}
-			}
-
-			if (!targetInstance) {
-				this._terminalGroupService.moveGroupToEnd(sourceInstances[0]);
+		if (sourceInstances === undefined) {
+			if (!(data instanceof ElementsDragAndDropData)) {
+				this._handleExternalDrop(targetInstance, originalEvent);
 				return;
 			}
 
-			let focused = false;
-			for (const instance of sourceInstances) {
-				this._terminalGroupService.moveGroup(instance, targetInstance);
-				if (!focused) {
-					this._terminalService.setActiveInstance(instance);
-					focused = true;
+			const draggedElement = data.getData();
+			if (!draggedElement || !Array.isArray(draggedElement)) {
+				return;
+			}
+
+			sourceInstances = [];
+			for (const e of draggedElement) {
+				if ('instanceId' in e) {
+					sourceInstances.push(e as ITerminalInstance);
 				}
 			}
 		}
+
+		if (!targetInstance) {
+			this._terminalGroupService.moveGroupToEnd(sourceInstances[0]);
+			return;
+		}
+
+		let focused = false;
+		for (const instance of sourceInstances) {
+			this._terminalGroupService.moveGroup(instance, targetInstance);
+			if (!focused) {
+				this._terminalService.setActiveInstance(instance);
+				focused = true;
+			}
+		}
+
 	}
 
 	private async _handleExternalDrop(instance: ITerminalInstance | undefined, e: DragEvent) {
