@@ -359,6 +359,8 @@ import { assertNoRpc } from '../utils';
 					} else {
 						reject('fetched task can\'t be undefined');
 					}
+					// Reset tasks.json
+					await tasksConfig.update('tasks', []);
 				});
 			});
 		});
