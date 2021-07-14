@@ -508,7 +508,7 @@
 					]
 				},
 				{
-					"begin": "(?i)((@)viewport)(?=[\\s'\"{;]|/\\*|$)",
+					"begin": "(?i)((@)(-(ms|o)-)?viewport)(?=[\\s'\"{;]|/\\*|$)",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.control.at-rule.viewport.css"
