@@ -20,15 +20,13 @@ export const enum ListElementType {
 	Leaf,
 	/** The element is not runnable, but doesn't have any nested leaf tests */
 	Branch,
-	/** State not yet computed */
-	Unset,
 }
 
 /**
  * Version of the HierarchicalElement that is displayed as a list.
  */
 export class ByNameTestItemElement extends ByLocationTestItemElement {
-	public elementType: ListElementType = ListElementType.Unset;
+	public elementType: ListElementType = ListElementType.Leaf;
 	public readonly isTestRoot = !this.actualParent;
 	public readonly actualChildren = new Set<ByNameTestItemElement>();
 
@@ -48,11 +46,10 @@ export class ByNameTestItemElement extends ByLocationTestItemElement {
 		internal: InternalTestItem,
 		parentItem: null | ByLocationTestItemElement,
 		addedOrRemoved: (n: TestExplorerTreeElement) => void,
-		private readonly actualParent?: ByNameTestItemElement,
+		public readonly actualParent?: ByNameTestItemElement,
 	) {
 		super(internal, parentItem, addedOrRemoved);
 		actualParent?.addChild(this);
-		this.updateLeafTestState();
 	}
 
 	/**
@@ -64,30 +61,10 @@ export class ByNameTestItemElement extends ByLocationTestItemElement {
 
 	private removeChild(element: ByNameTestItemElement) {
 		this.actualChildren.delete(element);
-		this.updateLeafTestState();
 	}
 
 	private addChild(element: ByNameTestItemElement) {
 		this.actualChildren.add(element);
-		this.updateLeafTestState();
-	}
-
-	/**
-	 * Updates the test leaf state for this node. Should be called when a child
-	 * or this node is modified. Note that we never need to look at the children
-	 * here, the children will already be leaves, or not.
-	 */
-	private updateLeafTestState() {
-		const newType = this.children.size
-			? ListElementType.Branch
-			: ListElementType.Leaf;
-
-		if (newType !== this.elementType) {
-			this.elementType = newType;
-			this.addedOrRemoved(this);
-		}
-
-		this.actualParent?.updateLeafTestState();
 	}
 }
 
@@ -120,16 +97,21 @@ export class HierarchicalByNameProjection extends HierarchicalByLocationProjecti
 	 */
 	protected override createItem(item: InternalTestItem): ByLocationTestItemElement {
 		const actualParent = item.parent ? this.items.get(item.parent) as ByNameTestItemElement : undefined;
-		if (actualParent) {
-			return new ByNameTestItemElement(
-				item,
-				actualParent.parent as ByNameTestItemElement || actualParent,
-				r => this.changes.addedOrRemoved(r),
-				actualParent,
-			);
+		if (!actualParent) {
+			return new ByNameTestItemElement(item, null, r => this.changes.addedOrRemoved(r));
 		}
 
-		return new ByNameTestItemElement(item, null, r => this.changes.addedOrRemoved(r));
+		if (actualParent.elementType === ListElementType.Leaf) {
+			actualParent.elementType = ListElementType.Branch;
+			this.changes.addedOrRemoved(actualParent);
+		}
+
+		return new ByNameTestItemElement(
+			item,
+			actualParent.parent as ByNameTestItemElement || actualParent,
+			r => this.changes.addedOrRemoved(r),
+			actualParent,
+		);
 	}
 
 	/**
@@ -137,7 +119,13 @@ export class HierarchicalByNameProjection extends HierarchicalByLocationProjecti
 	 */
 	protected override unstoreItem(items: Map<string, ByLocationTestItemElement>, item: ByLocationTestItemElement) {
 		const treeChildren = super.unstoreItem(items, item);
+
 		if (item instanceof ByNameTestItemElement) {
+			if (item.actualParent && item.actualParent.actualChildren.size === 1) {
+				item.actualParent.elementType = ListElementType.Leaf;
+				this.changes.addedOrRemoved(item.actualParent);
+			}
+
 			item.remove();
 			return item.actualChildren;
 		}
