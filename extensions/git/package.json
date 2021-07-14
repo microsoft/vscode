@@ -1972,7 +1972,7 @@
     "@types/mocha": "2.2.43",
     "@types/node": "^12.12.31",
     "@types/which": "^1.0.28",
-    "mocha": "^3.2.0",
+    "mocha": "^4.0.0",
     "mocha-junit-reporter": "^1.23.3",
     "mocha-multi-reporters": "^1.1.7",
     "vscode": "^1.1.36"
