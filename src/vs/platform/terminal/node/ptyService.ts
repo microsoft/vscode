@@ -67,25 +67,25 @@ export class PtyService extends Disposable implements IPtyService {
 		}));
 	}
 
-	private _pendingDetachInstanceRequests: Map<number, (resolved: number) => void> = new Map();
-	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<number> {
-		return new Promise<number>(resolve => {
+	private _pendingDetachInstanceRequests: Map<number, (resolved: IProcessDetails | undefined) => void> = new Map();
+	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
+		return new Promise<IProcessDetails | undefined>(resolve => {
 			const requestId = ++lastResolveInstanceRequestId;
 			this._pendingDetachInstanceRequests.set(requestId, resolve);
 			this._onDidRequestDetach.fire({ requestId, workspaceId, instanceId });
 		});
 	}
 
-	async acceptDetachedInstance(requestId: number, resolved: number): Promise<IProcessDetails | undefined> {
+	async acceptDetachedInstance(requestId: number, processId: number): Promise<IProcessDetails | undefined> {
 		const request = this._pendingDetachInstanceRequests.get(requestId);
 		if (request) {
-			request(resolved);
-			const pty = this._throwIfNoPty(resolved);
-			const process = await this._buildProcessDetails(resolved, pty);
 			this._pendingDetachInstanceRequests.delete(requestId);
+			const pty = this._throwIfNoPty(processId);
+			const process = await this._buildProcessDetails(processId, pty);
+			request(process);
 			return process;
 		} else {
-			this._logService.warn(`Resolved variables received without matching request ${requestId}`);
+			this._logService.warn(`accept detached instance without receiving a matching request ${requestId}`);
 			return undefined;
 		}
 	}

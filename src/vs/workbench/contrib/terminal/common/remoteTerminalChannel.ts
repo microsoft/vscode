@@ -199,7 +199,7 @@ export class RemoteTerminalChannelClient {
 		return await this._channel.call<ICreateTerminalProcessResult>('$createProcess', args);
 	}
 
-	requestDetachInstance(workspaceId: string, instanceId: number): Promise<number> {
+	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
 		return this._channel.call('$acceptDetachedInstance', [workspaceId, instanceId]);
 	}
 	acceptDetachedInstance(requestId: number, persistentProcessId: number): Promise<IProcessDetails | undefined> {

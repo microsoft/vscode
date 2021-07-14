@@ -242,7 +242,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 		return await this._proxy.getTerminalLayoutInfo(args);
 	}
 
-	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<number> {
+	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
 		return this._proxy.requestDetachInstance(workspaceId, instanceId);
 	}
 

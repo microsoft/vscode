@@ -231,8 +231,8 @@ export interface IPtyService {
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void>;
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;
-	requestDetachInstance(workspaceId: string, instanceId: number): Promise<number>;
-	acceptDetachedInstance(requestId: number, persistentProcessId: number): Promise<IProcessDetails | undefined>;
+	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined>;
+	acceptDetachedInstance(requestId: number, process: number): Promise<IProcessDetails | undefined>;
 }
 
 export interface IRequestResolveVariablesEvent {
