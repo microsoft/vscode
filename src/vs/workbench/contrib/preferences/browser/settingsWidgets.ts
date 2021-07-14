@@ -792,6 +792,7 @@ interface IObjectEnumData {
 interface IObjectBoolData {
 	type: 'boolean';
 	data: boolean;
+	description?: string;
 }
 
 type ObjectKey = IObjectStringData | IObjectEnumData;
@@ -827,7 +828,7 @@ interface IObjectRenderEditWidgetOptions {
 	update(keyOrValue: ObjectKey | ObjectValue): void;
 }
 
-export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataItem> {
+export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObjectDataItem> {
 	private currentSettingKey: string = '';
 	private showAddButton: boolean = true;
 	private keySuggester: IObjectKeySuggester = () => undefined;
@@ -1169,16 +1170,11 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 interface IBoolObjectSetValueOptions {
 	settingKey: string;
 }
-export interface IBoolObjectDataItem {
-	key: string;
-	value: boolean;
-	description?: string;
-}
 
-export class BoolObjectSettingWidget extends AbstractListSettingWidget<IBoolObjectDataItem> {
+export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IObjectDataItem> {
 	private currentSettingKey: string = '';
 
-	override setValue(listData: IBoolObjectDataItem[], options?: IBoolObjectSetValueOptions): void {
+	override setValue(listData: IObjectDataItem[], options?: IBoolObjectSetValueOptions): void {
 		if (isDefined(options) && options.settingKey !== this.currentSettingKey) {
 			this.model.setEditKey('none');
 			this.model.select(null);
@@ -1188,14 +1184,15 @@ export class BoolObjectSettingWidget extends AbstractListSettingWidget<IBoolObje
 		super.setValue(listData);
 	}
 
-	isItemNew(item: IBoolObjectDataItem): boolean {
-		return !item.key && !item.value;
+	isItemNew(item: IObjectDataItem): boolean {
+		return !item.key.data && !item.value.data;
 	}
 
-	protected getEmptyItem(): IBoolObjectDataItem {
+	protected getEmptyItem(): IObjectDataItem {
 		return {
-			key: '',
-			value: false
+			key: { type: 'string', data: '' },
+			value: { type: 'boolean', data: false },
+			removable: false
 		};
 	}
 
@@ -1203,7 +1200,7 @@ export class BoolObjectSettingWidget extends AbstractListSettingWidget<IBoolObje
 		return ['setting-list-object-widget'];
 	}
 
-	protected getActionsForItem(item: IBoolObjectDataItem, idx: number): IAction[] {
+	protected getActionsForItem(item: IObjectDataItem, idx: number): IAction[] {
 		return [];
 	}
 
@@ -1215,32 +1212,32 @@ export class BoolObjectSettingWidget extends AbstractListSettingWidget<IBoolObje
 		return undefined;
 	}
 
-	protected override renderDataOrEditItem(item: IListViewItem<IBoolObjectDataItem>, idx: number, listFocused: boolean): HTMLElement {
+	protected override renderDataOrEditItem(item: IListViewItem<IObjectDataItem>, idx: number, listFocused: boolean): HTMLElement {
 		const rowElement = this.renderEdit(item, idx);
 		rowElement.setAttribute('role', 'listitem');
 		return rowElement;
 	}
 
-	protected renderItem(item: IBoolObjectDataItem): HTMLElement {
+	protected renderItem(item: IObjectDataItem): HTMLElement {
 		// return empty object, since we always render in edit mode
 		const rowElement = $('.setting-list-row');
 		return rowElement;
 	}
 
-	protected renderEdit(item: IBoolObjectDataItem, idx: number): HTMLElement {
+	protected renderEdit(item: IObjectDataItem, idx: number): HTMLElement {
 		const rowElement = $('.setting-list-edit-row.setting-list-object-row.setting-item-bool');
 
 		const changedItem = { ...item };
 		const onValueChange = (newValue: boolean) => {
-			changedItem.value = newValue;
+			changedItem.value.data = newValue;
 			this.handleItemChange(item, changedItem, idx);
 		};
-		const { element, widget: checkbox } = this.renderEditWidget(changedItem.value, onValueChange);
+		const { element, widget: checkbox } = this.renderEditWidget((changedItem.value as IObjectBoolData).data, onValueChange);
 		rowElement.appendChild(element);
 
 		const valueElement = DOM.append(rowElement, $('.setting-list-object-value'));
-		valueElement.textContent = changedItem.key;
-		valueElement.setAttribute('title', changedItem.description ?? '');
+		valueElement.textContent = changedItem.key.data;
+		valueElement.setAttribute('title', (changedItem.value as IObjectBoolData).description ?? '');
 		this._register(DOM.addDisposableListener(valueElement, DOM.EventType.MOUSE_DOWN, e => {
 			const targetElement = <HTMLElement>e.target;
 			if (targetElement.tagName.toLowerCase() !== 'a') {
@@ -1283,8 +1280,8 @@ export class BoolObjectSettingWidget extends AbstractListSettingWidget<IBoolObje
 		return { widget: checkbox, element: wrapper };
 	}
 
-	protected getLocalizedRowTitle(item: IBoolObjectDataItem): string {
-		return localize('objectPairHintLabel', "The property `{0}` is set to `{1}`.", item.key, item.value);
+	protected getLocalizedRowTitle(item: IObjectDataItem): string {
+		return localize('objectPairHintLabel', "The property `{0}` is set to `{1}`.", item.key.data, item.value.data);
 	}
 
 	protected getLocalizedStrings() {
