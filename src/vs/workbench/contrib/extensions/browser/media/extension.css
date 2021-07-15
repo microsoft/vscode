@@ -182,7 +182,3 @@
 .extension-list-item .monaco-action-bar > .actions-container > .action-item.disabled {
 	min-width: 0;
 }
-
-.monaco-workbench .workbench-hover.extension-hover {
-	max-width: 450px;
-}
