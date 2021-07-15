@@ -1197,7 +1197,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._onProcessExit(error);
 			}
 		});
-		if (!hadIcon && this.shellLaunchConfig.icon) {
+		if (!hadIcon && this.shellLaunchConfig.icon || this.shellLaunchConfig.color) {
 			this._onIconChanged.fire(this);
 		}
 	}

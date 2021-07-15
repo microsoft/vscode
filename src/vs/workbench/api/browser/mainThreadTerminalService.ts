@@ -130,6 +130,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			args: launchConfig.shellArgs,
 			cwd: typeof launchConfig.cwd === 'string' ? launchConfig.cwd : URI.revive(launchConfig.cwd),
 			icon: launchConfig.icon,
+			color: launchConfig.color,
 			initialText: launchConfig.initialText,
 			waitOnExit: launchConfig.waitOnExit,
 			ignoreConfigurationCwd: true,

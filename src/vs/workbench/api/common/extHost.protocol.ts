@@ -470,6 +470,7 @@ export interface TerminalLaunchConfig {
 	cwd?: string | UriComponents;
 	env?: ITerminalEnvironment;
 	icon?: URI | { light: URI; dark: URI } | ThemeIcon;
+	color?: string;
 	initialText?: string;
 	waitOnExit?: boolean;
 	strictEnv?: boolean;
