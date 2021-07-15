@@ -34,6 +34,10 @@ export class RequestStore<T, RequestArgs> extends Disposable {
 		this._timeout = timeout === undefined ? 15000 : timeout;
 	}
 
+	/**
+	 * Creates a request.
+	 * @param args The arguments to pass to the onCreateRequest event.
+	 */
 	createRequest(args: RequestArgs): Promise<T> {
 		return new Promise<T>((resolve, reject) => {
 			const requestId = ++this._lastRequestId;
@@ -45,6 +49,11 @@ export class RequestStore<T, RequestArgs> extends Disposable {
 		});
 	}
 
+	/**
+	 * Accept a reply to a request.
+	 * @param requestId The request ID originating from the onCreateRequest event.
+	 * @param data The reply data.
+	 */
 	acceptReply(requestId: number, data: T) {
 		const resolveRequest = this._pendingRequests.get(requestId);
 		if (resolveRequest) {
