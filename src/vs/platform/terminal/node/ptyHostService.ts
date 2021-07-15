@@ -17,7 +17,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { detectAvailableProfiles } from 'vs/platform/terminal/node/terminalProfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
-import { RequestStore } from 'vs/platform/terminal/node/requestStore';
+import { RequestStore } from 'vs/platform/terminal/common/requestStore';
 
 enum Constants {
 	MaxRestarts = 5

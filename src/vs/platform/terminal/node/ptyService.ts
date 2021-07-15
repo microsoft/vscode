@@ -18,7 +18,7 @@ import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnviron
 import { execFile } from 'child_process';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { URI } from 'vs/base/common/uri';
-import { RequestStore } from 'vs/platform/terminal/node/requestStore';
+import { RequestStore } from 'vs/platform/terminal/common/requestStore';
 
 type WorkspaceId = string;
 
