@@ -6,7 +6,6 @@
 import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget, Disposable, UIKind, env, EnvironmentVariableMutatorType, EnvironmentVariableMutator, extensions, ExtensionContext, TerminalOptions, ExtensionTerminalOptions, Terminal } from 'vscode';
 import { doesNotThrow, equal, deepEqual, throws, strictEqual } from 'assert';
 import { assertNoRpc } from '../utils';
-import * as os from 'os';
 
 // Disable terminal tests:
 // - Web https://github.com/microsoft/vscode/issues/92826
@@ -669,8 +668,7 @@ import * as os from 'os';
 			});
 		});
 
-		// https://github.com/microsoft/vscode/issues/128710
-		(os.platform() === 'win32' ? suite.skip : suite)('environmentVariableCollection', () => {
+		suite('environmentVariableCollection', () => {
 			test('should have collection variables apply to terminals immediately after setting', (done) => {
 				// Text to match on before passing the test
 				const expectedText = [
