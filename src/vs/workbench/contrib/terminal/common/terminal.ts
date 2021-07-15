@@ -172,7 +172,8 @@ export interface ITerminalProfiles {
 	windows: { [key: string]: ITerminalProfileObject };
 }
 
-export type ConfirmOnKill = 'off' | 'editor' | 'panel' | 'editorAndPanel';
+export type ConfirmOnKill = 'never' | 'editor' | 'panel' | 'editorAndPanel';
+export type ConfirmOnExit = 'never' | 'always' | 'hasChildProcesses';
 
 export interface ITerminalConfiguration {
 	shell: {
@@ -223,7 +224,7 @@ export interface ITerminalConfiguration {
 	allowChords: boolean;
 	allowMnemonics: boolean;
 	cwd: string;
-	confirmOnExit: boolean;
+	confirmOnExit: ConfirmOnExit;
 	confirmOnKill: ConfirmOnKill;
 	enableBell: boolean;
 	env: {

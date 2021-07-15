@@ -266,14 +266,15 @@ const terminalConfiguration: IConfigurationNode = {
 			default: undefined
 		},
 		[TerminalSettingId.ConfirmOnExit]: {
-			description: localize('terminal.integrated.confirmOnExit', "Controls whether to confirm on exit if there are active terminal sessions with child processes."),
-			type: 'boolean',
+			description: localize('terminal.integrated.confirmOnExit', "Controls whether to confirm on exit if there are active terminal sessions."),
+			type: 'string',
+			enum: ['never', 'always', 'hasChildProcesses'],
 			default: false
 		},
 		[TerminalSettingId.ConfirmOnKill]: {
 			description: localize('terminal.integrated.confirmOnKill', "Controls whether to confirm killing terminals when they have child processes. When set to editor, terminals in the editor area will be marked as dirty when they have child processes."),
 			type: 'string',
-			enum: ['off', 'editor', 'panel', 'editorAndPanel'],
+			enum: ['never', 'editor', 'panel', 'editorAndPanel'],
 			default: 'editor'
 		},
 		[TerminalSettingId.EnableBell]: {

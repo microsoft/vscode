@@ -487,7 +487,11 @@ export class TerminalService implements ITerminalService {
 		}
 
 		const shouldPersistTerminals = this._configHelper.config.enablePersistentSessions && reason === ShutdownReason.RELOAD;
-		if (this.configHelper.config.confirmOnExit && !shouldPersistTerminals && this.instances.some(e => e.hasChildProcesses)) {
+		const hasDirtyInstances = (
+			(this.configHelper.config.confirmOnExit === 'always' && this.instances.length > 0) ||
+			(this.configHelper.config.confirmOnExit === 'hasChildProcesses' && this.instances.some(e => e.hasChildProcesses))
+		);
+		if (!shouldPersistTerminals && hasDirtyInstances) {
 			return this._onBeforeShutdownAsync();
 		}
 
