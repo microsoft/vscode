@@ -636,8 +636,8 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 			}
 			let processes = await Promise.all(promises);
 			processes = processes.filter(p => p !== undefined);
-			for (const r of processes) {
-				const instance = this._terminalService.createTerminal({ config: { attachPersistentProcess: r } });
+			for (const attachPersistentProcess of processes) {
+				const instance = this._terminalService.createTerminal({ config: { attachPersistentProcess } });
 				this._terminalService.setActiveInstance(instance);
 			}
 			return;

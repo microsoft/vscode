@@ -20,7 +20,7 @@ import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnviro
 import { URI } from 'vs/base/common/uri';
 
 type WorkspaceId = string;
-let lastResolveInstanceRequestId = 0;
+let lastResolvedInstanceRequestId = 0;
 
 export class PtyService extends Disposable implements IPtyService {
 	declare readonly _serviceBrand: undefined;
@@ -72,22 +72,22 @@ export class PtyService extends Disposable implements IPtyService {
 	private _pendingDetachInstanceRequests: Map<number, (resolved: IProcessDetails | undefined) => void> = new Map();
 	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
 		return new Promise<IProcessDetails | undefined>(resolve => {
-			const requestId = ++lastResolveInstanceRequestId;
+			const requestId = ++lastResolvedInstanceRequestId;
 			this._pendingDetachInstanceRequests.set(requestId, resolve);
 			this._onDidRequestDetach.fire({ requestId, workspaceId, instanceId });
 		});
 	}
 
-	async acceptDetachedInstance(requestId: number, processId: number): Promise<IProcessDetails | undefined> {
+	async acceptDetachedInstance(requestId: number, persistentProcessId: number): Promise<IProcessDetails | undefined> {
 		const request = this._pendingDetachInstanceRequests.get(requestId);
 		if (request) {
 			this._pendingDetachInstanceRequests.delete(requestId);
-			const pty = this._throwIfNoPty(processId);
-			const process = await this._buildProcessDetails(processId, pty);
+			const pty = this._throwIfNoPty(persistentProcessId);
+			const process = await this._buildProcessDetails(persistentProcessId, pty);
 			request(process);
 			return process;
 		} else {
-			this._logService.warn(`Accept detached instance was called without receiving a matching request ${requestId} for process ${processId}`);
+			this._logService.warn(`Accept detached instance was called without receiving a matching request ${requestId} for process with ID: ${persistentProcessId}`);
 			return undefined;
 		}
 	}
