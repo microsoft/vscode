@@ -106,13 +106,10 @@
 	display: none;
 }
 
-.extensions-viewlet.narrow > .extensions .extension-list-item {
-	padding-left: 8px;
-}
-
 .extensions-viewlet.narrow > .extensions .extension-list-item > .icon-container > .icon {
 	width: 24px;
 	height: 24px;
+	padding-top: 8px;
 	padding-right: 6px;
 }
 
