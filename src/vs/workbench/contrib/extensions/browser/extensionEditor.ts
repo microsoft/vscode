@@ -760,7 +760,6 @@ export class ExtensionEditor extends EditorPane {
 		this.contentDisposables.add(scrollableContent);
 
 		this.renderCategories(content, extension);
-		this.renderTags(content, extension);
 		this.renderResources(content, extension);
 		this.renderMoreInfo(content, extension);
 
@@ -778,21 +777,6 @@ export class ExtensionEditor extends EditorPane {
 					this.viewletService.openViewlet(VIEWLET_ID, true)
 						.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 						.then(viewlet => viewlet.search(`@category:"${category}"`));
-				}));
-			}
-		}
-	}
-
-	private renderTags(container: HTMLElement, extension: IExtension): void {
-		if (extension.tags.length) {
-			const tagsContainer = append(container, $('.tags-container'));
-			append(tagsContainer, $('.additional-details-title', undefined, localize('tags', "Tags")));
-			const tagsElement = append(tagsContainer, $('.tags'));
-			for (const tag of extension.tags) {
-				this.transientDisposables.add(this.onClick(append(tagsElement, $('span.tag', undefined, tag)), () => {
-					this.viewletService.openViewlet(VIEWLET_ID, true)
-						.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
-						.then(viewlet => viewlet.search(`@tag:"${tag}"`));
 				}));
 			}
 		}
