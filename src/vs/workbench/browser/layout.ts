@@ -552,8 +552,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		}
 
-		// TODO@wendellhu: third panel restore thing
-
 		// Editor visibility
 		this.state.editor.hidden = this.storageService.getBoolean(Storage.EDITOR_HIDDEN, StorageScope.WORKSPACE, false);
 
@@ -935,7 +933,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				break;
 			case Parts.STATUSBAR_PART:
 				this.statusBarService.focus();
-			// TODO@wendellhu: have something to do with third panel?
 			default:
 				// Title Bar & Banner simply pass focus to container
 				const container = this.getContainer(part);

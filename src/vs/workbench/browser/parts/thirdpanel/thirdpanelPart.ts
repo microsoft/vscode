@@ -26,10 +26,16 @@ import { CompositePart } from 'vs/workbench/browser/parts/compositePart';
 import { Viewlet, ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { SIDE_BAR_BACKGROUND, SIDE_BAR_BORDER, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_FOREGROUND, SIDE_BAR_TITLE_FOREGROUND } from 'vs/workbench/common/theme';
-import { IViewlet } from 'vs/workbench/common/viewlet';
+import { IViewlet, ThirdPanelFocusContext } from 'vs/workbench/common/viewlet';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ISecondViewletService, IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { addDisposableListener, EventType, trackFocus } from 'vs/base/browser/dom';
+import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
+import { CompositeDragAndDropObserver } from 'vs/workbench/browser/dnd';
+import { localize } from 'vs/nls';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 // TODO@wendellhu: will find some shared code in sidebarPart.ts
 export class ThirdPanelPart extends CompositePart<Viewlet> implements IViewletService {
@@ -47,7 +53,8 @@ export class ThirdPanelPart extends CompositePart<Viewlet> implements IViewletSe
 
 	readonly priority: LayoutPriority = LayoutPriority.Low;
 
-	// TODO@wendellhu: what does this even mean?
+	private readonly thirdPanelFocusContextKey = ThirdPanelFocusContext.bindTo(this.contextKeyService);
+
 	readonly snap = true;
 
 	get preferredWidth(): number | undefined {
@@ -93,7 +100,7 @@ export class ThirdPanelPart extends CompositePart<Viewlet> implements IViewletSe
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IViewDescriptorService readonly viewDescriptorService: IViewDescriptorService,
-		// @IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super(
@@ -142,15 +149,34 @@ export class ThirdPanelPart extends CompositePart<Viewlet> implements IViewletSe
 		super.create(parent);
 
 		// TODO:wendell: focus things
+		const focusTracker = this._register(trackFocus(parent));
+		this._register(focusTracker.onDidFocus(() => this.thirdPanelFocusContextKey.set(true)));
+		this._register(focusTracker.onDidBlur(() => this.thirdPanelFocusContextKey.set(false)));
 	}
 
 	override createTitleArea(parent: HTMLElement): HTMLElement {
 		const titleArea = super.createTitleArea(parent);
 
-		// TODO@wendell: this is just a hack
+		this._register(addDisposableListener(titleArea, EventType.CONTEXT_MENU, e => {
+			this.onTitleAreaContextMenu(new StandardMouseEvent(e));
+		}));
+		this._register(Gesture.addTarget(titleArea));
+		this._register(addDisposableListener(titleArea, GestureEventType.Contextmenu, e => {
+			this.onTitleAreaContextMenu(new StandardMouseEvent(e));
+		}));
+
+		this.titleLabelElement!.draggable = true;
+
 		this.titleLabel!.updateTitle('third-panel', 'THIRD PANEL');
 
 		this.titleLabelElement!.draggable = false;
+		const draggedItemProvider = (): { type: 'view' | 'composite', id: string } => {
+			const activeViewlet = this.getActiveViewlet()!;
+			return { type: 'composite', id: activeViewlet.getId() };
+		};
+
+		this._register(CompositeDragAndDropObserver.INSTANCE.registerDraggable(this.titleLabelElement!, draggedItemProvider, {}));
+
 		return titleArea;
 	}
 
@@ -226,21 +252,21 @@ export class ThirdPanelPart extends CompositePart<Viewlet> implements IViewletSe
 		return this.openComposite(id, focus) as Viewlet;
 	}
 
-	// private onTitleAreaContextMenu(event: StandardMouseEvent): void {
-	// 	const activeViewlet = this.getActiveViewlet() as Viewlet;
-	// 	if (activeViewlet) {
-	// 		const contextMenuActions = activeViewlet ? activeViewlet.getContextMenuActions() : [];
-	// 		if (contextMenuActions.length) {
-	// 			const anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
-	// 			this.contextMenuService.showContextMenu({
-	// 				getAnchor: () => anchor,
-	// 				getActions: () => contextMenuActions.slice(),
-	// 				getActionViewItem: action => this.actionViewItemProvider(action),
-	// 				actionRunner: activeViewlet.getActionRunner()
-	// 			});
-	// 		}
-	// 	}
-	// }
+	private onTitleAreaContextMenu(event: StandardMouseEvent): void {
+		const activeViewlet = this.getActiveViewlet() as Viewlet;
+		if (activeViewlet) {
+			const contextMenuActions = activeViewlet ? activeViewlet.getContextMenuActions() : [];
+			if (contextMenuActions.length) {
+				const anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => anchor,
+					getActions: () => contextMenuActions.slice(),
+					getActionViewItem: action => this.actionViewItemProvider(action),
+					actionRunner: activeViewlet.getActionRunner()
+				});
+			}
+		}
+	}
 
 	toJSON(): object {
 		return {
@@ -253,7 +279,7 @@ class FocusThirdPanelAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.focusThirdPanel',
-			title: { value: 'Focus Third Panel', original: 'Focus into Third Panel' }, // TODO@wendell: i18n
+			title: { value: localize('focusThirdPanel', 'Focus into Third Panel'), original: 'Focus into Third Panel' },
 			category: CATEGORIES.View,
 			f1: true,
 			keybinding: {

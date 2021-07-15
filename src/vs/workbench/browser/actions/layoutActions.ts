@@ -318,7 +318,7 @@ class ToggleThirdPanelAction extends Action2 {
 	constructor() {
 		super({
 			id: ToggleThirdPanelAction.ID,
-			title: 'Toggle Third Panel',
+			title: { value: localize('toggleThirdPanel', "Toggle Third Panel Visibility"), original: 'Toggle Third Panel Visibility' },
 			category: CATEGORIES.View,
 			f1: true,
 			keybinding: {
