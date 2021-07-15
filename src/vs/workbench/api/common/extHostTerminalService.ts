@@ -842,11 +842,11 @@ export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
 }
 
 function asTerminalIcon(iconPath?: vscode.Uri | { light: vscode.Uri; dark: vscode.Uri } | vscode.ThemeIcon): TerminalIcon | undefined {
-	if (!iconPath) {
+	if (!iconPath || typeof iconPath === 'string') {
 		return undefined;
 	}
 
-	if (typeof iconPath === 'string' || !('id' in iconPath)) {
+	if (!('id' in iconPath)) {
 		return iconPath;
 	}
 

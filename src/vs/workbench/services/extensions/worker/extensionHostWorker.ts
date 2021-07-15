@@ -31,6 +31,7 @@ declare namespace self {
 	let dispatchEvent: any;
 	let indexedDB: { open: any, [k: string]: any };
 	let caches: { open: any, [k: string]: any };
+	let importScripts: any;
 }
 
 const nativeClose = self.close.bind(self);
@@ -38,6 +39,8 @@ self.close = () => console.trace(`'close' has been blocked`);
 
 const nativePostMessage = postMessage.bind(self);
 self.postMessage = () => console.trace(`'postMessage' has been blocked`);
+
+self.importScripts = () => { throw new Error(`'importScripts' has been blocked`); };
 
 // const nativeAddEventListener = addEventListener.bind(self);
 self.addEventListener = () => console.trace(`'addEventListener' has been blocked`);

@@ -20,10 +20,10 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditorInputWithOptions } from 'vs/workbench/common/editor';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { RegisteredEditorPriority, IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { FOLDER_SETTINGS_PATH, IPreferencesService, USE_SPLIT_JSON_SETTING } from 'vs/workbench/services/preferences/common/preferences';
-import { PreferencesEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
+import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, IPreferencesService, USE_SPLIT_JSON_SETTING } from 'vs/workbench/services/preferences/common/preferences';
 
 const schemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
@@ -43,7 +43,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		@IEditorService private readonly editorService: IEditorService,
 	) {
 		this.settingsListener = this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(USE_SPLIT_JSON_SETTING)) {
+			if (e.affectsConfiguration(USE_SPLIT_JSON_SETTING) || e.affectsConfiguration(DEFAULT_SETTINGS_EDITOR_SETTING)) {
 				this.handleSettingsEditorRegistration();
 			}
 		});
@@ -58,20 +58,19 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		dispose(this.editorOpeningListener);
 
 		// install editor opening listener unless user has disabled this
-		if (!!this.configurationService.getValue(USE_SPLIT_JSON_SETTING)) {
+		if (!!this.configurationService.getValue(USE_SPLIT_JSON_SETTING) || !!this.configurationService.getValue(DEFAULT_SETTINGS_EDITOR_SETTING)) {
 			this.editorOpeningListener = this.editorResolverService.registerEditor(
 				'**/settings.json',
 				{
-					id: PreferencesEditorInput.ID,
-					detail: 'Split Settings Editor (deprecated)',
-					label: 'label',
+					id: SideBySideEditorInput.ID,
+					label: nls.localize('splitSettingsEditorLabel', "Split Settings Editor"),
 					priority: RegisteredEditorPriority.builtin,
 				},
 				{},
-				({ resource, options }, group): IEditorInputWithOptions => {
+				({ resource, options }): IEditorInputWithOptions => {
 					// Global User Settings File
 					if (isEqual(resource, this.environmentService.settingsResource)) {
-						return { editor: this.preferencesService.getCurrentOrNewSplitJsonEditorInput(ConfigurationTarget.USER_LOCAL, resource, group), options };
+						return { editor: this.preferencesService.createSplitJsonEditorInput(ConfigurationTarget.USER_LOCAL, resource), options };
 					}
 
 					// Single Folder Workspace Settings File
@@ -79,7 +78,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 					if (state === WorkbenchState.FOLDER) {
 						const folders = this.workspaceService.getWorkspace().folders;
 						if (isEqual(resource, folders[0].toResource(FOLDER_SETTINGS_PATH))) {
-							return { editor: this.preferencesService.getCurrentOrNewSplitJsonEditorInput(ConfigurationTarget.WORKSPACE, resource, group), options };
+							return { editor: this.preferencesService.createSplitJsonEditorInput(ConfigurationTarget.WORKSPACE, resource), options };
 						}
 					}
 
@@ -88,7 +87,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 						const folders = this.workspaceService.getWorkspace().folders;
 						for (const folder of folders) {
 							if (isEqual(resource, folder.toResource(FOLDER_SETTINGS_PATH))) {
-								return { editor: this.preferencesService.getCurrentOrNewSplitJsonEditorInput(ConfigurationTarget.WORKSPACE_FOLDER, resource, group), options };
+								return { editor: this.preferencesService.createSplitJsonEditorInput(ConfigurationTarget.WORKSPACE_FOLDER, resource), options };
 							}
 						}
 					}

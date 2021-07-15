@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
+import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { HistoryInputBox, IHistoryInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Action, IAction } from 'vs/base/common/actions';
@@ -13,302 +14,27 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
+import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
-import { ICodeEditor, IEditorMouseEvent, IViewZone, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { Position } from 'vs/editor/common/core/position';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
+import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { Schemas } from 'vs/base/common/network';
 import { activeContrastBorder, badgeBackground, badgeForeground, contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { isWorkspaceFolder, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND } from 'vs/workbench/common/theme';
+import { settingsEditIcon, settingsScopeDropDownIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ISettingsGroup, IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { isEqual } from 'vs/base/common/resources';
-import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { settingsEditIcon, settingsGroupCollapsedIcon, settingsGroupExpandedIcon, settingsScopeDropDownIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
-import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
-
-export class SettingsHeaderWidget extends Widget implements IViewZone {
-
-	private id!: string;
-	private _domNode!: HTMLElement;
-
-	protected titleContainer!: HTMLElement;
-	private messageElement!: HTMLElement;
-
-	constructor(protected editor: ICodeEditor, private title: string) {
-		super();
-		this.create();
-		this._register(this.editor.onDidChangeConfiguration(() => this.layout()));
-		this._register(this.editor.onDidLayoutChange(() => this.layout()));
-	}
-
-	get domNode(): HTMLElement {
-		return this._domNode;
-	}
-
-	get heightInLines(): number {
-		return 1;
-	}
-
-	get afterLineNumber(): number {
-		return 0;
-	}
-
-	protected create() {
-		this._domNode = DOM.$('.settings-header-widget');
-
-		this.titleContainer = DOM.append(this._domNode, DOM.$('.title-container'));
-		if (this.title) {
-			DOM.append(this.titleContainer, DOM.$('.title')).textContent = this.title;
-		}
-		this.messageElement = DOM.append(this.titleContainer, DOM.$('.message'));
-		if (this.title) {
-			this.messageElement.style.paddingLeft = '12px';
-		}
-
-		this.editor.changeViewZones(accessor => {
-			this.id = accessor.addZone(this);
-			this.layout();
-		});
-	}
-
-	setMessage(message: string): void {
-		this.messageElement.textContent = message;
-	}
-
-	private layout(): void {
-		const options = this.editor.getOptions();
-		const fontInfo = options.get(EditorOption.fontInfo);
-		this.titleContainer.style.fontSize = fontInfo.fontSize + 'px';
-		if (!options.get(EditorOption.folding)) {
-			this.titleContainer.style.paddingLeft = '6px';
-		}
-	}
-
-	override dispose() {
-		this.editor.changeViewZones(accessor => {
-			accessor.removeZone(this.id);
-		});
-		super.dispose();
-	}
-}
-
-export class DefaultSettingsHeaderWidget extends SettingsHeaderWidget {
-
-	private _onClick = this._register(new Emitter<void>());
-	readonly onClick: Event<void> = this._onClick.event;
-
-	protected override create() {
-		super.create();
-
-		this.toggleMessage(true);
-	}
-
-	toggleMessage(hasSettings: boolean): void {
-		if (hasSettings) {
-			this.setMessage(localize('defaultSettings', "Place your settings in the right hand side editor to override."));
-		} else {
-			this.setMessage(localize('noSettingsFound', "No Settings Found."));
-		}
-	}
-}
-
-export class SettingsGroupTitleWidget extends Widget implements IViewZone {
-
-	private id!: string;
-	private _afterLineNumber!: number;
-	private _domNode!: HTMLElement;
-
-	private titleContainer!: HTMLElement;
-	private icon!: HTMLElement;
-	private title!: HTMLElement;
-
-	private _onToggled = this._register(new Emitter<boolean>());
-	readonly onToggled: Event<boolean> = this._onToggled.event;
-
-	private previousPosition: Position | null = null;
-
-	constructor(private editor: ICodeEditor, public settingsGroup: ISettingsGroup) {
-		super();
-		this.create();
-		this._register(this.editor.onDidChangeConfiguration(() => this.layout()));
-		this._register(this.editor.onDidLayoutChange(() => this.layout()));
-		this._register(this.editor.onDidChangeCursorPosition((e) => this.onCursorChange(e)));
-	}
-
-	get domNode(): HTMLElement {
-		return this._domNode;
-	}
-
-	get heightInLines(): number {
-		return 1.5;
-	}
-
-	get afterLineNumber(): number {
-		return this._afterLineNumber;
-	}
-
-	private create() {
-		this._domNode = DOM.$('.settings-group-title-widget');
-
-		this.titleContainer = DOM.append(this._domNode, DOM.$('.title-container'));
-		this.titleContainer.tabIndex = 0;
-		this.onclick(this.titleContainer, () => this.toggle());
-		this.onkeydown(this.titleContainer, (e) => this.onKeyDown(e));
-		const focusTracker = this._register(DOM.trackFocus(this.titleContainer));
-
-		this._register(focusTracker.onDidFocus(() => this.toggleFocus(true)));
-		this._register(focusTracker.onDidBlur(() => this.toggleFocus(false)));
-
-		this.icon = DOM.append(this.titleContainer, DOM.$(''));
-		this.title = DOM.append(this.titleContainer, DOM.$('.title'));
-		this.title.textContent = this.settingsGroup.title + ` (${this.settingsGroup.sections.reduce((count, section) => count + section.settings.length, 0)})`;
-
-		this.updateTwisty(false);
-		this.layout();
-	}
-
-	private getTwistyIcon(isCollapsed: boolean): ThemeIcon {
-		return isCollapsed ? settingsGroupCollapsedIcon : settingsGroupExpandedIcon;
-	}
-
-	private updateTwisty(collapse: boolean) {
-		this.icon.classList.remove(...ThemeIcon.asClassNameArray(this.getTwistyIcon(!collapse)));
-		this.icon.classList.add(...ThemeIcon.asClassNameArray(this.getTwistyIcon(collapse)));
-	}
-
-	render() {
-		if (!this.settingsGroup.range) {
-			// #61352
-			return;
-		}
-
-		this._afterLineNumber = this.settingsGroup.range.startLineNumber - 2;
-		this.editor.changeViewZones(accessor => {
-			this.id = accessor.addZone(this);
-			this.layout();
-		});
-	}
-
-	toggleCollapse(collapse: boolean) {
-		this.titleContainer.classList.toggle('collapsed', collapse);
-		this.updateTwisty(collapse);
-	}
-
-	toggleFocus(focus: boolean): void {
-		this.titleContainer.classList.toggle('focused', focus);
-	}
-
-	isCollapsed(): boolean {
-		return this.titleContainer.classList.contains('collapsed');
-	}
-
-	private layout(): void {
-		const options = this.editor.getOptions();
-		const fontInfo = options.get(EditorOption.fontInfo);
-		const layoutInfo = this.editor.getLayoutInfo();
-		this._domNode.style.width = layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth + 'px';
-		this.titleContainer.style.lineHeight = options.get(EditorOption.lineHeight) + 3 + 'px';
-		this.titleContainer.style.height = options.get(EditorOption.lineHeight) + 3 + 'px';
-		this.titleContainer.style.fontSize = fontInfo.fontSize + 'px';
-		this.icon.style.minWidth = `${this.getIconSize(16)}px`;
-	}
-
-	private getIconSize(minSize: number): number {
-		const fontSize = this.editor.getOption(EditorOption.fontInfo).fontSize;
-		return fontSize > 8 ? Math.max(fontSize, minSize) : 12;
-	}
-
-	private onKeyDown(keyboardEvent: IKeyboardEvent): void {
-		switch (keyboardEvent.keyCode) {
-			case KeyCode.Enter:
-			case KeyCode.Space:
-				this.toggle();
-				break;
-			case KeyCode.LeftArrow:
-				this.collapse(true);
-				break;
-			case KeyCode.RightArrow:
-				this.collapse(false);
-				break;
-			case KeyCode.UpArrow:
-				if (this.settingsGroup.range.startLineNumber - 3 !== 1) {
-					this.editor.focus();
-					const lineNumber = this.settingsGroup.range.startLineNumber - 2;
-					if (this.editor.hasModel()) {
-						this.editor.setPosition({ lineNumber, column: this.editor.getModel().getLineMinColumn(lineNumber) });
-					}
-				}
-				break;
-			case KeyCode.DownArrow:
-				const lineNumber = this.isCollapsed() ? this.settingsGroup.range.startLineNumber : this.settingsGroup.range.startLineNumber - 1;
-				this.editor.focus();
-				if (this.editor.hasModel()) {
-					this.editor.setPosition({ lineNumber, column: this.editor.getModel().getLineMinColumn(lineNumber) });
-				}
-				break;
-		}
-	}
-
-	private toggle() {
-		this.collapse(!this.isCollapsed());
-	}
-
-	private collapse(collapse: boolean) {
-		if (collapse !== this.isCollapsed()) {
-			this.titleContainer.classList.toggle('collapsed', collapse);
-			this.updateTwisty(collapse);
-			this._onToggled.fire(collapse);
-		}
-	}
-
-	private onCursorChange(e: ICursorPositionChangedEvent): void {
-		if (e.source !== 'mouse' && this.focusTitle(e.position)) {
-			this.titleContainer.focus();
-		}
-	}
-
-	private focusTitle(currentPosition: Position): boolean {
-		const previousPosition = this.previousPosition;
-		this.previousPosition = currentPosition;
-		if (!previousPosition) {
-			return false;
-		}
-		if (previousPosition.lineNumber === currentPosition.lineNumber) {
-			return false;
-		}
-		if (!this.settingsGroup.range) {
-			// #60460?
-			return false;
-		}
-		if (currentPosition.lineNumber === this.settingsGroup.range.startLineNumber - 1 || currentPosition.lineNumber === this.settingsGroup.range.startLineNumber - 2) {
-			return true;
-		}
-		if (this.isCollapsed() && currentPosition.lineNumber === this.settingsGroup.range.endLineNumber) {
-			return true;
-		}
-		return false;
-	}
-
-	override dispose() {
-		this.editor.changeViewZones(accessor => {
-			accessor.removeZone(this.id);
-		});
-		super.dispose();
-	}
-}
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 export class FolderSettingsActionViewItem extends BaseActionViewItem {
 
@@ -771,8 +497,7 @@ export class EditPreferenceWidget<T> extends Disposable {
 	private readonly _onClick = this._register(new Emitter<IEditorMouseEvent>());
 	readonly onClick: Event<IEditorMouseEvent> = this._onClick.event;
 
-	constructor(private editor: ICodeEditor
-	) {
+	constructor(private editor: ICodeEditor) {
 		super();
 		this._editPreferenceDecoration = [];
 		this._register(this.editor.onMouseDown((e: IEditorMouseEvent) => {

@@ -198,6 +198,7 @@
 			"type": "pwa-chrome",
 			"request": "launch",
 			"name": "Launch VS Code Internal",
+			"trace": true,
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat"
 			},

@@ -56,18 +56,19 @@ export class CodeCell extends Disposable {
 			if (model && templateData.editor) {
 				templateData.editor.setModel(model);
 				viewCell.attachTextEditor(templateData.editor);
-				if (notebookEditor.getActiveCell() === viewCell && viewCell.focusMode === CellFocusMode.Editor && this.notebookEditor.hasEditorFocus()) {
-					templateData.editor?.focus();
-				}
+				const focusEditorIfNeeded = () => {
+					if (notebookEditor.getActiveCell() === viewCell && viewCell.focusMode === CellFocusMode.Editor && this.notebookEditor.hasEditorFocus()) {
+						templateData.editor?.focus();
+					}
+				};
+				focusEditorIfNeeded();
 
 				const realContentHeight = templateData.editor?.getContentHeight();
 				if (realContentHeight !== undefined && realContentHeight !== editorHeight) {
 					this.onCellHeightChange(realContentHeight);
 				}
 
-				if (this.notebookEditor.getActiveCell() === this.viewCell && viewCell.focusMode === CellFocusMode.Editor && this.notebookEditor.hasEditorFocus()) {
-					templateData.editor?.focus();
-				}
+				focusEditorIfNeeded();
 			}
 		});
 

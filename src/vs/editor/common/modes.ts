@@ -1544,6 +1544,7 @@ export interface AuthenticationSession {
 		id: string;
 	}
 	scopes: ReadonlyArray<string>;
+	idToken?: string;
 }
 
 /**

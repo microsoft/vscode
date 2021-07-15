@@ -58,7 +58,8 @@ import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/brow
 import { testingPeekBorder } from 'vs/workbench/contrib/testing/browser/theme';
 import { AutoOpenPeekViewWhen, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { IRichLocation, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { IRichLocation, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, TestResultItem, TestRunConfigurationBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { capabilityContextKeys, ITestConfigurationService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
@@ -186,7 +187,7 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 			return;
 		}
 
-		if (evt.result.isAutoRun && !getTestingConfiguration(this.configuration, TestingConfigKeys.AutoOpenPeekViewDuringAutoRun)) {
+		if (evt.result.request.isAutoRun && !getTestingConfiguration(this.configuration, TestingConfigKeys.AutoOpenPeekViewDuringAutoRun)) {
 			return;
 		}
 
@@ -1269,17 +1270,18 @@ class TreeActionsProvider {
 		@ITestingOutputTerminalService private readonly testTerminalService: ITestingOutputTerminalService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ICommandService private readonly commandService: ICommandService,
+		@ITestConfigurationService private readonly testConfigurationService: ITestConfigurationService,
 	) { }
 
 	public provideActionBar(element: ITreeElement) {
 		const test = element instanceof TestCaseElement ? element.test : undefined;
+		const capabilities = test ? this.testConfigurationService.controllerCapabilities(test.controllerId) : 0;
 		const contextOverlay = this.contextKeyService.createOverlay([
 			['peek', Testing.OutputPeekContributionId],
 			[TestingContextKeys.peekItemType.key, element.type],
 			[TestingContextKeys.testItemExtId.key, test?.item.extId],
 			[TestingContextKeys.testItemHasUri.key, !!test?.item.uri],
-			[TestingContextKeys.hasDebuggableTests.key, test?.item.debuggable],
-			[TestingContextKeys.hasRunnableTests.key, test?.item.debuggable],
+			...(test ? capabilityContextKeys(capabilities) : [])
 		]);
 		const menu = this.menuService.createMenu(MenuId.TestPeekElement, contextOverlay);
 
@@ -1304,7 +1306,7 @@ class TreeActionsProvider {
 					() => this.commandService.executeCommand('testing.reRunLastRun', element.value.id),
 				));
 
-				if (Iterable.some(element.value.tests, t => t.item.debuggable)) {
+				if (capabilities & TestRunConfigurationBitset.Debug) {
 					primary.push(new Action(
 						'testing.outputPeek.debugLastRun',
 						localize('testing.debugLastRun', "Debug Test Run"),
@@ -1324,7 +1326,7 @@ class TreeActionsProvider {
 					() => this.commandService.executeCommand('vscode.revealTestInExplorer', element.path),
 				));
 
-				if (element.test.item.runnable) {
+				if (capabilities & TestRunConfigurationBitset.Run) {
 					primary.push(new Action(
 						'testing.outputPeek.runTest',
 						localize('run test', 'Run Test'),
@@ -1334,7 +1336,7 @@ class TreeActionsProvider {
 					));
 				}
 
-				if (element.test.item.debuggable) {
+				if (capabilities & TestRunConfigurationBitset.Coverage) {
 					primary.push(new Action(
 						'testing.outputPeek.debugTest',
 						localize('debug test', 'Debug Test'),

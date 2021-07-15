@@ -5,6 +5,8 @@
 
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 
+export { TestResultState } from 'vs/workbench/api/common/extHostTypes';
+
 export type TreeStateNode = { statusNode: true; state: TestResultState; priority: number };
 
 /**

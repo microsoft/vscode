@@ -1056,7 +1056,7 @@ export class SettingsEditor2 extends EditorPane {
 			this.tocTreeModel.settingsTreeRoot = this.settingsTreeModel.root as SettingsTreeGroupElement;
 
 			const cachedState = this.restoreCachedState();
-			if (cachedState && cachedState.searchQuery) {
+			if (cachedState && cachedState.searchQuery || !!this.searchWidget.getValue()) {
 				await this.onSearchInputChanged();
 			} else {
 				this.refreshTOCTree();

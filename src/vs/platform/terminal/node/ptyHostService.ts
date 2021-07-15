@@ -79,6 +79,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 	readonly onProcessOrphanQuestion = this._onProcessOrphanQuestion.event;
 	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number, workspaceId: string, instanceId: number }>());
 	readonly onDidRequestDetach = this._onDidRequestDetach.event;
+	private readonly _onProcessDidChangeHasChildProcesses = this._register(new Emitter<{ id: number, event: boolean }>());
+	readonly onProcessDidChangeHasChildProcesses = this._onProcessDidChangeHasChildProcesses.event;
 
 	constructor(
 		private readonly _reconnectConstants: IReconnectConstants,
@@ -154,6 +156,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 		this._register(proxy.onProcessShellTypeChanged(e => this._onProcessShellTypeChanged.fire(e)));
 		this._register(proxy.onProcessOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e)));
 		this._register(proxy.onProcessResolvedShellLaunchConfig(e => this._onProcessResolvedShellLaunchConfig.fire(e)));
+		this._register(proxy.onProcessDidChangeHasChildProcesses(e => this._onProcessDidChangeHasChildProcesses.fire(e)));
 		this._register(proxy.onProcessReplay(e => this._onProcessReplay.fire(e)));
 		this._register(proxy.onProcessOrphanQuestion(e => this._onProcessOrphanQuestion.fire(e)));
 		this._register(proxy.onDidRequestDetach(e => this._onDidRequestDetach.fire(e)));

@@ -1207,7 +1207,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 
 		if ((presentationOptions.close === undefined) || (presentationOptions.close === false)) {
-			if ((presentationOptions.reveal !== RevealKind.Never) || !task.configurationProperties.isBackground) {
+			if ((presentationOptions.reveal !== RevealKind.Never) || !task.configurationProperties.isBackground || (presentationOptions.close === false)) {
 				if (presentationOptions.panel === PanelKind.New) {
 					waitOnExit = nls.localize('closeTerminal', 'Press any key to close the terminal.');
 				} else if (presentationOptions.showReuseMessage) {

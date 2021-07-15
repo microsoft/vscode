@@ -246,10 +246,10 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 			{
 				checked: false,
 				class: undefined,
-				enabled: this.testService.excludeTests.value.size > 0,
+				enabled: this.testService.excluded.hasAny,
 				id: 'removeExcluded',
 				label: localize('testing.filters.removeTestExclusions', "Unhide All Tests"),
-				run: async () => this.testService.clearExcludedTests(),
+				run: async () => this.testService.excluded.clear(),
 				tooltip: '',
 				dispose: () => null
 			},

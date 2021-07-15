@@ -25,6 +25,8 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 
 export * as icons from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedIcons';
@@ -222,8 +224,8 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'welcome.showAllGettingStarted',
-			title: localize('welcome.showAllGettingStarted', "Open Getting Started Page..."),
+			id: 'welcome.showAllWalkthroughs',
+			title: localize('welcome.showAllWalkthroughs', "Open Walkthrough..."),
 			category,
 			f1: true,
 		});
@@ -238,19 +240,59 @@ registerAction2(class extends Action2 {
 			id: x.id,
 			label: x.title,
 			detail: x.description,
-		})), { canPickMany: false, title: localize('pickWalkthroughs', "Open Getting Started Page...") });
+			description: x.source,
+		})), { canPickMany: false, matchOnDescription: true, matchOnDetail: true, title: localize('pickWalkthroughs', "Open Walkthrough...") });
 		if (selection) {
 			commandService.executeCommand('workbench.action.openWalkthrough', selection.id);
 		}
 	}
 });
 
+const prefersReducedMotionConfig = {
+	...workbenchConfigurationNodeBase,
+	'properties': {
+		'workbench.welcomePage.preferReducedMotion': {
+			scope: ConfigurationScope.APPLICATION,
+			type: 'boolean',
+			default: true,
+			description: localize('workbench.welcomePage.preferReducedMotion', "When enabled, reduce motion in welcome page.")
+		}
+	}
+} as const;
+
+const prefersStandardMotionConfig = {
+	...workbenchConfigurationNodeBase,
+	'properties': {
+		'workbench.welcomePage.preferReducedMotion': {
+			scope: ConfigurationScope.APPLICATION,
+			type: 'boolean',
+			default: false,
+			description: localize('workbench.welcomePage.preferReducedMotion', "When enabled, reduce motion in welcome page.")
+		}
+	}
+} as const;
+
 class WorkbenchConfigurationContribution {
 	constructor(
 		@IInstantiationService _instantiationService: IInstantiationService,
 		@IGettingStartedService _gettingStartedService: IGettingStartedService,
+		@IConfigurationService _configurationService: IConfigurationService,
+		@ITASExperimentService _experimentSevice: ITASExperimentService,
 	) {
 		// Init the getting started service via DI.
+		this.registerConfigs(_experimentSevice);
+	}
+
+	private async registerConfigs(_experimentSevice: ITASExperimentService) {
+		const preferReduced = await _experimentSevice.getTreatment('welcomePage.preferReducedMotion').catch(e => false);
+		if (preferReduced) {
+			configurationRegistry.deregisterConfigurations([prefersStandardMotionConfig]);
+			configurationRegistry.registerConfiguration(prefersReducedMotionConfig);
+		}
+		else {
+			configurationRegistry.deregisterConfigurations([prefersReducedMotionConfig]);
+			configurationRegistry.registerConfiguration(prefersStandardMotionConfig);
+		}
 	}
 }
 
@@ -266,7 +308,7 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION,
 			type: 'boolean',
 			default: true,
-			description: localize('workbench.welcomePage.walkthroughs.openOnInstall', "When enabled, an extension's walkthrough will open upon install the extension. Walkthroughs are the items contributed the the 'Getting Started' section of the welcome page")
+			description: localize('workbench.welcomePage.walkthroughs.openOnInstall', "When enabled, an extension's walkthrough will open upon install the extension.")
 		}
 	}
 });
