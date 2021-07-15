@@ -2916,7 +2916,7 @@ declare module 'vscode' {
 	//#endregion
 
 
-	//#region https://github.com/microsoft/vscode/issues/128444 --- Type hierarchy --- @eskibear
+	//#region https://github.com/microsoft/vscode/issues/15533 --- Type hierarchy --- @eskibear
 	export class TypeHierarchyItem {
 		/**
 		 * The name of this item.
