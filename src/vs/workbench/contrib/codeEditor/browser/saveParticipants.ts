@@ -262,10 +262,10 @@ class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 				await this.instantiationService.invokeFunction(formatDocumentRangesWithSelectedProvider, editorOrModel, ranges, FormattingMode.Silent, nestedProgress, token);
 			} else if (ranges === null) {
 				// version control not found
-				formatWholeFile();
+				await formatWholeFile();
 			}
 		} else {
-			formatWholeFile();
+			await formatWholeFile();
 		}
 	}
 }
