@@ -15,18 +15,18 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 
 export class RemotePty extends Disposable implements ITerminalChildProcess {
 
-	readonly _onProcessData = this._register(new Emitter<string | IProcessDataEvent>());
-	readonly onProcessData: Event<string | IProcessDataEvent> = this._onProcessData.event;
+	private readonly _onProcessData = this._register(new Emitter<string | IProcessDataEvent>());
+	readonly onProcessData = this._onProcessData.event;
 	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
-	readonly onProcessExit: Event<number | undefined> = this._onProcessExit.event;
-	readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
+	readonly onProcessExit = this._onProcessExit.event;
+	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
 	readonly onProcessReady = this._onProcessReady.event;
 	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
-	readonly onProcessTitleChanged: Event<string> = this._onProcessTitleChanged.event;
+	readonly onProcessTitleChanged = this._onProcessTitleChanged.event;
 	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType | undefined>());
 	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());
-	readonly onProcessOverrideDimensions: Event<ITerminalDimensionsOverride | undefined> = this._onProcessOverrideDimensions.event;
+	readonly onProcessOverrideDimensions = this._onProcessOverrideDimensions.event;
 	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
 	readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
 	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
