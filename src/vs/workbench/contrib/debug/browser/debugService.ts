@@ -74,6 +74,7 @@ export class DebugService implements IDebugService {
 	private breakpointsExist!: IContextKey<boolean>;
 	private breakpointsToSendOnResourceSaved: Set<URI>;
 	private initializing = false;
+	private _initializingOptions: IDebugSessionOptions | undefined;
 	private previousState: State | undefined;
 	private sessionCancellationTokens = new Map<string, CancellationTokenSource>();
 	private activity: IDisposable | undefined;
@@ -213,9 +214,14 @@ export class DebugService implements IDebugService {
 		return this.initializing ? State.Initializing : State.Inactive;
 	}
 
-	private startInitializingState(): void {
+	get initializingOptions(): IDebugSessionOptions | undefined {
+		return this._initializingOptions;
+	}
+
+	private startInitializingState(options?: IDebugSessionOptions): void {
 		if (!this.initializing) {
 			this.initializing = true;
+			this._initializingOptions = options;
 			this.onStateChange();
 		}
 	}
@@ -223,6 +229,7 @@ export class DebugService implements IDebugService {
 	private endInitializingState(): void {
 		if (this.initializing) {
 			this.initializing = false;
+			this._initializingOptions = undefined;
 			this.onStateChange();
 		}
 	}
@@ -284,7 +291,7 @@ export class DebugService implements IDebugService {
 		if (!trust) {
 			return false;
 		}
-		this.startInitializingState();
+		this.startInitializingState(options);
 		try {
 			// make sure to save all files and that the configuration is up to date
 			await this.extensionService.activateByEvent('onDebug');
@@ -524,7 +531,7 @@ export class DebugService implements IDebugService {
 
 		const openDebug = this.configurationService.getValue<IDebugConfiguration>('debug').openDebug;
 		// Open debug viewlet based on the visibility of the side bar and openDebug setting. Do not open for 'run without debug'
-		if (!configuration.resolved.noDebug && (openDebug === 'openOnSessionStart' || (openDebug !== 'neverOpen' && this.viewModel.firstSessionStart))) {
+		if (!configuration.resolved.noDebug && (openDebug === 'openOnSessionStart' || (openDebug !== 'neverOpen' && this.viewModel.firstSessionStart)) && !session.isSimpleUI) {
 			await this.viewletService.openViewlet(VIEWLET_ID);
 		}
 

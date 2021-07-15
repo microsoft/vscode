@@ -13083,6 +13083,13 @@ declare module 'vscode' {
 		 * If compact is true, debug sessions with a single child are hidden in the CALL STACK view to make the tree more compact.
 		 */
 		compact?: boolean;
+
+		/**
+		 * When true, the debug toolbar will not be shown for this session, the window statusbar color will not be changed, and the debug viewlet will not be automatically revealed.
+		 */
+		debugUI?: {
+			simple?: boolean;
+		}
 	}
 
 	/**

@@ -139,6 +139,10 @@ export class DebugSession implements IDebugSession {
 		return this._options.compoundRoot;
 	}
 
+	get isSimpleUI(): boolean {
+		return this._options.simpleUI ?? false;
+	}
+
 	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig | undefined }) {
 		this._configuration = configuration;
 	}
