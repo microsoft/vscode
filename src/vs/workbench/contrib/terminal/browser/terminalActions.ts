@@ -1701,11 +1701,12 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			const terminalGroupService = accessor.get(ITerminalGroupService);
+			const terminalService = accessor.get(ITerminalService);
 			const instance = terminalGroupService.activeInstance;
 			if (!instance) {
 				return;
 			}
-			instance.dispose(true);
+			await terminalService.safeDisposeTerminal(instance);
 			if (terminalGroupService.instances.length > 0) {
 				await terminalGroupService.showPanel(true);
 			}

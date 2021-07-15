@@ -312,7 +312,11 @@ export class TerminalService implements ITerminalService {
 	}
 
 	async safeDisposeTerminal(instance: ITerminalInstance): Promise<void> {
-		if (this.configHelper.config.confirmOnExit) {
+		// Confirm on kill in the editor is handled by the editor input
+		if (instance.target !== TerminalLocation.Editor &&
+			instance.hasChildProcesses &&
+			(this.configHelper.config.confirmOnKill === 'panel' || this.configHelper.config.confirmOnKill === 'always')) {
+
 			const notConfirmed = await this._showTerminalCloseConfirmation(true);
 			if (notConfirmed) {
 				return;
@@ -483,8 +487,14 @@ export class TerminalService implements ITerminalService {
 		}
 
 		const shouldPersistTerminals = this._configHelper.config.enablePersistentSessions && reason === ShutdownReason.RELOAD;
-		if (this.configHelper.config.confirmOnExit && !shouldPersistTerminals) {
-			return this._onBeforeShutdownAsync();
+		if (!shouldPersistTerminals) {
+			const hasDirtyInstances = (
+				(this.configHelper.config.confirmOnExit === 'always' && this.instances.length > 0) ||
+				(this.configHelper.config.confirmOnExit === 'hasChildProcesses' && this.instances.some(e => e.hasChildProcesses))
+			);
+			if (hasDirtyInstances) {
+				return this._onBeforeShutdownAsync();
+			}
 		}
 
 		this._isShuttingDown = true;

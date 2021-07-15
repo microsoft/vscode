@@ -12,11 +12,12 @@ import { ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contri
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
+import { TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { KEYBINDING_CONTEXT_TERMINAL_EDITOR_FOCUS } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ConfirmOnKill, KEYBINDING_CONTEXT_TERMINAL_EDITOR_FOCUS } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class TerminalEditorInput extends EditorInput {
 
@@ -71,11 +72,20 @@ export class TerminalEditorInput extends EditorInput {
 		return this._terminalInstance.resource;
 	}
 
+	override isDirty(): boolean {
+		const confirmOnKill = this._configurationService.getValue<ConfirmOnKill>(TerminalSettingId.ConfirmOnKill);
+		if (confirmOnKill === 'editor' || confirmOnKill === 'always') {
+			return this._terminalInstance.hasChildProcesses;
+		}
+		return false;
+	}
+
 	constructor(
 		private readonly _terminalInstance: ITerminalInstance,
 		@IThemeService private readonly _themeService: IThemeService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
@@ -96,8 +106,16 @@ export class TerminalEditorInput extends EditorInput {
 			this._terminalInstance.onIconChanged(() => this._onDidChangeLabel.fire()),
 			this._terminalInstance.onDidFocus(() => this._terminalEditorFocusContextKey.set(true)),
 			this._terminalInstance.onDidBlur(() => this._terminalEditorFocusContextKey.reset()),
+			this._terminalInstance.onDidChangeHasChildProcesses(() => this._onDidChangeDirty.fire()),
 			this._terminalInstance.statusList.onDidChangePrimaryStatus(() => this._onDidChangeLabel.fire())
 		];
+
+		// Refresh dirty state when the confirm on kill setting is changed
+		this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TerminalSettingId.ConfirmOnKill)) {
+				this._onDidChangeDirty.fire();
+			}
+		});
 
 		// Don't dispose editor when instance is torn down on shutdown to avoid extra work and so
 		// the editor/tabs don't disappear

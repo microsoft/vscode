@@ -172,6 +172,9 @@ export interface ITerminalProfiles {
 	windows: { [key: string]: ITerminalProfileObject };
 }
 
+export type ConfirmOnKill = 'never' | 'always' | 'editor' | 'panel';
+export type ConfirmOnExit = 'never' | 'always' | 'hasChildProcesses';
+
 export interface ITerminalConfiguration {
 	shell: {
 		linux: string | null;
@@ -221,7 +224,8 @@ export interface ITerminalConfiguration {
 	allowChords: boolean;
 	allowMnemonics: boolean;
 	cwd: string;
-	confirmOnExit: boolean;
+	confirmOnExit: ConfirmOnExit;
+	confirmOnKill: ConfirmOnKill;
 	enableBell: boolean;
 	env: {
 		linux: { [key: string]: string };
@@ -324,8 +328,8 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly persistentProcessId: number | undefined;
 	readonly shouldPersist: boolean;
 	readonly isDisconnected: boolean;
-	/** Whether the process has had data written to it yet. */
 	readonly hasWrittenData: boolean;
+	readonly hasChildProcesses: boolean;
 
 	readonly onPtyDisconnect: Event<void>;
 	readonly onPtyReconnect: Event<void>;
@@ -338,6 +342,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onProcessExit: Event<number | undefined>;
 	readonly onProcessOverrideDimensions: Event<ITerminalDimensionsOverride | undefined>;
 	readonly onProcessResolvedShellLaunchConfig: Event<IShellLaunchConfig>;
+	readonly onProcessDidChangeHasChildProcesses: Event<boolean>;
 	readonly onEnvironmentVariableInfoChanged: Event<IEnvironmentVariableInfo>;
 
 	dispose(immediate?: boolean): void;
