@@ -20,7 +20,7 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
 	readonly onProcessExit: Event<number | undefined> = this._onProcessExit.event;
 	readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
-	get onProcessReady(): Event<IProcessReadyEvent> { return this._onProcessReady.event; }
+	readonly onProcessReady = this._onProcessReady.event;
 	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
 	readonly onProcessTitleChanged: Event<string> = this._onProcessTitleChanged.event;
 	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType | undefined>());
@@ -28,8 +28,9 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());
 	readonly onProcessOverrideDimensions: Event<ITerminalDimensionsOverride | undefined> = this._onProcessOverrideDimensions.event;
 	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
-	get onProcessResolvedShellLaunchConfig(): Event<IShellLaunchConfig> { return this._onProcessResolvedShellLaunchConfig.event; }
-	// TODO: Handle remote case
+	readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
+	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
+	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
 
 	private _startBarrier: Barrier;
 
@@ -148,6 +149,9 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 			e.cwd = URI.revive(e.cwd);
 		}
 		this._onProcessResolvedShellLaunchConfig.fire(e);
+	}
+	handleDidChangeHasChildProcesses(e: boolean) {
+		this._onDidChangeHasChildProcesses.fire(e);
 	}
 
 	async handleReplay(e: IPtyHostProcessReplayEvent) {

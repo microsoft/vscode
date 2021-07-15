@@ -114,6 +114,9 @@ export class RemoteTerminalChannelClient {
 	get onProcessOrphanQuestion(): Event<{ id: number }> {
 		return this._channel.listen<{ id: number }>('$onProcessOrphanQuestion');
 	}
+	get onProcessDidChangeHasChildProcesses(): Event<{ id: number, event: boolean }> {
+		return this._channel.listen<{ id: number, event: boolean }>('$onProcessDidChangeHasChildProcesses');
+	}
 	get onExecuteCommand(): Event<{ reqId: number, commandId: string, commandArgs: any[] }> {
 		return this._channel.listen<{ reqId: number, commandId: string, commandArgs: any[] }>('$onExecuteCommand');
 	}
