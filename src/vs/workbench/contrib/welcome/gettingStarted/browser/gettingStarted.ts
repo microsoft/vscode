@@ -78,6 +78,7 @@ type GettingStartedActionEvent = {
 	argument: string | undefined;
 };
 
+const REDUCED_MOTION_KEY = 'workbench.welcomePage.preferReducedMotion';
 export class GettingStartedPage extends EditorPane {
 
 	public static readonly ID = 'gettingStartedPage';
@@ -218,6 +219,12 @@ export class GettingStartedPage extends EditorPane {
 				this.hideCategory(category.id);
 			}
 
+			this._register(this.configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(REDUCED_MOTION_KEY)) {
+					this.container.classList.toggle('animatable', this.shouldAnimate());
+				}
+			}));
+
 			ourStep.done = step.done;
 			if (category.id === this.currentCategory?.id) {
 				const badgeelements = assertIsDefined(document.querySelectorAll(`[data-done-step-id="${step.id}"]`));
@@ -240,12 +247,18 @@ export class GettingStartedPage extends EditorPane {
 		this.recentlyOpened = workspacesService.getRecentlyOpened();
 	}
 
+	private shouldAnimate() {
+		return !this.configurationService.getValue(REDUCED_MOTION_KEY);
+	}
+
 	override async setInput(newInput: GettingStartedInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
-		this.container.classList.remove('animationReady');
+		this.container.classList.remove('animatable');
 		this.editorInput = newInput;
 		await super.setInput(newInput, options, context, token);
 		await this.buildCategoriesSlide();
-		setTimeout(() => this.container.classList.add('animationReady'), 0);
+		if (this.shouldAnimate()) {
+			setTimeout(() => this.container.classList.add('animatable'), 0);
+		}
 	}
 
 	async makeCategoryVisibleWhenAvailable(categoryID: string, stepId?: string) {

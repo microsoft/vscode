@@ -40,7 +40,8 @@ export class CellEditorOptions extends Disposable {
 		glyphMargin: false,
 		fixedOverflowWidgets: true,
 		minimap: { enabled: false },
-		renderValidationDecorations: 'on'
+		renderValidationDecorations: 'on',
+		lineNumbersMinChars: 3
 	};
 
 	private _value: IEditorOptions;

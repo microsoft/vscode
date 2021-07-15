@@ -10,11 +10,13 @@ import { Lazy } from 'vs/base/common/lazy';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { SingleUseTestCollection } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
-import { ITestTaskState, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestTaskState, ResolvedTestRunRequest, TestResultItem, TestRunConfigurationBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestConfigurationService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
+import { TestResultState } from 'vs/workbench/contrib/testing/common/testingStates';
 import { getPathForTestInResult, HydratedTestResult, LiveOutputController, LiveTestResult, makeEmptyCounts, resultItemParents, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { InMemoryResultStorage, ITestResultStorage } from 'vs/workbench/contrib/testing/common/testResultStorage';
-import { Convert, getInitializedMainTestCollection, ReExportedTestRunState as TestRunState, TestResultState, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
+import { Convert, getInitializedMainTestCollection, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 export const emptyOutputController = () => new LiveOutputController(
@@ -32,12 +34,14 @@ suite('Workbench - Test Results Service', () => {
 	let changed = new Set<TestResultItemChange>();
 	let tests: SingleUseTestCollection;
 
-	const defaultOpts = {
-		exclude: [],
-		debug: false,
-		id: 'x',
-		persist: true,
-	};
+	const defaultOpts = (testIds: string[]): ResolvedTestRunRequest => ({
+		targets: [{
+			profileGroup: TestRunConfigurationBitset.Run,
+			profileId: 0,
+			controllerId: 'ctrlId',
+			testIds,
+		}]
+	});
 
 	class TestLiveTestResult extends LiveTestResult {
 		public override setAllToState(state: TestResultState, taskId: string, when: (task: ITestTaskState, item: TestResultItem) => boolean) {
@@ -50,7 +54,8 @@ suite('Workbench - Test Results Service', () => {
 		r = new TestLiveTestResult(
 			'foo',
 			emptyOutputController(),
-			{ ...defaultOpts, tests: ['id-a'] },
+			true,
+			defaultOpts(['id-a']),
 		);
 
 		r.onChange(e => changed.add(e));
@@ -75,7 +80,8 @@ suite('Workbench - Test Results Service', () => {
 			assert.deepStrictEqual(getLabelsIn(new TestLiveTestResult(
 				'foo',
 				emptyOutputController(),
-				{ ...defaultOpts, tests: ['id-a'] },
+				false,
+				defaultOpts(['id-a']),
 			).tests), []);
 		});
 
@@ -95,29 +101,29 @@ suite('Workbench - Test Results Service', () => {
 		test('initializes with valid counts', () => {
 			assert.deepStrictEqual(r.counts, {
 				...makeEmptyCounts(),
-				[TestRunState.Queued]: 2,
-				[TestRunState.Unset]: 2,
+				[TestResultState.Queued]: 2,
+				[TestResultState.Unset]: 2,
 			});
 		});
 
 		test('setAllToState', () => {
 			changed.clear();
-			r.setAllToState(TestRunState.Queued, 't', (_, t) => t.item.label !== 'root');
+			r.setAllToState(TestResultState.Queued, 't', (_, t) => t.item.label !== 'root');
 			assert.deepStrictEqual(r.counts, {
 				...makeEmptyCounts(),
-				[TestRunState.Unset]: 1,
-				[TestRunState.Queued]: 3,
+				[TestResultState.Unset]: 1,
+				[TestResultState.Queued]: 3,
 			});
 
-			r.setAllToState(TestRunState.Failed, 't', (_, t) => t.item.label !== 'root');
+			r.setAllToState(TestResultState.Failed, 't', (_, t) => t.item.label !== 'root');
 			assert.deepStrictEqual(r.counts, {
 				...makeEmptyCounts(),
-				[TestRunState.Unset]: 1,
-				[TestRunState.Failed]: 3,
+				[TestResultState.Unset]: 1,
+				[TestResultState.Failed]: 3,
 			});
 
-			assert.deepStrictEqual(r.getStateById('id-a')?.ownComputedState, TestRunState.Failed);
-			assert.deepStrictEqual(r.getStateById('id-a')?.tasks[0].state, TestRunState.Failed);
+			assert.deepStrictEqual(r.getStateById('id-a')?.ownComputedState, TestResultState.Failed);
+			assert.deepStrictEqual(r.getStateById('id-a')?.tasks[0].state, TestResultState.Failed);
 			assert.deepStrictEqual(getChangeSummary(), [
 				{ label: 'a', reason: TestResultItemChangeReason.OwnStateChange },
 				{ label: 'aa', reason: TestResultItemChangeReason.OwnStateChange },
@@ -128,16 +134,16 @@ suite('Workbench - Test Results Service', () => {
 
 		test('updateState', () => {
 			changed.clear();
-			r.updateState('id-aa', 't', TestRunState.Running);
+			r.updateState('id-aa', 't', TestResultState.Running);
 			assert.deepStrictEqual(r.counts, {
 				...makeEmptyCounts(),
-				[TestRunState.Unset]: 2,
-				[TestRunState.Running]: 1,
-				[TestRunState.Queued]: 1,
+				[TestResultState.Unset]: 2,
+				[TestResultState.Running]: 1,
+				[TestResultState.Queued]: 1,
 			});
-			assert.deepStrictEqual(r.getStateById('id-aa')?.ownComputedState, TestRunState.Running);
+			assert.deepStrictEqual(r.getStateById('id-aa')?.ownComputedState, TestResultState.Running);
 			// update computed state:
-			assert.deepStrictEqual(r.getStateById(tests.root.id)?.computedState, TestRunState.Running);
+			assert.deepStrictEqual(r.getStateById(tests.root.id)?.computedState, TestResultState.Running);
 			assert.deepStrictEqual(getChangeSummary(), [
 				{ label: 'a', reason: TestResultItemChangeReason.ComputedStateChange },
 				{ label: 'aa', reason: TestResultItemChangeReason.OwnStateChange },
@@ -161,30 +167,30 @@ suite('Workbench - Test Results Service', () => {
 
 		test('ignores outside run', () => {
 			changed.clear();
-			r.updateState('id-b', 't', TestRunState.Running);
+			r.updateState('id-b', 't', TestResultState.Running);
 			assert.deepStrictEqual(r.counts, {
 				...makeEmptyCounts(),
-				[TestRunState.Queued]: 2,
-				[TestRunState.Unset]: 2,
+				[TestResultState.Queued]: 2,
+				[TestResultState.Unset]: 2,
 			});
 			assert.deepStrictEqual(r.getStateById('id-b'), undefined);
 		});
 
 		test('markComplete', () => {
-			r.setAllToState(TestRunState.Queued, 't', () => true);
-			r.updateState('id-aa', 't', TestRunState.Passed);
+			r.setAllToState(TestResultState.Queued, 't', () => true);
+			r.updateState('id-aa', 't', TestResultState.Passed);
 			changed.clear();
 
 			r.markComplete();
 
 			assert.deepStrictEqual(r.counts, {
 				...makeEmptyCounts(),
-				[TestRunState.Passed]: 1,
-				[TestRunState.Unset]: 3,
+				[TestResultState.Passed]: 1,
+				[TestResultState.Unset]: 3,
 			});
 
-			assert.deepStrictEqual(r.getStateById(tests.root.id)?.ownComputedState, TestRunState.Unset);
-			assert.deepStrictEqual(r.getStateById('id-aa')?.ownComputedState, TestRunState.Passed);
+			assert.deepStrictEqual(r.getStateById(tests.root.id)?.ownComputedState, TestResultState.Unset);
+			assert.deepStrictEqual(r.getStateById('id-aa')?.ownComputedState, TestResultState.Passed);
 		});
 	});
 
@@ -198,7 +204,7 @@ suite('Workbench - Test Results Service', () => {
 
 		setup(() => {
 			storage = new InMemoryResultStorage(new TestStorageService(), new NullLogService());
-			results = new TestTestResultService(new MockContextKeyService(), storage);
+			results = new TestTestResultService(new MockContextKeyService(), storage, new TestConfigurationService(new MockContextKeyService(), new TestStorageService()));
 		});
 
 		test('pushes new result', () => {
@@ -208,17 +214,18 @@ suite('Workbench - Test Results Service', () => {
 
 		test('serializes and re-hydrates', async () => {
 			results.push(r);
-			r.updateState('id-aa', 't', TestRunState.Passed);
+			r.updateState('id-aa', 't', TestResultState.Passed);
 			r.markComplete();
-			await timeout(0); // allow persistImmediately async to happen
+			await timeout(10); // allow persistImmediately async to happen
 
 			results = new TestResultService(
 				new MockContextKeyService(),
 				storage,
+				new TestConfigurationService(new MockContextKeyService(), new TestStorageService()),
 			);
 
 			assert.strictEqual(0, results.results.length);
-			await timeout(0); // allow load promise to resolve
+			await timeout(10); // allow load promise to resolve
 			assert.strictEqual(1, results.results.length);
 
 			const [rehydrated, actual] = results.getStateById(tests.root.id)!;
@@ -240,7 +247,8 @@ suite('Workbench - Test Results Service', () => {
 			const r2 = results.push(new LiveTestResult(
 				'',
 				emptyOutputController(),
-				{ ...defaultOpts, tests: [] }
+				false,
+				defaultOpts([]),
 			));
 			results.clear();
 
@@ -252,7 +260,8 @@ suite('Workbench - Test Results Service', () => {
 			const r2 = results.push(new LiveTestResult(
 				'',
 				emptyOutputController(),
-				{ ...defaultOpts, tests: [] }
+				false,
+				defaultOpts([]),
 			));
 
 			assert.deepStrictEqual(results.results, [r2, r]);
@@ -262,11 +271,12 @@ suite('Workbench - Test Results Service', () => {
 			assert.deepStrictEqual(results.results, [r, r2]);
 		});
 
-		const makeHydrated = async (completedAt = 42, state = TestRunState.Passed) => new HydratedTestResult({
+		const makeHydrated = async (completedAt = 42, state = TestResultState.Passed) => new HydratedTestResult({
 			completedAt,
 			id: 'some-id',
 			tasks: [{ id: 't', running: false, name: undefined }],
 			name: 'hello world',
+			request: defaultOpts([]),
 			items: [{
 				...(await getInitializedMainTestCollection()).getNodeById('id-a')!,
 				tasks: [{ state, duration: 0, messages: [] }],

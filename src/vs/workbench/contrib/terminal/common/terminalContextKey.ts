@@ -10,6 +10,7 @@ export const enum TerminalContextKey {
 	TabsNarrow = 'isTerminalTabsNarrow',
 	ProcessSupported = 'terminalProcessSupported',
 	Focus = 'terminalFocus',
+	EditorFocus = 'terminalEditorFocus',
 	TabsFocus = 'terminalTabsFocus',
 	TabsMouse = 'terminalTabsMouse',
 	AltBufferActive = 'terminalAltBufferActive',

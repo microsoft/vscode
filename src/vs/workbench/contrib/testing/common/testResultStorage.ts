@@ -43,10 +43,12 @@ export interface ITestResultStorage {
 
 export const ITestResultStorage = createDecorator('ITestResultStorage');
 
+const currentRevision = 0;
+
 export abstract class BaseTestResultStorage implements ITestResultStorage {
 	declare readonly _serviceBrand: undefined;
 
-	protected readonly stored = new StoredValue<ReadonlyArray<{ id: string, bytes: number }>>({
+	protected readonly stored = new StoredValue<ReadonlyArray<{ rev: number, id: string, bytes: number }>>({
 		key: 'storedTestResults',
 		scope: StorageScope.WORKSPACE,
 		target: StorageTarget.MACHINE
@@ -62,7 +64,11 @@ export abstract class BaseTestResultStorage implements ITestResultStorage {
 	 * @override
 	 */
 	public async read(): Promise<HydratedTestResult[]> {
-		const results = await Promise.all(this.stored.get([]).map(async ({ id }) => {
+		const results = await Promise.all(this.stored.get([]).map(async ({ id, rev }) => {
+			if (rev !== currentRevision) {
+				return undefined;
+			}
+
 			try {
 				const contents = await this.readForResultId(id);
 				if (!contents) {
@@ -107,7 +113,7 @@ export abstract class BaseTestResultStorage implements ITestResultStorage {
 	 */
 	public async persist(results: ReadonlyArray<ITestResult>): Promise<void> {
 		const toDelete = new Map(this.stored.get([]).map(({ id, bytes }) => [id, bytes]));
-		const toStore: { id: string; bytes: number }[] = [];
+		const toStore: { rev: number, id: string; bytes: number }[] = [];
 		const todo: Promise<unknown>[] = [];
 		let budget = RETAIN_MAX_BYTES;
 
@@ -124,7 +130,7 @@ export abstract class BaseTestResultStorage implements ITestResultStorage {
 			const existingBytes = toDelete.get(result.id);
 			if (existingBytes !== undefined) {
 				toDelete.delete(result.id);
-				toStore.push({ id: result.id, bytes: existingBytes });
+				toStore.push({ id: result.id, rev: currentRevision, bytes: existingBytes });
 				budget -= existingBytes;
 				continue;
 			}
@@ -136,7 +142,7 @@ export abstract class BaseTestResultStorage implements ITestResultStorage {
 
 			const contents = VSBuffer.fromString(JSON.stringify(obj));
 			todo.push(this.storeForResultId(result.id, obj));
-			toStore.push({ id: result.id, bytes: contents.byteLength });
+			toStore.push({ id: result.id, rev: currentRevision, bytes: contents.byteLength });
 			budget -= contents.byteLength;
 
 			if (result instanceof LiveTestResult && result.completedAt !== undefined) {
@@ -264,12 +270,12 @@ export class TestResultStorage extends BaseTestResultStorage {
 			return;
 		}
 
-		const stored = new Set(this.stored.get()?.map(({ id }) => id));
+		const stored = new Set(this.stored.get([]).filter(s => s.rev === currentRevision).map(s => s.id));
 
 		await Promise.all(
 			children
 				.filter(child => !stored.has(child.name.replace(/\.[a-z]+$/, '')))
-				.map(child => this.fileService.del(child.resource))
+				.map(child => this.fileService.del(child.resource).catch(() => undefined))
 		);
 	}
 

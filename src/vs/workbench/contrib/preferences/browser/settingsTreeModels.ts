@@ -243,18 +243,20 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			this.valueType = SettingValueType.Boolean;
 		} else if (this.setting.type === 'array' && (this.setting.arrayItemType === 'string' || this.setting.arrayItemType === 'enum')) {
 			this.valueType = SettingValueType.StringOrEnumArray;
-		} else if (isArray(this.setting.type) && this.setting.type.indexOf(SettingValueType.Null) > -1 && this.setting.type.length === 2) {
-			if (this.setting.type.indexOf(SettingValueType.Integer) > -1) {
+		} else if (isArray(this.setting.type) && this.setting.type.includes(SettingValueType.Null) && this.setting.type.length === 2) {
+			if (this.setting.type.includes(SettingValueType.Integer)) {
 				this.valueType = SettingValueType.NullableInteger;
-			} else if (this.setting.type.indexOf(SettingValueType.Number) > -1) {
+			} else if (this.setting.type.includes(SettingValueType.Number)) {
 				this.valueType = SettingValueType.NullableNumber;
 			} else {
 				this.valueType = SettingValueType.Complex;
 			}
 		} else if (isObjectSetting(this.setting)) {
-			this.valueType = SettingValueType.Object;
-		} else if (this.setting.allKeysAreBoolean) {
-			this.valueType = SettingValueType.BooleanObject;
+			if (this.setting.allKeysAreBoolean) {
+				this.valueType = SettingValueType.BooleanObject;
+			} else {
+				this.valueType = SettingValueType.Object;
+			}
 		} else {
 			this.valueType = SettingValueType.Complex;
 		}
@@ -613,15 +615,13 @@ function isObjectSetting({
 		return [schema];
 	}));
 
-
-	// This should not render boolean only objects
-	return flatSchemas.every(isObjectRenderableSchema) && flatSchemas.some(({ type }) => type === 'string');
+	return flatSchemas.every(isObjectRenderableSchema);
 }
 
 function settingTypeEnumRenderable(_type: string | string[]) {
 	const enumRenderableSettingTypes = ['string', 'boolean', 'null', 'integer', 'number'];
 	const type = isArray(_type) ? _type : [_type];
-	return type.every(type => enumRenderableSettingTypes.indexOf(type) > -1);
+	return type.every(type => enumRenderableSettingTypes.includes(type));
 }
 
 export const enum SearchResultIdx {

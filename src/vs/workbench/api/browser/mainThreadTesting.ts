@@ -5,18 +5,19 @@
 
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { ExtensionRunTestsRequest, ITestItem, ITestMessage, ITestRunTask, RunTestsRequest, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ExtensionRunTestsRequest, ITestItem, ITestMessage, ITestRunConfiguration, ITestRunTask, ResolvedTestRunRequest, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestConfigurationService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { ITestRootProvider, ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { IMainThreadTestController, ITestRootProvider, ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { ExtHostContext, ExtHostTestingShape, IExtHostContext, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
 
 const reviveDiff = (diff: TestsDiff) => {
@@ -37,11 +38,16 @@ const reviveDiff = (diff: TestsDiff) => {
 export class MainThreadTesting extends Disposable implements MainThreadTestingShape, ITestRootProvider {
 	private readonly proxy: ExtHostTestingShape;
 	private readonly diffListener = this._register(new MutableDisposable());
-	private readonly testProviderRegistrations = new Map<string, IDisposable>();
+	private readonly testProviderRegistrations = new Map<string, {
+		instance: IMainThreadTestController;
+		label: MutableObservableValue<string>;
+		disposable: IDisposable
+	}>();
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@ITestService private readonly testService: ITestService,
+		@ITestConfigurationService private readonly testConfiguration: ITestConfigurationService,
 		@ITestResultService private readonly resultService: ITestResultService,
 	) {
 		super();
@@ -63,6 +69,30 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 				this.proxy.$publishTestResults([serialized]);
 			}
 		}));
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	$publishTestRunConfig(config: ITestRunConfiguration): void {
+		const controller = this.testProviderRegistrations.get(config.controllerId);
+		if (controller) {
+			this.testConfiguration.addConfiguration(controller.instance, config);
+		}
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	$updateTestRunConfig(controllerId: string, configId: number, update: Partial<ITestRunConfiguration>): void {
+		this.testConfiguration.updateConfiguration(controllerId, configId, update);
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	$removeTestRunConfig(controllerId: string, configId: number): void {
+		this.testConfiguration.removeConfiguration(controllerId, configId);
 	}
 
 	/**
@@ -157,21 +187,44 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	/**
 	 * @inheritdoc
 	 */
-	public $registerTestController(controllerId: string) {
-		const disposable = this.testService.registerTestController(controllerId, {
+	public $registerTestController(controllerId: string, labelStr: string) {
+		const disposable = new DisposableStore();
+		const label = new MutableObservableValue(labelStr);
+		const controller: IMainThreadTestController = {
+			id: controllerId,
+			label,
+			configureRunConfig: id => this.proxy.$configureRunConfig(controllerId, id),
 			runTests: (req, token) => this.proxy.$runControllerTests(req, token),
 			expandTest: (src, levels) => this.proxy.$expandTest(src, isFinite(levels) ? levels : -1),
-		});
+		};
 
-		this.testProviderRegistrations.set(controllerId, disposable);
+
+		disposable.add(toDisposable(() => this.testConfiguration.removeConfiguration(controllerId)));
+		disposable.add(this.testService.registerTestController(controllerId, controller));
+
+		this.testProviderRegistrations.set(controllerId, {
+			instance: controller,
+			label,
+			disposable
+		});
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	public $unregisterTestController(id: string) {
-		this.testProviderRegistrations.get(id)?.dispose();
-		this.testProviderRegistrations.delete(id);
+	public $updateControllerLabel(controllerId: string, label: string) {
+		const controller = this.testProviderRegistrations.get(controllerId);
+		if (controller) {
+			controller.label.value = label;
+		}
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public $unregisterTestController(controllerId: string) {
+		this.testProviderRegistrations.get(controllerId)?.disposable.dispose();
+		this.testProviderRegistrations.delete(controllerId);
 	}
 
 	/**
@@ -197,15 +250,15 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		this.testService.publishDiff(controllerId, diff);
 	}
 
-	public async $runTests(req: RunTestsRequest, token: CancellationToken): Promise<string> {
-		const result = await this.testService.runTests(req, token);
+	public async $runTests(req: ResolvedTestRunRequest, token: CancellationToken): Promise<string> {
+		const result = await this.testService.runResolvedTests(req, token);
 		return result.id;
 	}
 
 	public override dispose() {
 		super.dispose();
 		for (const subscription of this.testProviderRegistrations.values()) {
-			subscription.dispose();
+			subscription.disposable.dispose();
 		}
 		this.testProviderRegistrations.clear();
 	}

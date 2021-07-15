@@ -18,13 +18,7 @@ import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { timeout } from 'vs/base/common/async';
 import { Promises } from 'vs/base/node/pfs';
-
-// Writing large amounts of data can be corrupted for some reason, after looking into this is
-// appears to be a race condition around writing to the FD which may be based on how powerful the
-// hardware is. The workaround for this is to space out when large amounts of data is being written
-// to the terminal. See https://github.com/microsoft/vscode/issues/38137
-const WRITE_MAX_CHUNK_SIZE = 50;
-const WRITE_INTERVAL_MS = 5;
+import { ChildProcessMonitor } from 'vs/platform/terminal/node/childProcessMonitor';
 
 const enum ShutdownConstants {
 	/**
@@ -60,6 +54,18 @@ const enum Constants {
 	 * interval.
 	 */
 	KillSpawnSpacingDuration = 50,
+
+	/**
+	 * Writing large amounts of data can be corrupted for some reason, after looking into this is
+	 * appears to be a race condition around writing to the FD which may be based on how powerful
+	 * the hardware is. The workaround for this is to space out when large amounts of data is being
+	 * written to the terminal. See https://github.com/microsoft/vscode/issues/38137
+	 */
+	WriteMaxChunkSize = 50,
+	/**
+	 * How long to wait between chunk writes.
+	 */
+	WriteInterval = 5,
 }
 
 interface IWriteObject {
@@ -81,6 +87,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _processStartupComplete: Promise<void> | undefined;
 	private _isDisposed: boolean = false;
 	private _windowsShellHelper: WindowsShellHelper | undefined;
+	private _childProcessMonitor: ChildProcessMonitor | undefined;
 	private _titleInterval: NodeJS.Timer | null = null;
 	private _writeQueue: IWriteObject[] = [];
 	private _writeTimeout: NodeJS.Timeout | undefined;
@@ -96,15 +103,20 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	get shellType(): TerminalShellType { return this._windowsShellHelper ? this._windowsShellHelper.shellType : undefined; }
 
 	private readonly _onProcessData = this._register(new Emitter<string>());
-	get onProcessData(): Event<string> { return this._onProcessData.event; }
+	readonly onProcessData = this._onProcessData.event;
 	private readonly _onProcessExit = this._register(new Emitter<number>());
-	get onProcessExit(): Event<number> { return this._onProcessExit.event; }
+	readonly onProcessExit = this._onProcessExit.event;
 	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
-	get onProcessReady(): Event<IProcessReadyEvent> { return this._onProcessReady.event; }
+	readonly onProcessReady = this._onProcessReady.event;
 	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
-	get onProcessTitleChanged(): Event<string> { return this._onProcessTitleChanged.event; }
+	readonly onProcessTitleChanged = this._onProcessTitleChanged.event;
 	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
 	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
+	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
+	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
+
+	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined> | undefined;
+	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig> | undefined;
 
 	constructor(
 		private readonly _shellLaunchConfig: IShellLaunchConfig,
@@ -161,8 +173,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			});
 		}
 	}
-	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined> | undefined;
-	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig> | undefined;
 
 	async start(): Promise<ITerminalLaunchError | undefined> {
 		const results = await Promise.all([this._validateCwd(), this._validateExecutable()]);
@@ -227,6 +237,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._logService.trace('IPty#spawn', shellLaunchConfig.executable, args, options);
 		const ptyProcess = (await import('node-pty')).spawn(shellLaunchConfig.executable!, args, options);
 		this._ptyProcess = ptyProcess;
+		this._childProcessMonitor = this._register(new ChildProcessMonitor(ptyProcess.pid, this._logService));
+		this._childProcessMonitor.onDidChangeHasChildProcesses(this._onDidChangeHasChildProcesses.fire, this._onDidChangeHasChildProcesses);
 		this._processStartupComplete = new Promise<void>(c => {
 			this.onProcessReady(() => c());
 		});
@@ -245,6 +257,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				this._queueProcessExit();
 			}
 			this._windowsShellHelper?.checkShell();
+			this._childProcessMonitor?.handleOutput();
 		});
 		ptyProcess.onExit(e => {
 			this._exitCode = e.exitCode;
@@ -359,10 +372,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		if (this._isDisposed || !this._ptyProcess) {
 			return;
 		}
-		for (let i = 0; i <= Math.floor(data.length / WRITE_MAX_CHUNK_SIZE); i++) {
+		for (let i = 0; i <= Math.floor(data.length / Constants.WriteMaxChunkSize); i++) {
 			const obj = {
 				isBinary: isBinary || false,
-				data: data.substr(i * WRITE_MAX_CHUNK_SIZE, WRITE_MAX_CHUNK_SIZE)
+				data: data.substr(i * Constants.WriteMaxChunkSize, Constants.WriteMaxChunkSize)
 			};
 			this._writeQueue.push(obj);
 		}
@@ -391,7 +404,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._writeTimeout = setTimeout(() => {
 			this._writeTimeout = undefined;
 			this._startWrite();
-		}, WRITE_INTERVAL_MS);
+		}, Constants.WriteInterval);
 	}
 
 	private _doWrite(): void {
@@ -401,6 +414,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		} else {
 			this._ptyProcess!.write(object.data);
 		}
+		this._childProcessMonitor?.handleInput();
 	}
 
 	resize(cols: number, rows: number): void {

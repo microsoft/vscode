@@ -87,7 +87,7 @@
 	padding: 12px 24px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer.animationReady .gettingStartedSlide {
+.monaco-workbench .part.editor>.content .gettingStartedContainer.animatable .gettingStartedSlide {
 	/* keep consistant with SLIDE_TRANSITION_TIME_MS in gettingStarted.ts */
 	transition: left 0.25s, opacity 0.25s;
 }
@@ -363,6 +363,9 @@
 	width: 100%;
 	margin: 4px 0;
 	overflow: hidden;
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer.animatable .gettingStartedSlideDetails .getting-started-step {
 	transition: height .1s linear;
 }
 
