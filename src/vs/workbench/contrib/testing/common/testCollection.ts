@@ -10,6 +10,8 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { TestMessageSeverity, TestResultState } from 'vs/workbench/api/common/extHostTypes';
 
+export { TestResultState } from 'vs/workbench/api/common/extHostTypes';
+
 export interface ITestIdWithSrc {
 	testId: string;
 	controllerId: string;
@@ -74,7 +76,7 @@ export interface ResolvedTestRunRequest {
  */
 export interface ExtensionRunTestsRequest {
 	id: string;
-	tests: string[];
+	include: string[];
 	exclude: string[];
 	controllerId: string;
 	config?: { group: TestRunConfigurationBitset, id: number };

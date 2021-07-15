@@ -42,10 +42,10 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 		harness.flush();
 		harness.pushDiff([
 			TestDiffOpType.Add,
-			{ controllerId: 'ctrl2', parent: null, expand: TestItemExpandState.Expanded, item: Convert.TestItem.from(new TestItemImpl('c', 'root2', undefined, undefined, undefined)) },
+			{ controllerId: 'ctrl2', parent: null, expand: TestItemExpandState.Expanded, item: Convert.TestItem.from(new TestItemImpl('c', 'root2', undefined)) },
 		], [
 			TestDiffOpType.Add,
-			{ controllerId: 'ctrl2', parent: 'c', expand: TestItemExpandState.NotExpandable, item: Convert.TestItem.from(new TestItemImpl('c-a', 'c', undefined, undefined, undefined)) },
+			{ controllerId: 'ctrl2', parent: 'c', expand: TestItemExpandState.NotExpandable, item: Convert.TestItem.from(new TestItemImpl('c-a', 'c', undefined)) },
 		]);
 
 		assert.deepStrictEqual(harness.flush(), [
@@ -57,7 +57,7 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 	test('updates nodes if they add children', async () => {
 		harness.flush();
 
-		new TestItemImpl('ac', 'ac', undefined, undefined, harness.c.root.children.get('id-a')!);
+		harness.c.root.children.get('id-a')!.children.add(new TestItemImpl('ac', 'ac', undefined));
 
 		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'aa' },
@@ -69,7 +69,7 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 
 	test('updates nodes if they remove children', async () => {
 		harness.flush();
-		harness.c.root.children.get('id-a')!.children.get('id-ab')!.dispose();
+		harness.c.root.children.get('id-a')!.children.remove('id-ab');
 
 		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'aa' },
@@ -79,7 +79,7 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 
 	test('swaps when node is no longer leaf', async () => {
 		harness.flush();
-		new TestItemImpl('ba', 'ba', undefined, undefined, harness.c.root.children.get('id-b')!);
+		harness.c.root.children.get('id-b')!.children.add(new TestItemImpl('ba', 'ba', undefined));
 
 		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'aa' },

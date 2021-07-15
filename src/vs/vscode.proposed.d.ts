@@ -1789,6 +1789,16 @@ declare module 'vscode' {
 		export function createTestObserver(): TestObserver;
 
 		/**
+		 * Creates a new managed {@link TestItem} instance. It can be added into
+		 * the {@link TestItem.children} of an existing item, or into the
+		 * {@link TestController.items}.
+		 * @param id Unique identifier for the TestItem.
+		 * @param label Human-readable label of the test item.
+		 * @param uri URI this TestItem is associated with. May be a file or directory.
+		 */
+		export function createTestItem(id: string, label: string, uri?: Uri): TestItem;
+
+		/**
 		 * List of test results stored by the editor, sorted in descending
 		 * order by their `completedAt` time.
 		 * @stability experimental
@@ -1937,8 +1947,8 @@ declare module 'vscode' {
 		label: string;
 
 		/**
-		 * Root test item. Tests in the workspace should be added as children of
-		 * the root. The extension controls when to add these, although the
+		 * Available test items. Tests in the workspace should be added in this
+		 * collection. The extension controls when to add these, although the
 		 * editor may request children using the {@link resolveChildrenHandler},
 		 * and the extension should add tests for a file when
 		 * {@link vscode.workspace.onDidOpenTextDocument} fires in order for
@@ -1948,9 +1958,7 @@ declare module 'vscode' {
 		 * as files change. See  {@link resolveChildrenHandler} for details around
 		 * for the lifecycle of watches.
 		 */
-		// todo@API a little weird? what is its label, id, busy state etc? Can I dispose this?
-		// todo@API allow createTestItem-calls without parent and simply treat them as root (similar to createSourceControlResourceGroup)
-		readonly root: TestItem;
+		readonly items: TestItemCollection;
 
 		/**
 		 * Creates a configuration used for running tests. Extensions must create
@@ -1963,27 +1971,10 @@ declare module 'vscode' {
 		createRunConfiguration(label: string, group: TestRunConfigurationGroup, runHandler: TestRunHandler, isDefault?: boolean): TestRunConfiguration;
 
 		/**
-		 * Creates a new managed {@link TestItem} instance as a child of this
-		 * one.
-		 * @param id Unique identifier for the TestItem.
-		 * @param label Human-readable label of the test item.
-		 * @param parent Parent of the item. This is required; top-level items
-		 * should be created as children of the {@link root}.
-		 * @param uri URI this TestItem is associated with. May be a file or directory.
-		 * @param data Custom data to be stored in {@link TestItem.data}
-		 */
-		createTestItem(
-			id: string,
-			label: string,
-			parent: TestItem,
-			uri?: Uri,
-		): TestItem;
-
-		/**
 		 * A function provided by the extension that the editor may call to request
 		 * children of a test item, if the {@link TestItem.canExpand} is `true`.
 		 * When called, the item should discover children and call
-		 * {@link TestController.createTestItem} as children are discovered.
+		 * {@link vscode.test.createTestItem} as children are discovered.
 		 *
 		 * The item in the explorer will automatically be marked as "busy" until
 		 * the function returns or the returned thenable resolves.
@@ -2030,11 +2021,12 @@ declare module 'vscode' {
 	 */
 	export class TestRunRequest {
 		/**
-		 * Array of specific tests to run. The controllers should run all of the
-		 * given tests and all children of the given tests, excluding any tests
-		 * that appear in {@link TestRunRequest.exclude}.
+		 * Filter for specific tests to run. If given, the extension should run all
+		 * of the given tests and all children of the given tests, excluding
+		 * any tests that appear in {@link TestRunRequest.exclude}. If this is
+		 * not given, then the extension should simply run all tests.
 		 */
-		tests: TestItem[];
+		include?: TestItem[];
 
 		/**
 		 * An array of tests the user has marked as excluded in the editor. May be
@@ -2051,11 +2043,11 @@ declare module 'vscode' {
 		configuration?: TestRunConfiguration;
 
 		/**
-		 * @param tests Array of specific tests to run.
+		 * @param tests Array of specific tests to run, or undefined to run all tests
 		 * @param exclude Tests to exclude from the run
 		 * @param configuration The run configuration used for this request.
 		 */
-		constructor(tests: readonly TestItem[], exclude?: readonly TestItem[], configuration?: TestRunConfiguration);
+		constructor(include?: readonly TestItem[], exclude?: readonly TestItem[], configuration?: TestRunConfiguration);
 	}
 
 	/**
@@ -2116,6 +2108,34 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Collection of test items, found in {@link TestItem.children} and
+	 * {@link TestController.items}.
+	 */
+	export interface TestItemCollection {
+		/**
+		 * A read-only array of all the test items children. Can be retrieved, or
+		 * set in order to replace children in the collection.
+		 */
+		all: readonly TestItem[];
+
+		/**
+		 * Adds the test item to the children. If an item with the same ID already
+		 * exists, it'll be replaced.
+		 */
+		add(item: TestItem): void;
+
+		/**
+		 * Removes the a single test item from the collection.
+		 */
+		remove(itemId: string): void;
+
+		/**
+		 * Efficiently gets a test item by ID, if it exists, in the children.
+		 */
+		get(itemId: string): TestItem | undefined;
+	}
+
+	/**
 	 * A test item is an item shown in the "test explorer" view. It encompasses
 	 * both a suite and a test, since they have almost or identical capabilities.
 	 */
@@ -2135,12 +2155,12 @@ declare module 'vscode' {
 		/**
 		 * A mapping of children by ID to the associated TestItem instances.
 		 */
-		//todo@API use array over es6-map
-		readonly children: ReadonlyMap<string, TestItem>;
+		readonly children: TestItemCollection;
 
 		/**
-		 * The parent of this item, given in {@link TestController.createTestItem}.
-		 * This is undefined only for the {@link TestController.root}.
+		 * The parent of this item, given in {@link vscode.test.createTestItem}.
+		 * This is undefined top-level items in the `TestController`, and for
+		 * items that aren't yet assigned to a parent.
 		 */
 		readonly parent?: TestItem;
 
@@ -2193,11 +2213,6 @@ declare module 'vscode' {
 		 * Extensions should generally not override this method.
 		 */
 		invalidateResults(): void;
-
-		/**
-		 * Removes the test and its children from the tree.
-		 */
-		dispose(): void;
 	}
 
 	/**

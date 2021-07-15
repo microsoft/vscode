@@ -156,7 +156,7 @@ export class TestResultService implements ITestResultService {
 				profileGroup: config.group,
 				profileId: config.profileId,
 				controllerId: req.controllerId,
-				testIds: req.tests,
+				testIds: req.include,
 			});
 		}
 

@@ -14,8 +14,8 @@ export const testingViewIcon = registerIcon('test-view-icon', Codicon.beaker, lo
 export const testingRunIcon = registerIcon('testing-run-icon', Codicon.run, localize('testingRunIcon', 'Icon of the "run test" action.'));
 export const testingRunAllIcon = registerIcon('testing-run-all-icon', Codicon.runAll, localize('testingRunAllIcon', 'Icon of the "run all tests" action.'));
 // todo: https://github.com/microsoft/vscode-codicons/issues/72
-export const testingDebugAllIcon = registerIcon('testing-debug-all-icon', Codicon.debugAlt, localize('testingDebugAllIcon', 'Icon of the "debug all tests" action.'));
-export const testingDebugIcon = registerIcon('testing-debug-icon', Codicon.debugAlt, localize('testingDebugIcon', 'Icon of the "debug test" action.'));
+export const testingDebugAllIcon = registerIcon('testing-debug-all-icon', Codicon.debugAltSmall, localize('testingDebugAllIcon', 'Icon of the "debug all tests" action.'));
+export const testingDebugIcon = registerIcon('testing-debug-icon', Codicon.debugAltSmall, localize('testingDebugIcon', 'Icon of the "debug test" action.'));
 export const testingCancelIcon = registerIcon('testing-cancel-icon', Codicon.debugStop, localize('testingCancelIcon', 'Icon to cancel ongoing test runs.'));
 export const testingFilterIcon = registerIcon('testing-filter', Codicon.filter, localize('filterIcon', 'Icon for the \'Filter\' action in the testing view.'));
 export const testingAutorunIcon = registerIcon('testing-autorun', Codicon.debugRerun, localize('autoRunIcon', 'Icon for the \'Autorun\' toggle in the testing view.'));
