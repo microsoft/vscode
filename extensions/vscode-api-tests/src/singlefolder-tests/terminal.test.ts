@@ -669,9 +669,9 @@ import * as os from 'os';
 			});
 		});
 
-		suite('environmentVariableCollection', () => {
-			// https://github.com/microsoft/vscode/issues/128710
-			(os.platform() === 'win32' ? test.skip : test)('should have collection variables apply to terminals immediately after setting', (done) => {
+		// https://github.com/microsoft/vscode/issues/128710
+		(os.platform() === 'win32' ? suite.skip : suite)('environmentVariableCollection', () => {
+			test('should have collection variables apply to terminals immediately after setting', (done) => {
 				// Text to match on before passing the test
 				const expectedText = [
 					'~a2~',
