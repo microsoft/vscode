@@ -75,10 +75,8 @@ export class TerminalEditorInput extends EditorInput {
 	override isDirty(): boolean {
 		const confirmOnKill = this._configurationService.getValue<ConfirmOnKill>(TerminalSettingId.ConfirmOnKill);
 		if (confirmOnKill === 'editor' || confirmOnKill === 'editorAndPanel') {
-			console.log('isDirty?', this._terminalInstance.hasChildProcesses);
 			return this._terminalInstance.hasChildProcesses;
 		}
-		console.log('isDirty?', false);
 		return false;
 	}
 
