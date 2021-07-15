@@ -487,7 +487,7 @@ export class TerminalService implements ITerminalService {
 		}
 
 		const shouldPersistTerminals = this._configHelper.config.enablePersistentSessions && reason === ShutdownReason.RELOAD;
-		if (this.configHelper.config.confirmOnExit && !shouldPersistTerminals) {
+		if (this.configHelper.config.confirmOnExit && !shouldPersistTerminals && this.instances.some(e => e.hasChildProcesses)) {
 			return this._onBeforeShutdownAsync();
 		}
 
