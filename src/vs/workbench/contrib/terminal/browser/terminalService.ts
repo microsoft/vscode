@@ -312,7 +312,11 @@ export class TerminalService implements ITerminalService {
 	}
 
 	async safeDisposeTerminal(instance: ITerminalInstance): Promise<void> {
-		if (this.configHelper.config.confirmOnExit) {
+		// Confirm on kill in the editor is handled by the editor input
+		if (instance.target !== TerminalLocation.Editor &&
+			instance.hasChildProcesses &&
+			(this.configHelper.config.confirmOnKill === 'panel' || this.configHelper.config.confirmOnKill === 'editorAndPanel')) {
+
 			const notConfirmed = await this._showTerminalCloseConfirmation(true);
 			if (notConfirmed) {
 				return;

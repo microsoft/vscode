@@ -172,6 +172,8 @@ export interface ITerminalProfiles {
 	windows: { [key: string]: ITerminalProfileObject };
 }
 
+export type ConfirmOnKill = 'off' | 'editor' | 'panel' | 'editorAndPanel';
+
 export interface ITerminalConfiguration {
 	shell: {
 		linux: string | null;
@@ -222,6 +224,7 @@ export interface ITerminalConfiguration {
 	allowMnemonics: boolean;
 	cwd: string;
 	confirmOnExit: boolean;
+	confirmOnKill: ConfirmOnKill;
 	enableBell: boolean;
 	env: {
 		linux: { [key: string]: string };

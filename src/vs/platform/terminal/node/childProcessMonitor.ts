@@ -8,17 +8,25 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 import { listProcesses } from 'vs/base/node/ps';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ProcessItem } from 'vs/base/common/processes';
+import { parse } from 'path';
 
 const enum Constants {
 	/**
 	 * The amount of time to throttle checks when the process receives output.
 	 */
-	InactiveThrottleDuration = 10000,
+	InactiveThrottleDuration = 5000,
 	/**
 	 * The amount of time to debounce check when the process receives input.
 	 */
 	ActiveDebounceDuration = 1000,
 }
+
+const ignoreProcessNames = [
+	// Popular prompt programs, these should not count as child processes
+	'starship',
+	'oh-my-posh'
+];
 
 /**
  * Monitors a process for child processes, checking at differing times depending on input and output
@@ -79,11 +87,39 @@ export class ChildProcessMonitor extends Disposable {
 			return;
 		}
 		const processItem = await listProcesses(this._pid);
-		this.hasChildProcesses = (processItem.children || false) && processItem.children.length > 0;
+		this.hasChildProcesses = this._processContainsChildren(processItem);
+		console.log('processItem', processItem);
 	}
 
 	@throttle(Constants.InactiveThrottleDuration)
 	private _refreshInactive(): void {
 		this._refreshActive();
+	}
+
+	private _processContainsChildren(processItem: ProcessItem): boolean {
+		// No child processes
+		if (!processItem.children) {
+			return false;
+		}
+
+		// A single child process, handle special cases
+		if (processItem.children.length === 1) {
+			const item = processItem.children[0];
+			let cmd: string;
+			if (item.cmd.startsWith(`"`)) {
+				cmd = item.cmd.substring(1, item.cmd.indexOf(`"`, 1));
+			} else {
+				const spaceIndex = item.cmd.indexOf(` `);
+				if (spaceIndex === -1) {
+					cmd = item.cmd;
+				} else {
+					cmd = item.cmd.substring(0, spaceIndex);
+				}
+			}
+			return ignoreProcessNames.indexOf(parse(cmd).name) === -1;
+		}
+
+		// Fallback, count child processes
+		return processItem.children.length > 0;
 	}
 }
