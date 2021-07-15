@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/extensionsWidgets';
-import { Disposable, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IExtension, IExtensionsWorkbenchService, IExtensionContainer, ExtensionState } from 'vs/workbench/contrib/extensions/common/extensions';
+import { Disposable, toDisposable, DisposableStore, MutableDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { IExtension, IExtensionsWorkbenchService, IExtensionContainer, ExtensionState, ExtensionEditorTab } from 'vs/workbench/contrib/extensions/common/extensions';
 import { append, $ } from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
-import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { EnablementState, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { extensionButtonProminentBackground, extensionButtonProminentForeground, ExtensionToolTipAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { extensionButtonProminentBackground, extensionButtonProminentForeground, ExtensionStatusIconAction, ExtensionToolTipAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IThemeService, IColorTheme, ThemeIcon, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EXTENSION_BADGE_REMOTE_BACKGROUND, EXTENSION_BADGE_REMOTE_FOREGROUND } from 'vs/workbench/common/theme';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -20,8 +20,16 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { installCountIcon, ratingIcon, remoteIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
+import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, ratingIcon, remoteIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+import { MarkdownString } from 'vs/base/common/htmlContent';
+import { URI } from 'vs/base/common/uri';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import Severity from 'vs/base/common/severity';
+import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension | null = null;
@@ -31,28 +39,11 @@ export abstract class ExtensionWidget extends Disposable implements IExtensionCo
 	abstract render(): void;
 }
 
-export class Label extends ExtensionWidget {
-
-	constructor(
-		private element: HTMLElement,
-		private fn: (extension: IExtension) => string,
-		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
-	) {
-		super();
-		this.render();
-	}
-
-	render(): void {
-		this.element.textContent = this.extension ? this.fn(this.extension) : '';
-	}
-}
-
 export class InstallCountWidget extends ExtensionWidget {
 
 	constructor(
 		private container: HTMLElement,
 		private small: boolean,
-		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		super();
 		container.classList.add('extension-install-count');
@@ -66,15 +57,30 @@ export class InstallCountWidget extends ExtensionWidget {
 			return;
 		}
 
-		const installCount = this.extension.installCount;
+		if (this.small && this.extension.state === ExtensionState.Installed) {
+			return;
+		}
+
+		const installLabel = InstallCountWidget.getInstallLabel(this.extension, this.small);
+		if (!installLabel) {
+			return;
+		}
+
+		append(this.container, $('span' + ThemeIcon.asCSSSelector(installCountIcon)));
+		const count = append(this.container, $('span.count'));
+		count.textContent = installLabel;
+	}
+
+	static getInstallLabel(extension: IExtension, small: boolean): string | undefined {
+		const installCount = extension.installCount;
 
 		if (installCount === undefined) {
-			return;
+			return undefined;
 		}
 
 		let installLabel: string;
 
-		if (this.small) {
+		if (small) {
 			if (installCount > 1000000) {
 				installLabel = `${Math.floor(installCount / 100000) / 10}M`;
 			} else if (installCount > 1000) {
@@ -87,9 +93,7 @@ export class InstallCountWidget extends ExtensionWidget {
 			installLabel = installCount.toLocaleString(platform.locale);
 		}
 
-		append(this.container, $('span' + ThemeIcon.asCSSSelector(installCountIcon)));
-		const count = append(this.container, $('span.count'));
-		count.textContent = installLabel;
+		return installLabel;
 	}
 }
 
@@ -113,6 +117,10 @@ export class RatingsWidget extends ExtensionWidget {
 		this.container.innerText = '';
 
 		if (!this.extension) {
+			return;
+		}
+
+		if (this.small && this.extension.state === ExtensionState.Installed) {
 			return;
 		}
 
@@ -141,9 +149,11 @@ export class RatingsWidget extends ExtensionWidget {
 					append(this.container, $('span' + ThemeIcon.asCSSSelector(starEmptyIcon)));
 				}
 			}
+			if (this.extension.ratingCount) {
+				const ratingCountElemet = append(this.container, $('span', undefined, ` (${this.extension.ratingCount})`));
+				ratingCountElemet.style.paddingLeft = '1px';
+			}
 		}
-		this.container.title = this.extension.ratingCount === 1 ? localize('ratedBySingleUser', "Rated by 1 user")
-			: typeof this.extension.ratingCount === 'number' && this.extension.ratingCount > 1 ? localize('ratedByUsers', "Rated by {0} users", this.extension.ratingCount) : localize('noRating', "No rating");
 	}
 }
 
@@ -370,6 +380,153 @@ export class SyncIgnoredWidget extends ExtensionWidget {
 	}
 }
 
+export class ExtensionActivationStatusWidget extends ExtensionWidget {
+
+	constructor(
+		private readonly container: HTMLElement,
+		private readonly small: boolean,
+		@IExtensionService extensionService: IExtensionService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+	) {
+		super();
+		this._register(extensionService.onDidChangeExtensionsStatus(extensions => {
+			if (this.extension && extensions.some(e => areSameExtensions({ id: e.value }, this.extension!.identifier))) {
+				this.update();
+			}
+		}));
+	}
+
+	render(): void {
+		this.container.innerText = '';
+
+		if (!this.extension) {
+			return;
+		}
+
+		const extensionStatus = this.extensionsWorkbenchService.getExtensionStatus(this.extension);
+		if (!extensionStatus || !extensionStatus.activationTimes) {
+			return;
+		}
+
+		const activationTime = extensionStatus.activationTimes.codeLoadingTime + extensionStatus.activationTimes.activateCallTime;
+		if (this.small) {
+			append(this.container, $('span' + ThemeIcon.asCSSSelector(activationTimeIcon)));
+			const activationTimeElement = append(this.container, $('span.activationTime'));
+			activationTimeElement.textContent = `${activationTime}ms`;
+		} else {
+			const activationTimeElement = append(this.container, $('span.activationTime'));
+			activationTimeElement.textContent = `${localize('activation', "Activation time")}${extensionStatus.activationTimes.activationReason.startup ? ` (${localize('startup', "Startup")})` : ''} : ${activationTime}ms`;
+		}
+
+	}
+
+}
+
+export type ExtensionHoverOptions = {
+	position: () => HoverPosition;
+	readonly target: HTMLElement;
+};
+
+export class ExtensionHoverWidget extends ExtensionWidget {
+
+	private readonly hover = this._register(new MutableDisposable<IDisposable>());
+
+	constructor(
+		private readonly options: ExtensionHoverOptions,
+		private readonly extensionStatusIconAction: ExtensionStatusIconAction,
+		private readonly tooltipAction: ExtensionToolTipAction,
+		private readonly recommendationWidget: RecommendationWidget,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IHoverService private readonly hoverService: IHoverService,
+	) {
+		super();
+	}
+
+	render(): void {
+		this.hover.value = undefined;
+		if (this.extension) {
+			this.hover.value = setupCustomHover({
+				delay: 500,
+				showHover: (options) => {
+					return this.hoverService.showHover({
+						...options,
+						hoverPosition: this.options.position(),
+						additionalClasses: ['extension-hover']
+					});
+				},
+				placement: 'element'
+			}, this.options.target, { markdown: () => Promise.resolve(this.getHoverMarkdown()), markdownNotSupportedFallback: undefined });
+		}
+	}
+
+	private getHoverMarkdown(): MarkdownString | undefined {
+		if (!this.extension) {
+			return undefined;
+		}
+		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
+
+		markdown.appendMarkdown(`**${this.extension.displayName}**&nbsp;_v${this.extension.version}_`);
+		markdown.appendText(`\n`);
+
+		const toolTip = this.getTooltip();
+		const extensionStatus = this.extensionsWorkbenchService.getExtensionStatus(this.extension);
+
+		if (toolTip || extensionStatus) {
+			if (toolTip) {
+				if (this.extensionStatusIconAction.statusIcon) {
+					markdown.appendMarkdown(`$(${this.extensionStatusIconAction.statusIcon.id})&nbsp;`);
+				}
+				markdown.appendMarkdown(`${toolTip}`);
+				if (this.extension.enablementState === EnablementState.DisabledByExtensionDependency && this.extension.local) {
+					markdown.appendMarkdown(`&nbsp;[${localize('dependencies', "Show Dependencies")}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.Dependencies]))}`)})`);
+				}
+				markdown.appendText(`\n`);
+			}
+
+			if (extensionStatus) {
+				if (extensionStatus.activationTimes) {
+					const activationTime = extensionStatus.activationTimes.codeLoadingTime + extensionStatus.activationTimes.activateCallTime;
+					markdown.appendMarkdown(`${localize('activation', "Activation time")}${extensionStatus.activationTimes.activationReason.startup ? ` (${localize('startup', "Startup")})` : ''} : \`${activationTime}ms\``);
+					markdown.appendText(`\n`);
+				}
+				if (extensionStatus.runtimeErrors.length || extensionStatus.messages.length) {
+					const hasErrors = extensionStatus.runtimeErrors.length || extensionStatus.messages.some(message => message.type === Severity.Error);
+					const hasWarnings = extensionStatus.messages.some(message => message.type === Severity.Warning);
+					const errorsLink = extensionStatus.runtimeErrors.length ? `[${extensionStatus.runtimeErrors.length === 1 ? localize('uncaught error', '1 uncaught error') : localize('uncaught errors', '{0} uncaught errors', extensionStatus.runtimeErrors.length)}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.RuntimeStatus]))}`)})` : undefined;
+					const messageLink = extensionStatus.messages.length ? `[${extensionStatus.messages.length === 1 ? localize('message', '1 message') : localize('messages', '{0} messages', extensionStatus.messages.length)}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.RuntimeStatus]))}`)})` : undefined;
+					markdown.appendMarkdown(`$(${hasErrors ? errorIcon.id : hasWarnings ? warningIcon.id : infoIcon.id}) This extension has reported `);
+					if (errorsLink && messageLink) {
+						markdown.appendMarkdown(`${errorsLink} and ${messageLink}`);
+					} else {
+						markdown.appendMarkdown(`${errorsLink || messageLink}`);
+					}
+					markdown.appendText(`\n`);
+				}
+			}
+
+			markdown.appendMarkdown(`---`);
+			markdown.appendText(`\n`);
+		}
+
+		if (this.extension.description) {
+			markdown.appendMarkdown(`${this.extension.description}`);
+			markdown.appendText(`\n`);
+		}
+
+		return markdown;
+	}
+
+	private getTooltip(): string {
+		if (!this.extension) {
+			return '';
+		}
+		if (this.tooltipAction.label) {
+			return this.tooltipAction.label;
+		}
+		return this.recommendationWidget.tooltip;
+	}
+}
+
 // Rating icon
 export const extensionRatingIconColor = registerColor('extensionIcon.starForeground', { light: '#DF6100', dark: '#FF8E00', hc: '#FF8E00' }, localize('extensionIconStarForeground', "The icon color for extension ratings."), true);
 
@@ -377,5 +534,7 @@ registerThemingParticipant((theme, collector) => {
 	const extensionRatingIcon = theme.getColor(extensionRatingIconColor);
 	if (extensionRatingIcon) {
 		collector.addRule(`.extension-ratings .codicon-extensions-star-full, .extension-ratings .codicon-extensions-star-half { color: ${extensionRatingIcon}; }`);
+		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(starFullIcon)} { color: ${extensionRatingIcon}; }`);
+		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(starHalfIcon)} { color: ${extensionRatingIcon}; }`);
 	}
 });

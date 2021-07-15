@@ -942,13 +942,15 @@ async function runCell(accessor: ServicesAccessor, context: INotebookActionConte
 			return;
 		}
 		await context.notebookEditor.executeNotebookCells(Iterable.single(context.cell));
-		const cellIndex = context.notebookEditor.viewModel.getCellIndex(context.cell);
-		context.notebookEditor.revealCellRangeInView({ start: cellIndex, end: cellIndex + 1 });
+		if (context.autoReveal) {
+			const cellIndex = context.notebookEditor.viewModel.getCellIndex(context.cell);
+			context.notebookEditor.revealCellRangeInView({ start: cellIndex, end: cellIndex + 1 });
+		}
 	} else if (context.selectedCells) {
 		await context.notebookEditor.executeNotebookCells(context.selectedCells);
 		const firstCell = context.selectedCells[0];
 
-		if (firstCell) {
+		if (firstCell && context.autoReveal) {
 			const cellIndex = context.notebookEditor.viewModel.getCellIndex(firstCell);
 			context.notebookEditor.revealCellRangeInView({ start: cellIndex, end: cellIndex + 1 });
 		}

@@ -102,14 +102,22 @@
 	background: url('loading.svg') center center no-repeat;
 }
 
-.extensions-viewlet.narrow > .extensions .extension-list-item > .icon-container,
 .extensions-viewlet > .extensions .extension-list-item.loading > .icon-container {
 	display: none;
 }
 
+.extensions-viewlet.narrow > .extensions .extension-list-item > .icon-container > .icon {
+	width: 24px;
+	height: 24px;
+	padding-top: 8px;
+	padding-right: 6px;
+}
+
 .extensions-viewlet:not(.narrow) > .extensions .extension-list-item > .details > .header-container > .header > .extension-remote-badge-container,
-.extensions-viewlet.narrow > .extensions .extension-list-item > .details > .header-container > .header > .ratings,
-.extensions-viewlet.narrow > .extensions .extension-list-item > .details > .header-container > .header > .install-count {
+.extensions-viewlet.narrow > .extensions .extension-list-item > .icon-container .extension-badge,
+.extensions-viewlet.mini > .extensions .extension-list-item > .icon-container > .icon,
+.extensions-viewlet.mini > .extensions .extension-list-item > .details > .header-container > .header > .ratings,
+.extensions-viewlet.mini > .extensions .extension-bookmark-container {
 	display: none;
 }
 

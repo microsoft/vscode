@@ -345,7 +345,7 @@ registerAction2(class extends Action2 {
 
 		const editorInput = InteractiveEditorInput.create(accessor.get(IInstantiationService), notebookUri, inputUri);
 		historyService.clearHistory(notebookUri);
-		await editorService.openEditor(editorInput, editorOptions, group);
+		await editorService.openEditor(editorInput, { ...editorOptions, pinned: true }, group);
 		// Extensions must retain references to these URIs to manipulate the interactive editor
 		return { notebookUri, inputUri };
 	}
