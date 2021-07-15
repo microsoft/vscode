@@ -29,6 +29,7 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	readonly onProcessOverrideDimensions: Event<ITerminalDimensionsOverride | undefined> = this._onProcessOverrideDimensions.event;
 	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
 	get onProcessResolvedShellLaunchConfig(): Event<IShellLaunchConfig> { return this._onProcessResolvedShellLaunchConfig.event; }
+	// TODO: Handle remote case
 
 	private _startBarrier: Barrier;
 

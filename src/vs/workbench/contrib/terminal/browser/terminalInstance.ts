@@ -240,7 +240,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onDidBlur = this._onDidBlur.event;
 	private readonly _onRequestAddInstanceToGroup = this._register(new Emitter<IRequestAddInstanceToGroupEvent>());
 	readonly onRequestAddInstanceToGroup = this._onRequestAddInstanceToGroup.event;
-	// TODO: Add prop that returns result in process manager
 	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
 	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
 
