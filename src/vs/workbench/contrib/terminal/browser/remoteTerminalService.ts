@@ -162,7 +162,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		return this._remoteTerminalChannel.requestDetachInstance(workspaceId, instanceId);
 	}
 
-	async acceptDetachedInstance(requestId: number, persistentProcessId: number): Promise<IProcessDetails | undefined> {
+	async acceptDetachedInstance(requestId: number, persistentProcessId: number): Promise<void> {
 		if (!this._remoteTerminalChannel) {
 			throw new Error(`Cannot accept detached instance when there is no remote!`);
 		}

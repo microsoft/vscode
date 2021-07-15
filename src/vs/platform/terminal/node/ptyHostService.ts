@@ -249,7 +249,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 		return this._proxy.requestDetachInstance(workspaceId, instanceId);
 	}
 
-	async acceptDetachedInstance(requestId: number, persistentProcessId: number): Promise<IProcessDetails | undefined> {
+	async acceptDetachedInstance(requestId: number, persistentProcessId: number): Promise<void> {
 		return this._proxy.acceptDetachedInstance(requestId, persistentProcessId);
 	}
 
