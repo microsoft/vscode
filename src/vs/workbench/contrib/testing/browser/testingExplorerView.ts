@@ -55,8 +55,8 @@ import { ITestExplorerFilterState, TestExplorerFilterState, TestingExplorerFilte
 import { ITestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { labelForTestInState, TestExplorerStateFilter, TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
-import { identifyTest, ITestRunConfiguration, TestIdPath, TestItemExpandState, TestRunConfigurationBitset } from 'vs/workbench/contrib/testing/common/testCollection';
-import { capabilityContextKeys, ITestConfigurationService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
+import { identifyTest, ITestRunProfile, TestIdPath, TestItemExpandState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { capabilityContextKeys, ITestProfileService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { cmpPriority, isFailedState, isStateWithResult } from 'vs/workbench/contrib/testing/common/testingStates';
@@ -87,7 +87,7 @@ export class TestingExplorerView extends ViewPane {
 		@ITestService private readonly testService: ITestService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ITestingProgressUiService private readonly testProgressService: ITestingProgressUiService,
-		@ITestConfigurationService private readonly testConfigurationService: ITestConfigurationService,
+		@ITestProfileService private readonly testProfileService: ITestProfileService,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
@@ -104,7 +104,7 @@ export class TestingExplorerView extends ViewPane {
 			this.updateDiscoveryProgress(busy);
 		}));
 
-		this._register(testConfigurationService.onDidChange(() => this.updateActions()));
+		this._register(testProfileService.onDidChange(() => this.updateActions()));
 	}
 
 	/**
@@ -165,26 +165,26 @@ export class TestingExplorerView extends ViewPane {
 			case Testing.FilterActionId:
 				return this.instantiationService.createInstance(TestingExplorerFilter, action);
 			case RunAllAction.ID:
-				return this.getRunGroupDropdown(TestRunConfigurationBitset.Run, action);
+				return this.getRunGroupDropdown(TestRunProfileBitset.Run, action);
 			case DebugAllAction.ID:
-				return this.getRunGroupDropdown(TestRunConfigurationBitset.Debug, action);
+				return this.getRunGroupDropdown(TestRunProfileBitset.Debug, action);
 			default:
 				return super.getActionViewItem(action);
 		}
 	}
 
 	/** @inheritdoc */
-	private getTestConfigGroupActions(group: TestRunConfigurationBitset) {
+	private getTestConfigGroupActions(group: TestRunProfileBitset) {
 		const profileActions: IAction[] = [];
 
 		let participatingGroups = 0;
 		let hasConfigurable = false;
-		const defaults = this.testConfigurationService.getGroupDefaultConfigurations(group);
-		for (const { configs, controller } of this.testConfigurationService.all()) {
+		const defaults = this.testProfileService.getGroupDefaultProfiles(group);
+		for (const { profiles, controller } of this.testProfileService.all()) {
 			let hasAdded = false;
 
-			for (const config of configs) {
-				if (config.group !== group) {
+			for (const profile of profiles) {
+				if (profile.group !== group) {
 					continue;
 				}
 
@@ -194,19 +194,19 @@ export class TestingExplorerView extends ViewPane {
 					profileActions.push(new Action(`${controller.id}.$root`, controller.label.value, undefined, false));
 				}
 
-				hasConfigurable = hasConfigurable || config.hasConfigurationHandler;
+				hasConfigurable = hasConfigurable || profile.hasConfigurationHandler;
 				profileActions.push(new Action(
-					`${controller.id}.${config.profileId}`,
-					defaults.includes(config) ? localize('defaultTestProfile', '{0} (Default)', config.label) : config.label,
+					`${controller.id}.${profile.profileId}`,
+					defaults.includes(profile) ? localize('defaultTestProfile', '{0} (Default)', profile.label) : profile.label,
 					undefined,
 					undefined,
 					() => this.testService.runResolvedTests({
 						targets: [{
-							profileGroup: config.group,
-							profileId: config.profileId,
-							controllerId: config.controllerId,
+							profileGroup: profile.group,
+							profileId: profile.profileId,
+							controllerId: profile.controllerId,
 							testIds: this.getSelectedOrVisibleItems()
-								.filter(i => i.controllerId === config.controllerId)
+								.filter(i => i.controllerId === profile.controllerId)
 								.map(i => i.item.extId),
 						}]
 					}),
@@ -226,7 +226,7 @@ export class TestingExplorerView extends ViewPane {
 				localize('selectDefaultConfigs', 'Select Default Profile'),
 				undefined,
 				undefined,
-				() => this.commandService.executeCommand<ITestRunConfiguration>(SelectDefaultTestProfiles.ID, group),
+				() => this.commandService.executeCommand<ITestRunProfile>(SelectDefaultTestProfiles.ID, group),
 			));
 		}
 
@@ -236,7 +236,7 @@ export class TestingExplorerView extends ViewPane {
 				localize('configureTestProfiles', 'Configure Test Profiles'),
 				undefined,
 				undefined,
-				() => this.commandService.executeCommand<ITestRunConfiguration>(ConfigureTestProfilesAction.ID, group),
+				() => this.commandService.executeCommand<ITestRunProfile>(ConfigureTestProfilesAction.ID, group),
 			));
 		}
 
@@ -258,7 +258,7 @@ export class TestingExplorerView extends ViewPane {
 		return [...this.testService.collection.rootItems]; // todo
 	}
 
-	private getRunGroupDropdown(group: TestRunConfigurationBitset, defaultAction: IAction) {
+	private getRunGroupDropdown(group: TestRunProfileBitset, defaultAction: IAction) {
 		const dropdownActions = this.getTestConfigGroupActions(group);
 		if (dropdownActions.length < 2) {
 			return super.getActionViewItem(defaultAction);
@@ -267,7 +267,7 @@ export class TestingExplorerView extends ViewPane {
 		const primaryAction = this.instantiationService.createInstance(MenuItemAction, {
 			id: defaultAction.id,
 			title: defaultAction.label,
-			icon: group === TestRunConfigurationBitset.Run
+			icon: group === TestRunProfileBitset.Run
 				? icons.testingRunAllIcon
 				: icons.testingDebugAllIcon,
 		}, undefined, undefined);
@@ -389,7 +389,7 @@ export class TestingExplorerViewModel extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ITestResultService private readonly testResults: ITestResultService,
 		@ITestingPeekOpener private readonly peekOpener: ITestingPeekOpener,
-		@ITestConfigurationService private readonly testConfigurationService: ITestConfigurationService,
+		@ITestProfileService private readonly testProfileService: ITestProfileService,
 	) {
 		super();
 
@@ -509,7 +509,7 @@ export class TestingExplorerViewModel extends Disposable {
 			}
 		}));
 
-		this._register(this.testConfigurationService.onDidChange(() => {
+		this._register(this.testProfileService.onDidChange(() => {
 			this.tree.rerender();
 		}));
 	}
@@ -615,7 +615,7 @@ export class TestingExplorerViewModel extends Disposable {
 			return;
 		}
 
-		const actions = getActionableElementActions(this.contextKeyService, this.menuService, this.testService, this.testConfigurationService, element);
+		const actions = getActionableElementActions(this.contextKeyService, this.menuService, this.testService, this.testProfileService, element);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => evt.anchor,
 			getActions: () => [
@@ -645,7 +645,7 @@ export class TestingExplorerViewModel extends Disposable {
 
 		if (toRun.length) {
 			this.testService.runTests({
-				group: TestRunConfigurationBitset.Run,
+				group: TestRunProfileBitset.Run,
 				tests: toRun.map(t => identifyTest(t.test)),
 			});
 		}
@@ -1000,7 +1000,7 @@ abstract class ActionableItemTemplateData<T extends TestItemTreeElement> extends
 		private readonly actionRunner: TestExplorerActionRunner,
 		@IMenuService private readonly menuService: IMenuService,
 		@ITestService protected readonly testService: ITestService,
-		@ITestConfigurationService protected readonly configurations: ITestConfigurationService,
+		@ITestProfileService protected readonly profiles: ITestProfileService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
@@ -1058,7 +1058,7 @@ abstract class ActionableItemTemplateData<T extends TestItemTreeElement> extends
 	}
 
 	private fillActionBar(element: T, data: IActionableElementTemplateData) {
-		const actions = getActionableElementActions(this.contextKeyService, this.menuService, this.testService, this.configurations, element);
+		const actions = getActionableElementActions(this.contextKeyService, this.menuService, this.testService, this.profiles, element);
 		data.elementDisposable.push(actions);
 		data.actionBar.clear();
 		data.actionBar.context = element;
@@ -1130,7 +1130,7 @@ const getActionableElementActions = (
 	contextKeyService: IContextKeyService,
 	menuService: IMenuService,
 	testService: ITestService,
-	configurations: ITestConfigurationService,
+	profiles: ITestProfileService,
 	element: TestItemTreeElement,
 ) => {
 	const test = element instanceof TestItemTreeElement ? element.test : undefined;
@@ -1139,7 +1139,7 @@ const getActionableElementActions = (
 		[TestingContextKeys.testItemExtId.key, test?.item.extId],
 		[TestingContextKeys.testItemHasUri.key, !!test?.item.uri],
 		[TestingContextKeys.testItemIsHidden.key, !!test && testService.excluded.contains(identifyTest(test))],
-		...(test ? capabilityContextKeys(configurations.controllerCapabilities(test.controllerId)) : []),
+		...(test ? capabilityContextKeys(profiles.controllerCapabilities(test.controllerId)) : []),
 	]);
 	const menu = menuService.createMenu(MenuId.TestItem, contextOverlay);
 

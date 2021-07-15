@@ -205,7 +205,7 @@ export const createTestItemCollection = (owningItem: TestItemImpl):
 		},
 
 		/** @inheritdoc */
-		remove(id: string) {
+		delete(id: string) {
 			if (mapped.delete(id)) {
 				all = undefined;
 				api.listener?.({ op: ExtHostTestItemEventOp.RemoveChild, id });

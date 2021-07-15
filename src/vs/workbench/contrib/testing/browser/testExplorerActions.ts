@@ -29,8 +29,8 @@ import { ITestExplorerFilterState } from 'vs/workbench/contrib/testing/browser/t
 import type { TestingExplorerView, TestingExplorerViewModel } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
 import { TestExplorerViewMode, TestExplorerViewSorting, Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { identifyTest, InternalTestItem, ITestIdWithSrc, ITestItem, ITestRunConfiguration, TestIdPath, TestRunConfigurationBitset } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestConfigurationService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
+import { identifyTest, InternalTestItem, ITestIdWithSrc, ITestItem, ITestRunProfile, TestIdPath, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
 import { ITestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
@@ -129,7 +129,7 @@ export class DebugAction extends Action2 {
 	public override run(acessor: ServicesAccessor, ...elements: IActionableTestTreeElement[]): Promise<any> {
 		return acessor.get(ITestService).runTests({
 			tests: [...Iterable.concatNested(elements.map(e => e.tests))],
-			group: TestRunConfigurationBitset.Debug,
+			group: TestRunProfileBitset.Debug,
 		});
 	}
 }
@@ -158,7 +158,7 @@ export class RunUsingProfileAction extends Action2 {
 		const commandService = acessor.get(ICommandService);
 		const testService = acessor.get(ITestService);
 		const controllerId = testElements[0].test.controllerId;
-		const profile: ITestRunConfiguration | undefined = await commandService.executeCommand('vscode.pickTestProfile', { onlyControllerId: controllerId });
+		const profile: ITestRunProfile | undefined = await commandService.executeCommand('vscode.pickTestProfile', { onlyControllerId: controllerId });
 		if (!profile) {
 			return;
 		}
@@ -196,7 +196,7 @@ export class RunAction extends Action2 {
 	public override run(acessor: ServicesAccessor, ...elements: IActionableTestTreeElement[]): Promise<any> {
 		return acessor.get(ITestService).runTests({
 			tests: [...Iterable.concatNested(elements.map(e => e.tests))],
-			group: TestRunConfigurationBitset.Run,
+			group: TestRunProfileBitset.Run,
 		});
 	}
 }
@@ -207,22 +207,22 @@ export class SelectDefaultTestProfiles extends Action2 {
 		super({
 			id: SelectDefaultTestProfiles.ID,
 			title: localize('testing.selectDefaultTestProfiles', 'Select Default Profile'),
-			icon: icons.testingUpdateConfiguration,
+			icon: icons.testingUpdateProfiles,
 			category,
 		});
 	}
 
-	public override async run(acessor: ServicesAccessor, onlyGroup: TestRunConfigurationBitset) {
+	public override async run(acessor: ServicesAccessor, onlyGroup: TestRunProfileBitset) {
 		const commands = acessor.get(ICommandService);
-		const testConfigurationService = acessor.get(ITestConfigurationService);
-		const configurations = await commands.executeCommand<ITestRunConfiguration[]>('vscode.pickMultipleTestProfiles', {
+		const testProfileService = acessor.get(ITestProfileService);
+		const profiles = await commands.executeCommand<ITestRunProfile[]>('vscode.pickMultipleTestProfiles', {
 			showConfigureButtons: false,
-			selected: testConfigurationService.getGroupDefaultConfigurations(onlyGroup),
+			selected: testProfileService.getGroupDefaultProfiles(onlyGroup),
 			onlyGroup,
 		});
 
-		if (configurations?.length) {
-			testConfigurationService.setGroupDefaultConfigurations(onlyGroup, configurations);
+		if (profiles?.length) {
+			testProfileService.setGroupDefaultProfiles(onlyGroup, profiles);
 		}
 	}
 }
@@ -233,34 +233,34 @@ export class ConfigureTestProfilesAction extends Action2 {
 		super({
 			id: ConfigureTestProfilesAction.ID,
 			title: localize('testing.configureProfile', 'Configure Test Profiles'),
-			icon: icons.testingUpdateConfiguration,
+			icon: icons.testingUpdateProfiles,
 			f1: true,
 			category,
 			menu: {
 				id: MenuId.CommandPalette,
-				when: TestingContextKeys.hasConfigurableConfig.isEqualTo(true),
+				when: TestingContextKeys.hasConfigurableProfile.isEqualTo(true),
 			},
 		});
 	}
 
-	public override async run(acessor: ServicesAccessor, onlyGroup?: TestRunConfigurationBitset) {
+	public override async run(acessor: ServicesAccessor, onlyGroup?: TestRunProfileBitset) {
 		const commands = acessor.get(ICommandService);
-		const testConfigurationService = acessor.get(ITestConfigurationService);
-		const configuration = await commands.executeCommand<ITestRunConfiguration>('vscode.pickTestProfile', {
+		const testProfileService = acessor.get(ITestProfileService);
+		const profile = await commands.executeCommand<ITestRunProfile>('vscode.pickTestProfile', {
 			placeholder: localize('configureProfile', 'Select a profile to update'),
 			showConfigureButtons: false,
 			onlyConfigurable: true,
 			onlyGroup,
 		});
 
-		if (configuration) {
-			testConfigurationService.configure(configuration.controllerId, configuration.profileId);
+		if (profile) {
+			testProfileService.configure(profile.controllerId, profile.profileId);
 		}
 	}
 }
 
 abstract class ExecuteSelectedAction extends ViewAction<TestingExplorerView> {
-	constructor(id: string, title: string, icon: ThemeIcon, private readonly group: TestRunConfigurationBitset) {
+	constructor(id: string, title: string, icon: ThemeIcon, private readonly group: TestRunProfileBitset) {
 		super({
 			id,
 			title,
@@ -308,7 +308,7 @@ export class RunSelectedAction extends ExecuteSelectedAction {
 			RunSelectedAction.ID,
 			localize('runSelectedTests', 'Run Selected Tests'),
 			icons.testingRunIcon,
-			TestRunConfigurationBitset.Run,
+			TestRunProfileBitset.Run,
 		);
 	}
 }
@@ -320,7 +320,7 @@ export class DebugSelectedAction extends ExecuteSelectedAction {
 			DebugSelectedAction.ID,
 			localize('debugSelectedTests', 'Debug Selected Tests'),
 			icons.testingDebugIcon,
-			TestRunConfigurationBitset.Debug,
+			TestRunProfileBitset.Debug,
 		);
 	}
 }
@@ -336,15 +336,15 @@ const showDiscoveringWhile = <R>(progress: IProgressService, task: Promise<R>): 
 };
 
 abstract class RunOrDebugAllTestsAction extends Action2 {
-	constructor(options: IAction2Options, private readonly group: TestRunConfigurationBitset, private noTestsFoundError: string) {
+	constructor(options: IAction2Options, private readonly group: TestRunProfileBitset, private noTestsFoundError: string) {
 		super({
 			...options,
 			category,
 			menu: [{
 				id: MenuId.ViewTitle,
-				order: group === TestRunConfigurationBitset.Run
+				order: group === TestRunProfileBitset.Run
 					? ActionOrder.Run
-					: group === TestRunConfigurationBitset.Debug
+					: group === TestRunProfileBitset.Debug
 						? ActionOrder.Debug
 						: ActionOrder.Coverage,
 				group: 'navigation',
@@ -387,7 +387,7 @@ export class RunAllAction extends RunOrDebugAllTestsAction {
 					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_A),
 				},
 			},
-			TestRunConfigurationBitset.Run,
+			TestRunProfileBitset.Run,
 			localize('noTestProvider', 'No tests found in this workspace. You may need to install a test provider extension'),
 		);
 	}
@@ -406,7 +406,7 @@ export class DebugAllAction extends RunOrDebugAllTestsAction {
 					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_A),
 				},
 			},
-			TestRunConfigurationBitset.Debug,
+			TestRunProfileBitset.Debug,
 			localize('noDebugTestProvider', 'No debuggable tests found in this workspace. You may need to install a test provider extension'),
 		);
 	}
@@ -782,7 +782,7 @@ export class AutoRunOffAction extends ToggleAutoRun {
 
 
 abstract class ExecuteTestAtCursor extends Action2 {
-	constructor(options: IAction2Options, protected readonly group: TestRunConfigurationBitset) {
+	constructor(options: IAction2Options, protected readonly group: TestRunProfileBitset) {
 		super({
 			...options,
 			menu: {
@@ -836,7 +836,7 @@ export class RunAtCursor extends ExecuteTestAtCursor {
 				when: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_C),
 			},
-		}, TestRunConfigurationBitset.Run);
+		}, TestRunProfileBitset.Run);
 	}
 }
 
@@ -852,12 +852,12 @@ export class DebugAtCursor extends ExecuteTestAtCursor {
 				when: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_C),
 			},
-		}, TestRunConfigurationBitset.Debug);
+		}, TestRunProfileBitset.Debug);
 	}
 }
 
 abstract class ExecuteTestsInCurrentFile extends Action2 {
-	constructor(options: IAction2Options, protected readonly group: TestRunConfigurationBitset) {
+	constructor(options: IAction2Options, protected readonly group: TestRunProfileBitset) {
 		super({
 			...options,
 			menu: {
@@ -907,7 +907,7 @@ export class RunCurrentFile extends ExecuteTestsInCurrentFile {
 				when: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_F),
 			},
-		}, TestRunConfigurationBitset.Run);
+		}, TestRunProfileBitset.Run);
 	}
 }
 
@@ -924,7 +924,7 @@ export class DebugCurrentFile extends ExecuteTestsInCurrentFile {
 				when: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_F),
 			},
-		}, TestRunConfigurationBitset.Debug);
+		}, TestRunProfileBitset.Debug);
 	}
 }
 
@@ -1042,7 +1042,7 @@ export class ReRunFailedTests extends RunOrDebugFailedTests {
 
 	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
 		return service.runTests({
-			group: TestRunConfigurationBitset.Run,
+			group: TestRunProfileBitset.Run,
 			tests: internalTests.map(identifyTest),
 		});
 	}
@@ -1064,7 +1064,7 @@ export class DebugFailedTests extends RunOrDebugFailedTests {
 
 	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
 		return service.runTests({
-			group: TestRunConfigurationBitset.Debug,
+			group: TestRunProfileBitset.Debug,
 			tests: internalTests.map(identifyTest),
 		});
 	}
@@ -1086,7 +1086,7 @@ export class ReRunLastRun extends RunOrDebugLastRun {
 
 	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
 		return service.runTests({
-			group: TestRunConfigurationBitset.Debug,
+			group: TestRunProfileBitset.Debug,
 			tests: internalTests.map(identifyTest),
 		});
 	}
@@ -1108,7 +1108,7 @@ export class DebugLastRun extends RunOrDebugLastRun {
 
 	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
 		return service.runTests({
-			group: TestRunConfigurationBitset.Debug,
+			group: TestRunProfileBitset.Debug,
 			tests: internalTests.map(identifyTest),
 		});
 	}

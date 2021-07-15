@@ -26,8 +26,8 @@ import { ITestingProgressUiService, TestingProgressUiService } from 'vs/workbenc
 import { TestingViewPaneContainer } from 'vs/workbench/contrib/testing/browser/testingViewPaneContainer';
 import { testingConfiguation } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { identifyTest, ITestIdWithSrc, TestIdPath, TestRunConfigurationBitset } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestConfigurationService, TestConfigurationService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
+import { identifyTest, ITestIdWithSrc, TestIdPath, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestProfileService, TestProfileService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
 import { ITestingAutoRun, TestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
 import { TestingContentProvider } from 'vs/workbench/contrib/testing/common/testingContentProvider';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
@@ -42,7 +42,7 @@ import './testingConfigurationUi';
 
 registerSingleton(ITestService, TestService, true);
 registerSingleton(ITestResultStorage, TestResultStorage, true);
-registerSingleton(ITestConfigurationService, TestConfigurationService, true);
+registerSingleton(ITestProfileService, TestProfileService, true);
 registerSingleton(ITestResultService, TestResultService, true);
 registerSingleton(ITestExplorerFilterState, TestExplorerFilterState, true);
 registerSingleton(ITestingAutoRun, TestingAutoRun, true);
@@ -113,7 +113,7 @@ CommandsRegistry.registerCommand({
 	id: 'vscode.runTests',
 	handler: async (accessor: ServicesAccessor, tests: ITestIdWithSrc[]) => {
 		const testService = accessor.get(ITestService);
-		testService.runTests({ group: TestRunConfigurationBitset.Run, tests });
+		testService.runTests({ group: TestRunProfileBitset.Run, tests });
 	}
 });
 
@@ -121,7 +121,7 @@ CommandsRegistry.registerCommand({
 	id: 'vscode.debugTests',
 	handler: async (accessor: ServicesAccessor, tests: ITestIdWithSrc[]) => {
 		const testService = accessor.get(ITestService);
-		testService.runTests({ group: TestRunConfigurationBitset.Debug, tests });
+		testService.runTests({ group: TestRunProfileBitset.Debug, tests });
 	}
 });
 
@@ -145,7 +145,7 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: 'vscode.runTestsByPath',
-	handler: async (accessor: ServicesAccessor, group: TestRunConfigurationBitset, ...pathToTests: TestIdPath[]) => {
+	handler: async (accessor: ServicesAccessor, group: TestRunProfileBitset, ...pathToTests: TestIdPath[]) => {
 		const testService = accessor.get(ITestService);
 		await runTestsByPath(
 			accessor.get(ITestService).collection,

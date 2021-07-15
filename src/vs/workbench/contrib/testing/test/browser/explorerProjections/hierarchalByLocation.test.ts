@@ -92,7 +92,7 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 			{ e: 'b' }
 		]);
 
-		harness.c.root.children.get('id-a')!.children.remove('id-ab');
+		harness.c.root.children.get('id-a')!.children.delete('id-ab');
 
 		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'a', children: [{ e: 'aa' }] },

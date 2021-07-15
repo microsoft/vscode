@@ -11,8 +11,8 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
-import { ExtensionRunTestsRequest, ITestRunConfiguration, ResolvedTestRunRequest, TestResultItem, TestRunConfigurationBitset } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestConfigurationService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
+import { ExtensionRunTestsRequest, ITestRunProfile, ResolvedTestRunRequest, TestResultItem, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestResult, LiveTestResult, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultStorage, RETAIN_MAX_RESULTS } from 'vs/workbench/contrib/testing/common/testResultStorage';
@@ -108,7 +108,7 @@ export class TestResultService implements ITestResultService {
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITestResultStorage private readonly storage: ITestResultStorage,
-		@ITestConfigurationService private readonly testConfiguration: ITestConfigurationService,
+		@ITestProfileService private readonly testProfiles: ITestProfileService,
 	) {
 		this.isRunning = TestingContextKeys.isRunning.bindTo(contextKeyService);
 		this.hasAnyResults = TestingContextKeys.hasAnyResults.bindTo(contextKeyService);
@@ -137,12 +137,12 @@ export class TestResultService implements ITestResultService {
 			return this.push(new LiveTestResult(id, this.storage.getOutputController(id), true, req));
 		}
 
-		let config: ITestRunConfiguration | undefined;
-		if (!req.config) {
-			config = this.testConfiguration.getControllerGroupConfigurations(req.controllerId, TestRunConfigurationBitset.Run)[0];
+		let profile: ITestRunProfile | undefined;
+		if (!req.profile) {
+			profile = this.testProfiles.getControllerGroupProfiles(req.controllerId, TestRunProfileBitset.Run)[0];
 		} else {
-			const configs = this.testConfiguration.getControllerGroupConfigurations(req.controllerId, req.config.group);
-			config = configs.find(c => c.profileId === req.config!.id) || configs[0];
+			const profiles = this.testProfiles.getControllerGroupProfiles(req.controllerId, req.profile.group);
+			profile = profiles.find(c => c.profileId === req.profile!.id) || profiles[0];
 		}
 
 		const resolved: ResolvedTestRunRequest = {
@@ -151,10 +151,10 @@ export class TestResultService implements ITestResultService {
 			isAutoRun: false,
 		};
 
-		if (config) {
+		if (profile) {
 			resolved.targets.push({
-				profileGroup: config.group,
-				profileId: config.profileId,
+				profileGroup: profile.group,
+				profileId: profile.profileId,
 				controllerId: req.controllerId,
 				testIds: req.include,
 			});

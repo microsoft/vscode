@@ -11,7 +11,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { AbstractIncrementalTestCollection, IncrementalTestCollectionItem, InternalTestItem, ITestIdWithSrc, ResolvedTestRunRequest, RunTestForControllerRequest, TestIdPath, TestItemExpandState, TestRunConfigurationBitset, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { AbstractIncrementalTestCollection, IncrementalTestCollectionItem, InternalTestItem, ITestIdWithSrc, ResolvedTestRunRequest, RunTestForControllerRequest, TestIdPath, TestItemExpandState, TestRunProfileBitset, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestExclusions } from 'vs/workbench/contrib/testing/common/testExclusions';
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 
@@ -20,7 +20,7 @@ export const ITestService = createDecorator<ITestService>('testService');
 export interface IMainThreadTestController {
 	readonly id: string;
 	readonly label: IObservableValue<string>;
-	configureRunConfig(configId: number): void;
+	configureRunProfile(profileId: number): void;
 	expandTest(src: ITestIdWithSrc, levels: number): Promise<void>;
 	runTests(request: RunTestForControllerRequest, token: CancellationToken): Promise<void>;
 }
@@ -171,7 +171,7 @@ export interface ITestRootProvider {
  */
 export interface AmbiguousRunTestsRequest {
 	/** Group to run */
-	group: TestRunConfigurationBitset;
+	group: TestRunProfileBitset;
 	/** Tests to run. Allowed to be from different controllers */
 	tests: ITestIdWithSrc[];
 	/** Tests to exclude. If not given, the current UI excluded tests are used */

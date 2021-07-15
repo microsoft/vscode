@@ -58,8 +58,8 @@ import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/brow
 import { testingPeekBorder } from 'vs/workbench/contrib/testing/browser/theme';
 import { AutoOpenPeekViewWhen, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { IRichLocation, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, TestResultItem, TestRunConfigurationBitset } from 'vs/workbench/contrib/testing/common/testCollection';
-import { capabilityContextKeys, ITestConfigurationService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
+import { IRichLocation, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, TestResultItem, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { capabilityContextKeys, ITestProfileService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
@@ -1270,12 +1270,12 @@ class TreeActionsProvider {
 		@ITestingOutputTerminalService private readonly testTerminalService: ITestingOutputTerminalService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ICommandService private readonly commandService: ICommandService,
-		@ITestConfigurationService private readonly testConfigurationService: ITestConfigurationService,
+		@ITestProfileService private readonly testProfileService: ITestProfileService,
 	) { }
 
 	public provideActionBar(element: ITreeElement) {
 		const test = element instanceof TestCaseElement ? element.test : undefined;
-		const capabilities = test ? this.testConfigurationService.controllerCapabilities(test.controllerId) : 0;
+		const capabilities = test ? this.testProfileService.controllerCapabilities(test.controllerId) : 0;
 		const contextOverlay = this.contextKeyService.createOverlay([
 			['peek', Testing.OutputPeekContributionId],
 			[TestingContextKeys.peekItemType.key, element.type],
@@ -1306,7 +1306,7 @@ class TreeActionsProvider {
 					() => this.commandService.executeCommand('testing.reRunLastRun', element.value.id),
 				));
 
-				if (capabilities & TestRunConfigurationBitset.Debug) {
+				if (capabilities & TestRunProfileBitset.Debug) {
 					primary.push(new Action(
 						'testing.outputPeek.debugLastRun',
 						localize('testing.debugLastRun', "Debug Test Run"),
@@ -1326,7 +1326,7 @@ class TreeActionsProvider {
 					() => this.commandService.executeCommand('vscode.revealTestInExplorer', element.path),
 				));
 
-				if (capabilities & TestRunConfigurationBitset.Run) {
+				if (capabilities & TestRunProfileBitset.Run) {
 					primary.push(new Action(
 						'testing.outputPeek.runTest',
 						localize('run test', 'Run Test'),
@@ -1336,7 +1336,7 @@ class TreeActionsProvider {
 					));
 				}
 
-				if (capabilities & TestRunConfigurationBitset.Coverage) {
+				if (capabilities & TestRunProfileBitset.Coverage) {
 					primary.push(new Action(
 						'testing.outputPeek.debugTest',
 						localize('debug test', 'Debug Test'),

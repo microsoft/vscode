@@ -10,8 +10,8 @@ import { Lazy } from 'vs/base/common/lazy';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { SingleUseTestCollection } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
-import { ITestTaskState, ResolvedTestRunRequest, TestResultItem, TestRunConfigurationBitset } from 'vs/workbench/contrib/testing/common/testCollection';
-import { TestConfigurationService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
+import { ITestTaskState, ResolvedTestRunRequest, TestResultItem, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestProfileService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
 import { TestResultState } from 'vs/workbench/contrib/testing/common/testingStates';
 import { getPathForTestInResult, HydratedTestResult, LiveOutputController, LiveTestResult, makeEmptyCounts, resultItemParents, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
@@ -36,7 +36,7 @@ suite('Workbench - Test Results Service', () => {
 
 	const defaultOpts = (testIds: string[]): ResolvedTestRunRequest => ({
 		targets: [{
-			profileGroup: TestRunConfigurationBitset.Run,
+			profileGroup: TestRunProfileBitset.Run,
 			profileId: 0,
 			controllerId: 'ctrlId',
 			testIds,
@@ -204,7 +204,7 @@ suite('Workbench - Test Results Service', () => {
 
 		setup(() => {
 			storage = new InMemoryResultStorage(new TestStorageService(), new NullLogService());
-			results = new TestTestResultService(new MockContextKeyService(), storage, new TestConfigurationService(new MockContextKeyService(), new TestStorageService()));
+			results = new TestTestResultService(new MockContextKeyService(), storage, new TestProfileService(new MockContextKeyService(), new TestStorageService()));
 		});
 
 		test('pushes new result', () => {
@@ -221,7 +221,7 @@ suite('Workbench - Test Results Service', () => {
 			results = new TestResultService(
 				new MockContextKeyService(),
 				storage,
-				new TestConfigurationService(new MockContextKeyService(), new TestStorageService()),
+				new TestProfileService(new MockContextKeyService(), new TestStorageService()),
 			);
 
 			assert.strictEqual(0, results.results.length);

@@ -9,9 +9,9 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Iterable } from 'vs/base/common/iterator';
 import { mockObject, MockObject } from 'vs/base/test/common/mock';
 import { MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
-import { TestRunConfigurationImpl, TestRunCoordinator, TestRunDto } from 'vs/workbench/api/common/extHostTesting';
+import { TestRunProfileImpl, TestRunCoordinator, TestRunDto } from 'vs/workbench/api/common/extHostTesting';
 import * as convert from 'vs/workbench/api/common/extHostTypeConverters';
-import { TestMessage, TestResultState, TestRunConfigurationGroup } from 'vs/workbench/api/common/extHostTypes';
+import { TestMessage, TestResultState, TestRunProfileGroup } from 'vs/workbench/api/common/extHostTypes';
 import { TestDiffOpType, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestItemImpl, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
 import { TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
@@ -139,7 +139,7 @@ suite('ExtHost Testing', () => {
 		test('removes children', () => {
 			single.expand(single.root.id, Infinity);
 			single.collectDiff();
-			single.root.children.remove('id-a');
+			single.root.children.delete('id-a');
 
 			assert.deepStrictEqual(single.collectDiff(), [
 				[TestDiffOpType.Remove, 'id-a'],
@@ -412,7 +412,7 @@ suite('ExtHost Testing', () => {
 		let proxy: MockObject<MainThreadTestingShape>;
 		let c: TestRunCoordinator;
 		let cts: CancellationTokenSource;
-		let configuration: TestRunConfigurationImpl;
+		let configuration: TestRunProfileImpl;
 
 		let req: TestRunRequest;
 
@@ -423,17 +423,17 @@ suite('ExtHost Testing', () => {
 			cts = new CancellationTokenSource();
 			c = new TestRunCoordinator(proxy);
 
-			configuration = new TestRunConfigurationImpl(mockObject<MainThreadTestingShape, {}>(), 'ctrlId', 42, 'Do Run', TestRunConfigurationGroup.Run, () => { }, false);
+			configuration = new TestRunProfileImpl(mockObject<MainThreadTestingShape, {}>(), 'ctrlId', 42, 'Do Run', TestRunProfileGroup.Run, () => { }, false);
 
 			req = {
 				include: undefined,
 				exclude: [single.root.children.get('id-b')!],
-				configuration,
+				profile: configuration,
 			};
 
 			dto = TestRunDto.fromInternal({
 				controllerId: 'ctrl',
-				configId: configuration.configId,
+				profileId: configuration.profileId,
 				excludeExtIds: ['id-b'],
 				runId: 'run-id',
 				testIds: [single.root.id],
@@ -544,7 +544,7 @@ suite('ExtHost Testing', () => {
 			single.expand(single.root.id, Infinity);
 
 			const task = c.createTestRun('ctrl', single, {
-				configuration,
+				profile: configuration,
 				include: [single.root.children.get('id-a')!],
 				exclude: [single.root.children.get('id-a')!.children.get('id-aa')!],
 			}, 'hello world', false);

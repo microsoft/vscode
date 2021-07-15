@@ -305,7 +305,7 @@ export class SingleUseTestCollection extends Disposable {
 		// If the item already exists under a different parent, remove it.
 		let internal = this.tree.get(actual.id);
 		if (internal && internal.parent !== parent?.actual.id) {
-			(internal.actual.parent ?? this.root).children.remove(actual.id);
+			(internal.actual.parent ?? this.root).children.delete(actual.id);
 			internal = undefined;
 		}
 

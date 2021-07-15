@@ -69,7 +69,7 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 
 	test('updates nodes if they remove children', async () => {
 		harness.flush();
-		harness.c.root.children.get('id-a')!.children.remove('id-ab');
+		harness.c.root.children.get('id-a')!.children.delete('id-ab');
 
 		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'aa' },

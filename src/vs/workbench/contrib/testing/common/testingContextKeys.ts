@@ -7,22 +7,22 @@ import { localize } from 'vs/nls';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { TestExplorerViewMode, TestExplorerViewSorting } from 'vs/workbench/contrib/testing/common/constants';
-import { TestRunConfigurationBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export namespace TestingContextKeys {
 	export const providerCount = new RawContextKey('testing.providerCount', 0);
 	export const hasDebuggableTests = new RawContextKey('testing.hasDebuggableTests', false, { type: 'boolean', description: localize('testing.hasDebuggableTests', 'Indicates whether any test controller has registered a debug configuration') });
 	export const hasRunnableTests = new RawContextKey('testing.hasRunnableTests', false, { type: 'boolean', description: localize('testing.hasRunnableTests', 'Indicates whether any test controller has registered a run configuration') });
 	export const hasCoverableTests = new RawContextKey('testing.hasCoverableTests', false, { type: 'boolean', description: localize('testing.hasCoverableTests', 'Indicates whether any test controller has registered a coverage configuration') });
-	export const hasNonDefaultProfile = new RawContextKey('testing.hasNonDefaultConfig', false, { type: 'boolean', description: localize('testing.hasNonDefaultConfig', 'Indicates whether any test controller has registered a non-default configuration') });
-	export const hasConfigurableConfig = new RawContextKey('testing.hasConfigurableConfig', false, { type: 'boolean', description: localize('testing.hasConfigurableConfig', 'Indicates whether any test configuration can be configured') });
+	export const hasNonDefaultProfile = new RawContextKey('testing.hasNonDefaultProfile', false, { type: 'boolean', description: localize('testing.hasNonDefaultConfig', 'Indicates whether any test controller has registered a non-default configuration') });
+	export const hasConfigurableProfile = new RawContextKey('testing.hasConfigurableProfile', false, { type: 'boolean', description: localize('testing.hasConfigurableConfig', 'Indicates whether any test configuration can be configured') });
 
-	export const capabilityToContextKey: { [K in TestRunConfigurationBitset]: RawContextKey<boolean> } = {
-		[TestRunConfigurationBitset.Run]: hasRunnableTests,
-		[TestRunConfigurationBitset.Coverage]: hasCoverableTests,
-		[TestRunConfigurationBitset.Debug]: hasDebuggableTests,
-		[TestRunConfigurationBitset.HasNonDefaultConfig]: hasNonDefaultProfile,
-		[TestRunConfigurationBitset.HasConfigurable]: hasConfigurableConfig,
+	export const capabilityToContextKey: { [K in TestRunProfileBitset]: RawContextKey<boolean> } = {
+		[TestRunProfileBitset.Run]: hasRunnableTests,
+		[TestRunProfileBitset.Coverage]: hasCoverableTests,
+		[TestRunProfileBitset.Debug]: hasDebuggableTests,
+		[TestRunProfileBitset.HasNonDefaultProfile]: hasNonDefaultProfile,
+		[TestRunProfileBitset.HasConfigurable]: hasConfigurableProfile,
 	};
 
 	export const hasAnyResults = new RawContextKey('testing.hasAnyResults', false);
