@@ -415,7 +415,7 @@ export class ExtensionActivationStatusWidget extends ExtensionWidget {
 			activationTimeElement.textContent = `${activationTime}ms`;
 		} else {
 			const activationTimeElement = append(this.container, $('span.activationTime'));
-			activationTimeElement.textContent = `${extensionStatus.activationTimes.activationReason.startup ? localize('startup activation', "Startup Activation Time") : localize('activation', "Activation Time")}: ${activationTime}ms`;
+			activationTimeElement.textContent = `${localize('activation', "Activation time")}${extensionStatus.activationTimes.activationReason.startup ? ` (${localize('startup', "Startup")})` : ''} : ${activationTime}ms`;
 		}
 
 	}
@@ -486,7 +486,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 			if (extensionStatus) {
 				if (extensionStatus.activationTimes) {
 					const activationTime = extensionStatus.activationTimes.codeLoadingTime + extensionStatus.activationTimes.activateCallTime;
-					markdown.appendMarkdown(`${extensionStatus.activationTimes.activationReason.startup ? localize('startup activation', "Startup Activation Time") : localize('activation', "Activation Time")}: \`${activationTime}ms\``);
+					markdown.appendMarkdown(`${localize('activation', "Activation time")}${extensionStatus.activationTimes.activationReason.startup ? ` (${localize('startup', "Startup")})` : ''} : \`${activationTime}ms\``);
 					markdown.appendText(`\n`);
 				}
 				if (extensionStatus.runtimeErrors.length || extensionStatus.messages.length) {

@@ -629,4 +629,9 @@
 .extension-editor > .body > .content .runtime-status .message-entry {
 	display: flex;
 	align-items: center;
+	margin: 5px;
+}
+
+.extension-editor > .body > .content .runtime-status .message-entry .codicon{
+	padding-right: 2px;
 }
