@@ -39,7 +39,7 @@ export class ChildProcessMonitor extends Disposable {
 	private set hasChildProcesses(value: boolean) {
 		if (this._hasChildProcesses !== value) {
 			this._hasChildProcesses = value;
-			this._logService.trace('ChildProcessMonitor: Has child processes changed', value);
+			this._logService.debug('ChildProcessMonitor: Has child processes changed', value);
 			this._onDidChangeHasChildProcesses.fire(value);
 		}
 	}
@@ -59,7 +59,6 @@ export class ChildProcessMonitor extends Disposable {
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
-		this.onDidChangeHasChildProcesses((s) => console.log('changed state', s));
 	}
 
 	override dispose() {
@@ -86,9 +85,12 @@ export class ChildProcessMonitor extends Disposable {
 		if (this._isDisposed) {
 			return;
 		}
-		const processItem = await listProcesses(this._pid);
-		this.hasChildProcesses = this._processContainsChildren(processItem);
-		console.log('processItem', processItem);
+		try {
+			const processItem = await listProcesses(this._pid);
+			this.hasChildProcesses = this._processContainsChildren(processItem);
+		} catch (e) {
+			this._logService.debug('ChildProcessMonitor: Fetching process tree failed', e);
+		}
 	}
 
 	@throttle(Constants.InactiveThrottleDuration)
