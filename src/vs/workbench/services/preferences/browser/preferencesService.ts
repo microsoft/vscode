@@ -8,7 +8,6 @@ import { Emitter } from 'vs/base/common/event';
 import { parse } from 'vs/base/common/json';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as network from 'vs/base/common/network';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -329,26 +328,15 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private doOpenSettingsJson(configurationTarget: ConfigurationTarget, resource: URI, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined> {
 		const openSplitJSON = !!this.configurationService.getValue(USE_SPLIT_JSON_SETTING);
-		if (openSplitJSON) {
+		const openDefaultSettings = !!this.configurationService.getValue(DEFAULT_SETTINGS_EDITOR_SETTING);
+		if (openSplitJSON || openDefaultSettings) {
 			return this.doOpenSplitJSON(configurationTarget, resource, options, group);
 		}
-
-		const openDefaultSettings = !!this.configurationService.getValue(DEFAULT_SETTINGS_EDITOR_SETTING);
 
 		return this.getOrCreateEditableSettingsEditorInput(configurationTarget, resource)
 			.then(editableSettingsEditorInput => {
 				options = { ...options, pinned: true };
-
-				if (openDefaultSettings) {
-					const activeEditorGroup = this.editorGroupService.activeGroup;
-					const sideEditorGroup = this.editorGroupService.addGroup(activeEditorGroup.id, GroupDirection.RIGHT);
-					return Promise.all([
-						this.editorService.openEditor({ resource: this.defaultSettingsRawResource, options: { pinned: true, preserveFocus: true, revealIfOpened: true, override: EditorResolution.DISABLED }, label: nls.localize('defaultSettings', "Default Settings"), description: '' }),
-						this.editorService.openEditor(editableSettingsEditorInput, { pinned: true, revealIfOpened: true, override: EditorResolution.DISABLED }, sideEditorGroup.id)
-					]).then(([defaultEditor, editor]) => withNullAsUndefined(editor));
-				} else {
-					return this.editorService.openEditor(editableSettingsEditorInput, validateSettingsEditorOptions(options), group);
-				}
+				return this.editorService.openEditor(editableSettingsEditorInput, validateSettingsEditorOptions(options), group);
 			});
 	}
 
