@@ -171,7 +171,7 @@ function isTypeHierarchyItemDto(obj: any): obj is TypeHierarchyItem {
 	const item = obj as TypeHierarchyItem;
 	return typeof obj === 'object'
 		&& typeof item.name === 'string'
-		&& !!item.kind
+		&& typeof item.kind === 'number'
 		&& URI.isUri(item.uri)
 		&& Range.isIRange(item.range)
 		&& Range.isIRange(item.selectionRange);
