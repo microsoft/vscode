@@ -191,7 +191,7 @@ export interface IPtyService {
 
 	restartPtyHost?(): Promise<void>;
 	shutdownAll?(): Promise<void>;
-	acceptPtyHostResolvedVariables?(id: number, resolved: string[]): Promise<void>;
+	acceptPtyHostResolvedVariables?(requestId: number, resolved: string[]): Promise<void>;
 
 	createProcess(
 		shellLaunchConfig: IShellLaunchConfig,
@@ -238,7 +238,7 @@ export interface IPtyService {
 }
 
 export interface IRequestResolveVariablesEvent {
-	id: number;
+	requestId: number;
 	workspaceId: string;
 	originalText: string[];
 }

@@ -121,7 +121,7 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 					return configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, t);
 				});
 				const result = await Promise.all(resolveCalls);
-				this._localPtyService.acceptPtyHostResolvedVariables?.(e.id, result);
+				this._localPtyService.acceptPtyHostResolvedVariables?.(e.requestId, result);
 			}));
 		}
 	}

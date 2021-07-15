@@ -17,6 +17,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { detectAvailableProfiles } from 'vs/platform/terminal/node/terminalProfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
+import { RequestStore } from 'vs/platform/terminal/node/requestStore';
 
 enum Constants {
 	MaxRestarts = 5
@@ -27,8 +28,6 @@ enum Constants {
  * restarted and avoid ID conflicts.
  */
 let lastPtyId = 0;
-
-let lastResolveVariablesRequestId = 0;
 
 /**
  * This service implements IPtyService by launching a pty host process, forwarding messages to and
@@ -41,6 +40,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 	// ProxyChannel is not used here because events get lost when forwarding across multiple proxies
 	private _proxy: IPtyService;
 
+	private readonly _resolveVariablesRequestStore: RequestStore<string[], { workspaceId: string, originalText: string[] }>;
 	private _restartCount = 0;
 	private _isResponsive = true;
 	private _isDisposed = false;
@@ -95,6 +95,9 @@ export class PtyHostService extends Disposable implements IPtyService {
 		registerTerminalPlatformConfiguration();
 
 		this._register(toDisposable(() => this._disposePtyHost()));
+
+		this._resolveVariablesRequestStore = this._register(new RequestStore(this._logService));
+		this._resolveVariablesRequestStore.onCreateRequest(this._onPtyHostRequestResolveVariables.fire, this._onPtyHostRequestResolveVariables);
 
 		[this._client, this._proxy] = this._startPtyHost();
 	}
@@ -323,21 +326,10 @@ export class PtyHostService extends Disposable implements IPtyService {
 		}
 	}
 
-	private _pendingResolveVariablesRequests: Map<number, (resolved: string[]) => void> = new Map();
 	private _resolveVariables(workspaceId: string, text: string[]): Promise<string[]> {
-		return new Promise<string[]>(resolve => {
-			const id = ++lastResolveVariablesRequestId;
-			this._pendingResolveVariablesRequests.set(id, resolve);
-			this._onPtyHostRequestResolveVariables.fire({ id, workspaceId, originalText: text });
-		});
+		return this._resolveVariablesRequestStore.createRequest({ workspaceId, originalText: text });
 	}
-	async acceptPtyHostResolvedVariables(id: number, resolved: string[]) {
-		const request = this._pendingResolveVariablesRequests.get(id);
-		if (request) {
-			request(resolved);
-			this._pendingResolveVariablesRequests.delete(id);
-		} else {
-			this._logService.warn(`Resolved variables received without matching request ${id}`);
-		}
+	async acceptPtyHostResolvedVariables(requestId: number, resolved: string[]) {
+		this._resolveVariablesRequestStore.acceptReply(requestId, resolved);
 	}
 }

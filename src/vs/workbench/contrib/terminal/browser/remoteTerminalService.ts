@@ -148,7 +148,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 					return configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, t);
 				});
 				const result = await Promise.all(resolveCalls);
-				channel.acceptPtyHostResolvedVariables(e.id, result);
+				channel.acceptPtyHostResolvedVariables(e.requestId, result);
 			}));
 		} else {
 			this._remoteTerminalChannel = null;
