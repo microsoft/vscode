@@ -1771,7 +1771,7 @@ declare module 'vscode' {
 		 * Creates a new test controller.
 		 *
 		 * @param id Identifier for the controller, must be globally unique.
-		 */
+		*/
 		export function createTestController(id: string, label: string): TestController;
 
 		/**
@@ -1855,7 +1855,7 @@ declare module 'vscode' {
 		readonly removed: ReadonlyArray<TestItem>;
 	}
 
-	// Todo: this is basically the same as the TaskGroup, which is a class that
+	// Todo@api: this is basically the same as the TaskGroup, which is a class that
 	// allows custom groups to be created. However I don't anticipate having any
 	// UI for that, so enum for now?
 	export enum TestRunConfigurationGroup {
@@ -1876,6 +1876,8 @@ declare module 'vscode' {
 	 * instances associated with the request will be
 	 * automatically cancelled as well.
 	 */
+	// todo@api We have been there with NotebookCtrl#executeHandler and I believe the recommendation is still not to inline.
+	// At least with that we can still do it later
 	export type TestRunHandler = (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void;
 
 	export interface TestRunConfiguration {
@@ -1935,10 +1937,12 @@ declare module 'vscode' {
 	/**
 	 * Interface to discover and execute tests.
 	 */
+	// todo@api maybe some words on this being the "entry point"
 	export interface TestController {
 		/**
 		 * The ID of the controller, passed in {@link vscode.test.createTestController}
 		 */
+		// todo@api maybe explain what the id is used for and iff it must be globally unique or only unique within the extension
 		readonly id: string;
 
 		/**
@@ -1955,7 +1959,7 @@ declare module 'vscode' {
 		 * decorations for tests within the file to be visible.
 		 *
 		 * Tests in this collection should be watched and updated by the extension
-		 * as files change. See  {@link resolveChildrenHandler} for details around
+		 * as files change. See {@link resolveChildrenHandler} for details around
 		 * for the lifecycle of watches.
 		 */
 		readonly items: TestItemCollection;
@@ -1985,6 +1989,7 @@ declare module 'vscode' {
 		 * @param item An unresolved test item for which
 		 * children are being requested
 		 */
+		// todo@API maybe just `resolveHandler` so that we could extends its usage in the future?
 		resolveChildrenHandler?: (item: TestItem) => Thenable<void> | void;
 
 		/**
@@ -2104,6 +2109,7 @@ declare module 'vscode' {
 		 * Signals that the end of the test run. Any tests whose states have not
 		 * been updated will be moved into the {@link TestResultState.Unset} state.
 		 */
+		// todo@api is the Unset logic smart and only considering those tests that are included?
 		end(): void;
 	}
 
@@ -2116,6 +2122,7 @@ declare module 'vscode' {
 		 * A read-only array of all the test items children. Can be retrieved, or
 		 * set in order to replace children in the collection.
 		 */
+		// todo@API unsure if this should readonly and have a separate replaceAll-like function
 		all: readonly TestItem[];
 
 		/**
@@ -2127,6 +2134,7 @@ declare module 'vscode' {
 		/**
 		 * Removes the a single test item from the collection.
 		 */
+		//todo@API `delete` as Map, EnvironmentVariableCollection, DiagnosticCollection
 		remove(itemId: string): void;
 
 		/**
@@ -2145,6 +2153,7 @@ declare module 'vscode' {
 		 * test results and tests in the document with those in the workspace
 		 * (test explorer). This must not change for the lifetime of the TestItem.
 		 */
+		// todo@API globally vs extension vs controller unique. I would strongly recommend non-global
 		readonly id: string;
 
 		/**
@@ -2162,6 +2171,7 @@ declare module 'vscode' {
 		 * This is undefined top-level items in the `TestController`, and for
 		 * items that aren't yet assigned to a parent.
 		 */
+		// todo@api obsolete? doc is outdated at least
 		readonly parent?: TestItem;
 
 		/**
@@ -2212,6 +2222,7 @@ declare module 'vscode' {
 		 *
 		 * Extensions should generally not override this method.
 		 */
+		// todo@api still unsure about this
 		invalidateResults(): void;
 	}
 
@@ -2232,6 +2243,7 @@ declare module 'vscode' {
 		// Test run has been skipped
 		Skipped = 5,
 		// Test run failed for some other reason (compilation error, timeout, etc)
+		// todo@api could I just use `Skipped` and TestItem#error?
 		Errored = 6
 	}
 
