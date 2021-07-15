@@ -63,6 +63,7 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 	readonly onDidChangeOriginalResource: Event<OriginalResourceChangeEvent> = this._onDidChangeOriginalResource.event;
 
 	private openRepositories: OpenRepository[] = [];
+	private closedRepositories = new Set<string>();
 	get repositories(): Repository[] { return this.openRepositories.map(r => r.repository); }
 
 	private possibleGitRepositoryPaths = new Set<string>();
@@ -208,6 +209,7 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 			.filter(r => !(workspace.workspaceFolders || []).some(f => isDescendant(f.uri.fsPath, r!.repository.root))) as OpenRepository[];
 
 		openRepositoriesToDispose.forEach(r => r.dispose());
+		this.closedRepositories.clear();
 		await Promise.all(possibleRepositoryFolders.map(p => this.openRepository(p.uri.fsPath)));
 	}
 
@@ -308,6 +310,10 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 	}
 
 	private shouldRepositoryBeIgnored(repositoryRoot: string): boolean {
+		if (this.closedRepositories.has(repositoryRoot.toLowerCase())) {
+			return true;
+		}
+
 		const config = workspace.getConfiguration('git');
 		const ignoredRepos = config.get<string[]>('ignoredRepositories') || [];
 
@@ -388,6 +394,10 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 
 		this.outputChannel.appendLine(`Close repository: ${repository.root}`);
 		openRepository.dispose();
+
+		if (!this.closedRepositories.has(repository.root)) {
+			this.closedRepositories.add(repository.root.toLowerCase());
+		}
 	}
 
 	async pickRepository(): Promise<Repository | undefined> {
@@ -528,6 +538,7 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 		openRepositories.forEach(r => r.dispose());
 		this.openRepositories = [];
 
+		this.closedRepositories.clear();
 		this.possibleGitRepositoryPaths.clear();
 		this.disposables = dispose(this.disposables);
 	}
