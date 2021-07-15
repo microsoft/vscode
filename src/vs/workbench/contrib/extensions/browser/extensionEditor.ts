@@ -769,10 +769,10 @@ export class ExtensionEditor extends EditorPane {
 	}
 
 	private renderCategories(container: HTMLElement, extension: IExtension): void {
-		const categoriesContainer = append(container, $('.categories-container'));
-		append(categoriesContainer, $('.additional-details-title', undefined, localize('categories', "Categories")));
-		const categoriesElement = append(categoriesContainer, $('.categories'));
 		if (extension.categories.length) {
+			const categoriesContainer = append(container, $('.categories-container'));
+			append(categoriesContainer, $('.additional-details-title', undefined, localize('categories', "Categories")));
+			const categoriesElement = append(categoriesContainer, $('.categories'));
 			for (const category of extension.categories) {
 				this.transientDisposables.add(this.onClick(append(categoriesElement, $('span.category', undefined, category)), () => {
 					this.viewletService.openViewlet(VIEWLET_ID, true)
@@ -780,16 +780,14 @@ export class ExtensionEditor extends EditorPane {
 						.then(viewlet => viewlet.search(`@category:"${category}"`));
 				}));
 			}
-		} else {
-			append(categoriesElement, $('span', undefined, localize('none', "None")));
 		}
 	}
 
 	private renderTags(container: HTMLElement, extension: IExtension): void {
-		const tagsContainer = append(container, $('.tags-container'));
-		append(tagsContainer, $('.additional-details-title', undefined, localize('tags', "Tags")));
-		const tagsElement = append(tagsContainer, $('.tags'));
 		if (extension.tags.length) {
+			const tagsContainer = append(container, $('.tags-container'));
+			append(tagsContainer, $('.additional-details-title', undefined, localize('tags', "Tags")));
+			const tagsElement = append(tagsContainer, $('.tags'));
 			for (const tag of extension.tags) {
 				this.transientDisposables.add(this.onClick(append(tagsElement, $('span.tag', undefined, tag)), () => {
 					this.viewletService.openViewlet(VIEWLET_ID, true)
@@ -797,15 +795,10 @@ export class ExtensionEditor extends EditorPane {
 						.then(viewlet => viewlet.search(`@tag:"${tag}"`));
 				}));
 			}
-		} else {
-			append(tagsElement, $('span', undefined, localize('none', "None")));
 		}
 	}
 
 	private renderResources(container: HTMLElement, extension: IExtension): void {
-		const resourcesContainer = append(container, $('.resources-container'));
-		append(resourcesContainer, $('.additional-details-title', undefined, localize('resources', "Resources")));
-		const resourcesElement = append(resourcesContainer, $('.resources'));
 		const resources: [string, URI][] = [];
 		if (extension.url) {
 			resources.push([localize('Marketplace', "Marketplace"), URI.parse(extension.url)]);
@@ -818,11 +811,12 @@ export class ExtensionEditor extends EditorPane {
 			resources.push([localize('license', "License"), URI.parse(extension.licenseUrl)]);
 		}
 		if (resources.length) {
+			const resourcesContainer = append(container, $('.resources-container'));
+			append(resourcesContainer, $('.additional-details-title', undefined, localize('resources', "Resources")));
+			const resourcesElement = append(resourcesContainer, $('.resources'));
 			for (const [label, uri] of resources) {
 				this.transientDisposables.add(this.onClick(append(resourcesElement, $('a.resource', undefined, label)), () => this.openerService.open(uri)));
 			}
-		} else {
-			append(resourcesElement, $('span', undefined, localize('none', "None")));
 		}
 	}
 
