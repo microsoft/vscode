@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, RefCountedDisposable } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { assertType } from 'vs/base/common/types';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -45,25 +45,7 @@ export interface TypeHierarchyProvider {
 
 export const TypeHierarchyProviderRegistry = new LanguageFeatureRegistry<TypeHierarchyProvider>();
 
-class RefCountedDisposabled {
 
-	constructor(
-		private readonly _disposable: IDisposable,
-		private _counter = 1
-	) { }
-
-	acquire() {
-		this._counter++;
-		return this;
-	}
-
-	release() {
-		if (--this._counter === 0) {
-			this._disposable.dispose();
-		}
-		return this;
-	}
-}
 
 export class TypeHierarchyModel {
 
@@ -76,7 +58,7 @@ export class TypeHierarchyModel {
 		if (!session) {
 			return undefined;
 		}
-		return new TypeHierarchyModel(session.roots.reduce((p, c) => p + c._sessionId, ''), provider, session.roots, new RefCountedDisposabled(session));
+		return new TypeHierarchyModel(session.roots.reduce((p, c) => p + c._sessionId, ''), provider, session.roots, new RefCountedDisposable(session));
 	}
 
 	readonly root: TypeHierarchyItem;
@@ -85,7 +67,7 @@ export class TypeHierarchyModel {
 		readonly id: string,
 		readonly provider: TypeHierarchyProvider,
 		readonly roots: TypeHierarchyItem[],
-		readonly ref: RefCountedDisposabled,
+		readonly ref: RefCountedDisposable,
 	) {
 		this.root = roots[0];
 	}
@@ -202,4 +184,3 @@ CommandsRegistry.registerCommand('_executeProvideSubtypes', async (_accessor, ..
 
 	return model.provideSubtypes(item, CancellationToken.None);
 });
-
