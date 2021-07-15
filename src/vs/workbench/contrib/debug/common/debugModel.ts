@@ -389,8 +389,9 @@ export class StackFrame implements IStackFrame {
 
 	async openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<IEditorPane | undefined> {
 		const threadStopReason = this.thread.stoppedDetails?.reason;
-		if (threadStopReason === 'instruction breakpoint' ||
-			(threadStopReason === 'step' && this.thread.lastSteppingGranularity === 'instruction')) {
+		if (this.instructionPointerReference &&
+			(threadStopReason === 'instruction breakpoint' ||
+				(threadStopReason === 'step' && this.thread.lastSteppingGranularity === 'instruction'))) {
 			return editorService.openEditor(DisassemblyViewInput.instance, { pinned: true });
 		}
 
