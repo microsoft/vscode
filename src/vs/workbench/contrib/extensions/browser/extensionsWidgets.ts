@@ -415,7 +415,7 @@ export class ExtensionActivationStatusWidget extends ExtensionWidget {
 			activationTimeElement.textContent = `${activationTime}ms`;
 		} else {
 			const activationTimeElement = append(this.container, $('span.activationTime'));
-			activationTimeElement.textContent = `${extensionStatus.activationTimes.activationReason.startup ? localize('startup activation', "Startup Activation") : localize('activation', "Activation")}: ${activationTime}ms`;
+			activationTimeElement.textContent = `${extensionStatus.activationTimes.activationReason.startup ? localize('startup activation', "Startup Activation Time") : localize('activation', "Activation Time")}: ${activationTime}ms`;
 		}
 
 	}
@@ -465,80 +465,52 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		}
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 
-		markdown.appendMarkdown(`**${this.extension.displayName}**`);
-		markdown.appendMarkdown(`&nbsp;\`${this.extension.identifier.id}\``);
+		markdown.appendMarkdown(`**${this.extension.displayName}**&nbsp;_v${this.extension.version}_`);
 		markdown.appendText(`\n`);
-
-		const installLabel = InstallCountWidget.getInstallLabel(this.extension, false);
-		if (this.extension.rating || installLabel) {
-			if (installLabel) {
-				markdown.appendMarkdown(`$(${installCountIcon.id}) ${installLabel}`);
-			}
-			if (this.extension.rating) {
-				if (installLabel) {
-					markdown.appendText(`  |  `);
-				}
-				const rating = Math.round(this.extension.rating * 2) / 2;
-				for (let i = 1; i <= 5; i++) {
-					if (rating >= i) {
-						markdown.appendMarkdown(`$(${starFullIcon.id})`);
-					} else if (rating >= i - 0.5) {
-						markdown.appendMarkdown(`$(${starHalfIcon.id})`);
-					} else {
-						markdown.appendMarkdown(`$(${starEmptyIcon.id})`);
-					}
-				}
-				if (this.extension.ratingCount) {
-					markdown.appendMarkdown(`&nbsp;(${this.extension.ratingCount})`);
-				}
-			}
-			markdown.appendText(`  |  `);
-		}
-
-		markdown.appendMarkdown(`v${this.extension.version}`);
-		markdown.appendText(`\n`);
-
-		if (this.extension.description) {
-			markdown.appendMarkdown(this.extension.description);
-			markdown.appendText(`\n`);
-		}
 
 		const toolTip = this.getTooltip();
 		const extensionStatus = this.extensionsWorkbenchService.getExtensionStatus(this.extension);
 
 		if (toolTip || extensionStatus) {
-			markdown.appendMarkdown(`---`);
-			markdown.appendText(`\n`);
-
 			if (toolTip) {
 				if (this.extensionStatusIconAction.statusIcon) {
-					markdown.appendMarkdown(`$(${this.extensionStatusIconAction.statusIcon.id})`);
+					markdown.appendMarkdown(`$(${this.extensionStatusIconAction.statusIcon.id})&nbsp;`);
 				}
-				markdown.appendMarkdown(` ${toolTip}`);
+				markdown.appendMarkdown(`${toolTip}`);
 				if (this.extension.enablementState === EnablementState.DisabledByExtensionDependency && this.extension.local) {
-					markdown.appendMarkdown(` [${localize('dependencies', "Show Dependencies")}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.Dependencies]))}`)})`);
+					markdown.appendMarkdown(`&nbsp;[${localize('dependencies', "Show Dependencies")}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.Dependencies]))}`)})`);
 				}
+				markdown.appendText(`\n`);
 			}
 
 			if (extensionStatus) {
 				if (extensionStatus.activationTimes) {
 					const activationTime = extensionStatus.activationTimes.codeLoadingTime + extensionStatus.activationTimes.activateCallTime;
+					markdown.appendMarkdown(`${extensionStatus.activationTimes.activationReason.startup ? localize('startup activation', "Startup Activation Time") : localize('activation', "Activation Time")}: \`${activationTime}ms\``);
 					markdown.appendText(`\n`);
-					markdown.appendMarkdown(`- ${extensionStatus.activationTimes.activationReason.startup ? localize('startup activation', "Startup Activation") : localize('activation', "Activation")}: \`${activationTime}ms\``);
 				}
-
-				if (extensionStatus.runtimeErrors.length) {
-					markdown.appendText(`\n`);
-					markdown.appendMarkdown(`- $(${errorIcon.id}) [${extensionStatus.runtimeErrors.length === 1 ? localize('uncaught error', '1 uncaught error') : localize('uncaught errors', '{0} uncaught errors', extensionStatus.runtimeErrors.length)}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.RuntimeStatus]))}`)})`);
-				}
-
-				if (extensionStatus.messages.length) {
-					markdown.appendText(`\n`);
-					const hasErrors = extensionStatus.messages.some(message => message.type === Severity.Error);
+				if (extensionStatus.runtimeErrors.length || extensionStatus.messages.length) {
+					const hasErrors = extensionStatus.runtimeErrors.length || extensionStatus.messages.some(message => message.type === Severity.Error);
 					const hasWarnings = extensionStatus.messages.some(message => message.type === Severity.Warning);
-					markdown.appendMarkdown(`- $(${hasErrors ? errorIcon.id : hasWarnings ? warningIcon.id : infoIcon.id}) [${extensionStatus.messages.length === 1 ? localize('message', '1 message') : localize('messages', '{0} messages', extensionStatus.messages.length)}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.RuntimeStatus]))}`)})`);
+					const errorsLink = extensionStatus.runtimeErrors.length ? `[${extensionStatus.runtimeErrors.length === 1 ? localize('uncaught error', '1 uncaught error') : localize('uncaught errors', '{0} uncaught errors', extensionStatus.runtimeErrors.length)}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.RuntimeStatus]))}`)})` : undefined;
+					const messageLink = extensionStatus.messages.length ? `[${extensionStatus.messages.length === 1 ? localize('message', '1 message') : localize('messages', '{0} messages', extensionStatus.messages.length)}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.RuntimeStatus]))}`)})` : undefined;
+					markdown.appendMarkdown(`$(${hasErrors ? errorIcon.id : hasWarnings ? warningIcon.id : infoIcon.id}) This extension has reported `);
+					if (errorsLink && messageLink) {
+						markdown.appendMarkdown(`${errorsLink} and ${messageLink}`);
+					} else {
+						markdown.appendMarkdown(`${errorsLink || messageLink}`);
+					}
+					markdown.appendText(`\n`);
 				}
 			}
+
+			markdown.appendMarkdown(`---`);
+			markdown.appendText(`\n`);
+		}
+
+		if (this.extension.description) {
+			markdown.appendMarkdown(`${this.extension.description}`);
+			markdown.appendText(`\n`);
 		}
 
 		return markdown;
