@@ -71,6 +71,8 @@ export class TerminalEditorInput extends EditorInput {
 		return this._terminalInstance.resource;
 	}
 
+	override isDirty(): boolean { return this._terminalInstance.hasChildProcesses; }
+
 	constructor(
 		private readonly _terminalInstance: ITerminalInstance,
 		@IThemeService private readonly _themeService: IThemeService,
@@ -96,6 +98,10 @@ export class TerminalEditorInput extends EditorInput {
 			this._terminalInstance.onIconChanged(() => this._onDidChangeLabel.fire()),
 			this._terminalInstance.onDidFocus(() => this._terminalEditorFocusContextKey.set(true)),
 			this._terminalInstance.onDidBlur(() => this._terminalEditorFocusContextKey.reset()),
+			this._terminalInstance.onDidChangeHasChildProcesses(() => {
+				console.log('TerminalEditorInput fire dirty change');
+				this._onDidChangeDirty.fire();
+			}),
 			this._terminalInstance.statusList.onDidChangePrimaryStatus(() => this._onDidChangeLabel.fire())
 		];
 

@@ -405,6 +405,7 @@ export interface ITerminalInstance {
 	onRequestExtHostProcess: Event<ITerminalInstance>;
 	onDimensionsChanged: Event<void>;
 	onMaximumDimensionsChanged: Event<void>;
+	onDidChangeHasChildProcesses: Event<boolean>;
 
 	onDidFocus: Event<ITerminalInstance>;
 	onDidBlur: Event<ITerminalInstance>;
@@ -457,7 +458,10 @@ export interface ITerminalInstance {
 	readonly initialDataEvents: string[] | undefined;
 
 	/** A promise that resolves when the terminal's pty/process have been created. */
-	processReady: Promise<void>;
+	readonly processReady: Promise<void>;
+
+	/** Whether the terminal's process has child processes (ie. is dirty/busy). */
+	readonly hasChildProcesses: boolean;
 
 	/**
 	 * The title of the terminal. This is either title or the process currently running or an

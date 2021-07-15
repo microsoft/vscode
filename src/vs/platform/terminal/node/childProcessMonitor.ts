@@ -36,7 +36,7 @@ export class ChildProcessMonitor extends Disposable {
 		}
 	}
 	/**
-	 * The process has child processes.
+	 * Whether the process has child processes.
 	 */
 	get hasChildProcesses(): boolean { return this._hasChildProcesses; }
 
@@ -72,7 +72,6 @@ export class ChildProcessMonitor extends Disposable {
 	handleOutput() {
 		this._refreshInactive();
 	}
-
 
 	@debounce(Constants.ActiveDebounceDuration)
 	private async _refreshActive(): Promise<void> {

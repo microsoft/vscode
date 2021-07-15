@@ -185,6 +185,7 @@ export interface IPtyService {
 	readonly onProcessResolvedShellLaunchConfig: Event<{ id: number, event: IShellLaunchConfig }>;
 	readonly onProcessReplay: Event<{ id: number, event: IPtyHostProcessReplayEvent }>;
 	readonly onProcessOrphanQuestion: Event<{ id: number }>;
+	readonly onProcessDidChangeHasChildProcesses: Event<{ id: number, event: boolean }>;
 
 	restartPtyHost?(): Promise<void>;
 	shutdownAll?(): Promise<void>;
@@ -457,9 +458,10 @@ export interface ITerminalChildProcess {
 	onProcessExit: Event<number | undefined>;
 	onProcessReady: Event<IProcessReadyEvent>;
 	onProcessTitleChanged: Event<string>;
+	onProcessShellTypeChanged: Event<TerminalShellType>;
 	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined>;
 	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig>;
-	onProcessShellTypeChanged: Event<TerminalShellType>;
+	onDidChangeHasChildProcesses?: Event<boolean>;
 
 	/**
 	 * Starts the process.

@@ -324,8 +324,8 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly persistentProcessId: number | undefined;
 	readonly shouldPersist: boolean;
 	readonly isDisconnected: boolean;
-	/** Whether the process has had data written to it yet. */
 	readonly hasWrittenData: boolean;
+	readonly hasChildProcesses: boolean;
 
 	readonly onPtyDisconnect: Event<void>;
 	readonly onPtyReconnect: Event<void>;
@@ -338,6 +338,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onProcessExit: Event<number | undefined>;
 	readonly onProcessOverrideDimensions: Event<ITerminalDimensionsOverride | undefined>;
 	readonly onProcessResolvedShellLaunchConfig: Event<IShellLaunchConfig>;
+	readonly onProcessDidChangeHasChildProcesses: Event<boolean>;
 	readonly onEnvironmentVariableInfoChanged: Event<IEnvironmentVariableInfo>;
 
 	dispose(immediate?: boolean): void;

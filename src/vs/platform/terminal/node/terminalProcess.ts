@@ -103,15 +103,20 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	get shellType(): TerminalShellType { return this._windowsShellHelper ? this._windowsShellHelper.shellType : undefined; }
 
 	private readonly _onProcessData = this._register(new Emitter<string>());
-	get onProcessData(): Event<string> { return this._onProcessData.event; }
+	readonly onProcessData = this._onProcessData.event;
 	private readonly _onProcessExit = this._register(new Emitter<number>());
-	get onProcessExit(): Event<number> { return this._onProcessExit.event; }
+	readonly onProcessExit = this._onProcessExit.event;
 	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
-	get onProcessReady(): Event<IProcessReadyEvent> { return this._onProcessReady.event; }
+	readonly onProcessReady = this._onProcessReady.event;
 	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
-	get onProcessTitleChanged(): Event<string> { return this._onProcessTitleChanged.event; }
+	readonly onProcessTitleChanged = this._onProcessTitleChanged.event;
 	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
 	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
+	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
+	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
+
+	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined> | undefined;
+	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig> | undefined;
 
 	constructor(
 		private readonly _shellLaunchConfig: IShellLaunchConfig,
@@ -168,8 +173,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			});
 		}
 	}
-	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined> | undefined;
-	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig> | undefined;
 
 	async start(): Promise<ITerminalLaunchError | undefined> {
 		const results = await Promise.all([this._validateCwd(), this._validateExecutable()]);
@@ -235,6 +238,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		const ptyProcess = (await import('node-pty')).spawn(shellLaunchConfig.executable!, args, options);
 		this._ptyProcess = ptyProcess;
 		this._childProcessMonitor = this._register(new ChildProcessMonitor(ptyProcess.pid, this._logService));
+		this._childProcessMonitor.onDidChangeHasChildProcesses(this._onDidChangeHasChildProcesses.fire, this._onDidChangeHasChildProcesses);
 		this._processStartupComplete = new Promise<void>(c => {
 			this.onProcessReady(() => c());
 		});

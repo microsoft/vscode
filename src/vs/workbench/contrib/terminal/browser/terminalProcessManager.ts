@@ -71,6 +71,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private _extEnvironmentVariableCollection: IMergedEnvironmentVariableCollection | undefined;
 	private _ackDataBufferer: AckDataBufferer;
 	private _hasWrittenData: boolean = false;
+	private _hasChildProcesses: boolean = false;
 	private _ptyResponsiveListener: IDisposable | undefined;
 	private _ptyListenersAttached: boolean = false;
 	private _dataFilter: SeamlessRelaunchDataFilter;
@@ -101,14 +102,17 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	get onProcessExit(): Event<number | undefined> { return this._onProcessExit.event; }
 	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());
 	get onProcessOverrideDimensions(): Event<ITerminalDimensionsOverride | undefined> { return this._onProcessOverrideDimensions.event; }
-	private readonly _onProcessOverrideShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
-	get onProcessResolvedShellLaunchConfig(): Event<IShellLaunchConfig> { return this._onProcessOverrideShellLaunchConfig.event; }
+	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
+	get onProcessResolvedShellLaunchConfig(): Event<IShellLaunchConfig> { return this._onProcessResolvedShellLaunchConfig.event; }
+	private readonly _onProcessDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
+	get onProcessDidChangeHasChildProcesses(): Event<boolean> { return this._onProcessDidChangeHasChildProcesses.event; }
 	private readonly _onEnvironmentVariableInfoChange = this._register(new Emitter<IEnvironmentVariableInfo>());
 	get onEnvironmentVariableInfoChanged(): Event<IEnvironmentVariableInfo> { return this._onEnvironmentVariableInfoChange.event; }
 
 	get persistentProcessId(): number | undefined { return this._process?.id; }
 	get shouldPersist(): boolean { return this._process ? this._process.shouldPersist : false; }
 	get hasWrittenData(): boolean { return this._hasWrittenData; }
+	get hasChildProcesses(): boolean { return this._hasChildProcesses; }
 
 	private readonly _localTerminalService?: ILocalTerminalService;
 
@@ -325,7 +329,13 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this._processListeners.push(newProcess.onProcessOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e)));
 		}
 		if (newProcess.onProcessResolvedShellLaunchConfig) {
-			this._processListeners.push(newProcess.onProcessResolvedShellLaunchConfig(e => this._onProcessOverrideShellLaunchConfig.fire(e)));
+			this._processListeners.push(newProcess.onProcessResolvedShellLaunchConfig(e => this._onProcessResolvedShellLaunchConfig.fire(e)));
+		}
+		if (newProcess.onDidChangeHasChildProcesses) {
+			this._processListeners.push(newProcess.onDidChangeHasChildProcesses(e => {
+				this._hasChildProcesses = e;
+				this._onProcessDidChangeHasChildProcesses.fire(e);
+			}));
 		}
 
 		setTimeout(() => {
