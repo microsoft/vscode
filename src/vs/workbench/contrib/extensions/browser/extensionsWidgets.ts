@@ -503,15 +503,6 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 			markdown.appendText(`\n`);
 		}
 
-		if (this.extension.repository) {
-			markdown.appendMarkdown(`- [Repository](${URI.parse(`command:vscode.open?${encodeURIComponent(JSON.stringify([URI.parse(this.extension.repository)]))}`)})`);
-			markdown.appendText(`\n`);
-		}
-		if (this.extension.licenseUrl) {
-			markdown.appendMarkdown(`- [License](${URI.parse(`command:vscode.open?${encodeURIComponent(JSON.stringify([URI.parse(this.extension.licenseUrl)]))}`)})`);
-			markdown.appendText(`\n`);
-		}
-
 		const toolTip = this.getTooltip();
 		const extensionStatus = this.extensionsWorkbenchService.getExtensionStatus(this.extension);
 
