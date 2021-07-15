@@ -185,6 +185,7 @@ export interface DidInstallExtensionEvent {
 	gallery?: IGalleryExtension;
 	local?: ILocalExtension;
 	error?: string;
+	isBulkInstall?: boolean;
 }
 
 export interface DidUninstallExtensionEvent {
@@ -213,6 +214,7 @@ export interface IExtensionManagementService {
 
 	onInstallExtension: Event<InstallExtensionEvent>;
 	onDidInstallExtension: Event<DidInstallExtensionEvent>;
+	onDidInstallExtensions: Event<DidInstallExtensionEvent[]>;
 	onUninstallExtension: Event<IExtensionIdentifier>;
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
 

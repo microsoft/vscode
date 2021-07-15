@@ -13,6 +13,7 @@ import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEd
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export class TerminalEditorInput extends EditorInput {
 
@@ -20,6 +21,16 @@ export class TerminalEditorInput extends EditorInput {
 
 	private _isDetached = false;
 	private _copyInstance?: ITerminalInstance;
+
+	private _group: IEditorGroup | undefined;
+
+	setGroup(group: IEditorGroup | undefined) {
+		this._group = group;
+	}
+
+	get group(): IEditorGroup | undefined {
+		return this._group;
+	}
 
 	override get typeId(): string {
 		return TerminalEditorInput.ID;

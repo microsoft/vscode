@@ -132,12 +132,12 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 			return true;
 		}
 
-		if (isResourceDiffEditorInput(otherInput)) {
-			return this.primary.matches(otherInput.modifiedInput) && this.secondary.matches(otherInput.originalInput);
-		}
-
 		if (otherInput instanceof SideBySideEditorInput) {
 			return this.primary.matches(otherInput.primary) && this.secondary.matches(otherInput.secondary);
+		}
+
+		if (isResourceDiffEditorInput(otherInput)) {
+			return this.primary.matches(otherInput.modifiedInput) && this.secondary.matches(otherInput.originalInput);
 		}
 
 		return false;

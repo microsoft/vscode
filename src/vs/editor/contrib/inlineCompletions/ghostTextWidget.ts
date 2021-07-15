@@ -86,7 +86,7 @@ export class GhostTextWidget extends Disposable {
 		const inlineTexts = new Array<InsertedInlineText>();
 		const additionalLines = new Array<LineData>();
 
-		function addToAdditionalLines(lines: string[], className: string | undefined) {
+		function addToAdditionalLines(lines: readonly string[], className: string | undefined) {
 			if (additionalLines.length > 0) {
 				const lastLine = additionalLines[additionalLines.length - 1];
 				if (className) {
@@ -94,7 +94,7 @@ export class GhostTextWidget extends Disposable {
 				}
 				lastLine.content += lines[0];
 
-				lines.splice(0, 1);
+				lines = lines.slice(1);
 			}
 			for (const line of lines) {
 				additionalLines.push({

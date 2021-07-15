@@ -35,12 +35,14 @@ export class ExtensionManagementChannel implements IServerChannel {
 
 	onInstallExtension: Event<InstallExtensionEvent>;
 	onDidInstallExtension: Event<DidInstallExtensionEvent>;
+	onDidInstallExtensions: Event<DidInstallExtensionEvent[]>;
 	onUninstallExtension: Event<IExtensionIdentifier>;
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
 
 	constructor(private service: IExtensionManagementService, private getUriTransformer: (requestContext: any) => IURITransformer | null) {
 		this.onInstallExtension = Event.buffer(service.onInstallExtension, true);
 		this.onDidInstallExtension = Event.buffer(service.onDidInstallExtension, true);
+		this.onDidInstallExtensions = Event.buffer(service.onDidInstallExtensions, true);
 		this.onUninstallExtension = Event.buffer(service.onUninstallExtension, true);
 		this.onDidUninstallExtension = Event.buffer(service.onDidUninstallExtension, true);
 	}
@@ -50,6 +52,7 @@ export class ExtensionManagementChannel implements IServerChannel {
 		switch (event) {
 			case 'onInstallExtension': return this.onInstallExtension;
 			case 'onDidInstallExtension': return Event.map(this.onDidInstallExtension, i => ({ ...i, local: i.local ? transformOutgoingExtension(i.local, uriTransformer) : i.local }));
+			case 'onDidInstallExtensions': return Event.map(this.onDidInstallExtensions, i => i.map(e => ({ ...e, local: e.local ? transformOutgoingExtension(e.local, uriTransformer) : e.local })));
 			case 'onUninstallExtension': return this.onUninstallExtension;
 			case 'onDidUninstallExtension': return this.onDidUninstallExtension;
 		}
@@ -88,6 +91,9 @@ export class ExtensionManagementChannelClient extends Disposable implements IExt
 	private readonly _onDidInstallExtension = this._register(new Emitter<DidInstallExtensionEvent>());
 	readonly onDidInstallExtension = this._onDidInstallExtension.event;
 
+	private readonly _onDidInstallExtensions = this._register(new Emitter<DidInstallExtensionEvent[]>());
+	readonly onDidInstallExtensions = this._onDidInstallExtensions.event;
+
 	private readonly _onUninstallExtension = this._register(new Emitter<IExtensionIdentifier>());
 	readonly onUninstallExtension = this._onUninstallExtension.event;
 
@@ -100,6 +106,7 @@ export class ExtensionManagementChannelClient extends Disposable implements IExt
 		super();
 		this._register(this.channel.listen<InstallExtensionEvent>('onInstallExtension')(e => this._onInstallExtension.fire(e)));
 		this._register(this.channel.listen<DidInstallExtensionEvent>('onDidInstallExtension')(e => this._onDidInstallExtension.fire({ ...e, local: e.local ? transformIncomingExtension(e.local, null) : e.local })));
+		this._register(this.channel.listen<DidInstallExtensionEvent[]>('onDidInstallExtensions')(e => this._onDidInstallExtensions.fire(e.map(event => ({ ...event, local: event.local ? transformIncomingExtension(event.local, null) : event.local })))));
 		this._register(this.channel.listen<IExtensionIdentifier>('onUninstallExtension')(e => this._onUninstallExtension.fire(e)));
 		this._register(this.channel.listen<DidUninstallExtensionEvent>('onDidUninstallExtension')(e => this._onDidUninstallExtension.fire(e)));
 	}

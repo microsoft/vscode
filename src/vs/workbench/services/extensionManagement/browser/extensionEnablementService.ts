@@ -354,7 +354,8 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		}
 		try {
 			for (const dependencyExtension of dependencyExtensions) {
-				if (!this._isEnabledEnablementState(this._computeEnablementState(dependencyExtension, extensions, computedEnablementStates))) {
+				const enablementState = this._computeEnablementState(dependencyExtension, extensions, computedEnablementStates);
+				if (!this._isEnabledEnablementState(enablementState) && enablementState !== EnablementState.DisabledByExtensionKind) {
 					return true;
 				}
 			}
