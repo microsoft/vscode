@@ -314,7 +314,7 @@
 
 .extension-editor > .body > .content > .details > .additional-details-container {
 	width: 25%;
-	min-width: 280px;
+	min-width: 250px;
 	height: 100%;
 }
 
@@ -365,8 +365,12 @@
 	display: flex;
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info  > .more-info-entry span {
-	flex: 0.5
+.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info  > .more-info-entry span:first-child {
+	flex: 0.4
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info  > .more-info-entry span:last-child {
+	flex: 0.6
 }
 
 .extension-editor > .body > .content  > .details > .readme-container > .extension-pack-readme {
