@@ -906,7 +906,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		});
 
 		for (const cell of cells) {
-			this.markupPreviewMapping.set(cell.cellId, { ...cell, visible: false });
+			this.markupPreviewMapping.set(cell.cellId, cell);
 		}
 
 		this._sendMessageToWebview({
