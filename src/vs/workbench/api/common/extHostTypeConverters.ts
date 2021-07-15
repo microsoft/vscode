@@ -722,6 +722,28 @@ export namespace CallHierarchyItem {
 
 		return result;
 	}
+
+	export function from(item: vscode.CallHierarchyItem, sessionId?: string, itemId?: string): extHostProtocol.ICallHierarchyItemDto {
+
+		sessionId = sessionId ?? (<types.TypeHierarchyItem>item)._sessionId;
+		itemId = itemId ?? (<types.TypeHierarchyItem>item)._itemId;
+
+		if (sessionId === undefined || itemId === undefined) {
+			throw new Error('invalid item');
+		}
+
+		return {
+			_sessionId: sessionId,
+			_itemId: itemId,
+			name: item.name,
+			detail: item.detail,
+			kind: SymbolKind.from(item.kind),
+			uri: item.uri,
+			range: Range.from(item.range),
+			selectionRange: Range.from(item.selectionRange),
+			tags: item.tags?.map(SymbolTag.from)
+		};
+	}
 }
 
 export namespace CallHierarchyIncomingCall {
@@ -1791,5 +1813,27 @@ export namespace TypeHierarchyItem {
 		result._itemId = item._itemId;
 
 		return result;
+	}
+
+	export function from(item: vscode.TypeHierarchyItem, sessionId?: string, itemId?: string): extHostProtocol.ITypeHierarchyItemDto {
+
+		sessionId = sessionId ?? (<types.TypeHierarchyItem>item)._sessionId;
+		itemId = itemId ?? (<types.TypeHierarchyItem>item)._itemId;
+
+		if (sessionId === undefined || itemId === undefined) {
+			throw new Error('invalid item');
+		}
+
+		return {
+			_sessionId: sessionId,
+			_itemId: itemId,
+			kind: SymbolKind.from(item.kind),
+			name: item.name,
+			detail: item.detail ?? '',
+			uri: item.uri,
+			range: Range.from(item.range),
+			selectionRange: Range.from(item.selectionRange),
+			tags: item.tags?.map(SymbolTag.from)
+		};
 	}
 }

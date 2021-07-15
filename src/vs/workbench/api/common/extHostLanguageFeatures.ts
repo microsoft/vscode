@@ -1408,17 +1408,7 @@ class CallHierarchyAdapter {
 
 	private _cacheAndConvertItem(sessionId: string, item: vscode.CallHierarchyItem): extHostProtocol.ICallHierarchyItemDto {
 		const map = this._cache.get(sessionId)!;
-		const dto: extHostProtocol.ICallHierarchyItemDto = {
-			_sessionId: sessionId,
-			_itemId: map.size.toString(36),
-			name: item.name,
-			detail: item.detail,
-			kind: typeConvert.SymbolKind.from(item.kind),
-			uri: item.uri,
-			range: typeConvert.Range.from(item.range),
-			selectionRange: typeConvert.Range.from(item.selectionRange),
-			tags: item.tags?.map(typeConvert.SymbolTag.from)
-		};
+		const dto = typeConvert.CallHierarchyItem.from(item, sessionId, map.size.toString(36));
 		map.set(dto._itemId, item);
 		return dto;
 	}
@@ -1492,17 +1482,7 @@ class TypeHierarchyAdapter {
 
 	private _cacheAndConvertItem(sessionId: string, item: vscode.TypeHierarchyItem): extHostProtocol.ITypeHierarchyItemDto {
 		const map = this._cache.get(sessionId)!;
-		const dto: extHostProtocol.ICallHierarchyItemDto = {
-			_sessionId: sessionId,
-			_itemId: map.size.toString(36),
-			name: item.name,
-			detail: item.detail,
-			kind: typeConvert.SymbolKind.from(item.kind),
-			uri: item.uri,
-			range: typeConvert.Range.from(item.range),
-			selectionRange: typeConvert.Range.from(item.selectionRange),
-			tags: item.tags?.map(typeConvert.SymbolTag.from)
-		};
+		const dto = typeConvert.TypeHierarchyItem.from(item, sessionId, map.size.toString(36));
 		map.set(dto._itemId, item);
 		return dto;
 	}

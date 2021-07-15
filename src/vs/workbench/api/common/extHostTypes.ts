@@ -1242,6 +1242,7 @@ export class CallHierarchyItem {
 	_itemId?: string;
 
 	kind: SymbolKind;
+	tags?: SymbolTag[];
 	name: string;
 	detail?: string;
 	uri: URI;
@@ -3437,6 +3438,7 @@ export class TypeHierarchyItem {
 	_itemId?: string;
 
 	kind: SymbolKind;
+	tags?: SymbolTag[];
 	name: string;
 	detail?: string;
 	uri: URI;
