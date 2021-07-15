@@ -14,6 +14,8 @@ import { countEOL, StringEOL } from 'vs/editor/common/model/tokensStore';
 import { TextChange } from 'vs/editor/common/model/textChange';
 import { Disposable } from 'vs/base/common/lifecycle';
 
+console.log('foo')
+
 export interface IValidatedEditOperation {
 	sortIndex: number;
 	identifier: ISingleEditOperationIdentifier | null;
