@@ -172,7 +172,7 @@ export interface ITerminalProfiles {
 	windows: { [key: string]: ITerminalProfileObject };
 }
 
-export type ConfirmOnKill = 'never' | 'editor' | 'panel' | 'editorAndPanel';
+export type ConfirmOnKill = 'never' | 'always' | 'editor' | 'panel';
 export type ConfirmOnExit = 'never' | 'always' | 'hasChildProcesses';
 
 export interface ITerminalConfiguration {
