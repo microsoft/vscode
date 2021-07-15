@@ -36,6 +36,8 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 	readonly onPtyHostResponsive = this._onPtyHostResponsive.event;
 	private readonly _onPtyHostRestart = this._register(new Emitter<void>());
 	readonly onPtyHostRestart = this._onPtyHostRestart.event;
+	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number, workspaceId: string, instanceId: number }>());
+	readonly onDidRequestDetach = this._onDidRequestDetach.event;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -66,6 +68,7 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		this._localPtyService.onProcessDidChangeHasChildProcesses(e => this._ptys.get(e.id)?.handleDidChangeHasChildProcesses(e.event));
 		this._localPtyService.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
 		this._localPtyService.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
+		this._localPtyService.onDidRequestDetach(e => this._onDidRequestDetach.fire(e));
 
 		// Attach pty host listeners
 		if (this._localPtyService.onPtyHostExit) {
@@ -122,6 +125,15 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 			}));
 		}
 	}
+
+	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
+		return this._localPtyService.requestDetachInstance(workspaceId, instanceId);
+	}
+
+	async acceptDetachedInstance(requestId: number, persistentProcessId: number): Promise<IProcessDetails | undefined> {
+		return this._localPtyService.acceptDetachedInstance(requestId, persistentProcessId);
+	}
+
 	async updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void> {
 		await this._localPtyService.updateTitle(id, title, titleSource);
 	}

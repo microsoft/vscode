@@ -186,6 +186,7 @@ export interface IPtyService {
 	readonly onProcessResolvedShellLaunchConfig: Event<{ id: number, event: IShellLaunchConfig }>;
 	readonly onProcessReplay: Event<{ id: number, event: IPtyHostProcessReplayEvent }>;
 	readonly onProcessOrphanQuestion: Event<{ id: number }>;
+	readonly onDidRequestDetach: Event<{ requestId: number, workspaceId: string, instanceId: number }>;
 	readonly onProcessDidChangeHasChildProcesses: Event<{ id: number, event: boolean }>;
 
 	restartPtyHost?(): Promise<void>;
@@ -232,6 +233,8 @@ export interface IPtyService {
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void>;
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;
+	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined>;
+	acceptDetachedInstance(requestId: number, process: number): Promise<IProcessDetails | undefined>;
 }
 
 export interface IRequestResolveVariablesEvent {

@@ -77,6 +77,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 	readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
 	private readonly _onProcessOrphanQuestion = this._register(new Emitter<{ id: number }>());
 	readonly onProcessOrphanQuestion = this._onProcessOrphanQuestion.event;
+	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number, workspaceId: string, instanceId: number }>());
+	readonly onDidRequestDetach = this._onDidRequestDetach.event;
 	private readonly _onProcessDidChangeHasChildProcesses = this._register(new Emitter<{ id: number, event: boolean }>());
 	readonly onProcessDidChangeHasChildProcesses = this._onProcessDidChangeHasChildProcesses.event;
 
@@ -157,6 +159,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 		this._register(proxy.onProcessDidChangeHasChildProcesses(e => this._onProcessDidChangeHasChildProcesses.fire(e)));
 		this._register(proxy.onProcessReplay(e => this._onProcessReplay.fire(e)));
 		this._register(proxy.onProcessOrphanQuestion(e => this._onProcessOrphanQuestion.fire(e)));
+		this._register(proxy.onDidRequestDetach(e => this._onDidRequestDetach.fire(e)));
 
 		return [client, proxy];
 	}
@@ -240,6 +243,14 @@ export class PtyHostService extends Disposable implements IPtyService {
 	}
 	async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
 		return await this._proxy.getTerminalLayoutInfo(args);
+	}
+
+	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
+		return this._proxy.requestDetachInstance(workspaceId, instanceId);
+	}
+
+	async acceptDetachedInstance(requestId: number, persistentProcessId: number): Promise<IProcessDetails | undefined> {
+		return this._proxy.acceptDetachedInstance(requestId, persistentProcessId);
 	}
 
 	async restartPtyHost(): Promise<void> {
