@@ -725,8 +725,8 @@ export namespace CallHierarchyItem {
 
 	export function from(item: vscode.CallHierarchyItem, sessionId?: string, itemId?: string): extHostProtocol.ICallHierarchyItemDto {
 
-		sessionId = sessionId ?? (<types.TypeHierarchyItem>item)._sessionId;
-		itemId = itemId ?? (<types.TypeHierarchyItem>item)._itemId;
+		sessionId = sessionId ?? (<types.CallHierarchyItem>item)._sessionId;
+		itemId = itemId ?? (<types.CallHierarchyItem>item)._itemId;
 
 		if (sessionId === undefined || itemId === undefined) {
 			throw new Error('invalid item');
