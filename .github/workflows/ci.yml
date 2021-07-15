@@ -247,6 +247,9 @@ jobs:
       - name: Compile /build/
         run: yarn --cwd build compile
 
+      - name: Run eslint
+        run: yarn eslint
+
       - name: Run Monaco Editor Checks
         run: yarn monaco-compile-check
 
