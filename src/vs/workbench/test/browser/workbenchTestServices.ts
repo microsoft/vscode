@@ -205,7 +205,13 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IProgressService, new TestProgressService());
 	const workspaceContextService = new TestContextService(TestWorkspace);
 	instantiationService.stub(IWorkspaceContextService, workspaceContextService);
-	const configService = new TestConfigurationService();
+	const configService = new TestConfigurationService({
+		files: {
+			participants: {
+				timeout: 60000
+			}
+		}
+	});
 	instantiationService.stub(IConfigurationService, configService);
 	instantiationService.stub(IFilesConfigurationService, disposables.add(new TestFilesConfigurationService(contextKeyService, configService)));
 	instantiationService.stub(ITextResourceConfigurationService, new TestTextResourceConfigurationService(configService));
@@ -1658,6 +1664,8 @@ export class TestLocalTerminalService implements ILocalTerminalService {
 	onPtyHostUnresponsive = Event.None;
 	onPtyHostResponsive = Event.None;
 	onPtyHostRestart = Event.None;
+	onDidMoveWindowInstance = Event.None;
+	onDidRequestDetach = Event.None;
 
 	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess> {
 		return new TestTerminalChildProcess(shouldPersist);
@@ -1675,6 +1683,8 @@ export class TestLocalTerminalService implements ILocalTerminalService {
 	processBinary(id: number, data: string): Promise<void> { throw new Error('Method not implemented.'); }
 	updateTitle(id: number, title: string): Promise<void> { throw new Error('Method not implemented.'); }
 	updateIcon(id: number, icon: URI | { light: URI; dark: URI } | { id: string, color?: { id: string } }, color?: string): Promise<void> { throw new Error('Method not implemented.'); }
+	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> { throw new Error('Method not implemented.'); }
+	acceptDetachedInstance(requestId: number, persistentProcessId: number): Promise<IProcessDetails | undefined> { throw new Error('Method not implemented.'); }
 }
 
 class TestTerminalChildProcess implements ITerminalChildProcess {

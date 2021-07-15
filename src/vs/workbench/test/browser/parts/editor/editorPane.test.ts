@@ -12,7 +12,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { workbenchInstantiationService, TestEditorGroupView, TestEditorGroupsService, registerTestResourceEditor, TestEditorInput, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestEditorGroupView, TestEditorGroupsService, registerTestResourceEditor, TestEditorInput, createEditorPart, TestTextResourceConfigurationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { URI } from 'vs/base/common/uri';
@@ -28,6 +28,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { TestWorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 const NullThemeService = new TestThemeService();
 
@@ -213,6 +214,8 @@ suite('EditorPane', () => {
 		const testGroup1 = new TestEditorGroupView(1);
 		const testGroup4 = new TestEditorGroupView(4);
 
+		const configurationService = new TestTextResourceConfigurationService();
+
 		const editorGroupService = new TestEditorGroupsService([
 			testGroup0,
 			testGroup1,
@@ -224,7 +227,7 @@ suite('EditorPane', () => {
 		}
 
 		const rawMemento = Object.create(null);
-		let memento = new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, editorGroupService);
+		let memento = new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, editorGroupService, configurationService);
 
 		let res = memento.loadEditorState(testGroup0, URI.file('/A'));
 		assert.ok(!res);
@@ -259,7 +262,7 @@ suite('EditorPane', () => {
 
 		memento.saveState();
 
-		memento = new EditorMemento('id', 'key', rawMemento, 3, editorGroupService);
+		memento = new EditorMemento('id', 'key', rawMemento, 3, editorGroupService, configurationService);
 		assert.ok(memento.loadEditorState(testGroup0, URI.file('/C')));
 		assert.ok(memento.loadEditorState(testGroup0, URI.file('/D')));
 		assert.ok(memento.loadEditorState(testGroup0, URI.file('/E')));
@@ -279,12 +282,13 @@ suite('EditorPane', () => {
 	test('EditorMemento - move', function () {
 		const testGroup0 = new TestEditorGroupView(0);
 
+		const configurationService = new TestTextResourceConfigurationService();
 		const editorGroupService = new TestEditorGroupsService([testGroup0]);
 
 		interface TestViewState { line: number; }
 
 		const rawMemento = Object.create(null);
-		const memento = new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, editorGroupService);
+		const memento = new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, editorGroupService, configurationService);
 
 		memento.saveEditorState(testGroup0, URI.file('/some/folder/file-1.txt'), { line: 1 });
 		memento.saveEditorState(testGroup0, URI.file('/some/folder/file-2.txt'), { line: 2 });
@@ -327,7 +331,7 @@ suite('EditorPane', () => {
 		}
 
 		const rawMemento = Object.create(null);
-		const memento = new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, new TestEditorGroupsService());
+		const memento = new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, new TestEditorGroupsService(), new TestTextResourceConfigurationService());
 
 		const testInputA = new TestEditorInput(URI.file('/A'));
 
@@ -365,7 +369,7 @@ suite('EditorPane', () => {
 		}
 
 		const rawMemento = Object.create(null);
-		const memento = new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, new TestEditorGroupsService());
+		const memento = new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, new TestEditorGroupsService(), new TestTextResourceConfigurationService());
 
 		const testInputA = new TestEditorInput(URI.file('/A'));
 
@@ -398,6 +402,55 @@ suite('EditorPane', () => {
 		// State removed when input gets disposed
 		testInputB.dispose();
 		res = memento.loadEditorState(testGroup0, testInputB);
+		assert.ok(!res);
+	});
+
+	test('EditorMemento - workbench.editor.sharedViewState', function () {
+		const testGroup0 = new TestEditorGroupView(0);
+		const testGroup1 = new TestEditorGroupView(1);
+
+		const configurationService = new TestTextResourceConfigurationService(new TestConfigurationService({
+			workbench: {
+				editor: {
+					sharedViewState: true
+				}
+			}
+		}));
+		const editorGroupService = new TestEditorGroupsService([testGroup0]);
+
+		interface TestViewState { line: number; }
+
+		const rawMemento = Object.create(null);
+		const memento = new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, editorGroupService, configurationService);
+
+		const resource = URI.file('/some/folder/file-1.txt');
+		memento.saveEditorState(testGroup0, resource, { line: 1 });
+
+		let res = memento.loadEditorState(testGroup0, resource);
+		assert.strictEqual(res!.line, 1);
+
+		res = memento.loadEditorState(testGroup1, resource);
+		assert.strictEqual(res!.line, 1);
+
+		memento.saveEditorState(testGroup0, resource, { line: 3 });
+
+		res = memento.loadEditorState(testGroup1, resource);
+		assert.strictEqual(res!.line, 3);
+
+		memento.saveEditorState(testGroup1, resource, { line: 1 });
+
+		res = memento.loadEditorState(testGroup1, resource);
+		assert.strictEqual(res!.line, 1);
+
+		memento.clearEditorState(resource, testGroup0);
+		memento.clearEditorState(resource, testGroup1);
+
+		res = memento.loadEditorState(testGroup1, resource);
+		assert.strictEqual(res!.line, 1);
+
+		memento.clearEditorState(resource);
+
+		res = memento.loadEditorState(testGroup1, resource);
 		assert.ok(!res);
 	});
 

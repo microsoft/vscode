@@ -43,6 +43,8 @@ export const hiddenEntriesConfigurationKey = 'workbench.welcomePage.hiddenCatego
 export const walkthroughMetadataConfigurationKey = 'workbench.welcomePage.walkthroughMetadata';
 export type WalkthroughMetaDataType = Map<string, { firstSeen: number; stepIDs: string[]; manaullyOpened: boolean }>;
 
+const BUILT_IN_SOURCE = localize('builtin', "Built-In");
+
 export const enum GettingStartedCategory {
 	Beginner = 'Beginner',
 	Intermediate = 'Intermediate',
@@ -75,6 +77,7 @@ export interface IGettingStartedWalkthroughDescriptor {
 	description: string
 	isFeatured: boolean
 	order: number
+	source: string
 	next?: string
 	icon:
 	| { type: 'icon', icon: ThemeIcon }
@@ -88,6 +91,7 @@ export interface IGettingStartedStartEntryDescriptor {
 	id: GettingStartedCategory | string
 	title: string
 	description: string
+	source: string
 	order: number
 	icon:
 	| { type: 'icon', icon: ThemeIcon }
@@ -103,6 +107,7 @@ export interface IGettingStartedCategory {
 	description: string
 	isFeatured: boolean
 	order: number
+	source: string
 	next?: string
 	icon:
 	| { type: 'icon', icon: ThemeIcon }
@@ -299,6 +304,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				...entry,
 				icon: { type: 'icon', icon: entry.icon },
 				order: index,
+				source: BUILT_IN_SOURCE,
 				when: ContextKeyExpr.deserialize(entry.when) ?? ContextKeyExpr.true()
 			});
 		});
@@ -309,6 +315,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				...category,
 				icon: { type: 'icon', icon: category.icon },
 				order: index,
+				source: BUILT_IN_SOURCE,
 				when: ContextKeyExpr.deserialize(category.when) ?? ContextKeyExpr.true()
 			},
 				category.content.steps.map((step, index) => {
@@ -447,6 +454,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				title: walkthrough.title,
 				id: categoryID,
 				isFeatured: false,
+				source: extension.displayName ?? extension.name,
 				order: Math.min(),
 				icon: {
 					type: 'image',
@@ -815,7 +823,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'resetGettingStartedProgress',
 			category: 'Developer',
-			title: 'Reset Welcome Page Getting Started Progress',
+			title: 'Reset Welcome Page Walkthrough Progress',
 			f1: true
 		});
 	}

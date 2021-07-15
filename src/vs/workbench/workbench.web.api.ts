@@ -19,6 +19,7 @@ import { IProductConfiguration } from 'vs/base/common/product';
 import { mark } from 'vs/base/common/performance';
 import { ICredentialsProvider } from 'vs/workbench/services/credentials/common/credentials';
 import { TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
+import { ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -160,7 +161,7 @@ interface IWindowIndicator {
 	/**
 	 * Triggering this event will cause the window indicator to update.
 	 */
-	onDidChange: Event<void>;
+	readonly onDidChange?: Event<void>;
 
 	/**
 	 * Label of the window indicator may include octicons
@@ -192,12 +193,12 @@ interface IInitialColorTheme {
 	/**
 	 * Initial color theme type.
 	 */
-	themeType: ColorScheme;
+	readonly themeType: ColorScheme;
 
 	/**
 	 * A list of workbench colors to apply initially.
 	 */
-	colors?: { [colorId: string]: string };
+	readonly colors?: { [colorId: string]: string };
 }
 
 interface IDefaultView {
@@ -319,15 +320,6 @@ interface IWorkbenchConstructionOptions {
 	readonly workspaceProvider?: IWorkspaceProvider;
 
 	/**
-	 * Enables Settings Sync by default.
-	 *
-	 * Syncs with the current authenticated user account (provided in [credentialsProvider](#credentialsProvider)) by default.
-	 *
-	 * @deprecated Instead use [settingsSyncOptions](#settingsSyncOptions) to enable/disable settings sync in the workbench.
-	 */
-	readonly enableSyncByDefault?: boolean;
-
-	/**
 	 * Settings sync options
 	 */
 	readonly settingsSyncOptions?: ISettingsSyncOptions;
@@ -367,6 +359,12 @@ interface IWorkbenchConstructionOptions {
 	 * Support adding additional properties to telemetry.
 	 */
 	readonly resolveCommonTelemetryProperties?: ICommonTelemetryPropertiesResolver;
+
+	/**
+	 * When provided used as the interface for sending telemetry events rather than the VS Code server.
+	 * If no appender is provided and no server is present, no telemetry is sent.
+	 */
+	readonly telemetryAppender?: ITelemetryAppender;
 
 	/**
 	 * A set of optional commands that should be registered with the commands
@@ -653,6 +651,7 @@ export {
 
 	// Telemetry
 	ICommonTelemetryPropertiesResolver,
+	ITelemetryAppender,
 
 	// External Uris
 	IExternalUriResolver,

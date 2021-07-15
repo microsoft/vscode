@@ -37,7 +37,7 @@ export function detectAvailableProfiles(
 			includeDetectedProfiles,
 			fsProvider,
 			logService,
-			configurationService.getValue<boolean>(TerminalSettingId.UseWslProfiles) !== false,
+			configurationService.getValue(TerminalSettingId.UseWslProfiles) !== false,
 			profiles && typeof profiles === 'object' ? { ...profiles } : configurationService.getValue<{ [key: string]: ITerminalProfileObject }>(TerminalSettingId.ProfilesWindows),
 			typeof defaultProfile === 'string' ? defaultProfile : configurationService.getValue<string>(TerminalSettingId.DefaultProfileWindows),
 			testPwshSourcePaths,

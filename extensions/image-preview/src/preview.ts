@@ -210,7 +210,7 @@ class Preview extends Disposable {
 			src: await this.getResourcePath(this.webviewEditor, this.resource, version),
 		};
 
-		const nonce = Date.now().toString();
+		const nonce = getNonce();
 
 		const cspSource = this.webviewEditor.webview.cspSource;
 		return /* html */`<!DOCTYPE html>
@@ -264,4 +264,13 @@ class Preview extends Disposable {
 
 function escapeAttribute(value: string | vscode.Uri): string {
 	return value.toString().replace(/"/g, '&quot;');
+}
+
+function getNonce() {
+	let text = '';
+	const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+	for (let i = 0; i < 64; i++) {
+		text += possible.charAt(Math.floor(Math.random() * possible.length));
+	}
+	return text;
 }

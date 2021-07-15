@@ -230,12 +230,12 @@ class ToggleRenderAction extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 
 		if (this.toggleOutputs !== undefined) {
-			const oldValue = configurationService.getValue<boolean>('notebook.diff.ignoreOutputs');
+			const oldValue = configurationService.getValue('notebook.diff.ignoreOutputs');
 			configurationService.updateValue('notebook.diff.ignoreOutputs', !oldValue);
 		}
 
 		if (this.toggleMetadata !== undefined) {
-			const oldValue = configurationService.getValue<boolean>('notebook.diff.ignoreMetadata');
+			const oldValue = configurationService.getValue('notebook.diff.ignoreMetadata');
 			configurationService.updateValue('notebook.diff.ignoreMetadata', !oldValue);
 		}
 	}

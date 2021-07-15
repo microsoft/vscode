@@ -375,9 +375,9 @@ export class HoverWidget extends Widget {
 				this._hoverPointer.classList.add(this._hoverPosition === HoverPosition.LEFT ? 'right' : 'left');
 				const hoverHeight = this._hover.containerDomNode.clientHeight;
 
-				// If hover is taller than target and aligned with target's bottom, then show the pointer at the center of target
-				if (hoverHeight > target.height && this._y === target.bottom) {
-					this._hoverPointer.style.top = `${target.center.y - target.top - Constants.PointerSize}px`;
+				// If hover is taller than target, then show the pointer at the center of target
+				if (hoverHeight > target.height) {
+					this._hoverPointer.style.top = `${target.center.y - (this._y - hoverHeight) - Constants.PointerSize}px`;
 				}
 
 				// Otherwise show the pointer at the center of hover

@@ -382,4 +382,6 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 
 		return Promise.resolve();
 	}
+
+	registerParticipant() { throw new Error('Not Supported'); }
 }

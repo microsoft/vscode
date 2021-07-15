@@ -142,6 +142,7 @@ class SplitPaneContainer extends Disposable {
 		if (index !== null) {
 			this._children.splice(index, 1);
 			this._splitView.removeView(index, Sizing.Distribute);
+			instance.detachFromElement();
 		}
 	}
 
@@ -336,7 +337,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 				this._onDidDisposeInstance.fire(instance);
 				this._handleOnDidDisposeInstance(instance);
 			}),
-			instance.onFocused(instance => {
+			instance.onDidFocus(instance => {
 				this._setActiveInstance(instance);
 				this._onDidFocusInstance.fire(instance);
 			})

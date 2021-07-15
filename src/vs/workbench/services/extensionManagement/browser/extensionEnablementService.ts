@@ -107,8 +107,8 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		return extensions.map(extension => this._computeEnablementState(extension, extensions, workspaceType, extensionsEnablements));
 	}
 
-	getDependenciesEnablementStates(extension: IExtension): EnablementState[] {
-		return getExtensionDependencies(this.extensionsManager.extensions, extension).map(e => this.getEnablementState(e));
+	getDependenciesEnablementStates(extension: IExtension): [IExtension, EnablementState][] {
+		return getExtensionDependencies(this.extensionsManager.extensions, extension).map(e => [e, this.getEnablementState(e)]);
 	}
 
 	canChangeEnablement(extension: IExtension): boolean {
@@ -179,7 +179,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			const enablementState = this.getEnablementState(extension);
 			if (enablementState === EnablementState.DisabledByTrustRequirement
 				/* All its disabled dependencies are disabled by Trust Requirement */
-				|| (enablementState === EnablementState.DisabledByExtensionDependency && this.getDependenciesEnablementStates(extension).every(e => this.isEnabledEnablementState(e) || e === EnablementState.DisabledByTrustRequirement))
+				|| (enablementState === EnablementState.DisabledByExtensionDependency && this.getDependenciesEnablementStates(extension).every(([, e]) => this.isEnabledEnablementState(e) || e === EnablementState.DisabledByTrustRequirement))
 			) {
 				const trustState = await this.workspaceTrustRequestService.requestWorkspaceTrust();
 				result.push(trustState ?? false);
@@ -328,7 +328,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 							return false;
 						}
 					} else if (server === this.extensionManagementServerService.localExtensionManagementServer) {
-						const enableLocalWebWorker = this.configurationService.getValue<boolean>(webWorkerExtHostConfig);
+						const enableLocalWebWorker = this.configurationService.getValue(webWorkerExtHostConfig);
 						if (enableLocalWebWorker) {
 							// Web extensions are enabled on all configurations
 							return false;
@@ -367,7 +367,8 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		}
 		try {
 			for (const dependencyExtension of dependencyExtensions) {
-				if (!this.isEnabledEnablementState(this._computeEnablementState(dependencyExtension, extensions, workspaceType, computedEnablementStates))) {
+				const enablementState = this._computeEnablementState(dependencyExtension, extensions, workspaceType, computedEnablementStates);
+				if (!this.isEnabledEnablementState(enablementState) && enablementState !== EnablementState.DisabledByExtensionKind) {
 					return true;
 				}
 			}

@@ -618,12 +618,12 @@ export interface IEditorInput extends IDisposable {
 	isDisposed(): boolean;
 }
 
-export abstract class BaseEditorInput extends Disposable {
+export abstract class AbstractEditorInput extends Disposable {
 	// Marker class for implementing `isEditorInput`
 }
 
 export function isEditorInput(editor: unknown): editor is IEditorInput {
-	return editor instanceof BaseEditorInput;
+	return editor instanceof AbstractEditorInput;
 }
 
 export interface IEditorInputWithPreferredResource {
@@ -1093,7 +1093,14 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 
 	const editors = await Promise.all(paths.map(async path => {
 		const resource = URI.revive(path.fileUri);
-		if (!resource || !fileService.canHandleResource(resource)) {
+
+		if (!resource) {
+			return;
+		}
+
+		await fileService.activateProvider(resource.scheme);
+
+		if (!fileService.canHandleResource(resource)) {
 			return;
 		}
 

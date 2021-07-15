@@ -190,8 +190,14 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 
 	$trySetSelections(id: string, ranges: ICellRange[]): void {
 		const editor = this._notebookEditorService.getNotebookEditor(id);
-		if (editor) {
-			editor.setSelections(ranges);
+		if (!editor) {
+			return;
+		}
+
+		editor.setSelections(ranges);
+
+		if (ranges.length) {
+			editor.setFocus({ start: ranges[0].start, end: ranges[0].start + 1 });
 		}
 	}
 }

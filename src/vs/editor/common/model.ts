@@ -180,6 +180,11 @@ export interface InjectedTextOptions {
 	 * If set, the decoration will be rendered inline with the text with this CSS class name.
 	 */
 	readonly inlineClassName?: string | null;
+
+	/**
+	 * If there is an `inlineClassName` which affects letter spacing.
+	 */
+	readonly inlineClassNameAffectsLetterSpacing?: boolean;
 }
 
 /**

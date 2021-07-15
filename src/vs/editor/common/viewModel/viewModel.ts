@@ -82,8 +82,11 @@ export interface ICoordinatesConverter {
 	validateViewRange(viewRange: Range, expectedModelRange: Range): Range;
 
 	// Model -> View conversion and related methods
-	convertModelPositionToViewPosition(modelPosition: Position): Position;
-	convertModelRangeToViewRange(modelRange: Range): Range;
+	convertModelPositionToViewPosition(modelPosition: Position, affinity?: PositionAffinity): Position;
+	/**
+	 * @param affinity Only has an effect if the range is empty.
+	*/
+	convertModelRangeToViewRange(modelRange: Range, affinity?: PositionAffinity): Range;
 	modelPositionIsVisible(modelPosition: Position): boolean;
 	getModelLineViewLineCount(modelLineNumber: number): number;
 }
@@ -205,7 +208,7 @@ export class LineBreakData {
 	}
 
 	public normalizeOffsetAroundInjections(offsetInUnwrappedLine: number, affinity: PositionAffinity): number {
-		const injectedText = this.getInjectedTextAt(offsetInUnwrappedLine);
+		const injectedText = this.getInjectedTextAtOffset(offsetInUnwrappedLine);
 		if (!injectedText) {
 			return offsetInUnwrappedLine;
 		}
@@ -242,7 +245,18 @@ export class LineBreakData {
 		return result;
 	}
 
-	private getInjectedTextAt(offsetInUnwrappedLine: number): { injectedTextIndex: number, offsetInUnwrappedLine: number, length: number } | undefined {
+	public getInjectedText(outputLineIndex: number, outputOffset: number): InjectedText | null {
+		const offset = this.outputPositionToOffsetInUnwrappedLine(outputLineIndex, outputOffset);
+		const injectedText = this.getInjectedTextAtOffset(offset);
+		if (!injectedText) {
+			return null;
+		}
+		return {
+			options: this.injectionOptions![injectedText.injectedTextIndex]
+		};
+	}
+
+	private getInjectedTextAtOffset(offsetInUnwrappedLine: number): { injectedTextIndex: number, offsetInUnwrappedLine: number, length: number } | undefined {
 		const injectionOffsets = this.injectionOffsets;
 		const injectionOptions = this.injectionOptions;
 
@@ -328,6 +342,8 @@ export interface IViewModel extends ICursorSimpleModel {
 	invalidateMinimapColorCache(): void;
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 
+	getInjectedTextAt(viewPosition: Position): InjectedText | null;
+
 	getModelLineMaxColumn(modelLineNumber: number): number;
 	validateModelPosition(modelPosition: IPosition): Position;
 	validateModelRange(range: IRange): Range;
@@ -370,6 +386,10 @@ export interface IViewModel extends ICursorSimpleModel {
 	changeWhitespace(callback: (accessor: IWhitespaceChangeAccessor) => void): void;
 	setMaxLineWidth(maxLineWidth: number): void;
 	//#endregion
+}
+
+export class InjectedText {
+	constructor(public readonly options: InjectedTextOptions) { }
 }
 
 export class MinimapLinesRenderingData {
@@ -540,7 +560,8 @@ export class SingleLineInlineDecoration {
 	constructor(
 		public readonly startOffset: number,
 		public readonly endOffset: number,
-		public readonly inlineClassName: string
+		public readonly inlineClassName: string,
+		public readonly inlineClassNameAffectsLetterSpacing: boolean
 	) {
 	}
 
@@ -548,7 +569,7 @@ export class SingleLineInlineDecoration {
 		return new InlineDecoration(
 			new Range(lineNumber, this.startOffset + 1, lineNumber, this.endOffset + 1),
 			this.inlineClassName,
-			InlineDecorationType.Regular
+			this.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular
 		);
 	}
 }

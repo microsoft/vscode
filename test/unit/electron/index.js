@@ -17,7 +17,7 @@ const MochaJUnitReporter = require('mocha-junit-reporter');
 const url = require('url');
 const net = require('net');
 const createStatsCollector = require('mocha/lib/stats-collector');
-const FullJsonStreamReporter = require('../fullJsonStreamReporter');
+const { applyReporter, importMochaReporter } = require('../reporter');
 
 // Disable render process reuse, we still have
 // non-context aware native modules in the renderer.
@@ -76,15 +76,6 @@ function deserializeRunnable(runnable) {
 	};
 }
 
-function importMochaReporter(name) {
-	if (name === 'full-json-stream') {
-		return FullJsonStreamReporter;
-	}
-
-	const reporterPath = path.join(path.dirname(require.resolve('mocha')), 'lib', 'reporters', name);
-	return require(reporterPath);
-}
-
 function deserializeError(err) {
 	const inspect = err.inspect;
 	err.inspect = () => inspect;
@@ -123,11 +114,6 @@ class IPCRunner extends events.EventEmitter {
 		});
 		ipcMain.on('pending', (e, test) => this.emit('pending', deserializeRunnable(test)));
 	}
-}
-
-function parseReporterOption(value) {
-	let r = /^([^=]+)=(.*)$/.exec(value);
-	return r ? { [r[1]]: r[2] } : {};
 }
 
 app.on('ready', () => {
@@ -204,7 +190,7 @@ app.on('ready', () => {
 			timeout = setTimeout(() => {
 				console.error('timed out waiting for before starting tests debugger');
 				resolve();
-			}, 7000);
+			}, 15000);
 		}).finally(() => {
 			if (socket) {
 				socket.end();
@@ -249,23 +235,7 @@ app.on('ready', () => {
 			});
 		}
 
-		let Reporter;
-		try {
-			Reporter = importMochaReporter(argv.reporter);
-		} catch (err) {
-			try {
-				Reporter = require(argv.reporter);
-			} catch (err) {
-				Reporter = process.platform === 'win32' ? mocha.reporters.List : mocha.reporters.Spec;
-				console.warn(`could not load reporter: ${argv.reporter}, using ${Reporter.name}`);
-			}
-		}
-
-		let reporterOptions = argv['reporter-options'];
-		reporterOptions = typeof reporterOptions === 'string' ? [reporterOptions] : reporterOptions;
-		reporterOptions = reporterOptions.reduce((r, o) => Object.assign(r, parseReporterOption(o)), {});
-
-		new Reporter(runner, { reporterOptions });
+		applyReporter(runner, argv);
 	}
 
 	if (!argv.debug) {

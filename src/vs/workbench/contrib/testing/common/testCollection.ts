@@ -10,6 +10,8 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { TestMessageSeverity, TestResultState } from 'vs/workbench/api/common/extHostTypes';
 
+export { TestResultState } from 'vs/workbench/api/common/extHostTypes';
+
 export interface ITestIdWithSrc {
 	testId: string;
 	controllerId: string;
@@ -18,6 +20,36 @@ export interface ITestIdWithSrc {
 export const identifyTest = (test: { controllerId: string, item: { extId: string } }): ITestIdWithSrc =>
 	({ testId: test.item.extId, controllerId: test.controllerId });
 
+export const enum TestRunConfigurationBitset {
+	Run = 1 << 1,
+	Debug = 1 << 2,
+	Coverage = 1 << 3,
+	HasNonDefaultConfig = 1 << 4,
+	HasConfigurable = 1 << 5,
+}
+
+/**
+ * List of all test run configuration bitset values.
+ */
+export const testRunConfigurationBitsetList = [
+	TestRunConfigurationBitset.Run,
+	TestRunConfigurationBitset.Debug,
+	TestRunConfigurationBitset.Coverage,
+	TestRunConfigurationBitset.HasNonDefaultConfig,
+];
+
+/**
+ * DTO for a controller's run configurations.
+ */
+export interface ITestRunConfiguration {
+	controllerId: string;
+	profileId: number;
+	label: string;
+	group: TestRunConfigurationBitset;
+	isDefault: boolean;
+	hasConfigurationHandler: boolean;
+}
+
 /**
  * Defines the path to a test, as a list of test IDs. The last element of the
  * array is the test ID, and the predecessors are its parents, in order.
@@ -25,12 +57,17 @@ export const identifyTest = (test: { controllerId: string, item: { extId: string
 export type TestIdPath = string[];
 
 /**
- * Request to the main thread to run a set of tests.
+ * A fully-resolved request to run tests, passsed between the main thread
+ * and extension host.
  */
-export interface RunTestsRequest {
-	tests: ITestIdWithSrc[];
-	exclude?: string[];
-	debug: boolean;
+export interface ResolvedTestRunRequest {
+	targets: {
+		testIds: string[];
+		controllerId: string;
+		profileGroup: TestRunConfigurationBitset;
+		profileId: number;
+	}[]
+	exclude?: ITestIdWithSrc[];
 	isAutoRun?: boolean;
 }
 
@@ -39,9 +76,10 @@ export interface RunTestsRequest {
  */
 export interface ExtensionRunTestsRequest {
 	id: string;
-	tests: string[];
+	include: string[];
 	exclude: string[];
-	debug: boolean;
+	controllerId: string;
+	config?: { group: TestRunConfigurationBitset, id: number };
 	persist: boolean;
 }
 
@@ -51,9 +89,9 @@ export interface ExtensionRunTestsRequest {
 export interface RunTestForControllerRequest {
 	runId: string;
 	controllerId: string;
+	configId: number;
 	excludeExtIds: string[];
 	testIds: string[];
-	debug: boolean;
 }
 
 /**
@@ -97,8 +135,6 @@ export interface ITestItem {
 	range: IRange | null;
 	description: string | null;
 	error: string | IMarkdownString | null;
-	runnable: boolean;
-	debuggable: boolean;
 }
 
 export const enum TestItemExpandState {
@@ -154,8 +190,6 @@ export interface TestResultItem {
 	retired: boolean;
 	/** Max duration of the item's tasks (if run directly) */
 	ownDuration?: number;
-	/** True if the test was directly requested by the run (is not a child or parent) */
-	direct?: boolean;
 	/** Controller ID from whence this test came */
 	controllerId: string;
 }
@@ -179,6 +213,8 @@ export interface ISerializedTestResults {
 	tasks: ITestRunTask[];
 	/** Human-readable name of the test run. */
 	name: string;
+	/** Test trigger informaton */
+	request: ResolvedTestRunRequest;
 }
 
 export interface ITestCoverage {

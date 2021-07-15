@@ -292,6 +292,9 @@ import 'vs/workbench/contrib/welcome/common/newFile.contribution';
 // Call Hierarchy
 import 'vs/workbench/contrib/callHierarchy/browser/callHierarchy.contribution';
 
+// Type Hierarchy
+import 'vs/workbench/contrib/typeHierarchy/browser/typeHierarchy.contribution';
+
 // Outline
 import 'vs/workbench/contrib/codeEditor/browser/outline/documentSymbolsOutline';
 import 'vs/workbench/contrib/outline/browser/outline.contribution';
