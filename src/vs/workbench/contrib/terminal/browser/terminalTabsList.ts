@@ -16,7 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { ILocalTerminalService, IS_SPLIT_TERMINAL_CONTEXT_KEY, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IOffProcessTerminalService, IS_SPLIT_TERMINAL_CONTEXT_KEY, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
@@ -538,14 +538,15 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<IT
 class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 	private _autoFocusInstance: ITerminalInstance | undefined;
 	private _autoFocusDisposable: IDisposable = Disposable.None;
-
+	private _offProcessTerminalService: IOffProcessTerminalService | undefined;
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
-		@ILocalTerminalService private readonly _localTerminalService: ILocalTerminalService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
-	) { }
+	) {
+		this._offProcessTerminalService = _terminalService.getOffProcessTerminalService();
+	}
 
 	getDragURI(instance: ITerminalInstance): string | null {
 		return URI.from({
@@ -629,8 +630,8 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 					if (instance) {
 						sourceInstances = [instance];
 						this._terminalService.moveToTerminalView(instance);
-					} else if (workspaceId !== this._workspaceContextService.getWorkspace().id) {
-						promises.push(this._localTerminalService.requestDetachInstance(workspaceId, Number.parseInt(instanceId)));
+					} else if (this._offProcessTerminalService && workspaceId !== this._workspaceContextService.getWorkspace().id) {
+						promises.push(this._offProcessTerminalService.requestDetachInstance(workspaceId, Number.parseInt(instanceId)));
 					}
 				}
 			}

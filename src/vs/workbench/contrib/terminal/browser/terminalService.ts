@@ -282,6 +282,10 @@ export class TerminalService implements ITerminalService {
 		timeout(0).then(() => this._instantiationService.createInstance(TerminalEditorStyle, document.head));
 	}
 
+	getOffProcessTerminalService(): IOffProcessTerminalService | undefined {
+		return this._primaryOffProcessTerminalService;
+	}
+
 	private _forwardInstanceHostEvents(host: ITerminalInstanceHost) {
 		host.onDidChangeInstances(this._onDidChangeInstances.fire, this._onDidChangeInstances);
 		host.onDidDisposeInstance(this._onDidDisposeInstance.fire, this._onDidDisposeInstance);
