@@ -264,7 +264,7 @@ export class TerminalService implements ITerminalService {
 			if (e.workspaceId && this._workspaceContextService.getWorkspace().id === e.workspaceId) {
 				const instanceToDetach = this.getInstanceFromId(e.instanceId);
 				const persistentProcessId = instanceToDetach?.persistentProcessId;
-				if (persistentProcessId) {
+				if (persistentProcessId && !instanceToDetach.shellLaunchConfig.isFeatureTerminal && !instanceToDetach.shellLaunchConfig.customPtyImplementation) {
 					await instanceToDetach.detachFromProcess();
 					await this._primaryOffProcessTerminalService?.acceptDetachedInstance(e.requestId, persistentProcessId);
 				}
