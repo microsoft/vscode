@@ -240,19 +240,19 @@ export function withUndefinedAsNull<T>(x: T | undefined): T | null {
 	return typeof x === 'undefined' ? null : x;
 }
 
+type AddFirstParameterToFunction<T, TargetFunctionsReturnType, FirstParameter> = T extends (...args: any[]) => TargetFunctionsReturnType ?
+	// Function: add param to function
+	(firstArg: FirstParameter, ...args: Parameters<T>) => ReturnType<T> :
+
+	// Else: just leave as is
+	T;
+
 /**
  * Allows to add a first parameter to functions of a type.
  */
 export type AddFirstParameterToFunctions<Target, TargetFunctionsReturnType, FirstParameter> = {
-
-	//  For every property
-	[K in keyof Target]:
-
-	// Function: add param to function
-	Target[K] extends (...args: any[]) => TargetFunctionsReturnType ? (firstArg: FirstParameter, ...args: Parameters<Target[K]>) => ReturnType<Target[K]> :
-
-	// Else: just leave as is
-	Target[K]
+	// For every property
+	[K in keyof Target]: AddFirstParameterToFunction<Target[K], TargetFunctionsReturnType, FirstParameter>;
 };
 
 /**
@@ -285,4 +285,8 @@ export function NotImplementedProxy<T>(name: string): { new(): T } {
 			});
 		}
 	};
+}
+
+export function assertNever(value: never, message = 'Unreachable') {
+	throw new Error(message);
 }

@@ -4,13 +4,13 @@
 			"component": {
 				"type": "git",
 				"git": {
-					"name": " JuliaEditorSupport/atom-language-julia",
+					"name": "JuliaEditorSupport/atom-language-julia",
 					"repositoryUrl": "https://github.com/JuliaEditorSupport/atom-language-julia",
-					"commitHash": "8ae8d9cac742c65ae0bef1a5e2d068e2cae871bc"
+					"commitHash": "63325eb9959b57282e2804e5d7215d240a9a6fd6"
 				}
 			},
 			"license": "MIT",
-			"version": "0.21.0"
+			"version": "0.21.1"
 		}
 	],
 	"version": 1

@@ -61,10 +61,15 @@ export namespace Schemas {
 	export const vscodeNotebookCell = 'vscode-notebook-cell';
 
 	export const vscodeNotebookCellMetadata = 'vscode-notebook-cell-metadata';
+	export const vscodeNotebookCellOutput = 'vscode-notebook-cell-output';
+	export const vscodeInteractive = 'vscode-interactive';
+	export const vscodeInteractiveInput = 'vscode-interactive-input';
 
 	export const vscodeSettings = 'vscode-settings';
 
 	export const vscodeWorkspaceTrust = 'vscode-workspace-trust';
+
+	export const vscodeTerminal = 'vscode-terminal';
 
 	export const webviewPanel = 'webview-panel';
 
@@ -72,11 +77,6 @@ export namespace Schemas {
 	 * Scheme used for loading the wrapper html and script in webviews.
 	 */
 	export const vscodeWebview = 'vscode-webview';
-
-	/**
-	 * Scheme used for loading resources inside of webviews.
-	 */
-	export const vscodeWebviewResource = 'vscode-webview-resource';
 
 	/**
 	 * Scheme used for extension pages
@@ -88,6 +88,11 @@ export namespace Schemas {
 	 * files with our custom protocol handler (desktop only).
 	 */
 	export const vscodeFileResource = 'vscode-file';
+
+	/**
+	 * Scheme used for temporary resources
+	 */
+	export const tmp = 'tmp';
 }
 
 class RemoteAuthoritiesImpl {
@@ -160,9 +165,20 @@ class FileAccessImpl {
 			return RemoteAuthorities.rewrite(uri);
 		}
 
+		let convertToVSCodeFileResource = false;
+
 		// Only convert the URI if we are in a native context and it has `file:` scheme
-		// and we have explicitly enabled the conversion (sandbox, or ENABLE_VSCODE_BROWSER_CODE_LOADING)
+		// and we have explicitly enabled the conversion (sandbox, or VSCODE_BROWSER_CODE_LOADING)
 		if (platform.isNative && (__forceCodeFileUri || platform.isPreferringBrowserCodeLoad) && uri.scheme === Schemas.file) {
+			convertToVSCodeFileResource = true;
+		}
+
+		// Also convert `file:` URIs in the web worker extension host (running in desktop) case
+		if (uri.scheme === Schemas.file && typeof platform.globals.importScripts === 'function' && platform.globals.origin === 'vscode-file://vscode-app') {
+			convertToVSCodeFileResource = true;
+		}
+
+		if (convertToVSCodeFileResource) {
 			return uri.with({
 				scheme: Schemas.vscodeFileResource,
 				// We need to provide an authority here so that it can serve

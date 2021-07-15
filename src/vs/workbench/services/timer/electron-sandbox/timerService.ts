@@ -17,6 +17,10 @@ import { IStartupMetrics, AbstractTimerService, Writeable, ITimerService } from 
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { isPreferringBrowserCodeLoad } from 'vs/base/common/platform';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export class TimerService extends AbstractTimerService {
 
@@ -32,8 +36,11 @@ export class TimerService extends AbstractTimerService {
 		@IEditorService editorService: IEditorService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IProductService private readonly _productService: IProductService,
+		@IStorageService private readonly _storageService: IStorageService
 	) {
-		super(lifecycleService, contextService, extensionService, updateService, viewletService, panelService, editorService, accessibilityService, telemetryService);
+		super(lifecycleService, contextService, extensionService, updateService, viewletService, panelService, editorService, accessibilityService, telemetryService, layoutService);
 		this.setPerformanceMarks('main', _environmentService.configuration.perfMarks);
 	}
 
@@ -41,7 +48,7 @@ export class TimerService extends AbstractTimerService {
 		return Boolean(this._environmentService.configuration.isInitialStartup);
 	}
 	protected _didUseCachedData(): boolean {
-		return didUseCachedData();
+		return didUseCachedData(this._productService, this._storageService, this._environmentService);
 	}
 	protected _getWindowCount(): Promise<number> {
 		return this._nativeHostService.getWindowCount();
@@ -85,12 +92,28 @@ registerSingleton(ITimerService, TimerService);
 
 //#region cached data logic
 
-export function didUseCachedData(): boolean {
-	// TODO@sandbox need a different way to figure out if cached data was used
-	if (process.sandboxed) {
-		return true;
+const lastRunningCommitStorageKey = 'perf/lastRunningCommit';
+let _didUseCachedData: boolean | undefined = undefined;
+
+export function didUseCachedData(productService: IProductService, storageService: IStorageService, environmentService: INativeWorkbenchEnvironmentService): boolean {
+	// browser code loading: only a guess based on
+	// this being the first start with the commit
+	// or subsequent
+	if (isPreferringBrowserCodeLoad) {
+		if (typeof _didUseCachedData !== 'boolean') {
+			if (!environmentService.configuration.codeCachePath || !productService.commit) {
+				_didUseCachedData = false; // we only produce cached data whith commit and code cache path
+			} else if (storageService.get(lastRunningCommitStorageKey, StorageScope.GLOBAL) === productService.commit) {
+				_didUseCachedData = true; // subsequent start on same commit, assume cached data is there
+			} else {
+				storageService.store(lastRunningCommitStorageKey, productService.commit, StorageScope.GLOBAL, StorageTarget.MACHINE);
+				_didUseCachedData = false; // first time start on commit, assume cached data is not yet there
+			}
+		}
+		return _didUseCachedData;
 	}
-	// We surely don't use cached data when we don't tell the loader to do so
+	// node.js code loading: We surely don't use cached data
+	// when we don't tell the loader to do so
 	if (!Boolean((<any>window).require.getConfig().nodeCachedData)) {
 		return false;
 	}

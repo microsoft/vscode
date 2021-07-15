@@ -113,14 +113,15 @@ export interface IAuthenticationContribution {
 	readonly label: string;
 }
 
-export interface IWalkthroughTask {
+export interface IWalkthroughStep {
 	readonly id: string;
 	readonly title: string;
-	readonly description: string;
-	readonly button:
-	| { title: string, link: string, command?: never }
-	| { title: string, command: string, link?: never },
-	readonly media: { path: string, altText: string },
+	readonly description: string | undefined;
+	readonly media:
+	| { image: string | { dark: string, light: string, hc: string }, altText: string, markdown?: never }
+	| { markdown: string, image?: never }
+	readonly completionEvents?: string[];
+	/** @deprecated use `completionEvents: 'onCommand:...'` */
 	readonly doneOn?: { command: string };
 	readonly when?: string;
 }
@@ -129,9 +130,16 @@ export interface IWalkthrough {
 	readonly id: string,
 	readonly title: string;
 	readonly description: string;
-	readonly tasks: IWalkthroughTask[];
-	readonly primary?: boolean;
+	readonly steps: IWalkthroughStep[];
 	readonly when?: string;
+}
+
+export interface IStartEntry {
+	readonly title: string;
+	readonly description: string;
+	readonly command: string;
+	readonly when?: string;
+	readonly category: 'file' | 'folder' | 'notebook';
 }
 
 export interface IExtensionContributions {
@@ -155,11 +163,34 @@ export interface IExtensionContributions {
 	readonly codeActions?: readonly ICodeActionContribution[];
 	authentication?: IAuthenticationContribution[];
 	walkthroughs?: IWalkthrough[];
+	startEntries?: IStartEntry[];
 }
 
+export interface IExtensionCapabilities {
+	readonly virtualWorkspaces?: ExtensionVirtualWorkspaceSupport;
+	readonly untrustedWorkspaces?: ExtensionUntrustedWorkspaceSupport;
+}
+
+
+
 export type ExtensionKind = 'ui' | 'workspace' | 'web';
-export type ExtensionWorkspaceTrustRequirement = false | 'onStart' | 'onDemand';
-export type ExtensionWorkspaceTrust = { required: ExtensionWorkspaceTrustRequirement, description?: string };
+
+export type LimitedWorkspaceSupportType = 'limited';
+export type ExtensionUntrustedWorkspaceSupportType = boolean | LimitedWorkspaceSupportType;
+export type ExtensionUntrustedWorkspaceSupport = { supported: true; } | { supported: false, description: string } | { supported: LimitedWorkspaceSupportType, description: string, restrictedConfigurations?: string[] };
+
+export type ExtensionVirtualWorkspaceSupportType = boolean | LimitedWorkspaceSupportType;
+export type ExtensionVirtualWorkspaceSupport = boolean | { supported: true; } | { supported: false | LimitedWorkspaceSupportType, description: string };
+
+export function getWorkspaceSupportTypeMessage(supportType: ExtensionUntrustedWorkspaceSupport | ExtensionVirtualWorkspaceSupport | undefined): string | undefined {
+	if (typeof supportType === 'object' && supportType !== null) {
+		if (supportType.supported !== true) {
+			return supportType.description;
+		}
+	}
+	return undefined;
+}
+
 
 export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
 	return thing
@@ -216,7 +247,7 @@ export interface IExtensionManifest {
 	readonly enableProposedApi?: boolean;
 	readonly api?: string;
 	readonly scripts?: { [key: string]: string; };
-	readonly workspaceTrust?: ExtensionWorkspaceTrust;
+	readonly capabilities?: IExtensionCapabilities;
 }
 
 export const enum ExtensionType {
@@ -307,28 +338,8 @@ export function isAuthenticaionProviderExtension(manifest: IExtensionManifest): 
 	return manifest.contributes && manifest.contributes.authentication ? manifest.contributes.authentication.length > 0 : false;
 }
 
-export interface IScannedExtension {
-	readonly identifier: IExtensionIdentifier;
-	readonly location: URI;
-	readonly type: ExtensionType;
-	readonly packageJSON: IExtensionManifest;
-	readonly packageNLS?: any;
-	readonly packageNLSUrl?: URI;
-	readonly readmeUrl?: URI;
-	readonly changelogUrl?: URI;
-}
-
-export interface ITranslatedScannedExtension {
-	readonly identifier: IExtensionIdentifier;
-	readonly location: URI;
-	readonly type: ExtensionType;
-	readonly packageJSON: IExtensionManifest;
-	readonly readmeUrl?: URI;
-	readonly changelogUrl?: URI;
-}
-
 export const IBuiltinExtensionsScannerService = createDecorator<IBuiltinExtensionsScannerService>('IBuiltinExtensionsScannerService');
 export interface IBuiltinExtensionsScannerService {
 	readonly _serviceBrand: undefined;
-	scanBuiltinExtensions(): Promise<IScannedExtension[]>;
+	scanBuiltinExtensions(): Promise<IExtension[]>;
 }

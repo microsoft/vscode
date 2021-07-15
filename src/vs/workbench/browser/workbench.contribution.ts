@@ -10,9 +10,10 @@ import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { isStandalone } from 'vs/base/browser/browser';
 
+const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+
 // Configuration
 (function registerConfiguration(): void {
-	const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	// Workbench
 	registry.registerConfiguration({
@@ -88,8 +89,8 @@ import { isStandalone } from 'vs/base/browser/browser';
 			},
 			'workbench.editor.untitled.hint': {
 				'type': 'string',
-				'enum': ['text', 'button', 'hidden', 'default'],
-				'default': 'default',
+				'enum': ['text', 'hidden'],
+				'default': 'text',
 				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'untitledHint' }, "Controls if the untitled hint should be inline text in the editor or a floating button or hidden.")
 			},
 			'workbench.editor.tabCloseButton': {
@@ -193,9 +194,14 @@ import { isStandalone } from 'vs/base/browser/browser';
 			},
 			'workbench.editor.restoreViewState': {
 				'type': 'boolean',
-				'description': localize('restoreViewState', "Restores the last view state (e.g. scroll position) when re-opening textual editors after they have been closed."),
+				'markdownDescription': localize('restoreViewState', "Restores the last editor view state (e.g. scroll position) when re-opening editors after they have been closed. Editor view state is stored per editor group and discarded when a group closes. Use the `#workbench.editor.sharedViewState#` setting to use the last known view state across all editor groups in case no previous view state was found for a editor group."),
 				'default': true,
 				'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
+			},
+			'workbench.editor.sharedViewState': {
+				'type': 'boolean',
+				'description': localize('sharedViewState', "Preserves the most recent editor view state (e.g. scroll position) across all editor groups and restores that if no specific editor view state is found for the editor group."),
+				'default': false
 			},
 			'workbench.editor.centeredLayoutAutoResize': {
 				'type': 'boolean',

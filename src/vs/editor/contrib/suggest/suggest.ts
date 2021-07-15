@@ -74,7 +74,7 @@ export class CompletionItem {
 	) {
 		this.textLabel = typeof completion.label === 'string'
 			? completion.label
-			: completion.label.name;
+			: completion.label.label;
 
 		// ensure lower-variants (perf)
 		this.labelLow = this.textLabel.toLowerCase();
@@ -155,6 +155,7 @@ export class CompletionOptions {
 		readonly snippetSortOrder = SnippetSortOrder.Bottom,
 		readonly kindFilter = new Set<modes.CompletionItemKind>(),
 		readonly providerFilter = new Set<modes.CompletionItemProvider>(),
+		readonly showDeprecated = true
 	) { }
 }
 
@@ -216,13 +217,17 @@ export async function provideSuggestionItems(
 		}
 		for (let suggestion of container.suggestions) {
 			if (!options.kindFilter.has(suggestion.kind)) {
+				// skip if not showing deprecated suggestions
+				if (!options.showDeprecated && suggestion?.tags?.includes(modes.CompletionItemTag.Deprecated)) {
+					continue;
+				}
 				// fill in default range when missing
 				if (!suggestion.range) {
 					suggestion.range = defaultRange;
 				}
 				// fill in default sortText when missing
 				if (!suggestion.sortText) {
-					suggestion.sortText = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.name;
+					suggestion.sortText = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.label;
 				}
 				if (!needsClipboard && suggestion.insertTextRules && suggestion.insertTextRules & modes.CompletionItemInsertTextRule.InsertAsSnippet) {
 					needsClipboard = SnippetParser.guessNeedsClipboard(suggestion.insertText);

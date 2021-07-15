@@ -13,7 +13,7 @@ export class NativeTextSearchManager extends TextSearchManager {
 
 	constructor(query: ITextQuery, provider: TextSearchProvider, _pfs: typeof pfs = pfs) {
 		super(query, provider, {
-			readdir: resource => _pfs.readdir(resource.fsPath),
+			readdir: resource => _pfs.Promises.readdir(resource.fsPath),
 			toCanonicalName: name => toCanonicalName(name)
 		});
 	}

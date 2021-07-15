@@ -67,6 +67,10 @@ export namespace ThemeIcon {
 		return ti1.id === ti2.id && ti1.color?.id === ti2.color?.id;
 	}
 
+	export function asThemeIcon(codicon: Codicon, color?: string): ThemeIcon {
+		return { id: codicon.id, color: color ? themeColorFromId(color) : undefined };
+	}
+
 	export const asClassNameArray: (icon: ThemeIcon) => string[] = CSSIcon.asClassNameArray;
 	export const asClassName: (icon: ThemeIcon) => string = CSSIcon.asClassName;
 	export const asCSSSelector: (icon: ThemeIcon) => string = CSSIcon.asCSSSelector;

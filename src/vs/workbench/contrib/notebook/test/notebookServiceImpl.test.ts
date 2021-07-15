@@ -7,45 +7,56 @@ import * as assert from 'assert';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { NotebookProviderInfoStore } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
-import { NotebookEditorPriority } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { EditorResolverService } from 'vs/workbench/services/editor/browser/editorResolverService';
+import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
+import { IExtensionService, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('NotebookProviderInfoStore', function () {
 
 	test('Can\'t open untitled notebooks in test #119363', function () {
 
+		const instantiationService = workbenchInstantiationService();
 		const store = new NotebookProviderInfoStore(
 			new class extends mock<IStorageService>() {
-				get() { return ''; }
-				store() { }
+				override get() { return ''; }
+				override store() { }
 			},
 			new class extends mock<IExtensionService>() {
-				onDidRegisterExtensions = Event.None;
+				override onDidRegisterExtensions = Event.None;
+			},
+			instantiationService.createInstance(EditorResolverService),
+			new TestConfigurationService(),
+			new class extends mock<IAccessibilityService>() { },
+			instantiationService,
+			new class extends mock<IFileService>() {
+				override canHandleResource() { return true; }
 			}
 		);
 
 		const fooInfo = new NotebookProviderInfo({
+			extension: nullExtensionDescription.identifier,
 			id: 'foo',
 			displayName: 'foo',
 			selectors: [{ filenamePattern: '*.foo' }],
-			priority: NotebookEditorPriority.default,
-			dynamicContribution: false,
+			priority: RegisteredEditorPriority.default,
 			exclusive: false,
 			providerDisplayName: 'foo',
-			providerExtensionLocation: null!
 		});
 		const barInfo = new NotebookProviderInfo({
+			extension: nullExtensionDescription.identifier,
 			id: 'bar',
 			displayName: 'bar',
 			selectors: [{ filenamePattern: '*.bar' }],
-			priority: NotebookEditorPriority.default,
-			dynamicContribution: false,
+			priority: RegisteredEditorPriority.default,
 			exclusive: false,
 			providerDisplayName: 'bar',
-			providerExtensionLocation: null!
 		});
 
 		store.add(fooInfo);

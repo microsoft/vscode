@@ -10,8 +10,9 @@ import * as nls from 'vs/nls';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Memento } from 'vs/workbench/common/memento';
-import { CustomEditorDescriptor, CustomEditorInfo, CustomEditorPriority } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { CustomEditorDescriptor, CustomEditorInfo } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { customEditorsExtensionPoint, ICustomEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/common/extensionPoint';
+import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
 export const defaultCustomEditor = new CustomEditorInfo({
@@ -21,7 +22,7 @@ export const defaultCustomEditor = new CustomEditorInfo({
 	selector: [
 		{ filenamePattern: '*' }
 	],
-	priority: CustomEditorPriority.default,
+	priority: RegisteredEditorPriority.default,
 });
 
 export class ContributedCustomEditors extends Disposable {
@@ -99,17 +100,17 @@ export class ContributedCustomEditors extends Disposable {
 function getPriorityFromContribution(
 	contribution: ICustomEditorsExtensionPoint,
 	extension: IExtensionDescription,
-): CustomEditorPriority {
+): RegisteredEditorPriority {
 	switch (contribution.priority) {
-		case CustomEditorPriority.default:
-		case CustomEditorPriority.option:
+		case RegisteredEditorPriority.default:
+		case RegisteredEditorPriority.option:
 			return contribution.priority;
 
-		case CustomEditorPriority.builtin:
+		case RegisteredEditorPriority.builtin:
 			// Builtin is only valid for builtin extensions
-			return extension.isBuiltin ? CustomEditorPriority.builtin : CustomEditorPriority.default;
+			return extension.isBuiltin ? RegisteredEditorPriority.builtin : RegisteredEditorPriority.default;
 
 		default:
-			return CustomEditorPriority.default;
+			return RegisteredEditorPriority.default;
 	}
 }

@@ -48,7 +48,7 @@ export class TerminalProtocolLinkProvider extends TerminalBaseLinkProvider {
 		return links.map(link => {
 			const range = convertLinkRangeToBuffer(lines, this._xterm.cols, link.range, startLine);
 
-			// Check if the link if within the mouse position
+			// Check if the link is within the mouse position
 			const uri = link.url
 				? (typeof link.url === 'string' ? URI.parse(link.url) : link.url)
 				: undefined;

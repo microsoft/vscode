@@ -12,6 +12,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
 import { timeout } from 'vs/base/common/async';
 import { MainContext, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
+import { FileAccess } from 'vs/base/common/network';
 
 namespace TrustedFunction {
 
@@ -70,7 +71,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 	protected async _beforeAlmostReadyToRunExtensions(): Promise<void> {
 		const mainThreadConsole = this._extHostContext.getProxy(MainContext.MainThreadConsole);
-		wrapConsoleMethods(mainThreadConsole);
+		wrapConsoleMethods(mainThreadConsole, this._initData.environment.isExtensionDevelopmentDebug);
 
 		// initialize API and register actors
 		const apiFactory = this._instaService.invokeFunction(createApiFactoryAndRegisterActors);
@@ -91,7 +92,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		if (extensionId) {
 			performance.mark(`code/extHost/willFetchExtensionCode/${extensionId.value}`);
 		}
-		const response = await fetch(module.toString(true));
+		const response = await fetch(FileAccess.asBrowserUri(module).toString(true));
 		if (extensionId) {
 			performance.mark(`code/extHost/didFetchExtensionCode/${extensionId.value}`);
 		}
@@ -173,15 +174,19 @@ function ensureSuffix(path: string, suffix: string): string {
 }
 
 // copied from bootstrap-fork.js
-function wrapConsoleMethods(service: MainThreadConsoleShape) {
+function wrapConsoleMethods(service: MainThreadConsoleShape, callToNative: boolean) {
 	wrap('info', 'log');
 	wrap('log', 'log');
 	wrap('warn', 'warn');
 	wrap('error', 'error');
 
 	function wrap(method: 'error' | 'warn' | 'info' | 'log', severity: 'error' | 'warn' | 'log') {
+		const original = console[method];
 		console[method] = function () {
 			service.$logExtensionHostMessage({ type: '__$console', severity, arguments: safeToArray(arguments) });
+			if (callToNative) {
+				original.apply(console, arguments as any);
+			}
 		};
 	}
 

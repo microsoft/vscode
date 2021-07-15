@@ -27,23 +27,23 @@ export class WorkingCopyFileOperationParticipant extends Disposable {
 		return toDisposable(() => remove());
 	}
 
-	async participate(files: SourceTargetPair[], operation: FileOperation, undoInfo: IFileOperationUndoRedoInfo | undefined, token: CancellationToken | undefined): Promise<void> {
+	async participate(files: SourceTargetPair[], operation: FileOperation, undoInfo: IFileOperationUndoRedoInfo | undefined, token: CancellationToken): Promise<void> {
 		const timeout = this.configurationService.getValue<number>('files.participants.timeout');
-		if (timeout <= 0) {
+		if (typeof timeout !== 'number' || timeout <= 0) {
 			return; // disabled
 		}
 
 		// For each participant
 		for (const participant of this.participants) {
 			try {
-				await participant.participate(files, operation, undoInfo, timeout, token ?? CancellationToken.None);
+				await participant.participate(files, operation, undoInfo, timeout, token);
 			} catch (err) {
 				this.logService.warn(err);
 			}
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.participants.clear();
 	}
 }

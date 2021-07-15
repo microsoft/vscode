@@ -28,8 +28,8 @@ suite('notebookBrowser', () => {
 
 		test('none code', function () {
 			const cells = [
-				{ cellKind: CellKind.Markdown },
-				{ cellKind: CellKind.Markdown },
+				{ cellKind: CellKind.Markup },
+				{ cellKind: CellKind.Markup },
 			];
 			assert.deepStrictEqual(getRanges(cells as ICellViewModel[], predicate), []);
 		});
@@ -37,7 +37,7 @@ suite('notebookBrowser', () => {
 		test('start code', function () {
 			const cells = [
 				{ cellKind: CellKind.Code },
-				{ cellKind: CellKind.Markdown },
+				{ cellKind: CellKind.Markup },
 			];
 			assert.deepStrictEqual(getRanges(cells as ICellViewModel[], predicate), [{ start: 0, end: 1 }]);
 		});
@@ -46,10 +46,10 @@ suite('notebookBrowser', () => {
 			const cells = [
 				{ cellKind: CellKind.Code },
 				{ cellKind: CellKind.Code },
-				{ cellKind: CellKind.Markdown },
+				{ cellKind: CellKind.Markup },
 				{ cellKind: CellKind.Code },
-				{ cellKind: CellKind.Markdown },
-				{ cellKind: CellKind.Markdown },
+				{ cellKind: CellKind.Markup },
+				{ cellKind: CellKind.Markup },
 				{ cellKind: CellKind.Code },
 			];
 			assert.deepStrictEqual(getRanges(cells as ICellViewModel[], predicate), [{ start: 0, end: 2 }, { start: 3, end: 4 }, { start: 6, end: 7 }]);

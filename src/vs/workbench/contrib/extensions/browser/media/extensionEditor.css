@@ -112,6 +112,10 @@
 	line-height: 20px;
 }
 
+.extension-editor > .header > .details > .subtitle .hide {
+	display: none;
+}
+
 .extension-editor > .header > .details > .subtitle .publisher {
 	font-size: 18px;
 }
@@ -148,12 +152,32 @@
 	text-align: initial;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container {
-	justify-content: flex-start;
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item {
+	margin-right: 0;
+	overflow: hidden;
+	flex-shrink: 0;
+}
+
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item.disabled {
+	min-width: 0;
 }
 
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item .extension-action {
-	margin-top: 0px; /* overrides from extension actions */
+	margin-bottom: 2px; /* margin for outline */
+}
+
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action:not(.icon) {
+	margin-left: 2px; /* margin for outline */
+}
+
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .monaco-dropdown .extension-action.action-dropdown {
+	margin-right: 2px; /* margin for outline */
+}
+
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item .extension-action:not(.icon) {
+	border-radius: 0;
+	padding-top: 0;
+	padding-bottom: 0;
 }
 
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action,
@@ -163,7 +187,7 @@
 
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item,
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item:not(.action-dropdown-item) > .extension-action {
-	margin-right: 8px;
+	margin-right: 6px;
 }
 
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action.label,
@@ -172,19 +196,17 @@
 	max-width: 300px;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label.system-disable {
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label.extension-status-icon {
 	margin-right: 0;
 }
 
 .extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.extension-status-label,
-.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.disable-status,
-.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.malicious-status {
+.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.disable-status {
 	font-weight: normal;
 }
 
 .extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.extension-status-label:hover,
-.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.disable-status:hover,
-.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.malicious-status:hover {
+.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.disable-status:hover {
 	opacity: 0.9;
 }
 
@@ -239,11 +261,12 @@
 
 .extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label {
 	margin-right: 16px;
+	font-size: inherit;
+	opacity: 0.7;
 }
 
 .extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label {
-	font-size: inherit;
-	opacity: 0.7;
+	background: none !important;
 }
 
 .extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label.checked {
@@ -501,7 +524,7 @@
 }
 
 .extension-editor .extensions-grid-view > .extension-container {
-	height: 275px;
+	width: 275px;
 	margin: 0 10px 20px 0;
 }
 

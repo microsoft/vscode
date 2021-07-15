@@ -32,7 +32,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { localize } from 'vs/nls';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
-import { fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
+import { fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Range } from 'vs/editor/common/core/range';
@@ -48,13 +48,13 @@ import { textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { IFileService } from 'vs/platform/files/common/files';
-import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { DomEmitter } from 'vs/base/browser/event';
 
 interface IResourceMarkersTemplateData {
 	resourceLabel: IResourceLabel;
@@ -262,12 +262,12 @@ const toggleMultilineAction = 'problems.action.toggleMultiline';
 
 class ToggleMultilineActionViewItem extends ActionViewItem {
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		super.render(container);
 		this.updateExpandedAttribute();
 	}
 
-	updateClass(): void {
+	override updateClass(): void {
 		super.updateClass();
 		this.updateExpandedAttribute();
 	}
@@ -417,10 +417,10 @@ class MarkerWidget extends Disposable {
 					this._codeLink.setAttribute('href', codeLink);
 					this._codeLink.tabIndex = 0;
 
-					const onClick = Event.chain(domEvent(this._codeLink, 'click'))
+					const onClick = Event.chain(this._register(new DomEmitter(this._codeLink, 'click')).event)
 						.filter(e => ((this._clickModifierKey === 'meta' && e.metaKey) || (this._clickModifierKey === 'ctrl' && e.ctrlKey) || (this._clickModifierKey === 'alt' && e.altKey)))
 						.event;
-					const onEnterPress = Event.chain(domEvent(this._codeLink, 'keydown'))
+					const onEnterPress = Event.chain(this._register(new DomEmitter(this._codeLink, 'keydown')).event)
 						.map(e => new StandardKeyboardEvent(e))
 						.filter(e => e.keyCode === KeyCode.Enter)
 						.event;
@@ -428,7 +428,7 @@ class MarkerWidget extends Disposable {
 
 					this._register(onOpen(e => {
 						dom.EventHelper.stop(e, true);
-						this._openerService.open(codeUri);
+						this._openerService.open(codeUri, { allowCommands: true });
 					}));
 
 					const code = new HighlightedLabel(dom.append(this._codeLink, dom.$('.marker-code')), false);
@@ -857,7 +857,7 @@ export class MarkersViewModel extends Disposable {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.markersViewStates.forEach(({ disposables }) => dispose(disposables));
 		this.markersViewStates.clear();
 		this.markersPerResource.clear();
@@ -892,13 +892,13 @@ export class ResourceDragAndDrop implements ITreeDragAndDrop<MarkerElement> {
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
 		const elements = (data as ElementsDragAndDropData<MarkerElement>).elements;
-		const resources: URI[] = elements
+		const resources = elements
 			.filter(e => e instanceof ResourceMarkers)
 			.map(resourceMarker => (resourceMarker as ResourceMarkers).resource);
 
 		if (resources.length) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
-			this.instantiationService.invokeFunction(fillResourceDataTransfers, resources, undefined, originalEvent);
+			this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, resources, originalEvent));
 		}
 	}
 

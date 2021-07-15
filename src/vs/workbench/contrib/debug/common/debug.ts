@@ -75,6 +75,7 @@ export const CONTEXT_SET_VARIABLE_SUPPORTED = new RawContextKey<boolean>('debugS
 export const CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED = new RawContextKey<boolean>('breakWhenValueChangesSupported', false, { type: 'boolean', description: nls.localize('breakWhenValueChangesSupported', "True when the focused session supports to break when value changes.") });
 export const CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED = new RawContextKey<boolean>('breakWhenValueIsAccessedSupported', false, { type: 'boolean', description: nls.localize('breakWhenValueIsAccessedSupported', "True when the focused breakpoint supports to break when value is accessed.") });
 export const CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED = new RawContextKey<boolean>('breakWhenValueIsReadSupported', false, { type: 'boolean', description: nls.localize('breakWhenValueIsReadSupported', "True when the focused breakpoint supports to break when value is read.") });
+export const CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED = new RawContextKey<boolean>('terminateDebuggeeSupported', false, { type: 'boolean', description: nls.localize('terminateDebuggeeSupported', "True when the focused session supports the terminate debuggee capability.") });
 export const CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT = new RawContextKey<boolean>('variableEvaluateNamePresent', false, { type: 'boolean', description: nls.localize('variableEvaluateNamePresent', "True when the focused variable has an 'evalauteName' field set") });
 export const CONTEXT_EXCEPTION_WIDGET_VISIBLE = new RawContextKey<boolean>('exceptionWidgetVisible', false, { type: 'boolean', description: nls.localize('exceptionWidgetVisible', "True when the exception widget is visible.") });
 export const CONTEXT_MULTI_SESSION_REPL = new RawContextKey<boolean>('multiSessionRepl', false, { type: 'boolean', description: nls.localize('multiSessionRepl', "True when there is more than 1 debug console.") });
@@ -105,6 +106,7 @@ export interface IRawStoppedDetails {
 	totalFrames?: number;
 	allThreadsStopped?: boolean;
 	framesErrorMessage?: string;
+	hitBreakpointIds?: number[];
 }
 
 // model
@@ -214,6 +216,7 @@ export interface IDebugSession extends ITreeElement {
 	getThread(threadId: number): IThread | undefined;
 	getAllThreads(): IThread[];
 	clearThreads(removeThreads: boolean, reference?: number): void;
+	getStoppedDetails(): IRawStoppedDetails | undefined;
 
 	getReplElements(): IReplElement[];
 	hasSeparateRepl(): boolean;
@@ -396,6 +399,7 @@ export interface IBaseBreakpoint extends IEnablement {
 	readonly logMessage?: string;
 	readonly verified: boolean;
 	readonly supported: boolean;
+	readonly message?: string;
 	readonly sessionsThatVerified: string[];
 	getIdFromAdapter(sessionId: string): number | undefined;
 }
@@ -406,7 +410,6 @@ export interface IBreakpoint extends IBaseBreakpoint {
 	readonly endLineNumber?: number;
 	readonly column?: number;
 	readonly endColumn?: number;
-	readonly message?: string;
 	readonly adapterData: any;
 	readonly sessionAgnosticData: { lineNumber: number, column: number | undefined };
 }
@@ -415,10 +418,9 @@ export interface IFunctionBreakpoint extends IBaseBreakpoint {
 	readonly name: string;
 }
 
-export interface IExceptionBreakpoint extends IEnablement {
+export interface IExceptionBreakpoint extends IBaseBreakpoint {
 	readonly filter: string;
 	readonly label: string;
-	readonly condition: string | undefined;
 	readonly description: string | undefined;
 }
 
@@ -501,7 +503,7 @@ export interface IDebugConfiguration {
 	allowBreakpointsEverywhere: boolean;
 	openDebug: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart' | 'openOnDebugBreak';
 	openExplorerOnEnd: boolean;
-	inlineValues: boolean;
+	inlineValues: boolean | 'auto';
 	toolBarLocation: 'floating' | 'docked' | 'hidden';
 	showInStatusBar: 'never' | 'always' | 'onFirstSessionStart';
 	internalConsoleOptions: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
@@ -931,7 +933,7 @@ export interface IDebugService {
 	/**
 	 * Stops the session. If no session is specified then all sessions are stopped.
 	 */
-	stopSession(session: IDebugSession | undefined): Promise<any>;
+	stopSession(session: IDebugSession | undefined, disconnect?: boolean): Promise<any>;
 
 	/**
 	 * Makes unavailable all sources with the passed uri. Source will appear as grayed out in callstack view.

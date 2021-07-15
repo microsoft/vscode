@@ -113,7 +113,7 @@ export class VariablesView extends ViewPane {
 		}, 400);
 	}
 
-	renderBody(container: HTMLElement): void {
+	override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this.element.classList.add('debug-pane');
@@ -125,7 +125,7 @@ export class VariablesView extends ViewPane {
 			new VariablesDataSource(), {
 			accessibilityProvider: new VariablesAccessibilityProvider(),
 			identityProvider: { getId: (element: IExpression | IScope) => element.getId() },
-			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression | IScope) => e },
+			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression | IScope) => e.name },
 			overrideStyles: {
 				listBackground: this.getBackgroundColor()
 			}
@@ -182,12 +182,12 @@ export class VariablesView extends ViewPane {
 		}));
 	}
 
-	layoutBody(width: number, height: number): void {
+	override layoutBody(width: number, height: number): void {
 		super.layoutBody(height, width);
 		this.tree.layout(width, height);
 	}
 
-	focus(): void {
+	override focus(): void {
 		this.tree.domFocus();
 	}
 

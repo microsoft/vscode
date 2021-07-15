@@ -57,6 +57,8 @@
           ".babelrc"
         ],
         "filenames": [
+          "babel.config.json",
+          ".babelrc.json",
           ".ember-cli"
         ],
         "configuration": "./language-configuration.json"

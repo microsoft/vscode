@@ -39,7 +39,7 @@ export class SelectColorThemeAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<void> {
+	override run(): Promise<void> {
 		return this.themeService.getColorThemes().then(themes => {
 			const currentTheme = this.themeService.getColorTheme();
 
@@ -203,7 +203,7 @@ class SelectFileIconThemeAction extends AbstractIconThemeAction {
 		return this.themeService.setFileIconTheme(id, settingsTarget);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.pick(await this.themeService.getFileIconThemes(), this.themeService.getFileIconTheme());
 	}
 }
@@ -234,7 +234,7 @@ class SelectProductIconThemeAction extends AbstractIconThemeAction {
 		return this.themeService.setProductIconTheme(id, settingsTarget);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.pick(await this.themeService.getProductIconThemes(), this.themeService.getProductIconTheme());
 	}
 }
@@ -298,7 +298,7 @@ class GenerateColorThemeAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	override run(): Promise<any> {
 		let theme = this.themeService.getColorTheme();
 		let colors = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution).getColors();
 		let colorIds = colors.map(c => c.id).sort();
@@ -332,7 +332,7 @@ class GenerateColorThemeAction extends Action {
 		}, null, '\t');
 		contents = contents.replace(/\"__/g, '//"');
 
-		return this.editorService.openEditor({ contents, mode: 'jsonc', options: { pinned: true } });
+		return this.editorService.openEditor({ resource: undefined, contents, mode: 'jsonc', options: { pinned: true } });
 	}
 }
 

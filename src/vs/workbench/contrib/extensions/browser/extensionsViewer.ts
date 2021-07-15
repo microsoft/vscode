@@ -9,7 +9,6 @@ import { IDisposable, dispose, Disposable, DisposableStore, toDisposable } from 
 import { Action } from 'vs/base/common/actions';
 import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
 import { Event } from 'vs/base/common/event';
-import { domEvent } from 'vs/base/browser/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListService, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -22,27 +21,23 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IColorMapping } from 'vs/platform/theme/common/styler';
-import { Renderer } from 'vs/workbench/contrib/extensions/browser/extensionsList';
+import { Delegate, Renderer } from 'vs/workbench/contrib/extensions/browser/extensionsList';
 import { listFocusForeground, listFocusBackground } from 'vs/platform/theme/common/colorRegistry';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 
-export interface IExtensionsGridViewVirtualDelegate extends IListVirtualDelegate<IExtension> {
-	getWidth?(element: IExtension): number;
-}
-
 export class ExtensionsGridView extends Disposable {
 
 	readonly element: HTMLElement;
 	private readonly renderer: Renderer;
-	private readonly delegate: IExtensionsGridViewVirtualDelegate;
+	private readonly delegate: Delegate;
 	private readonly disposableStore: DisposableStore;
 
 	constructor(
 		parent: HTMLElement,
-		delegate: IExtensionsGridViewVirtualDelegate,
+		delegate: Delegate,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
@@ -59,10 +54,7 @@ export class ExtensionsGridView extends Disposable {
 
 	private renderExtension(extension: IExtension, index: number): void {
 		const extensionContainer = dom.append(this.element, dom.$('.extension-container'));
-		extensionContainer.style.height = `${this.delegate.getHeight(extension)}px`;
-		if (this.delegate.getWidth) {
-			extensionContainer.style.width = `${this.delegate.getWidth(extension)}px`;
-		}
+		extensionContainer.style.height = `${this.delegate.getHeight()}px`;
 		extensionContainer.setAttribute('tabindex', '0');
 
 		const template = this.renderer.renderTemplate(extensionContainer);
@@ -174,8 +166,7 @@ export class ExtensionRenderer implements IListRenderer<ITreeNode<IExtensionData
 
 	public renderElement(node: ITreeNode<IExtensionData>, index: number, data: IExtensionTemplateData): void {
 		const extension = node.element.extension;
-		const onError = Event.once(domEvent(data.icon, 'error'));
-		onError(() => data.icon.src = extension.iconUrlFallback, null, data.extensionDisposables);
+		data.extensionDisposables.push(dom.addDisposableListener(data.icon, 'error', () => data.icon.src = extension.iconUrlFallback, { once: true }));
 		data.icon.src = extension.iconUrl;
 
 		if (!data.icon.complete) {
@@ -233,7 +224,7 @@ class OpenExtensionAction extends Action {
 		this._extension = extension;
 	}
 
-	run(sideByside: boolean): Promise<any> {
+	override run(sideByside: boolean): Promise<any> {
 		if (this._extension) {
 			return this.extensionsWorkdbenchService.open(this._extension, { sideByside });
 		}

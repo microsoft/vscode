@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkedString, CompletionItemKind, CompletionItem, DocumentSelector, SnippetString, workspace, MarkdownString, Uri } from 'vscode';
+import { CompletionItemKind, CompletionItem, DocumentSelector, SnippetString, workspace, MarkdownString, Uri } from 'vscode';
 import { IJSONContribution, ISuggestionsCollector } from './jsonContributions';
 import { XHRRequest } from 'request-light';
 import { Location } from 'jsonc-parser';
@@ -14,7 +14,6 @@ import { dirname } from 'path';
 const localize = nls.loadMessageBundle();
 
 const LIMIT = 40;
-const SCOPED_LIMIT = 250;
 
 const USER_AGENT = 'Visual Studio Code';
 
@@ -33,7 +32,7 @@ export class PackageJSONContribution implements IJSONContribution {
 		return [{ language: 'json', scheme: '*', pattern: '**/package.json' }];
 	}
 
-	public constructor(private xhr: XHRRequest, private canRunNPM: boolean) {
+	public constructor(private xhr: XHRRequest, private npmCommandPath: string | undefined) {
 	}
 
 	public collectDefaultSuggestions(_resource: Uri, result: ISuggestionsCollector): Thenable<any> {
@@ -53,7 +52,7 @@ export class PackageJSONContribution implements IJSONContribution {
 	}
 
 	private isEnabled() {
-		return this.canRunNPM || this.onlineEnabled();
+		return this.npmCommandPath || this.onlineEnabled();
 	}
 
 	private onlineEnabled() {
@@ -94,26 +93,25 @@ export class PackageJSONContribution implements IJSONContribution {
 					collector.setAsIncomplete();
 				}
 
-				queryUrl = `https://api.npms.io/v2/search/suggestions?size=${LIMIT}&q=${encodeURIComponent(currentWord)}`;
+				queryUrl = `https://registry.npmjs.org/-/v1/search?size=${LIMIT}&text=${encodeURIComponent(currentWord)}`;
 				return this.xhr({
 					url: queryUrl,
-					agent: USER_AGENT
+					headers: { agent: USER_AGENT }
 				}).then((success) => {
 					if (success.status === 200) {
 						try {
 							const obj = JSON.parse(success.responseText);
-							if (obj && Array.isArray(obj)) {
-								const results = <{ package: SearchPackageInfo; }[]>obj;
+							if (obj && obj.objects && Array.isArray(obj.objects)) {
+								const results = <{ package: SearchPackageInfo; }[]>obj.objects;
 								for (const result of results) {
 									this.processPackage(result.package, addValue, isLast, collector);
 								}
-								if (results.length === LIMIT) {
-									collector.setAsIncomplete();
-								}
+
 							}
 						} catch (e) {
 							// ignore
 						}
+						collector.setAsIncomplete();
 					} else {
 						collector.error(localize('json.npm.error.repoaccess', 'Request to the NPM repository failed: {0}', success.responseText));
 						return 0;
@@ -155,26 +153,24 @@ export class PackageJSONContribution implements IJSONContribution {
 			if (name.length < 4) {
 				name = '';
 			}
-			let queryUrl = `https://api.npms.io/v2/search?q=scope:${scope}%20${name}&size=250`;
+			let queryUrl = `https://registry.npmjs.com/-/v1/search?text=scope:${scope}%20${name}&size=250`;
 			return this.xhr({
 				url: queryUrl,
-				agent: USER_AGENT
+				headers: { agent: USER_AGENT }
 			}).then((success) => {
 				if (success.status === 200) {
 					try {
 						const obj = JSON.parse(success.responseText);
-						if (obj && Array.isArray(obj.results)) {
-							const objects = <{ package: SearchPackageInfo }[]>obj.results;
+						if (obj && Array.isArray(obj.objects)) {
+							const objects = <{ package: SearchPackageInfo; }[]>obj.objects;
 							for (let object of objects) {
 								this.processPackage(object.package, addValue, isLast, collector);
-							}
-							if (objects.length === SCOPED_LIMIT) {
-								collector.setAsIncomplete();
 							}
 						}
 					} catch (e) {
 						// ignore
 					}
+					collector.setAsIncomplete();
 				} else {
 					collector.error(localize('json.npm.error.repoaccess', 'Request to the NPM repository failed: {0}', success.responseText));
 				}
@@ -239,7 +235,13 @@ export class PackageJSONContribution implements IJSONContribution {
 
 	public resolveSuggestion(resource: Uri | undefined, item: CompletionItem): Thenable<CompletionItem | null> | null {
 		if (item.kind === CompletionItemKind.Property && !item.documentation) {
-			return this.fetchPackageInfo(item.label, resource).then(info => {
+
+			let name = item.label;
+			if (typeof name !== 'string') {
+				name = name.label;
+			}
+
+			return this.fetchPackageInfo(name, resource).then(info => {
 				if (info) {
 					item.documentation = this.getDocumentation(info.description, info.version, info.homepage);
 					return item;
@@ -272,8 +274,8 @@ export class PackageJSONContribution implements IJSONContribution {
 			return undefined; // avoid unnecessary lookups
 		}
 		let info: ViewPackageInfo | undefined;
-		if (this.canRunNPM) {
-			info = await this.npmView(pack, resource);
+		if (this.npmCommandPath) {
+			info = await this.npmView(this.npmCommandPath, pack, resource);
 		}
 		if (!info && this.onlineEnabled()) {
 			info = await this.npmjsView(pack);
@@ -281,11 +283,11 @@ export class PackageJSONContribution implements IJSONContribution {
 		return info;
 	}
 
-	private npmView(pack: string, resource: Uri | undefined): Promise<ViewPackageInfo | undefined> {
+	private npmView(npmCommandPath: string, pack: string, resource: Uri | undefined): Promise<ViewPackageInfo | undefined> {
 		return new Promise((resolve, _reject) => {
 			const args = ['view', '--json', pack, 'description', 'dist-tags.latest', 'homepage', 'version'];
 			let cwd = resource && resource.scheme === 'file' ? dirname(resource.fsPath) : undefined;
-			cp.execFile(process.platform === 'win32' ? 'npm.cmd' : 'npm', args, { cwd }, (error, stdout) => {
+			cp.execFile(npmCommandPath, args, { cwd }, (error, stdout) => {
 				if (!error) {
 					try {
 						const content = JSON.parse(stdout);
@@ -305,21 +307,18 @@ export class PackageJSONContribution implements IJSONContribution {
 	}
 
 	private async npmjsView(pack: string): Promise<ViewPackageInfo | undefined> {
-		const queryUrl = 'https://api.npms.io/v2/package/' + encodeURIComponent(pack);
+		const queryUrl = 'https://registry.npmjs.org/' + encodeURIComponent(pack);
 		try {
 			const success = await this.xhr({
 				url: queryUrl,
-				agent: USER_AGENT
+				headers: { agent: USER_AGENT }
 			});
 			const obj = JSON.parse(success.responseText);
-			const metadata = obj?.collected?.metadata;
-			if (metadata) {
-				return {
-					description: metadata.description || '',
-					version: metadata.version,
-					homepage: metadata.links?.homepage || ''
-				};
-			}
+			return {
+				description: obj.description || '',
+				version: Object.keys(obj.versions).pop(),
+				homepage: obj.homepage || ''
+			};
 		}
 		catch (e) {
 			//ignore
@@ -327,7 +326,7 @@ export class PackageJSONContribution implements IJSONContribution {
 		return undefined;
 	}
 
-	public getInfoContribution(resource: Uri, location: Location): Thenable<MarkedString[] | null> | null {
+	public getInfoContribution(resource: Uri, location: Location): Thenable<MarkdownString[] | null> | null {
 		if (!this.isEnabled()) {
 			return null;
 		}

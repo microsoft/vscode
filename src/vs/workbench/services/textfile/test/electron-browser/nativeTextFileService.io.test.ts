@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { tmpdir } from 'os';
-import { promises } from 'fs';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { Schemas } from 'vs/base/common/network';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { rimraf, copy, exists } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -20,7 +19,7 @@ import { detectEncodingByBOM } from 'vs/workbench/services/textfile/test/node/en
 import { workbenchInstantiationService, TestNativeTextFileServiceWithEncodingOverrides } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import createSuite from 'vs/workbench/services/textfile/test/common/textFileService.io.test';
 import { IWorkingCopyFileService, WorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { TestWorkingCopyService } from 'vs/workbench/test/common/workbenchTestServices';
+import { WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 
 flakySuite('Files - NativeTextFileService i/o', function () {
@@ -30,9 +29,9 @@ flakySuite('Files - NativeTextFileService i/o', function () {
 	let testDir: string;
 
 	function readFile(path: string): Promise<Buffer>;
-	function readFile(path: string, encoding: string): Promise<string>;
-	function readFile(path: string, encoding?: string): Promise<Buffer | string> {
-		return promises.readFile(path, encoding);
+	function readFile(path: string, encoding: BufferEncoding): Promise<string>;
+	function readFile(path: string, encoding?: BufferEncoding): Promise<Buffer | string> {
+		return Promises.readFile(path, encoding);
 	}
 
 	createSuite({
@@ -49,14 +48,14 @@ flakySuite('Files - NativeTextFileService i/o', function () {
 			const collection = new ServiceCollection();
 			collection.set(IFileService, fileService);
 
-			collection.set(IWorkingCopyFileService, new WorkingCopyFileService(fileService, new TestWorkingCopyService(), instantiationService, new UriIdentityService(fileService)));
+			collection.set(IWorkingCopyFileService, new WorkingCopyFileService(fileService, new WorkingCopyService(), instantiationService, new UriIdentityService(fileService)));
 
 			service = instantiationService.createChild(collection).createInstance(TestNativeTextFileServiceWithEncodingOverrides);
 
 			testDir = getRandomTestPath(tmpdir(), 'vsctests', 'textfileservice');
 			const sourceDir = getPathFromAmdModule(require, './fixtures');
 
-			await copy(sourceDir, testDir, { preserveSymlinks: false });
+			await Promises.copy(sourceDir, testDir, { preserveSymlinks: false });
 
 			return { service, testDir };
 		},
@@ -66,11 +65,11 @@ flakySuite('Files - NativeTextFileService i/o', function () {
 
 			disposables.clear();
 
-			return rimraf(testDir);
+			return Promises.rm(testDir);
 		},
 
-		exists,
-		stat: promises.stat,
+		exists: Promises.exists,
+		stat: Promises.stat,
 		readFile,
 		detectEncodingByBOM
 	});

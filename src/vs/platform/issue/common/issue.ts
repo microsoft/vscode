@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
+
 // Since data sent through the service is serialized to JSON, functions will be lost, so Color objects
 // should not be sent as their 'toString' method will be stripped. Instead convert to strings before sending.
 export interface WindowStyles {
@@ -56,6 +58,7 @@ export interface IssueReporterData extends WindowData {
 	issueType?: IssueType;
 	extensionId?: string;
 	experiments?: string;
+	restrictedMode: boolean;
 	githubAccessToken: string;
 	readonly issueTitle?: string;
 	readonly issueBody?: string;
@@ -67,12 +70,15 @@ export interface ISettingSearchResult {
 	score: number;
 }
 
-export interface IssueReporterFeatures {
-}
-
 export interface ProcessExplorerStyles extends WindowStyles {
-	hoverBackground?: string;
-	hoverForeground?: string;
+	listHoverBackground?: string;
+	listHoverForeground?: string;
+	listFocusBackground?: string;
+	listFocusForeground?: string;
+	listFocusOutline?: string;
+	listActiveSelectionBackground?: string;
+	listActiveSelectionForeground?: string;
+	listHoverOutline?: string;
 }
 
 export interface ProcessExplorerData extends WindowData {
@@ -87,4 +93,18 @@ export interface ICommonIssueService {
 	openReporter(data: IssueReporterData): Promise<void>;
 	openProcessExplorer(data: ProcessExplorerData): Promise<void>;
 	getSystemStatus(): Promise<string>;
+}
+
+export interface IssueReporterWindowConfiguration extends ISandboxConfiguration {
+	disableExtensions: boolean;
+	data: IssueReporterData;
+	os: {
+		type: string;
+		arch: string;
+		release: string;
+	}
+}
+
+export interface ProcessExplorerWindowConfiguration extends ISandboxConfiguration {
+	data: ProcessExplorerData;
 }

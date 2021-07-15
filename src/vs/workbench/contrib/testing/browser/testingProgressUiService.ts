@@ -9,8 +9,9 @@ import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ProgressLocation, UnmanagedProgress } from 'vs/platform/progress/common/progress';
-import { TestResult } from 'vs/workbench/api/common/extHostTypes';
-import { ITestResultService, TestStateCount } from 'vs/workbench/contrib/testing/common/testResultService';
+import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
+import { TestStateCount } from 'vs/workbench/contrib/testing/common/testResult';
+import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 
 export interface ITestingProgressUiService {
 	readonly _serviceBrand: undefined;
@@ -89,11 +90,11 @@ const collectTestStateCounts = (isRunning: boolean, ...counts: ReadonlyArray<Tes
 	let queued = 0;
 
 	for (const count of counts) {
-		failed += count[TestResult.Errored] + count[TestResult.Failed];
-		passed += count[TestResult.Passed];
-		skipped += count[TestResult.Skipped];
-		running += count[TestResult.Running];
-		queued += count[TestResult.Queued];
+		failed += count[TestResultState.Errored] + count[TestResultState.Failed];
+		passed += count[TestResultState.Passed];
+		skipped += count[TestResultState.Skipped];
+		running += count[TestResultState.Running];
+		queued += count[TestResultState.Queued];
 	}
 
 	return {
@@ -106,7 +107,7 @@ const collectTestStateCounts = (isRunning: boolean, ...counts: ReadonlyArray<Tes
 	};
 };
 
-const getTestProgressText = (running: boolean, { passed, runSoFar, skipped, failed, totalWillBeRun }: CountSummary) => {
+const getTestProgressText = (running: boolean, { passed, runSoFar, skipped, failed }: CountSummary) => {
 	let percent = passed / runSoFar * 100;
 	if (failed > 0) {
 		// fix: prevent from rounding to 100 if there's any failed test
@@ -116,10 +117,12 @@ const getTestProgressText = (running: boolean, { passed, runSoFar, skipped, fail
 	}
 
 	if (running) {
-		if (skipped === 0) {
-			return localize('testProgress.running', 'Running {0} tests, {1}/{2} passed ({3}%)', totalWillBeRun, passed, runSoFar, percent.toPrecision(3));
+		if (runSoFar === 0) {
+			return localize('testProgress.runningInitial', 'Running tests...', passed, runSoFar, percent.toPrecision(3));
+		} else if (skipped === 0) {
+			return localize('testProgress.running', 'Running tests, {0}/{1} passed ({2}%)', passed, runSoFar, percent.toPrecision(3));
 		} else {
-			return localize('testProgressWithSkip.running', 'Running {0} tests, {1}/{2} tests passed ({3}%, {4} skipped)', totalWillBeRun, passed, runSoFar, percent.toPrecision(3), skipped);
+			return localize('testProgressWithSkip.running', 'Running tests, {0}/{1} tests passed ({2}%, {3} skipped)', passed, runSoFar, percent.toPrecision(3), skipped);
 		}
 	} else {
 		if (skipped === 0) {

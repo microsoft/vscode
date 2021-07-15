@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -20,8 +19,8 @@ import { ModesContentHoverWidget } from 'vs/editor/contrib/hover/modesContentHov
 import { ModesGlyphHoverWidget } from 'vs/editor/contrib/hover/modesGlyphHover';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorHoverBackground, editorHoverBorder, editorHoverHighlight, textCodeBlockBackground, textLinkForeground, editorHoverStatusBarBackground, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorHoverBackground, editorHoverBorder, editorHoverHighlight, textCodeBlockBackground, textLinkForeground, editorHoverStatusBarBackground, editorHoverForeground, textLinkActiveForeground } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/link/goToDefinitionAtPosition';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -52,7 +51,6 @@ export class ModesHoverController implements IEditorContribution {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IModeService private readonly _modeService: IModeService,
-		@IThemeService private readonly _themeService: IThemeService,
 		@IContextKeyService _contextKeyService: IContextKeyService
 	) {
 		this._isMouseDown = false;
@@ -166,45 +164,27 @@ export class ModesHoverController implements IEditorContribution {
 			return;
 		}
 
-		if (targetType === MouseTargetType.CONTENT_EMPTY) {
-			const epsilon = this._editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth / 2;
-			const data = <IEmptyContentData>mouseEvent.target.detail;
-			if (data && !data.isAfterLines && typeof data.horizontalDistanceToText === 'number' && data.horizontalDistanceToText < epsilon) {
-				// Let hover kick in even when the mouse is technically in the empty area after a line, given the distance is small enough
-				targetType = MouseTargetType.CONTENT_TEXT;
-			}
-		}
-
-		if (targetType === MouseTargetType.CONTENT_TEXT) {
-			this._glyphWidget?.hide();
-
-			if (this._isHoverEnabled && mouseEvent.target.range) {
-				// TODO@rebornix. This should be removed if we move Color Picker out of Hover component.
-				// Check if mouse is hovering on color decorator
-				const hoverOnColorDecorator = [...mouseEvent.target.element?.classList.values() || []].find(className => className.startsWith('ced-colorBox'))
-					&& mouseEvent.target.range.endColumn - mouseEvent.target.range.startColumn === 1;
-				const showAtRange = (
-					hoverOnColorDecorator // shift the mouse focus by one as color decorator is a `before` decoration of next character.
-						? new Range(mouseEvent.target.range.startLineNumber, mouseEvent.target.range.startColumn + 1, mouseEvent.target.range.endLineNumber, mouseEvent.target.range.endColumn + 1)
-						: mouseEvent.target.range
-				);
-				if (!this._contentWidget) {
-					this._contentWidget = new ModesContentHoverWidget(this._editor, this._hoverVisibleKey, this._instantiationService, this._themeService);
-				}
-				this._contentWidget.startShowingAt(showAtRange, HoverStartMode.Delayed, false);
-			}
-		} else if (targetType === MouseTargetType.GUTTER_GLYPH_MARGIN) {
-			this._contentWidget?.hide();
-
-			if (this._isHoverEnabled && mouseEvent.target.position) {
-				if (!this._glyphWidget) {
-					this._glyphWidget = new ModesGlyphHoverWidget(this._editor, this._modeService, this._openerService);
-				}
-				this._glyphWidget.startShowingAt(mouseEvent.target.position.lineNumber);
-			}
-		} else {
+		if (!this._isHoverEnabled) {
 			this._hideWidgets();
+			return;
 		}
+
+		const contentWidget = this._getOrCreateContentWidget();
+		if (contentWidget.maybeShowAt(mouseEvent)) {
+			this._glyphWidget?.hide();
+			return;
+		}
+
+		if (targetType === MouseTargetType.GUTTER_GLYPH_MARGIN && mouseEvent.target.position) {
+			this._contentWidget?.hide();
+			if (!this._glyphWidget) {
+				this._glyphWidget = new ModesGlyphHoverWidget(this._editor, this._modeService, this._openerService);
+			}
+			this._glyphWidget.startShowingAt(mouseEvent.target.position.lineNumber);
+			return;
+		}
+
+		this._hideWidgets();
 	}
 
 	private _onKeyDown(e: IKeyboardEvent): void {
@@ -224,15 +204,19 @@ export class ModesHoverController implements IEditorContribution {
 		this._contentWidget?.hide();
 	}
 
+	private _getOrCreateContentWidget(): ModesContentHoverWidget {
+		if (!this._contentWidget) {
+			this._contentWidget = this._instantiationService.createInstance(ModesContentHoverWidget, this._editor, this._hoverVisibleKey);
+		}
+		return this._contentWidget;
+	}
+
 	public isColorPickerVisible(): boolean {
 		return this._contentWidget?.isColorPickerVisible() || false;
 	}
 
 	public showContentHover(range: Range, mode: HoverStartMode, focus: boolean): void {
-		if (!this._contentWidget) {
-			this._contentWidget = new ModesContentHoverWidget(this._editor, this._hoverVisibleKey, this._instantiationService, this._themeService);
-		}
-		this._contentWidget.startShowingAt(range, mode, focus);
+		this._getOrCreateContentWidget().startShowingAtRange(range, mode, focus);
 	}
 
 	public dispose(): void {
@@ -342,6 +326,10 @@ registerThemingParticipant((theme, collector) => {
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
 		collector.addRule(`.monaco-editor .monaco-hover a { color: ${link}; }`);
+	}
+	const linkHover = theme.getColor(textLinkActiveForeground);
+	if (linkHover) {
+		collector.addRule(`.monaco-editor .monaco-hover a:hover { color: ${linkHover}; }`);
 	}
 	const hoverForeground = theme.getColor(editorHoverForeground);
 	if (hoverForeground) {

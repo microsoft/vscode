@@ -10,6 +10,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { Mimes } from 'vs/base/common/mime';
 
 // Define extension point ids
 export const Extensions = {
@@ -65,7 +66,7 @@ ModesRegistry.registerLanguage({
 	id: PLAINTEXT_MODE_ID,
 	extensions: [PLAINTEXT_EXTENSION],
 	aliases: [nls.localize('plainText.alias', "Plain Text"), 'text'],
-	mimetypes: ['text/plain']
+	mimetypes: [Mimes.text]
 });
 LanguageConfigurationRegistry.register(PLAINTEXT_LANGUAGE_IDENTIFIER, {
 	brackets: [

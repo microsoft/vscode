@@ -17,6 +17,12 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { fromNow } from 'vs/base/common/date';
 import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
+interface TrustedExtensionsQuickPickItem {
+	label: string;
+	description: string;
+	extension: AllowedExtension;
+}
+
 export class MainThreadAuthenticationProvider extends Disposable {
 	constructor(
 		private readonly _proxy: ExtHostAuthenticationShape,
@@ -34,12 +40,14 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		const allowedExtensions = readAllowedExtensions(this.storageService, this.id, accountName);
 
 		if (!allowedExtensions.length) {
-			this.dialogService.show(Severity.Info, nls.localize('noTrustedExtensions', "This account has not been used by any extensions."), []);
+			this.dialogService.show(Severity.Info, nls.localize('noTrustedExtensions', "This account has not been used by any extensions."));
 			return;
 		}
 
-		const quickPick = this.quickInputService.createQuickPick<{ label: string, description: string, extension: AllowedExtension }>();
+		const quickPick = this.quickInputService.createQuickPick<TrustedExtensionsQuickPickItem>();
 		quickPick.canSelectMany = true;
+		quickPick.customButton = true;
+		quickPick.customLabel = nls.localize('manageTrustedExtensions.cancel', 'Cancel');
 		const usages = readAccountUsages(this.storageService, this.id, accountName);
 		const items = allowedExtensions.map(extension => {
 			const usage = usages.find(usage => extension.id === usage.extensionId);
@@ -58,14 +66,29 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		quickPick.placeholder = nls.localize('manageExensions', "Choose which extensions can access this account");
 
 		quickPick.onDidAccept(() => {
-			const updatedAllowedList = quickPick.selectedItems.map(item => item.extension);
+			const updatedAllowedList = quickPick.items
+				.map(i => (i as TrustedExtensionsQuickPickItem).extension);
 			this.storageService.store(`${this.id}-${accountName}`, JSON.stringify(updatedAllowedList), StorageScope.GLOBAL, StorageTarget.USER);
 
 			quickPick.dispose();
 		});
 
+		quickPick.onDidChangeSelection((changed) => {
+			quickPick.items.forEach(item => {
+				if ((item as TrustedExtensionsQuickPickItem).extension) {
+					(item as TrustedExtensionsQuickPickItem).extension.allowed = false;
+				}
+			});
+
+			changed.forEach((item) => item.extension.allowed = true);
+		});
+
 		quickPick.onDidHide(() => {
 			quickPick.dispose();
+		});
+
+		quickPick.onDidCustom(() => {
+			quickPick.hide();
 		});
 
 		quickPick.show();
@@ -127,14 +150,6 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 		this._register(this.authenticationService.onDidChangeSessions(e => {
 			this._proxy.$onDidChangeAuthenticationSessions(e.providerId, e.label);
-		}));
-
-		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(info => {
-			this._proxy.$onDidChangeAuthenticationProviders([info], []);
-		}));
-
-		this._register(this.authenticationService.onDidUnregisterAuthenticationProvider(info => {
-			this._proxy.$onDidChangeAuthenticationProviders([], [info]);
 		}));
 
 		this._proxy.$setProviders(this.authenticationService.declaredProviders);

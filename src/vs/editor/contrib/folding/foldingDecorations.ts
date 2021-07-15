@@ -17,6 +17,7 @@ export const foldingCollapsedIcon = registerIcon('folding-collapsed', Codicon.ch
 export class FoldingDecorationProvider implements IDecorationProvider {
 
 	private static readonly COLLAPSED_VISUAL_DECORATION = ModelDecorationOptions.register({
+		description: 'folding-collapsed-visual-decoration',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		afterContentClassName: 'inline-folded',
 		isWholeLine: true,
@@ -24,6 +25,7 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 	});
 
 	private static readonly COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION = ModelDecorationOptions.register({
+		description: 'folding-collapsed-highlighted-visual-decoration',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		afterContentClassName: 'inline-folded',
 		className: 'folded-background',
@@ -32,18 +34,21 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 	});
 
 	private static readonly EXPANDED_AUTO_HIDE_VISUAL_DECORATION = ModelDecorationOptions.register({
+		description: 'folding-expanded-auto-hide-visual-decoration',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		isWholeLine: true,
 		firstLineDecorationClassName: ThemeIcon.asClassName(foldingExpandedIcon)
 	});
 
 	private static readonly EXPANDED_VISUAL_DECORATION = ModelDecorationOptions.register({
+		description: 'folding-expanded-visual-decoration',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		isWholeLine: true,
 		firstLineDecorationClassName: 'alwaysShowFoldIcons ' + ThemeIcon.asClassName(foldingExpandedIcon)
 	});
 
 	private static readonly HIDDEN_RANGE_DECORATION = ModelDecorationOptions.register({
+		description: 'folding-hidden-range-decoration',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	});
 

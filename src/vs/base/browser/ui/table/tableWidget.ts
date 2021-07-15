@@ -250,7 +250,10 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 
 		this.cachedHeight = height;
 		this.splitview.layout(width);
-		this.list.layout(height - this.virtualDelegate.headerRowHeight, width);
+
+		const listHeight = height - this.virtualDelegate.headerRowHeight;
+		this.list.getHTMLElement().style.height = `${listHeight}px`;
+		this.list.layout(listHeight, width);
 	}
 
 	toggleKeyboardNavigation(): void {

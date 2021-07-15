@@ -64,7 +64,7 @@
 		"body": [
 			"* @param ${1:Type} ${2:var} ${3:Description}$0"
 		],
-		"description": "Paramater documentation"
+		"description": "Parameter documentation"
 	},
 	"function …": {
 		"prefix": "fun",

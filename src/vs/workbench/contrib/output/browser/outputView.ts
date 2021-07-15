@@ -6,13 +6,13 @@
 import * as nls from 'vs/nls';
 import { IAction } from 'vs/base/common/actions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { EditorInput, EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, IOutputChannel, CONTEXT_ACTIVE_LOG_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK } from 'vs/workbench/contrib/output/common/output';
 import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
@@ -25,7 +25,7 @@ import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/vie
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IOutputChannelDescriptor, IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -37,12 +37,14 @@ import { editorBackground, selectBorder } from 'vs/platform/theme/common/colorRe
 import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Dimension } from 'vs/base/browser/dom';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 
 export class OutputViewPane extends ViewPane {
 
 	private readonly editor: OutputEditor;
 	private channelId: string | undefined;
-	private editorPromise: Promise<OutputEditor> | null = null;
+	private editorPromise: CancelablePromise<OutputEditor> | null = null;
 
 	private readonly scrollLockContextKey: IContextKey<boolean>;
 	get scrollLock(): boolean { return !!this.scrollLockContextKey.get(); }
@@ -80,14 +82,14 @@ export class OutputViewPane extends ViewPane {
 		}
 	}
 
-	focus(): void {
+	override focus(): void {
 		super.focus();
 		if (this.editorPromise) {
 			this.editorPromise.then(() => this.editor.focus());
 		}
 	}
 
-	renderBody(container: HTMLElement): void {
+	override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 		this.editor.create(container);
 		container.classList.add('output-view');
@@ -117,12 +119,12 @@ export class OutputViewPane extends ViewPane {
 		}));
 	}
 
-	layoutBody(height: number, width: number): void {
+	override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.editor.layout(new Dimension(width, height));
 	}
 
-	getActionViewItem(action: IAction): IActionViewItem | undefined {
+	override getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (action.id === 'workbench.output.action.switchBetweenOutputs') {
 			return this.instantiationService.createInstance(SwitchOutputActionViewItem, action);
 		}
@@ -146,8 +148,16 @@ export class OutputViewPane extends ViewPane {
 		this.channelId = channel.id;
 		const descriptor = this.outputService.getChannelDescriptor(channel.id);
 		CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(!!descriptor?.file && descriptor?.log);
-		this.editorPromise = this.editor.setInput(this.createInput(channel), EditorOptions.create({ preserveFocus: true }), Object.create(null), CancellationToken.None)
-			.then(() => this.editor);
+
+		const input = this.createInput(channel);
+		if (!this.editor.input || !input.matches(this.editor.input)) {
+			if (this.editorPromise) {
+				this.editorPromise.cancel();
+			}
+			this.editorPromise = createCancelablePromise(token => this.editor.setInput(this.createInput(channel), { preserveFocus: true }, Object.create(null), token)
+				.then(() => this.editor));
+		}
+
 	}
 
 	private clearInput(): void {
@@ -156,8 +166,8 @@ export class OutputViewPane extends ViewPane {
 		this.editorPromise = null;
 	}
 
-	private createInput(channel: IOutputChannel): ResourceEditorInput {
-		return this.instantiationService.createInstance(ResourceEditorInput, channel.uri, nls.localize('output model title', "{0} - Output", channel.label), nls.localize('channel', "Output channel for '{0}'", channel.label), undefined);
+	private createInput(channel: IOutputChannel): TextResourceEditorInput {
+		return this.instantiationService.createInstance(TextResourceEditorInput, channel.uri, nls.localize('output model title', "{0} - Output", channel.label), nls.localize('channel', "Output channel for '{0}'", channel.label), undefined, undefined);
 	}
 
 }
@@ -178,15 +188,15 @@ export class OutputEditor extends AbstractTextResourceEditor {
 		super(OUTPUT_VIEW_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService);
 	}
 
-	getId(): string {
+	override getId(): string {
 		return OUTPUT_VIEW_ID;
 	}
 
-	getTitle(): string {
+	override getTitle(): string {
 		return nls.localize('output', "Output");
 	}
 
-	protected getConfigurationOverrides(): IEditorOptions {
+	protected override getConfigurationOverrides(): ICodeEditorOptions {
 		const options = super.getConfigurationOverrides();
 		options.wordWrap = 'on';				// all output editors wrap
 		options.lineNumbers = 'off';			// all output editors hide line numbers
@@ -199,6 +209,8 @@ export class OutputEditor extends AbstractTextResourceEditor {
 		options.minimap = { enabled: false };
 		options.renderValidationDecorations = 'editable';
 		options.padding = undefined;
+		options.readOnly = true;
+		options.domReadOnly = true;
 
 		const outputConfig = this.configurationService.getValue<any>('[Log]');
 		if (outputConfig) {
@@ -219,9 +231,9 @@ export class OutputEditor extends AbstractTextResourceEditor {
 		return channel ? nls.localize('outputViewWithInputAriaLabel', "{0}, Output panel", channel.label) : nls.localize('outputViewAriaLabel', "Output panel");
 	}
 
-	async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: TextResourceEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		const focus = !(options && options.preserveFocus);
-		if (input.matches(this.input)) {
+		if (this.input && input.matches(this.input)) {
 			return;
 		}
 
@@ -236,7 +248,7 @@ export class OutputEditor extends AbstractTextResourceEditor {
 		this.revealLastLine();
 	}
 
-	clearInput(): void {
+	override clearInput(): void {
 		if (this.input) {
 			// Dispose current input (Output panel is not a workbench editor)
 			this.input.dispose();
@@ -244,7 +256,7 @@ export class OutputEditor extends AbstractTextResourceEditor {
 		super.clearInput();
 	}
 
-	protected createEditor(parent: HTMLElement): void {
+	protected override createEditor(parent: HTMLElement): void {
 
 		parent.setAttribute('role', 'document');
 
@@ -281,7 +293,7 @@ class SwitchOutputActionViewItem extends SelectActionViewItem {
 		this.updateOtions();
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('switch-output');
 		this._register(attachStylerCallback(this.themeService, { selectBorder }, colors => {
@@ -289,7 +301,7 @@ class SwitchOutputActionViewItem extends SelectActionViewItem {
 		}));
 	}
 
-	protected getActionContext(option: string, index: number): string {
+	protected override getActionContext(option: string, index: number): string {
 		const channel = index < this.outputChannels.length ? this.outputChannels[index] : this.logChannels[index - this.outputChannels.length - 1];
 		return channel ? channel.id : option;
 	}

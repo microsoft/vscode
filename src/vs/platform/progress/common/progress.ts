@@ -19,7 +19,7 @@ export interface IProgressService {
 	readonly _serviceBrand: undefined;
 
 	withProgress<R>(
-		options: IProgressOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
+		options: IProgressOptions | IProgressDialogOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
 		task: (progress: IProgress<IProgressStep>) => Promise<R>,
 		onDidCancel?: (choice?: number) => void
 	): Promise<R>;
@@ -60,10 +60,15 @@ export interface IProgressOptions {
 
 export interface IProgressNotificationOptions extends IProgressOptions {
 	readonly location: ProgressLocation.Notification;
-	readonly primaryActions?: ReadonlyArray<IAction>;
-	readonly secondaryActions?: ReadonlyArray<IAction>;
+	readonly primaryActions?: readonly IAction[];
+	readonly secondaryActions?: readonly IAction[];
 	readonly delay?: number;
 	readonly silent?: boolean;
+}
+
+export interface IProgressDialogOptions extends IProgressOptions {
+	readonly delay?: number;
+	readonly detail?: string;
 }
 
 export interface IProgressWindowOptions extends IProgressOptions {
@@ -134,7 +139,7 @@ export class UnmanagedProgress extends Disposable {
 	private lastStep?: IProgressStep;
 
 	constructor(
-		options: IProgressOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
+		options: IProgressOptions | IProgressDialogOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
 		@IProgressService progressService: IProgressService,
 	) {
 		super();
@@ -158,7 +163,6 @@ export class UnmanagedProgress extends Disposable {
 		}
 	}
 }
-
 
 export class LongRunningOperation extends Disposable {
 	private currentOperationId = 0;

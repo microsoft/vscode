@@ -4,69 +4,111 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { GettingStartedInputFactory, GettingStartedPage, inGettingStartedContext } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted';
+import { GettingStartedInputSerializer, GettingStartedPage, inWelcomeContext } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { IGettingStartedService } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedService';
 import { GettingStartedInput } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { EditorResolution } from 'vs/platform/editor/common/editor';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+
 
 export * as icons from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedIcons';
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.showGettingStarted',
-			title: localize('Getting Started', "Getting Started"),
+			id: 'workbench.action.openWalkthrough',
+			title: localize('Welcome', "Welcome"),
 			category: localize('help', "Help"),
 			f1: true,
 			menu: {
 				id: MenuId.MenubarHelpMenu,
 				group: '1_welcome',
-				order: 2,
+				order: 1,
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor) {
-		accessor.get(IEditorService).openEditor(new GettingStartedInput({}), {});
+	public run(accessor: ServicesAccessor, walkthroughID: string | { category: string, step: string } | undefined, toSide: boolean | undefined) {
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const instantiationService = accessor.get(IInstantiationService);
+		const editorService = accessor.get(IEditorService);
+
+		if (walkthroughID) {
+			const selectedCategory = typeof walkthroughID === 'string' ? walkthroughID : walkthroughID.category;
+			const selectedStep = typeof walkthroughID === 'string' ? undefined : walkthroughID.step;
+			// Try first to select the walkthrough on an active welcome page with no selected walkthrough
+			for (const group of editorGroupsService.groups) {
+				if (group.activeEditor instanceof GettingStartedInput) {
+					if (!group.activeEditor.selectedCategory) {
+						(group.activeEditorPane as GettingStartedPage).makeCategoryVisibleWhenAvailable(selectedCategory, selectedStep);
+						return;
+					}
+				}
+			}
+
+			// Otherwise, try to find a welcome input somewhere with no selected walkthrough, and open it to this one.
+			const result = editorService.findEditors({ typeId: GettingStartedInput.ID, editorId: undefined, resource: GettingStartedInput.RESOURCE });
+			for (const { editor, groupId } of result) {
+				if (editor instanceof GettingStartedInput) {
+					if (!editor.selectedCategory) {
+						editor.selectedCategory = selectedCategory;
+						editor.selectedStep = selectedStep;
+						editorService.openEditor(editor, { revealIfOpened: true, override: EditorResolution.DISABLED }, groupId);
+						return;
+					}
+				}
+			}
+
+			// Otherwise, just make a new one.
+			editorService.openEditor(instantiationService.createInstance(GettingStartedInput, { selectedCategory: selectedCategory, selectedStep: selectedStep }), {}, toSide ? SIDE_GROUP : undefined);
+		} else {
+			editorService.openEditor(new GettingStartedInput({}), {});
+		}
 	}
 });
 
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(GettingStartedInput.ID, GettingStartedInputFactory);
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(GettingStartedInput.ID, GettingStartedInputSerializer);
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
 		GettingStartedPage,
 		GettingStartedPage.ID,
-		localize('gettingStarted', "Getting Started")
+		localize('welcome', "Welcome")
 	),
 	[
 		new SyncDescriptor(GettingStartedInput)
 	]
 );
 
-const category = localize('gettingStarted', "Getting Started");
+const category = localize('welcome', "Welcome");
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'gettingStarted.goBack',
-			title: localize('gettingStarted.goBack', "Go Back"),
+			id: 'welcome.goBack',
+			title: localize('welcome.goBack', "Go Back"),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib,
 				primary: KeyCode.Escape,
-				when: inGettingStartedContext
+				when: inWelcomeContext
 			},
 			precondition: ContextKeyEqualsExpr.create('activeEditor', 'gettingStartedPage'),
 			f1: true
@@ -82,6 +124,19 @@ registerAction2(class extends Action2 {
 	}
 });
 
+CommandsRegistry.registerCommand({
+	id: 'walkthroughs.selectStep',
+	handler: (accessor, stepID: string) => {
+		const editorService = accessor.get(IEditorService);
+		const editorPane = editorService.activeEditorPane;
+		if (editorPane instanceof GettingStartedPage) {
+			editorPane.selectStepLoose(stepID);
+		} else {
+			console.error('Cannot run walkthroughs.selectStep outside of walkthrough context');
+		}
+	}
+});
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -92,7 +147,7 @@ registerAction2(class extends Action2 {
 				weight: KeybindingWeight.EditorContrib,
 				primary: KeyCode.DownArrow,
 				secondary: [KeyCode.RightArrow],
-				when: inGettingStartedContext
+				when: inWelcomeContext
 			},
 			precondition: ContextKeyEqualsExpr.create('activeEditor', 'gettingStartedPage'),
 			f1: true
@@ -118,7 +173,7 @@ registerAction2(class extends Action2 {
 				weight: KeybindingWeight.EditorContrib,
 				primary: KeyCode.UpArrow,
 				secondary: [KeyCode.LeftArrow],
-				when: inGettingStartedContext
+				when: inWelcomeContext
 			},
 			precondition: ContextKeyEqualsExpr.create('activeEditor', 'gettingStartedPage'),
 			f1: true
@@ -137,8 +192,8 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'gettingStarted.markTaskComplete',
-			title: localize('gettingStarted.markTaskComplete', "Mark Task Complete"),
+			id: 'welcome.markStepComplete',
+			title: localize('welcome.markStepComplete', "Mark Step Complete"),
 			category,
 		});
 	}
@@ -146,15 +201,15 @@ registerAction2(class extends Action2 {
 	run(accessor: ServicesAccessor, arg: string) {
 		if (!arg) { return; }
 		const gettingStartedService = accessor.get(IGettingStartedService);
-		gettingStartedService.progressTask(arg);
+		gettingStartedService.progressStep(arg);
 	}
 });
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'gettingStarted.markTaskIncomplete',
-			title: localize('gettingStarted.markTaskInomplete', "Mark Task Incomplete"),
+			id: 'welcome.markStepIncomplete',
+			title: localize('welcome.markStepInomplete', "Mark Step Incomplete"),
 			category,
 		});
 	}
@@ -162,153 +217,98 @@ registerAction2(class extends Action2 {
 	run(accessor: ServicesAccessor, arg: string) {
 		if (!arg) { return; }
 		const gettingStartedService = accessor.get(IGettingStartedService);
-		gettingStartedService.deprogressTask(arg);
+		gettingStartedService.deprogressStep(arg);
 	}
 });
 
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-	.registerConfiguration({
-		...workbenchConfigurationNodeBase,
-		'properties': {
-			'workbench.welcomePage.hiddenCategories': {
-				'scope': ConfigurationScope.APPLICATION,
-				'type': 'array',
-				'items': { type: 'string' },
-				'default': [],
-				'description': localize('welcomePage.hiddenCategories', "Hide categories of the welcome page's getting started section that are not relevant to you.")
-			},
-		}
-	});
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'welcome.showAllWalkthroughs',
+			title: localize('welcome.showAllWalkthroughs', "Open Walkthrough..."),
+			category,
+			f1: true,
+		});
+	}
 
-ExtensionsRegistry.registerExtensionPoint({
-	extensionPoint: 'walkthroughs',
-	jsonSchema: {
-		doNotSuggest: true,
-		description: localize('walkthroughs', "Contribute collections of tasks to help users with your extension. Experimental, available in VS Code Insiders only."),
-		type: 'array',
-		items: {
-			type: 'object',
-			required: ['id', 'title', 'description', 'tasks'],
-			defaultSnippets: [{ body: { 'id': '$1', 'title': '$2', 'description': '$3', 'tasks': [] } }],
-			properties: {
-				id: {
-					type: 'string',
-					description: localize('walkthroughs.id', "Unique identifier for this walkthrough."),
-				},
-				title: {
-					type: 'string',
-					description: localize('walkthroughs.title', "Title of walkthrough.")
-				},
-				description: {
-					type: 'string',
-					description: localize('walkthroughs.description', "Description of walkthrough.")
-				},
-				primary: {
-					type: 'boolean',
-					description: localize('walkthroughs.primary', "if this is a `primary` walkthrough, hinting if it should be opened on install of the extension. The first `primary` walkthough with a `when` condition matching the current context may be opened by core on install of the extension.")
-				},
-				when: {
-					type: 'string',
-					description: localize('walkthroughs.when', "Context key expression to control the visibility of this walkthrough.")
-				},
-				tasks: {
-					type: 'array',
-					description: localize('walkthroughs.tasks', "Tasks to complete as part of this walkthrough."),
-					items: {
-						type: 'object',
-						required: ['id', 'title', 'description', 'button', 'media'],
-						defaultSnippets: [{
-							body: {
-								'id': '$1', 'title': '$2', 'description': '$3',
-								'button': { 'title': '$4', 'command': '$5' },
-								'doneOn': { 'command': '$5' },
-								'media': { 'path': '$6', 'altText': '$7' }
-							}
-						}],
-						properties: {
-							id: {
-								type: 'string',
-								description: localize('walkthroughs.tasks.id', "Unique identifier for this task. This is used to keep track of which tasks have been completed."),
-							},
-							title: {
-								type: 'string',
-								description: localize('walkthroughs.tasks.title', "Title of task.")
-							},
-							description: {
-								type: 'string',
-								description: localize('walkthroughs.tasks.description', "Description of task.")
-							},
-							button: {
-								description: localize('walkthroughs.tasks.button', "The task's button, which can either link to an external resource or run a command"),
-								oneOf: [
-									{
-										type: 'object',
-										required: ['title', 'command'],
-										defaultSnippets: [{ 'body': { 'title': '$1', 'command': '$2' } }],
-										properties: {
-											title: {
-												type: 'string',
-												description: localize('walkthroughs.tasks.button.title', "Title of button.")
-											},
-											command: {
-												type: 'string',
-												description: localize('walkthroughs.tasks.button.command', "Command to run when button is clicked.")
-											}
-										}
-									},
-									{
-										type: 'object',
-										required: ['title', 'link'],
-										defaultSnippets: [{ 'body': { 'title': '$1', 'link': '$2' } }],
-										properties: {
-											title: {
-												type: 'string',
-												description: localize('walkthroughs.tasks.button.title', "Title of button.")
-											},
-											link: {
-												type: 'string',
-												description: localize('walkthroughs.tasks.button.link', "Link to open when button is clicked. Opening this link will mark the task completed.")
-											}
-										}
-									}
-								]
-							},
-							media: {
-								type: 'object',
-								required: ['path', 'altText'],
-								description: localize('walkthroughs.tasks.media', "Image to show alongside this task."),
-								defaultSnippets: [{ 'body': { 'altText': '$1', 'path': '$2' } }],
-								properties: {
-									path: {
-										description: localize('walkthroughs.tasks.media.path', "Path to an image, relative to extension directory."),
-										type: 'string',
-									},
-									altText: {
-										type: 'string',
-										description: localize('walkthroughs.tasks.media.altText', "Alternate text to display when the image cannot be loaded or in screen readers.")
-									}
-								}
-							},
-							doneOn: {
-								description: localize('walkthroughs.tasks.doneOn', "Signal to mark task as complete."),
-								type: 'object',
-								required: ['command'],
-								defaultSnippets: [{ 'body': { command: '$1' } }],
-								properties: {
-									'command': {
-										description: localize('walkthroughs.tasks.oneOn.command', "Mark task done when the specified command is executed."),
-										type: 'string'
-									}
-								},
-							},
-							when: {
-								type: 'string',
-								description: localize('walkthroughs.tasks.when', "Context key expression to control the visibility of this task.")
-							}
-						}
-					}
-				}
-			}
+	async run(accessor: ServicesAccessor) {
+		const commandService = accessor.get(ICommandService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const gettingStartedService = accessor.get(IGettingStartedService);
+		const categories = gettingStartedService.getCategories().filter(x => x.content.type === 'steps');
+		const selection = await quickInputService.pick(categories.map(x => ({
+			id: x.id,
+			label: x.title,
+			detail: x.description,
+			description: x.source,
+		})), { canPickMany: false, matchOnDescription: true, matchOnDetail: true, title: localize('pickWalkthroughs', "Open Walkthrough...") });
+		if (selection) {
+			commandService.executeCommand('workbench.action.openWalkthrough', selection.id);
+		}
+	}
+});
+
+const prefersReducedMotionConfig = {
+	...workbenchConfigurationNodeBase,
+	'properties': {
+		'workbench.welcomePage.preferReducedMotion': {
+			scope: ConfigurationScope.APPLICATION,
+			type: 'boolean',
+			default: true,
+			description: localize('workbench.welcomePage.preferReducedMotion', "When enabled, reduce motion in welcome page.")
+		}
+	}
+} as const;
+
+const prefersStandardMotionConfig = {
+	...workbenchConfigurationNodeBase,
+	'properties': {
+		'workbench.welcomePage.preferReducedMotion': {
+			scope: ConfigurationScope.APPLICATION,
+			type: 'boolean',
+			default: false,
+			description: localize('workbench.welcomePage.preferReducedMotion', "When enabled, reduce motion in welcome page.")
+		}
+	}
+} as const;
+
+class WorkbenchConfigurationContribution {
+	constructor(
+		@IInstantiationService _instantiationService: IInstantiationService,
+		@IGettingStartedService _gettingStartedService: IGettingStartedService,
+		@IConfigurationService _configurationService: IConfigurationService,
+		@ITASExperimentService _experimentSevice: ITASExperimentService,
+	) {
+		// Init the getting started service via DI.
+		this.registerConfigs(_experimentSevice);
+	}
+
+	private async registerConfigs(_experimentSevice: ITASExperimentService) {
+		const preferReduced = await _experimentSevice.getTreatment('welcomePage.preferReducedMotion').catch(e => false);
+		if (preferReduced) {
+			configurationRegistry.deregisterConfigurations([prefersStandardMotionConfig]);
+			configurationRegistry.registerConfiguration(prefersReducedMotionConfig);
+		}
+		else {
+			configurationRegistry.deregisterConfigurations([prefersReducedMotionConfig]);
+			configurationRegistry.registerConfiguration(prefersStandardMotionConfig);
+		}
+	}
+}
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+	.registerWorkbenchContribution(WorkbenchConfigurationContribution, LifecyclePhase.Restored);
+
+
+const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+configurationRegistry.registerConfiguration({
+	...workbenchConfigurationNodeBase,
+	properties: {
+		'workbench.welcomePage.walkthroughs.openOnInstall': {
+			scope: ConfigurationScope.APPLICATION,
+			type: 'boolean',
+			default: true,
+			description: localize('workbench.welcomePage.walkthroughs.openOnInstall', "When enabled, an extension's walkthrough will open upon install the extension.")
 		}
 	}
 });
