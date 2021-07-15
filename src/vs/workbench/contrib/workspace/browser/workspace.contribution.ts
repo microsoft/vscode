@@ -36,8 +36,7 @@ import { dirname, resolve } from 'vs/base/common/path';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import product from 'vs/platform/product/common/product';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { Schemas } from 'vs/base/common/network';
+import { ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { splitName } from 'vs/base/common/labels';
@@ -402,9 +401,8 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 		let checkboxText: string | undefined;
 		const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceContextService.getWorkspace())!;
 		const isSingleFolderWorkspace = isSingleFolderWorkspaceIdentifier(workspaceIdentifier);
-		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && workspaceIdentifier.uri.scheme === Schemas.file) {
-			const { parentPath } = splitName(workspaceIdentifier.uri.fsPath);
-			const { name } = splitName(parentPath);
+		if (this.workspaceTrustManagementService.canSetParentFolderTrust()) {
+			const { name } = splitName(splitName((workspaceIdentifier as ISingleFolderWorkspaceIdentifier).uri.fsPath).parentPath);
 			checkboxText = localize('checkboxString', "Trust the authors of all files in the parent folder '{0}'", name);
 		}
 

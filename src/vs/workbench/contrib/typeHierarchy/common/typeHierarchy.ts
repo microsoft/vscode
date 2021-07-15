@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRange } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { SymbolKind, ProviderResult, SymbolTag } from 'vs/editor/common/modes';
 import { ITextModel } from 'vs/editor/common/model';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -18,16 +18,13 @@ import { assertType } from 'vs/base/common/types';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
-export const enum CallHierarchyDirection {
-	CallsTo = 'incomingCalls',
-	CallsFrom = 'outgoingCalls'
-}
 
-export interface CallHierarchyItem {
+
+export interface TypeHierarchyItem {
 	_sessionId: string;
 	_itemId: string;
-	kind: SymbolKind;
 	name: string;
+	kind: SymbolKind;
 	detail?: string;
 	uri: URI;
 	range: IRange;
@@ -35,53 +32,41 @@ export interface CallHierarchyItem {
 	tags?: SymbolTag[]
 }
 
-export interface IncomingCall {
-	from: CallHierarchyItem;
-	fromRanges: IRange[];
-}
-
-export interface OutgoingCall {
-	fromRanges: IRange[];
-	to: CallHierarchyItem;
-}
-
-export interface CallHierarchySession {
-	roots: CallHierarchyItem[];
+export interface TypeHierarchySession {
+	roots: TypeHierarchyItem[];
 	dispose(): void;
 }
 
-export interface CallHierarchyProvider {
-
-	prepareCallHierarchy(document: ITextModel, position: IPosition, token: CancellationToken): ProviderResult<CallHierarchySession>;
-
-	provideIncomingCalls(item: CallHierarchyItem, token: CancellationToken): ProviderResult<IncomingCall[]>;
-
-	provideOutgoingCalls(item: CallHierarchyItem, token: CancellationToken): ProviderResult<OutgoingCall[]>;
+export interface TypeHierarchyProvider {
+	prepareTypeHierarchy(document: ITextModel, position: IPosition, token: CancellationToken): ProviderResult<TypeHierarchySession>;
+	provideSupertypes(item: TypeHierarchyItem, token: CancellationToken): ProviderResult<TypeHierarchyItem[]>;
+	provideSubtypes(item: TypeHierarchyItem, token: CancellationToken): ProviderResult<TypeHierarchyItem[]>;
 }
 
-export const CallHierarchyProviderRegistry = new LanguageFeatureRegistry<CallHierarchyProvider>();
+export const TypeHierarchyProviderRegistry = new LanguageFeatureRegistry<TypeHierarchyProvider>();
 
 
-export class CallHierarchyModel {
 
-	static async create(model: ITextModel, position: IPosition, token: CancellationToken): Promise<CallHierarchyModel | undefined> {
-		const [provider] = CallHierarchyProviderRegistry.ordered(model);
+export class TypeHierarchyModel {
+
+	static async create(model: ITextModel, position: IPosition, token: CancellationToken): Promise<TypeHierarchyModel | undefined> {
+		const [provider] = TypeHierarchyProviderRegistry.ordered(model);
 		if (!provider) {
 			return undefined;
 		}
-		const session = await provider.prepareCallHierarchy(model, position, token);
+		const session = await provider.prepareTypeHierarchy(model, position, token);
 		if (!session) {
 			return undefined;
 		}
-		return new CallHierarchyModel(session.roots.reduce((p, c) => p + c._sessionId, ''), provider, session.roots, new RefCountedDisposable(session));
+		return new TypeHierarchyModel(session.roots.reduce((p, c) => p + c._sessionId, ''), provider, session.roots, new RefCountedDisposable(session));
 	}
 
-	readonly root: CallHierarchyItem;
+	readonly root: TypeHierarchyItem;
 
 	private constructor(
 		readonly id: string,
-		readonly provider: CallHierarchyProvider,
-		readonly roots: CallHierarchyItem[],
+		readonly provider: TypeHierarchyProvider,
+		readonly roots: TypeHierarchyItem[],
 		readonly ref: RefCountedDisposable,
 	) {
 		this.root = roots[0];
@@ -91,18 +76,18 @@ export class CallHierarchyModel {
 		this.ref.release();
 	}
 
-	fork(item: CallHierarchyItem): CallHierarchyModel {
+	fork(item: TypeHierarchyItem): TypeHierarchyModel {
 		const that = this;
-		return new class extends CallHierarchyModel {
+		return new class extends TypeHierarchyModel {
 			constructor() {
 				super(that.id, that.provider, [item], that.ref.acquire());
 			}
 		};
 	}
 
-	async resolveIncomingCalls(item: CallHierarchyItem, token: CancellationToken): Promise<IncomingCall[]> {
+	async provideSupertypes(item: TypeHierarchyItem, token: CancellationToken): Promise<TypeHierarchyItem[]> {
 		try {
-			const result = await this.provider.provideIncomingCalls(item, token);
+			const result = await this.provider.provideSupertypes(item, token);
 			if (isNonEmptyArray(result)) {
 				return result;
 			}
@@ -112,9 +97,9 @@ export class CallHierarchyModel {
 		return [];
 	}
 
-	async resolveOutgoingCalls(item: CallHierarchyItem, token: CancellationToken): Promise<OutgoingCall[]> {
+	async provideSubtypes(item: TypeHierarchyItem, token: CancellationToken): Promise<TypeHierarchyItem[]> {
 		try {
-			const result = await this.provider.provideOutgoingCalls(item, token);
+			const result = await this.provider.provideSubtypes(item, token);
 			if (isNonEmptyArray(result)) {
 				return result;
 			}
@@ -127,9 +112,9 @@ export class CallHierarchyModel {
 
 // --- API command support
 
-const _models = new Map<string, CallHierarchyModel>();
+const _models = new Map<string, TypeHierarchyModel>();
 
-CommandsRegistry.registerCommand('_executePrepareCallHierarchy', async (accessor, ...args) => {
+CommandsRegistry.registerCommand('_executePrepareTypeHierarchy', async (accessor, ...args) => {
 	const [resource, position] = args;
 	assertType(URI.isUri(resource));
 	assertType(Position.isIPosition(position));
@@ -145,11 +130,11 @@ CommandsRegistry.registerCommand('_executePrepareCallHierarchy', async (accessor
 	}
 
 	try {
-		const model = await CallHierarchyModel.create(textModel, position, CancellationToken.None);
+		const model = await TypeHierarchyModel.create(textModel, position, CancellationToken.None);
 		if (!model) {
 			return [];
 		}
-		//
+
 		_models.set(model.id, model);
 		_models.forEach((value, key, map) => {
 			if (map.size > 10) {
@@ -164,13 +149,19 @@ CommandsRegistry.registerCommand('_executePrepareCallHierarchy', async (accessor
 	}
 });
 
-function isCallHierarchyItemDto(obj: any): obj is CallHierarchyItem {
-	return true;
+function isTypeHierarchyItemDto(obj: any): obj is TypeHierarchyItem {
+	const item = obj as TypeHierarchyItem;
+	return typeof obj === 'object'
+		&& typeof item.name === 'string'
+		&& typeof item.kind === 'number'
+		&& URI.isUri(item.uri)
+		&& Range.isIRange(item.range)
+		&& Range.isIRange(item.selectionRange);
 }
 
-CommandsRegistry.registerCommand('_executeProvideIncomingCalls', async (_accessor, ...args) => {
+CommandsRegistry.registerCommand('_executeProvideSupertypes', async (_accessor, ...args) => {
 	const [item] = args;
-	assertType(isCallHierarchyItemDto(item));
+	assertType(isTypeHierarchyItemDto(item));
 
 	// find model
 	const model = _models.get(item._sessionId);
@@ -178,12 +169,12 @@ CommandsRegistry.registerCommand('_executeProvideIncomingCalls', async (_accesso
 		return undefined;
 	}
 
-	return model.resolveIncomingCalls(item, CancellationToken.None);
+	return model.provideSupertypes(item, CancellationToken.None);
 });
 
-CommandsRegistry.registerCommand('_executeProvideOutgoingCalls', async (_accessor, ...args) => {
+CommandsRegistry.registerCommand('_executeProvideSubtypes', async (_accessor, ...args) => {
 	const [item] = args;
-	assertType(isCallHierarchyItemDto(item));
+	assertType(isTypeHierarchyItemDto(item));
 
 	// find model
 	const model = _models.get(item._sessionId);
@@ -191,5 +182,5 @@ CommandsRegistry.registerCommand('_executeProvideOutgoingCalls', async (_accesso
 		return undefined;
 	}
 
-	return model.resolveOutgoingCalls(item, CancellationToken.None);
+	return model.provideSubtypes(item, CancellationToken.None);
 });
