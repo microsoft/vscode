@@ -44,7 +44,7 @@ export class RequestStore<T, RequestArgs> extends Disposable {
 			this._pendingRequests.set(requestId, resolve);
 			this._onCreateRequest.fire({ requestId, ...args });
 			const tokenSource = new CancellationTokenSource();
-			timeout(this._timeout, tokenSource.token);
+			timeout(this._timeout, tokenSource.token).then(() => reject(`Request ${requestId} timed out (${this._timeout}ms)`));
 			this._pendingRequestDisposables.set(requestId, [toDisposable(() => tokenSource.cancel())]);
 		});
 	}
