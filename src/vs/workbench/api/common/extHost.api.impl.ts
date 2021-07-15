@@ -501,6 +501,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostLanguageFeatures.registerInlayHintsProvider(extension, selector, provider);
 			},
 			registerTypeHierarchyProvider(selector: vscode.DocumentSelector, provider: vscode.TypeHierarchyProvider): vscode.Disposable {
+				checkProposedApiEnabled(extension);
 				return extHostLanguageFeatures.registerTypeHierarchyProvider(extension, selector, provider);
 			}
 		};
