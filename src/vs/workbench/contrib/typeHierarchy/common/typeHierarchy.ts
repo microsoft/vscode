@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRange } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { SymbolKind, ProviderResult, SymbolTag } from 'vs/editor/common/modes';
 import { ITextModel } from 'vs/editor/common/model';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -168,7 +168,13 @@ CommandsRegistry.registerCommand('_executePrepareTypeHierarchy', async (accessor
 });
 
 function isTypeHierarchyItemDto(obj: any): obj is TypeHierarchyItem {
-	return true;
+	const item = obj as TypeHierarchyItem;
+	return typeof obj === 'object'
+		&& typeof item.name === 'string'
+		&& !!item.kind
+		&& URI.isUri(item.uri)
+		&& Range.isIRange(item.range)
+		&& Range.isIRange(item.selectionRange);
 }
 
 CommandsRegistry.registerCommand('_executeProvideSupertypes', async (_accessor, ...args) => {
