@@ -47,6 +47,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/typeHierarchy",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/codeActions",
 			"project": "vscode-workbench"
 		},

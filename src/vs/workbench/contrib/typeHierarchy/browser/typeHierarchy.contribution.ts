@@ -45,4 +45,3 @@ class TypeHierarchyController implements IEditorContribution {
 registerEditorContribution(TypeHierarchyController.Id, TypeHierarchyController);
 
 // Testing
-
