@@ -2949,13 +2949,6 @@ declare module 'vscode' {
 		 * [`range`](#TypeHierarchyItem.range).
 		 */
 		selectionRange: Range;
-		/**
-		 * A data entry field that is preserved between a type hierarchy prepare and
-		 * supertypes or subtypes requests. It could also be used to identify the
-		 * type hierarchy in the server, helping improve the performance on
-		 * resolving supertypes and subtypes.
-		 */
-		data?: unknown;
 
 		constructor(kind: SymbolKind, name: string, detail: string, uri: Uri, range: Range, selectionRange: Range);
 	}
