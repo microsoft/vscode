@@ -7,12 +7,10 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetection';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { FileAccess } from 'vs/base/common/network';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import type { ModelOperations } from '@vscode/vscode-languagedetection';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class LanguageDetectionService extends Disposable implements ILanguageDetectionService {
 	private static readonly expectedConfidence = 0.6;
@@ -68,19 +66,21 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 
 	constructor(
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService) {
 		super();
 
-		untitledTextEditorService.onDidChangeDirty(async e => {
-			const mode = e.getMode();
-			if (!mode || mode === 'plaintext') {
-				const value = untitledTextEditorService.getValue(e.resource);
-				if (!value) { return; }
-				const lang = await this.detectLanguage(value);
-				if (!lang) { return; }
-				e.setMode(lang);
+		this._register(untitledTextEditorService.onDidChangeContent(async e => {
+			if (!configurationService.getValue<boolean>('languageDetection.enabled', { overrideIdentifier: e.getMode() })) {
+				return;
 			}
-		});
+
+			const value = untitledTextEditorService.getValue(e.resource);
+			if (!value) { return; }
+			const lang = await this.detectLanguage(value);
+			if (!lang) { return; }
+			e.setMode(lang);
+		}));
 	}
 
 	async getModelOperations(): Promise<ModelOperations> {
@@ -111,7 +111,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 			}
 		);
 
-		return this._modelOperations;
+		return this._register(this._modelOperations);
 	}
 
 	async detectLanguage(content: string): Promise<string | undefined> {
@@ -176,5 +176,3 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		return;
 	}
 }
-
-Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(LanguageDetectionService, LifecyclePhase.Eventually);
