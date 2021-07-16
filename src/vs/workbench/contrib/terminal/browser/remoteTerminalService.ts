@@ -42,6 +42,8 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 	readonly onPtyHostRestart = this._onPtyHostRestart.event;
 	private readonly _onPtyHostRequestResolveVariables = this._register(new Emitter<IRequestResolveVariablesEvent>());
 	readonly onPtyHostRequestResolveVariables = this._onPtyHostRequestResolveVariables.event;
+	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number, workspaceId: string, instanceId: number }>());
+	readonly onDidRequestDetach = this._onDidRequestDetach.event;
 
 	constructor(
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
@@ -76,6 +78,8 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			channel.onProcessResolvedShellLaunchConfig(e => this._ptys.get(e.id)?.handleResolvedShellLaunchConfig(e.event));
 			channel.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
 			channel.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
+			channel.onDidRequestDetach(e => this._onDidRequestDetach.fire(e));
+			channel.onProcessDidChangeHasChildProcesses(e => this._ptys.get(e.id)?.handleDidChangeHasChildProcesses(e.event));
 
 			const allowedCommands = ['_remoteCLI.openExternal', '_remoteCLI.windowOpen', '_remoteCLI.getSystemStatus', '_remoteCLI.manageExtensions'];
 			channel.onExecuteCommand(async e => {
@@ -144,11 +148,29 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 					return configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, t);
 				});
 				const result = await Promise.all(resolveCalls);
-				channel.acceptPtyHostResolvedVariables(e.id, result);
+				channel.acceptPtyHostResolvedVariables(e.requestId, result);
 			}));
 		} else {
 			this._remoteTerminalChannel = null;
 		}
+	}
+
+	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
+		if (!this._remoteTerminalChannel) {
+			throw new Error(`Cannot request detach instance when there is no remote!`);
+		}
+		return this._remoteTerminalChannel.requestDetachInstance(workspaceId, instanceId);
+	}
+
+	async acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void> {
+		if (!this._remoteTerminalChannel) {
+			throw new Error(`Cannot accept detached instance when there is no remote!`);
+		} else if (!persistentProcessId) {
+			this._logService.warn('Cannot attach to feature terminals, custom pty terminals, or those without a persistentProcessId');
+			return;
+		}
+
+		return this._remoteTerminalChannel.acceptDetachInstanceReply(requestId, persistentProcessId);
 	}
 
 	async createProcess(shellLaunchConfig: IShellLaunchConfig, configuration: ICompleteTerminalConfiguration, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper): Promise<ITerminalChildProcess> {

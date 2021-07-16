@@ -33,16 +33,13 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { contrastBorder, diffInserted, diffRemoved, editorBackground, errorForeground, focusBorder, foreground, listInactiveSelectionBackground, registerColor, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { EditorMemento } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IEditorMemento } from 'vs/workbench/common/editor';
-import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugColors';
-import { CellEditState, CellFocusMode, IActiveNotebookEditor, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IFocusNotebookCellOptions, IGenericCellViewModel, IInsetRenderOutput, INotebookCellList, INotebookCellOutputLayoutInfo, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, INotebookEditorContributionDescription, INotebookEditorCreationOptions, INotebookEditorMouseEvent, INotebookEditorOptions, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_ID, NOTEBOOK_OUTPUT_FOCUSED, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, IActiveNotebookEditor, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IFocusNotebookCellOptions, IGenericCellViewModel, IInsetRenderOutput, INotebookCellList, INotebookCellOutputLayoutInfo, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, INotebookEditorContributionDescription, INotebookEditorCreationOptions, INotebookEditorMouseEvent, INotebookEditorOptions, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookDecorationCSSRules, NotebookRefCountedStyleSheet } from 'vs/workbench/contrib/notebook/browser/notebookEditorDecorations';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { NotebookEditorKernelManager } from 'vs/workbench/contrib/notebook/browser/notebookEditorKernelManager';
@@ -62,7 +59,6 @@ import { CellKind, ExperimentalUseMarkdownRenderer, SelectionStateType } from 'v
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { editorGutterModifiedBackground } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
 import { readFontInfo } from 'vs/editor/browser/config/configuration';
@@ -209,7 +205,6 @@ export function getDefaultNotebookCreationOptions() {
 }
 
 export class NotebookEditorWidget extends Disposable implements INotebookEditor {
-	private static readonly EDITOR_MEMENTOS = new Map<string, EditorMemento<unknown>>();
 	private _overlayContainer!: HTMLElement;
 	private _notebookTopToolbarContainer!: HTMLElement;
 	private _notebookTopToolbar!: NotebookEditorToolbar;
@@ -240,7 +235,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _outputRenderer: OutputRenderer;
 	protected readonly _contributions = new Map<string, INotebookEditorContribution>();
 	private _scrollBeyondLastLine: boolean;
-	private readonly _memento: Memento;
 	private readonly _onDidFocusEmitter = this._register(new Emitter<void>());
 	public readonly onDidFocus = this._onDidFocusEmitter.event;
 	private readonly _onDidBlurEmitter = this._register(new Emitter<void>());
@@ -250,7 +244,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _cellContextKeyManager: CellContextKeyManager | null = null;
 	private _isVisible = false;
 	private readonly _uuid = generateUuid();
-	private _webiewFocused: boolean = false;
+	private _webviewFocused: boolean = false;
 
 	private _isDisposed: boolean = false;
 
@@ -363,8 +357,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				this._loadKernelPreloads();
 			}
 		}));
-
-		this._memento = new Memento(NOTEBOOK_EDITOR_ID, storageService);
 
 		this._outputRenderer = this._register(new OutputRenderer(this, this.instantiationService));
 		this._scrollBeyondLastLine = this.configurationService.getValue<boolean>('editor.scrollBeyondLastLine');
@@ -526,23 +518,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	//#region Editor Core
-
-	protected getEditorMemento<T>(editorGroupService: IEditorGroupsService, key: string, limit: number = 10): IEditorMemento<T> {
-		const mementoKey = `${NOTEBOOK_EDITOR_ID}${key}`;
-
-		let editorMemento = NotebookEditorWidget.EDITOR_MEMENTOS.get(mementoKey);
-		if (!editorMemento) {
-			editorMemento = new EditorMemento(NOTEBOOK_EDITOR_ID, key, this.getMemento(StorageScope.WORKSPACE), limit, editorGroupService);
-			NotebookEditorWidget.EDITOR_MEMENTOS.set(mementoKey, editorMemento);
-		}
-
-		return editorMemento as IEditorMemento<T>;
-	}
-
-	protected getMemento(scope: StorageScope): MementoObject {
-		return this._memento.getMemento(scope, StorageTarget.MACHINE);
-	}
-
 	private _updateForNotebookConfiguration() {
 		if (!this._overlayContainer) {
 			return;
@@ -613,10 +588,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const { bottomToolbarGap, bottomToolbarHeight } = this._notebookOptions.computeBottomToolbarDimensions(this.viewModel?.viewType);
 
 		const styleSheets: string[] = [];
+		const fontFamily = this._fontInfo?.fontFamily ?? `"SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace`;
 
 		styleSheets.push(`
 		:root {
 			--notebook-cell-output-font-size: ${fontSize}px;
+			--notebook-cell-input-preview-font-size: ${fontSize}px;
+			--notebook-cell-input-preview-font-family: ${fontFamily};
 		}
 		`);
 
@@ -796,7 +774,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		styleSheets.push(`.notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-bottom { height: ${cellBottomMargin}px; }`);
 		styleSheets.push(`.notebookOverlay .monaco-list .monaco-list-row .cell-shadow-container-bottom { top: ${cellBottomMargin}px; }`);
 
-		styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-collapsed-part { margin-left: ${codeCellLeftMargin + cellRunGutter}px; height: ${collapsedIndicatorHeight}px; }`);
+		styleSheets.push(`
+			.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-collapsed-part { margin-left: ${codeCellLeftMargin + cellRunGutter}px; height: ${collapsedIndicatorHeight}px; }
+			.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-collapsed-part .cell-collapse-preview {
+				line-height: ${collapsedIndicatorHeight}px;
+			}
+		`);
 
 		styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container { height: ${bottomToolbarHeight}px }`);
 		styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .cell-list-top-cell-toolbar-container { height: ${bottomToolbarHeight}px }`);
@@ -959,8 +942,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._register(widgetFocusTracker.onDidFocus(() => this._onDidFocusEmitter.fire()));
 		this._register(widgetFocusTracker.onDidBlur(() => this._onDidBlurEmitter.fire()));
 
-		this._reigsterNotebookActionsToolbar();
-
+		this._registerNotebookActionsToolbar();
 	}
 
 	private showListContextMenu(e: IListContextMenuEvent<CellViewModel>) {
@@ -976,7 +958,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		});
 	}
 
-	private _reigsterNotebookActionsToolbar() {
+	private _registerNotebookActionsToolbar() {
 		this._notebookTopToolbar = this._register(this.instantiationService.createInstance(NotebookEditorToolbar, this, this.scopedContextKeyService, this._notebookTopToolbarContainer));
 		this._register(this._notebookTopToolbar.onDidChangeState(() => {
 			if (this._dimension && this._isVisible) {
@@ -1185,40 +1167,41 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this._createWebview(this.getId(), this.textModel.uri);
 		}
 
-		this._webviewResolvePromise = new Promise(async resolve => {
+		this._webviewResolvePromise = (async () => {
 			if (!this._webview) {
 				throw new Error('Notebook output webview object is not created successfully.');
 			}
 
 			this._webview.createWebview();
 			if (!this._webview.webview) {
-				throw new Error('Notebook output webview elemented is not created successfully.');
+				throw new Error('Notebook output webview element was not created successfully.');
 			}
 
-			this._webview.webview.onDidBlur(() => {
+			this._localStore.add(this._webview.webview.onDidBlur(() => {
 				this._outputFocus.set(false);
 				this.updateEditorFocus();
 
 				if (this._overlayContainer.contains(document.activeElement)) {
-					this._webiewFocused = false;
+					this._webviewFocused = false;
 				}
-			});
-			this._webview.webview.onDidFocus(() => {
+			}));
+
+			this._localStore.add(this._webview.webview.onDidFocus(() => {
 				this._outputFocus.set(true);
 				this.updateEditorFocus();
 				this._onDidFocusEmitter.fire();
 
 				if (this._overlayContainer.contains(document.activeElement)) {
-					this._webiewFocused = true;
+					this._webviewFocused = true;
 				}
-			});
+			}));
 
 			this._localStore.add(this._webview.onMessage(e => {
 				this._onDidReceiveMessage.fire(e);
 			}));
 
-			resolve(this._webview);
-		});
+			return this._webview;
+		})();
 
 		return this._webviewResolvePromise;
 	}
@@ -1615,7 +1598,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._isVisible = true;
 		this._editorFocus.set(true);
 
-		if (this._webiewFocused) {
+		if (this._webviewFocused) {
 			this._webview?.focusWebview();
 		} else {
 			if (this.viewModel) {
@@ -1646,17 +1629,20 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	updateEditorFocus() {
 		// Note - focus going to the webview will fire 'blur', but the webview element will be
 		// a descendent of the notebook editor root.
-		const focused = DOM.isAncestor(document.activeElement, this._overlayContainer);
+		const focused = this._overlayContainer.contains(document.activeElement);
 		this._editorFocus.set(focused);
 		this.viewModel?.setEditorFocus(focused);
 	}
 
 	hasEditorFocus() {
+		// _editorFocus is driven by the FocusTracker, which is only guaranteed to _eventually_ fire blur.
+		// If we need to know whether we have focus at this instant, we need to check the DOM manually.
+		this.updateEditorFocus();
 		return this._editorFocus.get() || false;
 	}
 
 	hasWebviewFocus() {
-		return this._webiewFocused;
+		return this._webviewFocused;
 	}
 
 	hasOutputTextSelection() {

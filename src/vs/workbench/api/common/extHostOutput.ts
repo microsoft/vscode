@@ -154,7 +154,7 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 		if (!name) {
 			throw new Error('illegal argument `name`. must not be falsy');
 		}
-		return new ExtHostPushOutputChannel(extension.identifier.value, name, this._proxy);
+		return new ExtHostPushOutputChannel(name, extension.identifier.value, this._proxy);
 	}
 
 	createOutputChannelFromLogFile(name: string, file: URI): vscode.OutputChannel {

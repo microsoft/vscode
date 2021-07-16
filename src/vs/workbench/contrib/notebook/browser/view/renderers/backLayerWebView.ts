@@ -890,22 +890,23 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		});
 	}
 
-	async initializeMarkup(cells: readonly IMarkupCellInitialization[]) {
+	async initializeMarkup(cells: readonly IMarkupCellInitialization[]): Promise<void> {
 		if (this._disposed) {
 			return;
 		}
 
 		// TODO: use proper handler
 		const p = new Promise<void>(resolve => {
-			this.webview?.onMessage(e => {
+			const sub = this.webview?.onMessage(e => {
 				if (e.message.type === 'initializedMarkup') {
 					resolve();
+					sub?.dispose();
 				}
 			});
 		});
 
 		for (const cell of cells) {
-			this.markupPreviewMapping.set(cell.cellId, { ...cell, visible: false });
+			this.markupPreviewMapping.set(cell.cellId, cell);
 		}
 
 		this._sendMessageToWebview({

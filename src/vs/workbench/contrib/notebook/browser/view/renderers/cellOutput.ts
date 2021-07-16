@@ -457,6 +457,10 @@ export class CellOutputElement extends Disposable {
 			clearTimeout(this._outputHeightTimer);
 		}
 
+		if (this.renderResult && this.renderResult.type === RenderOutputType.Mainframe) {
+			this.renderResult.disposable?.dispose();
+		}
+
 		super.dispose();
 	}
 }

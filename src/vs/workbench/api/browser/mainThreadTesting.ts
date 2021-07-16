@@ -5,18 +5,19 @@
 
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { ExtensionRunTestsRequest, ITestItem, ITestMessage, ITestRunTask, RunTestsRequest, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ExtensionRunTestsRequest, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { ITestRootProvider, ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { IMainThreadTestController, ITestRootProvider, ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { ExtHostContext, ExtHostTestingShape, IExtHostContext, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
 
 const reviveDiff = (diff: TestsDiff) => {
@@ -37,12 +38,16 @@ const reviveDiff = (diff: TestsDiff) => {
 export class MainThreadTesting extends Disposable implements MainThreadTestingShape, ITestRootProvider {
 	private readonly proxy: ExtHostTestingShape;
 	private readonly diffListener = this._register(new MutableDisposable());
-	private readonly testSubscriptions = new Map<string, IDisposable>();
-	private readonly testProviderRegistrations = new Map<string, IDisposable>();
+	private readonly testProviderRegistrations = new Map<string, {
+		instance: IMainThreadTestController;
+		label: MutableObservableValue<string>;
+		disposable: IDisposable
+	}>();
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@ITestService private readonly testService: ITestService,
+		@ITestProfileService private readonly testProfiles: ITestProfileService,
 		@ITestResultService private readonly resultService: ITestResultService,
 	) {
 		super();
@@ -64,6 +69,30 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 				this.proxy.$publishTestResults([serialized]);
 			}
 		}));
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	$publishTestRunProfile(profile: ITestRunProfile): void {
+		const controller = this.testProviderRegistrations.get(profile.controllerId);
+		if (controller) {
+			this.testProfiles.addProfile(controller.instance, profile);
+		}
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	$updateTestRunConfig(controllerId: string, profileId: number, update: Partial<ITestRunProfile>): void {
+		this.testProfiles.updateProfile(controllerId, profileId, update);
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	$removeTestProfile(controllerId: string, profileId: number): void {
+		this.testProfiles.removeProfile(controllerId, profileId);
 	}
 
 	/**
@@ -158,21 +187,44 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	/**
 	 * @inheritdoc
 	 */
-	public $registerTestController(controllerId: string) {
-		const disposable = this.testService.registerTestController(controllerId, {
+	public $registerTestController(controllerId: string, labelStr: string) {
+		const disposable = new DisposableStore();
+		const label = new MutableObservableValue(labelStr);
+		const controller: IMainThreadTestController = {
+			id: controllerId,
+			label,
+			configureRunProfile: id => this.proxy.$configureRunProfile(controllerId, id),
 			runTests: (req, token) => this.proxy.$runControllerTests(req, token),
 			expandTest: (src, levels) => this.proxy.$expandTest(src, isFinite(levels) ? levels : -1),
-		});
+		};
 
-		this.testProviderRegistrations.set(controllerId, disposable);
+
+		disposable.add(toDisposable(() => this.testProfiles.removeProfile(controllerId)));
+		disposable.add(this.testService.registerTestController(controllerId, controller));
+
+		this.testProviderRegistrations.set(controllerId, {
+			instance: controller,
+			label,
+			disposable
+		});
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	public $unregisterTestController(id: string) {
-		this.testProviderRegistrations.get(id)?.dispose();
-		this.testProviderRegistrations.delete(id);
+	public $updateControllerLabel(controllerId: string, label: string) {
+		const controller = this.testProviderRegistrations.get(controllerId);
+		if (controller) {
+			controller.label.value = label;
+		}
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public $unregisterTestController(controllerId: string) {
+		this.testProviderRegistrations.get(controllerId)?.disposable.dispose();
+		this.testProviderRegistrations.delete(controllerId);
 	}
 
 	/**
@@ -198,17 +250,17 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		this.testService.publishDiff(controllerId, diff);
 	}
 
-	public async $runTests(req: RunTestsRequest, token: CancellationToken): Promise<string> {
-		const result = await this.testService.runTests(req, token);
+	public async $runTests(req: ResolvedTestRunRequest, token: CancellationToken): Promise<string> {
+		const result = await this.testService.runResolvedTests(req, token);
 		return result.id;
 	}
 
 	public override dispose() {
 		super.dispose();
-		for (const subscription of this.testSubscriptions.values()) {
-			subscription.dispose();
+		for (const subscription of this.testProviderRegistrations.values()) {
+			subscription.disposable.dispose();
 		}
-		this.testSubscriptions.clear();
+		this.testProviderRegistrations.clear();
 	}
 
 	private withLiveRun<T>(runId: string, fn: (run: LiveTestResult) => T): T | undefined {

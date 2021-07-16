@@ -129,7 +129,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		this.recordKeysAction = new Action(KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, localize('recordKeysLabel', "Record Keys"), ThemeIcon.asClassName(keybindingsRecordKeysIcon));
 		this.recordKeysAction.checked = false;
 
-		this.sortByPrecedenceAction = new Action(KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, localize('sortByPrecedeneLabel', "Sort by Precedence"), ThemeIcon.asClassName(keybindingsSortIcon));
+		this.sortByPrecedenceAction = new Action(KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, localize('sortByPrecedeneLabel', "Sort by Precedence (Highest first)"), ThemeIcon.asClassName(keybindingsSortIcon));
 		this.sortByPrecedenceAction.checked = false;
 	}
 

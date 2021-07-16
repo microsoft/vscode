@@ -116,7 +116,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		this._register(
 			Event.debounce(
 				Event.any<any>(
-					Event.filter(this.extensionManagementService.onDidInstallExtension, (e => !!e.gallery)),
+					Event.filter(this.extensionManagementService.onDidInstallExtensions, (e => e.some(({ local }) => !!local))),
 					Event.filter(this.extensionManagementService.onDidUninstallExtension, (e => !e.error)),
 					this.extensionEnablementService.onDidChangeEnablement,
 					this.extensionsStorageSyncService.onDidChangeExtensionsStorage),

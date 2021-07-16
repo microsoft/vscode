@@ -16,7 +16,8 @@ import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs
 import { ITerminalFindHost, ITerminalGroup, ITerminalGroupService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalGroup } from 'vs/workbench/contrib/terminal/browser/terminalGroup';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { KEYBINDING_CONTEXT_GROUP_TERMINAL_COUNT, KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT, KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 
 export class TerminalGroupService extends Disposable implements ITerminalGroupService, ITerminalFindHost {
@@ -66,8 +67,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 
 		this.onDidDisposeGroup(group => this._removeGroup(group));
 
-		this._terminalGroupCountContextKey = KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT.bindTo(this._contextKeyService);
-		this._terminalCountContextKey = KEYBINDING_CONTEXT_GROUP_TERMINAL_COUNT.bindTo(this._contextKeyService);
+		this._terminalGroupCountContextKey = TerminalContextKeys.groupCount.bindTo(this._contextKeyService);
+		this._terminalCountContextKey = TerminalContextKeys.count.bindTo(this._contextKeyService);
 
 		this.onDidChangeGroups(() => this._terminalGroupCountContextKey.set(this.groups.length));
 		this.onDidChangeInstances(() => this._terminalCountContextKey.set(this.instances.length));
@@ -82,7 +83,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 			const panel = this._viewDescriptorService.getViewContainerByViewId(TERMINAL_VIEW_ID);
 			if (panel && this._viewDescriptorService.getViewContainerModel(panel).activeViewDescriptors.length === 1) {
 				this._layoutService.setPanelHidden(true);
-				KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE.bindTo(this._contextKeyService).set(false);
+				TerminalContextKeys.tabsMouse.bindTo(this._contextKeyService).set(false);
 			}
 		}
 	}
@@ -295,8 +296,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		if (this.activeGroupIndex !== instanceLocation.groupIndex) {
 			this.activeGroupIndex = instanceLocation.groupIndex;
 			this._onDidChangeActiveGroup.fire(this.activeGroup);
-			instanceLocation.group.setActiveInstanceByIndex(activeInstanceIndex, true);
 		}
+		instanceLocation.group.setActiveInstanceByIndex(activeInstanceIndex, true);
 		this.groups.forEach((g, i) => g.setVisible(i === instanceLocation.groupIndex));
 
 	}
@@ -326,9 +327,22 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	moveGroup(source: ITerminalInstance, target: ITerminalInstance) {
 		const sourceGroup = this.getGroupForInstance(source);
 		const targetGroup = this.getGroupForInstance(target);
+
+		// Something went wrong
 		if (!sourceGroup || !targetGroup) {
 			return;
 		}
+
+		// The groups are the same, rearrange within the group
+		if (sourceGroup === targetGroup) {
+			const index = sourceGroup.terminalInstances.indexOf(target);
+			if (index !== -1) {
+				sourceGroup.moveInstance(source, index);
+			}
+			return;
+		}
+
+		// The groups differ, rearrange groups
 		const sourceGroupIndex = this.groups.indexOf(sourceGroup);
 		const targetGroupIndex = this.groups.indexOf(targetGroup);
 		this.groups.splice(sourceGroupIndex, 1);

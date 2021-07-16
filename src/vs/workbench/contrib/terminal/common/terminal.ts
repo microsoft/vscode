@@ -6,77 +6,17 @@
 import * as nls from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, TerminalLocation, TerminalShellType, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, TerminalLocation, TerminalShellType, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
-import { TerminalContextKey } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
-/** A context key that is set when there is at least one opened integrated terminal. */
-export const KEYBINDING_CONTEXT_TERMINAL_IS_OPEN = new RawContextKey<boolean>(TerminalContextKey.IsOpen, false, true);
-
-/** A context key that is set when the integrated terminal has focus. */
-export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = new RawContextKey<boolean>(TerminalContextKey.Focus, false, nls.localize('terminalFocusContextKey', "Whether the terminal is focused"));
-
-/** A context key that is set to the current number of integrated terminals in the terminal groups. */
-export const KEYBINDING_CONTEXT_GROUP_TERMINAL_COUNT = new RawContextKey<number>(TerminalContextKey.Count, 0, nls.localize('terminalCountContextKey', "The current number of terminals"));
-
-/** A context key that is set to the current number of integrated terminals. */
-export const KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT = new RawContextKey<number>(TerminalContextKey.GroupCount, 0, nls.localize('terminalGroupCountContextKey', "The current number of terminal groups"));
-
-/** A context key that is set when the terminal tabs view is narrow. */
-export const KEYBINDING_CONTEXT_TERMINAL_IS_TABS_NARROW_FOCUS = new RawContextKey<boolean>(TerminalContextKey.TabsNarrow, false, true);
-
-/** A context key that is set when the integrated terminal tabs widget has focus. */
-export const KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS = new RawContextKey<boolean>(TerminalContextKey.TabsFocus, false, nls.localize('terminalTabsFocusContextKey', "Whether the terminal tabs widget is focused"));
-
-/** A context key that is set when the integrated terminal tabs widget has the mouse focus. */
-export const KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE = new RawContextKey<boolean>(TerminalContextKey.TabsMouse, false, undefined);
-
-export const KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY = 'terminalShellType';
-/** A context key that is set to the detected shell for the most recently active terminal, this is set to the last known value when no terminals exist. */
-export const KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE = new RawContextKey<string>(KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, undefined, { type: 'string', description: nls.localize('terminalShellTypeContextKey', "The shell type of the active terminal") });
-
-export const KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE = new RawContextKey<boolean>(TerminalContextKey.AltBufferActive, false, true);
-
-/** A context key that is set when the integrated terminal does not have focus. */
-export const KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED = KEYBINDING_CONTEXT_TERMINAL_FOCUS.toNegated();
-
-/** A context key that is set when the user is navigating the accessibility tree */
-export const KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS = new RawContextKey<boolean>(TerminalContextKey.A11yTreeFocus, false, true);
-
-/** A keybinding context key that is set when the integrated terminal has text selected. */
-export const KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED = new RawContextKey<boolean>(TerminalContextKey.TextSelected, false, nls.localize('terminalTextSelectedContextKey', "Whether text is selected in the active terminal"));
-/** A keybinding context key that is set when the integrated terminal does not have text selected. */
-export const KEYBINDING_CONTEXT_TERMINAL_TEXT_NOT_SELECTED = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.toNegated();
-
-/**  A context key that is set when the find widget in integrated terminal is visible. */
-export const KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE = new RawContextKey<boolean>(TerminalContextKey.FindVisible, false, true);
-/**  A context key that is set when the find widget in integrated terminal is not visible. */
-export const KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE = KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE.toNegated();
-/**  A context key that is set when the find widget find input in integrated terminal is focused. */
-export const KEYBINDING_CONTEXT_TERMINAL_FIND_INPUT_FOCUSED = new RawContextKey<boolean>(TerminalContextKey.FindInputFocused, false, true);
-/**  A context key that is set when the find widget in integrated terminal is focused. */
-export const KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED = new RawContextKey<boolean>(TerminalContextKey.FindFocused, false, true);
-/**  A context key that is set when the find widget find input in integrated terminal is not focused. */
-export const KEYBINDING_CONTEXT_TERMINAL_FIND_INPUT_NOT_FOCUSED = KEYBINDING_CONTEXT_TERMINAL_FIND_INPUT_FOCUSED.toNegated();
-
-export const KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED = new RawContextKey<boolean>(TerminalContextKey.ProcessSupported, false, nls.localize('terminalProcessSupportedContextKey', "Whether terminal processes can be launched"));
-
-export const KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION = new RawContextKey<boolean>(TerminalContextKey.TabsSingularSelection, false, nls.localize('terminalTabsSingularSelectedContextKey', "Whether one terminal tab is selected"));
-
-export const IS_SPLIT_TERMINAL_CONTEXT_KEY = new RawContextKey<boolean>(TerminalContextKey.SplitTerminal, false, nls.localize('isSplitTerminalContextKey', "Whether or not the focused tab's terminal is a split terminal"));
-
-export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverMeasureRenderTime';
-
 export const TERMINAL_CREATION_COMMANDS = ['workbench.action.terminal.toggleTerminal', 'workbench.action.terminal.new', 'workbench.action.togglePanel', 'workbench.action.terminal.focus'];
-
-export const SUGGESTED_RENDERER_TYPE = 'terminal.integrated.suggestedRendererType';
 
 export const TerminalCursorStyle = {
 	BLOCK: 'block',
@@ -122,6 +62,48 @@ export interface IShellLaunchConfigResolveOptions {
 	allowAutomationShell?: boolean;
 }
 
+export interface IOffProcessTerminalService {
+	readonly _serviceBrand: undefined;
+
+	/**
+	 * Fired when the ptyHost process becomes non-responsive, this should disable stdin for all
+	 * terminals using this pty host connection and mark them as disconnected.
+	 */
+	onPtyHostUnresponsive: Event<void>;
+	/**
+	 * Fired when the ptyHost process becomes responsive after being non-responsive. Allowing
+	 * previously disconnected terminals to reconnect.
+	 */
+	onPtyHostResponsive: Event<void>;
+	/**
+	 * Fired when the ptyHost has been restarted, this is used as a signal for listening terminals
+	 * that its pty has been lost and will remain disconnected.
+	 */
+	onPtyHostRestart: Event<void>;
+
+	onDidRequestDetach: Event<{ requestId: number, workspaceId: string, instanceId: number }>;
+
+	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
+	listProcesses(): Promise<IProcessDetails[]>;
+	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
+	getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
+	getWslPath(original: string): Promise<string>;
+	getEnvironment(): Promise<IProcessEnvironment>;
+	getShellEnvironment(): Promise<IProcessEnvironment | undefined>;
+	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
+	updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void>;
+	updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<void>;
+	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
+	reduceConnectionGraceTime(): Promise<void>;
+	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined>;
+	acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void>;
+}
+
+export const ILocalTerminalService = createDecorator<ILocalTerminalService>('localTerminalService');
+export interface ILocalTerminalService extends IOffProcessTerminalService {
+	createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess>;
+}
+
 export type FontWeight = 'normal' | 'bold' | number;
 
 export interface ITerminalProfiles {
@@ -129,6 +111,9 @@ export interface ITerminalProfiles {
 	osx: { [key: string]: ITerminalProfileObject };
 	windows: { [key: string]: ITerminalProfileObject };
 }
+
+export type ConfirmOnKill = 'never' | 'always' | 'editor' | 'panel';
+export type ConfirmOnExit = 'never' | 'always' | 'hasChildProcesses';
 
 export interface ITerminalConfiguration {
 	shell: {
@@ -179,7 +164,8 @@ export interface ITerminalConfiguration {
 	allowChords: boolean;
 	allowMnemonics: boolean;
 	cwd: string;
-	confirmOnExit: boolean;
+	confirmOnExit: ConfirmOnExit;
+	confirmOnKill: ConfirmOnKill;
 	enableBell: boolean;
 	env: {
 		linux: { [key: string]: string };
@@ -282,8 +268,8 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly persistentProcessId: number | undefined;
 	readonly shouldPersist: boolean;
 	readonly isDisconnected: boolean;
-	/** Whether the process has had data written to it yet. */
 	readonly hasWrittenData: boolean;
+	readonly hasChildProcesses: boolean;
 
 	readonly onPtyDisconnect: Event<void>;
 	readonly onPtyReconnect: Event<void>;
@@ -296,6 +282,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onProcessExit: Event<number | undefined>;
 	readonly onProcessOverrideDimensions: Event<ITerminalDimensionsOverride | undefined>;
 	readonly onProcessResolvedShellLaunchConfig: Event<IShellLaunchConfig>;
+	readonly onProcessDidChangeHasChildProcesses: Event<boolean>;
 	readonly onEnvironmentVariableInfoChanged: Event<IEnvironmentVariableInfo>;
 
 	dispose(immediate?: boolean): void;

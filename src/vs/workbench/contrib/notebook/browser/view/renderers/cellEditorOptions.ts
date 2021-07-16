@@ -14,7 +14,7 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'v
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { INotebookActionContext, NotebookAction, NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { getNotebookEditorFromEditorPane, ICellViewModel, INotebookEditor, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
@@ -37,10 +37,11 @@ export class CellEditorOptions extends Disposable {
 		selectOnLineNumbers: false,
 		lineNumbers: 'off',
 		lineDecorationsWidth: 0,
-		glyphMargin: false,
+		folding: false,
 		fixedOverflowWidgets: true,
 		minimap: { enabled: false },
-		renderValidationDecorations: 'on'
+		renderValidationDecorations: 'on',
+		lineNumbersMinChars: 3
 	};
 
 	private _value: IEditorOptions;
@@ -94,7 +95,6 @@ export class CellEditorOptions extends Disposable {
 		const lineNumbers: LineNumbersType = renderLiNumbers ? 'on' : 'off';
 		const editorOptions = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: this.language }));
 		const layoutConfig = this.notebookOptions.getLayoutConfiguration();
-		const cellBreakpointMargin = layoutConfig.cellBreakpointMarginActive;
 		const editorOptionsOverrideRaw = layoutConfig.editorOptionsCustomizations ?? {};
 		let editorOptionsOverride: { [key: string]: any; } = {};
 		for (let key in editorOptionsOverrideRaw) {
@@ -108,13 +108,8 @@ export class CellEditorOptions extends Disposable {
 			... { lineNumbers },
 			...editorOptionsOverride,
 			...{ padding: { top: 12, bottom: 12 } },
-			readOnly: this.notebookEditor.viewModel?.options.isReadOnly ?? false,
-			glyphMargin: cellBreakpointMargin
+			readOnly: this.notebookEditor.viewModel?.options.isReadOnly ?? false
 		};
-
-		if (!computed.folding) {
-			computed.lineDecorationsWidth = 16;
-		}
 
 		return computed;
 	}
@@ -250,20 +245,5 @@ registerAction2(class ToggleActiveLineNumberAction extends Action2 {
 				cell.lineNumbers = 'on';
 			}
 		}
-	}
-});
-
-registerAction2(class ToggleCellBreakpointMargin extends NotebookAction {
-	constructor() {
-		super({
-			id: 'notebook.toggleBreakpointMargin',
-			title: localize('notebookActions.toggleBreakpointMargin', "Toggle Cell Breakpoint Margin"),
-			category: NOTEBOOK_ACTIONS_CATEGORY,
-		});
-	}
-
-	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		const opts = context.notebookEditor.notebookOptions;
-		opts.setCellBreakpointMarginActive(!opts.getLayoutConfiguration().cellBreakpointMarginActive);
 	}
 });

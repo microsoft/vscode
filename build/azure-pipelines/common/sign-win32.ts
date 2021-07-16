@@ -3,20 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-//@ts-check
+import { main } from './sign';
+import * as path from 'path';
 
-'use strict';
-
-const withBrowserDefaults = require('../shared.webpack.config').browser;
-const path = require('path');
-
-module.exports = withBrowserDefaults({
-	context: __dirname,
-	entry: {
-		extension: './src/extension.ts'
-	},
-	output: {
-		filename: 'extension.js',
-		path: path.join(__dirname, 'dist')
-	}
-});
+main([
+	process.env['EsrpCliDllPath']!,
+	'windows',
+	process.env['ESRPPKI']!,
+	process.env['ESRPAADUsername']!,
+	process.env['ESRPAADPassword']!,
+	path.dirname(process.argv[2]),
+	path.basename(process.argv[2])
+]);

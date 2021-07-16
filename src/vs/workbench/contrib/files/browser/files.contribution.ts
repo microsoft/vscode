@@ -294,11 +294,13 @@ configurationRegistry.registerConfiguration({
 			'default': 'file',
 			'enum': [
 				'file',
-				'modifications'
+				'modifications',
+				'modificationsIfAvailable'
 			],
 			'enumDescriptions': [
 				nls.localize({ key: 'everything', comment: ['This is the description of an option'] }, "Format the whole file."),
 				nls.localize({ key: 'modification', comment: ['This is the description of an option'] }, "Format modifications (requires source control)."),
+				nls.localize({ key: 'modificationIfAvailable', comment: ['This is the description of an option'] }, "Will attempt to format modifications only (requires source control). If source control can't be used, then the whole file will be formatted."),
 			],
 			'markdownDescription': nls.localize('formatOnSaveMode', "Controls if format on save formats the whole file or only modifications. Only applies when `#editor.formatOnSave#` is enabled."),
 			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE,
@@ -407,13 +409,16 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': [
 				'/',
-				'\\'
+				'\\',
+				'auto'
 			],
 			'enumDescriptions': [
 				nls.localize('copyRelativePathSeparator.slash', "Use slash as path separation character."),
 				nls.localize('copyRelativePathSeparator.backslash', "Use backslash as path separation character."),
+				nls.localize('copyRelativePathSeparator.auto', "Uses operating system specific path separation character."),
 			],
-			'description': nls.localize('copyRelativePathSeparator', "The path separation character used when copying relative file paths. Will use the operating system default unless specified."),
+			'description': nls.localize('copyRelativePathSeparator', "The path separation character used when copying relative file paths."),
+			'default': 'auto'
 		}
 	}
 });

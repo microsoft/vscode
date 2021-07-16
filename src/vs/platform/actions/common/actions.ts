@@ -175,6 +175,7 @@ export class MenuId {
 	static readonly TerminalInlineTabContext = new MenuId('TerminalInlineTabContext');
 	static readonly WebviewContext = new MenuId('WebviewContext');
 	static readonly InlineCompletionsActions = new MenuId('InlineCompletionsActions');
+	static readonly NewFile = new MenuId('NewFile');
 
 	readonly id: number;
 	readonly _debugName: string;

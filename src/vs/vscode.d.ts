@@ -5657,7 +5657,7 @@ declare module 'vscode' {
 		/**
 		 * The tooltip text when you hover over this entry.
 		 */
-		tooltip: string | undefined;
+		tooltip: string | MarkdownString | undefined;
 
 		/**
 		 * The foreground color for this entry.
@@ -12328,7 +12328,7 @@ declare module 'vscode' {
 		 * The icon path for a specific
 		 * {@link SourceControlResourceState source control resource state}.
 		 */
-		readonly iconPath?: string | Uri;
+		readonly iconPath?: string | Uri | ThemeIcon;
 	}
 
 	/**

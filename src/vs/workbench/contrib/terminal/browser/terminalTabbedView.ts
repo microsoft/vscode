@@ -19,17 +19,16 @@ import { Action, Separator } from 'vs/base/common/actions';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_IS_TABS_NARROW_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { localize } from 'vs/nls';
 import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
+import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
+import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 
 const $ = dom.$;
 
 const FIND_FOCUS_CLASS = 'find-focused';
-const TABS_LIST_WIDTH_HORIZONTAL_KEY = 'tabs-list-width-horizontal';
-const TABS_LIST_WIDTH_VERTICAL_KEY = 'tabs-list-width-vertical';
 const STATUS_ICON_WIDTH = 30;
 const SPLIT_ANNOTATION_WIDTH = 30;
 
@@ -50,8 +49,6 @@ export class TerminalTabbedView extends Disposable {
 
 	private _tabTreeIndex: number;
 	private _terminalContainerIndex: number;
-
-	private _findWidgetVisible: IContextKey<boolean>;
 
 	private _height: number | undefined;
 	private _width: number | undefined;
@@ -105,10 +102,9 @@ export class TerminalTabbedView extends Disposable {
 
 		this._terminalService.setContainers(parentElement, this._terminalContainer);
 
-		this._terminalIsTabsNarrowContextKey = KEYBINDING_CONTEXT_TERMINAL_IS_TABS_NARROW_FOCUS.bindTo(contextKeyService);
-		this._terminalTabsFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS.bindTo(contextKeyService);
-		this._terminalTabsMouseContextKey = KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE.bindTo(contextKeyService);
-		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE.bindTo(contextKeyService);
+		this._terminalIsTabsNarrowContextKey = TerminalContextKeys.tabsNarrow.bindTo(contextKeyService);
+		this._terminalTabsFocusContextKey = TerminalContextKeys.tabsFocus.bindTo(contextKeyService);
+		this._terminalTabsMouseContextKey = TerminalContextKeys.tabsMouse.bindTo(contextKeyService);
 
 		this._tabTreeIndex = this._terminalService.configHelper.config.tabs.location === 'left' ? 0 : 1;
 		this._terminalContainerIndex = this._terminalService.configHelper.config.tabs.location === 'left' ? 1 : 0;
@@ -189,7 +185,7 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	private _getLastListWidth(): number {
-		const widthKey = this._panelOrientation === Orientation.VERTICAL ? TABS_LIST_WIDTH_VERTICAL_KEY : TABS_LIST_WIDTH_HORIZONTAL_KEY;
+		const widthKey = this._panelOrientation === Orientation.VERTICAL ? TerminalStorageKeys.TabsListWidthVertical : TerminalStorageKeys.TabsListWidthHorizontal;
 		const storedValue = this._storageService.get(widthKey, StorageScope.GLOBAL);
 
 		if (!storedValue || !parseInt(storedValue)) {
@@ -249,7 +245,7 @@ export class TerminalTabbedView extends Disposable {
 			this._splitView.resizeView(this._tabTreeIndex, width);
 		}
 		this._rerenderTabs();
-		const widthKey = this._panelOrientation === Orientation.VERTICAL ? TABS_LIST_WIDTH_VERTICAL_KEY : TABS_LIST_WIDTH_HORIZONTAL_KEY;
+		const widthKey = this._panelOrientation === Orientation.VERTICAL ? TerminalStorageKeys.TabsListWidthVertical : TerminalStorageKeys.TabsListWidthHorizontal;
 		this._storageService.store(widthKey, width, StorageScope.GLOBAL, StorageTarget.USER);
 	}
 
@@ -465,7 +461,6 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	focusFindWidget() {
-		this._findWidgetVisible.set(true);
 		const activeInstance = this._terminalGroupService.activeInstance;
 		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection!.indexOf('\n') === -1) {
 			this._findWidget!.reveal(activeInstance.selection);
@@ -475,7 +470,6 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	hideFindWidget() {
-		this._findWidgetVisible.reset();
 		this.focus();
 		this._findWidget!.hide();
 	}

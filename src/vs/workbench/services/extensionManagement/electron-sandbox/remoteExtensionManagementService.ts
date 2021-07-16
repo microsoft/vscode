@@ -54,7 +54,7 @@ export class NativeRemoteExtensionManagementService extends WebRemoteExtensionMa
 	}
 
 	private async doInstallFromGallery(extension: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
-		if (this.configurationService.getValue<boolean>('remote.downloadExtensionsLocally')) {
+		if (this.configurationService.getValue('remote.downloadExtensionsLocally')) {
 			this.logService.trace(`Download '${extension.identifier.id}' extension locally and install`);
 			return this.downloadCompatibleAndInstall(extension);
 		}

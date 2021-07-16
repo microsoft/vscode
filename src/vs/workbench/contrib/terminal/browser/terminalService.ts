@@ -24,12 +24,13 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ICreateContributedTerminalProfileOptions, ICreateTerminalOptions, ILocalTerminalService, IOffProcessTerminalService, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, ICreateTerminalOptions, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
 import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IconDefinition } from 'vs/platform/theme/common/iconRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
 import { IEditableData, IViewsService } from 'vs/workbench/common/views';
 import { IRemoteTerminalService, ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalFindHost, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalProfileProvider, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -38,7 +39,8 @@ import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEd
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { configureTerminalProfileIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, ITerminalProfileContribution, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ILocalTerminalService, IOffProcessTerminalService, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, ITerminalProfileContribution, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { formatMessageForTerminal, terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
@@ -84,7 +86,18 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private _activeInstance: ITerminalInstance | undefined;
-	get activeInstance(): ITerminalInstance | undefined { return this._activeInstance; }
+	get activeInstance(): ITerminalInstance | undefined {
+		// Check if either an editor or panel terminal has focus and return that, regardless of the
+		// value of _activeInstance. This avoids terminals created in the panel for example stealing
+		// the active status even when it's not focused.
+		for (const activeHostTerminal of this._hostActiveTerminals.values()) {
+			if (activeHostTerminal?.hasFocus) {
+				return activeHostTerminal;
+			}
+		}
+		// Fallback to the last recorded active terminal if neither have focus
+		return this._activeInstance;
+	}
 
 	private readonly _onDidChangeActiveGroup = new Emitter<ITerminalGroup | undefined>();
 	get onDidChangeActiveGroup(): Event<ITerminalGroup | undefined> { return this._onDidChangeActiveGroup.event; }
@@ -147,6 +160,7 @@ export class TerminalService implements ITerminalService {
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
 	) {
 		this._localTerminalService = localTerminalService;
@@ -211,7 +225,7 @@ export class TerminalService implements ITerminalService {
 		});
 
 		this._handleInstanceContextKeys();
-		this._processSupportContextKey = KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED.bindTo(this._contextKeyService);
+		this._processSupportContextKey = TerminalContextKeys.processSupported.bindTo(this._contextKeyService);
 		this._processSupportContextKey.set(!isWeb || this._remoteAgentService.getConnection() !== null);
 
 		lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal'));
@@ -246,7 +260,20 @@ export class TerminalService implements ITerminalService {
 			: enableTerminalReconnection
 				? this._localTerminalsInitPromise = this._reconnectToLocalTerminals()
 				: Promise.resolve();
-		this._primaryOffProcessTerminalService = !!this._environmentService.remoteAuthority ? this._remoteTerminalService : this._localTerminalService;
+		this._primaryOffProcessTerminalService = !!this._environmentService.remoteAuthority ? this._remoteTerminalService : (this._localTerminalService || this._remoteTerminalService);
+		this._primaryOffProcessTerminalService.onDidRequestDetach(async (e) => {
+			if (e.workspaceId && this._workspaceContextService.getWorkspace().id === e.workspaceId) {
+				const instanceToDetach = this.getInstanceFromId(e.instanceId);
+				const persistentProcessId = instanceToDetach?.persistentProcessId;
+				if (persistentProcessId && !instanceToDetach.shellLaunchConfig.isFeatureTerminal && !instanceToDetach.shellLaunchConfig.customPtyImplementation) {
+					await instanceToDetach.detachFromProcess();
+					await this._primaryOffProcessTerminalService?.acceptDetachInstanceReply(e.requestId, persistentProcessId);
+				} else {
+					// will get rejected without a persistentProcessId to attach to
+					await this._primaryOffProcessTerminalService?.acceptDetachInstanceReply(e.requestId, undefined);
+				}
+			}
+		});
 		initPromise.then(() => this._setConnected());
 
 		// Wait up to 5 seconds for profiles to be ready so it's assured that we know the actual
@@ -257,6 +284,10 @@ export class TerminalService implements ITerminalService {
 
 		// Create async as the class depends on `this`
 		timeout(0).then(() => this._instantiationService.createInstance(TerminalEditorStyle, document.head));
+	}
+
+	getOffProcessTerminalService(): IOffProcessTerminalService | undefined {
+		return this._primaryOffProcessTerminalService;
 	}
 
 	private _forwardInstanceHostEvents(host: ITerminalInstanceHost) {
@@ -301,7 +332,11 @@ export class TerminalService implements ITerminalService {
 	}
 
 	async safeDisposeTerminal(instance: ITerminalInstance): Promise<void> {
-		if (this.configHelper.config.confirmOnExit) {
+		// Confirm on kill in the editor is handled by the editor input
+		if (instance.target !== TerminalLocation.Editor &&
+			instance.hasChildProcesses &&
+			(this.configHelper.config.confirmOnKill === 'panel' || this.configHelper.config.confirmOnKill === 'always')) {
+
 			const notConfirmed = await this._showTerminalCloseConfirmation(true);
 			if (notConfirmed) {
 				return;
@@ -400,7 +435,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private _handleInstanceContextKeys(): void {
-		const terminalIsOpenContext = KEYBINDING_CONTEXT_TERMINAL_IS_OPEN.bindTo(this._contextKeyService);
+		const terminalIsOpenContext = TerminalContextKeys.isOpen.bindTo(this._contextKeyService);
 		const updateTerminalContextKeys = () => {
 			terminalIsOpenContext.set(this.instances.length > 0);
 		};
@@ -472,8 +507,14 @@ export class TerminalService implements ITerminalService {
 		}
 
 		const shouldPersistTerminals = this._configHelper.config.enablePersistentSessions && reason === ShutdownReason.RELOAD;
-		if (this.configHelper.config.confirmOnExit && !shouldPersistTerminals) {
-			return this._onBeforeShutdownAsync();
+		if (!shouldPersistTerminals) {
+			const hasDirtyInstances = (
+				(this.configHelper.config.confirmOnExit === 'always' && this.instances.length > 0) ||
+				(this.configHelper.config.confirmOnExit === 'hasChildProcesses' && this.instances.some(e => e.hasChildProcesses))
+			);
+			if (hasDirtyInstances) {
+				return this._onBeforeShutdownAsync();
+			}
 		}
 
 		this._isShuttingDown = true;
@@ -711,7 +752,7 @@ export class TerminalService implements ITerminalService {
 			}
 		}));
 		instance.addDisposable(instance.onMaximumDimensionsChanged(() => this._onDidMaxiumumDimensionsChange.fire(instance)));
-		instance.addDisposable(instance.onFocus(this._onDidChangeActiveInstance.fire, this._onDidChangeActiveInstance));
+		instance.addDisposable(instance.onDidFocus(this._onDidChangeActiveInstance.fire, this._onDidChangeActiveInstance));
 		instance.addDisposable(instance.onRequestAddInstanceToGroup(e => {
 			const instanceId = this._getInstanceIdFromUri(e.uri);
 			if (instanceId === undefined) {

@@ -12,7 +12,7 @@ import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { localize } from 'vs/nls';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { IMenu, IMenuActionOptions, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -26,7 +26,7 @@ import { ITerminalEditorService, ITerminalService } from 'vs/workbench/contrib/t
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { TerminalTabContextMenuGroup } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
-import { ITerminalProfileResolverService, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProfileResolverService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -35,14 +35,14 @@ import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 
-const xtermSelector = '.terminal.xterm';
 const findWidgetSelector = '.simple-find-part-wrapper';
 
 export class TerminalEditor extends EditorPane {
 
 	public static readonly ID = 'terminalEditor';
 
-	private _parentElement: HTMLElement | undefined;
+	private _editorInstanceElement: HTMLElement | undefined;
+	private _overflowGuardElement: HTMLElement | undefined;
 
 	private _editorInput?: TerminalEditorInput = undefined;
 
@@ -51,7 +51,6 @@ export class TerminalEditor extends EditorPane {
 	private readonly _dropdownMenu: IMenu;
 
 	private _findWidget: TerminalFindWidget;
-	private _findWidgetVisible: IContextKey<boolean>;
 	private _findState: FindReplaceState;
 
 	private readonly _instanceMenu: IMenu;
@@ -78,7 +77,6 @@ export class TerminalEditor extends EditorPane {
 		super(TerminalEditor.ID, telemetryService, themeService, storageService);
 		this._findState = new FindReplaceState();
 		this._findWidget = instantiationService.createInstance(TerminalFindWidget, this._findState);
-		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE.bindTo(contextKeyService);
 		this._dropdownMenu = this._register(menuService.createMenu(MenuId.TerminalNewDropdownContext, contextKeyService));
 		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalInstanceContext, contextKeyService));
 	}
@@ -87,7 +85,7 @@ export class TerminalEditor extends EditorPane {
 		this._editorInput?.terminalInstance?.detachFromElement();
 		this._editorInput = newInput;
 		await super.setInput(newInput, options, context, token);
-		this._editorInput.terminalInstance?.attachToElement(this._parentElement!);
+		this._editorInput.terminalInstance?.attachToElement(this._overflowGuardElement!);
 		if (this._lastDimension) {
 			this.layout(this._lastDimension);
 		}
@@ -96,7 +94,7 @@ export class TerminalEditor extends EditorPane {
 			// since the editor does not monitor focus changes, for ex. between the terminal
 			// panel and the editors, this is needed so that the active instance gets set
 			// when focus changes between them.
-			this._register(this._editorInput.terminalInstance.onFocused(() => this._setActiveInstance()));
+			this._register(this._editorInput.terminalInstance.onDidFocus(() => this._setActiveInstance()));
 		}
 	}
 
@@ -118,15 +116,17 @@ export class TerminalEditor extends EditorPane {
 
 	// eslint-disable-next-line @typescript-eslint/naming-convention
 	protected createEditor(parent: HTMLElement): void {
-		this._parentElement = parent;
+		this._editorInstanceElement = parent;
+		this._overflowGuardElement = dom.$('.terminal-overflow-guard');
+		this._editorInstanceElement.appendChild(this._overflowGuardElement);
 		this._registerListeners();
 	}
 
 	private _registerListeners(): void {
-		if (!this._parentElement) {
+		if (!this._editorInstanceElement) {
 			return;
 		}
-		this._register(dom.addDisposableListener(this._parentElement, 'mousedown', async (event: MouseEvent) => {
+		this._register(dom.addDisposableListener(this._editorInstanceElement, 'mousedown', async (event: MouseEvent) => {
 			if (this._terminalEditorService.instances.length === 0) {
 				return;
 			}
@@ -148,7 +148,7 @@ export class TerminalEditor extends EditorPane {
 
 					// copyPaste: Shift+right click should open context menu
 					if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
-						openContextMenu(event, this._parentElement!, this._instanceMenu, this._contextMenuService);
+						openContextMenu(event, this._editorInstanceElement!, this._instanceMenu, this._contextMenuService);
 						return;
 					}
 
@@ -175,11 +175,11 @@ export class TerminalEditor extends EditorPane {
 				}
 			}
 		}));
-		this._register(dom.addDisposableListener(this._parentElement, 'contextmenu', (event: MouseEvent) => {
+		this._register(dom.addDisposableListener(this._editorInstanceElement, 'contextmenu', (event: MouseEvent) => {
 			const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
 			if (!this._cancelContextMenu && rightClickBehavior !== 'copyPaste' && rightClickBehavior !== 'paste') {
 				if (!this._cancelContextMenu) {
-					openContextMenu(event, this._parentElement!, this._instanceMenu, this._contextMenuService);
+					openContextMenu(event, this._editorInstanceElement!, this._instanceMenu, this._contextMenuService);
 				}
 				event.preventDefault();
 				event.stopImmediatePropagation();
@@ -283,10 +283,9 @@ export class TerminalEditor extends EditorPane {
 	}
 
 	focusFindWidget() {
-		if (this._parentElement && !this._parentElement?.querySelector(findWidgetSelector)) {
-			this._parentElement.querySelector(xtermSelector)!.appendChild(this._findWidget.getDomNode());
+		if (this._overflowGuardElement && !this._overflowGuardElement?.querySelector(findWidgetSelector)) {
+			this._overflowGuardElement.appendChild(this._findWidget.getDomNode());
 		}
-		this._findWidgetVisible.set(true);
 		const activeInstance = this._terminalEditorService.activeInstance;
 		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection!.indexOf('\n') === -1) {
 			this._findWidget.reveal(activeInstance.selection);
@@ -296,7 +295,6 @@ export class TerminalEditor extends EditorPane {
 	}
 
 	hideFindWidget() {
-		this._findWidgetVisible.reset();
 		this.focus();
 		this._findWidget.hide();
 	}

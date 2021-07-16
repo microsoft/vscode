@@ -369,7 +369,8 @@ export class ApiCommandArgument<V, O = V> {
 	static readonly Number = new ApiCommandArgument<number>('number', '', v => typeof v === 'number', v => v);
 	static readonly String = new ApiCommandArgument<string>('string', '', v => typeof v === 'string', v => v);
 
-	static readonly CallHierarchyItem = new ApiCommandArgument('item', 'A call hierarchy item', v => v instanceof extHostTypes.CallHierarchyItem, extHostTypeConverter.CallHierarchyItem.to);
+	static readonly CallHierarchyItem = new ApiCommandArgument('item', 'A call hierarchy item', v => v instanceof extHostTypes.CallHierarchyItem, extHostTypeConverter.CallHierarchyItem.from);
+	static readonly TypeHierarchyItem = new ApiCommandArgument('item', 'A type hierarchy item', v => v instanceof extHostTypes.TypeHierarchyItem, extHostTypeConverter.TypeHierarchyItem.from);
 
 	constructor(
 		readonly name: string,

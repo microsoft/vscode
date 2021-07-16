@@ -9,7 +9,7 @@ import { ExperimentActionType, ExperimentState, IExperiment, ExperimentService, 
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import {
-	IExtensionManagementService, DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, ILocalExtension
+	IExtensionManagementService, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, ILocalExtension, InstallExtensionResult
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
@@ -69,14 +69,14 @@ suite('Experiment Service', () => {
 	let testObject: ExperimentService;
 	let activationEvent: Emitter<IWillActivateEvent>;
 	let installEvent: Emitter<InstallExtensionEvent>,
-		didInstallEvent: Emitter<DidInstallExtensionEvent>,
+		didInstallEvent: Emitter<readonly InstallExtensionResult[]>,
 		uninstallEvent: Emitter<IExtensionIdentifier>,
 		didUninstallEvent: Emitter<DidUninstallExtensionEvent>;
 
 	suiteSetup(() => {
 		instantiationService = new TestInstantiationService();
 		installEvent = new Emitter<InstallExtensionEvent>();
-		didInstallEvent = new Emitter<DidInstallExtensionEvent>();
+		didInstallEvent = new Emitter<readonly InstallExtensionResult[]>();
 		uninstallEvent = new Emitter<IExtensionIdentifier>();
 		didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
 		activationEvent = new Emitter<IWillActivateEvent>();
@@ -85,7 +85,7 @@ suite('Experiment Service', () => {
 		instantiationService.stub(IExtensionService, 'onWillActivateByEvent', activationEvent.event);
 		instantiationService.stub(IExtensionManagementService, ExtensionManagementService);
 		instantiationService.stub(IExtensionManagementService, 'onInstallExtension', installEvent.event);
-		instantiationService.stub(IExtensionManagementService, 'onDidInstallExtension', didInstallEvent.event);
+		instantiationService.stub(IExtensionManagementService, 'onDidInstallExtensions', didInstallEvent.event);
 		instantiationService.stub(IExtensionManagementService, 'onUninstallExtension', uninstallEvent.event);
 		instantiationService.stub(IExtensionManagementService, 'onDidUninstallExtension', didUninstallEvent.event);
 		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));

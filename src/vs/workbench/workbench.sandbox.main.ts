@@ -86,6 +86,9 @@ registerSingleton(IUserDataAutoSyncEnablementService, UserDataAutoSyncEnablement
 // Logs
 import 'vs/workbench/contrib/logs/electron-sandbox/logs.contribution';
 
+// List
+import 'vs/workbench/contrib/list/browser/list.contribution';
+
 // Localizations
 import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
 

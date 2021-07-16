@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as glob from 'vs/base/common/glob';
-import { IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorInputCapabilities, Verbosity, IUntypedEditorInput, UntypedEditorContext } from 'vs/workbench/common/editor';
+import { IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorInputCapabilities, Verbosity, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
 import { isEqual, joinPath } from 'vs/base/common/resources';
@@ -235,7 +235,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		return this._editorModelReference.object;
 	}
 
-	override toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IResourceEditorInput {
+	override toUntyped(): IResourceEditorInput {
 		return {
 			resource: this.preferredResource,
 			options: {

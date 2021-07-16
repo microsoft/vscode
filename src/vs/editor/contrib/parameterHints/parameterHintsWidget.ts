@@ -79,7 +79,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		}));
 	}
 
-	private createParamaterHintDOMNodes() {
+	private createParameterHintDOMNodes() {
 		const element = $('.editor-widget.parameter-hints-widget');
 		const wrapper = dom.append(element, $('.phwrapper'));
 		wrapper.tabIndex = -1;
@@ -150,7 +150,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		}
 
 		if (!this.domNodes) {
-			this.createParamaterHintDOMNodes();
+			this.createParameterHintDOMNodes();
 		}
 
 		this.keyVisible.set(true);
@@ -352,7 +352,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 
 	getDomNode(): HTMLElement {
 		if (!this.domNodes) {
-			this.createParamaterHintDOMNodes();
+			this.createParameterHintDOMNodes();
 		}
 		return this.domNodes!.element;
 	}

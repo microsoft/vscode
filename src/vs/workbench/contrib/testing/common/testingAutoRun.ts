@@ -11,7 +11,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { AutoRunMode, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
-import { identifyTest, ITestIdWithSrc, TestDiffOpType } from 'vs/workbench/contrib/testing/common/testCollection';
+import { identifyTest, ITestIdWithSrc, TestDiffOpType, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { isRunningTests, ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
@@ -83,7 +83,7 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 
 			const tests = [...rerunIds.values()];
 			rerunIds.clear();
-			await this.testService.runTests({ debug: false, tests, isAutoRun: true });
+			await this.testService.runTests({ group: TestRunProfileBitset.Run, tests, isAutoRun: true });
 
 			if (rerunIds.size > 0) {
 				scheduler.schedule(delay);

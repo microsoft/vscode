@@ -30,7 +30,8 @@ import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browse
 import { testMessageSeverityColors } from 'vs/workbench/contrib/testing/browser/theme';
 import { DefaultGutterClickAction, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { labelForTestInState } from 'vs/workbench/contrib/testing/common/constants';
-import { identifyTest, IncrementalTestCollectionItem, InternalTestItem, IRichLocation, ITestMessage, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { identifyTest, IncrementalTestCollectionItem, InternalTestItem, IRichLocation, ITestMessage, ITestRunProfile, TestResultItem, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
 import { maxPriority } from 'vs/workbench/contrib/testing/common/testingStates';
 import { buildTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
@@ -121,7 +122,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 			}
 		}));
 
-		this._register(Event.any(this.results.onResultsChanged, this.testService.excludeTests.onDidChange)(() => {
+		this._register(Event.any(this.results.onResultsChanged, this.testService.excluded.onTestExclusionsChanged)(() => {
 			if (this.currentUri) {
 				this.setDecorations(this.currentUri);
 			}
@@ -313,6 +314,7 @@ abstract class RunTestDecoration extends Disposable {
 		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
 		@ICommandService protected readonly commandService: ICommandService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@ITestProfileService protected readonly testProfileService: ITestProfileService,
 	) {
 		super();
 		editorDecoration.options.glyphMarginHoverMessage = new MarkdownString().appendText(this.getGutterLabel());
@@ -402,34 +404,41 @@ abstract class RunTestDecoration extends Disposable {
 	 */
 	protected getTestContextMenuActions(collection: IMainThreadTestCollection, test: InternalTestItem) {
 		const testActions: IAction[] = [];
-		if (test.item.runnable) {
+		const capabilities = this.testProfileService.controllerCapabilities(test.controllerId);
+		if (capabilities & TestRunProfileBitset.Run) {
 			testActions.push(new Action('testing.gutter.run', localize('run test', 'Run Test'), undefined, undefined, () => this.testService.runTests({
-				debug: false,
+				group: TestRunProfileBitset.Run,
 				tests: [identifyTest(test)],
 			})));
 		}
 
-		if (test.item.debuggable) {
+		if (capabilities & TestRunProfileBitset.Debug) {
 			testActions.push(new Action('testing.gutter.debug', localize('debug test', 'Debug Test'), undefined, undefined, () => this.testService.runTests({
-				debug: true,
+				group: TestRunProfileBitset.Debug,
 				tests: [identifyTest(test)],
 			})));
 		}
 
-		testActions.push(new Action('testing.gutter.reveal', localize('reveal test', 'Reveal in Test Explorer'), undefined, undefined, async () => {
-			const path = [test];
-			while (true) {
-				const parentId = path[0].parent;
-				const parent = parentId && collection.getNodeById(parentId);
-				if (!parent) {
-					break;
+		if (capabilities & TestRunProfileBitset.HasNonDefaultProfile) {
+			testActions.push(new Action('testing.runUsing', localize('testing.runUsing', 'Execute Using Profile...'), undefined, undefined, async () => {
+				const profile: ITestRunProfile | undefined = await this.commandService.executeCommand('vscode.pickTestProfile', { onlyControllerId: test.controllerId });
+				if (!profile) {
+					return;
 				}
 
-				path.unshift(parent);
-			}
+				this.testService.runResolvedTests({
+					targets: [{
+						profileGroup: profile.group,
+						profileId: profile.profileId,
+						controllerId: profile.controllerId,
+						testIds: [test.item.extId]
+					}]
+				});
+			}));
+		}
 
-			await this.commandService.executeCommand('vscode.revealTestInExplorer', path.map(t => t.item.extId));
-		}));
+		testActions.push(new Action('testing.gutter.reveal', localize('reveal test', 'Reveal in Test Explorer'), undefined, undefined,
+			() => this.commandService.executeCommand('vscode.revealTestInExplorer', test.item.extId)));
 
 		return testActions;
 	}
@@ -446,8 +455,9 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 		@ICommandService commandService: ICommandService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ITestProfileService testProfiles: ITestProfileService,
 	) {
-		super(createRunTestDecoration(tests.map(t => t.test), tests.map(t => t.resultItem)), editor, testService, contextMenuService, commandService, configurationService);
+		super(createRunTestDecoration(tests.map(t => t.test), tests.map(t => t.resultItem)), editor, testService, contextMenuService, commandService, configurationService, testProfiles);
 	}
 
 	public override merge(test: IncrementalTestCollectionItem, resultItem: TestResultItem | undefined): RunTestDecoration {
@@ -458,11 +468,11 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 
 	protected override getContextMenuActions() {
 		const allActions: IAction[] = [];
-		if (this.tests.some(({ test }) => test.item.runnable)) {
+		if (this.tests.some(({ test }) => this.testProfileService.controllerCapabilities(test.controllerId) & TestRunProfileBitset.Run)) {
 			allActions.push(new Action('testing.gutter.runAll', localize('run all test', 'Run All Tests'), undefined, undefined, () => this.defaultRun()));
 		}
 
-		if (this.tests.some(({ test }) => test.item.debuggable)) {
+		if (this.tests.some(({ test }) => this.testProfileService.controllerCapabilities(test.controllerId) & TestRunProfileBitset.Debug)) {
 			allActions.push(new Action('testing.gutter.debugAll', localize('debug all test', 'Debug All Tests'), undefined, undefined, () => this.defaultDebug()));
 		}
 
@@ -474,19 +484,15 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 
 	protected override defaultRun() {
 		return this.testService.runTests({
-			tests: this.tests
-				.filter(({ test }) => test.item.runnable)
-				.map(({ test }) => identifyTest(test)),
-			debug: false,
+			tests: this.tests.map(({ test }) => identifyTest(test)),
+			group: TestRunProfileBitset.Run,
 		});
 	}
 
 	protected override defaultDebug() {
 		return this.testService.runTests({
-			tests: this.tests
-				.filter(({ test }) => test.item.debuggable)
-				.map(({ test }) => identifyTest(test)),
-			debug: true,
+			tests: this.tests.map(({ test }) => identifyTest(test)),
+			group: TestRunProfileBitset.Run,
 		});
 	}
 }
@@ -500,15 +506,16 @@ class RunSingleTestDecoration extends RunTestDecoration implements ITestDecorati
 		@ICommandService commandService: ICommandService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ITestProfileService testProfiles: ITestProfileService,
 	) {
-		super(createRunTestDecoration([test], [resultItem]), editor, testService, contextMenuService, commandService, configurationService);
+		super(createRunTestDecoration([test], [resultItem]), editor, testService, contextMenuService, commandService, configurationService, testProfiles);
 	}
 
 	public override merge(test: IncrementalTestCollectionItem, resultItem: TestResultItem | undefined): RunTestDecoration {
 		return new MultiRunTestDecoration([
 			{ test: this.test, resultItem: this.resultItem },
 			{ test, resultItem },
-		], this.editor, this.testService, this.commandService, this.contextMenuService, this.configurationService);
+		], this.editor, this.testService, this.commandService, this.contextMenuService, this.configurationService, this.testProfileService);
 	}
 
 	protected override getContextMenuActions(e: IEditorMouseEvent) {
@@ -516,24 +523,16 @@ class RunSingleTestDecoration extends RunTestDecoration implements ITestDecorati
 	}
 
 	protected override defaultRun() {
-		if (!this.test.item.runnable) {
-			return;
-		}
-
 		return this.testService.runTests({
 			tests: [identifyTest(this.test)],
-			debug: false,
+			group: TestRunProfileBitset.Run,
 		});
 	}
 
 	protected override defaultDebug() {
-		if (!this.test.item.debuggable) {
-			return;
-		}
-
 		return this.testService.runTests({
 			tests: [identifyTest(this.test)],
-			debug: true,
+			group: TestRunProfileBitset.Debug,
 		});
 	}
 }

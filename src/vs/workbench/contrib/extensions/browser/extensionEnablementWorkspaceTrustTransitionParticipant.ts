@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustTransitionParticipant } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustTransitionParticipant } from 'vs/platform/workspace/common/workspaceTrust';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -17,11 +17,12 @@ export class ExtensionEnablementWorkspaceTrustTransitionParticipant extends Disp
 		@IHostService hostService: IHostService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IWorkbenchExtensionEnablementService extensionEnablementService: IWorkbenchExtensionEnablementService,
+		@IWorkspaceTrustEnablementService workspaceTrustEnablementService: IWorkspaceTrustEnablementService,
 		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
-		if (workspaceTrustManagementService.workspaceTrustEnabled) {
+		if (workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
 			// The extension enablement participant will be registered only after the
 			// workspace trust state has been initialized. There is no need to execute
 			// the participant as part of the initialization process, as the workspace

@@ -235,6 +235,11 @@
 	flex-direction: column;
 }
 
+.monaco-workbench .terminal-overflow-guard {
+	overflow: hidden;
+	position: relative;
+}
+
 .monaco-workbench .pane-body.integrated-terminal .tabs-list-container {
 	height: 100%;
 	overflow: hidden;

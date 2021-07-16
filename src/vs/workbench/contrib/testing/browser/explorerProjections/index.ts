@@ -67,14 +67,9 @@ export interface IActionableTestTreeElement {
 	depth: number;
 
 	/**
-	 * Tests to debug when the 'debug' context action is taken on this item.
+	 * Iterable of the tests this element contains.
 	 */
-	debuggable: Iterable<ITestIdWithSrc>;
-
-	/**
-	 * Tests to run when the 'debug' context action is taken on this item.
-	 */
-	runnable: Iterable<ITestIdWithSrc>;
+	tests: Iterable<ITestIdWithSrc>;
 
 	/**
 	 * State to show on the item. This is generally the item's computed state
@@ -113,22 +108,8 @@ export class TestItemTreeElement implements IActionableTestTreeElement {
 	 */
 	public depth: number = this.parent ? this.parent.depth + 1 : 0;
 
-	/**
-	 * @inheritdoc
-	 */
-	public get runnable() {
-		return this.test.item.runnable
-			? Iterable.single(identifyTest(this.test))
-			: Iterable.empty();
-	}
-
-	/**
-	 * @inheritdoc
-	 */
-	public get debuggable() {
-		return this.test.item.debuggable
-			? Iterable.single(identifyTest(this.test))
-			: Iterable.empty();
+	public get tests() {
+		return Iterable.single(identifyTest(this.test));
 	}
 
 	public get description() {

@@ -27,6 +27,7 @@ import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IThemable } from 'vs/base/common/styler';
 import { createStyleSheet } from 'vs/base/browser/dom';
+import { ScrollableElementChangeOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import { timeout } from 'vs/base/common/async';
 
 interface ITraitChangeEvent {
@@ -281,7 +282,7 @@ class KeyboardController<T> implements IDisposable {
 		this.onKeyDown.filter(e => e.keyCode === KeyCode.PageDown).on(this.onPageDownArrow, this, this.disposables);
 		this.onKeyDown.filter(e => e.keyCode === KeyCode.Escape).on(this.onEscape, this, this.disposables);
 
-		if (options.multipleSelectionSupport) {
+		if (options.multipleSelectionSupport !== false) {
 			this.onKeyDown.filter(e => (platform.isMacintosh ? e.metaKey : e.ctrlKey) && e.keyCode === KeyCode.KEY_A).on(this.onCtrlA, this, this.multipleSelectionDisposables);
 		}
 	}
@@ -917,6 +918,7 @@ export interface IListOptions<T> extends IListOptionsUpdate {
 	readonly additionalScrollHeight?: number;
 	readonly transformOptimization?: boolean;
 	readonly smoothScrolling?: boolean;
+	readonly scrollableElementChangeOptions?: ScrollableElementChangeOptions;
 	readonly alwaysConsumeMouseWheel?: boolean;
 }
 
@@ -1346,7 +1348,7 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 			this.ariaLabel = this.accessibilityProvider.getWidgetAriaLabel();
 		}
 
-		if (this._options.multipleSelectionSupport) {
+		if (this._options.multipleSelectionSupport !== false) {
 			this.view.domNode.setAttribute('aria-multiselectable', 'true');
 		}
 	}

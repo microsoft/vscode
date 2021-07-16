@@ -47,6 +47,7 @@ import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtens
 import { ExtHostInteractive } from 'vs/workbench/api/common/extHostInteractive';
 import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { DebugConfigurationProviderTriggerKind, TestResultState } from 'vs/workbench/api/common/extHostTypes';
+import { TreeDataTransferDTO } from 'vs/workbench/api/common/shared/treeDataTransfer';
 import * as tasks from 'vs/workbench/api/common/shared/tasks';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { IRevealOptions, ITreeItem } from 'vs/workbench/common/views';
@@ -57,8 +58,9 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { ExtensionRunTestsRequest, ISerializedTestResults, ITestItem, ITestMessage, ITestRunTask, RunTestForControllerRequest, RunTestsRequest, ITestIdWithSrc, TestsDiff, IFileCoverage, CoverageDetails } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ExtensionRunTestsRequest, ISerializedTestResults, ITestItem, ITestMessage, ITestRunTask, RunTestForControllerRequest, ResolvedTestRunRequest, ITestIdWithSrc, TestsDiff, IFileCoverage, CoverageDetails, ITestRunProfile } from 'vs/workbench/contrib/testing/common/testCollection';
 import { InternalTimelineOptions, Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
+import { TypeHierarchyItem } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ActivationKind, ExtensionHostKind, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
 import { createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId, IRPCProtocol } from 'vs/workbench/services/extensions/common/proxyIdentifier';
@@ -77,6 +79,7 @@ export interface IEnvironment {
 	globalStorageHome: URI;
 	workspaceStorageHome: URI;
 	useHostProxy?: boolean;
+	skipWorkspaceStorageLock?: boolean;
 }
 
 export interface IStaticWorkspaceData {
@@ -413,6 +416,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$emitFoldingRangeEvent(eventHandle: number, event?: any): void;
 	$registerSelectionRangeProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerCallHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void;
+	$registerTypeHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: ILanguageConfigurationDto): void;
 }
 
@@ -467,6 +471,7 @@ export interface TerminalLaunchConfig {
 	cwd?: string | UriComponents;
 	env?: ITerminalEnvironment;
 	icon?: URI | { light: URI; dark: URI } | ThemeIcon;
+	color?: string;
 	initialText?: string;
 	waitOnExit?: boolean;
 	strictEnv?: boolean;
@@ -1039,7 +1044,7 @@ export interface SCMGroupFeatures {
 export type SCMRawResource = [
 	number /*handle*/,
 	UriComponents /*resourceUri*/,
-	UriComponents[] /*icons: light, dark*/,
+	[UriComponents | ThemeIcon | undefined, UriComponents | ThemeIcon | undefined] /*icons: light, dark*/,
 	string /*tooltip*/,
 	boolean /*strike through*/,
 	boolean /*faded*/,
@@ -1236,7 +1241,7 @@ export interface ExtHostDocumentsAndEditorsShape {
 
 export interface ExtHostTreeViewsShape {
 	$getChildren(treeViewId: string, treeItemHandle?: string): Promise<ITreeItem[]>;
-	$onDrop(treeViewId: string, treeItemHandle: string[], newParentTreeItemHandle: string): Promise<void>;
+	$onDrop(treeViewId: string, treeDataTransfer: TreeDataTransferDTO, newParentTreeItemHandle: string): Promise<void>;
 	$setExpanded(treeViewId: string, treeItemHandle: string, expanded: boolean): void;
 	$setSelection(treeViewId: string, treeItemHandles: string[]): void;
 	$setVisible(treeViewId: string, visible: boolean): void;
@@ -1281,7 +1286,6 @@ export interface ExtHostAuthenticationShape {
 	$createSession(id: string, scopes: string[]): Promise<modes.AuthenticationSession>;
 	$removeSession(id: string, sessionId: string): Promise<void>;
 	$onDidChangeAuthenticationSessions(id: string, label: string): Promise<void>;
-	$onDidChangeAuthenticationProviders(added: modes.AuthenticationProviderInformation[], removed: modes.AuthenticationProviderInformation[]): Promise<void>;
 	$setProviders(providers: modes.AuthenticationProviderInformation[]): Promise<void>;
 }
 
@@ -1628,6 +1632,8 @@ export interface IInlineValueContextDto {
 	stoppedLocation: IRange;
 }
 
+export type ITypeHierarchyItemDto = Dto<TypeHierarchyItem>;
+
 export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: UriComponents, token: CancellationToken): Promise<modes.DocumentSymbol[] | undefined>;
 	$provideCodeLenses(handle: number, resource: UriComponents, token: CancellationToken): Promise<ICodeLensListDto | undefined>;
@@ -1678,6 +1684,10 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideCallHierarchyOutgoingCalls(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<IOutgoingCallDto[] | undefined>;
 	$releaseCallHierarchy(handle: number, sessionId: string): void;
 	$setWordDefinitions(wordDefinitions: ILanguageWordDefinitionDto[]): void;
+	$prepareTypeHierarchy(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<ITypeHierarchyItemDto[] | undefined>;
+	$provideTypeHierarchySupertypes(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<ITypeHierarchyItemDto[] | undefined>;
+	$provideTypeHierarchySubtypes(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<ITypeHierarchyItemDto[] | undefined>;
+	$releaseTypeHierarchy(handle: number, sessionId: string): void;
 }
 
 export interface ExtHostQuickOpenShape {
@@ -2088,11 +2098,17 @@ export interface ExtHostTestingShape {
 	 * Requires file coverage to have been previously requested via $provideFileCoverage.
 	 */
 	$resolveFileCoverage(runId: string, taskId: string, fileIndex: number, token: CancellationToken): Promise<CoverageDetails[]>;
+	/** Configures a test run config. */
+	$configureRunProfile(controllerId: string, configId: number): void;
 }
 
 export interface MainThreadTestingShape {
-	/** Registeres that there's a test controller with the given ID */
-	$registerTestController(controllerId: string): void;
+	// --- test lifecycle:
+
+	/** Registers that there's a test controller with the given ID */
+	$registerTestController(controllerId: string, label: string): void;
+	/** Updates the label of an existing test controller. */
+	$updateControllerLabel(controllerId: string, label: string): void;
 	/** Diposes of the test controller with the given ID */
 	$unregisterTestController(controllerId: string): void;
 	/** Requests tests published to VS Code. */
@@ -2101,11 +2117,21 @@ export interface MainThreadTestingShape {
 	$unsubscribeFromDiffs(): void;
 	/** Publishes that new tests were available on the given source. */
 	$publishDiff(controllerId: string, diff: TestsDiff): void;
-	/** Request by an extension to run tests. */
-	$runTests(req: RunTestsRequest, token: CancellationToken): Promise<string>;
+
+	// --- test run configurations:
+
+	/** Called when a new test run configuration is available */
+	$publishTestRunProfile(config: ITestRunProfile): void;
+	/** Updates an existing test run configuration */
+	$updateTestRunConfig(controllerId: string, configId: number, update: Partial<ITestRunProfile>): void;
+	/** Removes a previously-published test run config */
+	$removeTestProfile(controllerId: string, configId: number): void;
+
 
 	// --- test run handling:
 
+	/** Request by an extension to run tests. */
+	$runTests(req: ResolvedTestRunRequest, token: CancellationToken): Promise<string>;
 	/**
 	 * Adds tests to the run. The tests are given in descending depth. The first
 	 * item will be a previously-known test, or a test root.

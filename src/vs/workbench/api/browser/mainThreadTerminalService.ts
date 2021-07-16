@@ -10,9 +10,9 @@ import { URI } from 'vs/base/common/uri';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensions, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensions, TerminalLocation, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
-import { ITerminalExternalLinkProvider, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalLink, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalLink, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
 import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { deserializeEnvironmentVariableCollection, serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
@@ -54,7 +54,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		@ILogService private readonly _logService: ILogService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
+		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService
 	) {
 		this._proxy = _extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
 
@@ -130,6 +131,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			args: launchConfig.shellArgs,
 			cwd: typeof launchConfig.cwd === 'string' ? launchConfig.cwd : URI.revive(launchConfig.cwd),
 			icon: launchConfig.icon,
+			color: launchConfig.color,
 			initialText: launchConfig.initialText,
 			waitOnExit: launchConfig.waitOnExit,
 			ignoreConfigurationCwd: true,
@@ -164,14 +166,18 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		const terminalInstance = this._getTerminalInstance(id);
 		if (terminalInstance) {
 			this._terminalService.setActiveInstance(terminalInstance);
-			this._terminalGroupService.showPanel(!preserveFocus);
+			if (terminalInstance.target === TerminalLocation.Editor) {
+				this._terminalEditorService.revealActiveEditor(preserveFocus);
+			} else {
+				this._terminalGroupService.showPanel(!preserveFocus);
+			}
 		}
 	}
 
 	public $hide(id: TerminalIdentifier): void {
 		const rendererId = this._getTerminalId(id);
 		const instance = this._terminalService.activeInstance;
-		if (instance && instance.instanceId === rendererId) {
+		if (instance && instance.instanceId === rendererId && instance.target !== TerminalLocation.Editor) {
 			this._terminalGroupService.hidePanel();
 		}
 	}

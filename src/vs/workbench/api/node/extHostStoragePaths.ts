@@ -22,6 +22,11 @@ export class ExtensionStoragePaths extends CommonExtensionStoragePaths {
 			return workspaceStorageURI;
 		}
 
+		if (this._environment.skipWorkspaceStorageLock) {
+			this._logService.info(`Skipping acquiring lock for ${workspaceStorageURI.fsPath}.`);
+			return workspaceStorageURI;
+		}
+
 		const workspaceStorageBase = workspaceStorageURI.fsPath;
 		let attempt = 0;
 		do {

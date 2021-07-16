@@ -12,6 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITerminalInstance, Direction, ITerminalGroup, ITerminalService, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
 import { IShellLaunchConfig, ITerminalTabLayoutInfoById } from 'vs/platform/terminal/common/terminal';
+import { TerminalStatus } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 
 const SPLIT_PANE_MIN_SIZE = 120;
 
@@ -142,6 +143,7 @@ class SplitPaneContainer extends Disposable {
 		if (index !== null) {
 			this._children.splice(index, 1);
 			this._splitView.removeView(index, Sizing.Distribute);
+			instance.detachFromElement();
 		}
 	}
 
@@ -336,7 +338,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 				this._onDidDisposeInstance.fire(instance);
 				this._handleOnDidDisposeInstance(instance);
 			}),
-			instance.onFocused(instance => {
+			instance.onDidFocus(instance => {
 				this._setActiveInstance(instance);
 				this._onDidFocusInstance.fire(instance);
 			})
@@ -465,20 +467,27 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 			// this is required when the group is used as part of a tree.
 			return '';
 		}
-		let title = this.terminalInstances[0].title;
+		let title = this.terminalInstances[0].title + this._getBellTitle(this.terminalInstances[0]);
 		if (this.terminalInstances[0].shellLaunchConfig.description) {
 			title += ` (${this.terminalInstances[0].shellLaunchConfig.description})`;
 		}
 		for (let i = 1; i < this.terminalInstances.length; i++) {
 			const instance = this.terminalInstances[i];
 			if (instance.title) {
-				title += `, ${instance.title}`;
+				title += `, ${instance.title + this._getBellTitle(instance)}`;
 				if (instance.shellLaunchConfig.description) {
 					title += ` (${instance.shellLaunchConfig.description})`;
 				}
 			}
 		}
 		return title;
+	}
+
+	private _getBellTitle(instance: ITerminalInstance) {
+		if (this._terminalService.configHelper.config.enableBell && instance.statusList.statuses.find(e => e.id === TerminalStatus.Bell)) {
+			return '*';
+		}
+		return '';
 	}
 
 	setVisible(visible: boolean): void {
