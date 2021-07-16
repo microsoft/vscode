@@ -139,6 +139,14 @@ export interface CommitOptions {
 	requireUserConfig?: boolean;
 }
 
+export interface FetchOptions {
+	remote?: string;
+	ref?: string;
+	all?: boolean;
+	prune?: boolean;
+	depth?: number;
+}
+
 export interface BranchQuery {
 	readonly remote?: boolean;
 	readonly pattern?: string;
@@ -197,6 +205,7 @@ export interface Repository {
 	removeRemote(name: string): Promise<void>;
 	renameRemote(name: string, newName: string): Promise<void>;
 
+	fetch(options?: FetchOptions): Promise<void>;
 	fetch(remote?: string, ref?: string, depth?: number): Promise<void>;
 	pull(unshallow?: boolean): Promise<void>;
 	push(remoteName?: string, branchName?: string, setUpstream?: boolean, force?: ForcePushMode): Promise<void>;

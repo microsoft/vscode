@@ -317,7 +317,10 @@ export class AzureActiveDirectoryService {
 		}
 
 		return new Promise(async (resolve, reject) => {
-			if (vscode.env.remoteName !== undefined) {
+			const runsRemote = vscode.env.remoteName !== undefined;
+			const runsServerless = vscode.env.remoteName === undefined && vscode.env.uiKind === vscode.UIKind.Web;
+
+			if (runsRemote || runsServerless) {
 				resolve(this.loginWithoutLocalServer(scope));
 				return;
 			}
@@ -393,19 +396,19 @@ export class AzureActiveDirectoryService {
 	}
 
 	private getCallbackEnvironment(callbackUri: vscode.Uri): string {
-		if (callbackUri.authority.endsWith('.workspaces.github.com') || callbackUri.authority.endsWith('.github.dev')) {
-			return `${callbackUri.authority},`;
+		if (callbackUri.scheme !== 'https' && callbackUri.scheme !== 'http') {
+			return callbackUri.scheme;
 		}
 
 		switch (callbackUri.authority) {
 			case 'online.visualstudio.com':
-				return 'vso,';
+				return 'vso';
 			case 'online-ppe.core.vsengsaas.visualstudio.com':
-				return 'vsoppe,';
+				return 'vsoppe';
 			case 'online.dev.core.vsengsaas.visualstudio.com':
-				return 'vsodev,';
+				return 'vsodev';
 			default:
-				return `${callbackUri.scheme},`;
+				return callbackUri.authority;
 		}
 	}
 
@@ -414,7 +417,7 @@ export class AzureActiveDirectoryService {
 		const nonce = randomBytes(16).toString('base64');
 		const port = (callbackUri.authority.match(/:([0-9]*)$/) || [])[1] || (callbackUri.scheme === 'https' ? 443 : 80);
 		const callbackEnvironment = this.getCallbackEnvironment(callbackUri);
-		const state = `${callbackEnvironment}${port},${encodeURIComponent(nonce)},${encodeURIComponent(callbackUri.query)}`;
+		const state = `${callbackEnvironment},${port},${encodeURIComponent(nonce)},${encodeURIComponent(callbackUri.query)}`;
 		const signInUrl = `${loginEndpointUrl}${tenant}/oauth2/v2.0/authorize`;
 		let uri = vscode.Uri.parse(signInUrl);
 		const codeVerifier = toBase64UrlEncoding(randomBytes(32).toString('base64'));
@@ -563,7 +566,8 @@ export class AzureActiveDirectoryService {
 			});
 
 			const proxyEndpoints: { [providerId: string]: string } | undefined = await vscode.commands.executeCommand('workbench.getCodeExchangeProxyEndpoints');
-			const endpoint = proxyEndpoints && proxyEndpoints['microsoft'] || `${loginEndpointUrl}${tenant}/oauth2/v2.0/token`;
+			const endpointUrl = proxyEndpoints?.microsoft || loginEndpointUrl;
+			const endpoint = `${endpointUrl}${tenant}/oauth2/v2.0/token`;
 
 			const result = await fetch(endpoint, {
 				method: 'POST',
@@ -599,7 +603,10 @@ export class AzureActiveDirectoryService {
 
 		let result: Response;
 		try {
-			result = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
+			const proxyEndpoints: { [providerId: string]: string } | undefined = await vscode.commands.executeCommand('workbench.getCodeExchangeProxyEndpoints');
+			const endpointUrl = proxyEndpoints?.microsoft || loginEndpointUrl;
+			const endpoint = `${endpointUrl}${tenant}/oauth2/v2.0/token`;
+			result = await fetch(endpoint, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/x-www-form-urlencoded',
@@ -654,7 +661,8 @@ export class AzureActiveDirectoryService {
 
 		this._refreshTimeouts.set(sessionId, setTimeout(async () => {
 			try {
-				await this.refreshToken(refreshToken, scope, sessionId);
+				const refreshedToken = await this.refreshToken(refreshToken, scope, sessionId);
+				onDidChangeSessions.fire({ added: [], removed: [], changed: [this.convertToSessionSync(refreshedToken)] });
 			} catch (e) {
 				this.pollForReconnect(sessionId, refreshToken, scope);
 			}
@@ -668,21 +676,14 @@ export class AzureActiveDirectoryService {
 				return resolve(false);
 			}
 
-			if (attempts === 1) {
-				const token = this._tokens.find(token => token.sessionId === sessionId);
-				if (token) {
-					token.accessToken = undefined;
-					onDidChangeSessions.fire({ added: [], removed: [], changed: [this.convertToSessionSync(token)] });
-				}
-			}
-
 			const delayBeforeRetry = 5 * attempts * attempts;
 
 			this.clearSessionTimeout(sessionId);
 
 			this._refreshTimeouts.set(sessionId, setTimeout(async () => {
 				try {
-					await this.refreshToken(refreshToken, scope, sessionId);
+					const refreshedToken = await this.refreshToken(refreshToken, scope, sessionId);
+					onDidChangeSessions.fire({ added: [], removed: [], changed: [this.convertToSessionSync(refreshedToken)] });
 					return resolve(true);
 				} catch (e) {
 					return resolve(await this.handleRefreshNetworkError(sessionId, refreshToken, scope, attempts + 1));

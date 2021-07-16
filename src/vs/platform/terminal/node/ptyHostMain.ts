@@ -13,6 +13,9 @@ import { HeartbeatService } from 'vs/platform/terminal/node/heartbeatService';
 
 const server = new Server('ptyHost');
 
+const lastPtyId = parseInt(process.env.VSCODE_LAST_PTY_ID || '0');
+delete process.env.VSCODE_LAST_PTY_ID;
+
 const logService = new LogService(new ConsoleLogger());
 const logChannel = new LogLevelChannel(logService);
 server.registerChannel(TerminalIpcChannels.Log, logChannel);
@@ -20,7 +23,11 @@ server.registerChannel(TerminalIpcChannels.Log, logChannel);
 const heartbeatService = new HeartbeatService();
 server.registerChannel(TerminalIpcChannels.Heartbeat, ProxyChannel.fromService(heartbeatService));
 
-const ptyService = new PtyService(logService);
+const reconnectConstants = { GraceTime: parseInt(process.env.VSCODE_RECONNECT_GRACE_TIME || '0'), ShortGraceTime: parseInt(process.env.VSCODE_RECONNECT_SHORT_GRACE_TIME || '0') };
+delete process.env.VSCODE_RECONNECT_GRACE_TIME;
+delete process.env.VSCODE_RECONNECT_SHORT_GRACE_TIME;
+
+const ptyService = new PtyService(lastPtyId, logService, reconnectConstants);
 server.registerChannel(TerminalIpcChannels.PtyHost, ProxyChannel.fromService(ptyService));
 
 process.once('exit', () => {

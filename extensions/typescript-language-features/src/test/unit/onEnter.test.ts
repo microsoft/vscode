@@ -110,4 +110,15 @@ suite.skip('OnEnter', () => {
 					` * x`));
 		});
 	});
+
+	test('should indent after if block followed by comment with quote', () => {
+		return withRandomFileEditor(`if (true) { // '${CURSOR}`, 'js', async (_editor, document) => {
+			await type(document, '\nx');
+			assert.strictEqual(
+				document.getText(),
+				joinLines(
+					`if (true) { // '`,
+					`    x`));
+		});
+	});
 });

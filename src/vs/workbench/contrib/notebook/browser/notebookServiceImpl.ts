@@ -4,90 +4,63 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
-import { flatten } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
+import * as glob from 'vs/base/common/glob';
 import { Iterable } from 'vs/base/common/iterator';
+import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
+import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import * as UUID from 'vs/base/common/uuid';
-import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/clipboard';
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Memento } from 'vs/workbench/common/memento';
-import { INotebookEditorContribution, notebookMarkdownRendererExtensionPoint, notebookProviderExtensionPoint, notebookRendererExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
-import { CellEditState, getActiveNotebookEditor, ICellViewModel, INotebookEditor, NotebookEditorOptions, updateEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookKernelProviderAssociationRegistry, NotebookViewTypesExtensionRegistry, updateNotebookKernelProvideAssociationSchema } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { INotebookEditorContribution, notebooksExtensionPoint, notebookRendererExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
+import { INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellEditType, CellKind, DisplayOrderKey, ICellEditOperation, INotebookDecorationRenderOptions, INotebookKernel, INotebookKernelProvider, INotebookMarkdownRendererInfo, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, NotebookDataDto, notebookDocumentFilterMatch, NotebookEditorPriority, NOTEBOOK_DISPLAY_ORDER, RENDERER_NOT_AVAILABLE, sortMimeTypes, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookMarkdownRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookMarkdownRenderer';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellUri, DisplayOrderKey, INotebookExclusiveDocumentFilter, INotebookContributionData, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, NotebookData, NotebookEditorPriority, NotebookRendererMatch, NotebookTextDiffEditorPreview, RENDERER_NOT_AVAILABLE, sortMimeTypes, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { updateEditorTopPadding } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { NotebookEditorDescriptor, NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
-import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { ICustomEditorInfo, ICustomEditorViewTypesHandler, IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ComplexNotebookProviderInfo, INotebookContentProvider, INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { RegisteredEditorInfo, RegisteredEditorPriority, DiffEditorInputFactoryFunction, EditorInputFactoryFunction, IEditorResolverService, IEditorType, UntitledEditorInputFactoryFunction } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
-export class NotebookKernelProviderInfoStore {
-	private readonly _notebookKernelProviders: INotebookKernelProvider[] = [];
-
-	add(provider: INotebookKernelProvider) {
-		this._notebookKernelProviders.push(provider);
-		this._updateProviderExtensionsInfo();
-
-		return toDisposable(() => {
-			const idx = this._notebookKernelProviders.indexOf(provider);
-			if (idx >= 0) {
-				this._notebookKernelProviders.splice(idx, 1);
-			}
-
-			this._updateProviderExtensionsInfo();
-		});
-	}
-
-	get(viewType: string, resource: URI) {
-		return this._notebookKernelProviders.filter(provider => notebookDocumentFilterMatch(provider.selector, viewType, resource));
-	}
-
-	getContributedKernelProviders() {
-		return [...this._notebookKernelProviders];
-	}
-
-	private _updateProviderExtensionsInfo() {
-		NotebookKernelProviderAssociationRegistry.extensionIds.length = 0;
-		NotebookKernelProviderAssociationRegistry.extensionDescriptions.length = 0;
-
-		this._notebookKernelProviders.forEach(provider => {
-			NotebookKernelProviderAssociationRegistry.extensionIds.push(provider.providerExtensionId);
-			NotebookKernelProviderAssociationRegistry.extensionDescriptions.push(provider.providerDescription || '');
-		});
-
-		updateNotebookKernelProvideAssociationSchema();
-	}
-}
-
 export class NotebookProviderInfoStore extends Disposable {
+
 	private static readonly CUSTOM_EDITORS_STORAGE_ID = 'notebookEditors';
 	private static readonly CUSTOM_EDITORS_ENTRY_ID = 'editors';
 
 	private readonly _memento: Memento;
 	private _handled: boolean = false;
-	constructor(
-		storageService: IStorageService,
-		extensionService: IExtensionService
 
+	private _untitledCounter = 1;
+
+	private readonly _contributedEditors = new Map<string, NotebookProviderInfo>();
+	private readonly _contributedEditorDisposables = new DisposableStore();
+
+	constructor(
+		@IStorageService storageService: IStorageService,
+		@IExtensionService extensionService: IExtensionService,
+		@IEditorResolverService private readonly _editorResolverService: IEditorResolverService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 		this._memento = new Memento(NotebookProviderInfoStore.CUSTOM_EDITORS_STORAGE_ID, storageService);
@@ -97,37 +70,53 @@ export class NotebookProviderInfoStore extends Disposable {
 			this.add(new NotebookProviderInfo(info));
 		}
 
-		this._updateProviderExtensionsInfo();
-
 		this._register(extensionService.onDidRegisterExtensions(() => {
 			if (!this._handled) {
 				// there is no extension point registered for notebook content provider
 				// clear the memento and cache
-				this.clear();
+				this._clear();
 				mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = [];
 				this._memento.saveMemento();
-
-				this._updateProviderExtensionsInfo();
 			}
 		}));
+
+		notebooksExtensionPoint.setHandler(extensions => this._setupHandler(extensions));
 	}
 
-	setupHandler(extensions: readonly IExtensionPointUser<INotebookEditorContribution[]>[]) {
+	override dispose(): void {
+		this._clear();
+		super.dispose();
+	}
+
+	private _setupHandler(extensions: readonly IExtensionPointUser<INotebookEditorContribution[]>[]) {
 		this._handled = true;
-		this.clear();
+		const builtins: NotebookProviderInfo[] = [...this._contributedEditors.values()].filter(info => !info.extension);
+		this._clear();
+
+		builtins.forEach(builtin => {
+			this.add(builtin);
+		});
 
 		for (const extension of extensions) {
 			for (const notebookContribution of extension.value) {
+
+				if (!notebookContribution.type) {
+					extension.collector.error(`Notebook does not specify type-property`);
+					continue;
+				}
+
+				if (this.get(notebookContribution.type)) {
+					extension.collector.error(`Notebook type '${notebookContribution.type}' already used`);
+					continue;
+				}
+
 				this.add(new NotebookProviderInfo({
-					id: notebookContribution.viewType,
+					extension: extension.description.identifier,
+					id: notebookContribution.type,
 					displayName: notebookContribution.displayName,
 					selectors: notebookContribution.selector || [],
 					priority: this._convertPriority(notebookContribution.priority),
-					providerExtensionId: extension.description.identifier.value,
-					providerDescription: extension.description.description,
-					providerDisplayName: extension.description.isBuiltin ? nls.localize('builtinProviderDisplayName', "Built-in") : extension.description.displayName || extension.description.identifier.value,
-					providerExtensionLocation: extension.description.extensionLocation,
-					dynamicContribution: false,
+					providerDisplayName: extension.description.isBuiltin ? localize('builtinProviderDisplayName', "Built-in") : extension.description.displayName || extension.description.identifier.value,
 					exclusive: false
 				}));
 			}
@@ -136,76 +125,154 @@ export class NotebookProviderInfoStore extends Disposable {
 		const mementoObject = this._memento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
 		mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = Array.from(this._contributedEditors.values());
 		this._memento.saveMemento();
-
-		this._updateProviderExtensionsInfo();
-	}
-
-	private _updateProviderExtensionsInfo() {
-		NotebookViewTypesExtensionRegistry.viewTypes.length = 0;
-		NotebookViewTypesExtensionRegistry.viewTypeDescriptions.length = 0;
-
-		for (const contribute of this._contributedEditors) {
-			if (contribute[1].providerExtensionId) {
-				NotebookViewTypesExtensionRegistry.viewTypes.push(contribute[1].id);
-				NotebookViewTypesExtensionRegistry.viewTypeDescriptions.push(`${contribute[1].displayName}`);
-			}
-		}
-
-		updateNotebookKernelProvideAssociationSchema();
 	}
 
 	private _convertPriority(priority?: string) {
 		if (!priority) {
-			return NotebookEditorPriority.default;
+			return RegisteredEditorPriority.default;
 		}
 
 		if (priority === NotebookEditorPriority.default) {
-			return NotebookEditorPriority.default;
+			return RegisteredEditorPriority.default;
 		}
 
-		return NotebookEditorPriority.option;
+		return RegisteredEditorPriority.option;
 
 	}
 
-	private readonly _contributedEditors = new Map<string, NotebookProviderInfo>();
+	private _registerContributionPoint(notebookProviderInfo: NotebookProviderInfo): IDisposable {
 
-	clear() {
+		const disposables = new DisposableStore();
+
+		for (const selector of notebookProviderInfo.selectors) {
+			const globPattern = (selector as INotebookExclusiveDocumentFilter).include || selector as glob.IRelativePattern | string;
+			const notebookEditorInfo: RegisteredEditorInfo = {
+				id: notebookProviderInfo.id,
+				label: notebookProviderInfo.displayName,
+				detail: notebookProviderInfo.providerDisplayName,
+				priority: notebookProviderInfo.exclusive ? RegisteredEditorPriority.exclusive : notebookProviderInfo.priority,
+			};
+			const notebookEditorOptions = {
+				canHandleDiff: () => !!this._configurationService.getValue(NotebookTextDiffEditorPreview) && !this._accessibilityService.isScreenReaderOptimized(),
+				canSupportResource: (resource: URI) => resource.scheme === Schemas.untitled || resource.scheme === Schemas.vscodeNotebookCell || this._fileService.canHandleResource(resource)
+			};
+			const notebookEditorInputFactory: EditorInputFactoryFunction = ({ resource, options }) => {
+				const data = CellUri.parse(resource);
+				let notebookUri: URI = resource;
+				let cellOptions: IResourceEditorInput | undefined;
+
+				if (data) {
+					notebookUri = data.notebook;
+					cellOptions = { resource, options };
+				}
+
+				const notebookOptions: INotebookEditorOptions = { ...options, cellOptions };
+				return { editor: NotebookEditorInput.create(this._instantiationService, notebookUri, notebookProviderInfo.id), options: notebookOptions };
+			};
+			const notebookUntitledEditorFactory: UntitledEditorInputFactoryFunction = ({ resource, options }) => {
+				if (!resource) {
+					resource = URI.from({
+						scheme: Schemas.untitled,
+						path: `Untitled-${this._untitledCounter++}`
+					});
+				}
+				return { editor: NotebookEditorInput.create(this._instantiationService, resource.with({ scheme: Schemas.untitled }), notebookProviderInfo.id), options };
+			};
+			const notebookDiffEditorInputFactory: DiffEditorInputFactoryFunction = ({ modified, original }) => {
+				return { editor: NotebookDiffEditorInput.create(this._instantiationService, modified.resource!, undefined, undefined, original.resource!, notebookProviderInfo.id) };
+			};
+			// Register the notebook editor
+			disposables.add(this._editorResolverService.registerEditor(
+				globPattern,
+				notebookEditorInfo,
+				notebookEditorOptions,
+				notebookEditorInputFactory,
+				notebookUntitledEditorFactory,
+				notebookDiffEditorInputFactory
+			));
+			// Then register the schema handler as exclusive for that notebook
+			disposables.add(this._editorResolverService.registerEditor(
+				`${Schemas.vscodeNotebookCell}:/**/${globPattern}`,
+				{ ...notebookEditorInfo, priority: RegisteredEditorPriority.exclusive },
+				notebookEditorOptions,
+				notebookEditorInputFactory,
+				undefined,
+				notebookDiffEditorInputFactory
+			));
+		}
+
+		return disposables;
+	}
+
+
+	private _clear(): void {
 		this._contributedEditors.clear();
+		this._contributedEditorDisposables.clear();
 	}
 
 	get(viewType: string): NotebookProviderInfo | undefined {
 		return this._contributedEditors.get(viewType);
 	}
 
-	add(info: NotebookProviderInfo): void {
+	add(info: NotebookProviderInfo): IDisposable {
 		if (this._contributedEditors.has(info.id)) {
-			return;
+			throw new Error(`notebook type '${info.id}' ALREADY EXISTS`);
 		}
 		this._contributedEditors.set(info.id, info);
+		const editorRegistration = this._registerContributionPoint(info);
+		this._contributedEditorDisposables.add(editorRegistration);
 
 		const mementoObject = this._memento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
 		mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = Array.from(this._contributedEditors.values());
 		this._memento.saveMemento();
+
+		return toDisposable(() => {
+			const mementoObject = this._memento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
+			mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = Array.from(this._contributedEditors.values());
+			this._memento.saveMemento();
+			editorRegistration.dispose();
+			this._contributedEditors.delete(info.id);
+		});
 	}
 
 	getContributedNotebook(resource: URI): readonly NotebookProviderInfo[] {
-		return [...Iterable.filter(this._contributedEditors.values(), customEditor => resource.scheme === 'untitled' || customEditor.matches(resource))];
+		const result: NotebookProviderInfo[] = [];
+		for (let info of this._contributedEditors.values()) {
+			if (info.matches(resource)) {
+				result.push(info);
+			}
+		}
+		if (result.length === 0 && resource.scheme === Schemas.untitled) {
+			// untitled resource and no path-specific match => all providers apply
+			return Array.from(this._contributedEditors.values());
+		}
+		return result;
 	}
 
-	public [Symbol.iterator](): Iterator<NotebookProviderInfo> {
+	[Symbol.iterator](): Iterator<NotebookProviderInfo> {
 		return this._contributedEditors.values();
 	}
 }
 
 export class NotebookOutputRendererInfoStore {
 	private readonly contributedRenderers = new Map<string, NotebookOutputRendererInfo>();
+	private readonly preferredMimetypeMemento: Memento;
+	private readonly preferredMimetype = new Lazy(() => this.preferredMimetypeMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.USER));
+
+	constructor(@IStorageService storageService: IStorageService) {
+		this.preferredMimetypeMemento = new Memento('workbench.editor.notebook.preferredRenderer', storageService);
+	}
 
 	clear() {
 		this.contributedRenderers.clear();
 	}
 
-	get(viewType: string): NotebookOutputRendererInfo | undefined {
-		return this.contributedRenderers.get(viewType);
+	get(rendererId: string): NotebookOutputRendererInfo | undefined {
+		return this.contributedRenderers.get(rendererId);
+	}
+
+	getAll(): NotebookOutputRendererInfo[] {
+		return Array.from(this.contributedRenderers.values());
 	}
 
 	add(info: NotebookOutputRendererInfo): void {
@@ -215,9 +282,26 @@ export class NotebookOutputRendererInfoStore {
 		this.contributedRenderers.set(info.id, info);
 	}
 
-	getContributedRenderer(mimeType: string): readonly NotebookOutputRendererInfo[] {
-		return Array.from(this.contributedRenderers.values()).filter(customEditor =>
-			customEditor.matches(mimeType));
+	/** Update and remember the preferred renderer for the given mimetype in this workspace */
+	setPreferred(mimeType: string, rendererId: string) {
+		this.preferredMimetype.getValue()[mimeType] = rendererId;
+		this.preferredMimetypeMemento.saveMemento();
+	}
+
+	getContributedRenderer(mimeType: string, kernelProvides: readonly string[] | undefined): NotebookOutputRendererInfo[] {
+		const preferred = this.preferredMimetype.getValue()[mimeType];
+		const possible = Array.from(this.contributedRenderers.values())
+			.map(renderer => ({
+				renderer,
+				score: kernelProvides === undefined
+					? renderer.matchesWithoutKernel(mimeType)
+					: renderer.matches(mimeType, kernelProvides),
+			}))
+			.sort((a, b) => a.score - b.score)
+			.filter(r => r.score !== NotebookRendererMatch.Never)
+			.map(r => r.renderer);
+
+		return preferred ? possible.sort((a, b) => (a.id === preferred ? -1 : 0) + (b.id === preferred ? 1 : 0)) : possible;
 	}
 }
 
@@ -225,7 +309,7 @@ class ModelData implements IDisposable {
 	private readonly _modelEventListeners = new DisposableStore();
 
 	constructor(
-		public model: NotebookTextModel,
+		readonly model: NotebookTextModel,
 		onWillDispose: (model: INotebookTextModel) => void
 	) {
 		this._modelEventListeners.add(model.onWillDispose(() => onWillDispose(model)));
@@ -236,129 +320,85 @@ class ModelData implements IDisposable {
 	}
 }
 
-export class NotebookService extends Disposable implements INotebookService, ICustomEditorViewTypesHandler {
-	declare readonly _serviceBrand: undefined;
-	private readonly _notebookProviders = new Map<string, { controller: IMainNotebookController, extensionData: NotebookExtensionDescription; }>();
-	notebookProviderInfoStore: NotebookProviderInfoStore;
-	notebookRenderersInfoStore: NotebookOutputRendererInfoStore = new NotebookOutputRendererInfoStore();
-	private readonly markdownRenderersInfos = new Set<INotebookMarkdownRendererInfo>();
-	notebookKernelProviderInfoStore: NotebookKernelProviderInfoStore = new NotebookKernelProviderInfoStore();
-	private readonly _models = new ResourceMap<ModelData>();
-	private _onDidChangeActiveEditor = new Emitter<string | null>();
-	onDidChangeActiveEditor: Event<string | null> = this._onDidChangeActiveEditor.event;
-	private _activeEditorDisposables = new DisposableStore();
-	private _onDidChangeVisibleEditors = new Emitter<string[]>();
-	onDidChangeVisibleEditors: Event<string[]> = this._onDidChangeVisibleEditors.event;
-	private readonly _onNotebookEditorAdd: Emitter<INotebookEditor> = this._register(new Emitter<INotebookEditor>());
-	public readonly onNotebookEditorAdd: Event<INotebookEditor> = this._onNotebookEditorAdd.event;
-	private readonly _onNotebookEditorsRemove: Emitter<INotebookEditor[]> = this._register(new Emitter<INotebookEditor[]>());
-	public readonly onNotebookEditorsRemove: Event<INotebookEditor[]> = this._onNotebookEditorsRemove.event;
+export class NotebookService extends Disposable implements INotebookService {
 
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _notebookProviders = new Map<string, ComplexNotebookProviderInfo | SimpleNotebookProviderInfo>();
+	private readonly _notebookProviderInfoStore: NotebookProviderInfoStore;
+	private readonly _notebookRenderersInfoStore = this._instantiationService.createInstance(NotebookOutputRendererInfoStore);
+	private readonly _models = new ResourceMap<ModelData>();
+
+	private readonly _onWillAddNotebookDocument = this._register(new Emitter<NotebookTextModel>());
 	private readonly _onDidAddNotebookDocument = this._register(new Emitter<NotebookTextModel>());
-	private readonly _onDidRemoveNotebookDocument = this._register(new Emitter<URI>());
+	private readonly _onWillRemoveNotebookDocument = this._register(new Emitter<NotebookTextModel>());
+	private readonly _onDidRemoveNotebookDocument = this._register(new Emitter<NotebookTextModel>());
+
+	readonly onWillAddNotebookDocument = this._onWillAddNotebookDocument.event;
 	readonly onDidAddNotebookDocument = this._onDidAddNotebookDocument.event;
 	readonly onDidRemoveNotebookDocument = this._onDidRemoveNotebookDocument.event;
+	readonly onWillRemoveNotebookDocument = this._onWillRemoveNotebookDocument.event;
 
-	private readonly _onNotebookDocumentSaved: Emitter<URI> = this._register(new Emitter<URI>());
-	public readonly onNotebookDocumentSaved: Event<URI> = this._onNotebookDocumentSaved.event;
-	private readonly _notebookEditors = new Map<string, INotebookEditor>();
+	private readonly _onWillRemoveViewType = this._register(new Emitter<string>());
+	readonly onWillRemoveViewType = this._onWillRemoveViewType.event;
 
-	private readonly _onDidChangeViewTypes = new Emitter<void>();
-	onDidChangeViewTypes: Event<void> = this._onDidChangeViewTypes.event;
+	private readonly _onDidChangeEditorTypes = this._register(new Emitter<void>());
+	onDidChangeEditorTypes: Event<void> = this._onDidChangeEditorTypes.event;
 
-	private readonly _onDidChangeKernels = new Emitter<URI | undefined>();
-	onDidChangeKernels: Event<URI | undefined> = this._onDidChangeKernels.event;
-	private readonly _onDidChangeNotebookActiveKernel = new Emitter<{ uri: URI, providerHandle: number | undefined, kernelFriendlyId: string | undefined; }>();
-	onDidChangeNotebookActiveKernel: Event<{ uri: URI, providerHandle: number | undefined, kernelFriendlyId: string | undefined; }> = this._onDidChangeNotebookActiveKernel.event;
-	private cutItems: NotebookCellTextModel[] | undefined;
+	private _cutItems: NotebookCellTextModel[] | undefined;
 	private _lastClipboardIsCopy: boolean = true;
 
 	private _displayOrder: { userOrder: string[], defaultOrder: string[]; } = Object.create(null);
-	private readonly _decorationOptionProviders = new Map<string, INotebookDecorationRenderOptions>();
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IEditorService private readonly _editorService: IEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@IStorageService private readonly _storageService: IStorageService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
-		this.notebookProviderInfoStore = new NotebookProviderInfoStore(this._storageService, this._extensionService);
-		this._register(this.notebookProviderInfoStore);
+		this._notebookProviderInfoStore = _instantiationService.createInstance(NotebookProviderInfoStore);
+		this._register(this._notebookProviderInfoStore);
 
-		notebookProviderExtensionPoint.setHandler((extensions) => {
-			this.notebookProviderInfoStore.setupHandler(extensions);
-		});
 
 		notebookRendererExtensionPoint.setHandler((renderers) => {
-			this.notebookRenderersInfoStore.clear();
+			this._notebookRenderersInfoStore.clear();
 
 			for (const extension of renderers) {
 				for (const notebookContribution of extension.value) {
 					if (!notebookContribution.entrypoint) { // avoid crashing
-						console.error(`Cannot register renderer for ${extension.description.identifier.value} since it did not have an entrypoint. This is now required: https://github.com/microsoft/vscode/issues/102644`);
-						continue;
-					}
-
-					const id = notebookContribution.id ?? notebookContribution.viewType;
-					if (!id) {
-						console.error(`Notebook renderer from ${extension.description.identifier.value} is missing an 'id'`);
-						continue;
-					}
-
-					this.notebookRenderersInfoStore.add(new NotebookOutputRendererInfo({
-						id,
-						extension: extension.description,
-						entrypoint: notebookContribution.entrypoint,
-						displayName: notebookContribution.displayName,
-						mimeTypes: notebookContribution.mimeTypes || [],
-					}));
-				}
-			}
-		});
-
-		notebookMarkdownRendererExtensionPoint.setHandler((renderers) => {
-			this.markdownRenderersInfos.clear();
-
-			for (const extension of renderers) {
-				if (!extension.description.enableProposedApi && !extension.description.isBuiltin) {
-					// Only allow proposed extensions to use this extension point
-					return;
-				}
-
-				for (const notebookContribution of extension.value) {
-					if (!notebookContribution.entrypoint) { // avoid crashing
-						console.error(`Cannot register renderer for ${extension.description.identifier.value} since it did not have an entrypoint. This is now required: https://github.com/microsoft/vscode/issues/102644`);
+						extension.collector.error(`Notebook renderer does not specify entry point`);
 						continue;
 					}
 
 					const id = notebookContribution.id;
 					if (!id) {
-						console.error(`Notebook renderer from ${extension.description.identifier.value} is missing an 'id'`);
+						extension.collector.error(`Notebook renderer does not specify id-property`);
 						continue;
 					}
 
-					this.markdownRenderersInfos.add(new NotebookMarkdownRendererInfo({
+					this._notebookRenderersInfoStore.add(new NotebookOutputRendererInfo({
 						id,
 						extension: extension.description,
 						entrypoint: notebookContribution.entrypoint,
 						displayName: notebookContribution.displayName,
+						mimeTypes: notebookContribution.mimeTypes || [],
+						dependencies: notebookContribution.dependencies,
+						optionalDependencies: notebookContribution.optionalDependencies,
+						requiresMessaging: notebookContribution.requiresMessaging,
 					}));
 				}
 			}
 		});
 
-		this._editorService.registerCustomEditorViewTypesHandler('Notebook', this);
-
 		const updateOrder = () => {
 			const userOrder = this._configurationService.getValue<string[]>(DisplayOrderKey);
 			this._displayOrder = {
-				defaultOrder: this._accessibilityService.isScreenReaderOptimized() ? ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER : NOTEBOOK_DISPLAY_ORDER,
+				defaultOrder: this._accessibilityService.isScreenReaderOptimized() ? ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER : [],
 				userOrder: userOrder
 			};
 		};
@@ -409,232 +449,11 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 			decorationCheckSet.add(e);
 		}));
-
-		const getContext = () => {
-			const editor = getActiveNotebookEditor(this._editorService);
-			const activeCell = editor?.getActiveCell();
-
-			return {
-				editor,
-				activeCell
-			};
-		};
-
-		const PRIORITY = 105;
-		this._register(UndoCommand.addImplementation(PRIORITY, () => {
-			const { editor } = getContext();
-			if (editor?.viewModel) {
-				return editor.viewModel.undo().then(cellResources => {
-					if (cellResources?.length) {
-						editor?.viewModel?.viewCells.forEach(cell => {
-							if (cell.cellKind === CellKind.Markdown && cellResources.find(resource => resource.fragment === cell.model.uri.fragment)) {
-								cell.editState = CellEditState.Editing;
-							}
-						});
-
-						editor?.setOptions(new NotebookEditorOptions({ cellOptions: { resource: cellResources[0] }, preserveFocus: true }));
-					}
-				});
-			}
-
-			return false;
-		}));
-
-		this._register(RedoCommand.addImplementation(PRIORITY, () => {
-			const { editor } = getContext();
-			if (editor?.viewModel) {
-				return editor.viewModel.redo().then(cellResources => {
-					if (cellResources?.length) {
-						editor?.viewModel?.viewCells.forEach(cell => {
-							if (cell.cellKind === CellKind.Markdown && cellResources.find(resource => resource.fragment === cell.model.uri.fragment)) {
-								cell.editState = CellEditState.Editing;
-							}
-						});
-
-						editor?.setOptions(new NotebookEditorOptions({ cellOptions: { resource: cellResources[0] }, preserveFocus: true }));
-					}
-				});
-			}
-
-			return false;
-		}));
-
-		if (CopyAction) {
-			this._register(CopyAction.addImplementation(PRIORITY, accessor => {
-				const activeElement = <HTMLElement>document.activeElement;
-				if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
-					return false;
-				}
-
-				const { editor } = getContext();
-				if (!editor) {
-					return false;
-				}
-
-				if (editor.hasOutputTextSelection()) {
-					document.execCommand('copy');
-					return true;
-				}
-
-				const clipboardService = accessor.get<IClipboardService>(IClipboardService);
-				const notebookService = accessor.get<INotebookService>(INotebookService);
-				const selectedCells = editor.getSelectionViewModels();
-
-				if (!selectedCells.length) {
-					return false;
-				}
-
-				clipboardService.writeText(selectedCells.map(cell => cell.getText()).join('\n'));
-				notebookService.setToCopy(selectedCells.map(cell => cell.model), true);
-
-				return true;
-			}));
-		}
-
-		if (PasteAction) {
-			PasteAction.addImplementation(PRIORITY, () => {
-				const activeElement = <HTMLElement>document.activeElement;
-				if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
-					return false;
-				}
-
-				const pasteCells = this.getToCopy();
-
-				if (!pasteCells) {
-					return false;
-				}
-
-				const { editor, activeCell } = getContext();
-				if (!editor) {
-					return false;
-				}
-
-				const viewModel = editor.viewModel;
-
-				if (!viewModel || !viewModel.metadata.editable) {
-					return false;
-				}
-
-				const cloneMetadata = (cell: NotebookCellTextModel) => {
-					return {
-						editable: cell.metadata?.editable,
-						runnable: cell.metadata?.runnable,
-						breakpointMargin: cell.metadata?.breakpointMargin,
-						hasExecutionOrder: cell.metadata?.hasExecutionOrder,
-						inputCollapsed: cell.metadata?.inputCollapsed,
-						outputCollapsed: cell.metadata?.outputCollapsed,
-						custom: cell.metadata?.custom
-					};
-				};
-
-				const cloneCell = (cell: NotebookCellTextModel) => {
-					return {
-						source: cell.getValue(),
-						language: cell.language,
-						cellKind: cell.cellKind,
-						outputs: cell.outputs.map(output => ({ ...output, /* paste should generate new outputId */ outputId: UUID.generateUuid() })),
-						metadata: cloneMetadata(cell)
-					};
-				};
-
-				if (activeCell) {
-					const currCellIndex = viewModel.getCellIndex(activeCell);
-
-					let topPastedCell: CellViewModel | undefined = undefined;
-					pasteCells.items.reverse().map(cell => cloneCell(cell)).forEach(pasteCell => {
-						const newIdx = typeof currCellIndex === 'number' ? currCellIndex + 1 : 0;
-						topPastedCell = viewModel.createCell(newIdx, pasteCell.source, pasteCell.language, pasteCell.cellKind, pasteCell.metadata, pasteCell.outputs, true);
-					});
-
-					if (topPastedCell) {
-						editor.focusNotebookCell(topPastedCell, 'container');
-					}
-				} else {
-					if (viewModel.length !== 0) {
-						return false;
-					}
-
-					let topPastedCell: CellViewModel | undefined = undefined;
-					pasteCells.items.reverse().map(cell => cloneCell(cell)).forEach(pasteCell => {
-						topPastedCell = viewModel.createCell(0, pasteCell.source, pasteCell.language, pasteCell.cellKind, pasteCell.metadata, pasteCell.outputs, true);
-					});
-
-					if (topPastedCell) {
-						editor.focusNotebookCell(topPastedCell, 'container');
-					}
-				}
-
-
-				return true;
-			});
-		}
-
-		if (CutAction) {
-			CutAction.addImplementation(PRIORITY, accessor => {
-				const activeElement = <HTMLElement>document.activeElement;
-				if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
-					return false;
-				}
-
-				const { editor } = getContext();
-				if (!editor) {
-					return false;
-				}
-
-				const viewModel = editor.viewModel;
-
-				if (!viewModel || !viewModel.metadata.editable) {
-					return false;
-				}
-
-				const clipboardService = accessor.get<IClipboardService>(IClipboardService);
-				const notebookService = accessor.get<INotebookService>(INotebookService);
-				const selectedCells = editor.getSelectionViewModels();
-
-				if (!selectedCells.length) {
-					return false;
-				}
-
-				clipboardService.writeText(selectedCells.map(cell => cell.getText()).join('\n'));
-				const selectionIndexes = selectedCells.map(cell => [cell, viewModel.getCellIndex(cell)] as [ICellViewModel, number]).sort((a, b) => b[1] - a[1]);
-				const edits: ICellEditOperation[] = selectionIndexes.map(value => ({ editType: CellEditType.Replace, index: value[1], count: 1, cells: [] }));
-
-				viewModel.notebookDocument.applyEdits(viewModel.notebookDocument.versionId, edits, true, editor.getSelectionHandles(), () => {
-					const firstSelectIndex = selectionIndexes[0][1];
-					if (firstSelectIndex < viewModel.notebookDocument.cells.length) {
-						return [viewModel.notebookDocument.cells[firstSelectIndex].handle];
-					} else {
-						return [viewModel.notebookDocument.cells[viewModel.notebookDocument.cells.length - 1].handle];
-					}
-				}, undefined, true);
-				notebookService.setToCopy(selectedCells.map(cell => cell.model), false);
-
-				return true;
-			});
-		}
-
 	}
 
-	registerEditorDecorationType(key: string, options: INotebookDecorationRenderOptions): void {
-		if (this._decorationOptionProviders.has(key)) {
-			return;
-		}
 
-		this._decorationOptionProviders.set(key, options);
-	}
-
-	removeEditorDecorationType(key: string): void {
-		this._decorationOptionProviders.delete(key);
-
-		this.listNotebookEditors().forEach(editor => editor.removeEditorDecorations(key));
-	}
-
-	resolveEditorDecorationOptions(key: string): INotebookDecorationRenderOptions | undefined {
-		return this._decorationOptionProviders.get(key);
-	}
-
-	getViewTypes(): ICustomEditorInfo[] {
-		return [...this.notebookProviderInfoStore].map(info => ({
+	getEditorTypes(): IEditorType[] {
+		return [...this._notebookProviderInfoStore].map(info => ({
 			id: info.id,
 			displayName: info.displayName,
 			providerDisplayName: info.providerDisplayName
@@ -648,104 +467,90 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			await this._extensionService.whenInstalledExtensionsRegistered();
 			// this awaits full activation of all matching extensions
 			await this._extensionService.activateByEvent(`onNotebook:${viewType}`);
-			if (this._notebookProviders.has(viewType)) {
-				return true;
-			} else {
-				// notebook providers/kernels/renderers might use `*` as activation event.
-				// TODO, only activate by `*` if this._notebookProviders.get(viewType).dynamicContribution === true
-				await this._extensionService.activateByEvent(`*`);
-			}
 		}
 		return this._notebookProviders.has(viewType);
 	}
 
-	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController): IDisposable {
+	registerContributedNotebookType(viewType: string, data: INotebookContributionData): IDisposable {
+
+		const info = new NotebookProviderInfo({
+			extension: data.extension,
+			id: viewType,
+			displayName: data.displayName,
+			providerDisplayName: data.providerDisplayName,
+			exclusive: data.exclusive,
+			priority: RegisteredEditorPriority.default,
+			selectors: [],
+		});
+
+		info.update({ selectors: data.filenamePattern });
+
+		const reg = this._notebookProviderInfoStore.add(info);
+		this._onDidChangeEditorTypes.fire();
+
+		return toDisposable(() => {
+			reg.dispose();
+			this._onDidChangeEditorTypes.fire();
+		});
+	}
+
+	private _registerProviderData(viewType: string, data: SimpleNotebookProviderInfo | ComplexNotebookProviderInfo): IDisposable {
 		if (this._notebookProviders.has(viewType)) {
 			throw new Error(`notebook controller for viewtype '${viewType}' already exists`);
 		}
-		this._notebookProviders.set(viewType, { extensionData, controller });
-
-		if (controller.viewOptions && !this.notebookProviderInfoStore.get(viewType)) {
-			// register this content provider to the static contribution, if it does not exist
-			const info = new NotebookProviderInfo({
-				displayName: controller.viewOptions.displayName,
-				id: viewType,
-				priority: NotebookEditorPriority.default,
-				selectors: [],
-				providerExtensionId: extensionData.id.value,
-				providerDescription: extensionData.description,
-				providerDisplayName: extensionData.id.value,
-				providerExtensionLocation: URI.revive(extensionData.location),
-				dynamicContribution: true,
-				exclusive: controller.viewOptions.exclusive
-			});
-
-			info.update({ selectors: controller.viewOptions.filenamePattern });
-			info.update({ options: controller.options });
-			this.notebookProviderInfoStore.add(info);
-		}
-
-		this.notebookProviderInfoStore.get(viewType)?.update({ options: controller.options });
-
-		this._onDidChangeViewTypes.fire();
+		this._notebookProviders.set(viewType, data);
 		return toDisposable(() => {
+			this._onWillRemoveViewType.fire(viewType);
 			this._notebookProviders.delete(viewType);
-			this._onDidChangeViewTypes.fire();
 		});
 	}
 
-	registerNotebookKernelProvider(provider: INotebookKernelProvider): IDisposable {
-		const d = this.notebookKernelProviderInfoStore.add(provider);
-		const kernelChangeEventListener = provider.onDidChangeKernels((e) => {
-			this._onDidChangeKernels.fire(e);
-		});
-
-		this._onDidChangeKernels.fire(undefined);
-		return toDisposable(() => {
-			kernelChangeEventListener.dispose();
-			d.dispose();
-			this._onDidChangeKernels.fire(undefined);
-		});
+	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: INotebookContentProvider): IDisposable {
+		this._notebookProviderInfoStore.get(viewType)?.update({ options: controller.options });
+		return this._registerProviderData(viewType, new ComplexNotebookProviderInfo(viewType, controller, extensionData));
 	}
 
-	async getNotebookKernels(viewType: string, resource: URI, token: CancellationToken): Promise<INotebookKernel[]> {
-		const filteredProvider = this.notebookKernelProviderInfoStore.get(viewType, resource);
-		const result = new Array<INotebookKernel[]>(filteredProvider.length);
-		const promises = filteredProvider.map(async (provider, index) => {
-			const data = await provider.provideKernels(resource, token);
-			result[index] = data;
-		});
-		await Promise.all(promises);
-		return flatten(result);
+	registerNotebookSerializer(viewType: string, extensionData: NotebookExtensionDescription, serializer: INotebookSerializer): IDisposable {
+		this._notebookProviderInfoStore.get(viewType)?.update({ options: serializer.options });
+		return this._registerProviderData(viewType, new SimpleNotebookProviderInfo(viewType, serializer, extensionData));
 	}
 
-	async getContributedNotebookKernelProviders(): Promise<INotebookKernelProvider[]> {
-		const kernelProviders = this.notebookKernelProviderInfoStore.getContributedKernelProviders();
-		return kernelProviders;
-	}
-
-	getRendererInfo(id: string): INotebookRendererInfo | undefined {
-		return this.notebookRenderersInfoStore.get(id);
-	}
-
-	getMarkdownRendererInfo(): INotebookMarkdownRendererInfo[] {
-		return Array.from(this.markdownRenderersInfos);
-	}
-
-	async fetchNotebookRawData(viewType: string, uri: URI, backupId?: string): Promise<{ data: NotebookDataDto, transientOptions: TransientOptions }> {
-		if (!await this.canResolve(viewType)) {
-			throw new Error(`CANNOT fetch notebook data, there is NO provider for '${viewType}'`);
+	async withNotebookDataProvider(resource: URI, viewType?: string): Promise<ComplexNotebookProviderInfo | SimpleNotebookProviderInfo> {
+		const providers = this._notebookProviderInfoStore.getContributedNotebook(resource);
+		// If we have a viewtype specified we want that data provider, as the resource won't always map correctly
+		const selected = viewType ? providers.find(p => p.id === viewType) : providers[0];
+		if (!selected) {
+			throw new Error(`NO contribution for resource: '${resource.toString()}'`);
 		}
-		const provider = this._notebookProviders.get(viewType)!;
-		return await provider.controller.openNotebook(viewType, uri, backupId);
+		await this.canResolve(selected.id);
+		const result = this._notebookProviders.get(selected.id);
+		if (!result) {
+			throw new Error(`NO provider registered for view type: '${selected.id}'`);
+		}
+		return result;
 	}
 
-	createNotebookTextModel(viewType: string, uri: URI, data: NotebookDataDto, transientOptions: TransientOptions): NotebookTextModel {
+	getRendererInfo(rendererId: string): INotebookRendererInfo | undefined {
+		return this._notebookRenderersInfoStore.get(rendererId);
+	}
+
+	updateMimePreferredRenderer(mimeType: string, rendererId: string): void {
+		this._notebookRenderersInfoStore.setPreferred(mimeType, rendererId);
+	}
+
+	getRenderers(): INotebookRendererInfo[] {
+		return this._notebookRenderersInfoStore.getAll();
+	}
+
+	// --- notebook documents: create, destory, retrieve, enumerate
+
+	createNotebookTextModel(viewType: string, uri: URI, data: NotebookData, transientOptions: TransientOptions): NotebookTextModel {
 		if (this._models.has(uri)) {
 			throw new Error(`notebook for ${uri} already exists`);
 		}
 		const notebookModel = this._instantiationService.createInstance(NotebookTextModel, viewType, uri, data.cells, data.metadata, transientOptions);
 		this._models.set(uri, new ModelData(notebookModel, this._onWillDisposeDocument.bind(this)));
+		this._onWillAddNotebookDocument.fire(notebookModel);
 		this._onDidAddNotebookDocument.fire(notebookModel);
 		return notebookModel;
 	}
@@ -758,27 +563,32 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return Iterable.map(this._models.values(), data => data.model);
 	}
 
-	getMimeTypeInfo(textModel: NotebookTextModel, output: IOutputDto): readonly IOrderedMimeType[] {
-		// TODO@rebornix no string[] casting
-		return this._getOrderedMimeTypes(textModel, output, textModel.metadata.displayOrder as string[] ?? []);
+	listNotebookDocuments(): NotebookTextModel[] {
+		return [...this._models].map(e => e[1].model);
 	}
 
-	private _getOrderedMimeTypes(textModel: NotebookTextModel, output: IOutputDto, documentDisplayOrder: string[]): IOrderedMimeType[] {
-		const mimeTypeSet = new Set<string>();
-		let mimeTypes: string[] = [];
-		output.outputs.forEach(op => {
-			if (!mimeTypeSet.has(op.mime)) {
-				mimeTypeSet.add(op.mime);
-				mimeTypes.push(op.mime);
-			}
-		});
+	private _onWillDisposeDocument(model: INotebookTextModel): void {
+		const modelData = this._models.get(model.uri);
+		if (modelData) {
+			this._onWillRemoveNotebookDocument.fire(modelData.model);
+			this._models.delete(model.uri);
+			modelData.dispose();
+			this._onDidRemoveNotebookDocument.fire(modelData.model);
+		}
+	}
+
+	getOutputMimeTypeInfo(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined, output: IOutputDto): readonly IOrderedMimeType[] {
+
+		const mimeTypeSet = new Set<string>(output.outputs.map(op => op.mime));
+		const mimeTypes: string[] = [...mimeTypeSet];
+
 		const coreDisplayOrder = this._displayOrder;
-		const sorted = sortMimeTypes(mimeTypes, coreDisplayOrder?.userOrder || [], documentDisplayOrder, coreDisplayOrder?.defaultOrder || []);
+		const sorted = sortMimeTypes(mimeTypes, coreDisplayOrder?.userOrder ?? [], coreDisplayOrder?.defaultOrder ?? []);
 
 		const orderMimeTypes: IOrderedMimeType[] = [];
 
 		sorted.forEach(mimeType => {
-			const handlers = this._findBestMatchedRenderer(mimeType);
+			const handlers = this._findBestMatchedRenderer(mimeType, kernelProvides);
 
 			if (handlers.length) {
 				const handler = handlers[0];
@@ -786,14 +596,14 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 				orderMimeTypes.push({
 					mimeType: mimeType,
 					rendererId: handler.id,
-					isTrusted: textModel.metadata.trusted
+					isTrusted: true
 				});
 
 				for (let i = 1; i < handlers.length; i++) {
 					orderMimeTypes.push({
 						mimeType: mimeType,
 						rendererId: handlers[i].id,
-						isTrusted: textModel.metadata.trusted
+						isTrusted: true
 					});
 				}
 
@@ -801,7 +611,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 					orderMimeTypes.push({
 						mimeType: mimeType,
 						rendererId: BUILTIN_RENDERER_ID,
-						isTrusted: mimeTypeIsAlwaysSecure(mimeType) || textModel.metadata.trusted
+						isTrusted: mimeTypeIsAlwaysSecure(mimeType) || this.workspaceTrustManagementService.isWorkspaceTrusted()
 					});
 				}
 			} else {
@@ -809,13 +619,13 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 					orderMimeTypes.push({
 						mimeType: mimeType,
 						rendererId: BUILTIN_RENDERER_ID,
-						isTrusted: mimeTypeIsAlwaysSecure(mimeType) || textModel.metadata.trusted
+						isTrusted: mimeTypeIsAlwaysSecure(mimeType) || this.workspaceTrustManagementService.isWorkspaceTrusted()
 					});
 				} else {
 					orderMimeTypes.push({
 						mimeType: mimeType,
 						rendererId: RENDERER_NOT_AVAILABLE,
-						isTrusted: textModel.metadata.trusted
+						isTrusted: true
 					});
 				}
 			}
@@ -824,24 +634,20 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return orderMimeTypes;
 	}
 
-	private _findBestMatchedRenderer(mimeType: string): readonly NotebookOutputRendererInfo[] {
-		return this.notebookRenderersInfoStore.getContributedRenderer(mimeType);
+	private _findBestMatchedRenderer(mimeType: string, kernelProvides: readonly string[] | undefined): readonly NotebookOutputRendererInfo[] {
+		return this._notebookRenderersInfoStore.getContributedRenderer(mimeType, kernelProvides);
 	}
 
-	getContributedNotebookProviders(resource?: URI): readonly NotebookProviderInfo[] {
+	getContributedNotebookTypes(resource?: URI): readonly NotebookProviderInfo[] {
 		if (resource) {
-			return this.notebookProviderInfoStore.getContributedNotebook(resource);
+			return this._notebookProviderInfoStore.getContributedNotebook(resource);
 		}
 
-		return [...this.notebookProviderInfoStore];
+		return [...this._notebookProviderInfoStore];
 	}
 
-	getContributedNotebookProvider(viewType: string): NotebookProviderInfo | undefined {
-		return this.notebookProviderInfoStore.get(viewType);
-	}
-
-	getContributedNotebookOutputRenderers(viewType: string): NotebookOutputRendererInfo | undefined {
-		return this.notebookRenderersInfoStore.get(viewType);
+	getContributedNotebookType(viewType: string): NotebookProviderInfo | undefined {
+		return this._notebookProviderInfoStore.get(viewType);
 	}
 
 	getNotebookProviderResourceRoots(): URI[] {
@@ -853,152 +659,19 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return ret;
 	}
 
-	async resolveNotebookEditor(viewType: string, uri: URI, editorId: string): Promise<void> {
-		const entry = this._notebookProviders.get(viewType);
-		if (entry) {
-			entry.controller.resolveNotebookEditor(viewType, uri, editorId);
-		}
-	}
-
-	removeNotebookEditor(editor: INotebookEditor) {
-		const editorCache = this._notebookEditors.get(editor.getId());
-
-		if (editorCache) {
-			this._notebookEditors.delete(editor.getId());
-			this._onNotebookEditorsRemove.fire([editor]);
-		}
-	}
-
-	addNotebookEditor(editor: INotebookEditor) {
-		this._notebookEditors.set(editor.getId(), editor);
-		this._onNotebookEditorAdd.fire(editor);
-	}
-
-	getNotebookEditor(editorId: string) {
-		return this._notebookEditors.get(editorId);
-	}
-
-	listNotebookEditors(): INotebookEditor[] {
-		return [...this._notebookEditors].map(e => e[1]);
-	}
-
-	listVisibleNotebookEditors(): INotebookEditor[] {
-		return this._editorService.visibleEditorPanes
-			.filter(pane => (pane as unknown as { isNotebookEditor?: boolean; }).isNotebookEditor)
-			.map(pane => pane.getControl() as INotebookEditor)
-			.filter(editor => !!editor)
-			.filter(editor => this._notebookEditors.has(editor.getId()));
-	}
-
-	listNotebookDocuments(): NotebookTextModel[] {
-		return [...this._models].map(e => e[1].model);
-	}
-
-	destoryNotebookDocument(viewType: string, notebook: INotebookTextModel): void {
-		this._onWillDisposeDocument(notebook);
-	}
-
-	updateActiveNotebookEditor(editor: INotebookEditor | null) {
-		this._activeEditorDisposables.clear();
-
-		if (editor) {
-			this._activeEditorDisposables.add(editor.onDidChangeKernel(() => {
-				this._onDidChangeNotebookActiveKernel.fire({
-					uri: editor.uri!,
-					providerHandle: editor.activeKernel?.providerHandle,
-					kernelFriendlyId: editor.activeKernel?.friendlyId
-				});
-			}));
-		}
-		this._onDidChangeActiveEditor.fire(editor ? editor.getId() : null);
-	}
-
-	updateVisibleNotebookEditor(editors: string[]) {
-		const alreadyCreated = editors.filter(editorId => this._notebookEditors.has(editorId));
-		this._onDidChangeVisibleEditors.fire(alreadyCreated);
-	}
+	// --- copy & paste
 
 	setToCopy(items: NotebookCellTextModel[], isCopy: boolean) {
-		this.cutItems = items;
+		this._cutItems = items;
 		this._lastClipboardIsCopy = isCopy;
 	}
 
 	getToCopy(): { items: NotebookCellTextModel[], isCopy: boolean; } | undefined {
-		if (this.cutItems) {
-			return { items: this.cutItems, isCopy: this._lastClipboardIsCopy };
+		if (this._cutItems) {
+			return { items: this._cutItems, isCopy: this._lastClipboardIsCopy };
 		}
 
 		return undefined;
 	}
 
-	async save(viewType: string, resource: URI, token: CancellationToken): Promise<boolean> {
-		const provider = this._notebookProviders.get(viewType);
-
-		if (provider) {
-			const ret = await provider.controller.save(resource, token);
-			if (ret) {
-				this._onNotebookDocumentSaved.fire(resource);
-			}
-
-			return ret;
-		}
-
-		return false;
-	}
-
-	async saveAs(viewType: string, resource: URI, target: URI, token: CancellationToken): Promise<boolean> {
-		const provider = this._notebookProviders.get(viewType);
-
-		if (provider) {
-			const ret = await provider.controller.saveAs(resource, target, token);
-			if (ret) {
-				this._onNotebookDocumentSaved.fire(resource);
-			}
-
-			return ret;
-		}
-
-		return false;
-	}
-
-	async backup(viewType: string, uri: URI, token: CancellationToken): Promise<string | undefined> {
-		const provider = this._notebookProviders.get(viewType);
-
-		if (provider) {
-			return provider.controller.backup(uri, token);
-		}
-
-		return;
-	}
-
-	onDidReceiveMessage(viewType: string, editorId: string, rendererType: string | undefined, message: any): void {
-		const provider = this._notebookProviders.get(viewType);
-
-		if (provider) {
-			return provider.controller.onDidReceiveMessage(editorId, rendererType, message);
-		}
-	}
-
-	private _onWillDisposeDocument(model: INotebookTextModel): void {
-
-		const modelData = this._models.get(model.uri);
-		this._models.delete(model.uri);
-
-		if (modelData) {
-			// delete editors and documents
-			const willRemovedEditors: INotebookEditor[] = [];
-			for (const editor of this._notebookEditors.values()) {
-				if (editor.textModel === modelData.model) {
-					willRemovedEditors.push(editor);
-				}
-			}
-
-			modelData.model.dispose();
-			modelData.dispose();
-
-			willRemovedEditors.forEach(e => this._notebookEditors.delete(e.getId()));
-			this._onNotebookEditorsRemove.fire(willRemovedEditors.map(e => e));
-			this._onDidRemoveNotebookDocument.fire(modelData.model.uri);
-		}
-	}
 }

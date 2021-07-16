@@ -23,6 +23,7 @@ interface IAPIMenu {
 	readonly description: string;
 	readonly proposed?: boolean; // defaults to false
 	readonly supportsSubmenus?: boolean; // defaults to true
+	readonly deprecationMessage?: string;
 }
 
 const apiMenus: IAPIMenu[] = [
@@ -52,6 +53,11 @@ const apiMenus: IAPIMenu[] = [
 		key: 'editor/context',
 		id: MenuId.EditorContext,
 		description: localize('menus.editorContext', "The editor context menu")
+	},
+	{
+		key: 'editor/context/copy',
+		id: MenuId.EditorContextCopy,
+		description: localize('menus.editorContextCopyAs', "'Copy as' submenu in the editor context menu")
 	},
 	{
 		key: 'explorer/context',
@@ -92,6 +98,11 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false
 	},
 	{
+		key: 'menuBar/edit/copy',
+		id: MenuId.MenubarCopy,
+		description: localize('menus.opy', "'Copy as' submenu in the top level Edit menu")
+	},
+	{
 		key: 'scm/title',
 		id: MenuId.SCMTitle,
 		description: localize('menus.scmTitle', "The Source Control title menu")
@@ -104,17 +115,17 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'scm/resourceState/context',
 		id: MenuId.SCMResourceContext,
-		description: localize('menus.resourceGroupContext', "The Source Control resource group context menu")
+		description: localize('menus.resourceStateContext', "The Source Control resource state context menu")
 	},
 	{
 		key: 'scm/resourceFolder/context',
 		id: MenuId.SCMResourceFolderContext,
-		description: localize('menus.resourceStateContext', "The Source Control resource state context menu")
+		description: localize('menus.resourceFolderContext', "The Source Control resource folder context menu")
 	},
 	{
 		key: 'scm/resourceGroup/context',
 		id: MenuId.SCMResourceGroupContext,
-		description: localize('menus.resourceFolderContext', "The Source Control resource folder context menu")
+		description: localize('menus.resourceGroupContext', "The Source Control resource group context menu")
 	},
 	{
 		key: 'scm/change/title',
@@ -126,6 +137,13 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.StatusBarWindowIndicatorMenu,
 		description: localize('menus.statusBarWindowIndicator', "The window indicator menu in the status bar"),
 		proposed: true,
+		supportsSubmenus: false,
+		deprecationMessage: localize('menus.statusBarWindowIndicator.deprecated', "Use menu 'statusBar/remoteIndicator' instead."),
+	},
+	{
+		key: 'statusBar/remoteIndicator',
+		id: MenuId.StatusBarRemoteIndicatorMenu,
+		description: localize('menus.statusBarRemoteIndicator', "The remote indicator menu in the status bar"),
 		supportsSubmenus: false
 	},
 	{
@@ -161,9 +179,27 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false
 	},
 	{
+		key: 'notebook/toolbar',
+		id: MenuId.NotebookToolbar,
+		description: localize('notebook.toolbar', "The contributed notebook toolbar menu"),
+		proposed: true
+	},
+	{
 		key: 'notebook/cell/title',
 		id: MenuId.NotebookCellTitle,
 		description: localize('notebook.cell.title', "The contributed notebook cell title menu"),
+		proposed: true
+	},
+	{
+		key: 'interactive/toolbar',
+		id: MenuId.InteractiveToolbar,
+		description: localize('interactive.toolbar', "The contributed interactive toolbar menu"),
+		proposed: true
+	},
+	{
+		key: 'interactive/cell/title',
+		id: MenuId.InteractiveCellTitle,
+		description: localize('interactive.cell.title', "The contributed interactive cell title menu"),
 		proposed: true
 	},
 	{
@@ -196,7 +232,25 @@ const apiMenus: IAPIMenu[] = [
 		key: 'ports/item/origin/inline',
 		id: MenuId.TunnelOriginInline,
 		description: localize('view.tunnelOriginInline', "The Ports view item origin inline menu")
-	}
+	},
+	{
+		key: 'ports/item/port/inline',
+		id: MenuId.TunnelPortInline,
+		description: localize('view.tunnelPortInline', "The Ports view item port inline menu")
+	},
+	{
+		key: 'file/newFile',
+		id: MenuId.NewFile,
+		description: localize('file.newFile', "The 'New File...' quick pick, shown on welcome page and File menu. Supports property `{0}` to override the default title if needed.)", 'title'),
+		supportsSubmenus: false,
+	},
+	{
+		key: 'editor/inlineCompletions/actions',
+		id: MenuId.InlineCompletionsActions,
+		description: localize('inlineCompletions.actions', "The actions shown when hovering on an inline completion"),
+		supportsSubmenus: false,
+		proposed: true
+	},
 ];
 
 namespace schema {
@@ -358,7 +412,7 @@ namespace schema {
 				type: 'string'
 			},
 			icon: {
-				description: localize('vscode.extension.contributes.submenu.icon', '(Optional) Icon which is used to represent the submenu in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `\\$(zap)`'),
+				description: localize({ key: 'vscode.extension.contributes.submenu.icon', comment: ['do not translate or change `\\$(zap)`, \\ in front of $ is important.'] }, '(Optional) Icon which is used to represent the submenu in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `\\$(zap)`'),
 				anyOf: [{
 					type: 'string'
 				},
@@ -384,6 +438,7 @@ namespace schema {
 		type: 'object',
 		properties: index(apiMenus, menu => menu.key, menu => ({
 			description: menu.proposed ? `(${localize('proposed', "Proposed API")}) ${menu.description}` : menu.description,
+			deprecationMessage: menu.deprecationMessage,
 			type: 'array',
 			items: menu.supportsSubmenus === false ? menuItem : { oneOf: [menuItem, submenuItem] }
 		})),
@@ -405,6 +460,7 @@ namespace schema {
 	export interface IUserFriendlyCommand {
 		command: string;
 		title: string | ILocalizedString;
+		shortTitle?: string | ILocalizedString;
 		enablement?: string;
 		category?: string | ILocalizedString;
 		icon?: IUserFriendlyIcon;
@@ -422,6 +478,9 @@ namespace schema {
 			return false;
 		}
 		if (!isValidLocalizedString(command.title, collector, 'title')) {
+			return false;
+		}
+		if (command.shortTitle && !isValidLocalizedString(command.shortTitle, collector, 'shortTitle')) {
 			return false;
 		}
 		if (command.enablement && typeof command.enablement !== 'string') {
@@ -477,6 +536,10 @@ namespace schema {
 				description: localize('vscode.extension.contributes.commandType.title', 'Title by which the command is represented in the UI'),
 				type: 'string'
 			},
+			shortTitle: {
+				description: localize('vscode.extension.contributes.commandType.shortTitle', 'Short title by which the command is represented in the UI'),
+				type: 'string'
+			},
 			category: {
 				description: localize('vscode.extension.contributes.commandType.category', '(Optional) Category string by the command is grouped in the UI'),
 				type: 'string'
@@ -486,7 +549,7 @@ namespace schema {
 				type: 'string'
 			},
 			icon: {
-				description: localize('vscode.extension.contributes.commandType.icon', '(Optional) Icon which is used to represent the command in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `\\$(zap)`'),
+				description: localize({ key: 'vscode.extension.contributes.commandType.icon', comment: ['do not translate or change `\\$(zap)`, \\ in front of $ is important.'] }, '(Optional) Icon which is used to represent the command in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `\\$(zap)`'),
 				anyOf: [{
 					type: 'string'
 				},
@@ -534,12 +597,12 @@ commandsExtensionPoint.setHandler(extensions => {
 			return;
 		}
 
-		const { icon, enablement, category, title, command } = userFriendlyCommand;
+		const { icon, enablement, category, title, shortTitle, command } = userFriendlyCommand;
 
 		let absoluteIcon: { dark: URI; light?: URI; } | ThemeIcon | undefined;
 		if (icon) {
 			if (typeof icon === 'string') {
-				absoluteIcon = ThemeIcon.fromString(icon) || { dark: resources.joinPath(extension.description.extensionLocation, icon) };
+				absoluteIcon = ThemeIcon.fromString(icon) ?? { dark: resources.joinPath(extension.description.extensionLocation, icon), light: resources.joinPath(extension.description.extensionLocation, icon) };
 
 			} else {
 				absoluteIcon = {
@@ -555,6 +618,7 @@ commandsExtensionPoint.setHandler(extensions => {
 		bucket.push({
 			id: command,
 			title,
+			shortTitle: extension.description.enableProposedApi ? shortTitle : undefined,
 			category,
 			precondition: ContextKeyExpr.deserialize(enablement),
 			icon: absoluteIcon

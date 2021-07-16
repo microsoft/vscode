@@ -38,7 +38,7 @@ export const Token = api.Token;
 export const editor = api.editor;
 export const languages = api.languages;
 
-if (globals.MonacoEnvironment?.globalAPI || globals.define?.amd) {
+if (globals.MonacoEnvironment?.globalAPI || (typeof define === 'function' && (<any>define).amd)) {
 	self.monaco = api;
 }
 

@@ -25,7 +25,7 @@ suite('TokenizationSupport2Adapter', () => {
 		constructor() {
 			super(null!, null!);
 		}
-		public match(languageId: LanguageId, token: string): number {
+		public override match(languageId: LanguageId, token: string): number {
 			return (
 				((this.counter++) << MetadataConsts.FOREGROUND_OFFSET)
 				| (languageId << MetadataConsts.LANGUAGEID_OFFSET)
@@ -36,6 +36,9 @@ suite('TokenizationSupport2Adapter', () => {
 	class MockThemeService implements IStandaloneThemeService {
 		declare readonly _serviceBrand: undefined;
 		public setTheme(themeName: string): string {
+			throw new Error('Not implemented');
+		}
+		public setAutoDetectHighContrast(autoDetectHighContrast: boolean): void {
 			throw new Error('Not implemented');
 		}
 		public defineTheme(themeName: string, themeData: IStandaloneThemeData): void {

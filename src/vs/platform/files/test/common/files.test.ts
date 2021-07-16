@@ -9,8 +9,21 @@ import { isEqual, isEqualOrParent } from 'vs/base/common/extpath';
 import { FileChangeType, FileChangesEvent, isParent } from 'vs/platform/files/common/files';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { toResource } from 'vs/base/test/common/utils';
+import { TernarySearchTree } from 'vs/base/common/map';
 
 suite('Files', () => {
+
+	function count(changes?: TernarySearchTree<unknown, unknown>): number {
+		let counter = 0;
+
+		if (changes) {
+			for (const _change of changes) {
+				counter++;
+			}
+		}
+
+		return counter;
+	}
 
 	test('FileChangesEvent - basics', function () {
 		const changes = [
@@ -57,12 +70,10 @@ suite('Files', () => {
 			}
 			assert(!event.contains(toResource.call(this, '/bar/folder2/somefile'), FileChangeType.DELETED));
 
-			assert.strictEqual(6, event.changes.length);
-			assert.strictEqual(1, event.getAdded().length);
+			assert.strictEqual(1, count(event.rawAdded));
 			assert.strictEqual(true, event.gotAdded());
-			assert.strictEqual(2, event.getUpdated().length);
 			assert.strictEqual(true, event.gotUpdated());
-			assert.strictEqual(ignorePathCasing ? 2 : 3, event.getDeleted().length);
+			assert.strictEqual(ignorePathCasing ? 2 : 3, count(event.rawDeleted));
 			assert.strictEqual(true, event.gotDeleted());
 		}
 	});
@@ -100,13 +111,10 @@ suite('Files', () => {
 
 				switch (type) {
 					case FileChangeType.ADDED:
-						assert.strictEqual(8, event.getAdded().length);
-						break;
-					case FileChangeType.UPDATED:
-						assert.strictEqual(8, event.getUpdated().length);
+						assert.strictEqual(8, count(event.rawAdded));
 						break;
 					case FileChangeType.DELETED:
-						assert.strictEqual(8, event.getDeleted().length);
+						assert.strictEqual(8, count(event.rawDeleted));
 						break;
 				}
 			}

@@ -14,6 +14,11 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { RunOnceWorker } from 'vs/base/common/async';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
+import { Schemas } from 'vs/base/common/network';
+import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
+import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
+import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 
 export class TextFileEditorTracker extends Disposable implements IWorkbenchContribution {
 
@@ -23,7 +28,8 @@ export class TextFileEditorTracker extends Disposable implements IWorkbenchContr
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IHostService private readonly hostService: IHostService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@IWorkingCopyEditorService private readonly workingCopyEditorService: IWorkingCopyEditorService
 	) {
 		super();
 
@@ -41,7 +47,7 @@ export class TextFileEditorTracker extends Disposable implements IWorkbenchContr
 		this._register(this.hostService.onDidChangeFocus(hasFocus => hasFocus ? this.reloadVisibleTextFileEditors() : undefined));
 
 		// Lifecycle
-		this.lifecycleService.onShutdown(this.dispose, this);
+		this.lifecycleService.onDidShutdown(() => this.dispose());
 	}
 
 	//#region Text File: Ensure every dirty text and untitled file is opened in an editor
@@ -54,17 +60,24 @@ export class TextFileEditorTracker extends Disposable implements IWorkbenchContr
 				return false; // resource must be dirty
 			}
 
-			const model = this.textFileService.files.get(resource);
-			if (model?.hasState(TextFileEditorModelState.PENDING_SAVE)) {
+			const fileModel = this.textFileService.files.get(resource);
+			if (fileModel?.hasState(TextFileEditorModelState.PENDING_SAVE)) {
 				return false; // resource must not be pending to save
 			}
 
-			if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
-				return false; // resource must not be pending to be auto saved
+			if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY && !fileModel?.hasState(TextFileEditorModelState.ERROR)) {
+				// leave models auto saved after short delay unless
+				// the save resulted in an error
+				return false;
 			}
 
-			if (this.editorService.isOpen({ resource })) {
-				return false; // model must not be opened already as file
+			if (this.editorService.isOpened({ resource, typeId: resource.scheme === Schemas.untitled ? UntitledTextEditorInput.ID : FILE_EDITOR_INPUT_ID, editorId: DEFAULT_EDITOR_ASSOCIATION.id })) {
+				return false; // model must not be opened already as file (fast check via editor type)
+			}
+
+			const model = fileModel ?? this.textFileService.untitled.get(resource);
+			if (model && this.workingCopyEditorService.findEditor(model)) {
+				return false; // model must not be opened already as file (slower check via working copy)
 			}
 
 			return true;

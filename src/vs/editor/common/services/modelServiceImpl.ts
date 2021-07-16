@@ -78,10 +78,6 @@ class ModelData implements IDisposable {
 			this._languageSelectionListener.dispose();
 			this._languageSelectionListener = null;
 		}
-		if (this._languageSelection) {
-			this._languageSelection.dispose();
-			this._languageSelection = null;
-		}
 	}
 
 	public dispose(): void {
@@ -253,15 +249,15 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		if (resource) {
 			return this._resourcePropertiesService.getEOL(resource, language);
 		}
-		const eol = this._configurationService.getValue<string>('files.eol', { overrideIdentifier: language });
-		if (eol && eol !== 'auto') {
+		const eol = this._configurationService.getValue('files.eol', { overrideIdentifier: language });
+		if (eol && typeof eol === 'string' && eol !== 'auto') {
 			return eol;
 		}
 		return platform.OS === platform.OperatingSystem.Linux || platform.OS === platform.OperatingSystem.Macintosh ? '\n' : '\r\n';
 	}
 
 	private _shouldRestoreUndoStack(): boolean {
-		const result = this._configurationService.getValue<boolean>('files.restoreUndoStack');
+		const result = this._configurationService.getValue('files.restoreUndoStack');
 		if (typeof result === 'boolean') {
 			return result;
 		}
@@ -741,6 +737,19 @@ export class ModelSemanticColoring extends Disposable {
 				this._fetchDocumentSemanticTokens.schedule();
 			}
 		}));
+		this._register(this._model.onDidChangeLanguage(() => {
+			// clear any outstanding state
+			if (this._currentDocumentResponse) {
+				this._currentDocumentResponse.dispose();
+				this._currentDocumentResponse = null;
+			}
+			if (this._currentDocumentRequestCancellationTokenSource) {
+				this._currentDocumentRequestCancellationTokenSource.cancel();
+				this._currentDocumentRequestCancellationTokenSource = null;
+			}
+			this._setDocumentSemanticTokens(null, null, null, []);
+			this._fetchDocumentSemanticTokens.schedule(0);
+		}));
 		const bindDocumentChangeListeners = () => {
 			dispose(this._documentProvidersChangeListeners);
 			this._documentProvidersChangeListeners = [];
@@ -765,7 +774,7 @@ export class ModelSemanticColoring extends Disposable {
 		this._fetchDocumentSemanticTokens.schedule(0);
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		if (this._currentDocumentResponse) {
 			this._currentDocumentResponse.dispose();
 			this._currentDocumentResponse = null;

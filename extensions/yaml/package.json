@@ -14,6 +14,22 @@
   "contributes": {
     "languages": [
       {
+        "id": "dockercompose",
+        "aliases": [
+          "Compose",
+          "compose"
+        ],
+        "filenamePatterns": [
+          "compose.yml",
+          "compose.yaml",
+          "compose.*.yml",
+          "compose.*.yaml",
+          "*docker*compose*.yml",
+          "*docker*compose*.yaml"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
         "id": "yaml",
         "aliases": [
           "YAML",
@@ -31,6 +47,11 @@
     ],
     "grammars": [
       {
+        "language": "dockercompose",
+        "scopeName": "source.yaml",
+        "path": "./syntaxes/yaml.tmLanguage.json"
+      },
+      {
         "language": "yaml",
         "scopeName": "source.yaml",
         "path": "./syntaxes/yaml.tmLanguage.json"
@@ -38,6 +59,11 @@
     ],
     "configurationDefaults": {
       "[yaml]": {
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2,
+        "editor.autoIndent": "advanced"
+      },
+      "[dockercompose]": {
         "editor.insertSpaces": true,
         "editor.tabSize": 2,
         "editor.autoIndent": "advanced"

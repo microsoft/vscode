@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -13,75 +14,93 @@ export enum WorkspaceTrustScope {
 	Remote = 1
 }
 
-export enum WorkspaceTrustState {
-	Untrusted = 0,
-	Trusted = 1,
-	Unknown = 2
-}
-
-export function workspaceTrustStateToString(trustState: WorkspaceTrustState) {
-	switch (trustState) {
-		case WorkspaceTrustState.Trusted:
-			return localize('trusted', "Trusted");
-		case WorkspaceTrustState.Untrusted:
-			return localize('untrusted', "Untrusted");
-		case WorkspaceTrustState.Unknown:
-		default:
-			return localize('unknown', "Unknown");
+export function workspaceTrustToString(trustState: boolean) {
+	if (trustState) {
+		return localize('trusted', "Trusted");
+	} else {
+		return localize('untrusted', "Restricted Mode");
 	}
 }
 
-export interface IWorkspaceTrustModel {
-
-	readonly onDidChangeTrustState: Event<void>;
-
-	setFolderTrustState(folder: URI, trustState: WorkspaceTrustState): void;
-	getFolderTrustState(folder: URI): WorkspaceTrustState;
-
-	setTrustedFolders(folders: URI[]): void;
-	setUntrustedFolders(folders: URI[]): void;
-
-	getTrustStateInfo(): IWorkspaceTrustStateInfo;
+export interface WorkspaceTrustRequestButton {
+	readonly label: string;
+	readonly type: 'ContinueWithTrust' | 'ContinueWithoutTrust' | 'Manage' | 'Cancel'
 }
 
-export interface IWorkspaceTrustRequest {
-	immediate: boolean;
-	message?: string;
+export interface WorkspaceTrustRequestOptions {
+	readonly buttons?: WorkspaceTrustRequestButton[];
+	readonly message?: string;
 }
 
-export interface IWorkspaceTrustRequestModel {
-	readonly trustRequest: IWorkspaceTrustRequest | undefined;
+export const IWorkspaceTrustEnablementService = createDecorator<IWorkspaceTrustEnablementService>('workspaceTrustEnablementService');
 
-	readonly onDidInitiateRequest: Event<void>;
-	readonly onDidCompleteRequest: Event<WorkspaceTrustState | undefined>;
-
-	initiateRequest(request?: IWorkspaceTrustRequest): void;
-	completeRequest(trustState?: WorkspaceTrustState): void;
-}
-
-export interface WorkspaceTrustStateChangeEvent {
-	previousTrustState: WorkspaceTrustState;
-	currentTrustState: WorkspaceTrustState;
-}
-
-export type WorkspaceTrustChangeEvent = Event<WorkspaceTrustStateChangeEvent>;
-
-export const IWorkspaceTrustService = createDecorator<IWorkspaceTrustService>('workspaceTrustService');
-
-export interface IWorkspaceTrustService {
+export interface IWorkspaceTrustEnablementService {
 	readonly _serviceBrand: undefined;
 
-	readonly requestModel: IWorkspaceTrustRequestModel;
-
-	onDidChangeTrustState: WorkspaceTrustChangeEvent;
-	getWorkspaceTrustState(): WorkspaceTrustState;
 	isWorkspaceTrustEnabled(): boolean;
-	requireWorkspaceTrust(request: IWorkspaceTrustRequest): Promise<WorkspaceTrustState>;
 }
 
-export interface IWorkspaceTrustStateInfo {
-	localFolders: { uri: string, trustState: WorkspaceTrustState }[]
+export const IWorkspaceTrustManagementService = createDecorator<IWorkspaceTrustManagementService>('workspaceTrustManagementService');
 
-	// Removing complexity of remote items
-	//trustedRemoteItems: { uri: string }[]
+export interface IWorkspaceTrustManagementService {
+	readonly _serviceBrand: undefined;
+
+	onDidChangeTrust: Event<boolean>;
+	onDidChangeTrustedFolders: Event<void>;
+
+	readonly workspaceResolved: Promise<void>;
+	readonly workspaceTrustInitialized: Promise<void>;
+	acceptsOutOfWorkspaceFiles: boolean;
+
+	isWorkspaceTrusted(): boolean;
+	isWorkspaceTrustForced(): boolean;
+
+	canSetParentFolderTrust(): boolean;
+	setParentFolderTrust(trusted: boolean): Promise<void>;
+
+	canSetWorkspaceTrust(): boolean;
+	setWorkspaceTrust(trusted: boolean): Promise<void>;
+
+	getUriTrustInfo(uri: URI): Promise<IWorkspaceTrustUriInfo>;
+	setUrisTrust(uri: URI[], trusted: boolean): Promise<void>;
+
+	getTrustedUris(): URI[];
+	setTrustedUris(uris: URI[]): Promise<void>;
+
+	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable;
+}
+
+export const enum WorkspaceTrustUriResponse {
+	Open = 1,
+	OpenInNewWindow = 2,
+	Cancel = 3
+}
+
+export const IWorkspaceTrustRequestService = createDecorator<IWorkspaceTrustRequestService>('workspaceTrustRequestService');
+
+export interface IWorkspaceTrustRequestService {
+	readonly _serviceBrand: undefined;
+
+	readonly onDidInitiateOpenFilesTrustRequest: Event<void>;
+	readonly onDidInitiateWorkspaceTrustRequest: Event<WorkspaceTrustRequestOptions | undefined>;
+
+	completeOpenFilesTrustRequest(result: WorkspaceTrustUriResponse, saveResponse?: boolean): Promise<void>;
+	requestOpenFilesTrust(openFiles: URI[]): Promise<WorkspaceTrustUriResponse>;
+
+	cancelWorkspaceTrustRequest(): void;
+	completeWorkspaceTrustRequest(trusted?: boolean): Promise<void>;
+	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined>;
+}
+
+export interface IWorkspaceTrustTransitionParticipant {
+	participate(trusted: boolean): Promise<void>;
+}
+
+export interface IWorkspaceTrustUriInfo {
+	uri: URI,
+	trusted: boolean
+}
+
+export interface IWorkspaceTrustInfo {
+	uriTrustInfo: IWorkspaceTrustUriInfo[]
 }

@@ -25,17 +25,25 @@ import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService'
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { testingFilterIcon } from 'vs/workbench/contrib/testing/browser/icons';
 import { TestExplorerStateFilter, Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { ObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
+import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
+import { TestIdPath } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
 export interface ITestExplorerFilterState {
 	_serviceBrand: undefined;
-	readonly text: ObservableValue<string>;
-	/** Reveal request, the extId of the test to reveal */
-	readonly reveal: ObservableValue<string | undefined>;
-	readonly stateFilter: ObservableValue<TestExplorerStateFilter>;
-	readonly currentDocumentOnly: ObservableValue<boolean>;
+	readonly text: MutableObservableValue<string>;
+	/**
+	 * Reveal request: the path to the test to reveal. The last element of the
+	 * array is the test the user wanted to reveal, and the previous
+	 * items are its parents.
+	*/
+	readonly reveal: MutableObservableValue<TestIdPath | undefined>;
+	readonly stateFilter: MutableObservableValue<TestExplorerStateFilter>;
+	readonly currentDocumentOnly: MutableObservableValue<boolean>;
+	/** Whether excluded test should be shown in the view */
+	readonly showExcludedTests: MutableObservableValue<boolean>;
 
 	readonly onDidRequestInputFocus: Event<void>;
 	focusInput(): void;
@@ -46,19 +54,20 @@ export const ITestExplorerFilterState = createDecorator<ITestExplorerFilterState
 export class TestExplorerFilterState implements ITestExplorerFilterState {
 	declare _serviceBrand: undefined;
 	private readonly focusEmitter = new Emitter<void>();
-	public readonly text = new ObservableValue('');
-	public readonly stateFilter = ObservableValue.stored(new StoredValue<TestExplorerStateFilter>({
+	public readonly text = new MutableObservableValue('');
+	public readonly stateFilter = MutableObservableValue.stored(new StoredValue<TestExplorerStateFilter>({
 		key: 'testStateFilter',
 		scope: StorageScope.WORKSPACE,
 		target: StorageTarget.USER
 	}, this.storage), TestExplorerStateFilter.All);
-	public readonly currentDocumentOnly = ObservableValue.stored(new StoredValue<boolean>({
+	public readonly currentDocumentOnly = MutableObservableValue.stored(new StoredValue<boolean>({
 		key: 'testsByCurrentDocumentOnly',
 		scope: StorageScope.WORKSPACE,
 		target: StorageTarget.USER
 	}, this.storage), false);
 
-	public readonly reveal = new ObservableValue<string | undefined>(undefined);
+	public readonly showExcludedTests = new MutableObservableValue(false);
+	public readonly reveal = new MutableObservableValue<TestIdPath | undefined>(undefined);
 
 	public readonly onDidRequestInputFocus = this.focusEmitter.event;
 
@@ -95,7 +104,7 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 	/**
 	 * @override
 	 */
-	public render(container: HTMLElement) {
+	public override render(container: HTMLElement) {
 		container.classList.add('testing-filter-action-item');
 
 		const updateDelayer = this._register(new Delayer<void>(400));
@@ -145,7 +154,7 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 	/**
 	 * Focuses the filter input.
 	 */
-	public focus(): void {
+	public override focus(): void {
 		this.input.focus();
 	}
 
@@ -164,7 +173,7 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 	/**
 	 * @override
 	 */
-	public dispose() {
+	public override dispose() {
 		this.saveState();
 		super.dispose();
 	}
@@ -185,7 +194,8 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 		action: IAction,
 		private readonly filters: ITestExplorerFilterState,
 		actionRunner: IActionRunner,
-		@IContextMenuService contextMenuService: IContextMenuService
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@ITestService private readonly testService: ITestService,
 	) {
 		super(action,
 			{ getActions: () => this.getActions() },
@@ -199,7 +209,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 		);
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		super.render(container);
 		this.updateChecked();
 	}
@@ -216,10 +226,33 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 				enabled: true,
 				id: v,
 				label,
-				run: async () => this.filters.stateFilter.value = v,
+				run: async () => {
+					this.filters.stateFilter.value = this.filters.stateFilter.value === v ? TestExplorerStateFilter.All : v;
+				},
 				tooltip: '',
 				dispose: () => null
 			})),
+			new Separator(),
+			{
+				checked: this.filters.showExcludedTests.value,
+				class: undefined,
+				enabled: true,
+				id: 'showExcluded',
+				label: localize('testing.filters.showExcludedTests', "Show Hidden Tests"),
+				run: async () => this.filters.showExcludedTests.value = !this.filters.showExcludedTests.value,
+				tooltip: '',
+				dispose: () => null
+			},
+			{
+				checked: false,
+				class: undefined,
+				enabled: this.testService.excluded.hasAny,
+				id: 'removeExcluded',
+				label: localize('testing.filters.removeTestExclusions', "Unhide All Tests"),
+				run: async () => this.testService.excluded.clear(),
+				tooltip: '',
+				dispose: () => null
+			},
 			new Separator(),
 			{
 				checked: this.filters.currentDocumentOnly.value,
@@ -234,7 +267,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 		];
 	}
 
-	updateChecked(): void {
+	override updateChecked(): void {
 		this.element!.classList.toggle('checked', this._action.checked);
 	}
 }

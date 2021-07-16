@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isMacintosh, isLinux, isWeb, IProcessEnvironment } from 'vs/base/common/platform';
+import { isMacintosh, isLinux, isWeb, isNative } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { PerformanceMark } from 'vs/base/common/performance';
+import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 
 export const WindowMinimumSize = {
 	WIDTH: 400,
@@ -18,7 +19,20 @@ export const WindowMinimumSize = {
 };
 
 export interface IBaseOpenWindowsOptions {
+
+	/**
+	 * Whether to reuse the window or open a new one.
+	 */
 	readonly forceReuseWindow?: boolean;
+
+	/**
+	 * The remote authority to use when windows are opened with either
+	 * - no workspace (empty window)
+	 * - a workspace that is neither `file://` nor `vscode-remote://`
+	 * Use 'null' for a local window.
+	 * If not set, defaults to the remote authority of the current window.
+	 */
+	readonly remoteAuthority?: string | null;
 }
 
 export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
@@ -47,9 +61,7 @@ export interface IOpenedWindow {
 	readonly dirty: boolean;
 }
 
-export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions {
-	readonly remoteAuthority?: string;
-}
+export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions { }
 
 export type IWindowOpenable = IWorkspaceToOpen | IFolderToOpen | IFileToOpen;
 
@@ -87,7 +99,7 @@ export function getMenuBarVisibility(configurationService: IConfigurationService
 	const titleBarStyle = getTitleBarStyle(configurationService);
 	const menuBarVisibility = configurationService.getValue<MenuBarVisibility | 'default'>('window.menuBarVisibility');
 
-	if (menuBarVisibility === 'default' || (titleBarStyle === 'native' && menuBarVisibility === 'compact')) {
+	if (menuBarVisibility === 'default' || (titleBarStyle === 'native' && menuBarVisibility === 'compact') || (isMacintosh && isNative)) {
 		return 'classic';
 	} else {
 		return menuBarVisibility;
@@ -114,7 +126,6 @@ export interface IWindowSettings {
 	readonly enableMenuBarMnemonics: boolean;
 	readonly closeWhenEmpty: boolean;
 	readonly clickThroughInactive: boolean;
-	readonly enableExperimentalMainProcessWorkspaceStorage: boolean;
 }
 
 export function getTitleBarStyle(configurationService: IConfigurationService): 'native' | 'custom' {
@@ -170,7 +181,7 @@ export interface IPathData {
 	readonly openOnlyIfExists?: boolean;
 
 	// Specifies an optional id to override the editor used to edit the resource, e.g. custom editor.
-	readonly overrideId?: string;
+	readonly editorOverrideId?: string;
 }
 
 export interface IPathsToWaitFor extends IPathsToWaitForData {
@@ -212,8 +223,6 @@ export interface IColorScheme {
 }
 
 export interface IWindowConfiguration {
-	sessionId: string;
-
 	remoteAuthority?: string;
 
 	colorScheme: IColorScheme;
@@ -225,37 +234,62 @@ export interface IWindowConfiguration {
 
 export interface IOSConfiguration {
 	readonly release: string;
+	readonly hostname: string;
 }
 
-export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs {
+export interface IPartsSplash {
+	baseTheme: string;
+	colorInfo: {
+		background: string;
+		foreground: string | undefined;
+		editorBackground: string | undefined;
+		titleBarBackground: string | undefined;
+		activityBarBackground: string | undefined;
+		sideBarBackground: string | undefined;
+		statusBarBackground: string | undefined;
+		statusBarNoFolderBackground: string | undefined;
+		windowBorder: string | undefined;
+	}
+	layoutInfo: {
+		sideBarSide: string;
+		editorPartMinWidth: number;
+		titleBarHeight: number;
+		activityBarWidth: number;
+		sideBarWidth: number;
+		statusBarHeight: number;
+		windowBorder: boolean;
+		windowBorderRadius: string | undefined;
+	} | undefined
+}
+
+export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs, ISandboxConfiguration {
 	mainPid: number;
 
-	windowId: number;
 	machineId: string;
 
-	appRoot: string;
 	execPath: string;
 	backupPath?: string;
 
-	nodeCachedDataDir?: string;
-	partsSplashPath: string;
+	homeDir: string;
+	tmpDir: string;
+	userDataDir: string;
+
+	partsSplash?: IPartsSplash;
 
 	workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
 
 	isInitialStartup?: boolean;
 	logLevel: LogLevel;
-	zoomLevel?: number;
+
 	fullscreen?: boolean;
 	maximized?: boolean;
 	accessibilitySupport?: boolean;
+
 	perfMarks: PerformanceMark[];
 
-	userEnv: IProcessEnvironment;
 	filesToWait?: IPathsToWaitFor;
 
 	os: IOSConfiguration;
-
-	enableExperimentalMainProcessWorkspaceStorage: boolean;
 }
 
 /**

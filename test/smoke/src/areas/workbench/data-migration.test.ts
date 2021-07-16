@@ -3,15 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application, ApplicationOptions } from '../../../../automation';
+import { Application, ApplicationOptions, Quality } from '../../../../automation';
 import { join } from 'path';
+import { ParsedArgs } from 'minimist';
 
-export function setup(stableCodePath: string, testDataPath: string) {
+export function setup(opts: ParsedArgs, testDataPath: string) {
 
 	describe('Datamigration', () => {
 		it(`verifies opened editors are restored`, async function () {
+			const stableCodePath = opts['stable-build'];
 			if (!stableCodePath) {
 				this.skip();
+			}
+
+			// On macOS, the stable app fails to launch on first try,
+			// so let's retry this once
+			// https://github.com/microsoft/vscode/pull/127799
+			if (process.platform === 'darwin') {
+				this.retries(2);
 			}
 
 			const userDataDir = join(testDataPath, 'd2'); // different data dir from the other tests
@@ -19,6 +28,7 @@ export function setup(stableCodePath: string, testDataPath: string) {
 			const stableOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
 			stableOptions.codePath = stableCodePath;
 			stableOptions.userDataDir = userDataDir;
+			stableOptions.quality = Quality.Stable;
 
 			const stableApp = new Application(stableOptions);
 			await stableApp!.start();
@@ -49,6 +59,7 @@ export function setup(stableCodePath: string, testDataPath: string) {
 		});
 
 		it(`verifies that 'hot exit' works for dirty files`, async function () {
+			const stableCodePath = opts['stable-build'];
 			if (!stableCodePath) {
 				this.skip();
 			}
@@ -58,6 +69,7 @@ export function setup(stableCodePath: string, testDataPath: string) {
 			const stableOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
 			stableOptions.codePath = stableCodePath;
 			stableOptions.userDataDir = userDataDir;
+			stableOptions.quality = Quality.Stable;
 
 			const stableApp = new Application(stableOptions);
 			await stableApp!.start();
@@ -81,7 +93,8 @@ export function setup(stableCodePath: string, testDataPath: string) {
 			const insidersApp = new Application(insiderOptions);
 			await insidersApp!.start(false /* not expecting walkthrough path */);
 
-			await insidersApp.workbench.editors.waitForActiveTab(readmeMd, true);
+			await insidersApp.workbench.editors.waitForTab(readmeMd, true);
+			await insidersApp.workbench.editors.selectTab(readmeMd);
 			await insidersApp.workbench.editor.waitForEditorContents(readmeMd, c => c.indexOf(textToType) > -1);
 
 			await insidersApp.workbench.editors.waitForTab(untitled, true);

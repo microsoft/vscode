@@ -32,7 +32,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { localize } from 'vs/nls';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
-import { fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
+import { fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Range } from 'vs/editor/common/core/range';
@@ -48,13 +48,13 @@ import { textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { IFileService } from 'vs/platform/files/common/files';
-import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { DomEmitter } from 'vs/base/browser/event';
 
 interface IResourceMarkersTemplateData {
 	resourceLabel: IResourceLabel;
@@ -262,12 +262,12 @@ const toggleMultilineAction = 'problems.action.toggleMultiline';
 
 class ToggleMultilineActionViewItem extends ActionViewItem {
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		super.render(container);
 		this.updateExpandedAttribute();
 	}
 
-	updateClass(): void {
+	override updateClass(): void {
 		super.updateClass();
 		this.updateExpandedAttribute();
 	}
@@ -417,10 +417,10 @@ class MarkerWidget extends Disposable {
 					this._codeLink.setAttribute('href', codeLink);
 					this._codeLink.tabIndex = 0;
 
-					const onClick = Event.chain(domEvent(this._codeLink, 'click'))
+					const onClick = Event.chain(this._register(new DomEmitter(this._codeLink, 'click')).event)
 						.filter(e => ((this._clickModifierKey === 'meta' && e.metaKey) || (this._clickModifierKey === 'ctrl' && e.ctrlKey) || (this._clickModifierKey === 'alt' && e.altKey)))
 						.event;
-					const onEnterPress = Event.chain(domEvent(this._codeLink, 'keydown'))
+					const onEnterPress = Event.chain(this._register(new DomEmitter(this._codeLink, 'keydown')).event)
 						.map(e => new StandardKeyboardEvent(e))
 						.filter(e => e.keyCode === KeyCode.Enter)
 						.event;
@@ -428,7 +428,7 @@ class MarkerWidget extends Disposable {
 
 					this._register(onOpen(e => {
 						dom.EventHelper.stop(e, true);
-						this._openerService.open(codeUri);
+						this._openerService.open(codeUri, { allowCommands: true });
 					}));
 
 					const code = new HighlightedLabel(dom.append(this._codeLink, dom.$('.marker-code')), false);
@@ -529,76 +529,92 @@ export class Filter implements ITreeFilter<MarkerElement, FilterData> {
 			return false;
 		}
 
+		// Filter resource by pattern first (globs)
+		// Excludes pattern
 		if (this.options.excludesMatcher.matches(resourceMarkers.resource)) {
 			return false;
 		}
 
-		const uriMatches = FilterOptions._filter(this.options.textFilter, basename(resourceMarkers.resource));
-
-		if (this.options.textFilter && uriMatches) {
-			return { visibility: true, data: { type: FilterDataType.ResourceMarkers, uriMatches } };
-		}
-
+		// Includes pattern
 		if (this.options.includesMatcher.matches(resourceMarkers.resource)) {
 			return true;
+		}
+
+		// Fiter by text. Do not apply negated filters on resources instead use exclude patterns
+		if (this.options.textFilter.text && !this.options.textFilter.negate) {
+			const uriMatches = FilterOptions._filter(this.options.textFilter.text, basename(resourceMarkers.resource));
+			if (uriMatches) {
+				return { visibility: true, data: { type: FilterDataType.ResourceMarkers, uriMatches: uriMatches || [] } };
+			}
 		}
 
 		return TreeVisibility.Recurse;
 	}
 
 	private filterMarker(marker: Marker, parentVisibility: TreeVisibility): TreeFilterResult<FilterData> {
-		let shouldAppear: boolean = false;
-		if (this.options.showErrors && MarkerSeverity.Error === marker.marker.severity) {
-			shouldAppear = true;
-		}
 
-		if (this.options.showWarnings && MarkerSeverity.Warning === marker.marker.severity) {
-			shouldAppear = true;
-		}
+		const matchesSeverity = this.options.showErrors && MarkerSeverity.Error === marker.marker.severity ||
+			this.options.showWarnings && MarkerSeverity.Warning === marker.marker.severity ||
+			this.options.showInfos && MarkerSeverity.Info === marker.marker.severity;
 
-		if (this.options.showInfos && MarkerSeverity.Info === marker.marker.severity) {
-			shouldAppear = true;
-		}
-
-		if (!shouldAppear) {
+		if (!matchesSeverity) {
 			return false;
 		}
 
-		if (!this.options.textFilter) {
+		if (!this.options.textFilter.text) {
 			return true;
 		}
 
 		const lineMatches: IMatch[][] = [];
 		for (const line of marker.lines) {
-			lineMatches.push(FilterOptions._messageFilter(this.options.textFilter, line) || []);
-		}
-		const sourceMatches = marker.marker.source && FilterOptions._filter(this.options.textFilter, marker.marker.source);
-
-		let codeMatches: IMatch[] | null | undefined;
-		if (marker.marker.code) {
-			const codeText = typeof marker.marker.code === 'string' ? marker.marker.code : marker.marker.code.value;
-			codeMatches = FilterOptions._filter(this.options.textFilter, codeText);
-		} else {
-			codeMatches = undefined;
+			const lineMatch = FilterOptions._messageFilter(this.options.textFilter.text, line);
+			lineMatches.push(lineMatch || []);
 		}
 
-		if (sourceMatches || codeMatches || lineMatches.some(lineMatch => lineMatch.length > 0)) {
+		const sourceMatches = marker.marker.source ? FilterOptions._filter(this.options.textFilter.text, marker.marker.source) : undefined;
+		const codeMatches = marker.marker.code ? FilterOptions._filter(this.options.textFilter.text, typeof marker.marker.code === 'string' ? marker.marker.code : marker.marker.code.value) : undefined;
+		const matched = sourceMatches || codeMatches || lineMatches.some(lineMatch => lineMatch.length > 0);
+
+		// Matched and not negated
+		if (matched && !this.options.textFilter.negate) {
 			return { visibility: true, data: { type: FilterDataType.Marker, lineMatches, sourceMatches: sourceMatches || [], codeMatches: codeMatches || [] } };
+		}
+
+		// Matched and negated - exclude it only if parent visibility is not set
+		if (matched && this.options.textFilter.negate && parentVisibility === TreeVisibility.Recurse) {
+			return false;
+		}
+
+		// Not matched and negated - include it only if parent visibility is not set
+		if (!matched && this.options.textFilter.negate && parentVisibility === TreeVisibility.Recurse) {
+			return true;
 		}
 
 		return parentVisibility;
 	}
 
 	private filterRelatedInformation(relatedInformation: RelatedInformation, parentVisibility: TreeVisibility): TreeFilterResult<FilterData> {
-		if (!this.options.textFilter) {
+		if (!this.options.textFilter.text) {
 			return true;
 		}
 
-		const uriMatches = FilterOptions._filter(this.options.textFilter, basename(relatedInformation.raw.resource));
-		const messageMatches = FilterOptions._messageFilter(this.options.textFilter, paths.basename(relatedInformation.raw.message));
+		const uriMatches = FilterOptions._filter(this.options.textFilter.text, basename(relatedInformation.raw.resource));
+		const messageMatches = FilterOptions._messageFilter(this.options.textFilter.text, paths.basename(relatedInformation.raw.message));
+		const matched = uriMatches || messageMatches;
 
-		if (uriMatches || messageMatches) {
+		// Matched and not negated
+		if (matched && !this.options.textFilter.negate) {
 			return { visibility: true, data: { type: FilterDataType.RelatedInformation, uriMatches: uriMatches || [], messageMatches: messageMatches || [] } };
+		}
+
+		// Matched and negated - exclude it only if parent visibility is not set
+		if (matched && this.options.textFilter.negate && parentVisibility === TreeVisibility.Recurse) {
+			return false;
+		}
+
+		// Not matched and negated - include it only if parent visibility is not set
+		if (!matched && this.options.textFilter.negate && parentVisibility === TreeVisibility.Recurse) {
+			return true;
 		}
 
 		return parentVisibility;
@@ -679,7 +695,7 @@ export class MarkerViewModel extends Disposable {
 					if (!this.codeActionsPromise) {
 						this.codeActionsPromise = createCancelablePromise(cancellationToken => {
 							return getCodeActions(model, new Range(this.marker.range.startLineNumber, this.marker.range.startColumn, this.marker.range.endLineNumber, this.marker.range.endColumn), {
-								type: CodeActionTriggerType.Manual, filter: { include: CodeActionKind.QuickFix }
+								type: CodeActionTriggerType.Invoke, filter: { include: CodeActionKind.QuickFix }
 							}, Progress.None, cancellationToken).then(actions => {
 								return this._register(actions);
 							});
@@ -841,7 +857,7 @@ export class MarkersViewModel extends Disposable {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.markersViewStates.forEach(({ disposables }) => dispose(disposables));
 		this.markersViewStates.clear();
 		this.markersPerResource.clear();
@@ -876,13 +892,13 @@ export class ResourceDragAndDrop implements ITreeDragAndDrop<MarkerElement> {
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
 		const elements = (data as ElementsDragAndDropData<MarkerElement>).elements;
-		const resources: URI[] = elements
+		const resources = elements
 			.filter(e => e instanceof ResourceMarkers)
 			.map(resourceMarker => (resourceMarker as ResourceMarkers).resource);
 
 		if (resources.length) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
-			this.instantiationService.invokeFunction(fillResourceDataTransfers, resources, undefined, originalEvent);
+			this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, resources, originalEvent));
 		}
 	}
 

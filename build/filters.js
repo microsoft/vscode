@@ -51,8 +51,10 @@ module.exports.indentationFilter = [
 	'!test/monaco/out/**',
 	'!test/smoke/out/**',
 	'!extensions/typescript-language-features/test-workspace/**',
+	'!extensions/markdown-math/notebook-out/**',
 	'!extensions/vscode-api-tests/testWorkspace/**',
 	'!extensions/vscode-api-tests/testWorkspace2/**',
+	'!extensions/vscode-custom-editor-tests/test-workspace/**',
 	'!build/monaco/**',
 	'!build/win32/**',
 
@@ -87,7 +89,7 @@ module.exports.indentationFilter = [
 	'!**/*.dockerfile',
 	'!extensions/markdown-language-features/media/*.js',
 	'!extensions/markdown-language-features/notebook-out/*.js',
-	'!extensions/markdown-notebook-math/notebook-out/*.js',
+	'!extensions/markdown-math/notebook-out/*.js',
 	'!extensions/simple-browser/media/*.js',
 ];
 
@@ -117,6 +119,7 @@ module.exports.copyrightFilter = [
 	'!resources/completions/**',
 	'!extensions/configuration-editing/build/inline-allOf.ts',
 	'!extensions/markdown-language-features/media/highlight.css',
+	'!extensions/markdown-math/notebook-out/**',
 	'!extensions/html-language-features/server/src/modes/typescript/*',
 	'!extensions/*/server/bin/*',
 	'!src/vs/editor/test/node/classification/typescript-test.ts',

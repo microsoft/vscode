@@ -39,9 +39,9 @@ suite('Debug - Link Detector', () => {
 		const expectedOutput = '<span>I am a string</span>';
 		const output = linkDetector.linkify(input);
 
-		assert.equal(0, output.children.length);
-		assert.equal('SPAN', output.tagName);
-		assert.equal(expectedOutput, output.outerHTML);
+		assert.strictEqual(0, output.children.length);
+		assert.strictEqual('SPAN', output.tagName);
+		assert.strictEqual(expectedOutput, output.outerHTML);
 	});
 
 	test('trailingNewline', () => {
@@ -49,9 +49,9 @@ suite('Debug - Link Detector', () => {
 		const expectedOutput = '<span>I am a string\n</span>';
 		const output = linkDetector.linkify(input);
 
-		assert.equal(0, output.children.length);
-		assert.equal('SPAN', output.tagName);
-		assert.equal(expectedOutput, output.outerHTML);
+		assert.strictEqual(0, output.children.length);
+		assert.strictEqual('SPAN', output.tagName);
+		assert.strictEqual(expectedOutput, output.outerHTML);
 	});
 
 	test('trailingNewlineSplit', () => {
@@ -59,9 +59,9 @@ suite('Debug - Link Detector', () => {
 		const expectedOutput = '<span>I am a string\n</span>';
 		const output = linkDetector.linkify(input, true);
 
-		assert.equal(0, output.children.length);
-		assert.equal('SPAN', output.tagName);
-		assert.equal(expectedOutput, output.outerHTML);
+		assert.strictEqual(0, output.children.length);
+		assert.strictEqual('SPAN', output.tagName);
+		assert.strictEqual(expectedOutput, output.outerHTML);
 	});
 
 	test('singleLineLink', () => {
@@ -69,12 +69,12 @@ suite('Debug - Link Detector', () => {
 		const expectedOutput = isWindows ? '<span><a tabindex="0">C:\\foo\\bar.js:12:34<\/a><\/span>' : '<span><a tabindex="0">/Users/foo/bar.js:12:34<\/a><\/span>';
 		const output = linkDetector.linkify(input);
 
-		assert.equal(1, output.children.length);
-		assert.equal('SPAN', output.tagName);
-		assert.equal('A', output.firstElementChild!.tagName);
-		assert.equal(expectedOutput, output.outerHTML);
+		assert.strictEqual(1, output.children.length);
+		assert.strictEqual('SPAN', output.tagName);
+		assert.strictEqual('A', output.firstElementChild!.tagName);
+		assert.strictEqual(expectedOutput, output.outerHTML);
 		assertElementIsLink(output.firstElementChild!);
-		assert.equal(isWindows ? 'C:\\foo\\bar.js:12:34' : '/Users/foo/bar.js:12:34', output.firstElementChild!.textContent);
+		assert.strictEqual(isWindows ? 'C:\\foo\\bar.js:12:34' : '/Users/foo/bar.js:12:34', output.firstElementChild!.textContent);
 	});
 
 	test('relativeLink', () => {
@@ -82,15 +82,15 @@ suite('Debug - Link Detector', () => {
 		const expectedOutput = '<span>\./foo/bar.js</span>';
 		const output = linkDetector.linkify(input);
 
-		assert.equal(0, output.children.length);
-		assert.equal('SPAN', output.tagName);
-		assert.equal(expectedOutput, output.outerHTML);
+		assert.strictEqual(0, output.children.length);
+		assert.strictEqual('SPAN', output.tagName);
+		assert.strictEqual(expectedOutput, output.outerHTML);
 	});
 
 	test('relativeLinkWithWorkspace', async () => {
 		const input = '\./foo/bar.js';
 		const output = linkDetector.linkify(input, false, new WorkspaceFolder({ uri: URI.file('/path/to/workspace'), name: 'ws', index: 0 }));
-		assert.equal('SPAN', output.tagName);
+		assert.strictEqual('SPAN', output.tagName);
 		assert.ok(output.outerHTML.indexOf('link') >= 0);
 	});
 
@@ -99,12 +99,12 @@ suite('Debug - Link Detector', () => {
 		const expectedOutput = /^<span>The link: <a tabindex="0">.*\/foo\/bar.js:12:34<\/a><\/span>$/;
 		const output = linkDetector.linkify(input);
 
-		assert.equal(1, output.children.length);
-		assert.equal('SPAN', output.tagName);
-		assert.equal('A', output.children[0].tagName);
+		assert.strictEqual(1, output.children.length);
+		assert.strictEqual('SPAN', output.tagName);
+		assert.strictEqual('A', output.children[0].tagName);
 		assert(expectedOutput.test(output.outerHTML));
 		assertElementIsLink(output.children[0]);
-		assert.equal(isWindows ? 'C:/foo/bar.js:12:34' : '/Users/foo/bar.js:12:34', output.children[0].textContent);
+		assert.strictEqual(isWindows ? 'C:/foo/bar.js:12:34' : '/Users/foo/bar.js:12:34', output.children[0].textContent);
 	});
 
 	test('singleLineMultipleLinks', () => {
@@ -113,15 +113,15 @@ suite('Debug - Link Detector', () => {
 		const expectedOutput = /^<span>Here is a link <a tabindex="0">.*\/foo\/bar.js:12:34<\/a> and here is another <a tabindex="0">.*\/boo\/far.js:56:78<\/a><\/span>$/;
 		const output = linkDetector.linkify(input);
 
-		assert.equal(2, output.children.length);
-		assert.equal('SPAN', output.tagName);
-		assert.equal('A', output.children[0].tagName);
-		assert.equal('A', output.children[1].tagName);
+		assert.strictEqual(2, output.children.length);
+		assert.strictEqual('SPAN', output.tagName);
+		assert.strictEqual('A', output.children[0].tagName);
+		assert.strictEqual('A', output.children[1].tagName);
 		assert(expectedOutput.test(output.outerHTML));
 		assertElementIsLink(output.children[0]);
 		assertElementIsLink(output.children[1]);
-		assert.equal(isWindows ? 'C:/foo/bar.js:12:34' : '/Users/foo/bar.js:12:34', output.children[0].textContent);
-		assert.equal(isWindows ? 'D:/boo/far.js:56:78' : '/Users/boo/far.js:56:78', output.children[1].textContent);
+		assert.strictEqual(isWindows ? 'C:/foo/bar.js:12:34' : '/Users/foo/bar.js:12:34', output.children[0].textContent);
+		assert.strictEqual(isWindows ? 'D:/boo/far.js:56:78' : '/Users/boo/far.js:56:78', output.children[1].textContent);
 	});
 
 	test('multilineNoLinks', () => {
@@ -129,11 +129,11 @@ suite('Debug - Link Detector', () => {
 		const expectedOutput = /^<span><span>Line one\n<\/span><span>Line two\n<\/span><span>Line three<\/span><\/span>$/;
 		const output = linkDetector.linkify(input, true);
 
-		assert.equal(3, output.children.length);
-		assert.equal('SPAN', output.tagName);
-		assert.equal('SPAN', output.children[0].tagName);
-		assert.equal('SPAN', output.children[1].tagName);
-		assert.equal('SPAN', output.children[2].tagName);
+		assert.strictEqual(3, output.children.length);
+		assert.strictEqual('SPAN', output.tagName);
+		assert.strictEqual('SPAN', output.children[0].tagName);
+		assert.strictEqual('SPAN', output.children[1].tagName);
+		assert.strictEqual('SPAN', output.children[2].tagName);
 		assert(expectedOutput.test(output.outerHTML));
 	});
 
@@ -142,11 +142,11 @@ suite('Debug - Link Detector', () => {
 		const expectedOutput = '<span><span>I am a string\n<\/span><span>And I am another\n<\/span><\/span>';
 		const output = linkDetector.linkify(input, true);
 
-		assert.equal(2, output.children.length);
-		assert.equal('SPAN', output.tagName);
-		assert.equal('SPAN', output.children[0].tagName);
-		assert.equal('SPAN', output.children[1].tagName);
-		assert.equal(expectedOutput, output.outerHTML);
+		assert.strictEqual(2, output.children.length);
+		assert.strictEqual('SPAN', output.tagName);
+		assert.strictEqual('SPAN', output.children[0].tagName);
+		assert.strictEqual('SPAN', output.children[1].tagName);
+		assert.strictEqual(expectedOutput, output.outerHTML);
 	});
 
 	test('multilineWithLinks', () => {
@@ -155,14 +155,14 @@ suite('Debug - Link Detector', () => {
 		const expectedOutput = /^<span><span>I have a link for you\n<\/span><span>Here it is: <a tabindex="0">.*\/foo\/bar.js:12:34<\/a>\n<\/span><span>Cool, huh\?<\/span><\/span>$/;
 		const output = linkDetector.linkify(input, true);
 
-		assert.equal(3, output.children.length);
-		assert.equal('SPAN', output.tagName);
-		assert.equal('SPAN', output.children[0].tagName);
-		assert.equal('SPAN', output.children[1].tagName);
-		assert.equal('SPAN', output.children[2].tagName);
-		assert.equal('A', output.children[1].children[0].tagName);
+		assert.strictEqual(3, output.children.length);
+		assert.strictEqual('SPAN', output.tagName);
+		assert.strictEqual('SPAN', output.children[0].tagName);
+		assert.strictEqual('SPAN', output.children[1].tagName);
+		assert.strictEqual('SPAN', output.children[2].tagName);
+		assert.strictEqual('A', output.children[1].children[0].tagName);
 		assert(expectedOutput.test(output.outerHTML));
 		assertElementIsLink(output.children[1].children[0]);
-		assert.equal(isWindows ? 'C:/foo/bar.js:12:34' : '/Users/foo/bar.js:12:34', output.children[1].children[0].textContent);
+		assert.strictEqual(isWindows ? 'C:/foo/bar.js:12:34' : '/Users/foo/bar.js:12:34', output.children[1].children[0].textContent);
 	});
 });

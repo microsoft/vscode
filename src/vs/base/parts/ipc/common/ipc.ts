@@ -13,6 +13,7 @@ import { getRandomElement } from 'vs/base/common/arrays';
 import { isFunction, isUndefinedOrNull } from 'vs/base/common/types';
 import { revive } from 'vs/base/common/marshalling';
 import * as strings from 'vs/base/common/strings';
+import { memoize } from 'vs/base/common/decorators';
 
 /**
  * An `IChannel` is an abstraction over a collection of commands.
@@ -723,11 +724,16 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		}
 	}
 
+	@memoize
+	get onDidInitializePromise(): Promise<void> {
+		return Event.toPromise(this.onDidInitialize);
+	}
+
 	private whenInitialized(): Promise<void> {
 		if (this.state === State.Idle) {
 			return Promise.resolve();
 		} else {
-			return Event.toPromise(this.onDidInitialize);
+			return this.onDidInitializePromise;
 		}
 	}
 

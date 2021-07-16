@@ -140,7 +140,7 @@ class TextualOccurenceAtPositionRequest extends OccurenceAtPositionRequest {
 		});
 	}
 
-	public isValid(model: ITextModel, selection: Selection, decorationIds: string[]): boolean {
+	public override isValid(model: ITextModel, selection: Selection, decorationIds: string[]): boolean {
 		const currentSelectionIsEmpty = selection.isEmpty();
 		if (this._selectionIsEmpty !== currentSelectionIsEmpty) {
 			return false;
@@ -443,6 +443,7 @@ class WordHighlighter {
 	}
 
 	private static readonly _WRITE_OPTIONS = ModelDecorationOptions.register({
+		description: 'word-highlight-strong',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'wordHighlightStrong',
 		overviewRuler: {
@@ -452,6 +453,7 @@ class WordHighlighter {
 	});
 
 	private static readonly _TEXT_OPTIONS = ModelDecorationOptions.register({
+		description: 'selection-highlight',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'selectionHighlight',
 		overviewRuler: {
@@ -461,6 +463,7 @@ class WordHighlighter {
 	});
 
 	private static readonly _REGULAR_OPTIONS = ModelDecorationOptions.register({
+		description: 'word-highlight',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'wordHighlight',
 		overviewRuler: {
@@ -528,7 +531,7 @@ class WordHighlighterContribution extends Disposable implements IEditorContribut
 		}
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		if (this.wordHighlighter) {
 			this.wordHighlighter.dispose();
 			this.wordHighlighter = null;

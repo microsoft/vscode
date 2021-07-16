@@ -619,7 +619,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return instantiationService.createInstance(CodeEditorWidget, container, options, editorWidgetOptions);
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._codeEditorService.removeDiffEditor(this);
 
 		if (this._beginUpdateDecorationsTimeout !== -1) {
@@ -1775,27 +1775,33 @@ function createDecoration(startLineNumber: number, startColumn: number, endLineN
 const DECORATIONS = {
 
 	charDelete: ModelDecorationOptions.register({
+		description: 'diff-editor-char-delete',
 		className: 'char-delete'
 	}),
 	charDeleteWholeLine: ModelDecorationOptions.register({
+		description: 'diff-editor-char-delete-whole-line',
 		className: 'char-delete',
 		isWholeLine: true
 	}),
 
 	charInsert: ModelDecorationOptions.register({
+		description: 'diff-editor-char-insert',
 		className: 'char-insert'
 	}),
 	charInsertWholeLine: ModelDecorationOptions.register({
+		description: 'diff-editor-char-insert-whole-line',
 		className: 'char-insert',
 		isWholeLine: true
 	}),
 
 	lineInsert: ModelDecorationOptions.register({
+		description: 'diff-editor-line-insert',
 		className: 'line-insert',
 		marginClassName: 'line-insert',
 		isWholeLine: true
 	}),
 	lineInsertWithSign: ModelDecorationOptions.register({
+		description: 'diff-editor-line-insert-with-sign',
 		className: 'line-insert',
 		linesDecorationsClassName: 'insert-sign ' + ThemeIcon.asClassName(diffInsertIcon),
 		marginClassName: 'line-insert',
@@ -1803,11 +1809,13 @@ const DECORATIONS = {
 	}),
 
 	lineDelete: ModelDecorationOptions.register({
+		description: 'diff-editor-line-delete',
 		className: 'line-delete',
 		marginClassName: 'line-delete',
 		isWholeLine: true
 	}),
 	lineDeleteWithSign: ModelDecorationOptions.register({
+		description: 'diff-editor-line-delete-with-sign',
 		className: 'line-delete',
 		linesDecorationsClassName: 'delete-sign ' + ThemeIcon.asClassName(diffRemoveIcon),
 		marginClassName: 'line-delete',
@@ -1815,6 +1823,7 @@ const DECORATIONS = {
 
 	}),
 	lineDeleteMargin: ModelDecorationOptions.register({
+		description: 'diff-editor-line-delete-margin',
 		marginClassName: 'line-delete',
 	})
 
@@ -2239,7 +2248,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		this._lineBreaksComputer = this._modifiedEditor._getViewModel()!.createLineBreaksComputer();
 	}
 
-	public getViewZones(): IEditorsZones {
+	public override getViewZones(): IEditorsZones {
 		const result = super.getViewZones();
 		this._finalize(result);
 		return result;
@@ -2288,7 +2297,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		};
 
 		for (let lineNumber = lineChange.originalStartLineNumber; lineNumber <= lineChange.originalEndLineNumber; lineNumber++) {
-			this._lineBreaksComputer.addRequest(this._originalModel.getLineContent(lineNumber), null);
+			this._lineBreaksComputer.addRequest(this._originalModel.getLineContent(lineNumber), null, null);
 		}
 
 		this._pendingLineChange.push(lineChange);
@@ -2504,8 +2513,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			marginDomNode.appendChild(marginElement);
 		}
 
-		const absoluteOffsets = output.characterMapping.getAbsoluteOffsets();
-		return absoluteOffsets.length > 0 ? absoluteOffsets[absoluteOffsets.length - 1] : 0;
+		return output.characterMapping.getAbsoluteOffset(output.characterMapping.length);
 	}
 }
 

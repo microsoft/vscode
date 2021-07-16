@@ -15,7 +15,7 @@ import { getOrSet } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { flatten, mergeSort } from 'vs/base/common/arrays';
+import { flatten } from 'vs/base/common/arrays';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { SetMap } from 'vs/base/common/collections';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
@@ -381,6 +381,7 @@ export interface IViewsRegistry {
 
 	readonly onDidChangeViewWelcomeContent: Event<string>;
 	registerViewWelcomeContent(id: string, viewContent: IViewContentDescriptor): IDisposable;
+	registerViewWelcomeContent2<TKey>(id: string, viewContentMap: Map<TKey, IViewContentDescriptor>): Map<TKey, IDisposable>;
 	getViewWelcomeContent(id: string): IViewContentDescriptor[];
 }
 
@@ -473,11 +474,26 @@ class ViewsRegistry extends Disposable implements IViewsRegistry {
 		});
 	}
 
+	registerViewWelcomeContent2<TKey>(id: string, viewContentMap: Map<TKey, IViewContentDescriptor>): Map<TKey, IDisposable> {
+		const disposables = new Map<TKey, IDisposable>();
+
+		for (const [key, content] of viewContentMap) {
+			this._viewWelcomeContents.add(id, content);
+
+			disposables.set(key, toDisposable(() => {
+				this._viewWelcomeContents.delete(id, content);
+				this._onDidChangeViewWelcomeContent.fire(id);
+			}));
+		}
+		this._onDidChangeViewWelcomeContent.fire(id);
+
+		return disposables;
+	}
+
 	getViewWelcomeContent(id: string): IViewContentDescriptor[] {
 		const result: IViewContentDescriptor[] = [];
 		this._viewWelcomeContents.forEach(id, descriptor => result.push(descriptor));
-		mergeSort(result, compareViewContentDescriptors);
-		return result;
+		return result.sort(compareViewContentDescriptors);
 	}
 
 	private addViews(viewDescriptors: IViewDescriptor[], viewContainer: ViewContainer): void {
@@ -557,13 +573,14 @@ export interface IViewsService {
 	openView<T extends IView>(id: string, focus?: boolean): Promise<T | null>;
 	closeView(id: string): void;
 	getActiveViewWithId<T extends IView>(id: string): T | null;
+	getViewWithId<T extends IView>(id: string): T | null;
 	getViewProgressIndicator(id: string): IProgressIndicator | undefined;
 }
 
 /**
  * View Contexts
  */
-export const FocusedViewContext = new RawContextKey<string>('focusedView', '');
+export const FocusedViewContext = new RawContextKey<string>('focusedView', '', localize('focusedView', "The identifier of the view that has keyboard focus"));
 export function getVisbileViewContextKey(viewId: string): string { return `view.${viewId}.visible`; }
 
 export const IViewDescriptorService = createDecorator<IViewDescriptorService>('viewDescriptorService');
@@ -609,9 +626,19 @@ export interface IViewDescriptorService {
 
 // Custom views
 
+export interface ITreeDataTransferItem {
+	asString(): Thenable<string>;
+}
+
+export interface ITreeDataTransfer {
+	items: Map<string, ITreeDataTransferItem>;
+}
+
 export interface ITreeView extends IDisposable {
 
 	dataProvider: ITreeViewDataProvider | undefined;
+
+	dragAndDropController?: ITreeViewDragAndDropController;
 
 	showCollapseAllAction: boolean;
 
@@ -793,7 +820,11 @@ export interface ITreeViewDataProvider {
 	readonly isTreeEmpty?: boolean;
 	onDidChangeEmpty?: Event<void>;
 	getChildren(element?: ITreeItem): Promise<ITreeItem[]>;
+}
 
+export const TREE_ITEM_DATA_TRANSFER_TYPE = 'text/treeitems';
+export interface ITreeViewDragAndDropController {
+	onDrop(elements: ITreeDataTransfer, target: ITreeItem): Promise<void>;
 }
 
 export interface IEditableData {

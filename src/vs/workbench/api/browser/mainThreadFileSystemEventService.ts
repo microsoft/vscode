@@ -51,7 +51,7 @@ export class MainThreadFileSystemEventService {
 			changed: [],
 			deleted: []
 		};
-		this._listener.add(fileService.onDidFilesChange(event => {
+		this._listener.add(fileService.onDidChangeFilesRaw(event => {
 			for (let change of event.changes) {
 				switch (change.type) {
 					case FileChangeType.ADDED:

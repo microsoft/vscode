@@ -9,7 +9,6 @@ import * as Types from 'vs/base/common/types';
 import { Schemas } from 'vs/base/common/network';
 import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { IStringDictionary, forEach, fromMap } from 'vs/base/common/collections';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IConfigurationService, IConfigurationOverrides, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceFolder, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -17,10 +16,10 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IQuickInputService, IInputOptions, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
-import { ConfiguredInput, IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 export abstract class BaseConfigurationResolverService extends AbstractVariableResolverService {
 
@@ -31,13 +30,14 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 			getAppRoot: () => string | undefined,
 			getExecPath: () => string | undefined
 		},
-		envVariables: IProcessEnvironment,
+		envVariablesPromise: Promise<IProcessEnvironment>,
 		editorService: IEditorService,
 		private readonly configurationService: IConfigurationService,
 		private readonly commandService: ICommandService,
 		private readonly workspaceContextService: IWorkspaceContextService,
 		private readonly quickInputService: IQuickInputService,
-		private readonly labelService: ILabelService
+		private readonly labelService: ILabelService,
+		private readonly pathService: IPathService
 	) {
 		super({
 			getFolderUri: (folderName: string): uri | undefined => {
@@ -59,7 +59,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 			getFilePath: (): string | undefined => {
 				const fileResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, {
 					supportSideBySide: SideBySideEditor.PRIMARY,
-					filterByScheme: [Schemas.file, Schemas.userData, Schemas.vscodeRemote]
+					filterByScheme: [Schemas.file, Schemas.userData, this.pathService.defaultUriScheme]
 				});
 				if (!fileResource) {
 					return undefined;
@@ -69,7 +69,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 			getWorkspaceFolderPathForFile: (): string | undefined => {
 				const fileResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, {
 					supportSideBySide: SideBySideEditor.PRIMARY,
-					filterByScheme: [Schemas.file, Schemas.userData, Schemas.vscodeRemote]
+					filterByScheme: [Schemas.file, Schemas.userData, this.pathService.defaultUriScheme]
 				});
 				if (!fileResource) {
 					return undefined;
@@ -102,12 +102,12 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				}
 				return undefined;
 			}
-		}, labelService, envVariables);
+		}, labelService, envVariablesPromise);
 	}
 
-	public async resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<any> {
+	public override async resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<any> {
 		// resolve any non-interactive variables and any contributed variables
-		config = this.resolveAny(folder, config);
+		config = await this.resolveAnyAsync(folder, config);
 
 		// resolve input variables in the order in which they are encountered
 		return this.resolveWithInteraction(folder, config, section, variables, target).then(mapping => {
@@ -115,14 +115,14 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 			if (!mapping) {
 				return null;
 			} else if (mapping.size > 0) {
-				return this.resolveAny(folder, config, fromMap(mapping));
+				return this.resolveAnyAsync(folder, config, fromMap(mapping));
 			} else {
 				return config;
 			}
 		});
 	}
 
-	public async resolveWithInteraction(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<Map<string, string> | undefined> {
+	public override async resolveWithInteraction(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<Map<string, string> | undefined> {
 		// resolve any non-interactive variables and any contributed variables
 		const resolved = await this.resolveAnyMap(folder, config);
 		config = resolved.newConfig;
@@ -363,15 +363,15 @@ export class ConfigurationResolverService extends BaseConfigurationResolverServi
 
 	constructor(
 		@IEditorService editorService: IEditorService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ICommandService commandService: ICommandService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IQuickInputService quickInputService: IQuickInputService,
-		@ILabelService labelService: ILabelService
+		@ILabelService labelService: ILabelService,
+		@IPathService pathService: IPathService
 	) {
-		super({ getAppRoot: () => undefined, getExecPath: () => undefined }, Object.create(null), editorService, configurationService, commandService, workspaceContextService, quickInputService, labelService);
+		super({ getAppRoot: () => undefined, getExecPath: () => undefined },
+			Promise.resolve(Object.create(null)), editorService, configurationService,
+			commandService, workspaceContextService, quickInputService, labelService, pathService);
 	}
 }
-
-registerSingleton(IConfigurationResolverService, ConfigurationResolverService, true);

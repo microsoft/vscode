@@ -3,16 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { session, WebContents, webContents } from 'electron';
+import { WebContents, webContents, WebFrameMain } from 'electron';
+import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { webviewPartitionId } from 'vs/platform/webview/common/resourceLoader';
-import { IWebviewManagerService, RegisterWebviewMetadata, WebviewManagerDidLoadResourceResponse, WebviewWebContentsId, WebviewWindowId } from 'vs/platform/webview/common/webviewManagerService';
-import { WebviewPortMappingProvider } from 'vs/platform/webview/electron-main/webviewPortMappingProvider';
+import { FindInFrameOptions, FoundInFrameResult, IWebviewManagerService, WebviewWebContentsId, WebviewWindowId } from 'vs/platform/webview/common/webviewManagerService';
 import { WebviewProtocolProvider } from 'vs/platform/webview/electron-main/webviewProtocolProvider';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 
@@ -20,69 +14,14 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly protocolProvider: WebviewProtocolProvider;
-	private readonly portMappingProvider: WebviewPortMappingProvider;
+	private readonly _onFoundInFrame = this._register(new Emitter<FoundInFrameResult>());
+	public onFoundInFrame = this._onFoundInFrame.event;
 
 	constructor(
-		@IFileService fileService: IFileService,
-		@ILogService logService: ILogService,
-		@IRequestService requestService: IRequestService,
-		@ITunnelService tunnelService: ITunnelService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 	) {
 		super();
-		this.protocolProvider = this._register(new WebviewProtocolProvider(fileService, logService, requestService, windowsMainService));
-		this.portMappingProvider = this._register(new WebviewPortMappingProvider(tunnelService));
-
-		const sess = session.fromPartition(webviewPartitionId);
-		sess.setPermissionRequestHandler((_webContents, permission, callback) => {
-			if (permission === 'clipboard-read') {
-				return callback(true);
-			}
-
-			return callback(false);
-		});
-
-		sess.setPermissionCheckHandler((_webContents, permission /* 'media' */) => {
-			return permission === 'clipboard-read';
-		});
-	}
-
-	public async registerWebview(id: string, windowId: number, metadata: RegisterWebviewMetadata): Promise<void> {
-		const extensionLocation = metadata.extensionLocation ? URI.from(metadata.extensionLocation) : undefined;
-
-		this.protocolProvider.registerWebview(id, {
-			...metadata,
-			windowId: windowId,
-			extensionLocation,
-			localResourceRoots: metadata.localResourceRoots.map(x => URI.from(x))
-		});
-
-		this.portMappingProvider.registerWebview(id, {
-			extensionLocation,
-			mappings: metadata.portMappings,
-			resolvedAuthority: metadata.remoteConnectionData,
-		});
-	}
-
-	public async unregisterWebview(id: string): Promise<void> {
-		this.protocolProvider.unregisterWebview(id);
-		this.portMappingProvider.unregisterWebview(id);
-	}
-
-	public async updateWebviewMetadata(id: string, metaDataDelta: Partial<RegisterWebviewMetadata>): Promise<void> {
-		const extensionLocation = metaDataDelta.extensionLocation ? URI.from(metaDataDelta.extensionLocation) : undefined;
-
-		this.protocolProvider.updateWebviewMetadata(id, {
-			...metaDataDelta,
-			extensionLocation,
-			localResourceRoots: metaDataDelta.localResourceRoots?.map(x => URI.from(x)),
-		});
-
-		this.portMappingProvider.updateWebviewMetadata(id, {
-			...metaDataDelta,
-			extensionLocation,
-		});
+		this._register(new WebviewProtocolProvider());
 	}
 
 	public async setIgnoreMenuShortcuts(id: WebviewWebContentsId | WebviewWindowId, enabled: boolean): Promise<void> {
@@ -108,7 +47,52 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 		}
 	}
 
-	public async didLoadResource(requestId: number, response: WebviewManagerDidLoadResourceResponse): Promise<void> {
-		this.protocolProvider.didLoadResource(requestId, response);
+	public async findInFrame(windowId: WebviewWindowId, frameName: string, text: string, options: { findNext?: boolean, forward?: boolean }): Promise<void> {
+		const initialFrame = this.getFrameByName(windowId, frameName);
+
+		type WebFrameMainWithFindSupport = typeof WebFrameMain & {
+			findInFrame?(text: string, findOptions: FindInFrameOptions): void;
+		};
+		const frame = initialFrame as unknown as WebFrameMainWithFindSupport;
+		if (typeof frame.findInFrame === 'function') {
+			frame.findInFrame(text, {
+				findNext: options.findNext,
+				forward: options.forward,
+			});
+			const foundInFrameHandler = (_: unknown, result: FoundInFrameResult) => {
+				if (result.finalUpdate) {
+					this._onFoundInFrame.fire(result);
+					initialFrame.removeListener('found-in-frame', foundInFrameHandler);
+				}
+			};
+			initialFrame.on('found-in-frame', foundInFrameHandler);
+		}
+	}
+
+	public async stopFindInFrame(windowId: WebviewWindowId, frameName: string, options: { keepSelection?: boolean }): Promise<void> {
+		const initialFrame = this.getFrameByName(windowId, frameName);
+
+		type WebFrameMainWithFindSupport = typeof WebFrameMain & {
+			stopFindInFrame?(stopOption: 'keepSelection' | 'clearSelection'): void;
+		};
+
+		const frame = initialFrame as unknown as WebFrameMainWithFindSupport;
+		if (typeof frame.stopFindInFrame === 'function') {
+			frame.stopFindInFrame(options.keepSelection ? 'keepSelection' : 'clearSelection');
+		}
+	}
+
+	private getFrameByName(windowId: WebviewWindowId, frameName: string): WebFrameMain {
+		const window = this.windowsMainService.getWindowById(windowId.windowId);
+		if (!window?.win) {
+			throw new Error(`Invalid windowId: ${windowId}`);
+		}
+		const frame = window.win.webContents.mainFrame.framesInSubtree.find(frame => {
+			return frame.name === frameName;
+		});
+		if (!frame) {
+			throw new Error(`Unknown frame: ${frameName}`);
+		}
+		return frame;
 	}
 }

@@ -5,13 +5,14 @@
 
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { IEditorInput, IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, SideBySideEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, EditorInputCapabilities, IEditorFactoryRegistry, EditorExtensions, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, mergeAllGroups, UNPIN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { IEditorGroupsService, IEditorGroup, GroupsArrangement, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { IEditorGroupsService, IEditorGroup, GroupsArrangement, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -22,8 +23,8 @@ import { ItemActivation, IQuickInputService } from 'vs/platform/quickinput/commo
 import { AllEditorsByMostRecentlyUsedQuickAccess, ActiveGroupEditorsByMostRecentlyUsedQuickAccess, AllEditorsByAppearanceQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
 import { Codicon } from 'vs/base/common/codicons';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { openEditorWith, getAllAvailableEditors } from 'vs/workbench/services/editor/common/editorOpenWith';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 
 export class ExecuteCommandAction extends Action {
 
@@ -37,12 +38,12 @@ export class ExecuteCommandAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<void> {
+	override run(): Promise<void> {
 		return this.commandService.executeCommand(this.commandId, this.commandArgs);
 	}
 }
 
-export class BaseSplitEditorAction extends Action {
+abstract class AbstractSplitEditorAction extends Action {
 	private readonly toDispose = this._register(new DisposableStore());
 	private direction: GroupDirection;
 
@@ -71,12 +72,12 @@ export class BaseSplitEditorAction extends Action {
 		}));
 	}
 
-	async run(context?: IEditorIdentifier): Promise<void> {
+	override async run(context?: IEditorIdentifier): Promise<void> {
 		splitEditor(this.editorGroupService, this.direction, context);
 	}
 }
 
-export class SplitEditorAction extends BaseSplitEditorAction {
+export class SplitEditorAction extends AbstractSplitEditorAction {
 
 	static readonly ID = 'workbench.action.splitEditor';
 	static readonly LABEL = localize('splitEditor', "Split Editor");
@@ -91,7 +92,7 @@ export class SplitEditorAction extends BaseSplitEditorAction {
 	}
 }
 
-export class SplitEditorOrthogonalAction extends BaseSplitEditorAction {
+export class SplitEditorOrthogonalAction extends AbstractSplitEditorAction {
 
 	static readonly ID = 'workbench.action.splitEditorOrthogonal';
 	static readonly LABEL = localize('splitEditorOrthogonal', "Split Editor Orthogonal");
@@ -105,7 +106,7 @@ export class SplitEditorOrthogonalAction extends BaseSplitEditorAction {
 		super(id, label, editorGroupService, configurationService);
 	}
 
-	protected getDirection(): GroupDirection {
+	protected override getDirection(): GroupDirection {
 		const direction = preferredSideBySideGroupDirection(this.configurationService);
 
 		return direction === GroupDirection.RIGHT ? GroupDirection.DOWN : GroupDirection.RIGHT;
@@ -181,7 +182,7 @@ export class JoinTwoGroupsAction extends Action {
 		super(id, label);
 	}
 
-	async run(context?: IEditorIdentifier): Promise<void> {
+	override async run(context?: IEditorIdentifier): Promise<void> {
 		let sourceGroup: IEditorGroup | undefined;
 		if (context && typeof context.groupId === 'number') {
 			sourceGroup = this.editorGroupService.getGroup(context.groupId);
@@ -216,8 +217,8 @@ export class JoinAllGroupsAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
-		mergeAllGroups(this.editorGroupService);
+	override async run(): Promise<void> {
+		this.editorGroupService.mergeAllGroups();
 	}
 }
 
@@ -234,7 +235,7 @@ export class NavigateBetweenGroupsAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		const nextGroup = this.editorGroupService.findGroup({ location: GroupLocation.NEXT }, this.editorGroupService.activeGroup, true);
 		nextGroup.focus();
 	}
@@ -253,12 +254,12 @@ export class FocusActiveGroupAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.editorGroupService.activeGroup.focus();
 	}
 }
 
-export abstract class BaseFocusGroupAction extends Action {
+abstract class AbstractFocusGroupAction extends Action {
 
 	constructor(
 		id: string,
@@ -269,7 +270,7 @@ export abstract class BaseFocusGroupAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		const group = this.editorGroupService.findGroup(this.scope, this.editorGroupService.activeGroup, true);
 		if (group) {
 			group.focus();
@@ -277,7 +278,7 @@ export abstract class BaseFocusGroupAction extends Action {
 	}
 }
 
-export class FocusFirstGroupAction extends BaseFocusGroupAction {
+export class FocusFirstGroupAction extends AbstractFocusGroupAction {
 
 	static readonly ID = 'workbench.action.focusFirstEditorGroup';
 	static readonly LABEL = localize('focusFirstEditorGroup', "Focus First Editor Group");
@@ -291,7 +292,7 @@ export class FocusFirstGroupAction extends BaseFocusGroupAction {
 	}
 }
 
-export class FocusLastGroupAction extends BaseFocusGroupAction {
+export class FocusLastGroupAction extends AbstractFocusGroupAction {
 
 	static readonly ID = 'workbench.action.focusLastEditorGroup';
 	static readonly LABEL = localize('focusLastEditorGroup', "Focus Last Editor Group");
@@ -305,7 +306,7 @@ export class FocusLastGroupAction extends BaseFocusGroupAction {
 	}
 }
 
-export class FocusNextGroup extends BaseFocusGroupAction {
+export class FocusNextGroup extends AbstractFocusGroupAction {
 
 	static readonly ID = 'workbench.action.focusNextGroup';
 	static readonly LABEL = localize('focusNextGroup', "Focus Next Editor Group");
@@ -319,7 +320,7 @@ export class FocusNextGroup extends BaseFocusGroupAction {
 	}
 }
 
-export class FocusPreviousGroup extends BaseFocusGroupAction {
+export class FocusPreviousGroup extends AbstractFocusGroupAction {
 
 	static readonly ID = 'workbench.action.focusPreviousGroup';
 	static readonly LABEL = localize('focusPreviousGroup', "Focus Previous Editor Group");
@@ -333,7 +334,7 @@ export class FocusPreviousGroup extends BaseFocusGroupAction {
 	}
 }
 
-export class FocusLeftGroup extends BaseFocusGroupAction {
+export class FocusLeftGroup extends AbstractFocusGroupAction {
 
 	static readonly ID = 'workbench.action.focusLeftGroup';
 	static readonly LABEL = localize('focusLeftGroup', "Focus Left Editor Group");
@@ -347,7 +348,7 @@ export class FocusLeftGroup extends BaseFocusGroupAction {
 	}
 }
 
-export class FocusRightGroup extends BaseFocusGroupAction {
+export class FocusRightGroup extends AbstractFocusGroupAction {
 
 	static readonly ID = 'workbench.action.focusRightGroup';
 	static readonly LABEL = localize('focusRightGroup', "Focus Right Editor Group");
@@ -361,7 +362,7 @@ export class FocusRightGroup extends BaseFocusGroupAction {
 	}
 }
 
-export class FocusAboveGroup extends BaseFocusGroupAction {
+export class FocusAboveGroup extends AbstractFocusGroupAction {
 
 	static readonly ID = 'workbench.action.focusAboveGroup';
 	static readonly LABEL = localize('focusAboveGroup', "Focus Above Editor Group");
@@ -375,7 +376,7 @@ export class FocusAboveGroup extends BaseFocusGroupAction {
 	}
 }
 
-export class FocusBelowGroup extends BaseFocusGroupAction {
+export class FocusBelowGroup extends AbstractFocusGroupAction {
 
 	static readonly ID = 'workbench.action.focusBelowGroup';
 	static readonly LABEL = localize('focusBelowGroup', "Focus Below Editor Group");
@@ -402,7 +403,7 @@ export class CloseEditorAction extends Action {
 		super(id, label, Codicon.close.classNames);
 	}
 
-	run(context?: IEditorCommandsContext): Promise<void> {
+	override run(context?: IEditorCommandsContext): Promise<void> {
 		return this.commandService.executeCommand(CLOSE_EDITOR_COMMAND_ID, undefined, context);
 	}
 }
@@ -420,7 +421,7 @@ export class UnpinEditorAction extends Action {
 		super(id, label, Codicon.pinned.classNames);
 	}
 
-	run(context?: IEditorCommandsContext): Promise<void> {
+	override run(context?: IEditorCommandsContext): Promise<void> {
 		return this.commandService.executeCommand(UNPIN_EDITOR_COMMAND_ID, undefined, context);
 	}
 }
@@ -438,7 +439,7 @@ export class CloseOneEditorAction extends Action {
 		super(id, label, Codicon.close.classNames);
 	}
 
-	async run(context?: IEditorCommandsContext): Promise<void> {
+	override async run(context?: IEditorCommandsContext): Promise<void> {
 		let group: IEditorGroup | undefined;
 		let editorIndex: number | undefined;
 		if (context) {
@@ -481,7 +482,7 @@ export class RevertAndCloseEditorAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		const activeEditorPane = this.editorService.activeEditorPane;
 		if (activeEditorPane) {
 			const editor = activeEditorPane.input;
@@ -516,7 +517,7 @@ export class CloseLeftEditorsInGroupAction extends Action {
 		super(id, label);
 	}
 
-	async run(context?: IEditorIdentifier): Promise<void> {
+	override async run(context?: IEditorIdentifier): Promise<void> {
 		const { group, editor } = this.getTarget(context);
 		if (group && editor) {
 			return group.closeEditors({ direction: CloseDirection.LEFT, except: editor, excludeSticky: true });
@@ -533,7 +534,7 @@ export class CloseLeftEditorsInGroupAction extends Action {
 	}
 }
 
-abstract class BaseCloseAllAction extends Action {
+abstract class AbstractCloseAllAction extends Action {
 
 	constructor(
 		id: string,
@@ -562,7 +563,7 @@ abstract class BaseCloseAllAction extends Action {
 		return groupsToClose;
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 
 		// Just close all if there are no dirty editors
 		if (!this.workingCopyService.hasDirty) {
@@ -592,7 +593,7 @@ abstract class BaseCloseAllAction extends Action {
 
 			// Auto-save on focus change: assume to Save unless the editor is untitled
 			// because bringing up a dialog would save in this case anyway.
-			if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE && !editor.isUntitled()) {
+			if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE && !editor.hasCapability(EditorInputCapabilities.Untitled)) {
 				dirtyEditorsToAutoSave.add(editor);
 			}
 
@@ -646,7 +647,7 @@ abstract class BaseCloseAllAction extends Action {
 	protected abstract doCloseAll(): Promise<void>;
 }
 
-export class CloseAllEditorsAction extends BaseCloseAllAction {
+export class CloseAllEditorsAction extends AbstractCloseAllAction {
 
 	static readonly ID = 'workbench.action.closeAllEditors';
 	static readonly LABEL = localize('closeAllEditors', "Close All Editors");
@@ -672,7 +673,7 @@ export class CloseAllEditorsAction extends BaseCloseAllAction {
 	}
 }
 
-export class CloseAllEditorGroupsAction extends BaseCloseAllAction {
+export class CloseAllEditorGroupsAction extends AbstractCloseAllAction {
 
 	static readonly ID = 'workbench.action.closeAllGroups';
 	static readonly LABEL = localize('closeAllGroups', "Close All Editor Groups");
@@ -696,7 +697,9 @@ export class CloseAllEditorGroupsAction extends BaseCloseAllAction {
 	protected async doCloseAll(): Promise<void> {
 		await Promise.all(this.groupsToClose.map(group => group.closeAllEditors()));
 
-		this.groupsToClose.forEach(group => this.editorGroupService.removeGroup(group));
+		for (const groupToClose of this.groupsToClose) {
+			this.editorGroupService.removeGroup(groupToClose);
+		}
 	}
 }
 
@@ -713,7 +716,7 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 		super(id, label);
 	}
 
-	async run(context?: IEditorIdentifier): Promise<void> {
+	override async run(context?: IEditorIdentifier): Promise<void> {
 		const groupToSkip = context ? this.editorGroupService.getGroup(context.groupId) : this.editorGroupService.activeGroup;
 		await Promise.all(this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(async group => {
 			if (groupToSkip && group.id === groupToSkip.id) {
@@ -739,7 +742,7 @@ export class CloseEditorInAllGroupsAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		const activeEditor = this.editorService.activeEditor;
 		if (activeEditor) {
 			await Promise.all(this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(group => group.closeEditor(activeEditor)));
@@ -747,7 +750,7 @@ export class CloseEditorInAllGroupsAction extends Action {
 	}
 }
 
-class BaseMoveCopyGroupAction extends Action {
+abstract class AbstractMoveCopyGroupAction extends Action {
 
 	constructor(
 		id: string,
@@ -759,7 +762,7 @@ class BaseMoveCopyGroupAction extends Action {
 		super(id, label);
 	}
 
-	async run(context?: IEditorIdentifier): Promise<void> {
+	override async run(context?: IEditorIdentifier): Promise<void> {
 		let sourceGroup: IEditorGroup | undefined;
 		if (context && typeof context.groupId === 'number') {
 			sourceGroup = this.editorGroupService.getGroup(context.groupId);
@@ -812,7 +815,7 @@ class BaseMoveCopyGroupAction extends Action {
 	}
 }
 
-class BaseMoveGroupAction extends BaseMoveCopyGroupAction {
+abstract class AbstractMoveGroupAction extends AbstractMoveCopyGroupAction {
 
 	constructor(
 		id: string,
@@ -824,7 +827,7 @@ class BaseMoveGroupAction extends BaseMoveCopyGroupAction {
 	}
 }
 
-export class MoveGroupLeftAction extends BaseMoveGroupAction {
+export class MoveGroupLeftAction extends AbstractMoveGroupAction {
 
 	static readonly ID = 'workbench.action.moveActiveEditorGroupLeft';
 	static readonly LABEL = localize('moveActiveGroupLeft', "Move Editor Group Left");
@@ -838,7 +841,7 @@ export class MoveGroupLeftAction extends BaseMoveGroupAction {
 	}
 }
 
-export class MoveGroupRightAction extends BaseMoveGroupAction {
+export class MoveGroupRightAction extends AbstractMoveGroupAction {
 
 	static readonly ID = 'workbench.action.moveActiveEditorGroupRight';
 	static readonly LABEL = localize('moveActiveGroupRight', "Move Editor Group Right");
@@ -852,7 +855,7 @@ export class MoveGroupRightAction extends BaseMoveGroupAction {
 	}
 }
 
-export class MoveGroupUpAction extends BaseMoveGroupAction {
+export class MoveGroupUpAction extends AbstractMoveGroupAction {
 
 	static readonly ID = 'workbench.action.moveActiveEditorGroupUp';
 	static readonly LABEL = localize('moveActiveGroupUp', "Move Editor Group Up");
@@ -866,7 +869,7 @@ export class MoveGroupUpAction extends BaseMoveGroupAction {
 	}
 }
 
-export class MoveGroupDownAction extends BaseMoveGroupAction {
+export class MoveGroupDownAction extends AbstractMoveGroupAction {
 
 	static readonly ID = 'workbench.action.moveActiveEditorGroupDown';
 	static readonly LABEL = localize('moveActiveGroupDown', "Move Editor Group Down");
@@ -880,7 +883,7 @@ export class MoveGroupDownAction extends BaseMoveGroupAction {
 	}
 }
 
-class BaseDuplicateGroupAction extends BaseMoveCopyGroupAction {
+abstract class AbstractDuplicateGroupAction extends AbstractMoveCopyGroupAction {
 
 	constructor(
 		id: string,
@@ -892,7 +895,7 @@ class BaseDuplicateGroupAction extends BaseMoveCopyGroupAction {
 	}
 }
 
-export class DuplicateGroupLeftAction extends BaseDuplicateGroupAction {
+export class DuplicateGroupLeftAction extends AbstractDuplicateGroupAction {
 
 	static readonly ID = 'workbench.action.duplicateActiveEditorGroupLeft';
 	static readonly LABEL = localize('duplicateActiveGroupLeft', "Duplicate Editor Group Left");
@@ -906,7 +909,7 @@ export class DuplicateGroupLeftAction extends BaseDuplicateGroupAction {
 	}
 }
 
-export class DuplicateGroupRightAction extends BaseDuplicateGroupAction {
+export class DuplicateGroupRightAction extends AbstractDuplicateGroupAction {
 
 	static readonly ID = 'workbench.action.duplicateActiveEditorGroupRight';
 	static readonly LABEL = localize('duplicateActiveGroupRight', "Duplicate Editor Group Right");
@@ -920,7 +923,7 @@ export class DuplicateGroupRightAction extends BaseDuplicateGroupAction {
 	}
 }
 
-export class DuplicateGroupUpAction extends BaseDuplicateGroupAction {
+export class DuplicateGroupUpAction extends AbstractDuplicateGroupAction {
 
 	static readonly ID = 'workbench.action.duplicateActiveEditorGroupUp';
 	static readonly LABEL = localize('duplicateActiveGroupUp', "Duplicate Editor Group Up");
@@ -934,7 +937,7 @@ export class DuplicateGroupUpAction extends BaseDuplicateGroupAction {
 	}
 }
 
-export class DuplicateGroupDownAction extends BaseDuplicateGroupAction {
+export class DuplicateGroupDownAction extends AbstractDuplicateGroupAction {
 
 	static readonly ID = 'workbench.action.duplicateActiveEditorGroupDown';
 	static readonly LABEL = localize('duplicateActiveGroupDown', "Duplicate Editor Group Down");
@@ -957,7 +960,7 @@ export class MinimizeOtherGroupsAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.editorGroupService.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
 	}
 }
@@ -971,7 +974,7 @@ export class ResetGroupSizesAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.editorGroupService.arrangeGroups(GroupsArrangement.EVEN);
 	}
 }
@@ -985,7 +988,7 @@ export class ToggleGroupSizesAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.editorGroupService.arrangeGroups(GroupsArrangement.TOGGLE);
 	}
 }
@@ -1005,7 +1008,7 @@ export class MaximizeGroupAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		if (this.editorService.activeEditor) {
 			this.editorGroupService.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
 			this.layoutService.setSideBarHidden(true);
@@ -1013,7 +1016,7 @@ export class MaximizeGroupAction extends Action {
 	}
 }
 
-export abstract class BaseNavigateEditorAction extends Action {
+abstract class AbstractNavigateEditorAction extends Action {
 
 	constructor(
 		id: string,
@@ -1024,7 +1027,7 @@ export abstract class BaseNavigateEditorAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		const result = this.navigate();
 		if (!result) {
 			return;
@@ -1044,7 +1047,7 @@ export abstract class BaseNavigateEditorAction extends Action {
 	protected abstract navigate(): IEditorIdentifier | undefined;
 }
 
-export class OpenNextEditor extends BaseNavigateEditorAction {
+export class OpenNextEditor extends AbstractNavigateEditorAction {
 
 	static readonly ID = 'workbench.action.nextEditor';
 	static readonly LABEL = localize('openNextEditor', "Open Next Editor");
@@ -1079,7 +1082,7 @@ export class OpenNextEditor extends BaseNavigateEditorAction {
 	}
 }
 
-export class OpenPreviousEditor extends BaseNavigateEditorAction {
+export class OpenPreviousEditor extends AbstractNavigateEditorAction {
 
 	static readonly ID = 'workbench.action.previousEditor';
 	static readonly LABEL = localize('openPreviousEditor', "Open Previous Editor");
@@ -1114,7 +1117,7 @@ export class OpenPreviousEditor extends BaseNavigateEditorAction {
 	}
 }
 
-export class OpenNextEditorInGroup extends BaseNavigateEditorAction {
+export class OpenNextEditorInGroup extends AbstractNavigateEditorAction {
 
 	static readonly ID = 'workbench.action.nextEditorInGroup';
 	static readonly LABEL = localize('nextEditorInGroup', "Open Next Editor in Group");
@@ -1137,7 +1140,7 @@ export class OpenNextEditorInGroup extends BaseNavigateEditorAction {
 	}
 }
 
-export class OpenPreviousEditorInGroup extends BaseNavigateEditorAction {
+export class OpenPreviousEditorInGroup extends AbstractNavigateEditorAction {
 
 	static readonly ID = 'workbench.action.previousEditorInGroup';
 	static readonly LABEL = localize('openPreviousEditorInGroup', "Open Previous Editor in Group");
@@ -1160,7 +1163,7 @@ export class OpenPreviousEditorInGroup extends BaseNavigateEditorAction {
 	}
 }
 
-export class OpenFirstEditorInGroup extends BaseNavigateEditorAction {
+export class OpenFirstEditorInGroup extends AbstractNavigateEditorAction {
 
 	static readonly ID = 'workbench.action.firstEditorInGroup';
 	static readonly LABEL = localize('firstEditorInGroup', "Open First Editor in Group");
@@ -1182,7 +1185,7 @@ export class OpenFirstEditorInGroup extends BaseNavigateEditorAction {
 	}
 }
 
-export class OpenLastEditorInGroup extends BaseNavigateEditorAction {
+export class OpenLastEditorInGroup extends AbstractNavigateEditorAction {
 
 	static readonly ID = 'workbench.action.lastEditorInGroup';
 	static readonly LABEL = localize('lastEditorInGroup', "Open Last Editor in Group");
@@ -1213,7 +1216,7 @@ export class NavigateForwardAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.historyService.forward();
 	}
 }
@@ -1227,7 +1230,7 @@ export class NavigateBackwardsAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.historyService.back();
 	}
 }
@@ -1241,7 +1244,7 @@ export class NavigateToLastEditLocationAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.historyService.openLastEditLocation();
 	}
 }
@@ -1255,7 +1258,7 @@ export class NavigateLastAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.historyService.last();
 	}
 }
@@ -1273,7 +1276,7 @@ export class ReopenClosedEditorAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.historyService.reopenLastClosedEditor();
 	}
 }
@@ -1292,7 +1295,7 @@ export class ClearRecentFilesAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 
 		// Clear global recently opened
 		this.workspacesService.clearRecentlyOpened();
@@ -1315,7 +1318,7 @@ export class ShowEditorsInActiveGroupByMostRecentlyUsedAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.quickInputService.quickAccess.show(ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX);
 	}
 }
@@ -1333,7 +1336,7 @@ export class ShowAllEditorsByAppearanceAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.quickInputService.quickAccess.show(AllEditorsByAppearanceQuickAccess.PREFIX);
 	}
 }
@@ -1351,12 +1354,12 @@ export class ShowAllEditorsByMostRecentlyUsedAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.quickInputService.quickAccess.show(AllEditorsByMostRecentlyUsedQuickAccess.PREFIX);
 	}
 }
 
-export class BaseQuickAccessEditorAction extends Action {
+abstract class AbstractQuickAccessEditorAction extends Action {
 
 	constructor(
 		id: string,
@@ -1369,7 +1372,7 @@ export class BaseQuickAccessEditorAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		const keybindings = this.keybindingService.lookupKeybindings(this.id);
 
 		this.quickInputService.quickAccess.show(this.prefix, {
@@ -1379,7 +1382,7 @@ export class BaseQuickAccessEditorAction extends Action {
 	}
 }
 
-export class QuickAccessPreviousRecentlyUsedEditorAction extends BaseQuickAccessEditorAction {
+export class QuickAccessPreviousRecentlyUsedEditorAction extends AbstractQuickAccessEditorAction {
 
 	static readonly ID = 'workbench.action.quickOpenPreviousRecentlyUsedEditor';
 	static readonly LABEL = localize('quickOpenPreviousRecentlyUsedEditor', "Quick Open Previous Recently Used Editor");
@@ -1394,7 +1397,7 @@ export class QuickAccessPreviousRecentlyUsedEditorAction extends BaseQuickAccess
 	}
 }
 
-export class QuickAccessLeastRecentlyUsedEditorAction extends BaseQuickAccessEditorAction {
+export class QuickAccessLeastRecentlyUsedEditorAction extends AbstractQuickAccessEditorAction {
 
 	static readonly ID = 'workbench.action.quickOpenLeastRecentlyUsedEditor';
 	static readonly LABEL = localize('quickOpenLeastRecentlyUsedEditor', "Quick Open Least Recently Used Editor");
@@ -1409,7 +1412,7 @@ export class QuickAccessLeastRecentlyUsedEditorAction extends BaseQuickAccessEdi
 	}
 }
 
-export class QuickAccessPreviousRecentlyUsedEditorInGroupAction extends BaseQuickAccessEditorAction {
+export class QuickAccessPreviousRecentlyUsedEditorInGroupAction extends AbstractQuickAccessEditorAction {
 
 	static readonly ID = 'workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup';
 	static readonly LABEL = localize('quickOpenPreviousRecentlyUsedEditorInGroup', "Quick Open Previous Recently Used Editor in Group");
@@ -1424,7 +1427,7 @@ export class QuickAccessPreviousRecentlyUsedEditorInGroupAction extends BaseQuic
 	}
 }
 
-export class QuickAccessLeastRecentlyUsedEditorInGroupAction extends BaseQuickAccessEditorAction {
+export class QuickAccessLeastRecentlyUsedEditorInGroupAction extends AbstractQuickAccessEditorAction {
 
 	static readonly ID = 'workbench.action.quickOpenLeastRecentlyUsedEditorInGroup';
 	static readonly LABEL = localize('quickOpenLeastRecentlyUsedEditorInGroup', "Quick Open Least Recently Used Editor in Group");
@@ -1454,7 +1457,7 @@ export class QuickAccessPreviousEditorFromHistoryAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		const keybindings = this.keybindingService.lookupKeybindings(this.id);
 
 		// Enforce to activate the first item in quick access if
@@ -1481,7 +1484,7 @@ export class OpenNextRecentlyUsedEditorAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.historyService.openNextRecentlyUsedEditor();
 	}
 }
@@ -1499,7 +1502,7 @@ export class OpenPreviousRecentlyUsedEditorAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.historyService.openPreviouslyUsedEditor();
 	}
 }
@@ -1518,7 +1521,7 @@ export class OpenNextRecentlyUsedEditorInGroupAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.historyService.openNextRecentlyUsedEditor(this.editorGroupsService.activeGroup.id);
 	}
 }
@@ -1537,7 +1540,7 @@ export class OpenPreviousRecentlyUsedEditorInGroupAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.historyService.openPreviouslyUsedEditor(this.editorGroupsService.activeGroup.id);
 	}
 }
@@ -1555,7 +1558,7 @@ export class ClearEditorHistoryAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 
 		// Editor history
 		this.historyService.clear();
@@ -1814,7 +1817,7 @@ export class EditorLayoutTwoRowsRightAction extends ExecuteCommandAction {
 	}
 }
 
-export class BaseCreateEditorGroupAction extends Action {
+abstract class AbstractCreateEditorGroupAction extends Action {
 
 	constructor(
 		id: string,
@@ -1825,12 +1828,12 @@ export class BaseCreateEditorGroupAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.editorGroupService.addGroup(this.editorGroupService.activeGroup, this.direction, { activate: true });
 	}
 }
 
-export class NewEditorGroupLeftAction extends BaseCreateEditorGroupAction {
+export class NewEditorGroupLeftAction extends AbstractCreateEditorGroupAction {
 
 	static readonly ID = 'workbench.action.newGroupLeft';
 	static readonly LABEL = localize('newEditorLeft', "New Editor Group to the Left");
@@ -1844,7 +1847,7 @@ export class NewEditorGroupLeftAction extends BaseCreateEditorGroupAction {
 	}
 }
 
-export class NewEditorGroupRightAction extends BaseCreateEditorGroupAction {
+export class NewEditorGroupRightAction extends AbstractCreateEditorGroupAction {
 
 	static readonly ID = 'workbench.action.newGroupRight';
 	static readonly LABEL = localize('newEditorRight', "New Editor Group to the Right");
@@ -1858,7 +1861,7 @@ export class NewEditorGroupRightAction extends BaseCreateEditorGroupAction {
 	}
 }
 
-export class NewEditorGroupAboveAction extends BaseCreateEditorGroupAction {
+export class NewEditorGroupAboveAction extends AbstractCreateEditorGroupAction {
 
 	static readonly ID = 'workbench.action.newGroupAbove';
 	static readonly LABEL = localize('newEditorAbove', "New Editor Group Above");
@@ -1872,7 +1875,7 @@ export class NewEditorGroupAboveAction extends BaseCreateEditorGroupAction {
 	}
 }
 
-export class NewEditorGroupBelowAction extends BaseCreateEditorGroupAction {
+export class NewEditorGroupBelowAction extends AbstractCreateEditorGroupAction {
 
 	static readonly ID = 'workbench.action.newGroupBelow';
 	static readonly LABEL = localize('newEditorBelow', "New Editor Group Below");
@@ -1886,37 +1889,6 @@ export class NewEditorGroupBelowAction extends BaseCreateEditorGroupAction {
 	}
 }
 
-export class ReopenResourcesAction extends Action {
-
-	static readonly ID = 'workbench.action.reopenWithEditor';
-	static readonly LABEL = localize('workbench.action.reopenWithEditor', "Reopen Editor With...");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorService private readonly editorService: IEditorService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-	) {
-		super(id, label);
-	}
-
-	async run(): Promise<void> {
-		const activeInput = this.editorService.activeEditor;
-		if (!activeInput) {
-			return;
-		}
-
-		const activeEditorPane = this.editorService.activeEditorPane;
-		if (!activeEditorPane) {
-			return;
-		}
-
-		const options = activeEditorPane.options;
-		const group = activeEditorPane.group;
-		await this.instantiationService.invokeFunction(openEditorWith, activeInput, undefined, options, group);
-	}
-}
-
 export class ToggleEditorTypeAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleEditorType';
@@ -1926,11 +1898,12 @@ export class ToggleEditorTypeAction extends Action {
 		id: string,
 		label: string,
 		@IEditorService private readonly editorService: IEditorService,
+		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 	) {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		const activeEditorPane = this.editorService.activeEditorPane;
 		if (!activeEditorPane) {
 			return;
@@ -1944,12 +1917,63 @@ export class ToggleEditorTypeAction extends Action {
 		const options = activeEditorPane.options;
 		const group = activeEditorPane.group;
 
-		const overrides = getAllAvailableEditors(activeEditorResource, undefined, options, group, this.editorService);
-		const firstNonActiveOverride = overrides.find(([_, entry]) => !entry.active);
-		if (!firstNonActiveOverride) {
+		const editorIds = this.editorResolverService.getEditorIds(activeEditorResource).filter(id => id !== activeEditorPane.input.editorId);
+
+		if (editorIds.length === 0) {
 			return;
 		}
 
-		await firstNonActiveOverride[0].open(activeEditorPane.input, { ...options, override: firstNonActiveOverride[1].id }, group, OpenEditorContext.NEW_EDITOR)?.override;
+		// Replace the current editor with the next avaiable editor type
+		await this.editorService.replaceEditors([
+			{
+				editor: activeEditorPane.input,
+				replacement: activeEditorPane.input,
+				options: { ...options, override: editorIds[0] },
+			}
+		], group);
+	}
+}
+
+export class ReOpenInTextEditorAction extends Action {
+
+	static readonly ID = 'workbench.action.reopenTextEditor';
+	static readonly LABEL = localize('workbench.action.reopenTextEditor', "Reopen Editor With Text Editor");
+
+	private readonly fileEditorFactory = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).getFileEditorFactory();
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorService private readonly editorService: IEditorService,
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		const activeEditorPane = this.editorService.activeEditorPane;
+		if (!activeEditorPane) {
+			return;
+		}
+
+		const activeEditorResource = activeEditorPane.input.resource;
+		if (!activeEditorResource) {
+			return;
+		}
+
+		const options = activeEditorPane.options;
+		const group = activeEditorPane.group;
+
+		if (this.fileEditorFactory.isFileEditor(this.editorService.activeEditor)) {
+			return;
+		}
+
+		// Replace the current editor with the text editor
+		await this.editorService.replaceEditors([
+			{
+				editor: activeEditorPane.input,
+				replacement: activeEditorPane.input,
+				options: { ...options, override: DEFAULT_EDITOR_ASSOCIATION.id },
+			}
+		], group);
 	}
 }

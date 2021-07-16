@@ -131,14 +131,14 @@ export class ReplEvaluationResult extends ExpressionContainer implements IReplEl
 		super(undefined, undefined, 0, generateUuid());
 	}
 
-	async evaluateExpression(expression: string, session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string): Promise<boolean> {
+	override async evaluateExpression(expression: string, session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string): Promise<boolean> {
 		const result = await super.evaluateExpression(expression, session, stackFrame, context);
 		this._available = result;
 
 		return result;
 	}
 
-	toString(): string {
+	override toString(): string {
 		return `${this.value}`;
 	}
 }
@@ -198,6 +198,17 @@ export class ReplGroup implements IReplElement {
 	}
 }
 
+function areSourcesEqual(first: IReplElementSource | undefined, second: IReplElementSource | undefined): boolean {
+	if (!first && !second) {
+		return true;
+	}
+	if (first && second) {
+		return first.column === second.column && first.lineNumber === second.lineNumber && first.source.uri.toString() === second.source.uri.toString();
+	}
+
+	return false;
+}
+
 export class ReplModel {
 	private replElements: IReplElement[] = [];
 	private readonly _onDidChangeElements = new Emitter<void>();
@@ -229,7 +240,7 @@ export class ReplModel {
 			const previousElement = this.replElements.length ? this.replElements[this.replElements.length - 1] : undefined;
 			if (previousElement instanceof SimpleReplElement && previousElement.severity === sev) {
 				const config = this.configurationService.getValue<IDebugConfiguration>('debug');
-				if (previousElement.value === data && config.console.collapseIdenticalLines) {
+				if (previousElement.value === data && areSourcesEqual(previousElement.sourceData, source) && config.console.collapseIdenticalLines) {
 					previousElement.count++;
 					// No need to fire an event, just the count updates and badge will adjust automatically
 					return;

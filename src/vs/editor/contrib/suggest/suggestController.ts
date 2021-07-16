@@ -61,7 +61,7 @@ class LineSuffix {
 			const end = _model.getPositionAt(offset + 1);
 			this._marker = _model.deltaDecorations([], [{
 				range: Range.fromPositions(_position, end),
-				options: { stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }
+				options: { description: 'suggest-line-suffix', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }
 			}]);
 		}
 	}
@@ -440,10 +440,9 @@ export class SuggestController implements IEditorContribution {
 		};
 	}
 
-	private _alertCompletionItem({ completion: suggestion }: CompletionItem): void {
-		const textLabel = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.name;
-		if (isNonEmptyArray(suggestion.additionalTextEdits)) {
-			let msg = nls.localize('aria.alert.snippet', "Accepting '{0}' made {1} additional edits", textLabel, suggestion.additionalTextEdits.length);
+	private _alertCompletionItem(item: CompletionItem): void {
+		if (isNonEmptyArray(item.completion.additionalTextEdits)) {
+			let msg = nls.localize('aria.alert.snippet', "Accepting '{0}' made {1} additional edits", item.textLabel, item.completion.additionalTextEdits.length);
 			alert(msg);
 		}
 	}
@@ -587,6 +586,14 @@ export class SuggestController implements IEditorContribution {
 
 	resetWidgetSize(): void {
 		this.widget.value.resetPersistedSize();
+	}
+
+	forceRenderingAbove() {
+		this.widget.value.forceRenderingAbove();
+	}
+
+	stopForceRenderingAbove() {
+		this.widget.value.stopForceRenderingAbove();
 	}
 }
 

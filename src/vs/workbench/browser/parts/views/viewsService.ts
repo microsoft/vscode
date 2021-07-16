@@ -143,7 +143,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		for (const viewDescriptor of views) {
 			const disposables = new DisposableStore();
 			disposables.add(this.registerOpenViewAction(viewDescriptor));
-			disposables.add(this.registerFocusViewAction(viewDescriptor, composite?.name ?? CATEGORIES.View));
+			disposables.add(this.registerFocusViewAction(viewDescriptor, composite?.name && composite.name !== composite.id ? composite.name : CATEGORIES.View));
 			disposables.add(this.registerResetViewLocationAction(viewDescriptor));
 			this.viewDisposable.set(viewDescriptor, disposables);
 		}
@@ -250,6 +250,17 @@ export class ViewsService extends Disposable implements IViewsService {
 			const activeViewPaneContainer = this.getActiveViewPaneContainer(viewContainer);
 			if (activeViewPaneContainer) {
 				return activeViewPaneContainer.getView(id) as T;
+			}
+		}
+		return null;
+	}
+
+	getViewWithId<T extends IView>(id: string): T | null {
+		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(id);
+		if (viewContainer) {
+			const viewPaneContainer: IViewPaneContainer | undefined = this.viewPaneContainers.get(viewContainer.id);
+			if (viewPaneContainer) {
+				return viewPaneContainer.getView(id) as T;
 			}
 		}
 		return null;

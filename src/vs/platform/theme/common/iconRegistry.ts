@@ -24,7 +24,7 @@ export type IconDefaults = ThemeIcon | IconDefinition;
 
 export interface IconDefinition {
 	fontId?: string;
-	character: string;
+	fontCharacter: string;
 }
 
 export interface IconContribution {

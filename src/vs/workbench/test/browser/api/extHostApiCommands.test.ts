@@ -49,7 +49,7 @@ import 'vs/editor/contrib/parameterHints/provideSignatureHelp';
 import 'vs/editor/contrib/smartSelect/smartSelect';
 import 'vs/editor/contrib/suggest/suggest';
 import 'vs/editor/contrib/rename/rename';
-import 'vs/editor/contrib/inlineHints/inlineHintsController';
+import 'vs/editor/contrib/inlayHints/inlayHintsController';
 
 const defaultSelector = { scheme: 'far' };
 const model: ITextModel = createTextModel(
@@ -90,14 +90,14 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		rpcProtocol = new TestRPCProtocol();
 		const services = new ServiceCollection();
 		services.set(IExtensionService, new class extends mock<IExtensionService>() {
-			async activateByEvent() {
+			override async activateByEvent() {
 
 			}
 
 		});
 		services.set(ICommandService, new SyncDescriptor(class extends mock<ICommandService>() {
 
-			executeCommand(id: string, ...args: any): any {
+			override executeCommand(id: string, ...args: any): any {
 				const command = CommandsRegistry.getCommands().get(id);
 				if (!command) {
 					return Promise.reject(new Error(id + ' NOT known'));
@@ -108,17 +108,17 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		}));
 		services.set(IMarkerService, new MarkerService());
 		services.set(IModelService, new class extends mock<IModelService>() {
-			getModel() { return model; }
+			override getModel() { return model; }
 		});
 		services.set(ITextModelService, new class extends mock<ITextModelService>() {
-			async createModelReference() {
+			override async createModelReference() {
 				return new ImmortalReference<IResolvedTextEditorModel>(new class extends mock<IResolvedTextEditorModel>() {
-					textEditorModel = model;
+					override textEditorModel = model;
 				});
 			}
 		});
 		services.set(IEditorWorkerService, new class extends mock<IEditorWorkerService>() {
-			async computeMoreMinimalEdits(_uri: any, edits: any) {
+			override async computeMoreMinimalEdits(_uri: any, edits: any) {
 				return edits || undefined;
 			}
 		});
@@ -280,15 +280,21 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		disposables.push(extHost.registerDefinitionProvider(nullExtensionDescription, defaultSelector, <vscode.DefinitionProvider>{
 			provideDefinition(doc: any): any {
-				return new types.Location(doc.uri, new types.Range(0, 0, 0, 0));
+				return new types.Location(doc.uri, new types.Range(1, 0, 0, 0));
+			}
+		}));
+		disposables.push(extHost.registerDefinitionProvider(nullExtensionDescription, defaultSelector, <vscode.DefinitionProvider>{
+			provideDefinition(doc: any): any {
+				// duplicate result will get removed
+				return new types.Location(doc.uri, new types.Range(1, 0, 0, 0));
 			}
 		}));
 		disposables.push(extHost.registerDefinitionProvider(nullExtensionDescription, defaultSelector, <vscode.DefinitionProvider>{
 			provideDefinition(doc: any): any {
 				return [
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(2, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(3, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(4, 0, 0, 0)),
 				];
 			}
 		}));
@@ -304,12 +310,48 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		});
 	});
 
+
+	test('Definition, back and forth (sorting & de-deduping)', function () {
+
+		disposables.push(extHost.registerDefinitionProvider(nullExtensionDescription, defaultSelector, <vscode.DefinitionProvider>{
+			provideDefinition(doc: any): any {
+				return new types.Location(URI.parse('file:///b'), new types.Range(1, 0, 0, 0));
+			}
+		}));
+		disposables.push(extHost.registerDefinitionProvider(nullExtensionDescription, defaultSelector, <vscode.DefinitionProvider>{
+			provideDefinition(doc: any): any {
+				// duplicate result will get removed
+				return new types.Location(URI.parse('file:///b'), new types.Range(1, 0, 0, 0));
+			}
+		}));
+		disposables.push(extHost.registerDefinitionProvider(nullExtensionDescription, defaultSelector, <vscode.DefinitionProvider>{
+			provideDefinition(doc: any): any {
+				return [
+					new types.Location(URI.parse('file:///a'), new types.Range(2, 0, 0, 0)),
+					new types.Location(URI.parse('file:///c'), new types.Range(3, 0, 0, 0)),
+					new types.Location(URI.parse('file:///d'), new types.Range(4, 0, 0, 0)),
+				];
+			}
+		}));
+
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<vscode.Location[]>('vscode.executeDefinitionProvider', model.uri, new types.Position(0, 0)).then(values => {
+				assert.strictEqual(values.length, 4);
+
+				assert.strictEqual(values[0].uri.path, '/a');
+				assert.strictEqual(values[1].uri.path, '/b');
+				assert.strictEqual(values[2].uri.path, '/c');
+				assert.strictEqual(values[3].uri.path, '/d');
+			});
+		});
+	});
+
 	test('Definition Link', () => {
 		disposables.push(extHost.registerDefinitionProvider(nullExtensionDescription, defaultSelector, <vscode.DefinitionProvider>{
 			provideDefinition(doc: any): (vscode.Location | vscode.LocationLink)[] {
 				return [
 					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					{ targetUri: doc.uri, targetRange: new types.Range(0, 0, 0, 0), targetSelectionRange: new types.Range(1, 1, 1, 1), originSelectionRange: new types.Range(2, 2, 2, 2) }
+					{ targetUri: doc.uri, targetRange: new types.Range(1, 0, 0, 0), targetSelectionRange: new types.Range(1, 1, 1, 1), originSelectionRange: new types.Range(2, 2, 2, 2) }
 				];
 			}
 		}));
@@ -338,15 +380,21 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		disposables.push(extHost.registerDeclarationProvider(nullExtensionDescription, defaultSelector, <vscode.DeclarationProvider>{
 			provideDeclaration(doc: any): any {
-				return new types.Location(doc.uri, new types.Range(0, 0, 0, 0));
+				return new types.Location(doc.uri, new types.Range(1, 0, 0, 0));
+			}
+		}));
+		disposables.push(extHost.registerDeclarationProvider(nullExtensionDescription, defaultSelector, <vscode.DeclarationProvider>{
+			provideDeclaration(doc: any): any {
+				// duplicate result will get removed
+				return new types.Location(doc.uri, new types.Range(1, 0, 0, 0));
 			}
 		}));
 		disposables.push(extHost.registerDeclarationProvider(nullExtensionDescription, defaultSelector, <vscode.DeclarationProvider>{
 			provideDeclaration(doc: any): any {
 				return [
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(2, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(3, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(4, 0, 0, 0)),
 				];
 			}
 		}));
@@ -367,7 +415,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			provideDeclaration(doc: any): (vscode.Location | vscode.LocationLink)[] {
 				return [
 					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					{ targetUri: doc.uri, targetRange: new types.Range(0, 0, 0, 0), targetSelectionRange: new types.Range(1, 1, 1, 1), originSelectionRange: new types.Range(2, 2, 2, 2) }
+					{ targetUri: doc.uri, targetRange: new types.Range(1, 0, 0, 0), targetSelectionRange: new types.Range(1, 1, 1, 1), originSelectionRange: new types.Range(2, 2, 2, 2) }
 				];
 			}
 		}));
@@ -407,15 +455,21 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		disposables.push(extHost.registerTypeDefinitionProvider(nullExtensionDescription, defaultSelector, <vscode.TypeDefinitionProvider>{
 			provideTypeDefinition(doc: any): any {
-				return new types.Location(doc.uri, new types.Range(0, 0, 0, 0));
+				return new types.Location(doc.uri, new types.Range(1, 0, 0, 0));
+			}
+		}));
+		disposables.push(extHost.registerTypeDefinitionProvider(nullExtensionDescription, defaultSelector, <vscode.TypeDefinitionProvider>{
+			provideTypeDefinition(doc: any): any {
+				// duplicate result will get removed
+				return new types.Location(doc.uri, new types.Range(1, 0, 0, 0));
 			}
 		}));
 		disposables.push(extHost.registerTypeDefinitionProvider(nullExtensionDescription, defaultSelector, <vscode.TypeDefinitionProvider>{
 			provideTypeDefinition(doc: any): any {
 				return [
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(2, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(3, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(4, 0, 0, 0)),
 				];
 			}
 		}));
@@ -436,7 +490,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			provideTypeDefinition(doc: any): (vscode.Location | vscode.LocationLink)[] {
 				return [
 					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					{ targetUri: doc.uri, targetRange: new types.Range(0, 0, 0, 0), targetSelectionRange: new types.Range(1, 1, 1, 1), originSelectionRange: new types.Range(2, 2, 2, 2) }
+					{ targetUri: doc.uri, targetRange: new types.Range(1, 0, 0, 0), targetSelectionRange: new types.Range(1, 1, 1, 1), originSelectionRange: new types.Range(2, 2, 2, 2) }
 				];
 			}
 		}));
@@ -476,15 +530,21 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		disposables.push(extHost.registerImplementationProvider(nullExtensionDescription, defaultSelector, <vscode.ImplementationProvider>{
 			provideImplementation(doc: any): any {
-				return new types.Location(doc.uri, new types.Range(0, 0, 0, 0));
+				return new types.Location(doc.uri, new types.Range(1, 0, 0, 0));
+			}
+		}));
+		disposables.push(extHost.registerImplementationProvider(nullExtensionDescription, defaultSelector, <vscode.ImplementationProvider>{
+			provideImplementation(doc: any): any {
+				// duplicate result will get removed
+				return new types.Location(doc.uri, new types.Range(1, 0, 0, 0));
 			}
 		}));
 		disposables.push(extHost.registerImplementationProvider(nullExtensionDescription, defaultSelector, <vscode.ImplementationProvider>{
 			provideImplementation(doc: any): any {
 				return [
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(2, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(3, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(4, 0, 0, 0)),
 				];
 			}
 		}));
@@ -505,7 +565,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			provideImplementation(doc: any): (vscode.Location | vscode.LocationLink)[] {
 				return [
 					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					{ targetUri: doc.uri, targetRange: new types.Range(0, 0, 0, 0), targetSelectionRange: new types.Range(1, 1, 1, 1), originSelectionRange: new types.Range(2, 2, 2, 2) }
+					{ targetUri: doc.uri, targetRange: new types.Range(1, 0, 0, 0), targetSelectionRange: new types.Range(1, 1, 1, 1), originSelectionRange: new types.Range(2, 2, 2, 2) }
 				];
 			}
 		}));
@@ -1144,85 +1204,74 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 	// --- inline hints
 
-	test('Inline Hints, back and forth', async function () {
-		disposables.push(extHost.registerInlineHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlineHintsProvider>{
-			provideInlineHints() {
-				return [new types.InlineHint('Foo', new types.Range(0, 1, 2, 3))];
+	test('Inlay Hints, back and forth', async function () {
+		disposables.push(extHost.registerInlayHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlayHintsProvider>{
+			provideInlayHints() {
+				return [new types.InlayHint('Foo', new types.Position(0, 1))];
 			}
 		}));
 
 		await rpcProtocol.sync();
 
-		const value = await commands.executeCommand<vscode.InlineHint[]>('vscode.executeInlineHintProvider', model.uri, new types.Range(0, 0, 20, 20));
+		const value = await commands.executeCommand<vscode.InlayHint[]>('vscode.executeInlayHintProvider', model.uri, new types.Range(0, 0, 20, 20));
 		assert.strictEqual(value.length, 1);
 
 		const [first] = value;
 		assert.strictEqual(first.text, 'Foo');
-		assert.strictEqual(first.range.start.line, 0);
-		assert.strictEqual(first.range.start.character, 1);
-		assert.strictEqual(first.range.end.line, 2);
-		assert.strictEqual(first.range.end.character, 3);
+		assert.strictEqual(first.position.line, 0);
+		assert.strictEqual(first.position.character, 1);
 	});
 
 	test('Inline Hints, merge', async function () {
-		disposables.push(extHost.registerInlineHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlineHintsProvider>{
-			provideInlineHints() {
-				return [new types.InlineHint('Bar', new types.Range(10, 11, 12, 13))];
+		disposables.push(extHost.registerInlayHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlayHintsProvider>{
+			provideInlayHints() {
+				return [new types.InlayHint('Bar', new types.Position(10, 11))];
 			}
 		}));
 
-		disposables.push(extHost.registerInlineHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlineHintsProvider>{
-			provideInlineHints() {
-				const hint = new types.InlineHint('Foo', new types.Range(0, 1, 2, 3), types.InlineHintKind.Parameter);
-				hint.description = new types.MarkdownString('**Hello**');
+		disposables.push(extHost.registerInlayHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlayHintsProvider>{
+			provideInlayHints() {
+				const hint = new types.InlayHint('Foo', new types.Position(0, 1), types.InlayHintKind.Parameter);
 				return [hint];
 			}
 		}));
 
 		await rpcProtocol.sync();
 
-		const value = await commands.executeCommand<vscode.InlineHint[]>('vscode.executeInlineHintProvider', model.uri, new types.Range(0, 0, 20, 20));
+		const value = await commands.executeCommand<vscode.InlayHint[]>('vscode.executeInlayHintProvider', model.uri, new types.Range(0, 0, 20, 20));
 		assert.strictEqual(value.length, 2);
 
 		const [first, second] = value;
 		assert.strictEqual(first.text, 'Foo');
-		assert.strictEqual(first.range.start.line, 0);
-		assert.strictEqual(first.range.start.character, 1);
-		assert.strictEqual(first.range.end.line, 2);
-		assert.strictEqual(first.range.end.character, 3);
-		assert.ok(first.description instanceof types.MarkdownString);
-		assert.strictEqual((<types.MarkdownString>first.description).value, '**Hello**');
+		assert.strictEqual(first.position.line, 0);
+		assert.strictEqual(first.position.character, 1);
 
 		assert.strictEqual(second.text, 'Bar');
-		assert.strictEqual(second.range.start.line, 10);
-		assert.strictEqual(second.range.start.character, 11);
-		assert.strictEqual(second.range.end.line, 12);
-		assert.strictEqual(second.range.end.character, 13);
+		assert.strictEqual(second.position.line, 10);
+		assert.strictEqual(second.position.character, 11);
 	});
 
 	test('Inline Hints, bad provider', async function () {
-		disposables.push(extHost.registerInlineHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlineHintsProvider>{
-			provideInlineHints() {
-				return [new types.InlineHint('Foo', new types.Range(0, 1, 2, 3))];
+		disposables.push(extHost.registerInlayHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlayHintsProvider>{
+			provideInlayHints() {
+				return [new types.InlayHint('Foo', new types.Position(0, 1))];
 			}
 		}));
-		disposables.push(extHost.registerInlineHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlineHintsProvider>{
-			provideInlineHints() {
+		disposables.push(extHost.registerInlayHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlayHintsProvider>{
+			provideInlayHints() {
 				throw new Error();
 			}
 		}));
 
 		await rpcProtocol.sync();
 
-		const value = await commands.executeCommand<vscode.InlineHint[]>('vscode.executeInlineHintProvider', model.uri, new types.Range(0, 0, 20, 20));
+		const value = await commands.executeCommand<vscode.InlayHint[]>('vscode.executeInlayHintProvider', model.uri, new types.Range(0, 0, 20, 20));
 		assert.strictEqual(value.length, 1);
 
 		const [first] = value;
 		assert.strictEqual(first.text, 'Foo');
-		assert.strictEqual(first.range.start.line, 0);
-		assert.strictEqual(first.range.start.character, 1);
-		assert.strictEqual(first.range.end.line, 2);
-		assert.strictEqual(first.range.end.character, 3);
+		assert.strictEqual(first.position.line, 0);
+		assert.strictEqual(first.position.character, 1);
 	});
 
 	// --- selection ranges
@@ -1243,7 +1292,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.ok(value[0].parent);
 	});
 
-	// --- call hierarcht
+	// --- call hierarchy
 
 	test('CallHierarchy, back and forth', async function () {
 
@@ -1284,6 +1333,40 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		const outgoing = await commands.executeCommand<vscode.CallHierarchyOutgoingCall[]>('vscode.provideOutgoingCalls', root[0]);
 		assert.strictEqual(outgoing.length, 1);
 		assert.strictEqual(outgoing[0].to.name, 'OUTGOING');
+	});
+
+	// --- type hierarchy
+
+	test('TypeHierarchy, back and forth', async function () {
+
+
+		disposables.push(extHost.registerTypeHierarchyProvider(nullExtensionDescription, defaultSelector, new class implements vscode.TypeHierarchyProvider {
+			prepareTypeHierarchy(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): vscode.ProviderResult<vscode.TypeHierarchyItem[]> {
+				return [new types.TypeHierarchyItem(types.SymbolKind.Constant, 'ROOT', 'ROOT', document.uri, new types.Range(0, 0, 0, 0), new types.Range(0, 0, 0, 0))];
+			}
+			provideTypeHierarchySupertypes(item: vscode.TypeHierarchyItem, token: vscode.CancellationToken): vscode.ProviderResult<vscode.TypeHierarchyItem[]> {
+				return [new types.TypeHierarchyItem(types.SymbolKind.Constant, 'SUPER', 'SUPER', item.uri, new types.Range(0, 0, 0, 0), new types.Range(0, 0, 0, 0))];
+			}
+			provideTypeHierarchySubtypes(item: vscode.TypeHierarchyItem, token: vscode.CancellationToken): vscode.ProviderResult<vscode.TypeHierarchyItem[]> {
+				return [new types.TypeHierarchyItem(types.SymbolKind.Constant, 'SUB', 'SUB', item.uri, new types.Range(0, 0, 0, 0), new types.Range(0, 0, 0, 0))];
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		const root = await commands.executeCommand<vscode.TypeHierarchyItem[]>('vscode.prepareTypeHierarchy', model.uri, new types.Position(0, 0));
+
+		assert.ok(Array.isArray(root));
+		assert.strictEqual(root.length, 1);
+		assert.strictEqual(root[0].name, 'ROOT');
+
+		const incoming = await commands.executeCommand<vscode.TypeHierarchyItem[]>('vscode.provideSupertypes', root[0]);
+		assert.strictEqual(incoming.length, 1);
+		assert.strictEqual(incoming[0].name, 'SUPER');
+
+		const outgoing = await commands.executeCommand<vscode.TypeHierarchyItem[]>('vscode.provideSubtypes', root[0]);
+		assert.strictEqual(outgoing.length, 1);
+		assert.strictEqual(outgoing[0].name, 'SUB');
 	});
 
 	test('selectionRangeProvider on inner array always returns outer array #91852', async function () {

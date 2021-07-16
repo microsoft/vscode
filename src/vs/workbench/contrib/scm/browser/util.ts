@@ -35,7 +35,7 @@ export function isSCMResource(element: any): element is ISCMResource {
 
 const compareActions = (a: IAction, b: IAction) => a.id === b.id;
 
-export function connectPrimaryMenu(menu: IMenu, callback: (primary: IAction[], secondary: IAction[]) => void, isPrimaryGroup?: (group: string) => boolean): IDisposable {
+export function connectPrimaryMenu(menu: IMenu, callback: (primary: IAction[], secondary: IAction[]) => void, primaryGroup?: string): IDisposable {
 	let cachedDisposable: IDisposable = Disposable.None;
 	let cachedPrimary: IAction[] = [];
 	let cachedSecondary: IAction[] = [];
@@ -44,7 +44,7 @@ export function connectPrimaryMenu(menu: IMenu, callback: (primary: IAction[], s
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 
-		const disposable = createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, { primary, secondary }, isPrimaryGroup);
+		const disposable = createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, { primary, secondary }, primaryGroup);
 
 		if (equals(cachedPrimary, primary, compareActions) && equals(cachedSecondary, secondary, compareActions)) {
 			disposable.dispose();
@@ -70,13 +70,13 @@ export function connectPrimaryMenuToInlineActionBar(menu: IMenu, actionBar: Acti
 	return connectPrimaryMenu(menu, (primary) => {
 		actionBar.clear();
 		actionBar.push(primary, { icon: true, label: false });
-	}, g => /^inline/.test(g));
+	}, 'inline');
 }
 
 export function collectContextMenuActions(menu: IMenu): [IAction[], IDisposable] {
 	const primary: IAction[] = [];
 	const actions: IAction[] = [];
-	const disposable = createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, { primary, secondary: actions }, g => /^inline/.test(g));
+	const disposable = createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, { primary, secondary: actions }, 'inline');
 	return [actions, disposable];
 }
 
@@ -90,7 +90,7 @@ export class StatusBarAction extends Action {
 		this.tooltip = command.tooltip || '';
 	}
 
-	run(): Promise<void> {
+	override run(): Promise<void> {
 		return this.commandService.executeCommand(this.command.id, ...(this.command.arguments || []));
 	}
 }
@@ -101,7 +101,7 @@ class StatusBarActionViewItem extends ActionViewItem {
 		super(null, action, {});
 	}
 
-	updateLabel(): void {
+	override updateLabel(): void {
 		if (this.options.label && this.label) {
 			reset(this.label, ...renderLabelWithIcons(this.getAction().label));
 		}

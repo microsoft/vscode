@@ -160,7 +160,9 @@ export module StaticServices {
 
 	export const markerDecorationsService = define(IMarkerDecorationsService, (o) => new MarkerDecorationsService(modelService.get(o), markerService.get(o)));
 
-	export const codeEditorService = define(ICodeEditorService, (o) => new StandaloneCodeEditorServiceImpl(standaloneThemeService.get(o)));
+	export const contextKeyService = define(IContextKeyService, (o) => new ContextKeyService(configurationService.get(o)));
+
+	export const codeEditorService = define(ICodeEditorService, (o) => new StandaloneCodeEditorServiceImpl(null, contextKeyService.get(o), standaloneThemeService.get(o)));
 
 	export const editorProgressService = define(IEditorProgressService, () => new SimpleEditorProgressService());
 
@@ -186,6 +188,7 @@ export class DynamicStandaloneServices extends Disposable {
 		const telemetryService = this.get(ITelemetryService);
 		const themeService = this.get(IThemeService);
 		const logService = this.get(ILogService);
+		const contextKeyService = this.get(IContextKeyService);
 
 		let ensure = <T>(serviceId: ServiceIdentifier<T>, factory: () => T): T => {
 			let value: T | null = null;
@@ -198,8 +201,6 @@ export class DynamicStandaloneServices extends Disposable {
 			this._serviceCollection.set(serviceId, value);
 			return value;
 		};
-
-		let contextKeyService = ensure(IContextKeyService, () => this._register(new ContextKeyService(configurationService)));
 
 		ensure(IAccessibilityService, () => new AccessibilityService(contextKeyService, configurationService));
 

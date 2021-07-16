@@ -13,7 +13,7 @@ import { TextDocument as LSTextDocument } from 'vscode-languageserver-textdocume
 import { getRootNode } from './parseDocument';
 
 let _emmetHelper: typeof EmmetHelper;
-let _currentExtensionsPath: string | undefined = undefined;
+let _currentExtensionsPath: string[] | undefined;
 
 let _homeDir: vscode.Uri | undefined;
 
@@ -28,7 +28,6 @@ export function getEmmetHelper() {
 	if (!_emmetHelper) {
 		_emmetHelper = require('vscode-emmet-helper');
 	}
-	updateEmmetExtensionsPath();
 	return _emmetHelper;
 }
 
@@ -36,19 +35,48 @@ export function getEmmetHelper() {
  * Update Emmet Helper to use user snippets from the extensionsPath setting
  */
 export function updateEmmetExtensionsPath(forceRefresh: boolean = false) {
-	if (!_emmetHelper) {
-		return;
+	const helper = getEmmetHelper();
+	let extensionsPath = vscode.workspace.getConfiguration('emmet').get<string[]>('extensionsPath');
+	if (!extensionsPath) {
+		extensionsPath = [];
 	}
-	let extensionsPath = vscode.workspace.getConfiguration('emmet')['extensionsPath'];
 	if (forceRefresh || _currentExtensionsPath !== extensionsPath) {
 		_currentExtensionsPath = extensionsPath;
-		if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
-			return;
-		} else {
-			const rootPath = vscode.workspace.workspaceFolders[0].uri;
-			const fileSystem = vscode.workspace.fs;
-			_emmetHelper.updateExtensionsPath(extensionsPath, fileSystem, rootPath, _homeDir).then(null, (err: string) => vscode.window.showErrorMessage(err));
-		}
+		const rootPath = vscode.workspace.workspaceFolders?.length ? vscode.workspace.workspaceFolders[0].uri : undefined;
+		const fileSystem = vscode.workspace.fs;
+		helper.updateExtensionsPath(extensionsPath, fileSystem, rootPath, _homeDir).catch(err => {
+			if (Array.isArray(extensionsPath) && extensionsPath.length) {
+				vscode.window.showErrorMessage(err.message);
+			}
+		});
+	}
+}
+
+/**
+ * Migrate old configuration(string) for extensionsPath to new type(string[])
+ * https://github.com/microsoft/vscode/issues/117517
+ */
+export function migrateEmmetExtensionsPath() {
+	// Get the detail info of emmet.extensionsPath setting
+	let config = vscode.workspace.getConfiguration().inspect('emmet.extensionsPath');
+
+	// Update Global setting if the value type is string or the value is null
+	if (typeof config?.globalValue === 'string') {
+		vscode.workspace.getConfiguration().update('emmet.extensionsPath', [config.globalValue], true);
+	} else if (config?.globalValue === null) {
+		vscode.workspace.getConfiguration().update('emmet.extensionsPath', [], true);
+	}
+	// Update Workspace setting if the value type is string or the value is null
+	if (typeof config?.workspaceValue === 'string') {
+		vscode.workspace.getConfiguration().update('emmet.extensionsPath', [config.workspaceValue], false);
+	} else if (config?.workspaceValue === null) {
+		vscode.workspace.getConfiguration().update('emmet.extensionsPath', [], false);
+	}
+	// Update WorkspaceFolder setting if the value type is string or the value is null
+	if (typeof config?.workspaceFolderValue === 'string') {
+		vscode.workspace.getConfiguration().update('emmet.extensionsPath', [config.workspaceFolderValue]);
+	} else if (config?.workspaceFolderValue === null) {
+		vscode.workspace.getConfiguration().update('emmet.extensionsPath', []);
 	}
 }
 
@@ -56,19 +84,19 @@ export function updateEmmetExtensionsPath(forceRefresh: boolean = false) {
  * Mapping between languages that support Emmet and completion trigger characters
  */
 export const LANGUAGE_MODES: { [id: string]: string[] } = {
-	'html': ['!', '.', '}', ':', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'jade': ['!', '.', '}', ':', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'slim': ['!', '.', '}', ':', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'haml': ['!', '.', '}', ':', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'xml': ['.', '}', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'xsl': ['!', '.', '}', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'html': ['!', '.', '}', ':', '*', '$', ']', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'jade': ['!', '.', '}', ':', '*', '$', ']', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'slim': ['!', '.', '}', ':', '*', '$', ']', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'haml': ['!', '.', '}', ':', '*', '$', ']', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'xml': ['.', '}', '*', '$', ']', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'xsl': ['!', '.', '}', '*', '$', '/', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'css': [':', '!', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'scss': [':', '!', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'sass': [':', '!', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'less': [':', '!', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'stylus': [':', '!', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'javascriptreact': ['!', '.', '}', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'typescriptreact': ['!', '.', '}', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+	'javascriptreact': ['!', '.', '}', '*', '$', ']', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'typescriptreact': ['!', '.', '}', '*', '$', ']', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
 };
 
 export function isStyleSheet(syntax: string): boolean {
@@ -348,30 +376,58 @@ export const allowedMimeTypesInScriptTag = ['text/html', 'text/plain', 'text/x-t
  * If position is inside a script tag of type template, then it will be parsed to find the inner HTML node as well
  */
 export function getHtmlFlatNode(documentText: string, root: FlatNode | undefined, offset: number, includeNodeBoundary: boolean): HtmlFlatNode | undefined {
-	const currentNode: HtmlFlatNode | undefined = <HtmlFlatNode | undefined>getFlatNode(root, offset, includeNodeBoundary);
+	let currentNode: HtmlFlatNode | undefined = <HtmlFlatNode | undefined>getFlatNode(root, offset, includeNodeBoundary);
 	if (!currentNode) { return; }
 
-	const isTemplateScript = currentNode.name === 'script' &&
-		(currentNode.attributes &&
-			currentNode.attributes.some(x => x.name.toString() === 'type'
-				&& allowedMimeTypesInScriptTag.includes(x.value.toString())));
-	if (isTemplateScript
-		&& currentNode.open
-		&& offset > currentNode.open.end
-		&& (!currentNode.close || offset < currentNode.close.start)) {
-		// blank out the rest of the document and search for the node within
-		const beforePadding = ' '.repeat(currentNode.open.end);
-		const endToUse = currentNode.close ? currentNode.close.start : currentNode.end;
-		const scriptBodyText = beforePadding + documentText.substring(currentNode.open.end, endToUse);
-		const innerRoot: HtmlFlatNode = parse(scriptBodyText);
-		const scriptBodyNode = getHtmlFlatNode(scriptBodyText, innerRoot, offset, includeNodeBoundary);
-		if (scriptBodyNode) {
-			scriptBodyNode.parent = currentNode;
-			currentNode.children.push(scriptBodyNode);
-			return scriptBodyNode;
+	// If the currentNode is a script one, first set up its subtree and then find HTML node.
+	if (currentNode.name === 'script' && currentNode.children.length === 0) {
+		const scriptNodeBody = setupScriptNodeSubtree(documentText, currentNode);
+		if (scriptNodeBody) {
+			currentNode = getHtmlFlatNode(scriptNodeBody, currentNode, offset, includeNodeBoundary) ?? currentNode;
 		}
 	}
+	else if (currentNode.type === 'cdata') {
+		const cdataBody = setupCdataNodeSubtree(documentText, currentNode);
+		currentNode = getHtmlFlatNode(cdataBody, currentNode, offset, includeNodeBoundary) ?? currentNode;
+	}
 	return currentNode;
+}
+
+export function setupScriptNodeSubtree(documentText: string, scriptNode: HtmlFlatNode): string {
+	const isTemplateScript = scriptNode.name === 'script' &&
+		(scriptNode.attributes &&
+			scriptNode.attributes.some(x => x.name.toString() === 'type'
+				&& allowedMimeTypesInScriptTag.includes(x.value.toString())));
+	if (isTemplateScript
+		&& scriptNode.open) {
+		// blank out the rest of the document and generate the subtree.
+		const beforePadding = ' '.repeat(scriptNode.open.end);
+		const endToUse = scriptNode.close ? scriptNode.close.start : scriptNode.end;
+		const scriptBodyText = beforePadding + documentText.substring(scriptNode.open.end, endToUse);
+		const innerRoot: HtmlFlatNode = parse(scriptBodyText);
+		innerRoot.children.forEach(child => {
+			scriptNode.children.push(child);
+			child.parent = scriptNode;
+		});
+		return scriptBodyText;
+	}
+	return '';
+}
+
+export function setupCdataNodeSubtree(documentText: string, cdataNode: HtmlFlatNode): string {
+	// blank out the rest of the document and generate the subtree.
+	const cdataStart = '<![CDATA[';
+	const cdataEnd = ']]>';
+	const startToUse = cdataNode.start + cdataStart.length;
+	const endToUse = cdataNode.end - cdataEnd.length;
+	const beforePadding = ' '.repeat(startToUse);
+	const cdataBody = beforePadding + documentText.substring(startToUse, endToUse);
+	const innerRoot: HtmlFlatNode = parse(cdataBody);
+	innerRoot.children.forEach(child => {
+		cdataNode.children.push(child);
+		child.parent = cdataNode;
+	});
+	return cdataBody;
 }
 
 export function isOffsetInsideOpenOrCloseTag(node: FlatNode, offset: number): boolean {
@@ -551,7 +607,7 @@ export function getEmmetConfiguration(syntax: string) {
 		) {
 			syntaxProfiles[syntax] = {
 				...syntaxProfiles[syntax],
-				selfClosingStyle: 'xml'
+				selfClosingStyle: syntax === 'jsx' ? 'xhtml' : 'xml'
 			};
 		}
 	}
@@ -625,10 +681,8 @@ export function getEmbeddedCssNodeIfAny(document: vscode.TextDocument, currentNo
 	const currentHtmlNode = <HtmlFlatNode>currentNode;
 	if (currentHtmlNode && currentHtmlNode.open && currentHtmlNode.close) {
 		const offset = document.offsetAt(position);
-		if (currentHtmlNode.open.end <= offset && offset <= currentHtmlNode.close.start) {
-			if (currentHtmlNode.name === 'style'
-				&& currentHtmlNode.open.end < offset
-				&& currentHtmlNode.close.start > offset) {
+		if (currentHtmlNode.open.end < offset && offset <= currentHtmlNode.close.start) {
+			if (currentHtmlNode.name === 'style') {
 				const buffer = ' '.repeat(currentHtmlNode.open.end) + document.getText().substring(currentHtmlNode.open.end, currentHtmlNode.close.start);
 				return parseStylesheet(buffer);
 			}

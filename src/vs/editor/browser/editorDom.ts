@@ -12,7 +12,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
  * Coordinates relative to the whole document (e.g. mouse event's pageX and pageY)
  */
 export class PageCoordinates {
-	_pageCoordinatesBrand: void;
+	_pageCoordinatesBrand: void = undefined;
 
 	constructor(
 		public readonly x: number,
@@ -32,7 +32,7 @@ export class PageCoordinates {
  * of whether the page is scrolled horizontally.
  */
 export class ClientCoordinates {
-	_clientCoordinatesBrand: void;
+	_clientCoordinatesBrand: void = undefined;
 
 	constructor(
 		public readonly clientX: number,
@@ -48,7 +48,7 @@ export class ClientCoordinates {
  * The position of the editor in the page.
  */
 export class EditorPagePosition {
-	_editorPagePositionBrand: void;
+	_editorPagePositionBrand: void = undefined;
 
 	constructor(
 		public readonly x: number,
@@ -64,7 +64,7 @@ export function createEditorPagePosition(editorViewDomNode: HTMLElement): Editor
 }
 
 export class EditorMouseEvent extends StandardMouseEvent {
-	_editorMouseEventBrand: void;
+	_editorMouseEventBrand: void = undefined;
 
 	/**
 	 * Coordinates relative to the whole document.
@@ -209,5 +209,9 @@ export class GlobalEditorMouseMoveMonitor extends Disposable {
 			this._keydownListener!.dispose();
 			onStopCallback(e);
 		});
+	}
+
+	public stopMonitoring(): void {
+		this._globalMouseMoveMonitor.stopMonitoring(true);
 	}
 }

@@ -12,11 +12,14 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ModifierKeyEmitter } from 'vs/base/browser/dom';
+import { Emitter } from 'vs/base/common/event';
 
 export class ContextMenuService extends Disposable implements IContextMenuService {
 	declare readonly _serviceBrand: undefined;
 
 	private contextMenuHandler: ContextMenuHandler;
+
+	readonly onDidShowContextMenu = new Emitter<void>().event;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,

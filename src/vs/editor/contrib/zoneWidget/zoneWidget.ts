@@ -148,7 +148,7 @@ class Arrow {
 	show(where: IPosition): void {
 		this._decorations = this._editor.deltaDecorations(
 			this._decorations,
-			[{ range: Range.fromPositions(where), options: { className: this._ruleName, stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } }]
+			[{ range: Range.fromPositions(where), options: { description: 'zone-widget-arrow', className: this._ruleName, stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } }]
 		);
 	}
 

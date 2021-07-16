@@ -36,6 +36,7 @@ export class ExtensionHostMain {
 
 	private _isTerminating: boolean;
 	private readonly _hostUtils: IHostUtils;
+	private readonly _rpcProtocol: RPCProtocol;
 	private readonly _extensionService: IExtHostExtensionService;
 	private readonly _logService: ILogService;
 	private readonly _disposables = new DisposableStore();
@@ -48,15 +49,15 @@ export class ExtensionHostMain {
 	) {
 		this._isTerminating = false;
 		this._hostUtils = hostUtils;
-		const rpcProtocol = new RPCProtocol(protocol, null, uriTransformer);
+		this._rpcProtocol = new RPCProtocol(protocol, null, uriTransformer);
 
 		// ensure URIs are transformed and revived
-		initData = ExtensionHostMain._transform(initData, rpcProtocol);
+		initData = ExtensionHostMain._transform(initData, this._rpcProtocol);
 
 		// bootstrap services
 		const services = new ServiceCollection(...getSingletonServiceDescriptors());
 		services.set(IExtHostInitDataService, { _serviceBrand: undefined, ...initData });
-		services.set(IExtHostRpcService, new ExtHostRpcService(rpcProtocol));
+		services.set(IExtHostRpcService, new ExtHostRpcService(this._rpcProtocol));
 		services.set(IURITransformerService, new URITransformerService(uriTransformer));
 		services.set(IHostUtils, hostUtils);
 
@@ -99,8 +100,8 @@ export class ExtensionHostMain {
 			};
 		});
 
-		const mainThreadExtensions = rpcProtocol.getProxy(MainContext.MainThreadExtensionService);
-		const mainThreadErrors = rpcProtocol.getProxy(MainContext.MainThreadErrors);
+		const mainThreadExtensions = this._rpcProtocol.getProxy(MainContext.MainThreadExtensionService);
+		const mainThreadErrors = this._rpcProtocol.getProxy(MainContext.MainThreadErrors);
 		errors.setUnexpectedErrorHandler(err => {
 			const data = errors.transformErrorForSerialization(err);
 			const extension = extensionErrors.get(err);
@@ -124,8 +125,11 @@ export class ExtensionHostMain {
 		this._disposables.dispose();
 
 		errors.setUnexpectedErrorHandler((err) => {
-			// TODO: write to log once we have one
+			this._logService.error(err);
 		});
+
+		// Invalidate all proxies
+		this._rpcProtocol.dispose();
 
 		const extensionsDeactivated = this._extensionService.deactivateAll();
 

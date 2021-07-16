@@ -6,7 +6,9 @@
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from 'vs/base/common/event';
+import { ResourceMap } from 'vs/base/common/map';
 
 export const FOLDER_CONFIG_FOLDER_NAME = '.vscode';
 export const FOLDER_SETTINGS_NAME = 'settings';
@@ -45,8 +47,26 @@ export interface IConfigurationCache {
 
 }
 
-export const IWorkbenchConfigurationService = createDecorator<IWorkbenchConfigurationService>('configurationService');
+export type RestrictedSettings = {
+	default: ReadonlyArray<string>;
+	userLocal?: ReadonlyArray<string>;
+	userRemote?: ReadonlyArray<string>;
+	workspace?: ReadonlyArray<string>;
+	workspaceFolder?: ResourceMap<ReadonlyArray<string>>;
+};
+
+export const IWorkbenchConfigurationService = refineServiceDecorator<IConfigurationService, IWorkbenchConfigurationService>(IConfigurationService);
 export interface IWorkbenchConfigurationService extends IConfigurationService {
+	/**
+	 * Restricted settings defined in each configuraiton target
+	 */
+	readonly restrictedSettings: RestrictedSettings;
+
+	/**
+	 * Event that triggers when the restricted settings changes
+	 */
+	readonly onDidChangeRestrictedSettings: Event<RestrictedSettings>;
+
 	/**
 	 * A promise that resolves when the remote configuration is loaded in a remote window.
 	 * The promise is resolved immediately if the window is not remote.

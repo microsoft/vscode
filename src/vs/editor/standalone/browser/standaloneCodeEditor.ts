@@ -34,6 +34,8 @@ import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standal
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILanguageSelection, IModeService } from 'vs/editor/common/services/modeService';
 import { URI } from 'vs/base/common/uri';
+import { StandaloneCodeEditorServiceImpl } from 'vs/editor/standalone/browser/standaloneCodeServiceImpl';
+import { Mimes } from 'vs/base/common/mime';
 
 /**
  * Description of an action contribution
@@ -142,9 +144,15 @@ export interface IGlobalEditorOptions {
 	 * Theme to be used for rendering.
 	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
 	 * You can create custom themes via `monaco.editor.defineTheme`.
-	 * To switch a theme, use `monaco.editor.setTheme`
+	 * To switch a theme, use `monaco.editor.setTheme`.
+	 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
 	 */
 	theme?: string;
+	/**
+	 * If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme.
+	 * Defaults to true.
+	 */
+	autoDetectHighContrast?: boolean;
 }
 
 /**
@@ -169,9 +177,15 @@ export interface IStandaloneEditorConstructionOptions extends IEditorConstructio
 	 * Initial theme to be used for rendering.
 	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
 	 * You can create custom themes via `monaco.editor.defineTheme`.
-	 * To switch a theme, use `monaco.editor.setTheme`
+	 * To switch a theme, use `monaco.editor.setTheme`.
+	 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
 	 */
 	theme?: string;
+	/**
+	 * If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme.
+	 * Defaults to true.
+	 */
+	autoDetectHighContrast?: boolean;
 	/**
 	 * An URL to open when Ctrl+H (Windows and Linux) or Cmd+H (OSX) is pressed in
 	 * the accessibility help dialog in the editor.
@@ -189,9 +203,15 @@ export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
 	 * Initial theme to be used for rendering.
 	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
 	 * You can create custom themes via `monaco.editor.defineTheme`.
-	 * To switch a theme, use `monaco.editor.setTheme`
+	 * To switch a theme, use `monaco.editor.setTheme`.
+	 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
 	 */
 	theme?: string;
+	/**
+	 * If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme.
+	 * Defaults to true.
+	 */
+	autoDetectHighContrast?: boolean;
 }
 
 export interface IStandaloneCodeEditor extends ICodeEditor {
@@ -345,6 +365,20 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 
 		return toDispose;
 	}
+
+	protected override _triggerCommand(handlerId: string, payload: any): void {
+		if (this._codeEditorService instanceof StandaloneCodeEditorServiceImpl) {
+			// Help commands find this editor as the active editor
+			try {
+				this._codeEditorService.setActiveCodeEditor(this);
+				super._triggerCommand(handlerId, payload);
+			} finally {
+				this._codeEditorService.setActiveCodeEditor(null);
+			}
+		} else {
+			super._triggerCommand(handlerId, payload);
+		}
+	}
 }
 
 export class StandaloneEditor extends StandaloneCodeEditor implements IStandaloneCodeEditor {
@@ -377,6 +411,9 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		if (typeof options.theme === 'string') {
 			themeService.setTheme(options.theme);
 		}
+		if (typeof options.autoDetectHighContrast !== 'undefined') {
+			themeService.setAutoDetectHighContrast(Boolean(options.autoDetectHighContrast));
+		}
 		let _model: ITextModel | null | undefined = options.model;
 		delete options.model;
 		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService, themeService, notificationService, accessibilityService);
@@ -389,7 +426,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 
 		let model: ITextModel | null;
 		if (typeof _model === 'undefined') {
-			model = createTextModel(modelService, modeService, options.value || '', options.language || 'text/plain', undefined);
+			model = createTextModel(modelService, modeService, options.value || '', options.language || Mimes.text, undefined);
 			this._ownsModel = true;
 		} else {
 			model = _model;
@@ -406,26 +443,29 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		}
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		super.dispose();
 	}
 
-	public updateOptions(newOptions: Readonly<IEditorOptions & IGlobalEditorOptions>): void {
+	public override updateOptions(newOptions: Readonly<IEditorOptions & IGlobalEditorOptions>): void {
 		updateConfigurationService(this._configurationService, newOptions, false);
 		if (typeof newOptions.theme === 'string') {
 			this._standaloneThemeService.setTheme(newOptions.theme);
 		}
+		if (typeof newOptions.autoDetectHighContrast !== 'undefined') {
+			this._standaloneThemeService.setAutoDetectHighContrast(Boolean(newOptions.autoDetectHighContrast));
+		}
 		super.updateOptions(newOptions);
 	}
 
-	_attachModel(model: ITextModel | null): void {
+	override _attachModel(model: ITextModel | null): void {
 		super._attachModel(model);
 		if (this._modelData) {
 			this._contextViewService.setContainer(this._modelData.view.domNode.domNode);
 		}
 	}
 
-	_postDetachModelCleanup(detachedModel: ITextModel): void {
+	override _postDetachModelCleanup(detachedModel: ITextModel): void {
 		super._postDetachModelCleanup(detachedModel);
 		if (detachedModel && this._ownsModel) {
 			detachedModel.dispose();
@@ -461,7 +501,10 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		updateConfigurationService(configurationService, options, true);
 		const themeDomRegistration = (<StandaloneThemeServiceImpl>themeService).registerEditorContainer(domElement);
 		if (typeof options.theme === 'string') {
-			options.theme = themeService.setTheme(options.theme);
+			themeService.setTheme(options.theme);
+		}
+		if (typeof options.autoDetectHighContrast !== 'undefined') {
+			themeService.setAutoDetectHighContrast(Boolean(options.autoDetectHighContrast));
 		}
 
 		super(domElement, options, {}, clipboardService, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService);
@@ -476,27 +519,30 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		this._contextViewService.setContainer(this._containerDomElement);
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		super.dispose();
 	}
 
-	public updateOptions(newOptions: Readonly<IDiffEditorOptions & IGlobalEditorOptions>): void {
+	public override updateOptions(newOptions: Readonly<IDiffEditorOptions & IGlobalEditorOptions>): void {
 		updateConfigurationService(this._configurationService, newOptions, true);
 		if (typeof newOptions.theme === 'string') {
 			this._standaloneThemeService.setTheme(newOptions.theme);
 		}
+		if (typeof newOptions.autoDetectHighContrast !== 'undefined') {
+			this._standaloneThemeService.setAutoDetectHighContrast(Boolean(newOptions.autoDetectHighContrast));
+		}
 		super.updateOptions(newOptions);
 	}
 
-	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: Readonly<IEditorOptions>): CodeEditorWidget {
+	protected override _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: Readonly<IEditorOptions>): CodeEditorWidget {
 		return instantiationService.createInstance(StandaloneCodeEditor, container, options);
 	}
 
-	public getOriginalEditor(): IStandaloneCodeEditor {
+	public override getOriginalEditor(): IStandaloneCodeEditor {
 		return <StandaloneCodeEditor>super.getOriginalEditor();
 	}
 
-	public getModifiedEditor(): IStandaloneCodeEditor {
+	public override getModifiedEditor(): IStandaloneCodeEditor {
 		return <StandaloneCodeEditor>super.getModifiedEditor();
 	}
 

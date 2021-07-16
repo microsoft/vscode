@@ -63,7 +63,7 @@ export class DefineKeybindingController extends Disposable implements IEditorCon
 		return this._keybindingWidgetRenderer;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._disposeKeybindingWidgetRenderer();
 		this._disposeKeybindingDecorationRenderer();
 		super.dispose();
@@ -334,6 +334,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 		return {
 			range: range,
 			options: {
+				description: 'keybindings-widget',
 				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 				className: className,
 				hoverMessage: msg,

@@ -26,6 +26,12 @@
     "update-grammar": "node ./build/update-grammars.js",
     "test": "node ../../node_modules/mocha/bin/mocha"
   },
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "contributes": {
     "commands": [
       {
@@ -496,6 +502,16 @@
         "category": "Git"
       },
       {
+        "command": "git.timeline.selectForCompare",
+        "title": "%command.timelineSelectForCompare%",
+        "category": "Git"
+      },
+      {
+        "command": "git.timeline.compareWithSelected",
+        "title": "%command.timelineCompareWithSelected%",
+        "category": "Git"
+      },
+      {
         "command": "git.rebaseAbort",
         "title": "%command.rebaseAbort%",
         "category": "Git"
@@ -561,7 +577,7 @@
         },
         {
           "command": "git.openChange",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourcePath in git.changedResources"
         },
         {
           "command": "git.stage",
@@ -874,6 +890,14 @@
         {
           "command": "git.timeline.copyCommitMessage",
           "when": "false"
+        },
+        {
+          "command": "git.timeline.selectForCompare",
+          "when": "false"
+        },
+        {
+          "command": "git.timeline.compareWithSelected",
+          "when": "false"
         }
       ],
       "scm/title": [
@@ -964,7 +988,7 @@
         {
           "command": "git.stageAllMerge",
           "when": "scmProvider == git && scmResourceGroup == merge",
-          "group": "inline"
+          "group": "inline@2"
         },
         {
           "command": "git.unstageAll",
@@ -974,7 +998,7 @@
         {
           "command": "git.unstageAll",
           "when": "scmProvider == git && scmResourceGroup == index",
-          "group": "inline"
+          "group": "inline@2"
         },
         {
           "command": "git.cleanAll",
@@ -989,12 +1013,12 @@
         {
           "command": "git.cleanAll",
           "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges == mixed",
-          "group": "inline"
+          "group": "inline@2"
         },
         {
           "command": "git.stageAll",
           "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges == mixed",
-          "group": "inline"
+          "group": "inline@2"
         },
         {
           "command": "git.cleanAllTracked",
@@ -1009,12 +1033,12 @@
         {
           "command": "git.cleanAllTracked",
           "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges != mixed",
-          "group": "inline"
+          "group": "inline@2"
         },
         {
           "command": "git.stageAllTracked",
           "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges != mixed",
-          "group": "inline"
+          "group": "inline@2"
         },
         {
           "command": "git.cleanAllUntracked",
@@ -1029,12 +1053,12 @@
         {
           "command": "git.cleanAllUntracked",
           "when": "scmProvider == git && scmResourceGroup == untracked",
-          "group": "inline"
+          "group": "inline@2"
         },
         {
           "command": "git.stageAllUntracked",
           "when": "scmProvider == git && scmResourceGroup == untracked",
-          "group": "inline"
+          "group": "inline@2"
         }
       ],
       "scm/resourceFolder/context": [
@@ -1046,7 +1070,7 @@
         {
           "command": "git.stage",
           "when": "scmProvider == git && scmResourceGroup == merge",
-          "group": "inline"
+          "group": "inline@2"
         },
         {
           "command": "git.unstage",
@@ -1056,7 +1080,7 @@
         {
           "command": "git.unstage",
           "when": "scmProvider == git && scmResourceGroup == index",
-          "group": "inline"
+          "group": "inline@2"
         },
         {
           "command": "git.stage",
@@ -1071,12 +1095,12 @@
         {
           "command": "git.clean",
           "when": "scmProvider == git && scmResourceGroup == workingTree",
-          "group": "inline"
+          "group": "inline@2"
         },
         {
           "command": "git.stage",
           "when": "scmProvider == git && scmResourceGroup == workingTree",
-          "group": "inline"
+          "group": "inline@2"
         },
         {
           "command": "git.ignore",
@@ -1091,7 +1115,7 @@
         {
           "command": "git.stage",
           "when": "scmProvider == git && scmResourceGroup == untracked",
-          "group": "inline"
+          "group": "inline@2"
         },
         {
           "command": "git.clean",
@@ -1101,7 +1125,7 @@
         {
           "command": "git.clean",
           "when": "scmProvider == git && scmResourceGroup == untracked",
-          "group": "inline"
+          "group": "inline@2"
         },
         {
           "command": "git.ignore",
@@ -1123,7 +1147,7 @@
         {
           "command": "git.stage",
           "when": "scmProvider == git && scmResourceGroup == merge",
-          "group": "inline"
+          "group": "inline@2"
         },
         {
           "command": "git.revealInExplorer",
@@ -1133,12 +1157,12 @@
         {
           "command": "git.openFile2",
           "when": "scmProvider == git && scmResourceGroup == merge && config.git.showInlineOpenFileAction && config.git.openDiffOnClick",
-          "group": "inline0"
+          "group": "inline@1"
         },
         {
           "command": "git.openChange",
           "when": "scmProvider == git && scmResourceGroup == merge && config.git.showInlineOpenFileAction && !config.git.openDiffOnClick",
-          "group": "inline0"
+          "group": "inline@1"
         },
         {
           "command": "git.openChange",
@@ -1163,7 +1187,7 @@
         {
           "command": "git.unstage",
           "when": "scmProvider == git && scmResourceGroup == index",
-          "group": "inline"
+          "group": "inline@2"
         },
         {
           "command": "git.revealInExplorer",
@@ -1173,12 +1197,12 @@
         {
           "command": "git.openFile2",
           "when": "scmProvider == git && scmResourceGroup == index && config.git.showInlineOpenFileAction && config.git.openDiffOnClick",
-          "group": "inline0"
+          "group": "inline@1"
         },
         {
           "command": "git.openChange",
           "when": "scmProvider == git && scmResourceGroup == index && config.git.showInlineOpenFileAction && !config.git.openDiffOnClick",
-          "group": "inline0"
+          "group": "inline@1"
         },
         {
           "command": "git.openChange",
@@ -1208,22 +1232,22 @@
         {
           "command": "git.clean",
           "when": "scmProvider == git && scmResourceGroup == workingTree",
-          "group": "inline"
+          "group": "inline@2"
         },
         {
           "command": "git.stage",
           "when": "scmProvider == git && scmResourceGroup == workingTree",
-          "group": "inline"
+          "group": "inline@2"
         },
         {
           "command": "git.openFile2",
           "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.showInlineOpenFileAction && config.git.openDiffOnClick",
-          "group": "inline0"
+          "group": "inline@1"
         },
         {
           "command": "git.openChange",
           "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.showInlineOpenFileAction && !config.git.openDiffOnClick",
-          "group": "inline0"
+          "group": "inline@1"
         },
         {
           "command": "git.ignore",
@@ -1263,22 +1287,22 @@
         {
           "command": "git.clean",
           "when": "scmProvider == git && scmResourceGroup == untracked && !gitFreshRepository",
-          "group": "inline"
+          "group": "inline@2"
         },
         {
           "command": "git.stage",
           "when": "scmProvider == git && scmResourceGroup == untracked",
-          "group": "inline"
+          "group": "inline@2"
         },
         {
           "command": "git.openFile2",
           "when": "scmProvider == git && scmResourceGroup == untracked && config.git.showInlineOpenFileAction && config.git.openDiffOnClick",
-          "group": "inline0"
+          "group": "inline@1"
         },
         {
           "command": "git.openChange",
           "when": "scmProvider == git && scmResourceGroup == untracked && config.git.showInlineOpenFileAction && !config.git.openDiffOnClick",
-          "group": "inline0"
+          "group": "inline@1"
         },
         {
           "command": "git.ignore",
@@ -1300,7 +1324,7 @@
         {
           "command": "git.openChange",
           "group": "navigation",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && resourceScheme == file"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && resourceScheme == file && resourcePath in git.changedResources"
         },
         {
           "command": "git.stageSelectedRanges",
@@ -1349,17 +1373,27 @@
         {
           "command": "git.timeline.openDiff",
           "group": "1_actions",
-          "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file\\b/"
+          "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file\\b/ && !listMultiSelection"
+        },
+        {
+          "command": "git.timeline.compareWithSelected",
+          "group": "3_compare@1",
+          "when": "config.git.enabled && !git.missing && git.timeline.selectedForCompare && timelineItem =~ /git:file\\b/ && !listMultiSelection"
+        },
+        {
+          "command": "git.timeline.selectForCompare",
+          "group": "3_compare@2",
+          "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file\\b/ && !listMultiSelection"
         },
         {
           "command": "git.timeline.copyCommitId",
           "group": "5_copy@1",
-          "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file:commit\\b/"
+          "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file:commit\\b/ && !listMultiSelection"
         },
         {
           "command": "git.timeline.copyCommitMessage",
           "group": "5_copy@2",
-          "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file:commit\\b/"
+          "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file:commit\\b/ && !listMultiSelection"
         }
       ],
       "git.commit": [
@@ -1519,13 +1553,17 @@
           "command": "git.branchFrom",
           "group": "branch@4"
         },
+				{
+					"command": "git.renameBranch",
+					"group": "branch@5"
+				},
         {
-          "command": "git.renameBranch",
-          "group": "branch@5"
+          "command": "git.deleteBranch",
+          "group": "branch@6"
         },
         {
           "command": "git.publish",
-          "group": "branch@6"
+          "group": "branch@7"
         }
       ],
       "git.remotes": [
@@ -1654,19 +1692,10 @@
           "default": true
         },
         "git.autofetch": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "string",
-              "enum": [
-                "all"
-              ]
-            }
-          ],
+          "type": ["boolean", "string"],
+          "enum": [true, false, "all"],
           "scope": "resource",
-          "description": "%config.autofetch%",
+          "markdownDescription": "%config.autofetch%",
           "default": false,
           "tags": [
             "usesOnlineServices"
@@ -1675,7 +1704,7 @@
         "git.autofetchPeriod": {
           "type": "number",
           "scope": "resource",
-          "description": "%config.autofetchPeriod%",
+          "markdownDescription": "%config.autofetchPeriod%",
           "default": 180
         },
         "git.branchValidationRegex": {
@@ -2332,6 +2361,13 @@
         "when": "config.git.enabled",
         "enablement": "git.state == initialized",
         "group": "5_scm@1"
+      },
+      {
+        "view": "explorer",
+        "contents": "%view.workbench.learnMore%",
+        "when": "config.git.enabled",
+        "enablement": "git.state == initialized",
+        "group": "5_scm@10"
       }
     ]
   },
@@ -2339,8 +2375,8 @@
     "byline": "^5.0.0",
     "file-type": "^7.2.0",
     "iconv-lite-umd": "0.6.8",
-    "jschardet": "2.2.1",
-    "vscode-extension-telemetry": "0.1.1",
+    "jschardet": "2.3.0",
+    "vscode-extension-telemetry": "0.1.7",
     "vscode-nls": "^4.0.0",
     "vscode-uri": "^2.0.0",
     "which": "^1.3.0"
@@ -2349,7 +2385,7 @@
     "@types/byline": "4.2.31",
     "@types/file-type": "^5.2.1",
     "@types/mocha": "^8.2.0",
-    "@types/node": "^12.19.9",
+    "@types/node": "14.x",
     "@types/which": "^1.0.28"
   },
   "repository": {

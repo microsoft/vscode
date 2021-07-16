@@ -11,12 +11,12 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Mimes } from 'vs/base/common/mime';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { ITextAreaWrapper, ITypeData, TextAreaState, _debugComposition } from 'vs/editor/browser/controller/textAreaState';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 export namespace TextAreaSyntethicEvents {
 	export const Tap = '-monaco-textarea-synthetic-tap';
@@ -210,26 +210,30 @@ export class TextAreaInput extends Disposable {
 
 			if (
 				platform.isMacintosh
-				&& lastKeyDown
-				&& lastKeyDown.equals(KeyCode.KEY_IN_COMPOSITION)
 				&& this._textAreaState.selectionStart === this._textAreaState.selectionEnd
 				&& this._textAreaState.selectionStart > 0
 				&& this._textAreaState.value.substr(this._textAreaState.selectionStart - 1, 1) === e.data
-				&& (lastKeyDown.code === 'ArrowRight' || lastKeyDown.code === 'ArrowLeft')
 			) {
-				// Handling long press case on macOS + arrow key => pretend the character was selected
-				if (_debugComposition) {
-					console.log(`[compositionstart] Handling long press case on macOS + arrow key`, e);
-				}
-				this._textAreaState = new TextAreaState(
-					this._textAreaState.value,
-					this._textAreaState.selectionStart - 1,
-					this._textAreaState.selectionEnd,
-					this._textAreaState.selectionStartPosition ? new Position(this._textAreaState.selectionStartPosition.lineNumber, this._textAreaState.selectionStartPosition.column - 1) : null,
-					this._textAreaState.selectionEndPosition
+				const isArrowKey = (
+					lastKeyDown && lastKeyDown.equals(KeyCode.KEY_IN_COMPOSITION)
+					&& (lastKeyDown.code === 'ArrowRight' || lastKeyDown.code === 'ArrowLeft')
 				);
-				this._onCompositionStart.fire({ revealDeltaColumns: -1 });
-				return;
+				if (isArrowKey || browser.isFirefox) {
+					// Handling long press case on Chromium/Safari macOS + arrow key => pretend the character was selected
+					// or long press case on Firefox on macOS
+					if (_debugComposition) {
+						console.log(`[compositionstart] Handling long press case on macOS + arrow key or Firefox`, e);
+					}
+					this._textAreaState = new TextAreaState(
+						this._textAreaState.value,
+						this._textAreaState.selectionStart - 1,
+						this._textAreaState.selectionEnd,
+						this._textAreaState.selectionStartPosition ? new Position(this._textAreaState.selectionStartPosition.lineNumber, this._textAreaState.selectionStartPosition.column - 1) : null,
+						this._textAreaState.selectionEndPosition
+					);
+					this._onCompositionStart.fire({ revealDeltaColumns: -1 });
+					return;
+				}
 			}
 
 			if (browser.isAndroid) {
@@ -521,7 +525,7 @@ export class TextAreaInput extends Disposable {
 		});
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		super.dispose();
 		if (this._selectionChangeListener) {
 			this._selectionChangeListener.dispose();
@@ -598,7 +602,7 @@ export class TextAreaInput extends Disposable {
 	}
 
 	private _ensureClipboardGetsEditorSelection(e: ClipboardEvent): void {
-		const dataToCopy = this._host.getDataToCopy(ClipboardEventUtils.canUseTextData(e) && BrowserFeatures.clipboard.richText);
+		const dataToCopy = this._host.getDataToCopy(ClipboardEventUtils.canUseTextData(e));
 		const storedMetadata: ClipboardStoredMetadata = {
 			version: 1,
 			isFromEmptySelection: dataToCopy.isFromEmptySelection,
@@ -650,7 +654,7 @@ class ClipboardEventUtils {
 		if (e.clipboardData) {
 			e.preventDefault();
 
-			const text = e.clipboardData.getData('text/plain');
+			const text = e.clipboardData.getData(Mimes.text);
 			let metadata: ClipboardStoredMetadata | null = null;
 			const rawmetadata = e.clipboardData.getData('vscode-editor-data');
 			if (typeof rawmetadata === 'string') {
@@ -678,7 +682,7 @@ class ClipboardEventUtils {
 
 	public static setTextData(e: ClipboardEvent, text: string, html: string | null | undefined, metadata: ClipboardStoredMetadata): void {
 		if (e.clipboardData) {
-			e.clipboardData.setData('text/plain', text);
+			e.clipboardData.setData(Mimes.text, text);
 			if (typeof html === 'string') {
 				e.clipboardData.setData('text/html', html);
 			}
@@ -737,11 +741,11 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 	}
 
 	public getSelectionStart(): number {
-		return this._actual.domNode.selectionStart;
+		return this._actual.domNode.selectionDirection === 'backward' ? this._actual.domNode.selectionEnd : this._actual.domNode.selectionStart;
 	}
 
 	public getSelectionEnd(): number {
-		return this._actual.domNode.selectionEnd;
+		return this._actual.domNode.selectionDirection === 'backward' ? this._actual.domNode.selectionStart : this._actual.domNode.selectionEnd;
 	}
 
 	public setSelectionRange(reason: string, selectionStart: number, selectionEnd: number): void {

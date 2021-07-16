@@ -11,6 +11,7 @@ import { Command } from 'vs/editor/common/modes';
 import { ISequence } from 'vs/base/common/sequence';
 import { IAction } from 'vs/base/common/actions';
 import { IMenu } from 'vs/platform/actions/common/actions';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export const VIEWLET_ID = 'workbench.view.scm';
 export const VIEW_PANE_ID = 'workbench.scm';
@@ -23,8 +24,8 @@ export interface IBaselineResourceProvider {
 export const ISCMService = createDecorator<ISCMService>('scm');
 
 export interface ISCMResourceDecorations {
-	icon?: URI;
-	iconDark?: URI;
+	icon?: URI | ThemeIcon;
+	iconDark?: URI | ThemeIcon;
 	tooltip?: string;
 	strikeThrough?: boolean;
 	faded?: boolean;
@@ -109,6 +110,12 @@ export interface ISCMInput {
 
 	visible: boolean;
 	readonly onDidChangeVisibility: Event<boolean>;
+
+	setFocus(): void;
+	readonly onDidChangeFocus: Event<void>;
+
+	showValidationMessage(message: string, type: InputValidationType): void;
+	readonly onDidChangeValidationMessage: Event<IInputValidation>;
 
 	showNextHistoryValue(): void;
 	showPreviousHistoryValue(): void;

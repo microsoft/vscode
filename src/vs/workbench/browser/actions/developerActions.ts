@@ -7,7 +7,7 @@ import 'vs/css!./media/actions';
 
 import { localize } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { domEvent } from 'vs/base/browser/event';
+import { DomEmitter } from 'vs/base/browser/event';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable, dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -28,6 +28,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CATEGORIES } from 'vs/workbench/common/actions';
+import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -62,8 +63,8 @@ class InspectContextKeysAction extends Action2 {
 		hoverFeedback.style.backgroundColor = 'rgba(255, 0, 0, 0.5)';
 		hoverFeedback.style.zIndex = '1000';
 
-		const onMouseMove = domEvent(document.body, 'mousemove', true);
-		disposables.add(onMouseMove(e => {
+		const onMouseMove = disposables.add(new DomEmitter(document.body, 'mousemove', true));
+		disposables.add(onMouseMove.event(e => {
 			const target = e.target as HTMLElement;
 			const position = getDomNodePagePosition(target);
 
@@ -73,11 +74,11 @@ class InspectContextKeysAction extends Action2 {
 			hoverFeedback.style.height = `${position.height}px`;
 		}));
 
-		const onMouseDown = Event.once(domEvent(document.body, 'mousedown', true));
-		onMouseDown(e => { e.preventDefault(); e.stopPropagation(); }, null, disposables);
+		const onMouseDown = disposables.add(new DomEmitter(document.body, 'mousedown', true));
+		Event.once(onMouseDown.event)(e => { e.preventDefault(); e.stopPropagation(); }, null, disposables);
 
-		const onMouseUp = Event.once(domEvent(document.body, 'mouseup', true));
-		onMouseUp(e => {
+		const onMouseUp = disposables.add(new DomEmitter(document.body, 'mouseup', true));
+		Event.once(onMouseUp.event)(e => {
 			e.preventDefault();
 			e.stopPropagation();
 
@@ -119,9 +120,9 @@ class ToggleScreencastModeAction extends Action2 {
 		const mouseMarker = append(container, $('.screencast-mouse'));
 		disposables.add(toDisposable(() => mouseMarker.remove()));
 
-		const onMouseDown = domEvent(container, 'mousedown', true);
-		const onMouseUp = domEvent(container, 'mouseup', true);
-		const onMouseMove = domEvent(container, 'mousemove', true);
+		const onMouseDown = disposables.add(new DomEmitter(container, 'mousedown', true));
+		const onMouseUp = disposables.add(new DomEmitter(container, 'mouseup', true));
+		const onMouseMove = disposables.add(new DomEmitter(container, 'mousemove', true));
 
 		const updateMouseIndicatorColor = () => {
 			mouseMarker.style.borderColor = Color.fromHex(configurationService.getValue<string>('screencastMode.mouseIndicatorColor')).toString();
@@ -138,17 +139,17 @@ class ToggleScreencastModeAction extends Action2 {
 		updateMouseIndicatorColor();
 		updateMouseIndicatorSize();
 
-		disposables.add(onMouseDown(e => {
+		disposables.add(onMouseDown.event(e => {
 			mouseMarker.style.top = `${e.clientY - mouseIndicatorSize / 2}px`;
 			mouseMarker.style.left = `${e.clientX - mouseIndicatorSize / 2}px`;
 			mouseMarker.style.display = 'block';
 
-			const mouseMoveListener = onMouseMove(e => {
+			const mouseMoveListener = onMouseMove.event(e => {
 				mouseMarker.style.top = `${e.clientY - mouseIndicatorSize / 2}px`;
 				mouseMarker.style.left = `${e.clientX - mouseIndicatorSize / 2}px`;
 			});
 
-			Event.once(onMouseUp)(() => {
+			Event.once(onMouseUp.event)(() => {
 				mouseMarker.style.display = 'none';
 				mouseMoveListener.dispose();
 			});
@@ -196,17 +197,17 @@ class ToggleScreencastModeAction extends Action2 {
 			}
 		}));
 
-		const onKeyDown = domEvent(window, 'keydown', true);
+		const onKeyDown = disposables.add(new DomEmitter(window, 'keydown', true));
 		let keyboardTimeout: IDisposable = Disposable.None;
 		let length = 0;
 
-		disposables.add(onKeyDown(e => {
+		disposables.add(onKeyDown.event(e => {
 			keyboardTimeout.dispose();
 
 			const event = new StandardKeyboardEvent(e);
 			const shortcut = keybindingService.softDispatch(event, event.target);
 
-			if (shortcut || !configurationService.getValue<boolean>('screencastMode.onlyKeyboardShortcuts')) {
+			if (shortcut || !configurationService.getValue('screencastMode.onlyKeyboardShortcuts')) {
 				if (
 					event.ctrlKey || event.altKey || event.metaKey || event.shiftKey
 					|| length > 20
@@ -263,15 +264,24 @@ class LogWorkingCopiesAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
+	async run(accessor: ServicesAccessor): Promise<void> {
 		const workingCopyService = accessor.get(IWorkingCopyService);
+		const workingCopyBackupService = accessor.get(IWorkingCopyBackupService);
 		const logService = accessor.get(ILogService);
+
+		const backups = await workingCopyBackupService.getBackups();
+
 		const msg = [
-			`Dirty Working Copies:`,
-			...workingCopyService.dirtyWorkingCopies.map(workingCopy => workingCopy.resource.toString(true)),
 			``,
-			`All Working Copies:`,
-			...workingCopyService.workingCopies.map(workingCopy => workingCopy.resource.toString(true)),
+			`[Working Copies]`,
+			...(workingCopyService.workingCopies.length > 0) ?
+				workingCopyService.workingCopies.map(workingCopy => `${workingCopy.isDirty() ? '● ' : ''}${workingCopy.resource.toString(true)} (typeId: ${workingCopy.typeId || '<no typeId>'})`) :
+				['<none>'],
+			``,
+			`[Backups]`,
+			...(backups.length > 0) ?
+				backups.map(backup => `${backup.resource.toString(true)} (typeId: ${backup.typeId || '<no typeId>'})`) :
+				['<none>'],
 		];
 
 		logService.info(msg.join('\n'));

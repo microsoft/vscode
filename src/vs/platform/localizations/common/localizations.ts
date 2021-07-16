@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
 
 export interface ILocalization {
 	languageId: string;
@@ -22,11 +21,7 @@ export interface ITranslation {
 export const ILocalizationsService = createDecorator<ILocalizationsService>('localizationsService');
 export interface ILocalizationsService {
 	readonly _serviceBrand: undefined;
-
-	readonly onDidLanguagesChange: Event<void>;
 	getLanguageIds(): Promise<string[]>;
-
-	update(): Promise<boolean>;
 }
 
 export function isValidLocalization(localization: ILocalization): boolean {

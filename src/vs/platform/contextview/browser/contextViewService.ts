@@ -24,7 +24,7 @@ export class ContextViewService extends Disposable implements IContextViewServic
 		this.contextView = this._register(new ContextView(this.container, ContextViewDOMPosition.ABSOLUTE));
 		this.layout();
 
-		this._register(layoutService.onLayout(() => this.layout()));
+		this._register(layoutService.onDidLayout(() => this.layout()));
 	}
 
 	// ContextView

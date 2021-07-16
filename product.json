@@ -22,16 +22,19 @@
 	"licenseFileName": "LICENSE.txt",
 	"reportIssueUrl": "https://github.com/microsoft/vscode/issues/new",
 	"urlProtocol": "code-oss",
+	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-webview.net/{{quality}}/{{commit}}/out/vs/workbench/contrib/webview/browser/pre/",
 	"extensionAllowedProposedApi": [
 		"ms-vscode.vscode-js-profile-flame",
 		"ms-vscode.vscode-js-profile-table",
-		"ms-vscode.github-browser",
-		"ms-vscode.github-richnav"
+		"ms-vscode.remotehub",
+		"ms-vscode.remotehub-insiders",
+		"GitHub.remotehub",
+		"GitHub.remotehub-insiders"
 	],
 	"builtInExtensions": [
 		{
 			"name": "ms-vscode.node-debug",
-			"version": "1.44.16",
+			"version": "1.44.28",
 			"repo": "https://github.com/microsoft/vscode-node-debug",
 			"metadata": {
 				"id": "b6ded8fb-a0a0-4c1c-acbd-ab2a3bc995a6",
@@ -46,7 +49,7 @@
 		},
 		{
 			"name": "ms-vscode.node-debug2",
-			"version": "1.42.5",
+			"version": "1.42.8",
 			"repo": "https://github.com/microsoft/vscode-node-debug2",
 			"metadata": {
 				"id": "36d19e17-7569-4841-a001-947eb18602b2",
@@ -61,8 +64,8 @@
 		},
 		{
 			"name": "ms-vscode.references-view",
-			"version": "0.0.77",
-			"repo": "https://github.com/microsoft/vscode-reference-view",
+			"version": "0.0.80",
+			"repo": "https://github.com/microsoft/vscode-references-view",
 			"metadata": {
 				"id": "dc489f46-520d-4556-ae85-1f9eab3c412d",
 				"publisherId": {
@@ -76,7 +79,7 @@
 		},
 		{
 			"name": "ms-vscode.js-debug-companion",
-			"version": "1.0.8",
+			"version": "1.0.13",
 			"repo": "https://github.com/microsoft/vscode-js-debug-companion",
 			"metadata": {
 				"id": "99cb0b7f-7354-4278-b8da-6cc79972169d",
@@ -91,7 +94,7 @@
 		},
 		{
 			"name": "ms-vscode.js-debug",
-			"version": "1.54.1",
+			"version": "1.58.2",
 			"repo": "https://github.com/microsoft/vscode-js-debug",
 			"metadata": {
 				"id": "25629058-ddac-4e17-abba-74678e126c5d",
@@ -106,27 +109,10 @@
 		},
 		{
 			"name": "ms-vscode.vscode-js-profile-table",
-			"version": "0.0.11",
+			"version": "0.0.18",
 			"repo": "https://github.com/microsoft/vscode-js-profile-visualizer",
 			"metadata": {
 				"id": "7e52b41b-71ad-457b-ab7e-0620f1fc4feb",
-				"publisherId": {
-					"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
-					"publisherName": "ms-vscode",
-					"displayName": "Microsoft",
-					"flags": "verified"
-				},
-				"publisherDisplayName": "Microsoft"
-			}
-		}
-	],
-	"webBuiltInExtensions": [
-		{
-			"name": "ms-vscode.github-browser",
-			"version": "0.0.14",
-			"repo": "https://github.com/microsoft/vscode-github-browser",
-			"metadata": {
-				"id": "c1bcff4b-4ecb-466e-b8f6-b02788b5fb5a",
 				"publisherId": {
 					"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
 					"publisherName": "ms-vscode",

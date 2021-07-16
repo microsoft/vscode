@@ -33,7 +33,7 @@ class ToggleBreakpointAction extends EditorAction2 {
 			id: 'editor.debug.action.toggleBreakpoint',
 			title: {
 				value: nls.localize('toggleBreakpointAction', "Debug: Toggle Breakpoint"),
-				original: 'Toggle Breakpoint',
+				original: 'Debug: Toggle Breakpoint',
 				mnemonicTitle: nls.localize({ key: 'miToggleBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Breakpoint")
 			},
 			f1: true,
@@ -501,16 +501,14 @@ class CloseExceptionWidgetAction extends EditorAction {
 	}
 }
 
-export function registerEditorActions(): void {
-	registerAction2(ToggleBreakpointAction);
-	registerAction2(ConditionalBreakpointAction);
-	registerAction2(LogPointAction);
-	registerEditorAction(RunToCursorAction);
-	registerEditorAction(StepIntoTargetsAction);
-	registerEditorAction(SelectionToReplAction);
-	registerEditorAction(SelectionToWatchExpressionsAction);
-	registerEditorAction(ShowDebugHoverAction);
-	registerEditorAction(GoToNextBreakpointAction);
-	registerEditorAction(GoToPreviousBreakpointAction);
-	registerEditorAction(CloseExceptionWidgetAction);
-}
+registerAction2(ToggleBreakpointAction);
+registerAction2(ConditionalBreakpointAction);
+registerAction2(LogPointAction);
+registerEditorAction(RunToCursorAction);
+registerEditorAction(StepIntoTargetsAction);
+registerEditorAction(SelectionToReplAction);
+registerEditorAction(SelectionToWatchExpressionsAction);
+registerEditorAction(ShowDebugHoverAction);
+registerEditorAction(GoToNextBreakpointAction);
+registerEditorAction(GoToPreviousBreakpointAction);
+registerEditorAction(CloseExceptionWidgetAction);

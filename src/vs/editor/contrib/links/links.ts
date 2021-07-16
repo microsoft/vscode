@@ -66,11 +66,13 @@ function getHoverMessage(link: Link, useMetaKey: boolean): MarkdownString {
 
 const decoration = {
 	general: ModelDecorationOptions.register({
+		description: 'detected-link',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link'
 	}),
 	active: ModelDecorationOptions.register({
+		description: 'detected-link-active',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link-active'
@@ -327,7 +329,7 @@ export class LinkDetector implements IEditorContribution {
 				}
 			}
 
-			return this.openerService.open(uri, { openToSide, fromUserGesture, allowContributedOpeners: true });
+			return this.openerService.open(uri, { openToSide, fromUserGesture, allowContributedOpeners: true, allowCommands: true });
 
 		}, err => {
 			const messageOrError =

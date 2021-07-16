@@ -29,6 +29,7 @@ export interface ISelectBoxDelegate extends IDisposable {
 	setAriaLabel(label: string): void;
 	focus(): void;
 	blur(): void;
+	setFocusable(focus: boolean): void;
 
 	// Delegated Widget interface
 	render(container: HTMLElement): void;
@@ -93,41 +94,43 @@ export class SelectBox extends Widget implements ISelectBoxDelegate {
 
 	// Public SelectBox Methods - routed through delegate interface
 
-	public get onDidSelect(): Event<ISelectData> {
+	get onDidSelect(): Event<ISelectData> {
 		return this.selectBoxDelegate.onDidSelect;
 	}
 
-	public setOptions(options: ISelectOptionItem[], selected?: number): void {
+	setOptions(options: ISelectOptionItem[], selected?: number): void {
 		this.selectBoxDelegate.setOptions(options, selected);
 	}
 
-	public select(index: number): void {
+	select(index: number): void {
 		this.selectBoxDelegate.select(index);
 	}
 
-	public setAriaLabel(label: string): void {
+	setAriaLabel(label: string): void {
 		this.selectBoxDelegate.setAriaLabel(label);
 	}
 
-	public focus(): void {
+	focus(): void {
 		this.selectBoxDelegate.focus();
 	}
 
-	public blur(): void {
+	blur(): void {
 		this.selectBoxDelegate.blur();
 	}
 
-	// Public Widget Methods - routed through delegate interface
+	setFocusable(focusable: boolean): void {
+		this.selectBoxDelegate.setFocusable(focusable);
+	}
 
-	public render(container: HTMLElement): void {
+	render(container: HTMLElement): void {
 		this.selectBoxDelegate.render(container);
 	}
 
-	public style(styles: ISelectBoxStyles): void {
+	style(styles: ISelectBoxStyles): void {
 		this.selectBoxDelegate.style(styles);
 	}
 
-	public applyStyles(): void {
+	applyStyles(): void {
 		this.selectBoxDelegate.applyStyles();
 	}
 }

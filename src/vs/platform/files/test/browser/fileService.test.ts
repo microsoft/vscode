@@ -6,11 +6,13 @@
 import * as assert from 'assert';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { URI } from 'vs/base/common/uri';
-import { IFileSystemProviderRegistrationEvent, FileSystemProviderCapabilities, IFileSystemProviderCapabilitiesChangeEvent } from 'vs/platform/files/common/files';
+import { IFileSystemProviderRegistrationEvent, FileSystemProviderCapabilities, IFileSystemProviderCapabilitiesChangeEvent, FileOpenOptions, FileReadStreamOptions, IStat, FileType, IFileChange, FileChangeType } from 'vs/platform/files/common/files';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { timeout } from 'vs/base/common/async';
 import { NullFileSystemProvider } from 'vs/platform/files/test/common/nullFileSystemProvider';
+import { consumeStream, newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 suite('File Service', () => {
 
@@ -20,6 +22,7 @@ suite('File Service', () => {
 		const provider = new NullFileSystemProvider();
 
 		assert.strictEqual(service.canHandleResource(resource), false);
+		assert.strictEqual(service.getProvider(resource.scheme), undefined);
 
 		const registrations: IFileSystemProviderRegistrationEvent[] = [];
 		service.onDidChangeFileSystemProviderRegistrations(e => {
@@ -31,7 +34,7 @@ suite('File Service', () => {
 			capabilityChanges.push(e);
 		});
 
-		let registrationDisposable: IDisposable | undefined = undefined;
+		let registrationDisposable: IDisposable | undefined;
 		let callCount = 0;
 		service.onWillActivateFileSystemProvider(e => {
 			callCount++;
@@ -48,6 +51,7 @@ suite('File Service', () => {
 		await service.activateProvider('test');
 
 		assert.strictEqual(service.canHandleResource(resource), true);
+		assert.strictEqual(service.getProvider(resource.scheme), provider);
 
 		assert.strictEqual(registrations.length, 1);
 		assert.strictEqual(registrations[0].scheme, 'test');
@@ -74,6 +78,45 @@ suite('File Service', () => {
 		assert.strictEqual(registrations.length, 2);
 		assert.strictEqual(registrations[1].scheme, 'test');
 		assert.strictEqual(registrations[1].added, false);
+
+		service.dispose();
+	});
+
+	test('provider change events are throttled', async () => {
+		const service = new FileService(new NullLogService());
+
+		const provider = new NullFileSystemProvider();
+		service.registerProvider('test', provider);
+
+		await service.activateProvider('test');
+
+		let onDidFilesChangeFired = false;
+		service.onDidFilesChange(e => {
+			if (e.contains(URI.file('marker'))) {
+				onDidFilesChangeFired = true;
+			}
+		});
+
+		const throttledEvents: IFileChange[] = [];
+		for (let i = 0; i < 1000; i++) {
+			throttledEvents.push({ resource: URI.file(String(i)), type: FileChangeType.ADDED });
+		}
+		throttledEvents.push({ resource: URI.file('marker'), type: FileChangeType.ADDED });
+
+		const nonThrottledEvents: IFileChange[] = [];
+		for (let i = 0; i < 100; i++) {
+			nonThrottledEvents.push({ resource: URI.file(String(i)), type: FileChangeType.ADDED });
+		}
+		nonThrottledEvents.push({ resource: URI.file('marker'), type: FileChangeType.ADDED });
+
+		// 100 events are not throttled
+		provider.emitFileChangeEvents(nonThrottledEvents);
+		assert.strictEqual(onDidFilesChangeFired, true);
+		onDidFilesChangeFired = false;
+
+		// 1000 events are throttled
+		provider.emitFileChangeEvents(throttledEvents);
+		assert.strictEqual(onDidFilesChangeFired, false);
 
 		service.dispose();
 	});
@@ -126,4 +169,133 @@ suite('File Service', () => {
 
 		service.dispose();
 	});
+
+	test('watch: explicit watched resources have preference over implicit and do not get throttled', async () => {
+		const service = new FileService(new NullLogService());
+
+		const provider = new NullFileSystemProvider();
+		service.registerProvider('test', provider);
+
+		await service.activateProvider('test');
+
+		let onDidFilesChangeFired = false;
+		service.onDidFilesChange(e => {
+			if (e.contains(URI.file('marker'))) {
+				onDidFilesChangeFired = true;
+			}
+		});
+
+		const throttledEvents: IFileChange[] = [];
+		for (let i = 0; i < 1000; i++) {
+			throttledEvents.push({ resource: URI.file(String(i)), type: FileChangeType.ADDED });
+		}
+		throttledEvents.push({ resource: URI.file('marker'), type: FileChangeType.ADDED });
+
+		// not throttled when explicitly watching
+		let disposable1 = service.watch(URI.file('marker'));
+		provider.emitFileChangeEvents(throttledEvents);
+		assert.strictEqual(onDidFilesChangeFired, true);
+		onDidFilesChangeFired = false;
+
+		let disposable2 = service.watch(URI.file('marker'));
+		provider.emitFileChangeEvents(throttledEvents);
+		assert.strictEqual(onDidFilesChangeFired, true);
+		onDidFilesChangeFired = false;
+
+		disposable1.dispose();
+		provider.emitFileChangeEvents(throttledEvents);
+		assert.strictEqual(onDidFilesChangeFired, true);
+		onDidFilesChangeFired = false;
+
+		// throttled again after dispose
+		disposable2.dispose();
+		provider.emitFileChangeEvents(throttledEvents);
+		assert.strictEqual(onDidFilesChangeFired, false);
+
+		// not throttled when watched again
+		service.watch(URI.file('marker'));
+		provider.emitFileChangeEvents(throttledEvents);
+		assert.strictEqual(onDidFilesChangeFired, true);
+		onDidFilesChangeFired = false;
+
+		service.dispose();
+	});
+
+	test('error from readFile bubbles through (https://github.com/microsoft/vscode/issues/118060) - async', async () => {
+		testReadErrorBubbles(true);
+	});
+
+	test('error from readFile bubbles through (https://github.com/microsoft/vscode/issues/118060)', async () => {
+		testReadErrorBubbles(false);
+	});
+
+	async function testReadErrorBubbles(async: boolean) {
+		const service = new FileService(new NullLogService());
+
+		const provider = new class extends NullFileSystemProvider {
+			override async stat(resource: URI): Promise<IStat> {
+				return {
+					mtime: Date.now(),
+					ctime: Date.now(),
+					size: 100,
+					type: FileType.File
+				};
+			}
+
+			override readFile(resource: URI): Promise<Uint8Array> {
+				if (async) {
+					return timeout(5).then(() => { throw new Error('failed'); });
+				}
+
+				throw new Error('failed');
+			}
+
+			override open(resource: URI, opts: FileOpenOptions): Promise<number> {
+				if (async) {
+					return timeout(5).then(() => { throw new Error('failed'); });
+				}
+
+				throw new Error('failed');
+			}
+
+			readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
+				if (async) {
+					const stream = newWriteableStream<Uint8Array>(chunk => chunk[0]);
+					timeout(5).then(() => stream.error(new Error('failed')));
+
+					return stream;
+
+				}
+
+				throw new Error('failed');
+			}
+		};
+
+		const disposable = service.registerProvider('test', provider);
+
+		for (const capabilities of [FileSystemProviderCapabilities.FileReadWrite, FileSystemProviderCapabilities.FileReadStream, FileSystemProviderCapabilities.FileOpenReadWriteClose]) {
+			provider.setCapabilities(capabilities);
+
+			let e1;
+			try {
+				await service.readFile(URI.parse('test://foo/bar'));
+			} catch (error) {
+				e1 = error;
+			}
+
+			assert.ok(e1);
+
+			let e2;
+			try {
+				const stream = await service.readFileStream(URI.parse('test://foo/bar'));
+				await consumeStream(stream.value, chunk => chunk[0]);
+			} catch (error) {
+				e2 = error;
+			}
+
+			assert.ok(e2);
+		}
+
+		disposable.dispose();
+	}
 });

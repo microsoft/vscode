@@ -15,6 +15,47 @@ import { Rectangle, BrowserWindow, WebContents } from 'electron';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
+export const enum LoadReason {
+
+	/**
+	 * The window is loaded for the first time.
+	 */
+	INITIAL = 1,
+
+	/**
+	 * The window is loaded into a different workspace context.
+	 */
+	LOAD,
+
+	/**
+	 * The window is reloaded.
+	 */
+	RELOAD
+}
+
+export const enum UnloadReason {
+
+	/**
+	 * The window is closed.
+	 */
+	CLOSE = 1,
+
+	/**
+	 * All windows unload because the application quits.
+	 */
+	QUIT,
+
+	/**
+	 * The window is reloaded.
+	 */
+	RELOAD,
+
+	/**
+	 * The window is loaded into a different workspace context.
+	 */
+	LOAD
+}
+
 export const enum OpenContext {
 
 	// opening when running from the command line
@@ -62,6 +103,7 @@ export const enum WindowMode {
 
 export interface ILoadEvent {
 	workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined;
+	reason: LoadReason;
 }
 
 export interface ICodeWindow extends IDisposable {
@@ -197,6 +239,12 @@ export interface IOpenConfiguration extends IBaseOpenConfiguration {
 	readonly gotoLineMode?: boolean;
 	readonly initialStartup?: boolean;
 	readonly noRecentEntry?: boolean;
+	/**
+	 * The remote authority to use when windows are opened with either
+	 * - no workspace (empty window)
+	 * - a workspace that is neither `file://` nor `vscode-remote://`
+	 */
+	readonly remoteAuthority?: string;
 }
 
 export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }

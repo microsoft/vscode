@@ -16,7 +16,7 @@ const bootstrapNode = require('./bootstrap-node');
 bootstrapNode.removeGlobalNodeModuleLookupPaths();
 
 // Enable ASAR in our forked processes
-bootstrap.enableASARSupport(undefined);
+bootstrap.enableASARSupport(undefined, false);
 
 if (process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']) {
 	bootstrapNode.injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
@@ -49,7 +49,11 @@ require('./bootstrap-amd').load(process.env['VSCODE_AMD_ENTRYPOINT']);
 function pipeLoggingToParent() {
 	const MAX_LENGTH = 100000;
 
-	// Prevent circular stringify and convert arguments to real array
+	/**
+	 * Prevent circular stringify and convert arguments to real array
+	 *
+	 * @param {IArguments} args
+	 */
 	function safeToArray(args) {
 		const seen = [];
 		const argsArray = [];

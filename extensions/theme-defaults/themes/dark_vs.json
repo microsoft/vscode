@@ -16,9 +16,11 @@
 		"menu.foreground": "#CCCCCC",
 		"statusBarItem.remoteForeground": "#FFF",
 		"statusBarItem.remoteBackground": "#16825D",
+		"ports.iconRunningProcessForeground": "#369432",
 		"sideBarSectionHeader.background": "#0000",
 		"sideBarSectionHeader.border": "#ccc3",
-		"tab.lastPinnedBorder": "#ccc3"
+		"tab.lastPinnedBorder": "#ccc3",
+		"list.activeSelectionIconForeground": "#FFF"
 	},
 	"tokenColors": [
 		{

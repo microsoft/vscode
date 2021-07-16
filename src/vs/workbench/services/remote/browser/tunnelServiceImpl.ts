@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
-import { AbstractTunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
+import { AbstractTunnelService, ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class TunnelService extends AbstractTunnelService {
@@ -17,7 +18,7 @@ export class TunnelService extends AbstractTunnelService {
 		super(logService);
 	}
 
-	protected retainOrCreateTunnel(_addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, isPublic: boolean): Promise<RemoteTunnel | undefined> | undefined {
+	protected retainOrCreateTunnel(_addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, isPublic: boolean, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {
 		const existing = this.getTunnelFromMap(remoteHost, remotePort);
 		if (existing) {
 			++existing.refcount;
@@ -25,12 +26,14 @@ export class TunnelService extends AbstractTunnelService {
 		}
 
 		if (this._tunnelProvider) {
-			return this.createWithProvider(this._tunnelProvider, remoteHost, remotePort, localPort, elevateIfNeeded, isPublic);
+			return this.createWithProvider(this._tunnelProvider, remoteHost, remotePort, localPort, elevateIfNeeded, isPublic, protocol);
 		}
 		return undefined;
 	}
 
-	canTunnel(uri: URI): boolean {
+	override canTunnel(uri: URI): boolean {
 		return super.canTunnel(uri) && !!this.environmentService.remoteAuthority;
 	}
 }
+
+registerSingleton(ITunnelService, TunnelService, true);

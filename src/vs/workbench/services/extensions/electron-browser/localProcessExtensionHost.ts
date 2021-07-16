@@ -47,6 +47,7 @@ import { isUUID } from 'vs/base/common/uuid';
 import { join } from 'vs/base/common/path';
 import { Readable, Writable } from 'stream';
 import { StringDecoder } from 'string_decoder';
+import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
 
 export interface ILocalProcessExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -104,7 +105,8 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		@ILabelService private readonly _labelService: ILabelService,
 		@IExtensionHostDebugService private readonly _extensionHostDebugService: IExtensionHostDebugService,
 		@IHostService private readonly _hostService: IHostService,
-		@IProductService private readonly _productService: IProductService
+		@IProductService private readonly _productService: IProductService,
+		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService
 	) {
 		const devOpts = parseExtensionDevOptions(this._environmentService);
 		this._isExtensionDevHost = devOpts.isExtensionDevHost;
@@ -125,7 +127,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 
 		this._toDispose.add(this._onExit);
 		this._toDispose.add(this._lifecycleService.onWillShutdown(e => this._onWillShutdown(e)));
-		this._toDispose.add(this._lifecycleService.onShutdown(reason => this.terminate()));
+		this._toDispose.add(this._lifecycleService.onDidShutdown(reason => this.terminate()));
 		this._toDispose.add(this._extensionHostDebugService.onClose(event => {
 			if (this._isExtensionDevHost && this._environmentService.debugExtensionHost.debugId === event.sessionId) {
 				this._nativeHostService.closeWindow();
@@ -157,9 +159,10 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		if (!this._messageProtocol) {
 			this._messageProtocol = Promise.all([
 				this._tryListenOnPipe(),
-				this._tryFindDebugPort()
-			]).then(([pipeName, portNumber]) => {
-				const env = objects.mixin(objects.deepClone(process.env), {
+				this._tryFindDebugPort(),
+				this._shellEnvironmentService.getShellEnv()
+			]).then(([pipeName, portNumber, processEnv]) => {
+				const env = objects.mixin(processEnv, {
 					VSCODE_AMD_ENTRYPOINT: 'vs/workbench/services/extensions/node/extensionHostProcess',
 					VSCODE_PIPE_LOGGING: 'true',
 					VSCODE_VERBOSE_LOGGING: true,
@@ -177,9 +180,9 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				}
 
 				if (this._isExtensionDevHost) {
-					// Unset `VSCODE_NODE_CACHED_DATA_DIR` when developing extensions because it might
+					// Unset `VSCODE_CODE_CACHE_PATH` when developing extensions because it might
 					// be that dependencies, that otherwise would be cached, get modified.
-					delete env['VSCODE_NODE_CACHED_DATA_DIR'];
+					delete env['VSCODE_CODE_CACHE_PATH'];
 				}
 
 				const opts = {
@@ -204,6 +207,10 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 
 				if (this._environmentService.args['prof-v8-extensions']) {
 					opts.execArgv.unshift('--prof');
+				}
+
+				if (this._environmentService.args['max-memory']) {
+					opts.execArgv.unshift(`--max-old-space-size=${this._environmentService.args['max-memory']}`);
 				}
 
 				// On linux crash reporter needs to be started on child node processes explicitly
@@ -231,7 +238,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				}
 
 				// Run Extension Host as fork of current process
-				this._extensionHostProcess = fork(FileAccess.asFileUri('bootstrap-fork', require).fsPath, ['--type=extensionHost'], opts);
+				this._extensionHostProcess = fork(FileAccess.asFileUri('bootstrap-fork', require).fsPath, ['--type=extensionHost', '--skipWorkspaceStorageLock'], opts);
 
 				// Catch all output coming from the extension host process
 				type Output = { data: string, format: string[] };
@@ -469,8 +476,6 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: this._environmentService.globalStorageHome,
 				workspaceStorageHome: this._environmentService.workspaceStorageHome,
-				webviewResourceRoot: this._environmentService.webviewResourceRoot,
-				webviewCspSource: this._environmentService.webviewCspSource,
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
 				configuration: withNullAsUndefined(workspace.configuration),
@@ -619,6 +624,8 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 			// Send the extension host a request to terminate itself
 			// (graceful termination)
 			protocol.send(createMessageOfType(MessageType.Terminate));
+
+			protocol.getSocket().dispose();
 
 			protocol.dispose();
 

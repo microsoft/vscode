@@ -3,39 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import minimist = require('minimist');
 import { Application, Quality } from '../../../../automation';
+import { afterSuite, beforeSuite } from '../../utils';
 
-export function setup() {
+export function setup(opts: minimist.ParsedArgs) {
 	describe('Extensions', () => {
-		it(`install and activate vscode-smoketest-check extension`, async function () {
+		beforeSuite(opts);
+		afterSuite(opts);
+
+		it(`install and enable vscode-smoketest-check extension`, async function () {
 			const app = this.app as Application;
 
 			if (app.quality === Quality.Dev) {
 				this.skip();
-				return;
-			}
-
-			if (!app.web) {
-				await app.workbench.settingsEditor.addUserSetting('webview.experimental.useIframes', 'true');
 			}
 
 			await app.workbench.extensions.openExtensionsViewlet();
 
-			await app.workbench.extensions.installExtension('michelkaporin.vscode-smoketest-check', true);
+			await app.workbench.extensions.installExtension('ms-vscode.vscode-smoketest-check', true);
 
-			await app.workbench.extensions.waitForExtensionsViewlet();
+			// Close extension editor because keybindings dispatch is not working when web views are opened and focused
+			// https://github.com/microsoft/vscode/issues/110276
+			await app.workbench.extensions.closeExtension('vscode-smoketest-check');
 
 			await app.workbench.quickaccess.runCommand('Smoke Test Check');
-			await app.workbench.statusbar.waitForStatusbarText('smoke test', 'VS Code Smoke Test Check');
-		});
-
-		after(async function () {
-			const app = this.app as Application;
-			if (app.web) {
-				return;
-			}
-
-			await app.workbench.settingsEditor.clearUserSettings();
 		});
 
 	});

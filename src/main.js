@@ -6,17 +6,22 @@
 //@ts-check
 'use strict';
 
+/**
+ * @typedef {import('./vs/base/common/product').IProductConfiguration} IProductConfiguration
+ * @typedef {import('./vs/base/node/languagePacks').NLSConfiguration} NLSConfiguration
+ * @typedef {import('./vs/platform/environment/common/argv').NativeParsedArgs} NativeParsedArgs
+ */
+
 const perf = require('./vs/base/common/performance');
 perf.mark('code/didStartMain');
 
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
 const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
-const { getDefaultUserDataPath } = require('./vs/base/node/userDataPath');
-/** @type {Partial<import('./vs/platform/product/common/productService').IProductConfiguration>} */
+const { getUserDataPath } = require('./vs/platform/environment/node/userDataPath');
+/** @type {Partial<IProductConfiguration>} */
 const product = require('../product.json');
 const { app, protocol, crashReporter } = require('electron');
 
@@ -28,18 +33,34 @@ app.allowRendererProcessReuse = false;
 const portable = bootstrapNode.configurePortable(product);
 
 // Enable ASAR support
-bootstrap.enableASARSupport(undefined);
+bootstrap.enableASARSupport(undefined, false);
 
 // Set userData path before app 'ready' event
 const args = parseCLIArgs();
 const userDataPath = getUserDataPath(args);
 app.setPath('userData', userDataPath);
 
+// Resolve code cache path
+const codeCachePath = getCodeCachePath();
+
 // Configure static command line arguments
 const argvConfig = configureCommandlineSwitchesSync(args);
 
 // Configure crash reporter
-configureCrashReporter();
+perf.mark('code/willStartCrashReporter');
+// If a crash-reporter-directory is specified we store the crash reports
+// in the specified directory and don't upload them to the crash server.
+//
+// Appcenter crash reporting is enabled if
+// * enable-crash-reporter runtime argument is set to 'true'
+// * --disable-crash-reporter command line parameter is not set
+//
+// Disable crash reporting in all other cases.
+if (args['crash-reporter-directory'] ||
+	(argvConfig['enable-crash-reporter'] && !args['disable-crash-reporter'])) {
+	configureCrashReporter();
+}
+perf.mark('code/didStartCrashReporter');
 
 // Set logs path before app 'ready' event if running portable
 // to ensure that no 'logs' folder is created on disk at a
@@ -49,17 +70,11 @@ if (portable && portable.isPortable) {
 	app.setAppLogsPath(path.join(userDataPath, 'logs'));
 }
 
-// Update cwd based on environment and platform
-setCurrentWorkingDirectory();
-
 // Register custom schemes with privileges
 protocol.registerSchemesAsPrivileged([
 	{
 		scheme: 'vscode-webview',
-		privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true }
-	}, {
-		scheme: 'vscode-webview-resource',
-		privileges: { secure: true, standard: true, supportFetchAPI: true, corsEnabled: true }
+		privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, allowServiceWorkers: true, }
 	},
 	{
 		scheme: 'vscode-file',
@@ -70,20 +85,18 @@ protocol.registerSchemesAsPrivileged([
 // Global app listeners
 registerListeners();
 
-// Cached data
-const nodeCachedDataDir = getNodeCachedDir();
-
 /**
  * Support user defined locale: load it early before app('ready')
  * to have more things running in parallel.
  *
- * @type {Promise<import('./vs/base/node/languagePacks').NLSConfiguration> | undefined}
+ * @type {Promise<NLSConfiguration> | undefined}
  */
 let nlsConfigurationPromise = undefined;
 
 const metaDataFile = path.join(__dirname, 'nls.metadata.json');
 const locale = getUserDefinedLocale(argvConfig);
 if (locale) {
+	const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
 	nlsConfigurationPromise = getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
 }
 
@@ -106,14 +119,14 @@ app.once('ready', function () {
 /**
  * Main startup routine
  *
- * @param {string | undefined} cachedDataDir
- * @param {import('./vs/base/node/languagePacks').NLSConfiguration} nlsConfig
+ * @param {string | undefined} codeCachePath
+ * @param {NLSConfiguration} nlsConfig
  */
-function startup(cachedDataDir, nlsConfig) {
+function startup(codeCachePath, nlsConfig) {
 	nlsConfig._languagePackSupport = true;
 
 	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
-	process.env['VSCODE_NODE_CACHED_DATA_DIR'] = cachedDataDir || '';
+	process.env['VSCODE_CODE_CACHE_PATH'] = codeCachePath || '';
 
 	// Load main in AMD
 	perf.mark('code/willLoadMainBundle');
@@ -126,16 +139,16 @@ async function onReady() {
 	perf.mark('code/mainAppReady');
 
 	try {
-		const [cachedDataDir, nlsConfig] = await Promise.all([nodeCachedDataDir.ensureExists(), resolveNlsConfiguration()]);
+		const [, nlsConfig] = await Promise.all([mkdirpIgnoreError(codeCachePath), resolveNlsConfiguration()]);
 
-		startup(cachedDataDir, nlsConfig);
+		startup(codeCachePath, nlsConfig);
 	} catch (error) {
 		console.error(error);
 	}
 }
 
 /**
- * @param {import('./vs/platform/environment/common/argv').NativeParsedArgs} cliArgs
+ * @param {NativeParsedArgs} cliArgs
  */
 function configureCommandlineSwitchesSync(cliArgs) {
 	const SUPPORTED_ELECTRON_SWITCHES = [
@@ -161,13 +174,18 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		// Persistently enable proposed api via argv.json: https://github.com/microsoft/vscode/issues/99775
 		'enable-proposed-api',
 
-		// TODO@bpasero remove me once testing is done on `vscode-file` protocol
-		// (all traces of `enable-browser-code-loading` and `ENABLE_VSCODE_BROWSER_CODE_LOADING`)
-		'enable-browser-code-loading'
+		// TODO@sandbox remove me once testing is done on `vscode-file` protocol
+		// (all traces of `enable-browser-code-loading` and `VSCODE_BROWSER_CODE_LOADING`)
+		'enable-browser-code-loading',
+
+		// Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.
+		'log-level'
 	];
 
 	// Read argv config
 	const argvConfig = readArgvConfigSync();
+
+	let browserCodeLoadingStrategy = typeof codeCachePath === 'string' ? 'bypassHeatCheck' : 'none';
 
 	Object.keys(argvConfig).forEach(argvKey => {
 		const argvValue = argvConfig[argvKey];
@@ -204,8 +222,16 @@ function configureCommandlineSwitchesSync(cliArgs) {
 					break;
 
 				case 'enable-browser-code-loading':
+					if (argvValue === false) {
+						browserCodeLoadingStrategy = undefined;
+					} else if (typeof argvValue === 'string') {
+						browserCodeLoadingStrategy = argvValue;
+					}
+					break;
+
+				case 'log-level':
 					if (typeof argvValue === 'string') {
-						process.env['ENABLE_VSCODE_BROWSER_CODE_LOADING'] = argvValue;
+						process.argv.push('--log', argvValue);
 					}
 					break;
 			}
@@ -218,9 +244,9 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		app.commandLine.appendSwitch('js-flags', jsFlags);
 	}
 
-	// Support __sandbox flag
-	if (cliArgs.__sandbox) {
-		process.env['ENABLE_VSCODE_BROWSER_CODE_LOADING'] = 'bypassHeatCheck';
+	// Configure vscode-file:// code loading environment
+	if (cliArgs.__sandbox || browserCodeLoadingStrategy) {
+		process.env['VSCODE_BROWSER_CODE_LOADING'] = browserCodeLoadingStrategy || 'bypassHeatCheck';
 	}
 
 	return argvConfig;
@@ -306,8 +332,6 @@ function getArgvConfigPath() {
 
 function configureCrashReporter() {
 
-	// If a crash-reporter-directory is specified we store the crash reports
-	// in the specified directory and don't upload them to the crash server.
 	let crashReporterDirectory = args['crash-reporter-directory'];
 	let submitURL = '';
 	if (crashReporterDirectory) {
@@ -336,17 +360,41 @@ function configureCrashReporter() {
 	// Otherwise we configure the crash reporter from product.json
 	else {
 		const appCenter = product.appCenter;
-		// Disable Appcenter crash reporting if
-		// * --crash-reporter-directory is specified
-		// * enable-crash-reporter runtime argument is set to 'false'
-		// * --disable-crash-reporter command line parameter is set
-		if (appCenter && argvConfig['enable-crash-reporter'] && !args['disable-crash-reporter']) {
+		if (appCenter) {
 			const isWindows = (process.platform === 'win32');
 			const isLinux = (process.platform === 'linux');
+			const isDarwin = (process.platform === 'darwin');
 			const crashReporterId = argvConfig['crash-reporter-id'];
 			const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 			if (uuidPattern.test(crashReporterId)) {
-				submitURL = isWindows ? appCenter[process.arch === 'ia32' ? 'win32-ia32' : 'win32-x64'] : isLinux ? appCenter[`linux-x64`] : appCenter.darwin;
+				if (isWindows) {
+					switch (process.arch) {
+						case 'ia32':
+							submitURL = appCenter['win32-ia32'];
+							break;
+						case 'x64':
+							submitURL = appCenter['win32-x64'];
+							break;
+						case 'arm64':
+							submitURL = appCenter['win32-arm64'];
+							break;
+					}
+				} else if (isDarwin) {
+					if (product.darwinUniversalAssetId) {
+						submitURL = appCenter['darwin-universal'];
+					} else {
+						switch (process.arch) {
+							case 'x64':
+								submitURL = appCenter['darwin'];
+								break;
+							case 'arm64':
+								submitURL = appCenter['darwin-arm64'];
+								break;
+						}
+					}
+				} else if (isLinux) {
+					submitURL = appCenter['linux-x64'];
+				}
 				submitURL = submitURL.concat('&uid=', crashReporterId, '&iid=', crashReporterId, '&sid=', crashReporterId);
 				// Send the id for child node process that are explicitly starting crash reporter.
 				// For vscode this is ExtensionHost process currently.
@@ -367,17 +415,27 @@ function configureCrashReporter() {
 	// Start crash reporter for all processes
 	const productName = (product.crashReporter ? product.crashReporter.productName : undefined) || product.nameShort;
 	const companyName = (product.crashReporter ? product.crashReporter.companyName : undefined) || 'Microsoft';
-	crashReporter.start({
-		companyName: companyName,
-		productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,
-		submitURL,
-		uploadToServer: !crashReporterDirectory,
-		compress: true
-	});
+	if (process.env['VSCODE_DEV']) {
+		crashReporter.start({
+			companyName: companyName,
+			productName: `${productName} Dev`,
+			submitURL,
+			uploadToServer: false,
+			compress: true
+		});
+	} else {
+		crashReporter.start({
+			companyName: companyName,
+			productName: productName,
+			submitURL,
+			uploadToServer: !crashReporterDirectory,
+			compress: true
+		});
+	}
 }
 
 /**
- * @param {import('./vs/platform/environment/common/argv').NativeParsedArgs} cliArgs
+ * @param {NativeParsedArgs} cliArgs
  * @returns {string | null}
  */
 function getJSFlags(cliArgs) {
@@ -397,20 +455,7 @@ function getJSFlags(cliArgs) {
 }
 
 /**
- * @param {import('./vs/platform/environment/common/argv').NativeParsedArgs} cliArgs
- *
- * @returns {string}
- */
-function getUserDataPath(cliArgs) {
-	if (portable.isPortable) {
-		return path.join(portable.portableDataPath, 'user-data');
-	}
-
-	return path.resolve(cliArgs['user-data-dir'] || getDefaultUserDataPath());
-}
-
-/**
- * @returns {import('./vs/platform/environment/common/argv').NativeParsedArgs}
+ * @returns {NativeParsedArgs}
  */
 function parseCLIArgs() {
 	const minimist = require('minimist');
@@ -424,19 +469,6 @@ function parseCLIArgs() {
 			'crash-reporter-directory'
 		]
 	});
-}
-
-function setCurrentWorkingDirectory() {
-	try {
-		if (process.platform === 'win32') {
-			process.env['VSCODE_CWD'] = process.cwd(); // remember as environment variable
-			process.chdir(path.dirname(app.getPath('exe'))); // always set application folder as cwd
-		} else if (process.env['VSCODE_CWD']) {
-			process.chdir(process.env['VSCODE_CWD']);
-		}
-	} catch (err) {
-		console.error(err);
-	}
 }
 
 function registerListeners() {
@@ -482,46 +514,28 @@ function registerListeners() {
 }
 
 /**
- * @returns {{ ensureExists: () => Promise<string | undefined> }}
+ * @returns {string | undefined} the location to use for the code cache
+ * or `undefined` if disabled.
  */
-function getNodeCachedDir() {
-	return new class {
+function getCodeCachePath() {
 
-		constructor() {
-			this.value = this._compute();
-		}
+	// explicitly disabled via CLI args
+	if (process.argv.indexOf('--no-cached-data') > 0) {
+		return undefined;
+	}
 
-		async ensureExists() {
-			if (typeof this.value === 'string') {
-				try {
-					await mkdirp(this.value);
+	// running out of sources
+	if (process.env['VSCODE_DEV']) {
+		return undefined;
+	}
 
-					return this.value;
-				} catch (error) {
-					// ignore
-				}
-			}
-		}
+	// require commit id
+	const commit = product.commit;
+	if (!commit) {
+		return undefined;
+	}
 
-		_compute() {
-			if (process.argv.indexOf('--no-cached-data') > 0) {
-				return undefined;
-			}
-
-			// IEnvironmentService.isBuilt
-			if (process.env['VSCODE_DEV']) {
-				return undefined;
-			}
-
-			// find commit id
-			const commit = product.commit;
-			if (!commit) {
-				return undefined;
-			}
-
-			return path.join(userDataPath, 'CachedData', commit);
-		}
-	};
+	return path.join(userDataPath, 'CachedData', commit);
 }
 
 /**
@@ -536,12 +550,30 @@ function mkdirp(dir) {
 	});
 }
 
+/**
+ * @param {string | undefined} dir
+ * @returns {Promise<string | undefined>}
+ */
+async function mkdirpIgnoreError(dir) {
+	if (typeof dir === 'string') {
+		try {
+			await mkdirp(dir);
+
+			return dir;
+		} catch (error) {
+			// ignore
+		}
+	}
+
+	return undefined;
+}
+
 //#region NLS Support
 
 /**
  * Resolve the NLS configuration
  *
- * @return {Promise<import('./vs/base/node/languagePacks').NLSConfiguration>}
+ * @return {Promise<NLSConfiguration>}
  */
 async function resolveNlsConfiguration() {
 
@@ -561,6 +593,7 @@ async function resolveNlsConfiguration() {
 			// See above the comment about the loader and case sensitiviness
 			appLocale = appLocale.toLowerCase();
 
+			const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
 			nlsConfiguration = await getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale);
 			if (!nlsConfiguration) {
 				nlsConfiguration = { locale: appLocale, availableLanguages: {} };

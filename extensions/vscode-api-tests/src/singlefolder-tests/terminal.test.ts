@@ -9,8 +9,7 @@ import { assertNoRpc } from '../utils';
 
 // Disable terminal tests:
 // - Web https://github.com/microsoft/vscode/issues/92826
-// - Remote https://github.com/microsoft/vscode/issues/96057
-((env.uiKind === UIKind.Web || typeof env.remoteName !== 'undefined') ? suite.skip : suite)('vscode API - terminal', () => {
+(env.uiKind === UIKind.Web ? suite.skip : suite)('vscode API - terminal', () => {
 	let extensionContext: ExtensionContext;
 
 	suiteSetup(async () => {
@@ -19,10 +18,14 @@ import { assertNoRpc } from '../utils';
 		extensionContext = (global as any).testExtensionContext;
 
 		const config = workspace.getConfiguration('terminal.integrated');
+		// Disable conpty in integration tests because of https://github.com/microsoft/vscode/issues/76548
+		await config.update('windowsEnableConpty', false, ConfigurationTarget.Global);
 		// Disable exit alerts as tests may trigger then and we're not testing the notifications
 		await config.update('showExitAlert', false, ConfigurationTarget.Global);
 		// Canvas may cause problems when running in a container
-		await config.update('rendererType', 'dom', ConfigurationTarget.Global);
+		await config.update('gpuAcceleration', 'off', ConfigurationTarget.Global);
+		// Disable env var relaunch for tests to prevent terminals relaunching themselves
+		await config.update('environmentChangesRelaunch', false, ConfigurationTarget.Global);
 	});
 
 	suite('Terminal', () => {
@@ -58,8 +61,9 @@ import { assertNoRpc } from '../utils';
 		test('echo works in the default shell', async () => {
 			const terminal = await new Promise<Terminal>(r => {
 				disposables.push(window.onDidOpenTerminal(t => {
-					strictEqual(terminal, t);
-					r(terminal);
+					if (t === terminal) {
+						r(terminal);
+					}
 				}));
 				// Use a single character to avoid winpty/conpty issues with injected sequences
 				const terminal = window.createTerminal({
@@ -71,10 +75,11 @@ import { assertNoRpc } from '../utils';
 			let data = '';
 			await new Promise<void>(r => {
 				disposables.push(window.onDidWriteTerminalData(e => {
-					strictEqual(terminal, e.terminal);
-					data += e.data;
-					if (data.indexOf('`') !== 0) {
-						r();
+					if (e.terminal === terminal) {
+						data += e.data;
+						if (data.indexOf('`') !== 0) {
+							r();
+						}
 					}
 				}));
 				// Print an environment variable value so the echo statement doesn't get matched
@@ -463,7 +468,7 @@ import { assertNoRpc } from '../utils';
 			// 	const terminal = window.createTerminal({ name: 'foo', pty });
 			// });
 
-			test('should respect dimension overrides', (done) => {
+			test.skip('should respect dimension overrides', (done) => {
 				disposables.push(window.onDidOpenTerminal(term => {
 					try {
 						equal(terminal, term);
@@ -494,6 +499,41 @@ import { assertNoRpc } from '../utils';
 					onDidWrite: writeEmitter.event,
 					onDidOverrideDimensions: overrideDimensionsEmitter.event,
 					open: () => overrideDimensionsEmitter.fire({ columns: 10, rows: 5 }),
+					close: () => { }
+				};
+				const terminal = window.createTerminal({ name: 'foo', pty });
+			});
+
+			test('should change terminal name', (done) => {
+				disposables.push(window.onDidOpenTerminal(term => {
+					try {
+						equal(terminal, term);
+						equal(terminal.name, 'foo');
+					} catch (e) {
+						done(e);
+						return;
+					}
+					disposables.push(window.onDidCloseTerminal(t => {
+						try {
+							equal(terminal, t);
+							equal(terminal.name, 'bar');
+						} catch (e) {
+							done(e);
+							return;
+						}
+						done();
+					}));
+				}));
+				const changeNameEmitter = new EventEmitter<string>();
+				const closeEmitter = new EventEmitter<number | undefined>();
+				const pty: Pseudoterminal = {
+					onDidWrite: new EventEmitter<string>().event,
+					onDidChangeName: changeNameEmitter.event,
+					onDidClose: closeEmitter.event,
+					open: () => {
+						changeNameEmitter.fire('bar');
+						closeEmitter.fire(undefined);
+					},
 					close: () => { }
 				};
 				const terminal = window.createTerminal({ name: 'foo', pty });
@@ -629,22 +669,21 @@ import { assertNoRpc } from '../utils';
 		});
 
 		suite('environmentVariableCollection', () => {
-			test('should have collection variables apply to terminals immediately after setting', (done) => {
+			test.skip('should have collection variables apply to terminals immediately after setting', (done) => {
 				// Text to match on before passing the test
 				const expectedText = [
 					'~a2~',
 					'b1~b2~',
 					'~c2~c1'
 				];
+				let data = '';
 				disposables.push(window.onDidWriteTerminalData(e => {
-					try {
-						equal(terminal, e.terminal);
-					} catch (e) {
-						done(e);
+					if (terminal !== e.terminal) {
 						return;
 					}
+					data += sanitizeData(e.data);
 					// Multiple expected could show up in the same data event
-					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
+					while (expectedText.length > 0 && data.indexOf(expectedText[0]) >= 0) {
 						expectedText.shift();
 						// Check if all string are found, if so finish the test
 						if (expectedText.length === 0) {
@@ -675,22 +714,21 @@ import { assertNoRpc } from '../utils';
 				terminal.sendText('echo $C');
 			});
 
-			test('should have collection variables apply to environment variables that don\'t exist', (done) => {
+			test.skip('should have collection variables apply to environment variables that don\'t exist', (done) => {
 				// Text to match on before passing the test
 				const expectedText = [
 					'~a2~',
 					'~b2~',
 					'~c2~'
 				];
+				let data = '';
 				disposables.push(window.onDidWriteTerminalData(e => {
-					try {
-						equal(terminal, e.terminal);
-					} catch (e) {
-						done(e);
+					if (terminal !== e.terminal) {
 						return;
 					}
+					data += sanitizeData(e.data);
 					// Multiple expected could show up in the same data event
-					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
+					while (expectedText.length > 0 && data.indexOf(expectedText[0]) >= 0) {
 						expectedText.shift();
 						// Check if all string are found, if so finish the test
 						if (expectedText.length === 0) {
@@ -721,21 +759,20 @@ import { assertNoRpc } from '../utils';
 				terminal.sendText('echo $C');
 			});
 
-			test('should respect clearing entries', (done) => {
+			test.skip('should respect clearing entries', (done) => {
 				// Text to match on before passing the test
 				const expectedText = [
 					'~a1~',
 					'~b1~'
 				];
+				let data = '';
 				disposables.push(window.onDidWriteTerminalData(e => {
-					try {
-						equal(terminal, e.terminal);
-					} catch (e) {
-						done(e);
+					if (terminal !== e.terminal) {
 						return;
 					}
+					data += sanitizeData(e.data);
 					// Multiple expected could show up in the same data event
-					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
+					while (expectedText.length > 0 && data.indexOf(expectedText[0]) >= 0) {
 						expectedText.shift();
 						// Check if all string are found, if so finish the test
 						if (expectedText.length === 0) {
@@ -763,21 +800,20 @@ import { assertNoRpc } from '../utils';
 				terminal.sendText('echo $B');
 			});
 
-			test('should respect deleting entries', (done) => {
+			test.skip('should respect deleting entries', (done) => {
 				// Text to match on before passing the test
 				const expectedText = [
 					'~a1~',
 					'~b2~'
 				];
+				let data = '';
 				disposables.push(window.onDidWriteTerminalData(e => {
-					try {
-						equal(terminal, e.terminal);
-					} catch (e) {
-						done(e);
+					if (terminal !== e.terminal) {
 						return;
 					}
+					data += sanitizeData(e.data);
 					// Multiple expected could show up in the same data event
-					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
+					while (expectedText.length > 0 && data.indexOf(expectedText[0]) >= 0) {
 						expectedText.shift();
 						// Check if all string are found, if so finish the test
 						if (expectedText.length === 0) {
@@ -829,3 +865,15 @@ import { assertNoRpc } from '../utils';
 		});
 	});
 });
+
+function sanitizeData(data: string): string {
+	// Strip NL/CR so terminal dimensions don't impact tests
+	data = data.replaceAll(/[\r\n]/g, '');
+
+	// Strip escape sequences so winpty/conpty doesn't cause flakiness, do for all platforms for
+	// consistency
+	const terminalCodesRegex = /(?:\u001B|\u009B)[\[\]()#;?]*(?:(?:(?:[a-zA-Z0-9]*(?:;[a-zA-Z0-9]*)*)?\u0007)|(?:(?:\d{1,4}(?:;\d{0,4})*)?[0-9A-PR-TZcf-ntqry=><~]))/g;
+	data = data.replaceAll(terminalCodesRegex, '');
+
+	return data;
+}

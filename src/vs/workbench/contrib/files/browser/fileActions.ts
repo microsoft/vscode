@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { isWindows, isWeb } from 'vs/base/common/platform';
+import { isWindows } from 'vs/base/common/platform';
 import * as extpath from 'vs/base/common/extpath';
 import { extname, basename } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Action } from 'vs/base/common/actions';
-import { DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID, IFilesConfiguration, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
-import { ByteSize, IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -28,8 +28,8 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { IDialogService, IConfirmationResult, getFileNamesMessage, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { Schemas } from 'vs/base/common/network';
+import { IDialogService, IConfirmationResult, getFileNamesMessage } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Constants } from 'vs/base/common/uint';
@@ -37,23 +37,19 @@ import { CLOSE_EDITORS_AND_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/e
 import { coalesce } from 'vs/base/common/arrays';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { getErrorMessage } from 'vs/base/common/errors';
-import { WebFileSystemAccess, triggerDownload } from 'vs/base/browser/dom';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { triggerUpload } from 'vs/base/browser/dom';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { RunOnceWorker, sequence, timeout } from 'vs/base/common/async';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { timeout } from 'vs/base/common/async';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { once } from 'vs/base/common/functional';
 import { Codicon } from 'vs/base/common/codicons';
 import { IViewsService } from 'vs/workbench/common/views';
 import { trim, rtrim } from 'vs/base/common/strings';
-import { IProgressService, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ILogService } from 'vs/platform/log/common/log';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-import { listenStream } from 'vs/base/common/stream';
+import { BrowserFileUpload, FileDownload } from 'vs/workbench/contrib/files/browser/fileImportExport';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -64,7 +60,10 @@ export const MOVE_FILE_TO_TRASH_LABEL = nls.localize('delete', "Delete");
 export const COPY_FILE_LABEL = nls.localize('copyFile', "Copy");
 export const PASTE_FILE_LABEL = nls.localize('pasteFile', "Paste");
 export const FileCopiedContext = new RawContextKey<boolean>('fileCopied', false);
+export const DOWNLOAD_COMMAND_ID = 'explorer.download';
 export const DOWNLOAD_LABEL = nls.localize('download', "Download...");
+export const UPLOAD_COMMAND_ID = 'explorer.upload';
+export const UPLOAD_LABEL = nls.localize('upload', "Upload...");
 const CONFIRM_DELETE_SETTING_KEY = 'explorer.confirmDelete';
 const MAX_UNDO_FILE_SIZE = 5000000; // 5mb
 
@@ -441,56 +440,26 @@ export class GlobalCompareResourcesAction extends Action {
 		label: string,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IEditorService private readonly editorService: IEditorService,
-		@INotificationService private readonly notificationService: INotificationService,
 		@ITextModelService private readonly textModelService: ITextModelService
 	) {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		const activeInput = this.editorService.activeEditor;
 		const activeResource = EditorResourceAccessor.getOriginalUri(activeInput);
 		if (activeResource && this.textModelService.canHandleResource(activeResource)) {
-
-			// Compare with next editor that opens
-			const toDispose = this.editorService.overrideOpenEditor({
-				open: editor => {
-
-					// Only once!
-					toDispose.dispose();
-
-					// Open editor as diff
-					const resource = EditorResourceAccessor.getOriginalUri(editor);
-					if (resource && this.textModelService.canHandleResource(resource)) {
-						return {
-							override: this.editorService.openEditor({
-								leftResource: activeResource,
-								rightResource: resource,
-								options: { override: false, pinned: true }
-							})
-						};
-					}
-
-					// Otherwise stay on current resource
-					this.notificationService.info(nls.localize('fileToCompareNoFile', "Please select a file to compare with."));
-					return {
-						override: this.editorService.openEditor({
-							resource: activeResource,
-							options: { override: false, pinned: true }
-						})
-					};
+			const picks = await this.quickInputService.quickAccess.pick('', { itemActivation: ItemActivation.SECOND });
+			if (picks?.length === 1) {
+				const resource = (picks[0] as unknown as { resource: unknown }).resource;
+				if (URI.isUri(resource) && this.textModelService.canHandleResource(resource)) {
+					this.editorService.openEditor({
+						original: { resource: activeResource },
+						modified: { resource: resource },
+						options: { pinned: true }
+					});
 				}
-			});
-
-			once(this.quickInputService.onHide)((async () => {
-				await timeout(0); // prevent race condition with editor
-				toDispose.dispose();
-			}));
-
-			// Bring up quick access
-			this.quickInputService.quickAccess.show('', { itemActivation: ItemActivation.SECOND });
-		} else {
-			this.notificationService.info(nls.localize('openFileToCompare', "Open a file first to compare it with another file."));
+			}
 		}
 	}
 }
@@ -507,7 +476,7 @@ export class ToggleAutoSaveAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<void> {
+	override run(): Promise<void> {
 		return this.filesConfigurationService.toggleAutoSave();
 	}
 }
@@ -546,7 +515,7 @@ export abstract class BaseSaveAllAction extends Action {
 		}
 	}
 
-	async run(context?: unknown): Promise<void> {
+	override async run(context?: unknown): Promise<void> {
 		try {
 			await this.doRun(context);
 		} catch (error) {
@@ -560,7 +529,7 @@ export class SaveAllInGroupAction extends BaseSaveAllAction {
 	static readonly ID = 'workbench.files.action.saveAllInGroup';
 	static readonly LABEL = nls.localize('saveAllInGroup', "Save All in Group");
 
-	get class(): string {
+	override get class(): string {
 		return 'explorer-action ' + Codicon.saveAll.classNames;
 	}
 
@@ -578,7 +547,7 @@ export class CloseGroupAction extends Action {
 		super(id, label, Codicon.closeAll.classNames);
 	}
 
-	run(context?: unknown): Promise<void> {
+	override run(context?: unknown): Promise<void> {
 		return this.commandService.executeCommand(CLOSE_EDITORS_AND_GROUP_COMMAND_ID, {}, context);
 	}
 }
@@ -596,7 +565,7 @@ export class FocusFilesExplorer extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		await this.viewletService.openViewlet(VIEWLET_ID, true);
 	}
 }
@@ -610,18 +579,15 @@ export class ShowActiveFileInExplorer extends Action {
 		id: string,
 		label: string,
 		@IEditorService private readonly editorService: IEditorService,
-		@INotificationService private readonly notificationService: INotificationService,
 		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		const resource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		if (resource) {
 			this.commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, resource);
-		} else {
-			this.notificationService.info(nls.localize('openFileToShow', "Open a file first to show it in the explorer"));
 		}
 	}
 }
@@ -636,22 +602,20 @@ export class ShowOpenedFileInNewWindow extends Action {
 		label: string,
 		@IEditorService private readonly editorService: IEditorService,
 		@IHostService private readonly hostService: IHostService,
-		@INotificationService private readonly notificationService: INotificationService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@IFileService private readonly fileService: IFileService
 	) {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		const fileResource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		if (fileResource) {
 			if (this.fileService.canHandleResource(fileResource)) {
 				this.hostService.openWindow([{ fileUri: fileResource }], { forceNewWindow: true });
 			} else {
-				this.notificationService.info(nls.localize('openFileToShowInNewWindow.unsupportedschema', "The active editor must contain an openable resource."));
+				this.dialogService.show(Severity.Error, nls.localize('openFileToShowInNewWindow.unsupportedschema', "The active editor must contain an openable resource."));
 			}
-		} else {
-			this.notificationService.info(nls.localize('openFileToShowInNewWindow.nofile', "Open a file first to open in new window"));
 		}
 	}
 }
@@ -717,7 +681,7 @@ function trimLongName(name: string): string {
 	return name;
 }
 
-export function getWellFormedFileName(filename: string): string {
+function getWellFormedFileName(filename: string): string {
 	if (!filename) {
 		return filename;
 	}
@@ -725,8 +689,7 @@ export function getWellFormedFileName(filename: string): string {
 	// Trim tabs
 	filename = trim(filename, '\t');
 
-	// Remove trailing dots and slashes
-	filename = rtrim(filename, '.');
+	// Remove trailing slashes
 	filename = rtrim(filename, '/');
 	filename = rtrim(filename, '\\');
 
@@ -754,7 +717,7 @@ export class CompareWithClipboardAction extends Action {
 		this.enabled = true;
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		const resource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		const scheme = `clipboardCompare${CompareWithClipboardAction.SCHEME_COUNTER++}`;
 		if (resource && (this.fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled)) {
@@ -767,8 +730,9 @@ export class CompareWithClipboardAction extends Action {
 			const editorLabel = nls.localize('clipboardComparisonLabel', "Clipboard ↔ {0}", name);
 
 			await this.editorService.openEditor({
-				leftResource: resource.with({ scheme }),
-				rightResource: resource, label: editorLabel,
+				original: { resource: resource.with({ scheme }) },
+				modified: { resource: resource },
+				label: editorLabel,
 				options: { pinned: true }
 			}).finally(() => {
 				dispose(this.registrationDisposal);
@@ -777,7 +741,7 @@ export class CompareWithClipboardAction extends Action {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		dispose(this.registrationDisposal);
@@ -964,245 +928,39 @@ export const cutFileHandler = async (accessor: ServicesAccessor) => {
 	}
 };
 
-export const DOWNLOAD_COMMAND_ID = 'explorer.download';
 const downloadFileHandler = async (accessor: ServicesAccessor) => {
-	const logService = accessor.get(ILogService);
-	const fileService = accessor.get(IFileService);
-	const fileDialogService = accessor.get(IFileDialogService);
 	const explorerService = accessor.get(IExplorerService);
-	const progressService = accessor.get(IProgressService);
+	const instantiationService = accessor.get(IInstantiationService);
 
 	const context = explorerService.getContext(true);
 	const explorerItems = context.length ? context : explorerService.roots;
 
-	const cts = new CancellationTokenSource();
-
-	await progressService.withProgress({
-		location: ProgressLocation.Window,
-		delay: 800,
-		cancellable: isWeb,
-		title: nls.localize('downloadingFiles', "Downloading")
-	}, async progress => {
-		return sequence(explorerItems.map(explorerItem => async () => {
-			if (cts.token.isCancellationRequested) {
-				return;
-			}
-
-			// Web: use DOM APIs to download files with optional support
-			// for folders and large files
-			if (isWeb) {
-				const stat = await fileService.resolve(explorerItem.resource, { resolveMetadata: true });
-
-				if (cts.token.isCancellationRequested) {
-					return;
-				}
-
-				const maxBlobDownloadSize = 32 * ByteSize.MB; // avoid to download via blob-trick >32MB to avoid memory pressure
-				const preferFileSystemAccessWebApis = stat.isDirectory || stat.size > maxBlobDownloadSize;
-
-				// Folder: use FS APIs to download files and folders if available and preferred
-				if (preferFileSystemAccessWebApis && WebFileSystemAccess.supported(window)) {
-
-					interface IDownloadOperation {
-						startTime: number;
-						progressScheduler: RunOnceWorker<IProgressStep>;
-
-						filesTotal: number;
-						filesDownloaded: number;
-
-						totalBytesDownloaded: number;
-						fileBytesDownloaded: number;
-					}
-
-					async function downloadFileBuffered(resource: URI, target: WebFileSystemAccess.FileSystemWritableFileStream, operation: IDownloadOperation): Promise<void> {
-						const contents = await fileService.readFileStream(resource);
-						if (cts.token.isCancellationRequested) {
-							target.close();
-							return;
-						}
-
-						return new Promise<void>((resolve, reject) => {
-							const sourceStream = contents.value;
-
-							const disposables = new DisposableStore();
-							disposables.add(toDisposable(() => target.close()));
-
-							let disposed = false;
-							disposables.add(toDisposable(() => disposed = true));
-
-							disposables.add(once(cts.token.onCancellationRequested)(() => {
-								disposables.dispose();
-								reject();
-							}));
-
-							listenStream(sourceStream, {
-								onData: data => {
-									if (!disposed) {
-										target.write(data.buffer);
-										reportProgress(contents.name, contents.size, data.byteLength, operation);
-									}
-								},
-								onError: error => {
-									disposables.dispose();
-									reject(error);
-								},
-								onEnd: () => {
-									disposables.dispose();
-									resolve();
-								}
-							});
-						});
-					}
-
-					async function downloadFileUnbuffered(resource: URI, target: WebFileSystemAccess.FileSystemWritableFileStream, operation: IDownloadOperation): Promise<void> {
-						const contents = await fileService.readFile(resource);
-						if (!cts.token.isCancellationRequested) {
-							target.write(contents.value.buffer);
-							reportProgress(contents.name, contents.size, contents.value.byteLength, operation);
-						}
-
-						target.close();
-					}
-
-					async function downloadFile(targetFolder: WebFileSystemAccess.FileSystemDirectoryHandle, file: IFileStatWithMetadata, operation: IDownloadOperation): Promise<void> {
-
-						// Report progress
-						operation.filesDownloaded++;
-						operation.fileBytesDownloaded = 0; // reset for this file
-						reportProgress(file.name, 0, 0, operation);
-
-						// Start to download
-						const targetFile = await targetFolder.getFileHandle(file.name, { create: true });
-						const targetFileWriter = await targetFile.createWritable();
-
-						// For large files, write buffered using streams
-						if (file.size > ByteSize.MB) {
-							return downloadFileBuffered(file.resource, targetFileWriter, operation);
-						}
-
-						// For small files prefer to write unbuffered to reduce overhead
-						return downloadFileUnbuffered(file.resource, targetFileWriter, operation);
-					}
-
-					async function downloadFolder(folder: IFileStatWithMetadata, targetFolder: WebFileSystemAccess.FileSystemDirectoryHandle, operation: IDownloadOperation): Promise<void> {
-						if (folder.children) {
-							operation.filesTotal += (folder.children.map(child => child.isFile)).length;
-
-							for (const child of folder.children) {
-								if (cts.token.isCancellationRequested) {
-									return;
-								}
-
-								if (child.isFile) {
-									await downloadFile(targetFolder, child, operation);
-								} else {
-									const childFolder = await targetFolder.getDirectoryHandle(child.name, { create: true });
-									const resolvedChildFolder = await fileService.resolve(child.resource, { resolveMetadata: true });
-
-									await downloadFolder(resolvedChildFolder, childFolder, operation);
-								}
-							}
-						}
-					}
-
-					function reportProgress(name: string, fileSize: number, bytesDownloaded: number, operation: IDownloadOperation): void {
-						operation.fileBytesDownloaded += bytesDownloaded;
-						operation.totalBytesDownloaded += bytesDownloaded;
-
-						const bytesDownloadedPerSecond = operation.totalBytesDownloaded / ((Date.now() - operation.startTime) / 1000);
-
-						// Small file
-						let message: string;
-						if (fileSize < ByteSize.MB) {
-							if (operation.filesTotal === 1) {
-								message = name;
-							} else {
-								message = nls.localize('downloadProgressSmallMany', "{0} of {1} files ({2}/s)", operation.filesDownloaded, operation.filesTotal, ByteSize.formatSize(bytesDownloadedPerSecond));
-							}
-						}
-
-						// Large file
-						else {
-							message = nls.localize('downloadProgressLarge', "{0} ({1} of {2}, {3}/s)", name, ByteSize.formatSize(operation.fileBytesDownloaded), ByteSize.formatSize(fileSize), ByteSize.formatSize(bytesDownloadedPerSecond));
-						}
-
-						// Report progress but limit to update only once per second
-						operation.progressScheduler.work({ message });
-					}
-
-					try {
-						const parentFolder: WebFileSystemAccess.FileSystemDirectoryHandle = await window.showDirectoryPicker();
-						const operation: IDownloadOperation = {
-							startTime: Date.now(),
-							progressScheduler: new RunOnceWorker<IProgressStep>(steps => { progress.report(steps[steps.length - 1]); }, 1000),
-
-							filesTotal: stat.isDirectory ? 0 : 1, // folders increment filesTotal within downloadFolder method
-							filesDownloaded: 0,
-
-							totalBytesDownloaded: 0,
-							fileBytesDownloaded: 0
-						};
-
-						if (stat.isDirectory) {
-							const targetFolder = await parentFolder.getDirectoryHandle(stat.name, { create: true });
-							await downloadFolder(stat, targetFolder, operation);
-						} else {
-							await downloadFile(parentFolder, stat, operation);
-						}
-
-						operation.progressScheduler.dispose();
-					} catch (error) {
-						logService.warn(error);
-						cts.cancel(); // `showDirectoryPicker` will throw an error when the user cancels
-					}
-				}
-
-				// File: use traditional download to circumvent browser limitations
-				else if (stat.isFile) {
-					let bufferOrUri: Uint8Array | URI;
-					try {
-						bufferOrUri = (await fileService.readFile(stat.resource, { limits: { size: maxBlobDownloadSize } })).value.buffer;
-					} catch (error) {
-						bufferOrUri = FileAccess.asBrowserUri(stat.resource);
-					}
-
-					if (!cts.token.isCancellationRequested) {
-						triggerDownload(bufferOrUri, stat.name);
-					}
-				}
-			}
-
-			// Native: use working copy file service to get at the contents
-			else {
-				progress.report({ message: explorerItem.name });
-
-				let defaultUri = explorerItem.isDirectory ? await fileDialogService.defaultFolderPath(Schemas.file) : await fileDialogService.defaultFilePath(Schemas.file);
-				defaultUri = resources.joinPath(defaultUri, explorerItem.name);
-
-				const destination = await fileDialogService.showSaveDialog({
-					availableFileSystems: [Schemas.file],
-					saveLabel: mnemonicButtonLabel(nls.localize('downloadButton', "Download")),
-					title: nls.localize('chooseWhereToDownload', "Choose Where to Download"),
-					defaultUri
-				});
-
-				if (destination) {
-					await explorerService.applyBulkEdit([new ResourceFileEdit(explorerItem.resource, destination, { overwrite: true, copy: true })], {
-						undoLabel: nls.localize('downloadBulkEdit', "Download {0}", explorerItem.name),
-						progressLabel: nls.localize('downloadingBulkEdit', "Downloading {0}", explorerItem.name),
-						progressLocation: ProgressLocation.Explorer
-					});
-				} else {
-					cts.cancel(); // User canceled a download. In case there were multiple files selected we should cancel the remainder of the prompts #86100
-				}
-			}
-		}));
-	}, () => cts.dispose(true));
+	const downloadHandler = instantiationService.createInstance(FileDownload);
+	return downloadHandler.download(explorerItems);
 };
 
 CommandsRegistry.registerCommand({
 	id: DOWNLOAD_COMMAND_ID,
 	handler: downloadFileHandler
+});
+
+const uploadFileHandler = async (accessor: ServicesAccessor) => {
+	const explorerService = accessor.get(IExplorerService);
+	const instantiationService = accessor.get(IInstantiationService);
+
+	const context = explorerService.getContext(true);
+	const element = context.length ? context[0] : explorerService.roots[0];
+
+	const files = await triggerUpload();
+	if (files) {
+		const browserUpload = instantiationService.createInstance(BrowserFileUpload);
+		return browserUpload.upload(element, files);
+	}
+};
+
+CommandsRegistry.registerCommand({
+	id: UPLOAD_COMMAND_ID,
+	handler: uploadFileHandler
 });
 
 export const pasteFileHandler = async (accessor: ServicesAccessor) => {

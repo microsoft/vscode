@@ -101,19 +101,19 @@ export interface WriteableStream<T> extends ReadableStream<T> {
 	/**
 	 * Signals an error to the consumer of the stream via the
 	 * on('error') handler if the stream is flowing.
+	 *
+	 * NOTE: call `end` to signal that the stream has ended,
+	 * this DOES NOT happen automatically from `error`.
 	 */
 	error(error: Error): void;
 
 	/**
 	 * Signals the end of the stream to the consumer. If the
-	 * result is not an error, will trigger the on('data') event
+	 * result is provided, will trigger the on('data') event
 	 * listener if the stream is flowing and buffer the data
 	 * otherwise until the stream is flowing.
-	 *
-	 * In case of an error, the on('error') event will be used
-	 * if the stream is flowing.
 	 */
-	end(result?: T | Error): void;
+	end(result?: T): void;
 }
 
 /**
@@ -142,15 +142,21 @@ export interface ReadableBufferedStream<T> {
 }
 
 export function isReadableStream<T>(obj: unknown): obj is ReadableStream<T> {
-	const candidate = obj as ReadableStream<T>;
+	const candidate = obj as ReadableStream<T> | undefined;
+	if (!candidate) {
+		return false;
+	}
 
-	return candidate && [candidate.on, candidate.pause, candidate.resume, candidate.destroy].every(fn => typeof fn === 'function');
+	return [candidate.on, candidate.pause, candidate.resume, candidate.destroy].every(fn => typeof fn === 'function');
 }
 
 export function isReadableBufferedStream<T>(obj: unknown): obj is ReadableBufferedStream<T> {
-	const candidate = obj as ReadableBufferedStream<T>;
+	const candidate = obj as ReadableBufferedStream<T> | undefined;
+	if (!candidate) {
+		return false;
+	}
 
-	return candidate && isReadableStream(candidate.stream) && Array.isArray(candidate.buffer) && typeof candidate.ended === 'boolean';
+	return isReadableStream(candidate.stream) && Array.isArray(candidate.buffer) && typeof candidate.ended === 'boolean';
 }
 
 export interface IReducer<T> {
@@ -267,15 +273,13 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 		}
 	}
 
-	end(result?: T | Error): void {
+	end(result?: T): void {
 		if (this.state.destroyed) {
 			return;
 		}
 
-		// end with data or error if provided
-		if (result instanceof Error) {
-			this.error(result);
-		} else if (typeof result !== 'undefined') {
+		// end with data if provided
+		if (typeof result !== 'undefined') {
 			this.write(result);
 		}
 
@@ -628,6 +632,16 @@ export function toStream<T>(t: T, reducer: IReducer<T>): ReadableStream<T> {
 }
 
 /**
+ * Helper to create an empty stream
+ */
+export function emptyStream(): ReadableStream<never> {
+	const stream = newWriteableStream<never>(() => { throw new Error('not supported'); });
+	stream.end();
+
+	return stream;
+}
+
+/**
  * Helper to convert a T into a Readable<T>.
  */
 export function toReadable<T>(t: T): Readable<T> {
@@ -656,6 +670,74 @@ export function transform<Original, Transformed>(stream: ReadableStreamEvents<Or
 		onData: data => target.write(transformer.data(data)),
 		onError: error => target.error(transformer.error ? transformer.error(error) : error),
 		onEnd: () => target.end()
+	});
+
+	return target;
+}
+
+/**
+ * Helper to take an existing readable that will
+ * have a prefix injected to the beginning.
+ */
+export function prefixedReadable<T>(prefix: T, readable: Readable<T>, reducer: IReducer<T>): Readable<T> {
+	let prefixHandled = false;
+
+	return {
+		read: () => {
+			const chunk = readable.read();
+
+			// Handle prefix only once
+			if (!prefixHandled) {
+				prefixHandled = true;
+
+				// If we have also a read-result, make
+				// sure to reduce it to a single result
+				if (chunk !== null) {
+					return reducer([prefix, chunk]);
+				}
+
+				// Otherwise, just return prefix directly
+				return prefix;
+			}
+
+			return chunk;
+		}
+	};
+}
+
+/**
+ * Helper to take an existing stream that will
+ * have a prefix injected to the beginning.
+ */
+export function prefixedStream<T>(prefix: T, stream: ReadableStream<T>, reducer: IReducer<T>): ReadableStream<T> {
+	let prefixHandled = false;
+
+	const target = newWriteableStream<T>(reducer);
+
+	listenStream(stream, {
+		onData: data => {
+
+			// Handle prefix only once
+			if (!prefixHandled) {
+				prefixHandled = true;
+
+				return target.write(reducer([prefix, data]));
+			}
+
+			return target.write(data);
+		},
+		onError: error => target.error(error),
+		onEnd: () => {
+
+			// Handle prefix only once
+			if (!prefixHandled) {
+				prefixHandled = true;
+
+				target.write(prefix);
+			}
+
+			target.end();
+		}
 	});
 
 	return target;

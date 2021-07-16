@@ -17,11 +17,12 @@ import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { sep } from 'vs/base/common/path';
 import { toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
+import * as sinon from 'sinon';
 
 suite('Snippet Variables Resolver', function () {
 
 	const labelService = new class extends mock<ILabelService>() {
-		getUriLabel(uri: URI) {
+		override getUriLabel(uri: URI) {
 			return uri.fsPath;
 		}
 	};
@@ -92,7 +93,7 @@ suite('Snippet Variables Resolver', function () {
 	test('Path delimiters in code snippet variables aren\'t specific to remote OS #76840', function () {
 
 		const labelService = new class extends mock<ILabelService>() {
-			getUriLabel(uri: URI) {
+			override getUriLabel(uri: URI) {
 				return uri.fsPath.replace(/\/|\\/g, '|');
 			}
 		};
@@ -291,6 +292,36 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve3(resolver, 'CURRENT_SECONDS_UNIX');
 	});
 
+	test('Time-based snippet variables resolve to the same values even as time progresses', async function () {
+		const snippetText = `
+			$CURRENT_YEAR
+			$CURRENT_YEAR_SHORT
+			$CURRENT_MONTH
+			$CURRENT_DATE
+			$CURRENT_HOUR
+			$CURRENT_MINUTE
+			$CURRENT_SECOND
+			$CURRENT_DAY_NAME
+			$CURRENT_DAY_NAME_SHORT
+			$CURRENT_MONTH_NAME
+			$CURRENT_MONTH_NAME_SHORT
+			$CURRENT_SECONDS_UNIX
+		`;
+
+		const clock = sinon.useFakeTimers();
+		try {
+			const resolver = new TimeBasedVariableResolver;
+
+			const firstResolve = new SnippetParser().parse(snippetText).resolveVariables(resolver);
+			clock.tick((365 * 24 * 3600 * 1000) + (24 * 3600 * 1000) + (3661 * 1000));  // 1 year + 1 day + 1 hour + 1 minute + 1 second
+			const secondResolve = new SnippetParser().parse(snippetText).resolveVariables(resolver);
+
+			assert.strictEqual(firstResolve.toString(), secondResolve.toString(), `Time-based snippet variables resolved differently`);
+		} finally {
+			clock.restore();
+		}
+	});
+
 	test('creating snippet - format-condition doesn\'t work #53617', function () {
 
 		const snippet = new SnippetParser().parse('${TM_LINE_NUMBER/(10)/${1:?It is:It is not}/} line 10', true);
@@ -310,6 +341,7 @@ suite('Snippet Variables Resolver', function () {
 			_throw = () => { throw new Error(); };
 			onDidChangeWorkbenchState = this._throw;
 			onDidChangeWorkspaceName = this._throw;
+			onWillChangeWorkspaceFolders = this._throw;
 			onDidChangeWorkspaceFolders = this._throw;
 			getCompleteWorkspace = this._throw;
 			getWorkspace(): IWorkspace { return workspace; }
@@ -349,7 +381,7 @@ suite('Snippet Variables Resolver', function () {
 		// Mock a label service (only coded for file uris)
 		const workspaceLabelService = ((rootPath: string): ILabelService => {
 			const labelService = new class extends mock<ILabelService>() {
-				getUriLabel(uri: URI, options: { relative?: boolean } = {}) {
+				override getUriLabel(uri: URI, options: { relative?: boolean } = {}) {
 					const rootFsPath = URI.file(rootPath).fsPath + sep;
 					const fsPath = uri.fsPath;
 					if (options.relative && rootPath && fsPath.startsWith(rootFsPath)) {

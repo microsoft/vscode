@@ -15,6 +15,7 @@ const DEBUG_FUNCTION_BREAKPOINTS_KEY = 'debug.functionbreakpoint';
 const DEBUG_DATA_BREAKPOINTS_KEY = 'debug.databreakpoint';
 const DEBUG_EXCEPTION_BREAKPOINTS_KEY = 'debug.exceptionbreakpoint';
 const DEBUG_WATCH_EXPRESSIONS_KEY = 'debug.watchexpressions';
+const DEBUG_CHOSEN_ENVIRONMENTS_KEY = 'debug.chosenenvironment';
 const DEBUG_UX_STATE_KEY = 'debug.uxstate';
 
 export class DebugStorage {
@@ -25,7 +26,7 @@ export class DebugStorage {
 	) { }
 
 	loadDebugUxState(): 'simple' | 'default' {
-		return this.storageService.get(DEBUG_UX_STATE_KEY, StorageScope.WORKSPACE, 'simple') as 'simple' | 'default';
+		return this.storageService.get(DEBUG_UX_STATE_KEY, StorageScope.WORKSPACE, 'default') as 'simple' | 'default';
 	}
 
 	storeDebugUxState(value: 'simple' | 'default'): void {
@@ -69,7 +70,7 @@ export class DebugStorage {
 		let result: DataBreakpoint[] | undefined;
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_DATA_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((dbp: any) => {
-				return new DataBreakpoint(dbp.description, dbp.dataId, true, dbp.enabled, dbp.hitCondition, dbp.condition, dbp.logMessage, dbp.accessTypes);
+				return new DataBreakpoint(dbp.description, dbp.dataId, true, dbp.enabled, dbp.hitCondition, dbp.condition, dbp.logMessage, dbp.accessTypes, dbp.accessType);
 			});
 		} catch (e) { }
 
@@ -85,6 +86,14 @@ export class DebugStorage {
 		} catch (e) { }
 
 		return result || [];
+	}
+
+	loadChosenEnvironments(): { [key: string]: string } {
+		return JSON.parse(this.storageService.get(DEBUG_CHOSEN_ENVIRONMENTS_KEY, StorageScope.WORKSPACE, '{}'));
+	}
+
+	storeChosenEnvironments(environments: { [key: string]: string }): void {
+		this.storageService.store(DEBUG_CHOSEN_ENVIRONMENTS_KEY, JSON.stringify(environments), StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	storeWatchExpressions(watchExpressions: (IExpression & IEvaluate)[]): void {

@@ -29,6 +29,7 @@ export interface NativeParsedArgs {
 	'prof-startup-prefix'?: string;
 	'prof-append-timers'?: string;
 	'prof-v8-extensions'?: boolean;
+	'no-cached-data'?: boolean;
 	verbose?: boolean;
 	trace?: boolean;
 	'trace-category-filter'?: string;
@@ -39,8 +40,9 @@ export interface NativeParsedArgs {
 	'extensions-dir'?: string;
 	'extensions-download-dir'?: string;
 	'builtin-extensions-dir'?: string;
-	extensionDevelopmentPath?: string[]; // // undefined or array of 1 or more local paths or URIs
+	extensionDevelopmentPath?: string[]; // undefined or array of 1 or more local paths or URIs
 	extensionTestsPath?: string; // either a local path or a URI
+	extensionDevelopmentKind?: string[];
 	'inspect-extensions'?: string;
 	'inspect-brk-extensions'?: string;
 	debugId?: string;
@@ -59,11 +61,13 @@ export interface NativeParsedArgs {
 	'enable-proposed-api'?: string[]; // undefined or array of 1 or more
 	'open-url'?: boolean;
 	'skip-release-notes'?: boolean;
+	'skip-welcome'?: boolean;
 	'disable-telemetry'?: boolean;
 	'export-default-configuration'?: string;
 	'install-source'?: string;
 	'disable-updates'?: boolean;
 	'disable-keytar'?: boolean;
+	'disable-workspace-trust'?: boolean;
 	'disable-crash-reporter'?: boolean;
 	'crash-reporter-directory'?: string;
 	'crash-reporter-id'?: string;
@@ -84,6 +88,7 @@ export interface NativeParsedArgs {
 
 	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
 	'no-proxy-server'?: boolean;
+	'no-sandbox'?: boolean;
 	'proxy-server'?: string;
 	'proxy-bypass-list'?: string;
 	'proxy-pac-url'?: string;
@@ -97,4 +102,5 @@ export interface NativeParsedArgs {
 	'ignore-certificate-errors'?: boolean;
 	'allow-insecure-localhost'?: boolean;
 	'log-net-log'?: string;
+	'vmodule'?: string;
 }

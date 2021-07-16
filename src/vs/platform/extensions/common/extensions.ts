@@ -113,13 +113,33 @@ export interface IAuthenticationContribution {
 	readonly label: string;
 }
 
-export interface IGettingStartedContent {
+export interface IWalkthroughStep {
 	readonly id: string;
 	readonly title: string;
-	readonly description: string;
-	readonly button: { title: string } & ({ command?: never, link: string } | { command: string, link?: never }),
-	readonly media: { path: string | { hc: string, light: string, dark: string }, altText: string },
+	readonly description: string | undefined;
+	readonly media:
+	| { image: string | { dark: string, light: string, hc: string }, altText: string, markdown?: never }
+	| { markdown: string, image?: never }
+	readonly completionEvents?: string[];
+	/** @deprecated use `completionEvents: 'onCommand:...'` */
+	readonly doneOn?: { command: string };
 	readonly when?: string;
+}
+
+export interface IWalkthrough {
+	readonly id: string,
+	readonly title: string;
+	readonly description: string;
+	readonly steps: IWalkthroughStep[];
+	readonly when?: string;
+}
+
+export interface IStartEntry {
+	readonly title: string;
+	readonly description: string;
+	readonly command: string;
+	readonly when?: string;
+	readonly category: 'file' | 'folder' | 'notebook';
 }
 
 export interface IExtensionContributions {
@@ -134,6 +154,7 @@ export interface IExtensionContributions {
 	snippets?: ISnippet[];
 	themes?: ITheme[];
 	iconThemes?: ITheme[];
+	productIconThemes?: ITheme[];
 	viewsContainers?: { [location: string]: IViewContainer[] };
 	views?: { [location: string]: IView[] };
 	colors?: IColor[];
@@ -141,12 +162,35 @@ export interface IExtensionContributions {
 	readonly customEditors?: readonly IWebviewEditor[];
 	readonly codeActions?: readonly ICodeActionContribution[];
 	authentication?: IAuthenticationContribution[];
-	gettingStarted?: IGettingStartedContent[];
+	walkthroughs?: IWalkthrough[];
+	startEntries?: IStartEntry[];
 }
+
+export interface IExtensionCapabilities {
+	readonly virtualWorkspaces?: ExtensionVirtualWorkspaceSupport;
+	readonly untrustedWorkspaces?: ExtensionUntrustedWorkspaceSupport;
+}
+
+
 
 export type ExtensionKind = 'ui' | 'workspace' | 'web';
 
-export type ExtensionWorkspaceTrustRequirement = false | 'onStart' | 'onDemand';
+export type LimitedWorkspaceSupportType = 'limited';
+export type ExtensionUntrustedWorkspaceSupportType = boolean | LimitedWorkspaceSupportType;
+export type ExtensionUntrustedWorkspaceSupport = { supported: true; } | { supported: false, description: string } | { supported: LimitedWorkspaceSupportType, description: string, restrictedConfigurations?: string[] };
+
+export type ExtensionVirtualWorkspaceSupportType = boolean | LimitedWorkspaceSupportType;
+export type ExtensionVirtualWorkspaceSupport = boolean | { supported: true; } | { supported: false | LimitedWorkspaceSupportType, description: string };
+
+export function getWorkspaceSupportTypeMessage(supportType: ExtensionUntrustedWorkspaceSupport | ExtensionVirtualWorkspaceSupport | undefined): string | undefined {
+	if (typeof supportType === 'object' && supportType !== null) {
+		if (supportType.supported !== true) {
+			return supportType.description;
+		}
+	}
+	return undefined;
+}
+
 
 export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
 	return thing
@@ -165,6 +209,7 @@ export const EXTENSION_CATEGORIES = [
 	'Data Science',
 	'Debuggers',
 	'Extension Packs',
+	'Education',
 	'Formatters',
 	'Keymaps',
 	'Language Packs',
@@ -185,7 +230,7 @@ export interface IExtensionManifest {
 	readonly displayName?: string;
 	readonly publisher: string;
 	readonly version: string;
-	readonly engines: { vscode: string };
+	readonly engines: { readonly vscode: string };
 	readonly description?: string;
 	readonly main?: string;
 	readonly browser?: string;
@@ -202,7 +247,7 @@ export interface IExtensionManifest {
 	readonly enableProposedApi?: boolean;
 	readonly api?: string;
 	readonly scripts?: { [key: string]: string; };
-	readonly requiresWorkspaceTrust?: ExtensionWorkspaceTrustRequirement;
+	readonly capabilities?: IExtensionCapabilities;
 }
 
 export const enum ExtensionType {
@@ -293,28 +338,8 @@ export function isAuthenticaionProviderExtension(manifest: IExtensionManifest): 
 	return manifest.contributes && manifest.contributes.authentication ? manifest.contributes.authentication.length > 0 : false;
 }
 
-export interface IScannedExtension {
-	readonly identifier: IExtensionIdentifier;
-	readonly location: URI;
-	readonly type: ExtensionType;
-	readonly packageJSON: IExtensionManifest;
-	readonly packageNLS?: any;
-	readonly packageNLSUrl?: URI;
-	readonly readmeUrl?: URI;
-	readonly changelogUrl?: URI;
-}
-
-export interface ITranslatedScannedExtension {
-	readonly identifier: IExtensionIdentifier;
-	readonly location: URI;
-	readonly type: ExtensionType;
-	readonly packageJSON: IExtensionManifest;
-	readonly readmeUrl?: URI;
-	readonly changelogUrl?: URI;
-}
-
 export const IBuiltinExtensionsScannerService = createDecorator<IBuiltinExtensionsScannerService>('IBuiltinExtensionsScannerService');
 export interface IBuiltinExtensionsScannerService {
 	readonly _serviceBrand: undefined;
-	scanBuiltinExtensions(): Promise<IScannedExtension[]>;
+	scanBuiltinExtensions(): Promise<IExtension[]>;
 }

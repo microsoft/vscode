@@ -4,18 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { FeedbackDropdown, IFeedback, IFeedbackDelegate } from 'vs/workbench/contrib/feedback/browser/feedback';
+import { FeedbackWidget, IFeedback, IFeedbackDelegate } from 'vs/workbench/contrib/feedback/browser/feedback';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStatusbarService, StatusbarAlignment, IStatusbarEntry, IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/common/statusbar';
 import { localize } from 'vs/nls';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
+import { assertIsDefined } from 'vs/base/common/types';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { HIDE_NOTIFICATIONS_CENTER, HIDE_NOTIFICATION_TOAST } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
+import { isIOS } from 'vs/base/common/platform';
 
 class TwitterFeedbackService implements IFeedbackDelegate {
 
@@ -51,62 +55,92 @@ class TwitterFeedbackService implements IFeedbackDelegate {
 }
 
 export class FeedbackStatusbarConribution extends Disposable implements IWorkbenchContribution {
-	private dropdown: FeedbackDropdown | undefined;
+
+	private static readonly TOGGLE_FEEDBACK_COMMAND = 'help.tweetFeedback';
+
+	private widget: FeedbackWidget | undefined;
 	private entry: IStatusbarEntryAccessor | undefined;
 
 	constructor(
-		@IStatusbarService statusbarService: IStatusbarService,
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IProductService productService: IProductService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IContextViewService private contextViewService: IContextViewService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super();
 
-		if (productService.sendASmile) {
-			this.entry = this._register(statusbarService.addEntry(this.getStatusEntry(), 'status.feedback', localize('status.feedback', "Tweet Feedback"), StatusbarAlignment.RIGHT, -100 /* towards the end of the right hand side */));
+		if (productService.sendASmile && !isIOS) {
+			this.createFeedbackStatusEntry();
+			this.registerListeners();
+		}
+	}
 
-			CommandsRegistry.registerCommand('help.tweetFeedback', () => this.toggleFeedback());
-			MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-				command: {
-					id: 'help.tweetFeedback',
-					category: CATEGORIES.Help,
-					title: localize('status.feedback', "Tweet Feedback")
-				}
-			});
+	private createFeedbackStatusEntry(): void {
+
+		// Status entry
+		this.entry = this._register(this.statusbarService.addEntry(this.getStatusEntry(), 'status.feedback', StatusbarAlignment.RIGHT, -100 /* towards the end of the right hand side */));
+
+		// Command to toggle
+		CommandsRegistry.registerCommand(FeedbackStatusbarConribution.TOGGLE_FEEDBACK_COMMAND, () => this.toggleFeedback());
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+			command: {
+				id: FeedbackStatusbarConribution.TOGGLE_FEEDBACK_COMMAND,
+				category: CATEGORIES.Help,
+				title: localize('status.feedback', "Tweet Feedback")
+			}
+		});
+	}
+
+	private registerListeners(): void {
+
+		// Hide feedback widget whenever notifications appear
+		this._register(this.layoutService.onDidChangeNotificationsVisibility(visible => {
+			if (visible) {
+				this.widget?.hide();
+			}
+		}));
+	}
+
+	private createFeedbackWidget(): void {
+		const statusContainer = document.getElementById('status.feedback');
+		if (statusContainer) {
+			const icon = assertIsDefined(statusContainer.getElementsByClassName('codicon').item(0) as HTMLElement | null);
+
+			this.widget = this._register(this.instantiationService.createInstance(FeedbackWidget, icon, {
+				contextViewProvider: this.contextViewService,
+				feedbackService: this.instantiationService.createInstance(TwitterFeedbackService),
+				onFeedbackVisibilityChange: visible => this.entry?.update(this.getStatusEntry(visible))
+			}));
 		}
 	}
 
 	private toggleFeedback(): void {
-		if (!this.dropdown) {
-			const statusContainr = document.getElementById('status.feedback');
-			if (statusContainr) {
-				const icon = statusContainr.getElementsByClassName('codicon').item(0) as HTMLElement | null;
-				if (!icon) {
-					throw new Error('Could not find icon');
-				}
-				this.dropdown = this._register(this.instantiationService.createInstance(FeedbackDropdown, icon, {
-					contextViewProvider: this.contextViewService,
-					feedbackService: this.instantiationService.createInstance(TwitterFeedbackService),
-					onFeedbackVisibilityChange: visible => this.entry!.update(this.getStatusEntry(visible))
-				}));
-			}
+		if (!this.widget) {
+			this.createFeedbackWidget();
 		}
 
-		if (this.dropdown) {
-			if (!this.dropdown.isVisible()) {
-				this.dropdown.show();
-			} else {
-				this.dropdown.hide();
-			}
+		// Hide when visible
+		if (this.widget?.isVisible()) {
+			this.widget.hide();
+		}
+
+		// Show when hidden
+		else {
+			this.commandService.executeCommand(HIDE_NOTIFICATION_TOAST);
+			this.commandService.executeCommand(HIDE_NOTIFICATIONS_CENTER);
+			this.widget?.show();
 		}
 	}
 
 	private getStatusEntry(showBeak?: boolean): IStatusbarEntry {
 		return {
+			name: localize('status.feedback.name', "Feedback"),
 			text: '$(feedback)',
 			ariaLabel: localize('status.feedback', "Tweet Feedback"),
 			tooltip: localize('status.feedback', "Tweet Feedback"),
-			command: 'help.tweetFeedback',
+			command: FeedbackStatusbarConribution.TOGGLE_FEEDBACK_COMMAND,
 			showBeak
 		};
 	}

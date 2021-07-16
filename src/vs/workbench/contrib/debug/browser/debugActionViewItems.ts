@@ -21,6 +21,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ADD_CONFIGURATION_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { BaseActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { debugStart } from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const $ = dom.$;
 
@@ -45,10 +46,12 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IContextViewService contextViewService: IContextViewService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super(context, action);
 		this.toDispose = [];
 		this.selectBox = new SelectBox([], -1, contextViewService, undefined, { ariaLabel: nls.localize('debugLaunchConfigurations', 'Debug Launch Configurations') });
+		this.selectBox.setFocusable(false);
 		this.toDispose.push(this.selectBox);
 		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
 
@@ -66,11 +69,13 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		}));
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		this.container = container;
 		container.classList.add('start-debug-action-item');
 		this.start = dom.append(container, $(ThemeIcon.asCSSSelector(debugStart)));
-		this.start.title = this.action.label;
+		const keybinding = this.keybindingService.lookupKeybinding(this.action.id)?.getLabel();
+		let keybindingLabel = keybinding ? ` (${keybinding})` : '';
+		this.start.title = this.action.label + keybindingLabel;
 		this.start.setAttribute('role', 'button');
 
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.CLICK, () => {
@@ -98,6 +103,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 				this.actionRunner.run(this.action, this.context);
 			}
 			if (event.equals(KeyCode.RightArrow)) {
+				this.start.tabIndex = -1;
 				this.selectBox.focus();
 				event.stopPropagation();
 			}
@@ -118,6 +124,8 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		this.toDispose.push(dom.addDisposableListener(selectBoxContainer, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.LeftArrow)) {
+				this.selectBox.setFocusable(false);
+				this.start.tabIndex = 0;
 				this.start.focus();
 				event.stopPropagation();
 			}
@@ -138,15 +146,15 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		this.updateOptions();
 	}
 
-	setActionContext(context: any): void {
+	override setActionContext(context: any): void {
 		this.context = context;
 	}
 
-	isEnabled(): boolean {
+	override isEnabled(): boolean {
 		return true;
 	}
 
-	focus(fromRight?: boolean): void {
+	override focus(fromRight?: boolean): void {
 		if (fromRight) {
 			this.selectBox.focus();
 		} else {
@@ -155,12 +163,22 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	blur(): void {
+	override blur(): void {
 		this.start.tabIndex = -1;
+		this.selectBox.blur();
 		this.container.blur();
 	}
 
-	dispose(): void {
+	override setFocusable(focusable: boolean): void {
+		if (focusable) {
+			this.start.tabIndex = 0;
+		} else {
+			this.start.tabIndex = -1;
+			this.selectBox.setFocusable(false);
+		}
+	}
+
+	override dispose(): void {
 		this.toDispose = dispose(this.toDispose);
 	}
 
@@ -274,10 +292,11 @@ export class FocusSessionActionViewItem extends SelectActionViewItem {
 		});
 		this._register(this.debugService.onDidEndSession(() => this.update()));
 
-		this.update(session);
+		const selectedSession = session ? this.mapFocusedSessionToSelected(session) : undefined;
+		this.update(selectedSession);
 	}
 
-	protected getActionContext(_: string, index: number): any {
+	protected override getActionContext(_: string, index: number): any {
 		return this.getSessions()[index];
 	}
 

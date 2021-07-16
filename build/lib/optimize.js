@@ -96,7 +96,7 @@ function toConcatStream(src, bundledFileHeader, sources, dest, fileContentMapper
     return es.readArray(treatedSources)
         .pipe(useSourcemaps ? util.loadSourcemaps() : es.through())
         .pipe(concat(dest))
-        .pipe(stats_1.createStatsStream(dest));
+        .pipe((0, stats_1.createStatsStream)(dest));
 }
 function toBundleStream(src, bundledFileHeader, bundles, fileContentMapper) {
     return es.merge(bundles.map(function (bundle) {
@@ -153,7 +153,7 @@ function optimizeTask(opts) {
             addComment: true,
             includeContent: true
         }))
-            .pipe(opts.languages && opts.languages.length ? i18n_1.processNlsFiles({
+            .pipe(opts.languages && opts.languages.length ? (0, i18n_1.processNlsFiles)({
             fileHeader: bundledFileHeader,
             languages: opts.languages
         }) : es.through())
@@ -177,7 +177,7 @@ function minifyTask(src, sourceMapBaseUrl) {
                 sourcemap: 'external',
                 outdir: '.',
                 platform: 'node',
-                target: ['node12.18'],
+                target: ['esnext'],
                 write: false
             }).then(res => {
                 const jsFile = res.outputFiles.find(f => /\.js$/.test(f.path));

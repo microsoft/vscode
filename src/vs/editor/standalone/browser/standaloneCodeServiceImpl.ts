@@ -7,16 +7,48 @@ import { windowOpenNoOpener } from 'vs/base/browser/dom';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
+import { CodeEditorServiceImpl, GlobalStyleSheet } from 'vs/editor/browser/services/codeEditorServiceImpl';
 import { IRange } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IResourceEditorInput, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class StandaloneCodeEditorServiceImpl extends CodeEditorServiceImpl {
 
+	private readonly _editorIsOpen: IContextKey<boolean>;
+	private _activeCodeEditor: ICodeEditor | null;
+
+	constructor(
+		styleSheet: GlobalStyleSheet | null,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService themeService: IThemeService,
+	) {
+		super(styleSheet, themeService);
+		this.onCodeEditorAdd(() => this._checkContextKey());
+		this.onCodeEditorRemove(() => this._checkContextKey());
+		this._editorIsOpen = contextKeyService.createKey('editorIsOpen', false);
+		this._activeCodeEditor = null;
+	}
+
+	private _checkContextKey(): void {
+		let hasCodeEditor = false;
+		for (const editor of this.listCodeEditors()) {
+			if (!editor.isSimpleWidget) {
+				hasCodeEditor = true;
+				break;
+			}
+		}
+		this._editorIsOpen.set(hasCodeEditor);
+	}
+
+	public setActiveCodeEditor(activeCodeEditor: ICodeEditor | null): void {
+		this._activeCodeEditor = activeCodeEditor;
+	}
+
 	public getActiveCodeEditor(): ICodeEditor | null {
-		return null; // not supported in the standalone case
+		return this._activeCodeEditor;
 	}
 
 	public openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
@@ -27,7 +59,7 @@ export class StandaloneCodeEditorServiceImpl extends CodeEditorServiceImpl {
 		return Promise.resolve(this.doOpenEditor(source, input));
 	}
 
-	private doOpenEditor(editor: ICodeEditor, input: IResourceEditorInput): ICodeEditor | null {
+	private doOpenEditor(editor: ICodeEditor, input: ITextResourceEditorInput): ICodeEditor | null {
 		const model = this.findModel(editor, input.resource);
 		if (!model) {
 			if (input.resource) {
