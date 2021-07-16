@@ -934,8 +934,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._register(widgetFocusTracker.onDidFocus(() => this._onDidFocusEmitter.fire()));
 		this._register(widgetFocusTracker.onDidBlur(() => this._onDidBlurEmitter.fire()));
 
-		this._reigsterNotebookActionsToolbar();
-
+		this._registerNotebookActionsToolbar();
 	}
 
 	private showListContextMenu(e: IListContextMenuEvent<CellViewModel>) {
@@ -951,7 +950,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		});
 	}
 
-	private _reigsterNotebookActionsToolbar() {
+	private _registerNotebookActionsToolbar() {
 		this._notebookTopToolbar = this._register(this.instantiationService.createInstance(NotebookEditorToolbar, this, this.scopedContextKeyService, this._notebookTopToolbarContainer));
 		this._register(this._notebookTopToolbar.onDidChangeState(() => {
 			if (this._dimension && this._isVisible) {
