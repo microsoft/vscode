@@ -320,4 +320,7 @@ import 'vs/workbench/contrib/workspace/browser/workspace.contribution';
 // Workspaces
 import 'vs/workbench/contrib/workspaces/browser/workspaces.contribution';
 
+// Language Detection
+import 'vs/workbench/contrib/languageDetection/browser/languageDetection.contribution';
+
 //#endregion
