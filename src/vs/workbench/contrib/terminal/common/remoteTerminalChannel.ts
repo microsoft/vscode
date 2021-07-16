@@ -204,7 +204,7 @@ export class RemoteTerminalChannelClient {
 	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
 		return this._channel.call('$requestDetachInstance', [workspaceId, instanceId]);
 	}
-	acceptDetachedInstance(requestId: number, persistentProcessId: number): Promise<IProcessDetails | undefined> {
+	acceptDetachedInstance(requestId: number, persistentProcessId: number): Promise<void> {
 		return this._channel.call('$acceptDetachedInstance', [requestId, persistentProcessId]);
 	}
 	attachToProcess(id: number): Promise<void> {
@@ -256,8 +256,8 @@ export class RemoteTerminalChannelClient {
 	getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> {
 		return this._channel.call('$getProfiles', [this._workspaceContextService.getWorkspace().id, profiles, defaultProfile, includeDetectedProfiles]);
 	}
-	acceptPtyHostResolvedVariables(id: number, resolved: string[]) {
-		return this._channel.call('$acceptPtyHostResolvedVariables', [id, resolved]);
+	acceptPtyHostResolvedVariables(requestId: number, resolved: string[]) {
+		return this._channel.call('$acceptPtyHostResolvedVariables', [requestId, resolved]);
 	}
 
 	getEnvironment(): Promise<IProcessEnvironment> {

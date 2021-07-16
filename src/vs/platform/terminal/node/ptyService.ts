@@ -18,15 +18,16 @@ import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnviron
 import { execFile } from 'child_process';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { URI } from 'vs/base/common/uri';
+import { RequestStore } from 'vs/platform/terminal/common/requestStore';
 
 type WorkspaceId = string;
-let lastResolvedInstanceRequestId = 0;
 
 export class PtyService extends Disposable implements IPtyService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _ptys: Map<number, PersistentTerminalProcess> = new Map();
 	private readonly _workspaceLayoutInfos = new Map<WorkspaceId, ISetTerminalLayoutInfoArgs>();
+	private readonly _detachInstanceRequestStore: RequestStore<IProcessDetails | undefined, { workspaceId: string, instanceId: number }>;
 
 	private readonly _onHeartbeat = this._register(new Emitter<void>());
 	readonly onHeartbeat = this._onHeartbeat.event;
@@ -67,29 +68,22 @@ export class PtyService extends Disposable implements IPtyService {
 			}
 			this._ptys.clear();
 		}));
+
+		this._detachInstanceRequestStore = this._register(new RequestStore(undefined, this._logService));
+		this._detachInstanceRequestStore.onCreateRequest(this._onDidRequestDetach.fire, this._onDidRequestDetach);
 	}
 
-	private _pendingDetachInstanceRequests: Map<number, (resolved: IProcessDetails | undefined) => void> = new Map();
 	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
-		return new Promise<IProcessDetails | undefined>(resolve => {
-			const requestId = ++lastResolvedInstanceRequestId;
-			this._pendingDetachInstanceRequests.set(requestId, resolve);
-			this._onDidRequestDetach.fire({ requestId, workspaceId, instanceId });
-		});
+		return this._detachInstanceRequestStore.createRequest({ workspaceId, instanceId });
 	}
 
-	async acceptDetachedInstance(requestId: number, persistentProcessId: number): Promise<IProcessDetails | undefined> {
-		const request = this._pendingDetachInstanceRequests.get(requestId);
-		if (request) {
-			this._pendingDetachInstanceRequests.delete(requestId);
-			const pty = this._throwIfNoPty(persistentProcessId);
-			const process = await this._buildProcessDetails(persistentProcessId, pty);
-			request(process);
-			return process;
-		} else {
-			this._logService.warn(`Accept detached instance was called without receiving a matching request ${requestId} for process with ID: ${persistentProcessId}`);
-			return undefined;
+	async acceptDetachedInstance(requestId: number, persistentProcessId: number): Promise<void> {
+		let processDetails: IProcessDetails | undefined = undefined;
+		const pty = this._ptys.get(persistentProcessId);
+		if (pty) {
+			processDetails = await this._buildProcessDetails(persistentProcessId, pty);
 		}
+		this._detachInstanceRequestStore.acceptReply(requestId, processDetails);
 	}
 
 	async shutdownAll(): Promise<void> {
