@@ -222,8 +222,8 @@ class ToggleScreencastModeAction extends Action2 {
 				let titleLabel = '';
 				let categoryLabel = '';
 				let keyLabel = keybinding.getLabel();
-				if (command && configurationService.getValue<boolean>('screencastMode.showShortcutCommandTitles')) {
-					if (command.category && configurationService.getValue<boolean>('screencastMode.showShortcutCommandTitlesWithCategory')) {
+				if (command && configurationService.getValue('screencastMode.keyboardShortcutsPrefix') !== 'none') {
+					if (command.category && configurationService.getValue('screencastMode.keyboardShortcutsPrefix') === 'categoryAndTitle') {
 						categoryLabel = typeof command.category === 'string' ? command.category : command.category.value;
 						categoryLabel = `${categoryLabel}: `;
 					}
@@ -343,15 +343,15 @@ configurationRegistry.registerConfiguration({
 			description: localize('screencastMode.onlyKeyboardShortcuts', "Only show keyboard shortcuts in screencast mode."),
 			default: false
 		},
-		'screencastMode.showShortcutCommandTitles': {
-			type: 'boolean',
-			description: localize('screencastMode.showShortcutCommandTitles', "Show command titles for shortcuts in screencast mode."),
-			default: true
-		},
-		'screencastMode.showShortcutCommandTitlesWithCategory': {
-			type: 'boolean',
-			description: localize('screencastMode.showShortcutCommandTitlesWithCategory', "When command titles are shown in screencast mode, include the command category.."),
-			default: false
+		'screencastMode.keyboardShortcutsPrefix': {
+			enum: ['none', 'commandTitle', 'categoryAndTitle'],
+			enumDescriptions: [
+				localize('keyboardShortcutsPrefix.none', "Don't prefix keyboard shortcuts."),
+				localize('keyboardShortcutsPrefix.commandTitle', "Prefix keyboard shortcuts with the command title."),
+				localize('keyboardShortcutsPrefix.categoryAndTitle', "Prefix keyboard shortcuts with both the command category and title.")
+			],
+			description: localize('screencastMode.keyboardShortcutsPrefix', "Controls how keyboard shortcuts are prefixed in screencast mode."),
+			default: 'none'
 		},
 		'screencastMode.keyboardOverlayTimeout': {
 			type: 'number',
