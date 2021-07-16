@@ -15,9 +15,10 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ConfirmOnKill, KEYBINDING_CONTEXT_TERMINAL_EDITOR_FOCUS } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ConfirmOnKill } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 
 export class TerminalEditorInput extends EditorInput {
 
@@ -91,7 +92,7 @@ export class TerminalEditorInput extends EditorInput {
 	) {
 		super();
 
-		this._terminalEditorFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_EDITOR_FOCUS.bindTo(contextKeyService);
+		this._terminalEditorFocusContextKey = TerminalContextKeys.KEYBINDING_CONTEXT_TERMINAL_EDITOR_FOCUS.bindTo(contextKeyService);
 
 		this._register(toDisposable(() => {
 			if (!this._isDetached && !this._isShuttingDown) {
