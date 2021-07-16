@@ -269,7 +269,7 @@ class BrowserMain extends Disposable {
 
 			logService.logger = new MultiplexLogService(coalesce([
 				new ConsoleLogger(logService.getLevel()),
-				new FileLogger('window', environmentService.logFile, logService.getLevel(), fileService),
+				new FileLogger('window', environmentService.logFile, logService.getLevel(), false, fileService),
 				// Extension development test CLI: forward everything to test runner
 				environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI ? new ConsoleLogInAutomationLogger(logService.getLevel()) : undefined
 			]));
