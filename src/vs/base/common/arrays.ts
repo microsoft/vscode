@@ -556,12 +556,12 @@ export function mapFind<T, R>(array: Iterable<T>, mapFn: (value: T) => R | undef
 }
 
 /**
- * Insert the new items to array, the insertion be performed on the original array directly, the alternative insertArray() method will return a new array.
+ * Insert the new items in the array.
  * @param array The original array.
  * @param start The zero-based location in the array from which to start inserting elements.
  * @param newItems The items to be inserted
  */
-export function insertArray2<T>(array: T[], start: number, newItems: T[]): void {
+export function insertInto<T>(array: T[], start: number, newItems: T[]): void {
 	const startIdx = getActualStartIndex(array, start);
 	const originalLength = array.length;
 	const newItemsLength = newItems.length;
@@ -585,10 +585,10 @@ export function insertArray2<T>(array: T[], start: number, newItems: T[]): void 
  * @returns An array containing the elements that were deleted.
  */
 export function splice<T>(array: T[], start: number, deleteCount: number, newItems: T[]): T[] {
-	const startIdx = getActualStartIndex(array, start);
-	const deletedItems = array.splice(startIdx, deleteCount);
-	insertArray2(array, startIdx, newItems);
-	return deletedItems;
+	const index = getActualStartIndex(array, start);
+	const result = array.splice(index, deleteCount);
+	insertInto(array, index, newItems);
+	return result;
 }
 
 /**
@@ -599,19 +599,7 @@ export function splice<T>(array: T[], start: number, deleteCount: number, newIte
  * @param start The operation index.
  */
 function getActualStartIndex<T>(array: T[], start: number): number {
-	let startIndex: number;
-	if (start > array.length) {
-		startIndex = array.length;
-	} else if (start < 0) {
-		if ((start + array.length) < 0) {
-			startIndex = 0;
-		} else {
-			startIndex = start + array.length;
-		}
-	} else {
-		startIndex = start;
-	}
-	return startIndex;
+	return start < 0 ? Math.max(start + array.length, 0) : Math.min(start, array.length);
 }
 
 /**
