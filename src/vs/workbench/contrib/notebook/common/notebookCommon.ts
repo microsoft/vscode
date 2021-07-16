@@ -838,7 +838,6 @@ export const CellToolbarVisibility = 'notebook.cellToolbarVisibility';
 export type ShowCellStatusBarType = 'hidden' | 'visible' | 'visibleAfterExecute';
 export const ShowCellStatusBar = 'notebook.showCellStatusBar';
 export const NotebookTextDiffEditorPreview = 'notebook.diff.enablePreview';
-export const ExperimentalUseMarkdownRenderer = 'notebook.experimental.useMarkdownRenderer';
 export const ExperimentalInsertToolbarAlignment = 'notebook.experimental.insertToolbarAlignment';
 export const CompactView = 'notebook.compactView';
 export const FocusIndicator = 'notebook.cellFocusIndicator';
