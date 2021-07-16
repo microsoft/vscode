@@ -1163,19 +1163,25 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 			await renderers.render(this, this.element);
 
-			if (!hasPostedRenderedMathTelemetry) {
-				const hasRenderedMath = this.element.querySelector('.katex');
-				if (hasRenderedMath) {
-					hasPostedRenderedMathTelemetry = true;
-					postNotebookMessage<webviewMessages.ITelemetryFoundRenderedMarkdownMath>('telemetryFoundRenderedMarkdownMath', {});
-				}
-			}
+			if (this.mime === 'text/markdown') {
+				const root = this.element.shadowRoot;
+				if (root) {
+					if (!hasPostedRenderedMathTelemetry) {
+						const hasRenderedMath = root.querySelector('.katex');
+						if (hasRenderedMath) {
+							hasPostedRenderedMathTelemetry = true;
+							postNotebookMessage<webviewMessages.ITelemetryFoundRenderedMarkdownMath>('telemetryFoundRenderedMarkdownMath', {});
+						}
+					}
 
-			const matches = this.element.innerText.match(unsupportedKatexTermsRegex);
-			if (matches) {
-				postNotebookMessage<webviewMessages.ITelemetryFoundUnrenderedMarkdownMath>('telemetryFoundUnrenderedMarkdownMath', {
-					latexDirective: matches[0],
-				});
+					const innerText = root.querySelector<HTMLElement>('#preview')?.innerText;
+					const matches = innerText?.match(unsupportedKatexTermsRegex);
+					if (matches) {
+						postNotebookMessage<webviewMessages.ITelemetryFoundUnrenderedMarkdownMath>('telemetryFoundUnrenderedMarkdownMath', {
+							latexDirective: matches[0],
+						});
+					}
+				}
 			}
 
 			dimensionUpdater.updateHeight(this.id, this.element.offsetHeight, {
