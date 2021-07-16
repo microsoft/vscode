@@ -682,8 +682,11 @@ import { assertNoRpc } from '../utils';
 						return;
 					}
 					data += sanitizeData(e.data);
+					console.log(`new data: "${e.data}"`);
+					console.log(`all data: "${data}"`);
 					// Multiple expected could show up in the same data event
 					while (expectedText.length > 0 && data.indexOf(expectedText[0]) >= 0) {
+						console.log(`found, shift expected: "${expectedText[0]}"`);
 						expectedText.shift();
 						// Check if all string are found, if so finish the test
 						if (expectedText.length === 0) {
