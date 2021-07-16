@@ -7,7 +7,10 @@
 			}
 		},
 		{
-			"scope": ["meta.embedded", "source.groovy.embedded"],
+			"scope": [
+				"meta.embedded",
+				"source.groovy.embedded"
+			],
 			"settings": {
 				"foreground": "#657B83"
 			}
@@ -315,15 +318,12 @@
 		}
 	],
 	"colors": {
-
 		// Base
 		// "foreground": "",
 		"focusBorder": "#D3AF86",
 		// "contrastActiveBorder": "",
 		// "contrastBorder": "",
-
 		// "widget.shadow": "",
-
 		"input.background": "#DDD6C1",
 		// "input.border": "",
 		"input.foreground": "#586E75",
@@ -335,31 +335,24 @@
 		// "inputValidation.warningBorder": "",
 		// "inputValidation.errorBackground": "",
 		// "inputValidation.errorBorder": "",
-
 		"badge.background": "#B58900AA",
 		"progressBar.background": "#B58900",
-
 		"dropdown.background": "#EEE8D5",
 		// "dropdown.foreground": "",
 		"dropdown.border": "#D3AF86",
-
 		"button.background": "#AC9D57",
 		// "button.foreground": "",
-
-		"selection.background": "#CCC4B0",
-
+		"selection.background": "#878b9180",
 		"list.activeSelectionBackground": "#DFCA88",
 		"list.activeSelectionForeground": "#6C6C6C",
 		"quickInputList.focusBackground": "#DFCA8866",
 		"list.hoverBackground": "#DFCA8844",
 		"list.inactiveSelectionBackground": "#D1CBB8",
 		"list.highlightForeground": "#B58900",
-
 		// "scrollbar.shadow": "",
 		// "scrollbarSlider.activeBackground": "",
 		// "scrollbarSlider.background": "",
 		// "scrollbarSlider.hoverBackground": "",
-
 		// Editor
 		"editor.background": "#FDF6E3",
 		// "editor.foreground": "#6688cc",
@@ -389,14 +382,12 @@
 		// "editor.selectionHighlightBackground": "",
 		// "editor.wordHighlightBackground": "",
 		// "editor.wordHighlightStrongBackground": "",
-
 		// Editor: Suggest Widget
 		// "editorSuggestWidget.background": "",
 		// "editorSuggestWidget.border": "",
 		// "editorSuggestWidget.foreground": "",
 		// "editorSuggestWidget.highlightForeground": "",
 		// "editorSuggestWidget.selectedBackground": "",
-
 		// Editor: Peek View
 		"peekViewResult.background": "#EEE8D5",
 		// "peekViewResult.lineForeground": "",
@@ -410,25 +401,21 @@
 		// "peekViewResult.matchHighlightBackground": "",
 		// "peekViewTitleLabel.foreground": "",
 		// "peekViewTitleDescription.foreground": "",
-
 		// Editor: Diff
 		// "diffEditor.insertedTextBackground": "",
 		// "diffEditor.insertedTextBorder": "",
 		// "diffEditor.removedTextBackground": "",
 		// "diffEditor.removedTextBorder": "",
-
 		// Workbench: Title
 		"titleBar.activeBackground": "#EEE8D5",
 		// "titleBar.activeForeground": "",
 		// "titleBar.inactiveBackground": "",
 		// "titleBar.inactiveForeground": "",
-
 		// Workbench: Editors
 		// "editorGroupHeader.noTabsBackground": "",
 		"editorGroup.border": "#DDD6C1",
 		"editorGroup.dropBackground": "#DDD6C1AA",
 		"editorGroupHeader.tabsBackground": "#D9D2C2",
-
 		// Workbench: Tabs
 		"tab.border": "#DDD6C1",
 		"tab.activeBackground": "#FDF6E3",
@@ -439,25 +426,21 @@
 		// "tab.activeForeground": "",
 		// "tab.inactiveForeground": "",
 		"tab.lastPinnedBorder": "#FDF6E3",
-
 		// Workbench: Activity Bar
 		"activityBar.background": "#DDD6C1",
 		"activityBar.foreground": "#584c27",
 		"activityBarBadge.background": "#B58900",
 		// "activityBarBadge.foreground": "",
-
 		// Workbench: Panel
 		// "panel.background": "",
 		"panel.border": "#DDD6C1",
 		// "panelTitle.activeBorder": "",
 		// "panelTitle.activeForeground": "",
 		// "panelTitle.inactiveForeground": "",
-
 		// Workbench: Side Bar
 		"sideBar.background": "#EEE8D5",
 		"sideBarTitle.foreground": "#586E75",
 		// "sideBarSectionHeader.background": "",
-
 		// Workbench: Status Bar
 		"statusBar.foreground": "#586E75",
 		"statusBar.background": "#EEE8D5",
@@ -465,25 +448,21 @@
 		"statusBar.noFolderBackground": "#EEE8D5",
 		// "statusBar.foreground": "",
 		"statusBarItem.remoteBackground": "#AC9D57",
-		"ports.iconRunningProcessforeground": "#2AA19899",
+		"ports.iconRunningProcessForeground": "#2AA19899",
 		"statusBarItem.prominentBackground": "#DDD6C1",
 		"statusBarItem.prominentHoverBackground": "#DDD6C199",
 		// "statusBarItem.activeBackground": "",
 		// "statusBarItem.hoverBackground": "",
-
 		// Workbench: Debug
 		"debugToolBar.background": "#DDD6C1",
 		"debugExceptionWidget.background": "#DDD6C1",
 		"debugExceptionWidget.border": "#AB395B",
-
 		// Workbench: Quick Open
 		"pickerGroup.border": "#2AA19899",
 		"pickerGroup.foreground": "#2AA19899",
-
 		// Extensions
 		"extensionButton.prominentBackground": "#b58900",
 		"extensionButton.prominentHoverBackground": "#584c27aa",
-
 		// Workbench: Terminal
 		// Colors sourced from the official palette http://ethanschoonover.com/solarized
 		"terminal.ansiBlack": "#073642",
@@ -502,7 +481,6 @@
 		"terminal.ansiBrightMagenta": "#6c71c4",
 		"terminal.ansiBrightCyan": "#93a1a1",
 		"terminal.ansiBrightWhite": "#eee8d5",
-
 		// Interactive Playground
 		"walkThrough.embeddedEditorBackground": "#00000014"
 	},

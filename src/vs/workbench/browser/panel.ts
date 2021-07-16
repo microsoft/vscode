@@ -10,7 +10,7 @@ import { IConstructorSignature0, BrandedService, IInstantiationService } from 'v
 import { assertIsDefined } from 'vs/base/common/types';
 import { PaneComposite } from 'vs/workbench/browser/panecomposite';
 import { IAction, Separator } from 'vs/base/common/actions';
-import { CompositeMenuActions } from 'vs/workbench/browser/menuActions';
+import { CompositeMenuActions } from 'vs/workbench/browser/actions';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IStorageService } from 'vs/platform/storage/common/storage';

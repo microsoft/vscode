@@ -43,8 +43,9 @@
 
 	/**
 	 * @param {string | undefined} appRoot
+	 * @param {boolean} alwaysAddASARPath
 	 */
-	function enableASARSupport(appRoot) {
+	function enableASARSupport(appRoot, alwaysAddASARPath) {
 		if (!path || !Module || typeof process === 'undefined') {
 			console.warn('enableASARSupport() is only available in node.js environments'); // TODO@sandbox ASAR is currently non-sandboxed only
 			return;
@@ -69,11 +70,16 @@
 		Module._resolveLookupPaths = function (request, parent) {
 			const paths = originalResolveLookupPaths(request, parent);
 			if (Array.isArray(paths)) {
+				let asarPathAdded = false;
 				for (let i = 0, len = paths.length; i < len; i++) {
 					if (paths[i] === NODE_MODULES_PATH) {
+						asarPathAdded = true;
 						paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
 						break;
 					}
+				}
+				if (alwaysAddASARPath && !asarPathAdded) {
+					paths.push(NODE_MODULES_ASAR_PATH);
 				}
 			}
 

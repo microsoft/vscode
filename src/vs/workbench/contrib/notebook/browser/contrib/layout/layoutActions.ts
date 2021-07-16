@@ -8,7 +8,7 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { INotebookActionContext, NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { CellToolbarLocKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellToolbarLocation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const TOGGLE_CELL_TOOLBAR_POSITION = 'notebook.toggleCellToolbarPosition';
 
@@ -31,11 +31,11 @@ export class ToggleCellToolbarPositionAction extends Action2 {
 		const editor = context && context.ui ? (context as INotebookActionContext).notebookEditor : undefined;
 		if (editor && editor.hasModel()) {
 			// from toolbar
-			const viewType = editor.viewModel.viewType;
+			const viewType = editor.textModel.viewType;
 			const configurationService = accessor.get(IConfigurationService);
-			const toolbarPosition = configurationService.getValue<string | { [key: string]: string }>(CellToolbarLocKey);
+			const toolbarPosition = configurationService.getValue<string | { [key: string]: string }>(CellToolbarLocation);
 			const newConfig = this.togglePosition(viewType, toolbarPosition);
-			await configurationService.updateValue(CellToolbarLocKey, newConfig);
+			await configurationService.updateValue(CellToolbarLocation, newConfig);
 		}
 	}
 

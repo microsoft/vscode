@@ -40,6 +40,7 @@ import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/
 import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentServiceImpl';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { getSingleFolderWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
+import { IUserConfigurationFileService, UserConfigurationFileService } from 'vs/platform/configuration/common/userConfigurationFileService';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
@@ -100,6 +101,7 @@ suite('ConfigurationEditingService', () => {
 		instantiationService.stub(ITextFileService, disposables.add(instantiationService.createInstance(TestTextFileService)));
 		instantiationService.stub(ITextModelService, <ITextModelService>disposables.add(instantiationService.createInstance(TextModelResolverService)));
 		instantiationService.stub(ICommandService, CommandService);
+		instantiationService.stub(IUserConfigurationFileService, new UserConfigurationFileService(environmentService, fileService, logService));
 		testObject = instantiationService.createInstance(ConfigurationEditingService);
 	});
 
@@ -153,11 +155,6 @@ suite('ConfigurationEditingService', () => {
 		} catch (error) {
 			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY);
 		}
-	});
-
-	test('dirty error is not thrown if not asked to save', async () => {
-		instantiationService.stub(ITextFileService, 'isDirty', true);
-		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotSave: true });
 	});
 
 	test('do not notify error', async () => {

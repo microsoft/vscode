@@ -26,7 +26,7 @@ export class TerminalRecorder {
 		this._entries = [{ cols, rows, data: [] }];
 	}
 
-	public recordResize(cols: number, rows: number): void {
+	recordResize(cols: number, rows: number): void {
 		if (this._entries.length > 0) {
 			const lastEntry = this._entries[this._entries.length - 1];
 			if (lastEntry.data.length === 0) {
@@ -52,7 +52,7 @@ export class TerminalRecorder {
 		this._entries.push({ cols, rows, data: [] });
 	}
 
-	public recordData(data: string): void {
+	recordData(data: string): void {
 		const lastEntry = this._entries[this._entries.length - 1];
 		lastEntry.data.push(data);
 
@@ -76,7 +76,7 @@ export class TerminalRecorder {
 		}
 	}
 
-	public generateReplayEvent(): IPtyHostProcessReplayEvent {
+	generateReplayEvent(): IPtyHostProcessReplayEvent {
 		// normalize entries to one element per data array
 		this._entries.forEach((entry) => {
 			if (entry.data.length > 0) {

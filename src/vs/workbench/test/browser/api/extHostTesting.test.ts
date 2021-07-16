@@ -4,25 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
-import { createDefaultDocumentTestRoot, TestItemFilteredWrapper } from 'vs/workbench/api/common/extHostTesting';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { Iterable } from 'vs/base/common/iterator';
+import { mockObject, MockObject } from 'vs/base/test/common/mock';
+import { MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
+import { TestRunConfigurationImpl, TestRunCoordinator, TestRunDto } from 'vs/workbench/api/common/extHostTesting';
 import * as convert from 'vs/workbench/api/common/extHostTypeConverters';
+import { TestMessage, TestResultState, TestRunConfigurationGroup } from 'vs/workbench/api/common/extHostTypes';
 import { TestDiffOpType, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
-import { stubTest, TestItemImpl, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
-import { TestOwnedTestCollection, TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
-import { TestItem, TextDocument } from 'vscode';
+import { TestItemImpl, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
+import { TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
+import type { TestItem, TestRunRequest } from 'vscode';
 
-const simplify = (item: TestItem<unknown>) => ({
+const simplify = (item: TestItem) => ({
 	id: item.id,
 	label: item.label,
 	uri: item.uri,
 	range: item.range,
-	runnable: item.runnable,
-	debuggable: item.debuggable,
 });
 
-const assertTreesEqual = (a: TestItem<unknown> | undefined, b: TestItem<unknown> | undefined) => {
+const assertTreesEqual = (a: TestItem | undefined, b: TestItem | undefined) => {
 	if (!a) {
 		throw new assert.AssertionError({ message: 'Expected a to be defined', actual: a });
 	}
@@ -33,8 +35,8 @@ const assertTreesEqual = (a: TestItem<unknown> | undefined, b: TestItem<unknown>
 
 	assert.deepStrictEqual(simplify(a), simplify(b));
 
-	const aChildren = [...a.children.keys()].slice().sort();
-	const bChildren = [...b.children.keys()].slice().sort();
+	const aChildren = a.children.all.map(c => c.id).sort();
+	const bChildren = b.children.all.map(c => c.id).sort();
 	assert.strictEqual(aChildren.length, bChildren.length, `expected ${a.label}.children.length == ${b.label}.children.length`);
 	aChildren.forEach(key => assertTreesEqual(a.children.get(key), b.children.get(key)));
 };
@@ -59,38 +61,34 @@ const assertTreesEqual = (a: TestItem<unknown> | undefined, b: TestItem<unknown>
 
 suite('ExtHost Testing', () => {
 	let single: TestSingleUseCollection;
-	let owned: TestOwnedTestCollection;
 	setup(() => {
-		owned = new TestOwnedTestCollection();
-		single = owned.createForHierarchy(d => single.setDiff(d /* don't clear during testing */));
+		single = testStubs.nested();
+		single.onDidGenerateDiff(d => single.setDiff(d /* don't clear during testing */));
 	});
 
 	teardown(() => {
 		single.dispose();
-		assert.strictEqual(!owned.idToInternal?.size, true, 'expected owned ids to be empty after dispose');
 	});
 
 	suite('OwnedTestCollection', () => {
-		test('adds a root recursively', () => {
-			const tests = testStubs.nested();
-			single.addRoot(tests, 'pid');
-			single.expand('id-root', Infinity);
+		test('adds a root recursively', async () => {
+			await single.expand(single.root.id, Infinity);
 			assert.deepStrictEqual(single.collectDiff(), [
 				[
 					TestDiffOpType.Add,
-					{ src: { tree: 0, controller: 'pid' }, parent: null, expand: TestItemExpandState.BusyExpanding, item: { ...convert.TestItem.from(stubTest('root')) } }
+					{ controllerId: 'ctrlId', parent: null, expand: TestItemExpandState.BusyExpanding, item: { ...convert.TestItem.from(single.root) } }
 				],
 				[
 					TestDiffOpType.Add,
-					{ src: { tree: 0, controller: 'pid' }, parent: 'id-root', expand: TestItemExpandState.Expandable, item: { ...convert.TestItem.from(stubTest('a')) } }
+					{ controllerId: 'ctrlId', parent: single.root.id, expand: TestItemExpandState.Expandable, item: { ...convert.TestItem.from(single.tree.get('id-a')!.actual) } }
 				],
 				[
 					TestDiffOpType.Add,
-					{ src: { tree: 0, controller: 'pid' }, parent: 'id-root', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(stubTest('b')) }
+					{ controllerId: 'ctrlId', parent: single.root.id, expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(single.tree.get('id-b')!.actual) }
 				],
 				[
 					TestDiffOpType.Update,
-					{ extId: 'id-root', expand: TestItemExpandState.Expanded }
+					{ extId: single.root.id, expand: TestItemExpandState.Expanded }
 				],
 				[
 					TestDiffOpType.Update,
@@ -98,11 +96,11 @@ suite('ExtHost Testing', () => {
 				],
 				[
 					TestDiffOpType.Add,
-					{ src: { tree: 0, controller: 'pid' }, parent: 'id-a', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(stubTest('aa')) }
+					{ controllerId: 'ctrlId', parent: 'id-a', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(single.tree.get('id-aa')!.actual) }
 				],
 				[
 					TestDiffOpType.Add,
-					{ src: { tree: 0, controller: 'pid' }, parent: 'id-a', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(stubTest('ab')) }
+					{ controllerId: 'ctrlId', parent: 'id-a', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(single.tree.get('id-ab')!.actual) }
 				],
 				[
 					TestDiffOpType.Update,
@@ -111,19 +109,25 @@ suite('ExtHost Testing', () => {
 			]);
 		});
 
+		test('parents are set correctly', () => {
+			single.expand(single.root.id, Infinity);
+			single.collectDiff();
+
+			const a = single.root.children.get('id-a')!;
+			const ab = a.children.get('id-ab')!;
+			assert.strictEqual(a.parent, undefined);
+			assert.strictEqual(ab.parent, a);
+		});
+
 		test('no-ops if items not changed', () => {
-			const tests = testStubs.nested();
-			single.addRoot(tests, 'pid');
 			single.collectDiff();
 			assert.deepStrictEqual(single.collectDiff(), []);
 		});
 
 		test('watches property mutations', () => {
-			const tests = testStubs.nested();
-			single.addRoot(tests, 'pid');
-			single.expand('id-root', Infinity);
+			single.expand(single.root.id, Infinity);
 			single.collectDiff();
-			tests.children.get('id-a')!.description = 'Hello world'; /* item a */
+			single.root.children.get('id-a')!.description = 'Hello world'; /* item a */
 
 			assert.deepStrictEqual(single.collectDiff(), [
 				[
@@ -133,40 +137,137 @@ suite('ExtHost Testing', () => {
 		});
 
 		test('removes children', () => {
-			const tests = testStubs.nested();
-			single.addRoot(tests, 'pid');
-			single.expand('id-root', Infinity);
+			single.expand(single.root.id, Infinity);
 			single.collectDiff();
-			tests.children.get('id-a')!.dispose();
+			single.root.children.remove('id-a');
 
 			assert.deepStrictEqual(single.collectDiff(), [
 				[TestDiffOpType.Remove, 'id-a'],
 			]);
-			assert.deepStrictEqual([...owned.idToInternal].map(n => n.item.extId).sort(), ['id-b', 'id-root']);
-			assert.strictEqual(single.itemToInternal.size, 2);
+			assert.deepStrictEqual([...single.tree].map(n => n.actual.id).sort(), [single.root.id, 'id-b']);
+			assert.strictEqual(single.tree.size, 2);
 		});
 
 		test('adds new children', () => {
-			const tests = testStubs.nested();
-			single.addRoot(tests, 'pid');
-			single.expand('id-root', Infinity);
+			single.expand(single.root.id, Infinity);
 			single.collectDiff();
-			const child = stubTest('ac');
-			tests.children.get('id-a')!.addChild(child);
+			const child = new TestItemImpl('id-ac', 'c', undefined);
+			single.root.children.get('id-a')!.children.add(child);
 
 			assert.deepStrictEqual(single.collectDiff(), [
 				[TestDiffOpType.Add, {
-					src: { tree: 0, controller: 'pid' },
+					controllerId: 'ctrlId',
 					parent: 'id-a',
 					expand: TestItemExpandState.NotExpandable,
 					item: convert.TestItem.from(child),
 				}],
 			]);
 			assert.deepStrictEqual(
-				[...owned.idToInternal].map(n => n.item.extId).sort(),
-				['id-a', 'id-aa', 'id-ab', 'id-ac', 'id-b', 'id-root'],
+				[...single.tree].map(n => n.actual.id).sort(),
+				[single.root.id, 'id-a', 'id-aa', 'id-ab', 'id-ac', 'id-b'],
 			);
-			assert.strictEqual(single.itemToInternal.size, 6);
+			assert.strictEqual(single.tree.size, 6);
+		});
+
+		test('treats in-place replacement as mutation', () => {
+			single.expand(single.root.id, Infinity);
+			single.collectDiff();
+
+			const oldA = single.root.children.get('id-a')!;
+			const newA = new TestItemImpl('id-a', 'Hello world', undefined);
+			newA.children.all = oldA.children.all;
+			single.root.children.all = [
+				newA,
+				new TestItemImpl('id-b', single.root.children.get('id-b')!.label, undefined),
+			];
+
+			assert.deepStrictEqual(single.collectDiff(), [
+				[
+					TestDiffOpType.Update,
+					{ extId: 'id-a', expand: TestItemExpandState.Expanded, item: { label: 'Hello world' } },
+				],
+			]);
+
+			newA.label = 'still connected';
+			assert.deepStrictEqual(single.collectDiff(), [
+				[
+					TestDiffOpType.Update,
+					{ extId: 'id-a', item: { label: 'still connected' } }
+				],
+			]);
+
+			oldA.label = 'no longer connected';
+			assert.deepStrictEqual(single.collectDiff(), []);
+		});
+
+		test('treats in-place replacement as mutation deeply', () => {
+			single.expand(single.root.id, Infinity);
+			single.collectDiff();
+
+			const oldA = single.root.children.get('id-a')!;
+			const newA = new TestItemImpl('id-a', single.root.children.get('id-a')!.label, undefined);
+			const oldAA = oldA.children.get('id-aa')!;
+			const oldAB = oldA.children.get('id-ab')!;
+			const newAB = new TestItemImpl('id-ab', 'Hello world', undefined);
+			newA.children.all = [oldAA, newAB];
+			single.root.children.all = [newA, single.root.children.get('id-b')!];
+
+			assert.deepStrictEqual(single.collectDiff(), [
+				[
+					TestDiffOpType.Update,
+					{ extId: 'id-a', expand: TestItemExpandState.Expanded },
+				],
+				[
+					TestDiffOpType.Update,
+					{ extId: 'id-ab', item: { label: 'Hello world' } },
+				],
+			]);
+
+			oldAA.label = 'still connected1';
+			newAB.label = 'still connected2';
+			oldAB.label = 'not connected3';
+			assert.deepStrictEqual(single.collectDiff(), [
+				[
+					TestDiffOpType.Update,
+					{ extId: 'id-aa', item: { label: 'still connected1' } }
+				],
+				[
+					TestDiffOpType.Update,
+					{ extId: 'id-ab', item: { label: 'still connected2' } }
+				],
+			]);
+
+			assert.strictEqual(newAB.parent, newA);
+			assert.strictEqual(oldAA.parent, newA);
+			assert.deepStrictEqual(newA.parent, undefined);
+		});
+
+		test('moves an item to be a new child', () => {
+			single.collectDiff();
+			const b = single.root.children.get('id-b')!;
+			const a = single.root.children.get('id-a')!;
+			a.children.add(b);
+			assert.deepStrictEqual(single.collectDiff(), [
+				[
+					TestDiffOpType.Remove,
+					'id-b',
+				],
+				[
+					TestDiffOpType.Add,
+					{ controllerId: 'ctrlId', parent: 'id-a', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(single.tree.get('id-b')!.actual) }
+				],
+			]);
+
+			b.label = 'still connected';
+			assert.deepStrictEqual(single.collectDiff(), [
+				[
+					TestDiffOpType.Update,
+					{ extId: 'id-b', item: { label: 'still connected' } }
+				],
+			]);
+
+			assert.deepStrictEqual(single.root.children.all, [single.root.children.get('id-a')]);
+			assert.deepStrictEqual(b.parent, a);
 		});
 	});
 
@@ -179,9 +280,9 @@ suite('ExtHost Testing', () => {
 		// 	test('mirrors creation of the root', () => {
 		// 		const tests = testStubs.nested();
 		// 		single.addRoot(tests, 'pid');
-		// 		single.expand('id-root', Infinity);
+		// 		single.expand(single.root.id, Infinity);
 		// 		m.apply(single.collectDiff());
-		// 		assertTreesEqual(m.rootTestItems[0], owned.getTestById('id-root')![1].actual);
+		// 		assertTreesEqual(m.rootTestItems[0], owned.getTestById(single.root.id)![1].actual);
 		// 		assert.strictEqual(m.length, single.itemToInternal.size);
 		// 	});
 
@@ -189,13 +290,13 @@ suite('ExtHost Testing', () => {
 		// 		const tests = testStubs.nested();
 		// 		single.addRoot(tests, 'pid');
 		// 		m.apply(single.collectDiff());
-		// 		single.expand('id-root', Infinity);
+		// 		single.expand(single.root.id, Infinity);
 		// 		tests.children!.splice(0, 1);
 		// 		single.onItemChange(tests, 'pid');
-		// 		single.expand('id-root', Infinity);
+		// 		single.expand(single.root.id, Infinity);
 		// 		m.apply(single.collectDiff());
 
-		// 		assertTreesEqual(m.rootTestItems[0], owned.getTestById('id-root')![1].actual);
+		// 		assertTreesEqual(m.rootTestItems[0], owned.getTestById(single.root.id)![1].actual);
 		// 		assert.strictEqual(m.length, single.itemToInternal.size);
 		// 	});
 
@@ -207,7 +308,7 @@ suite('ExtHost Testing', () => {
 		// 		single.onItemChange(tests, 'pid');
 		// 		m.apply(single.collectDiff());
 
-		// 		assertTreesEqual(m.rootTestItems[0], owned.getTestById('id-root')![1].actual);
+		// 		assertTreesEqual(m.rootTestItems[0], owned.getTestById(single.root.id)![1].actual);
 		// 		assert.strictEqual(m.length, single.itemToInternal.size);
 		// 	});
 
@@ -219,7 +320,7 @@ suite('ExtHost Testing', () => {
 		// 		single.onItemChange(tests, 'pid');
 		// 		m.apply(single.collectDiff());
 
-		// 		assertTreesEqual(m.rootTestItems[0], owned.getTestById('id-root')![1].actual);
+		// 		assertTreesEqual(m.rootTestItems[0], owned.getTestById(single.root.id)![1].actual);
 		// 	});
 
 		// 	suite('MirroredChangeCollector', () => {
@@ -305,122 +406,162 @@ suite('ExtHost Testing', () => {
 		// 			m.apply(single.collectDiff());
 		// 		});
 		// 	});
+	});
 
-		suite('TestItemFilteredWrapper', () => {
-			const textDocumentFilter = {
-				uri: URI.parse('file:///foo.ts'),
-			} as TextDocument;
+	suite('TestRunTracker', () => {
+		let proxy: MockObject<MainThreadTestingShape>;
+		let c: TestRunCoordinator;
+		let cts: CancellationTokenSource;
+		let configuration: TestRunConfigurationImpl;
 
-			let testsWithLocation: TestItemImpl;
-			setup(async () => {
-				testsWithLocation =
-					stubTest('root', undefined, [
-						stubTest('a', undefined, [
-							stubTest('aa', undefined, undefined, URI.parse('file:///foo.ts')),
-							stubTest('ab', undefined, undefined, URI.parse('file:///foo.ts'))
-						], URI.parse('file:///foo.ts')),
-						stubTest('b', undefined, [
-							stubTest('ba', undefined, undefined, URI.parse('file:///bar.ts')),
-							stubTest('bb', undefined, undefined, URI.parse('file:///bar.ts'))
-						], URI.parse('file:///bar.ts')),
-						stubTest('c', undefined, undefined, URI.parse('file:///baz.ts')),
-					]);
+		let req: TestRunRequest;
 
-				// todo: this is not used, don't think it's needed anymore
-				await createDefaultDocumentTestRoot<void>(
-					{
-						createWorkspaceTestRoot: () => testsWithLocation as TestItem<void>,
-						runTests() {
-							throw new Error('no implemented');
-						}
-					},
-					textDocumentFilter,
-					undefined,
-					CancellationToken.None
-				);
-			});
+		let dto: TestRunDto;
 
-			teardown(() => {
-				TestItemFilteredWrapper.removeFilter(textDocumentFilter);
-			});
+		setup(() => {
+			proxy = mockObject();
+			cts = new CancellationTokenSource();
+			c = new TestRunCoordinator(proxy);
 
-			test('gets all actual properties', () => {
-				const testItem = stubTest('test1');
-				const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(testItem, textDocumentFilter);
+			configuration = new TestRunConfigurationImpl(mockObject<MainThreadTestingShape, {}>(), 'ctrlId', 42, 'Do Run', TestRunConfigurationGroup.Run, () => { }, false);
 
-				assert.strictEqual(testItem.debuggable, wrapper.debuggable);
-				assert.strictEqual(testItem.description, wrapper.description);
-				assert.strictEqual(testItem.label, wrapper.label);
-				assert.strictEqual(testItem.uri, wrapper.uri);
-				assert.strictEqual(testItem.runnable, wrapper.runnable);
-			});
+			req = {
+				include: undefined,
+				exclude: [single.root.children.get('id-b')!],
+				configuration,
+			};
 
-			test('gets no children if nothing matches Uri filter', () => {
-				const tests = testStubs.nested();
-				const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(tests, textDocumentFilter);
-				wrapper.resolveHandler?.(CancellationToken.None);
-				assert.strictEqual(wrapper.children.size, 0);
-			});
+			dto = TestRunDto.fromInternal({
+				controllerId: 'ctrl',
+				configId: configuration.configId,
+				excludeExtIds: ['id-b'],
+				runId: 'run-id',
+				testIds: [single.root.id],
+			}, single);
+		});
 
-			test('filter is applied to children', () => {
-				const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(testsWithLocation, textDocumentFilter);
-				assert.strictEqual(wrapper.label, 'root');
-				wrapper.resolveHandler?.(CancellationToken.None);
+		test('tracks a run started from a main thread request', () => {
+			const tracker = c.prepareForMainThreadTestRun(req, dto, cts.token);
+			assert.strictEqual(tracker.isRunning, false);
 
-				const children = [...wrapper.children.values()];
-				assert.strictEqual(children.length, 1);
-				assert.strictEqual(children[0] instanceof TestItemFilteredWrapper, true);
-				assert.strictEqual(children[0].label, 'a');
-			});
+			const task1 = c.createTestRun('ctrl', single, req, 'run1', true);
+			const task2 = c.createTestRun('ctrl', single, req, 'run2', true);
+			assert.strictEqual(proxy.$startedExtensionTestRun.called, false);
+			assert.strictEqual(tracker.isRunning, true);
 
-			test('can get if node has matching filter', () => {
-				const rootWrapper = TestItemFilteredWrapper.getWrapperForTestItem(testsWithLocation, textDocumentFilter);
-				rootWrapper.resolveHandler?.(CancellationToken.None);
+			task1.appendOutput('hello');
+			assert.deepStrictEqual([['run-id', (task1 as any).taskId, VSBuffer.fromString('hello')]], proxy.$appendOutputToRun.args);
+			task1.end();
 
-				const invisible = testsWithLocation.children.get('id-b')!;
-				const invisibleWrapper = TestItemFilteredWrapper.getWrapperForTestItem(invisible, textDocumentFilter);
-				const visible = testsWithLocation.children.get('id-a')!;
-				const visibleWrapper = TestItemFilteredWrapper.getWrapperForTestItem(visible, textDocumentFilter);
+			assert.strictEqual(proxy.$finishedExtensionTestRun.called, false);
+			assert.strictEqual(tracker.isRunning, true);
 
-				// The root is always visible
-				assert.strictEqual(rootWrapper.hasNodeMatchingFilter, true);
-				assert.strictEqual(invisibleWrapper.hasNodeMatchingFilter, false);
-				assert.strictEqual(visibleWrapper.hasNodeMatchingFilter, true);
-			});
+			task2.end();
 
-			test('can reset cached value of hasNodeMatchingFilter', () => {
-				const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(testsWithLocation, textDocumentFilter);
-				wrapper.resolveHandler?.(CancellationToken.None);
+			assert.strictEqual(proxy.$finishedExtensionTestRun.called, false);
+			assert.strictEqual(tracker.isRunning, false);
+		});
 
-				const invisible = testsWithLocation.children.get('id-b')!;
-				const invisibleWrapper = TestItemFilteredWrapper.getWrapperForTestItem(invisible, textDocumentFilter);
+		test('tracks a run started from an extension request', () => {
+			const task1 = c.createTestRun('ctrl', single, req, 'hello world', false);
 
-				assert.strictEqual(wrapper.children.get('id-b'), undefined);
-				assert.strictEqual(invisibleWrapper.hasNodeMatchingFilter, false);
+			const tracker = Iterable.first(c.trackers)!;
+			assert.strictEqual(tracker.isRunning, true);
+			assert.deepStrictEqual(proxy.$startedExtensionTestRun.args, [
+				[{
+					config: { group: 2, id: 42 },
+					controllerId: 'ctrl',
+					id: tracker.id,
+					include: [single.root.id],
+					exclude: ['id-b'],
+					persist: false,
+				}]
+			]);
 
-				invisible.addChild(stubTest('bc', undefined, undefined, URI.parse('file:///foo.ts')));
-				assert.strictEqual(invisibleWrapper.hasNodeMatchingFilter, true);
-				assert.strictEqual(invisibleWrapper.children.size, 1);
-				assert.strictEqual(wrapper.children.get('id-b'), invisibleWrapper);
-			});
+			const task2 = c.createTestRun('ctrl', single, req, 'run2', true);
+			const task3Detached = c.createTestRun('ctrl', single, { ...req }, 'task3Detached', true);
 
-			// test('can reset cached value of hasNodeMatchingFilter of parents up to visible parent', () => {
-			// 	const rootWrapper = TestItemFilteredWrapper.getWrapperForTestItem(testsWithLocation, textDocumentFilter);
+			task1.end();
+			assert.strictEqual(proxy.$finishedExtensionTestRun.called, false);
+			assert.strictEqual(tracker.isRunning, true);
 
-			// 	const invisibleParent = testsWithLocation.children.get('id-b')!;
-			// 	const invisibleParentWrapper = TestItemFilteredWrapper.getWrapperForTestItem(invisibleParent, textDocumentFilter);
-			// 	const invisible = invisibleParent.children.get('id-bb')!;
-			// 	const invisibleWrapper = TestItemFilteredWrapper.getWrapperForTestItem(invisible, textDocumentFilter);
+			task2.end();
+			assert.deepStrictEqual(proxy.$finishedExtensionTestRun.args, [[tracker.id]]);
+			assert.strictEqual(tracker.isRunning, false);
 
-			// 	assert.strictEqual(invisibleParentWrapper.hasNodeMatchingFilter, false);
-			// 	invisible.location = location1 as any;
-			// 	assert.strictEqual(invisibleParentWrapper.hasNodeMatchingFilter, false);
-			// 	invisibleWrapper.reset();
-			// 	assert.strictEqual(invisibleParentWrapper.hasNodeMatchingFilter, true);
+			task3Detached.end();
+		});
 
-			// 	// the root should be undefined due to the reset.
-			// 	assert.strictEqual((rootWrapper as any).matchesFilter, undefined);
-			// });
+		test('adds tests to run smartly', () => {
+			const task1 = c.createTestRun('ctrl', single, req, 'hello world', false);
+			const tracker = Iterable.first(c.trackers)!;
+			const expectedArgs: unknown[][] = [];
+			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
+			single.expand(single.root.id, Infinity);
+
+			task1.setState(single.root.children.get('id-a')!.children.get('id-aa')!, TestResultState.Passed);
+			expectedArgs.push([
+				'ctrl',
+				tracker.id,
+				[
+					convert.TestItem.from(single.root),
+					convert.TestItem.from(single.root.children.get('id-a')!),
+					convert.TestItem.from(single.root.children.get('id-a')!.children.get('id-aa')!),
+				]
+			]);
+			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
+
+
+			task1.setState(single.root.children.get('id-a')!.children.get('id-ab')!, TestResultState.Queued);
+			expectedArgs.push([
+				'ctrl',
+				tracker.id,
+				[
+					convert.TestItem.from(single.root.children.get('id-a')!),
+					convert.TestItem.from(single.root.children.get('id-a')!.children.get('id-ab')!),
+				],
+			]);
+			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
+
+			task1.setState(single.root.children.get('id-a')!.children.get('id-ab')!, TestResultState.Passed);
+			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
+		});
+
+		test('guards calls after runs are ended', () => {
+			const task = c.createTestRun('ctrl', single, req, 'hello world', false);
+			task.end();
+
+			task.setState(single.root, TestResultState.Passed);
+			task.appendMessage(single.root, new TestMessage('some message'));
+			task.appendOutput('output');
+
+			assert.strictEqual(proxy.$addTestsToRun.called, false);
+			assert.strictEqual(proxy.$appendOutputToRun.called, false);
+			assert.strictEqual(proxy.$appendTestMessageInRun.called, false);
+		});
+
+		test('excludes tests outside tree or explicitly excluded', () => {
+			single.expand(single.root.id, Infinity);
+
+			const task = c.createTestRun('ctrl', single, {
+				configuration,
+				include: [single.root.children.get('id-a')!],
+				exclude: [single.root.children.get('id-a')!.children.get('id-aa')!],
+			}, 'hello world', false);
+
+			task.setState(single.root.children.get('b')!, TestResultState.Passed);
+			task.setState(single.root.children.get('id-a')!.children.get('id-aa')!, TestResultState.Passed);
+			task.setState(single.root.children.get('id-a')!.children.get('id-ab')!, TestResultState.Passed);
+
+			assert.deepStrictEqual(proxy.$updateTestStateInRun.args.length, 1);
+			const args = proxy.$updateTestStateInRun.args[0];
+			assert.deepStrictEqual(proxy.$updateTestStateInRun.args, [[
+				args[0],
+				args[1],
+				'id-ab',
+				TestResultState.Passed,
+				undefined,
+			]]);
 		});
 	});
 });

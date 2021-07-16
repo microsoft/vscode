@@ -7,7 +7,7 @@ import 'vs/css!./media/paneviewlet';
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
-import { attachButtonStyler, attachLinkStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
+import { attachButtonStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl } from 'vs/base/browser/dom';
 import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -40,7 +40,7 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { URI } from 'vs/base/common/uri';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
-import { CompositeMenuActions } from 'vs/workbench/browser/menuActions';
+import { CompositeMenuActions } from 'vs/workbench/browser/actions';
 
 export interface IViewPaneOptions extends IPaneOptions {
 	id: string;
@@ -445,6 +445,10 @@ export abstract class ViewPane extends Pane implements IView {
 		this.scrollableElement.scanDomNode();
 	}
 
+	onDidScrollRoot() {
+		// noop
+	}
+
 	getProgressIndicator() {
 		if (this.progressBar === undefined) {
 			// Progress bar
@@ -575,13 +579,12 @@ export abstract class ViewPane extends Pane implements IView {
 						if (typeof node === 'string') {
 							append(p, document.createTextNode(node));
 						} else {
-							const link = this.instantiationService.createInstance(Link, node);
+							const link = this.instantiationService.createInstance(Link, node, {});
 							append(p, link.el);
 							disposables.add(link);
-							disposables.add(attachLinkStyler(link, this.themeService));
 
 							if (precondition && node.href.startsWith('command:')) {
-								const updateEnablement = () => link.style({ disabled: !this.contextKeyService.contextMatchesRules(precondition) });
+								const updateEnablement = () => link.enabled = this.contextKeyService.contextMatchesRules(precondition);
 								updateEnablement();
 
 								const keys = new Set();

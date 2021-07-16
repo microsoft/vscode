@@ -12,6 +12,7 @@ steps:
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
+      SecretsFilter: "github-distro-mixin-password,builds-docdb-key-readwrite,vscode-storage-key,ESRP-PKI,esrp-aad-username,esrp-aad-password"
 
   - task: DownloadPipelineArtifact@2
     inputs:
@@ -48,7 +49,7 @@ steps:
 
   - task: Cache@2
     inputs:
-      key: 'nodeModules | $(Agent.OS) | .build/yarnlockhash'
+      key: "nodeModules | $(Agent.OS) | .build/yarnlockhash"
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
@@ -92,6 +93,7 @@ steps:
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
@@ -127,26 +129,31 @@ steps:
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
         yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
     displayName: Download Electron and Playwright
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
       set -e
-      DISPLAY=:10 ./scripts/test.sh --build --tfs "Unit Tests"
+      APP_ROOT=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
+      ELECTRON_ROOT=.build/electron
+      sudo chown root $APP_ROOT/chrome-sandbox
+      sudo chown root $ELECTRON_ROOT/chrome-sandbox
+      sudo chmod 4755 $APP_ROOT/chrome-sandbox
+      sudo chmod 4755 $ELECTRON_ROOT/chrome-sandbox
+      stat $APP_ROOT/chrome-sandbox
+      stat $ELECTRON_ROOT/chrome-sandbox
+    displayName: Change setuid helper binary permission
+
+  - script: |
+      set -e
+      ./scripts/test.sh --build --tfs "Unit Tests"
     displayName: Run unit tests (Electron)
     timeoutInMinutes: 7
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
       set -e
-      DISPLAY=:10 yarn test-browser --build --browser chromium --tfs "Browser Unit Tests"
+      yarn test-browser --build --browser chromium --tfs "Browser Unit Tests"
     displayName: Run unit tests (Browser)
     timeoutInMinutes: 7
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
-
-  - script: |
-      set -e
-      yarn --cwd test/integration/browser compile
-    displayName: Compile integration tests
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
@@ -159,7 +166,7 @@ steps:
       INTEGRATION_TEST_APP_NAME="$APP_NAME" \
       INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME" \
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)" \
-      DISPLAY=:10 ./scripts/test-integration.sh --build --tfs "Integration Tests"
+      ./scripts/test-integration.sh --build --tfs "Integration Tests"
     displayName: Run integration tests (Electron)
     timeoutInMinutes: 10
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
@@ -167,7 +174,7 @@ steps:
   - script: |
       set -e
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-linux-$(VSCODE_ARCH)" \
-      DISPLAY=:10 ./resources/server/test/test-web-integration.sh --browser chromium
+      ./resources/server/test/test-web-integration.sh --browser chromium
     displayName: Run integration tests (Browser)
     timeoutInMinutes: 10
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
@@ -179,18 +186,51 @@ steps:
       INTEGRATION_TEST_APP_NAME="$APP_NAME" \
       INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME" \
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)" \
-      DISPLAY=:10 ./resources/server/test/test-remote-integration.sh
+      ./resources/server/test/test-remote-integration.sh
     displayName: Run remote integration tests (Electron)
     timeoutInMinutes: 7
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
+  - script: |
+      set -e
+      APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
+      yarn smoketest-no-compile --build "$APP_PATH" --electronArgs="--disable-dev-shm-usage --use-gl=swiftshader"
+    timeoutInMinutes: 5
+    displayName: Run smoke tests (Electron)
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+  - script: |
+      set -e
+      APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
+      VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)" \
+      yarn smoketest-no-compile --build "$APP_PATH" --remote --electronArgs="--disable-dev-shm-usage --use-gl=swiftshader"
+    timeoutInMinutes: 5
+    displayName: Run smoke tests (Remote)
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+  - script: |
+      set -e
+      VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-linux-$(VSCODE_ARCH)" \
+      yarn smoketest-no-compile --web --headless --electronArgs="--disable-dev-shm-usage --use-gl=swiftshader"
+    timeoutInMinutes: 5
+    displayName: Run smoke tests (Browser)
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
   - task: PublishPipelineArtifact@0
     inputs:
-      artifactName: "crash-dump-linux-$(VSCODE_ARCH)"
+      artifactName: crash-dump-linux-$(VSCODE_ARCH)
       targetPath: .build/crashes
     displayName: "Publish Crash Reports"
     continueOnError: true
     condition: failed()
+
+  - task: PublishPipelineArtifact@0
+    inputs:
+      artifactName: logs-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
+      targetPath: .build/logs
+    displayName: "Publish Log Files"
+    continueOnError: true
+    condition: and(succeededOrFailed(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - task: PublishTestResults@2
     displayName: Publish Tests Results
@@ -212,30 +252,25 @@ steps:
     displayName: Prepare snap package
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  # needed for code signing
   - task: UseDotNet@2
-    displayName: "Install .NET Core SDK 2.x"
     inputs:
       version: 2.x
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
-    inputs:
-      ConnectedServiceName: "ESRP CodeSign"
-      FolderPath: ".build/linux/rpm"
-      Pattern: "*.rpm"
-      signConfigType: inlineSignParams
-      inlineOperation: |
-        [
-          {
-            "keyCode": "CP-450779-Pgp",
-            "operationSetCode": "LinuxSign",
-            "parameters": [ ],
-            "toolName": "sign",
-            "toolVersion": "1.0"
-          }
-        ]
-      SessionTimeout: 120
+  - task: EsrpClientTool@1
+    displayName: Download ESRPClient
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  - script: |
+      set -e
+      yarn --cwd build
+      yarn --cwd build compile
+    displayName: Compile build tools
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  - script: |
+      set -e
+      node build/azure-pipelines/common/sign "$(esrpclient.toolpath)/$(esrpclient.toolname)" rpm $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) .build/linux/rpm '*.rpm'
     displayName: Codesign rpm
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
@@ -245,27 +280,32 @@ steps:
       AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
       VSCODE_ARCH="$(VSCODE_ARCH)" \
-      ./build/azure-pipelines/linux/publish.sh
-    displayName: Publish
+      ./build/azure-pipelines/linux/prepare-publish.sh
+    displayName: Prepare for Publish
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - publish: $(DEB_PATH)
-    artifact: vscode-linux-deb-$(VSCODE_ARCH)
+    artifact: vscode_client_linux_$(VSCODE_ARCH)_deb-package
     displayName: Publish deb package
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - publish: $(RPM_PATH)
-    artifact: vscode-linux-rpm-$(VSCODE_ARCH)
+    artifact: vscode_client_linux_$(VSCODE_ARCH)_rpm-package
     displayName: Publish rpm package
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
+  - publish: $(TARBALL_PATH)
+    artifact: vscode_client_linux_$(VSCODE_ARCH)_archive-unsigned
+    displayName: Publish client archive
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
   - publish: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH).tar.gz
-    artifact: vscode-server-linux-$(VSCODE_ARCH)
+    artifact: vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
     displayName: Publish server archive
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - publish: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web.tar.gz
-    artifact: vscode-server-linux-$(VSCODE_ARCH)-web
+    artifact: vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
     displayName: Publish web server archive
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 

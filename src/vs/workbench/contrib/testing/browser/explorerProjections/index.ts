@@ -9,11 +9,9 @@ import { FuzzyScore } from 'vs/base/common/filters';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { Position } from 'vs/editor/common/core/position';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { MarshalledId } from 'vs/base/common/marshalling';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
-import { InternalTestItem, TestIdWithSrc } from 'vs/workbench/contrib/testing/common/testCollection';
+import { identifyTest, InternalTestItem, ITestIdWithSrc, ITestItemContext } from 'vs/workbench/contrib/testing/common/testCollection';
 
 /**
  * Describes a rendering of tests in the explorer view. Different
@@ -37,17 +35,6 @@ export interface ITestTreeProjection extends IDisposable {
 	 * Gets an element by its extension-assigned ID.
 	 */
 	getElementByTestId(testId: string): TestItemTreeElement | undefined;
-
-	/**
-	 * Gets the test at the given position in th editor. Should be fast,
-	 * since it is called on each cursor move.
-	 */
-	getTestAtPosition(uri: URI, position: Position): TestItemTreeElement | undefined;
-
-	/**
-	 * Gets whether any test is defined in the given URI.
-	 */
-	hasTestInDocument(uri: URI): boolean;
 
 	/**
 	 * Applies pending update to the tree.
@@ -80,25 +67,20 @@ export interface IActionableTestTreeElement {
 	depth: number;
 
 	/**
-	 * Folder associated with this element.
+	 * Iterable of the tests this element contains.
 	 */
-	folder: IWorkspaceFolder;
-
-	/**
-	 * Tests to debug when the 'debug' context action is taken on this item.
-	 */
-	debuggable: Iterable<TestIdWithSrc>;
-
-	/**
-	 * Tests to run when the 'debug' context action is taken on this item.
-	 */
-	runnable: Iterable<TestIdWithSrc>;
+	tests: Iterable<ITestIdWithSrc>;
 
 	/**
 	 * State to show on the item. This is generally the item's computed state
 	 * from its children.
 	 */
 	state: TestResultState;
+
+	/**
+	 * Time it took this test/item to run.
+	 */
+	duration: number | undefined;
 
 	/**
 	 * Label for the item.
@@ -109,56 +91,6 @@ export interface IActionableTestTreeElement {
 let idCounter = 0;
 
 const getId = () => String(idCounter++);
-
-export class TestTreeWorkspaceFolder implements IActionableTestTreeElement {
-	/**
-	 * @inheritdoc
-	 */
-	public readonly parent = null;
-
-	/**
-	 * @inheritdoc
-	 */
-	public readonly children = new Set<TestItemTreeElement>();
-
-	/**
-	 * @inheritdoc
-	 */
-	public readonly treeId = getId();
-
-	/**
-	 * @inheritdoc
-	 */
-	public readonly depth = 0;
-
-	/**
-	 * @inheritdoc
-	 */
-	public get runnable() {
-		return Iterable.concatNested(Iterable.map(this.children, c => c.runnable));
-	}
-
-	/**
-	 * @inheritdoc
-	 */
-	public get debuggable() {
-		return Iterable.concatNested(Iterable.map(this.children, c => c.debuggable));
-	}
-
-	/**
-	 * @inheritdoc
-	 */
-	public state = TestResultState.Unset;
-
-	/**
-	 * @inheritdoc
-	 */
-	public get label() {
-		return this.folder.name;
-	}
-
-	constructor(public readonly folder: IWorkspaceFolder) { }
-}
 
 export class TestItemTreeElement implements IActionableTestTreeElement {
 	/**
@@ -174,31 +106,10 @@ export class TestItemTreeElement implements IActionableTestTreeElement {
 	/**
 	 * @inheritdoc
 	 */
-	public depth: number = this.parent.depth + 1;
+	public depth: number = this.parent ? this.parent.depth + 1 : 0;
 
-	/**
-	 * @inheritdoc
-	 */
-	public get folder(): IWorkspaceFolder {
-		return this.parent.folder;
-	}
-
-	/**
-	 * @inheritdoc
-	 */
-	public get runnable() {
-		return this.test.item.runnable
-			? Iterable.single({ testId: this.test.item.extId, src: this.test.src })
-			: Iterable.empty();
-	}
-
-	/**
-	 * @inheritdoc
-	 */
-	public get debuggable() {
-		return this.test.item.debuggable
-			? Iterable.single({ testId: this.test.item.extId, src: this.test.src })
-			: Iterable.empty();
+	public get tests() {
+		return Iterable.single(identifyTest(this.test));
 	}
 
 	public get description() {
@@ -221,6 +132,16 @@ export class TestItemTreeElement implements IActionableTestTreeElement {
 	public ownState = TestResultState.Unset;
 
 	/**
+	 * Own, non-computed duration.
+	 */
+	public ownDuration: number | undefined;
+
+	/**
+	 * Time it took this test/item to run.
+	 */
+	public duration: number | undefined;
+
+	/**
 	 * @inheritdoc
 	 */
 	public get label() {
@@ -229,8 +150,21 @@ export class TestItemTreeElement implements IActionableTestTreeElement {
 
 	constructor(
 		public readonly test: InternalTestItem,
-		public readonly parent: TestItemTreeElement | TestTreeWorkspaceFolder,
+		public readonly parent: TestItemTreeElement | null = null,
 	) { }
+
+	public toJSON() {
+		const context: ITestItemContext = {
+			$mid: MarshalledId.TestItemContext,
+			tests: [this.test],
+		};
+
+		for (let p = this.parent; p; p = p.parent) {
+			context.tests.unshift(p.test);
+		}
+
+		return context;
+	}
 }
 
 export class TestTreeErrorMessage {
@@ -247,7 +181,4 @@ export class TestTreeErrorMessage {
 	) { }
 }
 
-export const isActionableTestTreeElement = (t: unknown): t is (TestItemTreeElement | TestTreeWorkspaceFolder) =>
-	t instanceof TestItemTreeElement || t instanceof TestTreeWorkspaceFolder;
-
-export type TestExplorerTreeElement = TestItemTreeElement | TestTreeWorkspaceFolder | TestTreeErrorMessage;
+export type TestExplorerTreeElement = TestItemTreeElement | TestTreeErrorMessage;

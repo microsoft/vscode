@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWorkerBootstrapUrl } from 'vs/base/worker/defaultWorkerFactory';
+import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
 import { Emitter, Event } from 'vs/base/common/event';
 import { toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
@@ -28,7 +28,6 @@ import { localize } from 'vs/nls';
 import { generateUuid } from 'vs/base/common/uuid';
 import { canceled, onUnexpectedError } from 'vs/base/common/errors';
 import { Barrier } from 'vs/base/common/async';
-import { FileAccess } from 'vs/base/common/network';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { NewWorkerMessage, TerminateWorkerMessage } from 'vs/workbench/services/extensions/common/polyfillNestedWorker.protocol';
 
@@ -40,8 +39,6 @@ export interface IWebWorkerExtensionHostInitData {
 export interface IWebWorkerExtensionHostDataProvider {
 	getInitData(): Promise<IWebWorkerExtensionHostInitData>;
 }
-
-const ttPolicy = window.trustedTypes?.createPolicy('webWorkerExtensionHost', { createScriptURL: value => value });
 
 const ttPolicyNestedWorker = window.trustedTypes?.createPolicy('webNestedWorkerExtensionHost', {
 	createScriptURL(value) {
@@ -89,8 +86,29 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		if (this._environmentService.options && this._environmentService.options.webWorkerExtensionHostIframeSrc) {
 			return this._environmentService.options.webWorkerExtensionHostIframeSrc;
 		}
+
+		const forceHTTPS = (location.protocol === 'https:');
+
+		if (this._environmentService.options && this._environmentService.options.__uniqueWebWorkerExtensionHostOrigin) {
+			const webEndpointUrlTemplate = this._productService.webEndpointUrlTemplate;
+			const commit = this._productService.commit;
+			const quality = this._productService.quality;
+			if (webEndpointUrlTemplate && commit && quality) {
+				const baseUrl = (
+					webEndpointUrlTemplate
+						.replace('{{uuid}}', generateUuid())
+						.replace('{{commit}}', commit)
+						.replace('{{quality}}', quality)
+				);
+				return (
+					forceHTTPS
+						? `${baseUrl}/out/vs/workbench/services/extensions/worker/httpsWebWorkerExtensionHostIframe.html`
+						: `${baseUrl}/out/vs/workbench/services/extensions/worker/httpWebWorkerExtensionHostIframe.html`
+				);
+			}
+		}
+
 		if (this._productService.webEndpointUrl) {
-			const forceHTTPS = (location.protocol === 'https:');
 			let baseUrl = this._productService.webEndpointUrl;
 			if (this._productService.quality) {
 				baseUrl += `/${this._productService.quality}`;
@@ -219,51 +237,52 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 
 	private async _startOutsideIframe(): Promise<IMessagePassingProtocol> {
 		const emitter = new Emitter<VSBuffer>();
-
-		const url = getWorkerBootstrapUrl(FileAccess.asBrowserUri('../worker/extensionHostWorkerMain.js', require).toString(true), 'WorkerExtensionHost');
-		const worker = new Worker(ttPolicy?.createScriptURL(url) as unknown as string ?? url, { name: 'WorkerExtensionHost' });
-
 		const barrier = new Barrier();
 		let port!: MessagePort;
 
 		const nestedWorker = new Map<string, Worker>();
 
-		worker.onmessage = (event) => {
+		const worker = new DefaultWorkerFactory('WorkerExtensionHost').create(
+			'vs/workbench/services/extensions/worker/extensionHostWorker',
+			(data: MessagePort | NewWorkerMessage | TerminateWorkerMessage | any) => {
 
-			const data: MessagePort | NewWorkerMessage | TerminateWorkerMessage = event.data;
+				if (data instanceof MessagePort) {
+					// receiving a message port which is used to communicate
+					// with the web worker extension host
+					if (barrier.isOpen()) {
+						console.warn('UNEXPECTED message', data);
+						this._onDidExit.fire([ExtensionHostExitCode.UnexpectedError, 'received a message port AFTER opening the barrier']);
+						return;
+					}
+					port = data;
+					barrier.open();
 
-			if (data instanceof MessagePort) {
-				// receiving a message port which is used to communicate
-				// with the web worker extension host
-				if (barrier.isOpen()) {
-					console.warn('UNEXPECTED message', event);
-					this._onDidExit.fire([ExtensionHostExitCode.UnexpectedError, 'received a message port AFTER opening the barrier']);
-					return;
+
+				} else if (data?.type === '_newWorker') {
+					// receiving a message to create a new nested/child worker
+					const worker = new Worker((ttPolicyNestedWorker?.createScriptURL(data.url) ?? data.url) as string, data.options);
+					worker.postMessage(data.port, [data.port]);
+					worker.onerror = console.error.bind(console);
+					nestedWorker.set(data.id, worker);
+
+				} else if (data?.type === '_terminateWorker') {
+					// receiving a message to terminate nested/child worker
+					if (nestedWorker.has(data.id)) {
+						nestedWorker.get(data.id)!.terminate();
+						nestedWorker.delete(data.id);
+					}
+
+				} else {
+					// all other messages are an error
+					console.warn('UNEXPECTED message', data);
+					this._onDidExit.fire([ExtensionHostExitCode.UnexpectedError, 'UNEXPECTED message']);
 				}
-				port = data;
-				barrier.open();
-
-
-			} else if (data?.type === '_newWorker') {
-				// receiving a message to create a new nested/child worker
-				const worker = new Worker((ttPolicyNestedWorker?.createScriptURL(data.url) ?? data.url) as string, data.options);
-				worker.postMessage(data.port, [data.port]);
-				worker.onerror = console.error.bind(console);
-				nestedWorker.set(data.id, worker);
-
-			} else if (data?.type === '_terminateWorker') {
-				// receiving a message to terminate nested/child worker
-				if (nestedWorker.has(data.id)) {
-					nestedWorker.get(data.id)!.terminate();
-					nestedWorker.delete(data.id);
-				}
-
-			} else {
-				// all other messages are an error
-				console.warn('UNEXPECTED message', event);
-				this._onDidExit.fire([ExtensionHostExitCode.UnexpectedError, 'UNEXPECTED message']);
+			},
+			(event: any) => {
+				console.error(event.message, event.error);
+				this._onDidExit.fire([ExtensionHostExitCode.UnexpectedError, event.message || event.error]);
 			}
-		};
+		);
 
 		// await MessagePort and use it to directly communicate
 		// with the worker extension host
@@ -280,14 +299,10 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			emitter.fire(VSBuffer.wrap(new Uint8Array(data, 0, data.byteLength)));
 		};
 
-		worker.onerror = (event) => {
-			console.error(event.message, event.error);
-			this._onDidExit.fire([ExtensionHostExitCode.UnexpectedError, event.message || event.error]);
-		};
 
 		// keep for cleanup
 		this._register(emitter);
-		this._register(toDisposable(() => worker.terminate()));
+		this._register(worker);
 
 		const protocol: IMessagePassingProtocol = {
 			onMessage: emitter.event,
@@ -360,8 +375,6 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: this._environmentService.globalStorageHome,
 				workspaceStorageHome: this._environmentService.workspaceStorageHome,
-				webviewResourceRoot: this._environmentService.webviewResourceRoot,
-				webviewCspSource: this._environmentService.webviewCspSource,
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
 				configuration: workspace.configuration || undefined,

@@ -31,6 +31,7 @@ let nonBuiltInLanguages = { // { fileNames, extensions  }
 	"ocaml": { extensions: ['ml', 'mli', 'mll', 'mly', 'eliom', 'eliomi'] },
 	"puppet": { extensions: ['puppet'] },
 	"r": { extensions: ['r', 'rhistory', 'rprofile', 'rt'] },
+	"rescript": { extensions: ['res', 'resi'] },
 	"sass": { extensions: ['sass'] },
 	"stylus": { extensions: ['styl'] },
 	"terraform": { extensions: ['tf', 'tfvars', 'hcl'] },

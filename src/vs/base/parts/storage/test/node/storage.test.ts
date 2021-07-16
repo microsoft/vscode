@@ -7,9 +7,8 @@ import { SQLiteStorageDatabase, ISQLiteStorageDatabaseOptions } from 'vs/base/pa
 import { Storage, IStorageDatabase, IStorageItemsChangeEvent } from 'vs/base/parts/storage/common/storage';
 import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
-import { promises } from 'fs';
 import { strictEqual, ok } from 'assert';
-import { writeFile, exists, rimraf } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isWindows } from 'vs/base/common/platform';
@@ -23,11 +22,11 @@ flakySuite('Storage Library', function () {
 	setup(function () {
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'storagelibrary');
 
-		return promises.mkdir(testDir, { recursive: true });
+		return Promises.mkdir(testDir, { recursive: true });
 	});
 
 	teardown(function () {
-		return rimraf(testDir);
+		return Promises.rm(testDir);
 	});
 
 	test('basics', async () => {
@@ -263,7 +262,7 @@ flakySuite('Storage Library', function () {
 
 		await storage.set('bar', 'foo');
 
-		await writeFile(storageFile, 'This is a broken DB');
+		await Promises.writeFile(storageFile, 'This is a broken DB');
 
 		await storage.set('foo', 'bar');
 
@@ -296,11 +295,11 @@ flakySuite('SQLite Storage Library', function () {
 	setup(function () {
 		testdir = getRandomTestPath(tmpdir(), 'vsctests', 'storagelibrary');
 
-		return promises.mkdir(testdir, { recursive: true });
+		return Promises.mkdir(testdir, { recursive: true });
 	});
 
 	teardown(function () {
-		return rimraf(testdir);
+		return Promises.rm(testdir);
 	});
 
 	async function testDBBasics(path: string, logError?: (error: Error | string) => void) {
@@ -386,7 +385,7 @@ flakySuite('SQLite Storage Library', function () {
 
 	test('basics (corrupt DB falls back to empty DB)', async () => {
 		const corruptDBPath = join(testdir, 'broken.db');
-		await writeFile(corruptDBPath, 'This is a broken DB');
+		await Promises.writeFile(corruptDBPath, 'This is a broken DB');
 
 		let expectedError: any;
 		await testDBBasics(corruptDBPath, error => {
@@ -408,7 +407,7 @@ flakySuite('SQLite Storage Library', function () {
 		await storage.updateItems({ insert: items });
 		await storage.close();
 
-		await writeFile(storagePath, 'This is now a broken DB');
+		await Promises.writeFile(storagePath, 'This is now a broken DB');
 
 		storage = new SQLiteStorageDatabase(storagePath);
 
@@ -440,8 +439,8 @@ flakySuite('SQLite Storage Library', function () {
 		await storage.updateItems({ insert: items });
 		await storage.close();
 
-		await writeFile(storagePath, 'This is now a broken DB');
-		await writeFile(`${storagePath}.backup`, 'This is now also a broken DB');
+		await Promises.writeFile(storagePath, 'This is now a broken DB');
+		await Promises.writeFile(`${storagePath}.backup`, 'This is now also a broken DB');
 
 		storage = new SQLiteStorageDatabase(storagePath);
 
@@ -464,12 +463,12 @@ flakySuite('SQLite Storage Library', function () {
 		await storage.close();
 
 		const backupPath = `${storagePath}.backup`;
-		strictEqual(await exists(backupPath), true);
+		strictEqual(await Promises.exists(backupPath), true);
 
 		storage = new SQLiteStorageDatabase(storagePath);
 		await storage.getItems();
 
-		await writeFile(storagePath, 'This is now a broken DB');
+		await Promises.writeFile(storagePath, 'This is now a broken DB');
 
 		// we still need to trigger a check to the DB so that we get to know that
 		// the DB is corrupt. We have no extra code on shutdown that checks for the
@@ -477,7 +476,7 @@ flakySuite('SQLite Storage Library', function () {
 		// on shutdown.
 		await storage.checkIntegrity(true).then(null, error => { } /* error is expected here but we do not want to fail */);
 
-		await promises.unlink(backupPath); // also test that the recovery DB is backed up properly
+		await Promises.unlink(backupPath); // also test that the recovery DB is backed up properly
 
 		let recoveryCalled = false;
 		await storage.close(() => {
@@ -487,7 +486,7 @@ flakySuite('SQLite Storage Library', function () {
 		});
 
 		strictEqual(recoveryCalled, true);
-		strictEqual(await exists(backupPath), true);
+		strictEqual(await Promises.exists(backupPath), true);
 
 		storage = new SQLiteStorageDatabase(storagePath);
 

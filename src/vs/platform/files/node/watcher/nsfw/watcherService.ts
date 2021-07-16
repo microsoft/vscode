@@ -20,8 +20,8 @@ export class FileWatcher extends Disposable {
 
 	constructor(
 		private folders: IWatcherRequest[],
-		private onDidFilesChange: (changes: IDiskFileChange[]) => void,
-		private onLogMessage: (msg: ILogMessage) => void,
+		private readonly onDidFilesChange: (changes: IDiskFileChange[]) => void,
+		private readonly onLogMessage: (msg: ILogMessage) => void,
 		private verboseLogging: boolean,
 	) {
 		super();
@@ -62,11 +62,11 @@ export class FileWatcher extends Disposable {
 
 		// Initialize watcher
 		this.service = ProxyChannel.toService<IWatcherService>(getNextTickChannel(client.getChannel('watcher')));
-
 		this.service.setVerboseLogging(this.verboseLogging);
 
+		// Wire in event handlers
 		this._register(this.service.onDidChangeFile(e => !this.isDisposed && this.onDidFilesChange(e)));
-		this._register(this.service.onDidLogMessage(m => this.onLogMessage(m)));
+		this._register(this.service.onDidLogMessage(e => this.onLogMessage(e)));
 
 		// Start watching
 		this.setFolders(this.folders);

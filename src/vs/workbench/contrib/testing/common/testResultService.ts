@@ -11,7 +11,8 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
-import { ExtensionRunTestsRequest, RunTestsRequest, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ExtensionRunTestsRequest, ITestRunConfiguration, ResolvedTestRunRequest, TestResultItem, TestRunConfigurationBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestConfigurationService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestResult, LiveTestResult, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultStorage, RETAIN_MAX_RESULTS } from 'vs/workbench/contrib/testing/common/testResultStorage';
@@ -47,7 +48,7 @@ export interface ITestResultService {
 	/**
 	 * Creates a new, live test result.
 	 */
-	createLiveResult(req: RunTestsRequest | ExtensionRunTestsRequest): LiveTestResult;
+	createLiveResult(req: ResolvedTestRunRequest | ExtensionRunTestsRequest): LiveTestResult;
 
 	/**
 	 * Adds a new test result to the collection.
@@ -64,6 +65,9 @@ export interface ITestResultService {
 	 */
 	getStateById(extId: string): [results: ITestResult, item: TestResultItem] | undefined;
 }
+
+export const isRunningTests = (service: ITestResultService) =>
+	service.results.length > 0 && service.results[0].completedAt === undefined;
 
 export const ITestResultService = createDecorator<ITestResultService>('testResultService');
 
@@ -92,6 +96,7 @@ export class TestResultService implements ITestResultService {
 	public readonly onTestChanged = this.testChangeEmitter.event;
 
 	private readonly isRunning: IContextKey<boolean>;
+	private readonly hasAnyResults: IContextKey<boolean>;
 	private readonly loadResults = once(() => this.storage.read().then(loaded => {
 		for (let i = loaded.length - 1; i >= 0; i--) {
 			this.push(loaded[i]);
@@ -103,8 +108,10 @@ export class TestResultService implements ITestResultService {
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITestResultStorage private readonly storage: ITestResultStorage,
+		@ITestConfigurationService private readonly testConfiguration: ITestConfigurationService,
 	) {
 		this.isRunning = TestingContextKeys.isRunning.bindTo(contextKeyService);
+		this.hasAnyResults = TestingContextKeys.hasAnyResults.bindTo(contextKeyService);
 	}
 
 	/**
@@ -124,13 +131,36 @@ export class TestResultService implements ITestResultService {
 	/**
 	 * @inheritdoc
 	 */
-	public createLiveResult(req: RunTestsRequest | ExtensionRunTestsRequest) {
-		if ('id' in req) {
-			return this.push(new LiveTestResult(req.id, this.storage.getOutputController(req.id), req));
-		} else {
+	public createLiveResult(req: ResolvedTestRunRequest | ExtensionRunTestsRequest) {
+		if ('targets' in req) {
 			const id = generateUuid();
-			return this.push(new LiveTestResult(id, this.storage.getOutputController(id), req));
+			return this.push(new LiveTestResult(id, this.storage.getOutputController(id), true, req));
 		}
+
+		let config: ITestRunConfiguration | undefined;
+		if (!req.config) {
+			config = this.testConfiguration.getControllerGroupConfigurations(req.controllerId, TestRunConfigurationBitset.Run)[0];
+		} else {
+			const configs = this.testConfiguration.getControllerGroupConfigurations(req.controllerId, req.config.group);
+			config = configs.find(c => c.profileId === req.config!.id) || configs[0];
+		}
+
+		const resolved: ResolvedTestRunRequest = {
+			targets: [],
+			exclude: req.exclude.map(testId => ({ testId, controllerId: req.controllerId })),
+			isAutoRun: false,
+		};
+
+		if (config) {
+			resolved.targets.push({
+				profileGroup: config.group,
+				profileId: config.profileId,
+				controllerId: req.controllerId,
+				testIds: req.include,
+			});
+		}
+
+		return this.push(new LiveTestResult(req.id, this.storage.getOutputController(req.id), req.persist, resolved));
 	}
 
 	/**
@@ -145,6 +175,7 @@ export class TestResultService implements ITestResultService {
 			this.persistScheduler.schedule();
 		}
 
+		this.hasAnyResults.set(true);
 		if (this.results.length > RETAIN_MAX_RESULTS) {
 			this.results.pop();
 		}
@@ -197,6 +228,9 @@ export class TestResultService implements ITestResultService {
 
 		this._results = keep;
 		this.persistScheduler.schedule();
+		if (keep.length === 0) {
+			this.hasAnyResults.set(false);
+		}
 		this.changeResultEmitter.fire({ removed });
 	}
 
@@ -212,7 +246,7 @@ export class TestResultService implements ITestResultService {
 	}
 
 	private updateIsRunning() {
-		this.isRunning.set(this.results.length > 0 && this.results[0].completedAt === undefined);
+		this.isRunning.set(isRunningTests(this));
 	}
 
 	protected async persistImmediately() {

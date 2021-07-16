@@ -109,6 +109,7 @@ export interface IOpenerService {
 
 	/**
 	 * Resolve a resource to its external form.
+	 * @throws whenever resolvers couldn't resolve this resource externally.
 	 */
 	resolveExternalUri(resource: URI, options?: ResolveExternalUriOptions): Promise<IResolvedExternalUri>;
 }

@@ -9,9 +9,10 @@ import { combinedDisposable, DisposableStore, IDisposable } from 'vs/base/common
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MainThreadNotebookDocuments } from 'vs/workbench/api/browser/mainThreadNotebookDocuments';
+import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 import { MainThreadNotebookEditors } from 'vs/workbench/api/browser/mainThreadNotebookEditors';
 import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { editorGroupToViewColumn } from 'vs/workbench/common/editor';
+import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { getNotebookEditorFromEditorPane, IActiveNotebookEditor, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -30,7 +31,7 @@ interface INotebookAndEditorDelta {
 }
 
 class NotebookAndEditorState {
-	static compute(before: NotebookAndEditorState | undefined, after: NotebookAndEditorState): INotebookAndEditorDelta {
+	static delta(before: NotebookAndEditorState | undefined, after: NotebookAndEditorState): INotebookAndEditorDelta {
 		if (!before) {
 			return {
 				addedDocuments: [...after.documents],
@@ -107,7 +108,7 @@ export class MainThreadNotebooksAndEditors {
 		extHostContext.set(MainContext.MainThreadNotebookDocuments, this._mainThreadNotebooks);
 		extHostContext.set(MainContext.MainThreadNotebookEditors, this._mainThreadEditors);
 
-		this._notebookService.onDidCreateNotebookDocument(() => this._updateState(), this, this._disposables);
+		this._notebookService.onWillAddNotebookDocument(() => this._updateState(), this, this._disposables);
 		this._notebookService.onDidRemoveNotebookDocument(() => this._updateState(), this, this._disposables);
 		this._editorService.onDidActiveEditorChange(() => this._updateState(), this, this._disposables);
 		this._editorService.onDidVisibleEditorsChange(() => this._updateState(), this, this._disposables);
@@ -170,7 +171,7 @@ export class MainThreadNotebooksAndEditors {
 		}
 
 		const newState = new NotebookAndEditorState(new Set(this._notebookService.listNotebookDocuments()), editors, activeEditor, visibleEditorsMap);
-		this._onDelta(NotebookAndEditorState.compute(this._currentState, newState));
+		this._onDelta(NotebookAndEditorState.delta(this._currentState, newState));
 		this._currentState = newState;
 	}
 
@@ -226,16 +227,7 @@ export class MainThreadNotebooksAndEditors {
 			uri: e.uri,
 			metadata: e.metadata,
 			versionId: e.versionId,
-			cells: e.cells.map(cell => ({
-				handle: cell.handle,
-				uri: cell.uri,
-				source: cell.textBuffer.getLinesContent(),
-				eol: cell.textBuffer.getEOL(),
-				language: cell.language,
-				cellKind: cell.cellKind,
-				outputs: cell.outputs,
-				metadata: cell.metadata
-			}))
+			cells: e.cells.map(NotebookDto.toNotebookCellDto)
 		};
 	}
 
@@ -245,10 +237,10 @@ export class MainThreadNotebooksAndEditors {
 
 		return {
 			id: add.getId(),
-			documentUri: add.viewModel.uri,
+			documentUri: add.textModel.uri,
 			selections: add.getSelections(),
 			visibleRanges: add.visibleRanges,
-			viewColumn: pane && editorGroupToViewColumn(this._editorGroupService, pane.group)
+			viewColumn: pane && editorGroupToColumn(this._editorGroupService, pane.group)
 		};
 	}
 }

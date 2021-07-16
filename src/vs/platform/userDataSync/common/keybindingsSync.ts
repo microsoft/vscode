@@ -80,8 +80,11 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		this._register(Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('settingsSync.keybindingsPerPlatform'))(() => this.triggerLocalChange()));
 	}
 
-	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null, token: CancellationToken): Promise<IKeybindingsResourcePreview[]> {
+	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null, isRemoteDataFromCurrentMachine: boolean, token: CancellationToken): Promise<IKeybindingsResourcePreview[]> {
 		const remoteContent = remoteUserData.syncData ? this.getKeybindingsContentFromSyncContent(remoteUserData.syncData.content) : null;
+
+		// Use remote data as last sync data if last sync data does not exist and remote data is from same machine
+		lastSyncUserData = lastSyncUserData === null && isRemoteDataFromCurrentMachine ? remoteUserData : lastSyncUserData;
 		const lastSyncContent: string | null = lastSyncUserData ? this.getKeybindingsContentFromLastSyncUserData(lastSyncUserData) : null;
 
 		// Get file content last to get the latest
@@ -308,10 +311,10 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		} catch (e) {
 			this.logService.error(e);
 		}
-		if (!this.syncKeybindingsPerPlatform()) {
-			parsed.all = keybindingsContent;
-		} else {
+		if (this.syncKeybindingsPerPlatform()) {
 			delete parsed.all;
+		} else {
+			parsed.all = keybindingsContent;
 		}
 		switch (OS) {
 			case OperatingSystem.Macintosh:
@@ -328,15 +331,15 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 	}
 
 	private syncKeybindingsPerPlatform(): boolean {
-		let userValue = this.configurationService.inspect<boolean>('settingsSync.keybindingsPerPlatform').userValue;
+		let userValue = !!this.configurationService.inspect('settingsSync.keybindingsPerPlatform').userValue;
 		if (userValue !== undefined) {
 			return userValue;
 		}
-		userValue = this.configurationService.inspect<boolean>('sync.keybindingsPerPlatform').userValue;
+		userValue = !!this.configurationService.inspect('sync.keybindingsPerPlatform').userValue;
 		if (userValue !== undefined) {
 			return userValue;
 		}
-		return this.configurationService.getValue<boolean>('settingsSync.keybindingsPerPlatform');
+		return !!this.configurationService.getValue('settingsSync.keybindingsPerPlatform');
 	}
 
 }

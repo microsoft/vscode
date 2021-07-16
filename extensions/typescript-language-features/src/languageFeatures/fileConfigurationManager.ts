@@ -13,6 +13,20 @@ import { isTypeScriptDocument } from '../utils/languageModeIds';
 import { equals } from '../utils/objects';
 import { ResourceMap } from '../utils/resourceMap';
 
+namespace ExperimentalProto {
+	export interface UserPreferences extends Proto.UserPreferences {
+		displayPartsForJSDoc: true
+
+		includeInlayParameterNameHints?: 'none' | 'literals' | 'all';
+		includeInlayParameterNameHintsWhenArgumentMatchesName?: boolean;
+		includeInlayFunctionParameterTypeHints?: boolean;
+		includeInlayVariableTypeHints?: boolean;
+		includeInlayPropertyDeclarationTypeHints?: boolean;
+		includeInlayFunctionLikeReturnTypeHints?: boolean;
+		includeInlayEnumMemberValueHints?: boolean;
+	}
+}
+
 interface FileConfiguration {
 	readonly formatOptions: Proto.FormatCodeSettings;
 	readonly preferences: Proto.UserPreferences;
@@ -173,7 +187,7 @@ export default class FileConfigurationManager extends Disposable {
 			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
 			document.uri);
 
-		const preferences: Proto.UserPreferences & { displayPartsForJSDoc: true } = {
+		const preferences: ExperimentalProto.UserPreferences = {
 			quotePreference: this.getQuoteStylePreference(preferencesConfig),
 			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferencesConfig),
 			importModuleSpecifierEnding: getImportModuleSpecifierEndingPreference(preferencesConfig),
@@ -183,10 +197,12 @@ export default class FileConfigurationManager extends Disposable {
 			includeAutomaticOptionalChainCompletions: config.get<boolean>('suggest.includeAutomaticOptionalChainCompletions', true),
 			provideRefactorNotApplicableReason: true,
 			generateReturnInDocTemplate: config.get<boolean>('suggest.jsdoc.generateReturns', true),
-			// @ts-expect-error until 4.3 protocol update
 			includeCompletionsForImportStatements: config.get<boolean>('suggest.includeCompletionsForImportStatements', true),
 			includeCompletionsWithSnippetText: config.get<boolean>('suggest.includeCompletionsWithSnippetText', true),
+			// @ts-expect-error until 4.4
+			allowIncompleteCompletions: true,
 			displayPartsForJSDoc: true,
+			...getInlayHintsPreferences(config),
 		};
 
 		return preferences;
@@ -198,6 +214,36 @@ export default class FileConfigurationManager extends Disposable {
 			case 'double': return 'double';
 			default: return this.client.apiVersion.gte(API.v333) ? 'auto' : undefined;
 		}
+	}
+}
+
+export class InlayHintSettingNames {
+	static readonly parameterNamesSuppressWhenArgumentMatchesName = 'inlayHints.parameterNames.suppressWhenArgumentMatchesName';
+	static readonly parameterNamesEnabled = 'inlayHints.parameterTypes.enabled';
+	static readonly variableTypesEnabled = 'inlayHints.variableTypes.enabled';
+	static readonly propertyDeclarationTypesEnabled = 'inlayHints.propertyDeclarationTypes.enabled';
+	static readonly functionLikeReturnTypesEnabled = 'inlayHints.functionLikeReturnTypes.enabled';
+	static readonly enumMemberValuesEnabled = 'inlayHints.enumMemberValues.enabled';
+}
+
+export function getInlayHintsPreferences(config: vscode.WorkspaceConfiguration) {
+	return {
+		includeInlayParameterNameHints: getInlayParameterNameHintsPreference(config),
+		includeInlayParameterNameHintsWhenArgumentMatchesName: !config.get<boolean>(InlayHintSettingNames.parameterNamesSuppressWhenArgumentMatchesName, true),
+		includeInlayFunctionParameterTypeHints: config.get<boolean>(InlayHintSettingNames.parameterNamesEnabled, false),
+		includeInlayVariableTypeHints: config.get<boolean>(InlayHintSettingNames.variableTypesEnabled, false),
+		includeInlayPropertyDeclarationTypeHints: config.get<boolean>(InlayHintSettingNames.propertyDeclarationTypesEnabled, false),
+		includeInlayFunctionLikeReturnTypeHints: config.get<boolean>(InlayHintSettingNames.functionLikeReturnTypesEnabled, false),
+		includeInlayEnumMemberValueHints: config.get<boolean>(InlayHintSettingNames.enumMemberValuesEnabled, false),
+	} as const;
+}
+
+function getInlayParameterNameHintsPreference(config: vscode.WorkspaceConfiguration) {
+	switch (config.get<string>('inlayHints.parameterNames.enabled')) {
+		case 'none': return 'none';
+		case 'literals': return 'literals';
+		case 'all': return 'all';
+		default: return undefined;
 	}
 }
 

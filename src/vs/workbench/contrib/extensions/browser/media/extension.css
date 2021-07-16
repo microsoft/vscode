@@ -76,29 +76,20 @@
 
 .extension-list-item > .details > .header-container > .header > .name {
 	font-weight: bold;
-}
-
-.extension-list-item > .details > .header-container > .header > .version {
 	flex: 1;
-	opacity: 0.85;
-	font-size: 80%;
-	padding: 2px 0px 0px 6px;
-	min-width: 36px;
-}
-
-.extension-list-item > .details > .header-container > .header > .name,
-.extension-list-item > .details > .header-container > .header > .version {
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	overflow: hidden;
 }
 
+.extension-list-item > .details > .header-container > .header > .activation-status,
 .extension-list-item > .details > .header-container > .header > .install-count,
 .extension-list-item > .details > .header-container > .header > .ratings {
 	display: flex;
 	align-items: center;
 }
 
+.extension-list-item > .details > .header-container > .header > .activation-status:not(:empty),
 .extension-list-item > .details > .header-container > .header > .install-count:not(:empty) {
 	font-size: 80%;
 	margin: 0 6px;
@@ -152,11 +143,6 @@
 	padding-right: 11px;
 }
 
-.extension-list-item > .details > .workspace-trust-description {
-	display: none;
-	padding-right: 11px;
-}
-
 .extension-list-item > .details > .footer {
 	display: flex;
 	justify-content: flex-end;
@@ -180,7 +166,6 @@
 .extension-list-item > .details > .footer > .monaco-action-bar > .actions-container {
 	flex-wrap: wrap-reverse;
 }
-
 
 .extension-list-item > .details > .footer > .monaco-action-bar > .actions-container .action-label:not(.icon) {
 	border-radius: 0;

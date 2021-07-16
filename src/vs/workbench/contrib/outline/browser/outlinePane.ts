@@ -285,19 +285,26 @@ export class OutlinePane extends ViewPane {
 		// feature: reveal outline selection in editor
 		// on change -> reveal/select defining range
 		this._editorDisposables.add(tree.onDidOpen(e => newOutline.reveal(e.element, e.editorOptions, e.sideBySide)));
-
 		// feature: reveal editor selection in outline
 		const revealActiveElement = () => {
 			if (!this._outlineViewState.followCursor || !newOutline.activeElement) {
 				return;
 			}
-			const item = newOutline.activeElement;
-			const top = tree.getRelativeTop(item);
-			if (top === null) {
-				tree.reveal(item, 0.5);
+			let item = newOutline.activeElement;
+			while (item) {
+				const top = tree.getRelativeTop(item);
+				if (top === null) {
+					// not visible -> reveal
+					tree.reveal(item, 0.5);
+				}
+				if (tree.getRelativeTop(item) !== null) {
+					tree.setFocus([item]);
+					tree.setSelection([item]);
+					break;
+				}
+				// STILL not visible -> try parent
+				item = tree.getParentElement(item);
 			}
-			tree.setFocus([item]);
-			tree.setSelection([item]);
 		};
 		revealActiveElement();
 		this._editorDisposables.add(newOutline.onDidChange(revealActiveElement));

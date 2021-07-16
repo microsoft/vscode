@@ -77,8 +77,8 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		}
 		const languageId = model.getLanguageIdentifier();
 		// handle deprecated settings. [languageId].colorDecorators.enable
-		const deprecatedConfig = this._configurationService.getValue<{}>(languageId.language);
-		if (deprecatedConfig) {
+		const deprecatedConfig = this._configurationService.getValue(languageId.language);
+		if (deprecatedConfig && typeof deprecatedConfig === 'object') {
 			const colorDecorators = (deprecatedConfig as any)['colorDecorators']; // deprecatedConfig.valueOf('.colorDecorators.enable');
 			if (colorDecorators && colorDecorators['enable'] !== undefined && !colorDecorators['enable']) {
 				return colorDecorators['enable'];
@@ -178,7 +178,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			let key = 'colorBox-' + subKey;
 
 			if (!this._decorationsTypes.has(key) && !newDecorationsTypes[key]) {
-				this._codeEditorService.registerDecorationType(key, {
+				this._codeEditorService.registerDecorationType('color-detector-color', key, {
 					before: {
 						contentText: ' ',
 						border: 'solid 0.1em #000',

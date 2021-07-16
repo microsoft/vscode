@@ -29,7 +29,7 @@ interface IIconFontExtensionPoint {
 const iconRegistry: IIconRegistry = Registry.as<IIconRegistry>(IconRegistryExtensions.IconContribution);
 
 const iconReferenceSchema = iconRegistry.getIconReferenceSchema();
-const iconIdPattern = `^${CSSIcon.iconNameSegment}-(${CSSIcon.iconNameSegment})+`;
+const iconIdPattern = `^${CSSIcon.iconNameSegment}-(${CSSIcon.iconNameSegment})+$`;
 
 const iconConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IIconExtensionPoint[]>({
 	extensionPoint: 'icons',
@@ -38,6 +38,7 @@ const iconConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IIco
 		type: 'array',
 		items: {
 			type: 'object',
+			required: ['id', 'description', 'default'],
 			properties: {
 				id: {
 					type: 'string',
@@ -81,6 +82,7 @@ const iconFontConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<
 		type: 'array',
 		items: {
 			type: 'object',
+			required: ['id', 'src'],
 			properties: {
 				id: {
 					type: 'string',
@@ -142,7 +144,7 @@ export class IconExtensionPoint {
 						collector.error(nls.localize('invalid.icons.id.format', "'configuration.icons.id' can only contain letter, digits and minuses and need to consist of at least two segments in the form `component-iconname`."));
 						return;
 					}
-					if (typeof iconContribution.description !== 'string' || iconContribution.id.length === 0) {
+					if (typeof iconContribution.description !== 'string' || iconContribution.description.length === 0) {
 						collector.error(nls.localize('invalid.icons.description', "'configuration.icons.description' must be defined and can not be empty"));
 						return;
 					}

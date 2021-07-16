@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
+import { isWindows } from 'vs/base/common/platform';
+import { basename } from 'vs/base/common/path';
 import { DiskFileSystemProvider as NodeDiskFileSystemProvider, IDiskFileSystemProviderOptions } from 'vs/platform/files/node/diskFileSystemProvider';
 import { FileDeleteOptions, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
-import { isWindows } from 'vs/base/common/platform';
-import { localize } from 'vs/nls';
-import { basename } from 'vs/base/common/path';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 
@@ -34,8 +34,11 @@ export class DiskFileSystemProvider extends NodeDiskFileSystemProvider {
 			return super.doDelete(filePath, opts);
 		}
 
-		const result = await this.nativeHostService.moveItemToTrash(filePath);
-		if (!result) {
+		try {
+			await this.nativeHostService.moveItemToTrash(filePath);
+		} catch (error) {
+			this.logService.error(error);
+
 			throw new Error(isWindows ? localize('binFailed', "Failed to move '{0}' to the recycle bin", basename(filePath)) : localize('trashFailed', "Failed to move '{0}' to the trash", basename(filePath)));
 		}
 	}

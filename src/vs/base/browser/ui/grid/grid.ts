@@ -210,7 +210,9 @@ export class Grid<T extends IView = IView> extends Disposable {
 	get minimumHeight(): number { return this.gridview.minimumHeight; }
 	get maximumWidth(): number { return this.gridview.maximumWidth; }
 	get maximumHeight(): number { return this.gridview.maximumHeight; }
-	get onDidChange(): Event<{ width: number; height: number; } | undefined> { return this.gridview.onDidChange; }
+
+	readonly onDidChange: Event<{ width: number; height: number; } | undefined>;
+	readonly onDidScroll: Event<void>;
 
 	get boundarySashes(): IBoundarySashes { return this.gridview.boundarySashes; }
 	set boundarySashes(boundarySashes: IBoundarySashes) { this.gridview.boundarySashes = boundarySashes; }
@@ -232,8 +234,8 @@ export class Grid<T extends IView = IView> extends Disposable {
 		} else {
 			this.gridview = new GridView(options);
 		}
-		this._register(this.gridview);
 
+		this._register(this.gridview);
 		this._register(this.gridview.onDidSashReset(this.onDidSashReset, this));
 
 		const size: number | GridViewSizing = typeof options.firstViewVisibleCachedSize === 'number'
@@ -243,6 +245,9 @@ export class Grid<T extends IView = IView> extends Disposable {
 		if (!(view instanceof GridView)) {
 			this._addView(view, size, [0]);
 		}
+
+		this.onDidChange = this.gridview.onDidChange;
+		this.onDidScroll = this.gridview.onDidScroll;
 	}
 
 	style(styles: IGridStyles): void {

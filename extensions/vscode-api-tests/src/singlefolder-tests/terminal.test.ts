@@ -504,6 +504,41 @@ import { assertNoRpc } from '../utils';
 				const terminal = window.createTerminal({ name: 'foo', pty });
 			});
 
+			test('should change terminal name', (done) => {
+				disposables.push(window.onDidOpenTerminal(term => {
+					try {
+						equal(terminal, term);
+						equal(terminal.name, 'foo');
+					} catch (e) {
+						done(e);
+						return;
+					}
+					disposables.push(window.onDidCloseTerminal(t => {
+						try {
+							equal(terminal, t);
+							equal(terminal.name, 'bar');
+						} catch (e) {
+							done(e);
+							return;
+						}
+						done();
+					}));
+				}));
+				const changeNameEmitter = new EventEmitter<string>();
+				const closeEmitter = new EventEmitter<number | undefined>();
+				const pty: Pseudoterminal = {
+					onDidWrite: new EventEmitter<string>().event,
+					onDidChangeName: changeNameEmitter.event,
+					onDidClose: closeEmitter.event,
+					open: () => {
+						changeNameEmitter.fire('bar');
+						closeEmitter.fire(undefined);
+					},
+					close: () => { }
+				};
+				const terminal = window.createTerminal({ name: 'foo', pty });
+			});
+
 			test('exitStatus.code should be set to the exit code (undefined)', (done) => {
 				disposables.push(window.onDidOpenTerminal(term => {
 					try {
@@ -633,8 +668,7 @@ import { assertNoRpc } from '../utils';
 			});
 		});
 
-		// https://github.com/microsoft/vscode/issues/119826
-		suite.skip('environmentVariableCollection', () => {
+		suite('environmentVariableCollection', () => {
 			test('should have collection variables apply to terminals immediately after setting', (done) => {
 				// Text to match on before passing the test
 				const expectedText = [
@@ -642,12 +676,14 @@ import { assertNoRpc } from '../utils';
 					'b1~b2~',
 					'~c2~c1'
 				];
+				let data = '';
 				disposables.push(window.onDidWriteTerminalData(e => {
 					if (terminal !== e.terminal) {
 						return;
 					}
+					data += sanitizeData(e.data);
 					// Multiple expected could show up in the same data event
-					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
+					while (expectedText.length > 0 && data.indexOf(expectedText[0]) >= 0) {
 						expectedText.shift();
 						// Check if all string are found, if so finish the test
 						if (expectedText.length === 0) {
@@ -685,12 +721,14 @@ import { assertNoRpc } from '../utils';
 					'~b2~',
 					'~c2~'
 				];
+				let data = '';
 				disposables.push(window.onDidWriteTerminalData(e => {
 					if (terminal !== e.terminal) {
 						return;
 					}
+					data += sanitizeData(e.data);
 					// Multiple expected could show up in the same data event
-					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
+					while (expectedText.length > 0 && data.indexOf(expectedText[0]) >= 0) {
 						expectedText.shift();
 						// Check if all string are found, if so finish the test
 						if (expectedText.length === 0) {
@@ -727,12 +765,14 @@ import { assertNoRpc } from '../utils';
 					'~a1~',
 					'~b1~'
 				];
+				let data = '';
 				disposables.push(window.onDidWriteTerminalData(e => {
 					if (terminal !== e.terminal) {
 						return;
 					}
+					data += sanitizeData(e.data);
 					// Multiple expected could show up in the same data event
-					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
+					while (expectedText.length > 0 && data.indexOf(expectedText[0]) >= 0) {
 						expectedText.shift();
 						// Check if all string are found, if so finish the test
 						if (expectedText.length === 0) {
@@ -766,12 +806,14 @@ import { assertNoRpc } from '../utils';
 					'~a1~',
 					'~b2~'
 				];
+				let data = '';
 				disposables.push(window.onDidWriteTerminalData(e => {
 					if (terminal !== e.terminal) {
 						return;
 					}
+					data += sanitizeData(e.data);
 					// Multiple expected could show up in the same data event
-					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
+					while (expectedText.length > 0 && data.indexOf(expectedText[0]) >= 0) {
 						expectedText.shift();
 						// Check if all string are found, if so finish the test
 						if (expectedText.length === 0) {
@@ -823,3 +865,15 @@ import { assertNoRpc } from '../utils';
 		});
 	});
 });
+
+function sanitizeData(data: string): string {
+	// Strip NL/CR so terminal dimensions don't impact tests
+	data = data.replaceAll(/[\r\n]/g, '');
+
+	// Strip escape sequences so winpty/conpty doesn't cause flakiness, do for all platforms for
+	// consistency
+	const terminalCodesRegex = /(?:\u001B|\u009B)[\[\]()#;?]*(?:(?:(?:[a-zA-Z0-9]*(?:;[a-zA-Z0-9]*)*)?\u0007)|(?:(?:\d{1,4}(?:;\d{0,4})*)?[0-9A-PR-TZcf-ntqry=><~]))/g;
+	data = data.replaceAll(terminalCodesRegex, '');
+
+	return data;
+}

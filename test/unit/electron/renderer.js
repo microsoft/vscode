@@ -224,6 +224,10 @@ function serializeError(err) {
 function safeStringify(obj) {
 	const seen = new Set();
 	return JSON.stringify(obj, (key, value) => {
+		if (value === undefined) {
+			return '[undefined]';
+		}
+
 		if (isObject(value) || Array.isArray(value)) {
 			if (seen.has(value)) {
 				return '[Circular]';
@@ -264,6 +268,10 @@ class IPCReporter {
 }
 
 function runTests(opts) {
+	// this *must* come before loadTests, or it doesn't work.
+	if (opts.timeout !== undefined) {
+		mocha.timeout(opts.timeout);
+	}
 
 	return loadTests(opts).then(() => {
 

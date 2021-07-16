@@ -12,12 +12,13 @@ import { IPosition } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
-import { CELL_STATUSBAR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellEditState, CellFocusMode, CursorAtBoundary, CellViewModelStateChangeEvent, IEditableCellViewModel, INotebookCellDecorationOptions, getEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind, INotebookSearchOptions, ShowCellStatusBarKey, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditState, CellFocusMode, CursorAtBoundary, CellViewModelStateChangeEvent, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellKind, INotebookSearchOptions, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
+import { Mimes } from 'vs/base/common/mime';
 
 export abstract class BaseCellViewModel extends Disposable {
 
@@ -39,8 +40,25 @@ export abstract class BaseCellViewModel extends Disposable {
 	get metadata() {
 		return this.model.metadata;
 	}
+	get internalMetadata() {
+		return this.model.internalMetadata;
+	}
 	get language() {
 		return this.model.language;
+	}
+
+	get mime(): string {
+		if (typeof this.model.mime === 'string') {
+			return this.model.mime;
+		}
+
+		switch (this.language) {
+			case 'markdown':
+				return Mimes.markdown;
+
+			default:
+				return Mimes.text;
+		}
 	}
 
 	abstract cellKind: CellKind;
@@ -129,30 +147,32 @@ export abstract class BaseCellViewModel extends Disposable {
 		readonly viewType: string,
 		readonly model: NotebookCellTextModel,
 		public id: string,
+		private readonly _viewContext: ViewContext,
 		private readonly _configurationService: IConfigurationService,
 		private readonly _modelService: ITextModelService,
 	) {
 		super();
 
-		this._register(model.onDidChangeMetadata(e => {
-			this._onDidChangeState.fire({ metadataChanged: true, runStateChanged: e.runStateChanged });
+		this._register(model.onDidChangeMetadata(() => {
+			this._onDidChangeState.fire({ metadataChanged: true });
+		}));
+
+		this._register(model.onDidChangeInternalMetadata(e => {
+			this._onDidChangeState.fire({ internalMetadataChanged: true, runStateChanged: e.runStateChanged });
+			if (e.runStateChanged || e.lastRunSuccessChanged) {
+				// Statusbar visibility may change
+				this.layoutChange({});
+			}
 		}));
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ShowCellStatusBarKey)) {
-				this.layoutChange({});
-			}
-
 			if (e.affectsConfiguration('notebook.lineNumbers')) {
 				this.lineNumbers = 'inherit';
 			}
 		}));
 	}
 
-	getEditorStatusbarHeight() {
-		const showCellStatusBar = this._configurationService.getValue<boolean>(ShowCellStatusBarKey);
-		return showCellStatusBar ? CELL_STATUSBAR_HEIGHT : 0;
-	}
+
 
 	abstract hasDynamicHeight(): boolean;
 	abstract getHeight(lineHeight: number): number;
@@ -316,6 +336,15 @@ export abstract class BaseCellViewModel extends Disposable {
 		return [...this._resolvedCellDecorations.values()];
 	}
 
+	getCellDecorationRange(decorationId: string): Range | null {
+		if (this._textEditor) {
+			// (this._textEditor as CodeEditorWidget).decora
+			return this._textEditor.getModel()?.getDecorationRange(decorationId) ?? null;
+		}
+
+		return null;
+	}
+
 	deltaCellDecorations(oldDecorations: string[], newDecorations: INotebookCellDecorationOptions[]): string[] {
 		oldDecorations.forEach(id => {
 			this._removeCellDecoration(id);
@@ -385,7 +414,8 @@ export abstract class BaseCellViewModel extends Disposable {
 			return 0;
 		}
 
-		return this._textEditor.getTopForLineNumber(line) + getEditorTopPadding();
+		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding(this.internalMetadata);
+		return this._textEditor.getTopForLineNumber(line) + editorPadding.top;
 	}
 
 	getPositionScrollTopOffset(line: number, column: number): number {
@@ -393,7 +423,8 @@ export abstract class BaseCellViewModel extends Disposable {
 			return 0;
 		}
 
-		return this._textEditor.getTopForPosition(line, column) + getEditorTopPadding();
+		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding(this.internalMetadata);
+		return this._textEditor.getTopForPosition(line, column) + editorPadding.top;
 	}
 
 	cursorAtBoundary(): CursorAtBoundary {

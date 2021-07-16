@@ -33,6 +33,11 @@ export interface IWebviewService {
 	readonly activeWebview: Webview | undefined;
 
 	/**
+	 * All webviews.
+	 */
+	readonly webviews: Iterable<Webview>;
+
+	/**
 	 * Fired when the currently focused webview changes.
 	 */
 	readonly onDidChangeActiveWebview: Event<Webview | undefined>;
@@ -75,12 +80,10 @@ export interface WebviewOptions {
 	readonly enableFindWidget?: boolean;
 	readonly tryRestoreScrollPosition?: boolean;
 	readonly retainContextWhenHidden?: boolean;
-	readonly serviceWorkerFetchIgnoreSubdomain?: boolean;
 	transformCssVariables?(styles: Readonly<WebviewStyles>): Readonly<WebviewStyles>;
 }
 
 export interface WebviewContentOptions {
-	readonly useRootAuthority?: boolean;
 	readonly allowMultipleAPIAcquire?: boolean;
 	readonly allowScripts?: boolean;
 	readonly localResourceRoots?: ReadonlyArray<URI>;
@@ -156,24 +159,69 @@ export interface Webview extends IDisposable {
 
 	windowDidDragStart(): void;
 	windowDidDragEnd(): void;
+
+	setContextKeyService(scopedContextKeyService: IContextKeyService): void;
 }
 
 /**
- * Basic webview rendered in the dom
+ * Basic webview rendered directly in the dom
  */
 export interface WebviewElement extends Webview {
+	/**
+	 * Append the webview to a HTML element.
+	 *
+	 * Note that the webview content will be destroyed if any part of the parent hierarchy
+	 * changes. You can avoid this by using a {@link WebviewOverlay} instead.
+	 *
+	 * @param parent Element to append the webview to.
+	 */
 	mountTo(parent: HTMLElement): void;
 }
 
 /**
- * Dynamically created webview drawn over another element.
+ * Lazily created {@link Webview} that is absolutely positioned over another element.
+ *
+ * Absolute positioning lets us avoid having the webview be re-parented, which would destroy the
+ * webview's content.
+ *
+ * Note that the underlying webview owned by a `WebviewOverlay` can be dynamically created
+ * and destroyed depending on who has {@link WebviewOverlay.claim claimed} or {@link WebviewOverlay.release released} it.
  */
 export interface WebviewOverlay extends Webview {
+	/**
+	 * The HTML element that holds the webview.
+	 */
 	readonly container: HTMLElement;
+
 	options: WebviewOptions;
 
-	claim(owner: any, scopedContextKeyService: IContextKeyService | undefined): void;
-	release(owner: any): void;
+	/**
+	 * Take ownership of the webview.
+	 *
+	 * This will create the underlying webview element.
+	 *
+	 * @param claimant Identifier for the object claiming the webview.
+	 *   This must match the `claimant` passed to {@link WebviewOverlay.release}.
+	 */
+	claim(claimant: any, scopedContextKeyService: IContextKeyService | undefined): void;
 
+	/**
+	 * Release ownership of the webview.
+	 *
+	 * If the {@link claimant} is still the current owner of the webview, this will
+	 * cause the underlying webview element to be destoryed.
+	 *
+	 * @param claimant Identifier for the object releasing its claim on the webview.
+	 *   This must match the `claimant` passed to {@link WebviewOverlay.claim}.
+	 */
+	release(claimant: any): void;
+
+	/**
+	 * Absolutely position the webview on top of another element in the DOM.
+	 *
+	 * @param element Element to position the webview on top of. This element should
+	 *   be an placeholder for the webview since the webview will entirely cover it.
+	 * @param dimension Optional explicit dimensions to use for sizing the webview.
+	 */
 	layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension): void;
 }

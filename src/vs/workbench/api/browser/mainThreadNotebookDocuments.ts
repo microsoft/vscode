@@ -9,19 +9,21 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { BoundModelReferenceCollection } from 'vs/workbench/api/browser/mainThreadDocuments';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { IImmediateCellEditOperation, IMainCellDto, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, MainThreadNotebookDocumentsShape } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostNotebookDocumentsShape, IExtHostContext, MainThreadNotebookDocumentsShape, NotebookCellDto, NotebookCellsChangedEventDto, NotebookDataDto } from '../common/extHost.protocol';
 import { MainThreadNotebooksAndEditors } from 'vs/workbench/api/browser/mainThreadNotebookDocumentsAndEditors';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { Schemas } from 'vs/base/common/network';
+import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
+import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 
 export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsShape {
 
 	private readonly _disposables = new DisposableStore();
 
-	private readonly _proxy: ExtHostNotebookShape;
+	private readonly _proxy: ExtHostNotebookDocumentsShape;
 	private readonly _documentEventListenersMapping = new ResourceMap<DisposableStore>();
 	private readonly _modelReferenceCollection: BoundModelReferenceCollection;
 
@@ -32,7 +34,7 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 		@INotebookEditorModelResolverService private readonly _notebookEditorModelResolverService: INotebookEditorModelResolverService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService
 	) {
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebook);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebookDocuments);
 		this._modelReferenceCollection = new BoundModelReferenceCollection(this._uriIdentityService.extUri);
 
 		notebooksAndEditors.onDidAddNotebooks(this._handleNotebooksAdded, this, this._disposables);
@@ -47,7 +49,6 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 		this._disposables.dispose();
 		this._modelReferenceCollection.dispose();
 		dispose(this._documentEventListenersMapping.values());
-
 	}
 
 	private _handleNotebooksAdded(notebooks: readonly NotebookTextModel[]): void {
@@ -55,36 +56,59 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 		for (const textModel of notebooks) {
 			const disposableStore = new DisposableStore();
 			disposableStore.add(textModel.onDidChangeContent(event => {
-				const dto = event.rawEvents.map(e => {
-					const data =
-						e.kind === NotebookCellsChangeType.ModelChange || e.kind === NotebookCellsChangeType.Initialize
-							? {
-								kind: e.kind,
-								versionId: event.versionId,
-								changes: e.changes.map(diff => [diff[0], diff[1], diff[2].map(cell => MainThreadNotebookDocuments._cellToDto(cell as NotebookCellTextModel))] as [number, number, IMainCellDto[]])
-							}
-							: (
-								e.kind === NotebookCellsChangeType.Move
-									? {
-										kind: e.kind,
-										index: e.index,
-										length: e.length,
-										newIdx: e.newIdx,
-										versionId: event.versionId,
-										cells: e.cells.map(cell => MainThreadNotebookDocuments._cellToDto(cell as NotebookCellTextModel))
-									}
-									: e
-							);
 
-					return data;
-				});
+				const eventDto: NotebookCellsChangedEventDto = {
+					versionId: event.versionId,
+					rawEvents: []
+				};
+
+				for (const e of event.rawEvents) {
+
+					switch (e.kind) {
+						case NotebookCellsChangeType.ModelChange:
+							eventDto.rawEvents.push({
+								kind: e.kind,
+								changes: e.changes.map(diff => [diff[0], diff[1], diff[2].map(cell => NotebookDto.toNotebookCellDto(cell as NotebookCellTextModel))] as [number, number, NotebookCellDto[]])
+							});
+							break;
+						case NotebookCellsChangeType.Move:
+							eventDto.rawEvents.push({
+								kind: e.kind,
+								index: e.index,
+								length: e.length,
+								newIdx: e.newIdx,
+							});
+							break;
+						case NotebookCellsChangeType.Output:
+							eventDto.rawEvents.push({
+								kind: e.kind,
+								index: e.index,
+								outputs: e.outputs.map(NotebookDto.toNotebookOutputDto)
+							});
+							break;
+						case NotebookCellsChangeType.OutputItem:
+							eventDto.rawEvents.push({
+								kind: e.kind,
+								index: e.index,
+								outputId: e.outputId,
+								outputItems: e.outputItems.map(NotebookDto.toNotebookOutputItemDto),
+								append: e.append
+							});
+							break;
+						case NotebookCellsChangeType.ChangeLanguage:
+						case NotebookCellsChangeType.ChangeCellMetadata:
+						case NotebookCellsChangeType.ChangeCellInternalMetadata:
+							eventDto.rawEvents.push(e);
+							break;
+					}
+				}
 
 				// using the model resolver service to know if the model is dirty or not.
 				// assuming this is the first listener it can mean that at first the model
 				// is marked as dirty and that another event is fired
 				this._proxy.$acceptModelChanged(
 					textModel.uri,
-					{ rawEvents: dto, versionId: event.versionId },
+					eventDto,
 					this._notebookEditorModelResolverService.isDirty(textModel.uri)
 				);
 
@@ -105,47 +129,57 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 		}
 	}
 
-	private static _cellToDto(cell: NotebookCellTextModel): IMainCellDto {
-		return {
-			handle: cell.handle,
-			uri: cell.uri,
-			source: cell.textBuffer.getLinesContent(),
-			eol: cell.textBuffer.getEOL(),
-			language: cell.language,
-			cellKind: cell.cellKind,
-			outputs: cell.outputs,
-			metadata: cell.metadata
-		};
+
+	async $tryCreateNotebook(options: { viewType: string, content?: NotebookDataDto }): Promise<UriComponents> {
+
+		const info = this._notebookService.getContributedNotebookType(options.viewType);
+		if (!info) {
+			throw new Error('UNKNOWN view type: ' + options.viewType);
+		}
+
+		// find a free URI for the untitled case
+		const suffix = NotebookProviderInfo.possibleFileEnding(info.selectors) ?? '';
+		let uri: URI;
+		for (let counter = 1; ; counter++) {
+			let candidate = URI.from({ scheme: Schemas.untitled, path: `Untitled-${counter}${suffix}`, query: options.viewType });
+			if (!this._notebookService.getNotebookTextModel(candidate)) {
+				uri = candidate;
+				break;
+			}
+		}
+
+		const ref = await this._notebookEditorModelResolverService.resolve(uri, options.viewType);
+
+		// untitled notebooks are disposed when they get saved. we should not hold a reference
+		// to such a disposed notebook and therefore dispose the reference as well
+		ref.object.notebook.onWillDispose(() => {
+			ref.dispose();
+		});
+
+		// untitled notebooks are dirty by default
+		this._proxy.$acceptDirtyStateChanged(uri, true);
+
+		// apply content changes... slightly HACKY -> this triggers a change event
+		if (options.content) {
+			const data = NotebookDto.fromNotebookDataDto(options.content);
+			ref.object.notebook.reset(data.cells, data.metadata, ref.object.notebook.transientOptions);
+		}
+		return uri;
 	}
 
-	async $tryOpenDocument(uriComponents: UriComponents): Promise<URI> {
+	async $tryOpenNotebook(uriComponents: UriComponents): Promise<URI> {
 		const uri = URI.revive(uriComponents);
 		const ref = await this._notebookEditorModelResolverService.resolve(uri, undefined);
 		this._modelReferenceCollection.add(uri, ref);
 		return uri;
 	}
 
-	async $trySaveDocument(uriComponents: UriComponents) {
+	async $trySaveNotebook(uriComponents: UriComponents) {
 		const uri = URI.revive(uriComponents);
 
 		const ref = await this._notebookEditorModelResolverService.resolve(uri);
 		const saveResult = await ref.object.save();
 		ref.dispose();
 		return saveResult;
-	}
-
-	async $applyEdits(resource: UriComponents, cellEdits: IImmediateCellEditOperation[], computeUndoRedo = true): Promise<void> {
-		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
-		if (!textModel) {
-			throw new Error(`Can't apply edits to unknown notebook model: ${URI.revive(resource).toString()}`);
-		}
-
-		try {
-			textModel.applyEdits(cellEdits, true, undefined, () => undefined, undefined, computeUndoRedo);
-		} catch (e) {
-			// Clearing outputs at the same time as the EH calling append/replaceOutputItems is an expected race, and it should be a no-op.
-			// And any other failure should not throw back to the extension.
-			onUnexpectedError(e);
-		}
 	}
 }

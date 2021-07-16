@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-php/commit/5fae657cf989701e9594912772daff33249839b3",
+	"version": "https://github.com/atom/language-php/commit/4cdf06a944a3b3c8884a6085c6adc6b246911646",
 	"scopeName": "source.php",
 	"patterns": [
 		{
@@ -390,7 +390,7 @@
 			}
 		},
 		{
-			"begin": "(?i)\\b((?:require|include)(?:_once)?)\\s+",
+			"begin": "(?i)\\b((?:require|include)(?:_once)?)(\\s+|(?=\\())",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.import.include.php"
@@ -2384,8 +2384,8 @@
 					"name": "punctuation.separator.delimiter.php"
 				},
 				{
-					"match": "(?i)\\b(null|int|float|bool|string|array|object|callable|iterable|false|mixed)\\b",
-					"name": "storage.type.php"
+					"match": "(?i)\\b(null|int|float|bool|string|array|object|callable|iterable|false|mixed|void)\\b",
+					"name": "keyword.other.type.php"
 				},
 				{
 					"match": "(?i)\\b(parent|self)\\b",
@@ -2809,7 +2809,7 @@
 			"name": "constant.character.escape.php"
 		},
 		"sql-string-double-quoted": {
-			"begin": "\"\\s*(?=(SELECT|INSERT|UPDATE|DELETE|CREATE|REPLACE|ALTER|AND)\\b)",
+			"begin": "\"\\s*(?=(SELECT|INSERT|UPDATE|DELETE|CREATE|REPLACE|ALTER|AND|WITH)\\b)",
 			"beginCaptures": {
 				"0": {
 					"name": "punctuation.definition.string.begin.php"
@@ -2825,12 +2825,65 @@
 			"name": "string.quoted.double.sql.php",
 			"patterns": [
 				{
+					"match": "(#)(\\\\\"|[^\"])*(?=\"|$)",
+					"name": "comment.line.number-sign.sql",
+					"captures": {
+						"1": {
+							"name": "punctuation.definition.comment.sql"
+						}
+					}
+				},
+				{
+					"match": "(--)(\\\\\"|[^\"])*(?=\"|$)",
+					"name": "comment.line.double-dash.sql",
+					"captures": {
+						"1": {
+							"name": "punctuation.definition.comment.sql"
+						}
+					}
+				},
+				{
+					"match": "\\\\[\\\\\"`']",
+					"name": "constant.character.escape.php"
+				},
+				{
+					"match": "'(?=((\\\\')|[^'\"])*(\"|$))",
+					"name": "string.quoted.single.unclosed.sql"
+				},
+				{
+					"match": "`(?=((\\\\`)|[^`\"])*(\"|$))",
+					"name": "string.quoted.other.backtick.unclosed.sql"
+				},
+				{
+					"begin": "'",
+					"end": "'",
+					"name": "string.quoted.single.sql",
+					"patterns": [
+						{
+							"include": "#interpolation_double_quoted"
+						}
+					]
+				},
+				{
+					"begin": "`",
+					"end": "`",
+					"name": "string.quoted.other.backtick.sql",
+					"patterns": [
+						{
+							"include": "#interpolation_double_quoted"
+						}
+					]
+				},
+				{
+					"include": "#interpolation_double_quoted"
+				},
+				{
 					"include": "source.sql"
 				}
 			]
 		},
 		"sql-string-single-quoted": {
-			"begin": "'\\s*(?=(SELECT|INSERT|UPDATE|DELETE|CREATE|REPLACE|ALTER|AND)\\b)",
+			"begin": "'\\s*(?=(SELECT|INSERT|UPDATE|DELETE|CREATE|REPLACE|ALTER|AND|WITH)\\b)",
 			"beginCaptures": {
 				"0": {
 					"name": "punctuation.definition.string.begin.php"
@@ -2845,6 +2898,36 @@
 			},
 			"name": "string.quoted.single.sql.php",
 			"patterns": [
+				{
+					"match": "(#)(\\\\'|[^'])*(?='|$)",
+					"name": "comment.line.number-sign.sql",
+					"captures": {
+						"1": {
+							"name": "punctuation.definition.comment.sql"
+						}
+					}
+				},
+				{
+					"match": "(--)(\\\\'|[^'])*(?='|$)",
+					"name": "comment.line.double-dash.sql",
+					"captures": {
+						"1": {
+							"name": "punctuation.definition.comment.sql"
+						}
+					}
+				},
+				{
+					"match": "\\\\[\\\\'`\"]",
+					"name": "constant.character.escape.php"
+				},
+				{
+					"match": "`(?=((\\\\`)|[^`'])*('|$))",
+					"name": "string.quoted.other.backtick.unclosed.sql"
+				},
+				{
+					"match": "\"(?=((\\\\\")|[^\"'])*('|$))",
+					"name": "string.quoted.double.unclosed.sql"
+				},
 				{
 					"include": "source.sql"
 				}

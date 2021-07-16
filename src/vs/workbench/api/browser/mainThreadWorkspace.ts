@@ -214,7 +214,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	}
 
 	private isWorkspaceTrusted(): boolean {
-		return this._workspaceTrustManagementService.isWorkpaceTrusted();
+		return this._workspaceTrustManagementService.isWorkspaceTrusted();
 	}
 
 	private _onDidGrantWorkspaceTrust(): void {

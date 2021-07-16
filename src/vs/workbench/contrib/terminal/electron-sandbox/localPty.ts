@@ -6,7 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
 
 /**
@@ -17,21 +17,23 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	private _inReplay = false;
 
 	private readonly _onProcessData = this._register(new Emitter<IProcessDataEvent | string>());
-	public readonly onProcessData = this._onProcessData.event;
+	readonly onProcessData = this._onProcessData.event;
 	private readonly _onProcessReplay = this._register(new Emitter<IPtyHostProcessReplayEvent>());
-	public readonly onProcessReplay = this._onProcessReplay.event;
+	readonly onProcessReplay = this._onProcessReplay.event;
 	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
-	public readonly onProcessExit = this._onProcessExit.event;
-	private readonly _onProcessReady = this._register(new Emitter<{ pid: number, cwd: string }>());
-	public readonly onProcessReady = this._onProcessReady.event;
+	readonly onProcessExit = this._onProcessExit.event;
+	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
+	readonly onProcessReady = this._onProcessReady.event;
 	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
-	public readonly onProcessTitleChanged = this._onProcessTitleChanged.event;
+	readonly onProcessTitleChanged = this._onProcessTitleChanged.event;
 	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());
-	public readonly onProcessOverrideDimensions = this._onProcessOverrideDimensions.event;
+	readonly onProcessOverrideDimensions = this._onProcessOverrideDimensions.event;
 	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
-	public readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
+	readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
 	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
-	public readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
+	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
+	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
+	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
 
 	constructor(
 		readonly id: number,
@@ -44,8 +46,8 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	start(): Promise<ITerminalLaunchError | undefined> {
 		return this._localPtyService.start(this.id);
 	}
-	detach(): void {
-		this._localPtyService.detachFromProcess(this.id);
+	detach(): Promise<void> {
+		return this._localPtyService.detachFromProcess(this.id);
 	}
 	shutdown(immediate: boolean): void {
 		this._localPtyService.shutdown(this.id, immediate);
@@ -91,7 +93,7 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	handleExit(e: number | undefined) {
 		this._onProcessExit.fire(e);
 	}
-	handleReady(e: { pid: number, cwd: string }) {
+	handleReady(e: IProcessReadyEvent) {
 		this._onProcessReady.fire(e);
 	}
 	handleTitleChanged(e: string) {
@@ -105,6 +107,9 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	}
 	handleResolvedShellLaunchConfig(e: IShellLaunchConfig) {
 		this._onProcessResolvedShellLaunchConfig.fire(e);
+	}
+	handleDidChangeHasChildProcesses(e: boolean) {
+		this._onDidChangeHasChildProcesses.fire(e);
 	}
 
 	async handleReplay(e: IPtyHostProcessReplayEvent) {
@@ -125,5 +130,9 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 
 		// remove size override
 		this._onProcessOverrideDimensions.fire(undefined);
+	}
+
+	handleOrphanQuestion() {
+		this._localPtyService.orphanQuestionReply(this.id);
 	}
 }

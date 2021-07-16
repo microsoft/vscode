@@ -169,16 +169,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				// Menu
 				const menuBarVisibility = getMenuBarVisibility(this.configurationService);
 				if (menuBarVisibility === 'compact' || menuBarVisibility === 'hidden' || menuBarVisibility === 'toggle') {
-					topActions.push({
-						id: 'toggleMenuVisibility',
-						label: localize('menu', "Menu"),
-						class: undefined,
-						tooltip: localize('menu', "Menu"),
-						checked: menuBarVisibility === 'compact',
-						enabled: true,
-						run: async () => this.configurationService.updateValue('window.menuBarVisibility', menuBarVisibility === 'compact' ? 'toggle' : 'compact'),
-						dispose: () => { }
-					});
+					topActions.push(toAction({ id: 'toggleMenuVisibility', label: localize('menu', "Menu"), checked: menuBarVisibility === 'compact', run: () => this.configurationService.updateValue('window.menuBarVisibility', menuBarVisibility === 'compact' ? 'toggle' : 'compact') }));
 				}
 
 				if (topActions.length) {
@@ -187,24 +178,14 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 				// Accounts
 				actions.push(new Separator());
-				actions.push({
-					id: 'toggleAccountsVisibility',
-					label: localize('accounts', "Accounts"),
-					class: undefined,
-					tooltip: localize('accounts', "Accounts"),
-					checked: this.accountsVisibilityPreference,
-					enabled: true,
-					run: async () => this.accountsVisibilityPreference = !this.accountsVisibilityPreference,
-					dispose: () => { }
-				});
-
+				actions.push(toAction({ id: 'toggleAccountsVisibility', label: localize('accounts', "Accounts"), checked: this.accountsVisibilityPreference, run: () => this.accountsVisibilityPreference = !this.accountsVisibilityPreference }));
 				actions.push(new Separator());
 
 				// Toggle Sidebar
-				actions.push(this.instantiationService.createInstance(ToggleSidebarPositionAction, ToggleSidebarPositionAction.ID, ToggleSidebarPositionAction.getLabel(this.layoutService)));
+				actions.push(toAction({ id: ToggleSidebarPositionAction.ID, label: ToggleSidebarPositionAction.getLabel(this.layoutService), run: () => this.instantiationService.invokeFunction(accessor => new ToggleSidebarPositionAction().run(accessor)) }));
 
 				// Toggle Activity Bar
-				actions.push(toAction({ id: ToggleActivityBarVisibilityAction.ID, label: localize('hideActivitBar', "Hide Activity Bar"), run: async () => this.instantiationService.invokeFunction(accessor => new ToggleActivityBarVisibilityAction().run(accessor)) }));
+				actions.push(toAction({ id: ToggleActivityBarVisibilityAction.ID, label: localize('hideActivitBar', "Hide Activity Bar"), run: () => this.instantiationService.invokeFunction(accessor => new ToggleActivityBarVisibilityAction().run(accessor)) }));
 			},
 			getContextMenuActionsForComposite: compositeId => this.getContextMenuActionsForComposite(compositeId),
 			getDefaultCompositeId: () => this.viewDescriptorService.getDefaultViewContainer(this.location)!.id,
@@ -223,7 +204,6 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	private getActivityHoverOptions(): IActivityHoverOptions {
 		return {
 			position: () => this.layoutService.getSideBarPosition() === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT,
-			delay: () => 0
 		};
 	}
 

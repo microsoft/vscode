@@ -18,6 +18,10 @@ body {
 	margin: 0 auto;
 }
 
+body *:last-child {
+	margin-bottom: 0;
+}
+
 img {
 	max-width: 100%;
 	max-height: 100%;
@@ -153,16 +157,17 @@ function removeEmbeddedSVGs(documentContent: string): string {
 			'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'br', 'b', 'i', 'strong', 'em', 'a', 'pre', 'code', 'img', 'tt',
 			'div', 'ins', 'del', 'sup', 'sub', 'p', 'ol', 'ul', 'table', 'thead', 'tbody', 'tfoot', 'blockquote', 'dl', 'dt',
 			'dd', 'kbd', 'q', 'samp', 'var', 'hr', 'ruby', 'rt', 'rp', 'li', 'tr', 'td', 'th', 's', 'strike', 'summary', 'details',
-			'caption', 'figure', 'figcaption', 'abbr', 'bdo', 'cite', 'dfn', 'mark', 'small', 'span', 'time', 'wbr'
+			'caption', 'figure', 'figcaption', 'abbr', 'bdo', 'cite', 'dfn', 'mark', 'small', 'span', 'time', 'wbr', 'checkbox', 'checklist', 'vertically-centered'
 		],
 		allowedAttributes: {
 			'*': [
 				'align',
 			],
-			img: ['src', 'alt', 'title', 'aria-label', 'width', 'height'],
+			img: ['src', 'alt', 'title', 'aria-label', 'width', 'height', 'centered'],
 			span: ['class'],
+			checkbox: ['on-checked', 'checked-on', 'label', 'class']
 		},
-		allowedSchemes: ['http', 'https', 'command',],
+		allowedSchemes: ['http', 'https', 'command'],
 		filter(token: { tag: string, attrs: { readonly [key: string]: string } }): boolean {
 			return token.tag !== 'svg';
 		}

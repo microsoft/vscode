@@ -7,18 +7,18 @@ import * as nls from 'vs/nls';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as strings from 'vs/base/common/strings';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { ITextModel } from 'vs/editor/common/model';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugConfiguration, IConfig, IDebugAdapterDescriptorFactory, IDebugAdapter, IDebugSession, IAdapterDescriptor, IDebugAdapterFactory, CONTEXT_DEBUGGERS_AVAILABLE, IAdapterManager } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugConfiguration, IConfig, IDebugAdapterDescriptorFactory, IDebugAdapter, IDebugSession, IAdapterDescriptor, IDebugAdapterFactory, CONTEXT_DEBUGGERS_AVAILABLE, IAdapterManager, INTERNAL_CONSOLE_OPTIONS_SCHEMA } from 'vs/workbench/contrib/debug/common/debug';
 import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { launchSchema, debuggersExtPoint, breakpointsExtPoint } from 'vs/workbench/contrib/debug/common/debugSchemas';
+import { launchSchema, debuggersExtPoint, breakpointsExtPoint, presentationSchema } from 'vs/workbench/contrib/debug/common/debugSchemas';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
@@ -27,8 +27,11 @@ import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/plat
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
+import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
+import { IEditorModel } from 'vs/editor/common/editorCommon';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+
 export class AdapterManager implements IAdapterManager {
 
 	private debuggers: Debugger[];
@@ -48,7 +51,7 @@ export class AdapterManager implements IAdapterManager {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IModeService private readonly modeService: IModeService,
-		@IDialogService private readonly dialogService: IDialogService
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		this.adapterDescriptorFactories = [];
 		this.debuggers = [];
@@ -91,10 +94,46 @@ export class AdapterManager implements IAdapterManager {
 
 			// update the schema to include all attributes, snippets and types from extensions.
 			const items = (<IJSONSchema>launchSchema.properties!['configurations'].items);
+			const taskSchema = TaskDefinitionRegistry.getJsonSchema();
+			const definitions: IJSONSchemaMap = {
+				'common': {
+					properties: {
+						'name': {
+							type: 'string',
+							description: nls.localize('debugName', "Name of configuration; appears in the launch configuration dropdown menu."),
+							default: 'Launch'
+						},
+						'debugServer': {
+							type: 'number',
+							description: nls.localize('debugServer', "For debug extension development only: if a port is specified VS Code tries to connect to a debug adapter running in server mode"),
+							default: 4711
+						},
+						'preLaunchTask': {
+							anyOf: [taskSchema, {
+								type: ['string']
+							}],
+							default: '',
+							defaultSnippets: [{ body: { task: '', type: '' } }],
+							description: nls.localize('debugPrelaunchTask', "Task to run before debug session starts.")
+						},
+						'postDebugTask': {
+							anyOf: [taskSchema, {
+								type: ['string'],
+							}],
+							default: '',
+							defaultSnippets: [{ body: { task: '', type: '' } }],
+							description: nls.localize('debugPostDebugTask', "Task to run after debug session ends.")
+						},
+						'presentation': presentationSchema,
+						'internalConsoleOptions': INTERNAL_CONSOLE_OPTIONS_SCHEMA,
+					}
+				}
+			};
+			launchSchema.definitions = definitions;
 			items.oneOf = [];
 			items.defaultSnippets = [];
 			this.debuggers.forEach(adapter => {
-				const schemaAttributes = adapter.getSchemaAttributes();
+				const schemaAttributes = adapter.getSchemaAttributes(definitions);
 				if (schemaAttributes && items.oneOf) {
 					items.oneOf.push(...schemaAttributes);
 				}
@@ -232,8 +271,9 @@ export class AdapterManager implements IAdapterManager {
 		const activeTextEditorControl = this.editorService.activeTextEditorControl;
 		let candidates: Debugger[] = [];
 		let languageLabel: string | null = null;
+		let model: IEditorModel | null = null;
 		if (isCodeEditor(activeTextEditorControl)) {
-			const model = activeTextEditorControl.getModel();
+			model = activeTextEditorControl.getModel();
 			const language = model ? model.getLanguageIdentifier().language : undefined;
 			if (language) {
 				languageLabel = this.modeService.getLanguageName(language);
@@ -247,7 +287,9 @@ export class AdapterManager implements IAdapterManager {
 			}
 		}
 
-		if (gettingConfigurations && candidates.length === 0) {
+		// We want to get the debuggers that have configuration providers in the case we are fetching configurations
+		// Or if a breakpoint can be set in the current file (good hint that an extension can handle it)
+		if ((!languageLabel || gettingConfigurations || (model && this.canSetBreakpointsIn(model))) && candidates.length === 0) {
 			await this.activateDebuggers('onDebugInitialConfigurations');
 			candidates = this.debuggers.filter(dbg => dbg.hasInitialConfiguration() || dbg.hasConfigurationProvider());
 		}

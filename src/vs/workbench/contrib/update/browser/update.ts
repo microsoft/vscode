@@ -181,15 +181,9 @@ export class ProductContribution implements IWorkbenchContribution {
 									const uri = URI.parse(releaseNotesUrl);
 									openerService.open(uri);
 								}
-							}],
-							{ sticky: true }
+							}]
 						);
 					});
-			}
-
-			// should we show the new license?
-			if (productService.licenseUrl && lastVersion && lastVersion.major < 1 && currentVersion && currentVersion.major >= 1) {
-				notificationService.info(nls.localize('licenseChanged', "Our license terms have changed, please click [here]({0}) to go through them.", productService.licenseUrl));
 			}
 
 			storageService.store(ProductContribution.KEY, productService.version, StorageScope.GLOBAL, StorageTarget.MACHINE);
@@ -261,10 +255,6 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 				this.onUpdateDownloaded(state.update);
 				break;
 
-			case StateType.Updating:
-				this.onUpdateUpdating(state.update);
-				break;
-
 			case StateType.Ready:
 				this.onUpdateReady(state.update);
 				break;
@@ -276,8 +266,16 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 		if (state.type === StateType.AvailableForDownload || state.type === StateType.Downloaded || state.type === StateType.Ready) {
 			badge = new NumberBadge(1, () => nls.localize('updateIsReady', "New {0} update available.", this.productService.nameShort));
-		} else if (state.type === StateType.CheckingForUpdates || state.type === StateType.Downloading || state.type === StateType.Updating) {
+		} else if (state.type === StateType.CheckingForUpdates) {
 			badge = new ProgressBadge(() => nls.localize('checkingForUpdates', "Checking for Updates..."));
+			clazz = 'progress-badge';
+			priority = 1;
+		} else if (state.type === StateType.Downloading) {
+			badge = new ProgressBadge(() => nls.localize('downloading', "Downloading..."));
+			clazz = 'progress-badge';
+			priority = 1;
+		} else if (state.type === StateType.Updating) {
+			badge = new ProgressBadge(() => nls.localize('updating', "Updating..."));
 			clazz = 'progress-badge';
 			priority = 1;
 		}
@@ -308,8 +306,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	private onUpdateNotAvailable(): void {
 		this.dialogService.show(
 			severity.Info,
-			nls.localize('noUpdatesAvailable', "There are currently no updates available."),
-			[nls.localize('ok', "OK")]
+			nls.localize('noUpdatesAvailable', "There are currently no updates available.")
 		);
 	}
 
@@ -335,8 +332,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 					action.run();
 					action.dispose();
 				}
-			}],
-			{ sticky: true }
+			}]
 		);
 	}
 
@@ -362,25 +358,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 					action.run();
 					action.dispose();
 				}
-			}],
-			{ sticky: true }
-		);
-	}
-
-	// windows fast updates
-	private onUpdateUpdating(update: IUpdate): void {
-		if (isWindows && this.productService.target === 'user') {
-			return;
-		}
-
-		// windows fast updates (target === system)
-		this.notificationService.prompt(
-			severity.Info,
-			nls.localize('updateInstalling', "{0} {1} is being installed in the background; we'll let you know when it's done.", this.productService.nameLong, update.productVersion),
-			[],
-			{
-				neverShowAgain: { id: 'neverShowAgain:update/win32-fast-updates', isSecondary: true }
-			}
+			}]
 		);
 	}
 

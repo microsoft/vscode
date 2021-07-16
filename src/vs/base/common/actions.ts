@@ -30,14 +30,14 @@ export interface IAction extends IDisposable {
 	class: string | undefined;
 	enabled: boolean;
 	checked: boolean;
-	run(event?: unknown): Promise<unknown>;
+	run(event?: unknown): unknown;
 }
 
 export interface IActionRunner extends IDisposable {
 	readonly onDidRun: Event<IRunEvent>;
 	readonly onBeforeRun: Event<IRunEvent>;
 
-	run(action: IAction, context?: unknown): Promise<unknown>;
+	run(action: IAction, context?: unknown): unknown;
 }
 
 export interface IActionChangeEvent {
@@ -59,9 +59,9 @@ export class Action extends Disposable implements IAction {
 	protected _cssClass: string | undefined;
 	protected _enabled: boolean = true;
 	protected _checked: boolean = false;
-	protected readonly _actionCallback?: (event?: unknown) => Promise<unknown>;
+	protected readonly _actionCallback?: (event?: unknown) => unknown;
 
-	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback?: (event?: unknown) => Promise<unknown>) {
+	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback?: (event?: unknown) => unknown) {
 		super();
 		this._id = id;
 		this._label = label;
@@ -192,6 +192,24 @@ export class ActionRunner extends Disposable implements IActionRunner {
 }
 
 export class Separator extends Action {
+
+	/**
+	 * Joins all non-empty lists of actions with separators.
+	 */
+	public static join(...actionLists: readonly IAction[][]) {
+		let out: IAction[] = [];
+		for (const list of actionLists) {
+			if (!list.length) {
+				// skip
+			} else if (out.length) {
+				out = [...out, new Separator(), ...list];
+			} else {
+				out = list;
+			}
+		}
+
+		return out;
+	}
 
 	static readonly ID = 'vs.actions.separator';
 

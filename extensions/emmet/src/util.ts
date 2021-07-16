@@ -381,13 +381,19 @@ export function getHtmlFlatNode(documentText: string, root: FlatNode | undefined
 
 	// If the currentNode is a script one, first set up its subtree and then find HTML node.
 	if (currentNode.name === 'script' && currentNode.children.length === 0) {
-		setUpScriptNodeSubtree(documentText, currentNode);
-		currentNode = <HtmlFlatNode | undefined>getFlatNode(currentNode, offset, includeNodeBoundary) ?? currentNode;
+		const scriptNodeBody = setupScriptNodeSubtree(documentText, currentNode);
+		if (scriptNodeBody) {
+			currentNode = getHtmlFlatNode(scriptNodeBody, currentNode, offset, includeNodeBoundary) ?? currentNode;
+		}
+	}
+	else if (currentNode.type === 'cdata') {
+		const cdataBody = setupCdataNodeSubtree(documentText, currentNode);
+		currentNode = getHtmlFlatNode(cdataBody, currentNode, offset, includeNodeBoundary) ?? currentNode;
 	}
 	return currentNode;
 }
 
-export function setUpScriptNodeSubtree(documentText: string, scriptNode: HtmlFlatNode): void {
+export function setupScriptNodeSubtree(documentText: string, scriptNode: HtmlFlatNode): string {
 	const isTemplateScript = scriptNode.name === 'script' &&
 		(scriptNode.attributes &&
 			scriptNode.attributes.some(x => x.name.toString() === 'type'
@@ -403,7 +409,25 @@ export function setUpScriptNodeSubtree(documentText: string, scriptNode: HtmlFla
 			scriptNode.children.push(child);
 			child.parent = scriptNode;
 		});
+		return scriptBodyText;
 	}
+	return '';
+}
+
+export function setupCdataNodeSubtree(documentText: string, cdataNode: HtmlFlatNode): string {
+	// blank out the rest of the document and generate the subtree.
+	const cdataStart = '<![CDATA[';
+	const cdataEnd = ']]>';
+	const startToUse = cdataNode.start + cdataStart.length;
+	const endToUse = cdataNode.end - cdataEnd.length;
+	const beforePadding = ' '.repeat(startToUse);
+	const cdataBody = beforePadding + documentText.substring(startToUse, endToUse);
+	const innerRoot: HtmlFlatNode = parse(cdataBody);
+	innerRoot.children.forEach(child => {
+		cdataNode.children.push(child);
+		child.parent = cdataNode;
+	});
+	return cdataBody;
 }
 
 export function isOffsetInsideOpenOrCloseTag(node: FlatNode, offset: number): boolean {

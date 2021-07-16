@@ -42,6 +42,7 @@ import { createAndFillInContextMenuActions, createAndFillInActionBarActions } fr
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Codicon } from 'vs/base/common/codicons';
+import { equals } from 'vs/base/common/arrays';
 
 const $ = dom.$;
 
@@ -76,6 +77,7 @@ export class BreakpointsView extends ViewPane {
 	private breakpointSupportsCondition: IContextKey<boolean>;
 	private _inputBoxData: InputBoxData | undefined;
 	breakpointInputFocused: IContextKey<boolean>;
+	private autoFocusedIndex = -1;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -102,6 +104,7 @@ export class BreakpointsView extends ViewPane {
 		this.breakpointSupportsCondition = CONTEXT_BREAKPOINT_SUPPORTS_CONDITION.bindTo(contextKeyService);
 		this.breakpointInputFocused = CONTEXT_BREAKPOINT_INPUT_FOCUSED.bindTo(contextKeyService);
 		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
+		this._register(this.debugService.onDidChangeState(() => this.onStateChange()));
 	}
 
 	override renderBody(container: HTMLElement): void {
@@ -251,6 +254,35 @@ export class BreakpointsView extends ViewPane {
 			}
 		} else {
 			this.needsRefresh = true;
+		}
+	}
+
+	private onStateChange(): void {
+		const thread = this.debugService.getViewModel().focusedThread;
+		let found = false;
+		if (thread && thread.stoppedDetails && thread.stoppedDetails.hitBreakpointIds && thread.stoppedDetails.hitBreakpointIds.length > 0) {
+			const hitBreakpointIds = thread.stoppedDetails.hitBreakpointIds;
+			const elements = this.elements;
+			const index = elements.findIndex(e => {
+				const id = e.getIdFromAdapter(thread.session.getId());
+				return typeof id === 'number' && hitBreakpointIds.indexOf(id) !== -1;
+			});
+			if (index >= 0) {
+				this.list.setFocus([index]);
+				this.list.setSelection([index]);
+				found = true;
+				this.autoFocusedIndex = index;
+			}
+		}
+		if (!found) {
+			// Deselect breakpoint in breakpoint view when no longer stopped on it #125528
+			const focus = this.list.getFocus();
+			const selection = this.list.getSelection();
+			if (this.autoFocusedIndex >= 0 && equals(focus, selection) && focus.indexOf(this.autoFocusedIndex) >= 0) {
+				this.list.setFocus([]);
+				this.list.setSelection([]);
+			}
+			this.autoFocusedIndex = -1;
 		}
 	}
 

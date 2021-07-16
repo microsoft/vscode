@@ -17,7 +17,7 @@ function workspaceFile(...segments: string[]) {
 
 const testDocument = workspaceFile('bower.json');
 
-suite.skip('vscode API - webview', () => {
+suite('vscode API - webview', () => {
 	const disposables: vscode.Disposable[] = [];
 
 	function _register<T extends vscode.Disposable>(disposable: T) {
@@ -400,7 +400,7 @@ suite.skip('vscode API - webview', () => {
 		});
 	}
 
-	test('webviews should transfer ArrayBuffers to and from webviews', async () => {
+	test.skip('webviews should transfer ArrayBuffers to and from webviews', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
 		const ready = getMessage(webview);
 		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
@@ -451,7 +451,7 @@ suite.skip('vscode API - webview', () => {
 		}
 	});
 
-	test('webviews should transfer Typed arrays to and from webviews', async () => {
+	test.skip('webviews should transfer Typed arrays to and from webviews', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
 		const ready = getMessage(webview);
 		webview.webview.html = createHtmlDocumentWithBody(/*html*/`

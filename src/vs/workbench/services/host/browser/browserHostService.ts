@@ -11,14 +11,13 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen } from 'vs/platform/windows/common/windows';
 import { pathsToEditors } from 'vs/workbench/common/editor';
-import { whenTextEditorClosed } from 'vs/workbench/browser/editor';
+import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IModifierKeyStatus, ModifierKeyEmitter, trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { domEvent } from 'vs/base/browser/event';
 import { memoize } from 'vs/base/common/decorators';
 import { parseLineAndColumnAware } from 'vs/base/common/extpath';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
@@ -30,6 +29,7 @@ import { getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser
 import { localize } from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { DomEmitter } from 'vs/base/browser/event';
 
 /**
  * A workspace to open in the workbench can either be:
@@ -138,7 +138,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 			// Unknown / Keyboard shows veto depending on setting
 			case HostShutdownReason.Unknown:
 			case HostShutdownReason.Keyboard:
-				const confirmBeforeClose = this.configurationService.getValue<'always' | 'keyboardOnly' | 'never'>('window.confirmBeforeClose');
+				const confirmBeforeClose = this.configurationService.getValue('window.confirmBeforeClose');
 				if (confirmBeforeClose === 'always' || (confirmBeforeClose === 'keyboardOnly' && this.shutdownReason === HostShutdownReason.Keyboard)) {
 					e.veto(true, 'veto.confirmBeforeClose');
 				}
@@ -170,11 +170,12 @@ export class BrowserHostService extends Disposable implements IHostService {
 	@memoize
 	get onDidChangeFocus(): Event<boolean> {
 		const focusTracker = this._register(trackFocus(window));
+		const onVisibilityChange = this._register(new DomEmitter(window.document, 'visibilitychange'));
 
 		return Event.latch(Event.any(
 			Event.map(focusTracker.onDidFocus, () => this.hasFocus),
 			Event.map(focusTracker.onDidBlur, () => this.hasFocus),
-			Event.map(domEvent(window.document, 'visibilitychange'), () => this.hasFocus)
+			Event.map(onVisibilityChange.event, () => this.hasFocus)
 		));
 	}
 
@@ -256,8 +257,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 					// Same Window: open via editor service in current window
 					if (this.shouldReuse(options, true /* file */)) {
 						editorService.openEditor({
-							leftResource: editors[0].resource,
-							rightResource: editors[1].resource,
+							original: { resource: editors[0].resource },
+							modified: { resource: editors[1].resource },
 							options: { pinned: true }
 						});
 					}
@@ -292,7 +293,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 								openables = [openable];
 							}
 
-							editorService.openEditors(await pathsToEditors(openables, this.fileService));
+							editorService.openEditors(await pathsToEditors(openables, this.fileService), undefined, { validateTrust: true });
 						}
 
 						// New Window: open into empty window
@@ -315,7 +316,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 					(async () => {
 
 						// Wait for the resources to be closed in the text editor...
-						await this.instantiationService.invokeFunction(accessor => whenTextEditorClosed(accessor, fileOpenables.map(fileOpenable => fileOpenable.fileUri)));
+						await this.instantiationService.invokeFunction(accessor => whenEditorClosed(accessor, fileOpenables.map(fileOpenable => fileOpenable.fileUri)));
 
 						// ...before deleting the wait marker file
 						await this.fileService.del(waitMarkerFileURI);
@@ -388,7 +389,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 		const opened = await this.workspaceProvider.open(workspace, options);
 		if (!opened) {
-			const showResult = await this.dialogService.show(Severity.Warning, localize('unableToOpenExternal', "Opening a new workspace tab or window has been prevented by the browser. You must give permission to continue."), [localize('continue', "Continue"), localize('cancel', "Cancel")], { cancelId: 1 });
+			const showResult = await this.dialogService.show(Severity.Warning, localize('unableToOpenExternal', "The browser interrupted the opening of a new tab or window. Press 'Open' to open it anyway."), [localize('open', "Open"), localize('cancel', "Cancel")], { cancelId: 2 });
 			if (showResult.choice === 0) {
 				await this.workspaceProvider.open(workspace, options);
 			}

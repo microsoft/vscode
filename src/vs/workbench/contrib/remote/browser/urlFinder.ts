@@ -33,13 +33,13 @@ export class UrlFinder extends Disposable {
 	constructor(terminalService: ITerminalService, debugService: IDebugService) {
 		super();
 		// Terminal
-		terminalService.terminalInstances.forEach(instance => {
+		terminalService.instances.forEach(instance => {
 			this.registerTerminalInstance(instance);
 		});
-		this._register(terminalService.onInstanceCreated(instance => {
+		this._register(terminalService.onDidCreateInstance(instance => {
 			this.registerTerminalInstance(instance);
 		}));
-		this._register(terminalService.onInstanceDisposed(instance => {
+		this._register(terminalService.onDidDisposeInstance(instance => {
 			this.listeners.get(instance)?.dispose();
 			this.listeners.delete(instance);
 		}));

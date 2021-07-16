@@ -33,19 +33,33 @@ app.allowRendererProcessReuse = false;
 const portable = bootstrapNode.configurePortable(product);
 
 // Enable ASAR support
-bootstrap.enableASARSupport(undefined);
+bootstrap.enableASARSupport(undefined, false);
 
 // Set userData path before app 'ready' event
 const args = parseCLIArgs();
 const userDataPath = getUserDataPath(args);
 app.setPath('userData', userDataPath);
 
+// Resolve code cache path
+const codeCachePath = getCodeCachePath();
+
 // Configure static command line arguments
 const argvConfig = configureCommandlineSwitchesSync(args);
 
 // Configure crash reporter
 perf.mark('code/willStartCrashReporter');
-configureCrashReporter();
+// If a crash-reporter-directory is specified we store the crash reports
+// in the specified directory and don't upload them to the crash server.
+//
+// Appcenter crash reporting is enabled if
+// * enable-crash-reporter runtime argument is set to 'true'
+// * --disable-crash-reporter command line parameter is not set
+//
+// Disable crash reporting in all other cases.
+if (args['crash-reporter-directory'] ||
+	(argvConfig['enable-crash-reporter'] && !args['disable-crash-reporter'])) {
+	configureCrashReporter();
+}
 perf.mark('code/didStartCrashReporter');
 
 // Set logs path before app 'ready' event if running portable
@@ -70,9 +84,6 @@ protocol.registerSchemesAsPrivileged([
 
 // Global app listeners
 registerListeners();
-
-// Cached data
-const nodeCachedDataDir = getNodeCachedDir();
 
 /**
  * Support user defined locale: load it early before app('ready')
@@ -108,14 +119,14 @@ app.once('ready', function () {
 /**
  * Main startup routine
  *
- * @param {string | undefined} cachedDataDir
+ * @param {string | undefined} codeCachePath
  * @param {NLSConfiguration} nlsConfig
  */
-function startup(cachedDataDir, nlsConfig) {
+function startup(codeCachePath, nlsConfig) {
 	nlsConfig._languagePackSupport = true;
 
 	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
-	process.env['VSCODE_NODE_CACHED_DATA_DIR'] = cachedDataDir || '';
+	process.env['VSCODE_CODE_CACHE_PATH'] = codeCachePath || '';
 
 	// Load main in AMD
 	perf.mark('code/willLoadMainBundle');
@@ -128,9 +139,9 @@ async function onReady() {
 	perf.mark('code/mainAppReady');
 
 	try {
-		const [cachedDataDir, nlsConfig] = await Promise.all([nodeCachedDataDir.ensureExists(), resolveNlsConfiguration()]);
+		const [, nlsConfig] = await Promise.all([mkdirpIgnoreError(codeCachePath), resolveNlsConfiguration()]);
 
-		startup(cachedDataDir, nlsConfig);
+		startup(codeCachePath, nlsConfig);
 	} catch (error) {
 		console.error(error);
 	}
@@ -174,7 +185,7 @@ function configureCommandlineSwitchesSync(cliArgs) {
 	// Read argv config
 	const argvConfig = readArgvConfigSync();
 
-	let browserCodeLoadingStrategy = undefined;
+	let browserCodeLoadingStrategy = typeof codeCachePath === 'string' ? 'bypassHeatCheck' : 'none';
 
 	Object.keys(argvConfig).forEach(argvKey => {
 		const argvValue = argvConfig[argvKey];
@@ -321,8 +332,6 @@ function getArgvConfigPath() {
 
 function configureCrashReporter() {
 
-	// If a crash-reporter-directory is specified we store the crash reports
-	// in the specified directory and don't upload them to the crash server.
 	let crashReporterDirectory = args['crash-reporter-directory'];
 	let submitURL = '';
 	if (crashReporterDirectory) {
@@ -351,11 +360,7 @@ function configureCrashReporter() {
 	// Otherwise we configure the crash reporter from product.json
 	else {
 		const appCenter = product.appCenter;
-		// Disable Appcenter crash reporting if
-		// * --crash-reporter-directory is specified
-		// * enable-crash-reporter runtime argument is set to 'false'
-		// * --disable-crash-reporter command line parameter is set
-		if (appCenter && argvConfig['enable-crash-reporter'] && !args['disable-crash-reporter']) {
+		if (appCenter) {
 			const isWindows = (process.platform === 'win32');
 			const isLinux = (process.platform === 'linux');
 			const isDarwin = (process.platform === 'darwin');
@@ -410,13 +415,23 @@ function configureCrashReporter() {
 	// Start crash reporter for all processes
 	const productName = (product.crashReporter ? product.crashReporter.productName : undefined) || product.nameShort;
 	const companyName = (product.crashReporter ? product.crashReporter.companyName : undefined) || 'Microsoft';
-	crashReporter.start({
-		companyName: companyName,
-		productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,
-		submitURL,
-		uploadToServer: !crashReporterDirectory,
-		compress: true
-	});
+	if (process.env['VSCODE_DEV']) {
+		crashReporter.start({
+			companyName: companyName,
+			productName: `${productName} Dev`,
+			submitURL,
+			uploadToServer: false,
+			compress: true
+		});
+	} else {
+		crashReporter.start({
+			companyName: companyName,
+			productName: productName,
+			submitURL,
+			uploadToServer: !crashReporterDirectory,
+			compress: true
+		});
+	}
 }
 
 /**
@@ -499,46 +514,28 @@ function registerListeners() {
 }
 
 /**
- * @returns {{ ensureExists: () => Promise<string | undefined> }}
+ * @returns {string | undefined} the location to use for the code cache
+ * or `undefined` if disabled.
  */
-function getNodeCachedDir() {
-	return new class {
+function getCodeCachePath() {
 
-		constructor() {
-			this.value = this.compute();
-		}
+	// explicitly disabled via CLI args
+	if (process.argv.indexOf('--no-cached-data') > 0) {
+		return undefined;
+	}
 
-		async ensureExists() {
-			if (typeof this.value === 'string') {
-				try {
-					await mkdirp(this.value);
+	// running out of sources
+	if (process.env['VSCODE_DEV']) {
+		return undefined;
+	}
 
-					return this.value;
-				} catch (error) {
-					// ignore
-				}
-			}
-		}
+	// require commit id
+	const commit = product.commit;
+	if (!commit) {
+		return undefined;
+	}
 
-		compute() {
-			if (process.argv.indexOf('--no-cached-data') > 0) {
-				return undefined;
-			}
-
-			// IEnvironmentService.isBuilt
-			if (process.env['VSCODE_DEV']) {
-				return undefined;
-			}
-
-			// find commit id
-			const commit = product.commit;
-			if (!commit) {
-				return undefined;
-			}
-
-			return path.join(userDataPath, 'CachedData', commit);
-		}
-	};
+	return path.join(userDataPath, 'CachedData', commit);
 }
 
 /**
@@ -551,6 +548,24 @@ function mkdirp(dir) {
 	return new Promise((resolve, reject) => {
 		fs.mkdir(dir, { recursive: true }, err => (err && err.code !== 'EEXIST') ? reject(err) : resolve(dir));
 	});
+}
+
+/**
+ * @param {string | undefined} dir
+ * @returns {Promise<string | undefined>}
+ */
+async function mkdirpIgnoreError(dir) {
+	if (typeof dir === 'string') {
+		try {
+			await mkdirp(dir);
+
+			return dir;
+		} catch (error) {
+			// ignore
+		}
+	}
+
+	return undefined;
 }
 
 //#region NLS Support

@@ -34,12 +34,8 @@ export interface IProtocolMainService {
 	/**
 	 * Allows to make an object accessible to a renderer
 	 * via `ipcRenderer.invoke(resource.toString())`.
-	 *
-	 * @param obj the (optional) object to make accessible to the
-	 * renderer. Can be updated later via the `IObjectUrl#update`
-	 * method too.
 	 */
-	createIPCObjectUrl<T>(obj?: T): IIPCObjectUrl<T>;
+	createIPCObjectUrl<T>(): IIPCObjectUrl<T>;
 
 	/**
 	 * Adds a `URI` as root to the list of allowed

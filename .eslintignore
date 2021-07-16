@@ -16,3 +16,4 @@
 **/extensions/markdown-language-features/notebook-out/**
 **/extensions/typescript-basics/test/colorize-fixtures/**
 **/extensions/**/dist/**
+**/extensions/typescript-language-features/test-workspace/**

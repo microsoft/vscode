@@ -605,8 +605,6 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 
 	public abstract $resolveVariables(uriComponents: UriComponents, toResolve: { process?: { name: string; cwd?: string; path?: string }, variables: string[] }): Promise<{ process?: string, variables: { [key: string]: string; } }>;
 
-	public abstract $getDefaultShellAndArgs(): Promise<{ shell: string, args: string[] | string | undefined }>;
-
 	private nextHandle(): number {
 		return this._handleCounter++;
 	}
@@ -773,10 +771,6 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 			variables: Object.create(null)
 		};
 		return result;
-	}
-
-	public $getDefaultShellAndArgs(): Promise<{ shell: string, args: string[] | string | undefined }> {
-		throw new Error('Not implemented');
 	}
 
 	public async $jsonTasksSupported(): Promise<boolean> {

@@ -18,8 +18,10 @@ import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { reduceCellRanges } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, diff, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, diff } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { NotebookEditorTestModel, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 
@@ -35,10 +37,10 @@ suite('NotebookViewModel', () => {
 	instantiationService.stub(IThemeService, new TestThemeService());
 
 	test('ctor', function () {
-		const notebook = new NotebookTextModel('notebook', URI.parse('test'), [], notebookDocumentMetadataDefaults, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }, undoRedoService, modelService, modeService);
+		const notebook = new NotebookTextModel('notebook', URI.parse('test'), [], {}, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }, undoRedoService, modelService, modeService);
 		const model = new NotebookEditorTestModel(notebook);
-		const eventDispatcher = new NotebookEventDispatcher();
-		const viewModel = new NotebookViewModel('notebook', model.notebook, eventDispatcher, null, instantiationService, bulkEditService, undoRedoService, textModelService);
+		const viewContext = new ViewContext(new NotebookOptions(instantiationService.get(IConfigurationService)), new NotebookEventDispatcher());
+		const viewModel = new NotebookViewModel('notebook', model.notebook, viewContext, null, { isReadOnly: false }, instantiationService, bulkEditService, undoRedoService, textModelService);
 		assert.strictEqual(viewModel.viewType, 'notebook');
 	});
 
@@ -48,9 +50,7 @@ suite('NotebookViewModel', () => {
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor) => {
-				const viewModel = editor.viewModel;
-
+			(editor, viewModel) => {
 				const cell = viewModel.createCell(1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true, null, []);
 				assert.strictEqual(viewModel.length, 3);
 				assert.strictEqual(viewModel.notebookDocument.cells.length, 3);
@@ -71,8 +71,7 @@ suite('NotebookViewModel', () => {
 				['//b', 'javascript', CellKind.Code, [], {}],
 				['//c', 'javascript', CellKind.Code, [], {}],
 			],
-			(editor) => {
-				const viewModel = editor.viewModel;
+			(editor, viewModel) => {
 				viewModel.moveCellToIdx(0, 1, 0, true);
 				// no-op
 				assert.strictEqual(viewModel.cellAt(0)?.getText(), '//a');
@@ -100,8 +99,7 @@ suite('NotebookViewModel', () => {
 				['//b', 'javascript', CellKind.Code, [], {}],
 				['//c', 'javascript', CellKind.Code, [], {}],
 			],
-			(editor) => {
-				const viewModel = editor.viewModel;
+			(editor, viewModel) => {
 				viewModel.moveCellToIdx(1, 1, 0, true);
 				// b, a, c
 				assert.strictEqual(viewModel.cellAt(0)?.getText(), '//b');
@@ -122,8 +120,7 @@ suite('NotebookViewModel', () => {
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor) => {
-				const viewModel = editor.viewModel;
+			(editor, viewModel) => {
 				const firstViewCell = viewModel.cellAt(0)!;
 				const lastViewCell = viewModel.cellAt(viewModel.length - 1)!;
 
@@ -179,8 +176,7 @@ suite('NotebookViewModel Decorations', () => {
 				['var d = 4;', 'javascript', CellKind.Code, [], {}],
 				['var e = 5;', 'javascript', CellKind.Code, [], {}],
 			],
-			(editor) => {
-				const viewModel = editor.viewModel;
+			(editor, viewModel) => {
 				const trackedId = viewModel.setTrackedRange('test', { start: 1, end: 2 }, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
 				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
@@ -237,8 +233,7 @@ suite('NotebookViewModel Decorations', () => {
 				['var e = 6;', 'javascript', CellKind.Code, [], {}],
 				['var e = 7;', 'javascript', CellKind.Code, [], {}],
 			],
-			(editor) => {
-				const viewModel = editor.viewModel;
+			(editor, viewModel) => {
 				const trackedId = viewModel.setTrackedRange('test', { start: 1, end: 3 }, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
 				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
@@ -333,17 +328,16 @@ suite('NotebookViewModel API', () => {
 	test('#115432, get nearest code cell', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['b = 2;', 'python', CellKind.Code, [], {}],
 				['var c = 3', 'javascript', CellKind.Code, [], {}],
-				['# header d', 'markdown', CellKind.Markdown, [], {}],
+				['# header d', 'markdown', CellKind.Markup, [], {}],
 				['var e = 4;', 'TypeScript', CellKind.Code, [], {}],
-				['# header f', 'markdown', CellKind.Markdown, [], {}]
+				['# header f', 'markdown', CellKind.Markup, [], {}]
 			],
-			(editor) => {
-				const viewModel = editor.viewModel;
+			(editor, viewModel) => {
 				assert.strictEqual(viewModel.nearestCodeCellIndex(0), 1);
 				// find the nearest code cell from above
 				assert.strictEqual(viewModel.nearestCodeCellIndex(2), 1);
@@ -357,12 +351,11 @@ suite('NotebookViewModel API', () => {
 	test('#108464, get nearest code cell', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}]
+				['# header b', 'markdown', CellKind.Markup, [], {}]
 			],
-			(editor) => {
-				const viewModel = editor.viewModel;
+			(editor, viewModel) => {
 				assert.strictEqual(viewModel.nearestCodeCellIndex(2), 1);
 			}
 		);
@@ -371,12 +364,11 @@ suite('NotebookViewModel API', () => {
 	test('getCells', async () => {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}]
+				['# header b', 'markdown', CellKind.Markup, [], {}]
 			],
-			(editor) => {
-				const viewModel = editor.viewModel;
+			(editor, viewModel) => {
 				assert.strictEqual(viewModel.getCells().length, 3);
 				assert.deepStrictEqual(viewModel.getCells({ start: 0, end: 1 }).map(cell => cell.getText()), ['# header a']);
 				assert.deepStrictEqual(viewModel.getCells({ start: 0, end: 2 }).map(cell => cell.getText()), ['# header a', 'var b = 1;']);
@@ -398,8 +390,7 @@ suite('NotebookViewModel API', () => {
 			[
 				['var b = 1;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor) => {
-				const viewModel = editor.viewModel;
+			(editor, viewModel) => {
 				assert.deepStrictEqual(viewModel.computeCellLinesContents(viewModel.cellAt(0)!, [{ lineNumber: 1, column: 4 }]), [
 					'var',
 					' b = 1;'

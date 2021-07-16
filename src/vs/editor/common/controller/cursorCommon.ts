@@ -11,7 +11,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { ICommand, IConfiguration } from 'vs/editor/common/editorCommon';
-import { ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
+import { ITextModel, PositionAffinity, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { AutoClosingPairs, IAutoClosingPair } from 'vs/editor/common/modes/languageConfiguration';
@@ -39,9 +39,11 @@ export const enum RevealTarget {
  */
 export const enum EditOperationType {
 	Other = 0,
-	Typing = 1,
 	DeletingLeft = 2,
-	DeletingRight = 3
+	DeletingRight = 3,
+	TypingOther = 4,
+	TypingFirstSpace = 5,
+	TypingConsecutiveSpace = 6,
 }
 
 export interface CharacterMap {
@@ -56,7 +58,7 @@ const autoCloseNever = () => false;
 const autoCloseBeforeWhitespace = (chr: string) => (chr === ' ' || chr === '\t');
 
 export class CursorConfiguration {
-	_cursorMoveConfigurationBrand: void;
+	_cursorMoveConfigurationBrand: void = undefined;
 
 	public readonly readOnly: boolean;
 	public readonly tabSize: number;
@@ -219,13 +221,20 @@ export interface ICursorSimpleModel {
 	getLineMaxColumn(lineNumber: number): number;
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
+	normalizePosition(position: Position, affinity: PositionAffinity): Position;
+
+	/**
+	 * Gets the column at which indentation stops at a given line.
+	 * @internal
+	 */
+	getLineIndentColumn(lineNumber: number): number;
 }
 
 /**
  * Represents the cursor state on either the model or on the view model.
  */
 export class SingleCursorState {
-	_singleCursorStateBrand: void;
+	_singleCursorStateBrand: void = undefined;
 
 	// --- selection can start as a range (think double click and drag)
 	public readonly selectionStart: Range;
@@ -310,14 +319,16 @@ export class SingleCursorState {
 }
 
 export class CursorContext {
-	_cursorContextBrand: void;
+	_cursorContextBrand: void = undefined;
 
 	public readonly model: ITextModel;
+	public readonly viewModel: ICursorSimpleModel;
 	public readonly coordinatesConverter: ICoordinatesConverter;
 	public readonly cursorConfig: CursorConfiguration;
 
-	constructor(model: ITextModel, coordinatesConverter: ICoordinatesConverter, cursorConfig: CursorConfiguration) {
+	constructor(model: ITextModel, viewModel: ICursorSimpleModel, coordinatesConverter: ICoordinatesConverter, cursorConfig: CursorConfiguration) {
 		this.model = model;
+		this.viewModel = viewModel;
 		this.coordinatesConverter = coordinatesConverter;
 		this.cursorConfig = cursorConfig;
 	}
@@ -346,7 +357,7 @@ export class PartialViewCursorState {
 export type PartialCursorState = CursorState | PartialModelCursorState | PartialViewCursorState;
 
 export class CursorState {
-	_cursorStateBrand: void;
+	_cursorStateBrand: void = undefined;
 
 	public static fromModelState(modelState: SingleCursorState): PartialModelCursorState {
 		return new PartialModelCursorState(modelState);
@@ -390,7 +401,7 @@ export class CursorState {
 }
 
 export class EditOperationResult {
-	_editOperationResultBrand: void;
+	_editOperationResultBrand: void = undefined;
 
 	readonly type: EditOperationType;
 	readonly commands: Array<ICommand | null>;
@@ -447,6 +458,55 @@ export class CursorColumns {
 				}
 			}
 		}
+		return result;
+	}
+
+	/**
+	 * Returns an array that maps one based columns to one based visible columns. The entry at position 0 is -1.
+	*/
+	public static visibleColumnsByColumns(lineContent: string, tabSize: number): number[] {
+		const endOffset = lineContent.length;
+
+		let result = new Array<number>();
+		result.push(-1);
+		let pos = 0;
+		let i = 0;
+		while (i < endOffset) {
+			const codePoint = strings.getNextCodePoint(lineContent, endOffset, i);
+			i += (codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
+
+			result.push(pos);
+			if (codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN) {
+				result.push(pos);
+			}
+
+			if (codePoint === CharCode.Tab) {
+				pos = CursorColumns.nextRenderTabStop(pos, tabSize);
+			} else {
+				let graphemeBreakType = strings.getGraphemeBreakType(codePoint);
+				while (i < endOffset) {
+					const nextCodePoint = strings.getNextCodePoint(lineContent, endOffset, i);
+					const nextGraphemeBreakType = strings.getGraphemeBreakType(nextCodePoint);
+					if (strings.breakBetweenGraphemeBreakType(graphemeBreakType, nextGraphemeBreakType)) {
+						break;
+					}
+					i += (nextCodePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
+
+					result.push(pos);
+					if (codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN) {
+						result.push(pos);
+					}
+
+					graphemeBreakType = nextGraphemeBreakType;
+				}
+				if (strings.isFullWidthCharacter(codePoint) || strings.isEmojiImprecise(codePoint)) {
+					pos = pos + 2;
+				} else {
+					pos = pos + 1;
+				}
+			}
+		}
+		result.push(pos);
 		return result;
 	}
 
@@ -562,14 +622,14 @@ export class CursorColumns {
 	 * ATTENTION: This works with 0-based columns (as opposed to the regular 1-based columns)
 	 */
 	public static prevRenderTabStop(column: number, tabSize: number): number {
-		return column - 1 - (column - 1) % tabSize;
+		return Math.max(0, column - 1 - (column - 1) % tabSize);
 	}
 
 	/**
 	 * ATTENTION: This works with 0-based columns (as opposed to the regular 1-based columns)
 	 */
 	public static prevIndentTabStop(column: number, indentSize: number): number {
-		return column - 1 - (column - 1) % indentSize;
+		return Math.max(0, column - 1 - (column - 1) % indentSize);
 	}
 }
 

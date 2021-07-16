@@ -4,31 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { EditorModel, IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
+import { IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
+import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { Emitter, Event } from 'vs/base/common/event';
-import { INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookDataDto, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellDto2, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookData, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookContentProvider, INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities, NO_TYPE_ID, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
+import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { Schemas } from 'vs/base/common/network';
 import { IFileStatWithMetadata, IFileService, FileChangeType, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
 import { TaskSequentializer } from 'vs/base/common/async';
-import { bufferToStream, streamToBuffer, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { bufferToReadable, bufferToStream, streamToBuffer, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { assertType } from 'vs/base/common/types';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { IFileWorkingCopyModel, IFileWorkingCopyModelContentChangedEvent, IFileWorkingCopyModelFactory, IResolvedFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
+import { StoredFileWorkingCopyState, IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { canceled } from 'vs/base/common/errors';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IFileWorkingCopyManager, IFileWorkingCopySaveAsOptions } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
+import { filter } from 'vs/base/common/objects';
+import { IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
+import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelContentChangedEvent, IUntitledFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
 
 //#region --- complex content provider
 
@@ -40,6 +43,8 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 
 	readonly onDidSave = this._onDidSave.event;
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
+	readonly onDidChangeOrphaned = Event.None;
+	readonly onDidChangeReadonly = Event.None;
 
 	private _lastResolvedFileStat?: IFileStatWithMetadata;
 
@@ -125,6 +130,14 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 		return false;
 	}
 
+	isOrphaned(): boolean {
+		return false;
+	}
+
+	hasAssociatedFilePath(): boolean {
+		return false;
+	}
+
 	private _isUntitled(): boolean {
 		return this.resource.scheme === Schemas.untitled;
 	}
@@ -147,19 +160,26 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 			return {};
 		}
 
-		const backupId = await this._contentProvider.backup(this.resource, token);
+		const backup = await this._contentProvider.backup(this.resource, token);
 		if (token.isCancellationRequested) {
 			return {};
 		}
 		const stats = await this._resolveStats(this.resource);
 
-		return {
-			meta: {
-				mtime: stats?.mtime ?? Date.now(),
-				viewType: this.notebook.viewType,
-				backupId
-			}
-		};
+		if (backup instanceof VSBuffer) {
+			return {
+				content: bufferToReadable(backup)
+			};
+		} else {
+			return {
+				meta: {
+					mtime: stats?.mtime ?? Date.now(),
+					viewType: this.notebook.viewType,
+					backupId: backup
+				}
+			};
+		}
+
 	}
 
 	async revert(options?: IRevertOptions | undefined): Promise<void> {
@@ -188,14 +208,18 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 			return this;
 		}
 
-		const backup = await this._workingCopyBackupService.resolve<NotebookDocumentBackupData>(this._workingCopyIdentifier);
+		let backup: IResolvedWorkingCopyBackup<NotebookDocumentBackupData> | undefined = undefined;
+
+		try {
+			backup = await this._workingCopyBackupService.resolve<NotebookDocumentBackupData>(this._workingCopyIdentifier);
+		} catch (_e) { }
 
 		if (this.isResolved()) {
 			return this; // Make sure meanwhile someone else did not succeed in loading
 		}
 
 		this._logService.debug('[notebook editor model] load from provider', this.resource.toString());
-		await this._loadFromProvider(backup?.meta?.backupId);
+		await this._loadFromProvider(backup);
 		assertType(this.isResolved());
 		return this;
 	}
@@ -212,10 +236,21 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 		return untitledDocumentData;
 	}
 
-	private async _loadFromProvider(backupId: string | undefined): Promise<void> {
+	private async _loadFromProvider(backup: IResolvedWorkingCopyBackup<NotebookDocumentBackupData> | undefined): Promise<void> {
 
 		const untitledData = await this.getUntitledDocumentData(this.resource);
-		const data = await this._contentProvider.open(this.resource, backupId, untitledData, CancellationToken.None);
+		// If we're loading untitled file data we should ensure the model is dirty
+		if (untitledData) {
+			this._onDidChangeDirty.fire();
+		}
+		const data = await this._contentProvider.open(this.resource,
+			backup?.meta?.backupId ?? (
+				backup?.value
+					? await streamToBuffer(backup?.value)
+					: undefined
+			),
+			untitledData, CancellationToken.None
+		);
 
 		this._lastResolvedFileStat = await this._resolveStats(this.resource);
 
@@ -261,7 +296,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 			this.notebook.reset(data.data.cells, data.data.metadata, data.transientOptions);
 		}
 
-		if (backupId) {
+		if (backup) {
 			this._workingCopyBackupService.discardBackup(this._workingCopyIdentifier);
 			this.setDirty(true);
 		} else {
@@ -406,19 +441,23 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 
 	private readonly _onDidChangeDirty = new Emitter<void>();
 	private readonly _onDidSave = new Emitter<void>();
+	private readonly _onDidChangeOrphaned = new Emitter<void>();
+	private readonly _onDidChangeReadonly = new Emitter<void>();
 
 	readonly onDidChangeDirty: Event<void> = this._onDidChangeDirty.event;
 	readonly onDidSave: Event<void> = this._onDidSave.event;
+	readonly onDidChangeOrphaned: Event<void> = this._onDidChangeOrphaned.event;
+	readonly onDidChangeReadonly: Event<void> = this._onDidChangeReadonly.event;
 
-	private _workingCopy?: IResolvedFileWorkingCopy<NotebookFileWorkingCopyModel>;
+	private _workingCopy?: IStoredFileWorkingCopy<NotebookFileWorkingCopyModel> | IUntitledFileWorkingCopy<NotebookFileWorkingCopyModel>;
 	private readonly _workingCopyListeners = new DisposableStore();
 
 	constructor(
 		readonly resource: URI,
 		readonly viewType: string,
-		private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel>,
+		private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly _fileService: IFileService
 	) {
 		super();
 	}
@@ -428,11 +467,13 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		this._workingCopy?.dispose();
 		this._onDidChangeDirty.dispose();
 		this._onDidSave.dispose();
+		this._onDidChangeOrphaned.dispose();
+		this._onDidChangeReadonly.dispose();
 		super.dispose();
 	}
 
 	get notebook(): NotebookTextModel | undefined {
-		return this._workingCopy?.model.notebookModel;
+		return this._workingCopy?.model?.notebookModel;
 	}
 
 	override isResolved(): this is IResolvedNotebookEditorModel {
@@ -443,8 +484,22 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		return this._workingCopy?.isDirty() ?? false;
 	}
 
+	isOrphaned(): boolean {
+		return SimpleNotebookEditorModel._isStoredFileWorkingCopy(this._workingCopy) && this._workingCopy.hasState(StoredFileWorkingCopyState.ORPHAN);
+	}
+
+	hasAssociatedFilePath(): boolean {
+		return !SimpleNotebookEditorModel._isStoredFileWorkingCopy(this._workingCopy) && !!this._workingCopy?.hasAssociatedFilePath;
+	}
+
 	isReadonly(): boolean {
-		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
+		if (SimpleNotebookEditorModel._isStoredFileWorkingCopy(this._workingCopy)) {
+			return this._workingCopy.isReadonly();
+		} else if (this._fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
+			return true;
+		} else {
+			return false;
+		}
 	}
 
 	revert(options?: IRevertOptions): Promise<void> {
@@ -458,31 +513,53 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	}
 
 	async load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel> {
-		const workingCopy = await this._workingCopyManager.resolve(this.resource, { reload: { async: !options?.forceReadFromFile } });
+
 		if (!this._workingCopy) {
-			this._workingCopy = <IResolvedFileWorkingCopy<NotebookFileWorkingCopyModel>>workingCopy;
-			this._workingCopy.onDidChangeDirty(() => this._onDidChangeDirty.fire(), this._workingCopyListeners);
-			this._workingCopy.onDidSave(() => this._onDidSave.fire(), this._workingCopyListeners);
+			if (this.resource.scheme === Schemas.untitled) {
+				this._workingCopy = await this._workingCopyManager.resolve({ untitledResource: this.resource });
+			} else {
+				this._workingCopy = await this._workingCopyManager.resolve(this.resource, { forceReadFromFile: options?.forceReadFromFile });
+				this._workingCopyListeners.add(this._workingCopy.onDidSave(() => this._onDidSave.fire()));
+				this._workingCopyListeners.add(this._workingCopy.onDidChangeOrphaned(() => this._onDidChangeOrphaned.fire()));
+				this._workingCopyListeners.add(this._workingCopy.onDidChangeReadonly(() => this._onDidChangeReadonly.fire()));
+			}
+			this._workingCopy.onDidChangeDirty(() => this._onDidChangeDirty.fire(), undefined, this._workingCopyListeners);
+
+			this._workingCopyListeners.add(this._workingCopy.onWillDispose(() => {
+				this._workingCopyListeners.clear();
+				this._workingCopy?.model?.dispose();
+			}));
+		} else {
+			await this._workingCopyManager.resolve(this.resource, {
+				forceReadFromFile: options?.forceReadFromFile,
+				reload: { async: !options?.forceReadFromFile }
+			});
 		}
+
 		assertType(this.isResolved());
 		return this;
 	}
 
-	async saveAs(target: URI, options?: IFileWorkingCopySaveAsOptions): Promise<IEditorInput | undefined> {
-		const newWorkingCopy = await this._workingCopyManager.saveAs(this.resource, target, options);
+	async saveAs(target: URI): Promise<IEditorInput | undefined> {
+		const newWorkingCopy = await this._workingCopyManager.saveAs(this.resource, target);
 		if (!newWorkingCopy) {
 			return undefined;
 		}
-		assertType(newWorkingCopy.isResolved());
 		// this is a little hacky because we leave the new working copy alone. BUT
 		// the newly created editor input will pick it up and claim ownership of it.
 		return this._instantiationService.createInstance(NotebookEditorInput, newWorkingCopy.resource, this.viewType, {});
 	}
+
+	private static _isStoredFileWorkingCopy(candidate?: IStoredFileWorkingCopy<NotebookFileWorkingCopyModel> | IUntitledFileWorkingCopy<NotebookFileWorkingCopyModel>): candidate is IStoredFileWorkingCopy<NotebookFileWorkingCopyModel> {
+		const isUntitled = candidate && candidate.capabilities & WorkingCopyCapabilities.Untitled;
+
+		return !isUntitled;
+	}
 }
 
-export class NotebookFileWorkingCopyModel implements IFileWorkingCopyModel {
+export class NotebookFileWorkingCopyModel implements IStoredFileWorkingCopyModel, IUntitledFileWorkingCopyModel {
 
-	private readonly _onDidChangeContent = new Emitter<IFileWorkingCopyModelContentChangedEvent>();
+	private readonly _onDidChangeContent = new Emitter<IStoredFileWorkingCopyModelContentChangedEvent & IUntitledFileWorkingCopyModelContentChangedEvent>();
 	private readonly _changeListener: IDisposable;
 
 	readonly onDidChangeContent = this._onDidChangeContent.event;
@@ -502,10 +579,10 @@ export class NotebookFileWorkingCopyModel implements IFileWorkingCopyModel {
 				if (rawEvent.transient) {
 					continue;
 				}
-				//todo@jrieken,@rebornix forward this information from notebook model
 				this._onDidChangeContent.fire({
-					isRedoing: false,
-					isUndoing: false
+					isRedoing: false, //todo@rebornix forward this information from notebook model
+					isUndoing: false,
+					isInitial: false, //_notebookModel.cells.length === 0 // todo@jrieken non transient metadata?
 				});
 				break;
 			}
@@ -524,18 +601,25 @@ export class NotebookFileWorkingCopyModel implements IFileWorkingCopyModel {
 
 	async snapshot(token: CancellationToken): Promise<VSBufferReadableStream> {
 
-		const data: NotebookDataDto = {
-			metadata: this._notebookModel.metadata,
+		const data: NotebookData = {
+			metadata: filter(this._notebookModel.metadata, key => !this._notebookSerializer.options.transientDocumentMetadata[key]),
 			cells: [],
 		};
 
 		for (const cell of this._notebookModel.cells) {
-			data.cells.push({
+			const cellData: ICellDto2 = {
 				cellKind: cell.cellKind,
 				language: cell.language,
+				mime: cell.mime,
 				source: cell.getValue(),
-				outputs: cell.outputs
-			});
+				outputs: [],
+				internalMetadata: cell.internalMetadata
+			};
+
+			cellData.outputs = !this._notebookSerializer.options.transientOutputs ? cell.outputs : [];
+			cellData.metadata = filter(cell.metadata, key => !this._notebookSerializer.options.transientCellMetadata[key]);
+
+			data.cells.push(cellData);
 		}
 
 		const bytes = await this._notebookSerializer.notebookToData(data);
@@ -556,14 +640,16 @@ export class NotebookFileWorkingCopyModel implements IFileWorkingCopyModel {
 		this._notebookModel.reset(data.cells, data.metadata, this._notebookSerializer.options);
 	}
 
-	get versionId() { return this._notebookModel.alternativeVersionId; }
+	get versionId() {
+		return this._notebookModel.alternativeVersionId;
+	}
 
 	pushStackElement(): void {
 		this._notebookModel.pushStackElement('save', undefined, undefined);
 	}
 }
 
-export class NotebookFileWorkingCopyModelFactory implements IFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel>{
+export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel>, IUntitledFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel>{
 
 	constructor(
 		private readonly _viewType: string,
@@ -577,7 +663,8 @@ export class NotebookFileWorkingCopyModelFactory implements IFileWorkingCopyMode
 			throw new Error('CANNOT open file notebook with this provider');
 		}
 
-		const data = await info.serializer.dataToNotebook(await streamToBuffer(stream));
+		const bytes = await streamToBuffer(stream);
+		const data = await info.serializer.dataToNotebook(bytes);
 
 		if (token.isCancellationRequested) {
 			throw canceled();

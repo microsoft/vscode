@@ -41,7 +41,7 @@ export class ConfigureLocaleAction extends Action {
 
 		return availableLanguages
 			.map(language => { return { label: language }; })
-			.concat({ label: localize('installAdditionalLanguages', "Install additional languages...") });
+			.concat({ label: localize('installAdditionalLanguages', "Install Additional Languages...") });
 	}
 
 	public override async run(): Promise<void> {

@@ -7,7 +7,7 @@
 (function () {
 	'use strict';
 
-	const { ipcRenderer, webFrame, crashReporter, contextBridge } = require('electron');
+	const { ipcRenderer, webFrame, contextBridge } = require('electron');
 
 	//#region Utilities
 
@@ -111,12 +111,6 @@
 			(async () => (await resolveConfiguration).userEnv)(),
 			ipcRenderer.invoke('vscode:fetchShellEnv')
 		]);
-
-		if (!process.env['VSCODE_SKIP_PROCESS_ENV_PATCHING'] /* TODO@bpasero for https://github.com/microsoft/vscode/issues/108804 */) {
-			// Assign all keys of the shell environment to our process environment
-			// But make sure that the user environment wins in the end over shell environment
-			Object.assign(process.env, shellEnv, userEnv);
-		}
 
 		return { ...process.env, ...shellEnv, ...userEnv };
 	})();
@@ -259,22 +253,6 @@
 		},
 
 		/**
-		 * Support for subset of methods of Electron's `crashReporter` type.
-		 *
-		 * @type {import('../electron-sandbox/electronTypes').CrashReporter}
-		 */
-		crashReporter: {
-
-			/**
-			 * @param {string} key
-			 * @param {string} value
-			 */
-			addExtraParameter(key, value) {
-				crashReporter.addExtraParameter(key, value);
-			}
-		},
-
-		/**
 		 * Support for a subset of access to node.js global `process`.
 		 *
 		 * Note: when `sandbox` is enabled, the only properties available
@@ -287,7 +265,7 @@
 		process: {
 			get platform() { return process.platform; },
 			get arch() { return process.arch; },
-			get env() { return process.env; },
+			get env() { return { ...process.env }; },
 			get versions() { return process.versions; },
 			get type() { return 'renderer'; },
 			get execPath() { return process.execPath; },
@@ -364,18 +342,13 @@
 	// Use `contextBridge` APIs to expose globals to VSCode
 	// only if context isolation is enabled, otherwise just
 	// add to the DOM global.
-	let useContextBridge = process.argv.includes('--context-isolation');
-	if (useContextBridge) {
+	if (process.contextIsolated) {
 		try {
 			contextBridge.exposeInMainWorld('vscode', globals);
 		} catch (error) {
 			console.error(error);
-
-			useContextBridge = false;
 		}
-	}
-
-	if (!useContextBridge) {
+	} else {
 		// @ts-ignore
 		window.vscode = globals;
 	}

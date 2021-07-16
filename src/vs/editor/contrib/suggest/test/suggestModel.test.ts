@@ -31,11 +31,12 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerServ
 import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
 import { ITextModel } from 'vs/editor/common/model';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { MockKeybindingService, MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { mock } from 'vs/base/test/common/mock';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 
 function createMockEditor(model: TextModel): ITestCodeEditor {
@@ -204,7 +205,9 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					}
 				},
 				NullTelemetryService,
-				new NullLogService()
+				new NullLogService(),
+				new MockContextKeyService(),
+				new TestConfigurationService()
 			);
 			disposables.push(oracle, editor);
 
@@ -858,6 +861,61 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 				assert.strictEqual(countA, 1); // should we keep the suggestions from the "active" provider?, Yes! See: #106573
 				assert.strictEqual(countB, 2);
+			});
+		});
+	});
+
+	test('registerCompletionItemProvider with letters as trigger characters block other completion items to show up #127815', async function () {
+
+		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, {
+			provideCompletionItems(doc, pos) {
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Class,
+						label: 'AAAA',
+						insertText: 'WordTriggerA',
+						range: new Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column)
+					}],
+				};
+			}
+		}));
+		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, {
+			triggerCharacters: ['a', '.'],
+			provideCompletionItems(doc, pos) {
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Class,
+						label: 'AAAA',
+						insertText: 'AutoTriggerA',
+						range: new Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column)
+					}],
+				};
+			},
+		}));
+
+		return withOracle(async (model, editor) => {
+
+			await assertEvent(model.onDidSuggest, () => {
+				editor.setValue('');
+				editor.setSelection(new Selection(1, 1, 1, 1));
+				editor.trigger('keyboard', Handler.Type, { text: '.' });
+
+			}, event => {
+				assert.strictEqual(event.auto, true);
+				assert.strictEqual(event.completionModel.items.length, 1);
+			});
+
+
+			editor.getModel().setValue('');
+
+			await assertEvent(model.onDidSuggest, () => {
+				editor.setValue('');
+				editor.setSelection(new Selection(1, 1, 1, 1));
+				editor.trigger('keyboard', Handler.Type, { text: 'a' });
+
+			}, event => {
+				assert.strictEqual(event.auto, true);
+				assert.strictEqual(event.completionModel.items.length, 2);
 			});
 		});
 	});

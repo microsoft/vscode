@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./iPadShowKeyboard';
-import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { isIOS } from 'vs/base/common/platform';
 
 export class IPadShowKeyboard extends Disposable implements IEditorContribution {
 
@@ -23,7 +23,7 @@ export class IPadShowKeyboard extends Disposable implements IEditorContribution 
 		super();
 		this.editor = editor;
 		this.widget = null;
-		if (browser.isIPad) {
+		if (isIOS) {
 			this._register(editor.onDidChangeConfiguration(() => this.update()));
 			this.update();
 		}
