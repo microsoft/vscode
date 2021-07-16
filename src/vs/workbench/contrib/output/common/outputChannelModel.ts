@@ -350,6 +350,7 @@ export class BufferredOutputChannel extends Disposable implements IOutputChannel
 	private createModel(content: string): ITextModel {
 		const model = this.modelService.createModel(content, this.modeService.create(this.mimeType), this.modelUri);
 		const disposable = model.onWillDispose(() => {
+			this.lastReadId = undefined;
 			this.model = null;
 			dispose(disposable);
 		});
