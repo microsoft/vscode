@@ -10,14 +10,14 @@ import { afterSuite, beforeSuite } from '../../utils';
 export function setup(opts: minimist.ParsedArgs) {
 	describe('Editor', () => {
 		beforeSuite(opts);
-		afterSuite();
+		afterSuite(opts);
 
 		it('shows correct quick outline', async function () {
 			const app = this.app as Application;
 			await app.workbench.quickaccess.openFile('www');
 
 			await app.workbench.quickaccess.openQuickOutline();
-			await app.workbench.quickinput.waitForQuickInputElements(names => names.length >= 6);
+			await app.workbench.quickinput.waitForQuickInputElements(names => names.length >= 6000);
 		});
 	});
 }
