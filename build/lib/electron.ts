@@ -22,9 +22,7 @@ type DarwinDocumentType = {
 };
 
 function isDocumentSuffix(str?: string): str is DarwinDocumentSuffix {
-	return str != undefined && (
-		str === 'document' || str === 'script' || str === 'file' || str === 'source code'
-	);
+	return str === 'document' || str === 'script' || str === 'file' || str === 'source code';
 }
 
 const root = path.dirname(path.dirname(__dirname));
