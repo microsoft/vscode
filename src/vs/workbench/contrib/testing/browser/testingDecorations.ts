@@ -437,20 +437,8 @@ abstract class RunTestDecoration extends Disposable {
 			}));
 		}
 
-		testActions.push(new Action('testing.gutter.reveal', localize('reveal test', 'Reveal in Test Explorer'), undefined, undefined, async () => {
-			const path = [test];
-			while (true) {
-				const parentId = path[0].parent;
-				const parent = parentId && collection.getNodeById(parentId);
-				if (!parent) {
-					break;
-				}
-
-				path.unshift(parent);
-			}
-
-			await this.commandService.executeCommand('vscode.revealTestInExplorer', path.map(t => t.item.extId));
-		}));
+		testActions.push(new Action('testing.gutter.reveal', localize('reveal test', 'Reveal in Test Explorer'), undefined, undefined,
+			() => this.commandService.executeCommand('vscode.revealTestInExplorer', test.item.extId)));
 
 		return testActions;
 	}

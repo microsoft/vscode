@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { TestIdPathParts } from 'vs/workbench/contrib/testing/common/testId';
 import * as vscode from 'vscode';
 
 export const enum ExtHostTestItemEventOp {
@@ -242,6 +243,9 @@ export class TestItemImpl implements vscode.TestItem {
 	 */
 	constructor(id: string, label: string, uri: vscode.Uri | undefined) {
 		const api = getPrivateApiFor(this);
+		if (id.includes(TestIdPathParts.Delimiter)) {
+			throw new Error(`Test IDs may not include the ${JSON.stringify(id)} symbol`);
+		}
 
 		Object.defineProperties(this, {
 			id: {
@@ -256,7 +260,9 @@ export class TestItemImpl implements vscode.TestItem {
 			},
 			parent: {
 				enumerable: false,
-				get() { return api.parent; },
+				get() {
+					return api.parent instanceof TestItemRootImpl ? undefined : api.parent;
+				},
 			},
 			children: {
 				value: createTestItemCollection(this),
@@ -270,5 +276,11 @@ export class TestItemImpl implements vscode.TestItem {
 	/** @deprecated back compat */
 	public invalidateResults() {
 		getPrivateApiFor(this).listener?.({ op: ExtHostTestItemEventOp.Invalidated });
+	}
+}
+
+export class TestItemRootImpl extends TestItemImpl {
+	constructor(controllerId: string, label: string) {
+		super(controllerId, label, undefined);
 	}
 }

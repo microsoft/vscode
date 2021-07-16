@@ -29,15 +29,15 @@ import { ITestExplorerFilterState } from 'vs/workbench/contrib/testing/browser/t
 import type { TestingExplorerView, TestingExplorerViewModel } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
 import { TestExplorerViewMode, TestExplorerViewSorting, Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { identifyTest, InternalTestItem, ITestIdWithSrc, ITestItem, ITestRunProfile, TestIdPath, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { identifyTest, InternalTestItem, ITestIdWithSrc, ITestItem, ITestRunProfile, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
 import { ITestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
-import { getPathForTestInResult, ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
+import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { getTestByPath, IMainThreadTestCollection, ITestService, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
+import { expandAndGetTestById, IMainThreadTestCollection, ITestService, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
@@ -660,7 +660,7 @@ export class GoToTest extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const { range, uri, extId } = element.test.item;
 
-		accessor.get(ITestExplorerFilterState).reveal.value = [extId];
+		accessor.get(ITestExplorerFilterState).reveal.value = extId;
 		accessor.get(ITestingPeekOpener).closeAllPeeks();
 
 		let isFile = true;
@@ -710,7 +710,7 @@ export class GoToTest extends Action2 {
 		const fileService = accessor.get(IFileService);
 		const editorService = accessor.get(IEditorService);
 
-		accessor.get(ITestExplorerFilterState).reveal.value = [test.extId];
+		accessor.get(ITestExplorerFilterState).reveal.value = test.extId;
 		accessor.get(ITestingPeekOpener).closeAllPeeks();
 
 		let isFile = true;
@@ -928,13 +928,13 @@ export class DebugCurrentFile extends ExecuteTestsInCurrentFile {
 	}
 }
 
-export const runTestsByPath = async (
+export const discoverAndRunTests = async (
 	collection: IMainThreadTestCollection,
 	progress: IProgressService,
-	paths: ReadonlyArray<TestIdPath>,
+	ids: ReadonlyArray<string>,
 	runTests: (tests: ReadonlyArray<InternalTestItem>) => Promise<ITestResult>,
 ): Promise<ITestResult | undefined> => {
-	const todo = Promise.all(paths.map(p => getTestByPath(collection, p)));
+	const todo = Promise.all(ids.map(p => expandAndGetTestById(collection, p)));
 	const tests = (await showDiscoveringWhile(progress, todo)).filter(isDefined);
 	return tests.length ? await runTests(tests) : undefined;
 };
@@ -945,7 +945,7 @@ abstract class RunOrDebugExtsByPath extends Action2 {
 	 */
 	public async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const testService = accessor.get(ITestService);
-		await runTestsByPath(
+		await discoverAndRunTests(
 			accessor.get(ITestService).collection,
 			accessor.get(IProgressService),
 			[...this.getTestExtIdsToRun(accessor, ...args)],
@@ -953,7 +953,7 @@ abstract class RunOrDebugExtsByPath extends Action2 {
 		);
 	}
 
-	protected abstract getTestExtIdsToRun(accessor: ServicesAccessor, ...args: unknown[]): Iterable<TestIdPath>;
+	protected abstract getTestExtIdsToRun(accessor: ServicesAccessor, ...args: unknown[]): Iterable<string>;
 
 	protected abstract runTest(service: ITestService, node: readonly InternalTestItem[]): Promise<ITestResult>;
 }
@@ -971,23 +971,21 @@ abstract class RunOrDebugFailedTests extends RunOrDebugExtsByPath {
 	/**
 	 * @inheritdoc
 	 */
-	protected getTestExtIdsToRun(accessor: ServicesAccessor): Iterable<TestIdPath> {
+	protected getTestExtIdsToRun(accessor: ServicesAccessor) {
 		const { results } = accessor.get(ITestResultService);
-		const paths = new Map<string /* id */, string /* path */>();
-		const sep = '$$TEST SEP$$';
+		const ids = new Set<string>();
 		for (let i = results.length - 1; i >= 0; i--) {
 			const resultSet = results[i];
 			for (const test of resultSet.tests) {
-				const path = getPathForTestInResult(test, resultSet).join(sep);
 				if (isFailedState(test.ownComputedState)) {
-					paths.set(test.item.extId, path);
+					ids.add(test.item.extId);
 				} else {
-					paths.delete(test.item.extId);
+					ids.delete(test.item.extId);
 				}
 			}
 		}
 
-		return Iterable.map(paths.values(), p => p.split(sep));
+		return ids;
 	}
 }
 
@@ -1008,7 +1006,7 @@ abstract class RunOrDebugLastRun extends RunOrDebugExtsByPath {
 	/**
 	 * @inheritdoc
 	 */
-	protected *getTestExtIdsToRun(accessor: ServicesAccessor, runId?: string): Iterable<TestIdPath> {
+	protected *getTestExtIdsToRun(accessor: ServicesAccessor, runId?: string): Iterable<string> {
 		const resultService = accessor.get(ITestResultService);
 		const lastResult = runId ? resultService.results.find(r => r.id === runId) : resultService.results[0];
 		if (!lastResult) {
@@ -1017,10 +1015,7 @@ abstract class RunOrDebugLastRun extends RunOrDebugExtsByPath {
 
 		for (const test of lastResult.request.targets) {
 			for (const testId of test.testIds) {
-				const test = lastResult.getStateById(testId);
-				if (test) {
-					yield getPathForTestInResult(test, lastResult);
-				}
+				yield testId;
 			}
 		}
 	}
@@ -1086,7 +1081,7 @@ export class ReRunLastRun extends RunOrDebugLastRun {
 
 	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
 		return service.runTests({
-			group: TestRunProfileBitset.Debug,
+			group: TestRunProfileBitset.Run,
 			tests: internalTests.map(identifyTest),
 		});
 	}

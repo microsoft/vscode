@@ -2190,11 +2190,11 @@ declare module 'vscode' {
 	 */
 	export interface TestItem {
 		/**
-		 * Unique identifier for the TestItem. This is used to correlate
+		 * Identifier for the TestItem. This is used to correlate
 		 * test results and tests in the document with those in the workspace
-		 * (test explorer). This must not change for the lifetime of the TestItem.
+		 * (test explorer). This cannot change for the lifetime of the TestItem,
+		 * and must be unique among its parent's direct children.
 		 */
-		// todo@API globally vs extension vs controller unique. I would strongly recommend non-global
 		readonly id: string;
 
 		/**
@@ -2379,6 +2379,11 @@ declare module 'vscode' {
 		 * those in the workspace (test explorer).
 		 */
 		readonly id: string;
+
+		/**
+		 * Parent of this item.
+		 */
+		readonly parent?: TestResultSnapshot;
 
 		/**
 		 * URI this TestItem is associated with. May be a file or file.

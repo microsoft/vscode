@@ -51,12 +51,6 @@ export interface ITestRunProfile {
 }
 
 /**
- * Defines the path to a test, as a list of test IDs. The last element of the
- * array is the test ID, and the predecessors are its parents, in order.
- */
-export type TestIdPath = string[];
-
-/**
  * A fully-resolved request to run tests, passsed between the main thread
  * and extension host.
  */

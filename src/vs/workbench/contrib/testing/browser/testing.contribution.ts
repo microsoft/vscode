@@ -26,7 +26,7 @@ import { ITestingProgressUiService, TestingProgressUiService } from 'vs/workbenc
 import { TestingViewPaneContainer } from 'vs/workbench/contrib/testing/browser/testingViewPaneContainer';
 import { testingConfiguation } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { identifyTest, ITestIdWithSrc, TestIdPath, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { identifyTest, ITestIdWithSrc, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestProfileService, TestProfileService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
 import { ITestingAutoRun, TestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
 import { TestingContentProvider } from 'vs/workbench/contrib/testing/common/testingContentProvider';
@@ -37,7 +37,7 @@ import { ITestResultStorage, TestResultStorage } from 'vs/workbench/contrib/test
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { TestService } from 'vs/workbench/contrib/testing/common/testServiceImpl';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { allTestActions, runTestsByPath } from './testExplorerActions';
+import { allTestActions, discoverAndRunTests } from './testExplorerActions';
 import './testingConfigurationUi';
 
 registerSingleton(ITestService, TestService, true);
@@ -127,8 +127,8 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: 'vscode.revealTestInExplorer',
-	handler: async (accessor: ServicesAccessor, pathToTest: TestIdPath) => {
-		accessor.get(ITestExplorerFilterState).reveal.value = pathToTest;
+	handler: async (accessor: ServicesAccessor, testId: string) => {
+		accessor.get(ITestExplorerFilterState).reveal.value = testId;
 		accessor.get(IViewsService).openView(Testing.ExplorerViewId);
 	}
 });
@@ -144,13 +144,13 @@ CommandsRegistry.registerCommand({
 });
 
 CommandsRegistry.registerCommand({
-	id: 'vscode.runTestsByPath',
-	handler: async (accessor: ServicesAccessor, group: TestRunProfileBitset, ...pathToTests: TestIdPath[]) => {
+	id: 'vscode.runTestsById',
+	handler: async (accessor: ServicesAccessor, group: TestRunProfileBitset, ...testIds: string[]) => {
 		const testService = accessor.get(ITestService);
-		await runTestsByPath(
+		await discoverAndRunTests(
 			accessor.get(ITestService).collection,
 			accessor.get(IProgressService),
-			pathToTests,
+			testIds,
 			tests => testService.runTests({ group, tests: tests.map(identifyTest) }),
 		);
 	}

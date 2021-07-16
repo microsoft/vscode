@@ -13,6 +13,7 @@ import { TestRunProfileImpl, TestRunCoordinator, TestRunDto } from 'vs/workbench
 import * as convert from 'vs/workbench/api/common/extHostTypeConverters';
 import { TestMessage, TestResultState, TestRunProfileGroup } from 'vs/workbench/api/common/extHostTypes';
 import { TestDiffOpType, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestItemImpl, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
 import { TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
 import type { TestItem, TestRunRequest } from 'vscode';
@@ -73,18 +74,20 @@ suite('ExtHost Testing', () => {
 	suite('OwnedTestCollection', () => {
 		test('adds a root recursively', async () => {
 			await single.expand(single.root.id, Infinity);
+			const a = single.root.children.get('id-a')!;
+			const b = single.root.children.get('id-b')!;
 			assert.deepStrictEqual(single.collectDiff(), [
 				[
 					TestDiffOpType.Add,
-					{ controllerId: 'ctrlId', parent: null, expand: TestItemExpandState.BusyExpanding, item: { ...convert.TestItem.from(single.root) } }
+					{ controllerId: 'ctrlId', parent: null, expand: TestItemExpandState.BusyExpanding, item: { ...convert.TestItem.from(single.root, 'ctrlId') } }
 				],
 				[
 					TestDiffOpType.Add,
-					{ controllerId: 'ctrlId', parent: single.root.id, expand: TestItemExpandState.Expandable, item: { ...convert.TestItem.from(single.tree.get('id-a')!.actual) } }
+					{ controllerId: 'ctrlId', parent: single.root.id, expand: TestItemExpandState.Expandable, item: { ...convert.TestItem.from(a, 'ctrlId') } }
 				],
 				[
 					TestDiffOpType.Add,
-					{ controllerId: 'ctrlId', parent: single.root.id, expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(single.tree.get('id-b')!.actual) }
+					{ controllerId: 'ctrlId', parent: single.root.id, expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(b, 'ctrlId') }
 				],
 				[
 					TestDiffOpType.Update,
@@ -92,19 +95,19 @@ suite('ExtHost Testing', () => {
 				],
 				[
 					TestDiffOpType.Update,
-					{ extId: 'id-a', expand: TestItemExpandState.BusyExpanding }
+					{ extId: new TestId(['ctrlId', 'id-a']).toString(), expand: TestItemExpandState.BusyExpanding }
 				],
 				[
 					TestDiffOpType.Add,
-					{ controllerId: 'ctrlId', parent: 'id-a', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(single.tree.get('id-aa')!.actual) }
+					{ controllerId: 'ctrlId', parent: new TestId(['ctrlId', 'id-a']).toString(), expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(a.children.get('id-aa')!, 'ctrlId') }
 				],
 				[
 					TestDiffOpType.Add,
-					{ controllerId: 'ctrlId', parent: 'id-a', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(single.tree.get('id-ab')!.actual) }
+					{ controllerId: 'ctrlId', parent: new TestId(['ctrlId', 'id-a']).toString(), expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(a.children.get('id-ab')!, 'ctrlId') }
 				],
 				[
 					TestDiffOpType.Update,
-					{ extId: 'id-a', expand: TestItemExpandState.Expanded }
+					{ extId: new TestId(['ctrlId', 'id-a']).toString(), expand: TestItemExpandState.Expanded }
 				],
 			]);
 		});
@@ -132,7 +135,7 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(single.collectDiff(), [
 				[
 					TestDiffOpType.Update,
-					{ extId: 'id-a', item: { description: 'Hello world' } }],
+					{ extId: new TestId(['ctrlId', 'id-a']).toString(), item: { description: 'Hello world' } }],
 			]);
 		});
 
@@ -142,9 +145,12 @@ suite('ExtHost Testing', () => {
 			single.root.children.delete('id-a');
 
 			assert.deepStrictEqual(single.collectDiff(), [
-				[TestDiffOpType.Remove, 'id-a'],
+				[TestDiffOpType.Remove, new TestId(['ctrlId', 'id-a']).toString()],
 			]);
-			assert.deepStrictEqual([...single.tree].map(n => n.actual.id).sort(), [single.root.id, 'id-b']);
+			assert.deepStrictEqual(
+				[...single.tree.keys()].sort(),
+				[single.root.id, new TestId(['ctrlId', 'id-b']).toString()],
+			);
 			assert.strictEqual(single.tree.size, 2);
 		});
 
@@ -157,13 +163,13 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(single.collectDiff(), [
 				[TestDiffOpType.Add, {
 					controllerId: 'ctrlId',
-					parent: 'id-a',
+					parent: new TestId(['ctrlId', 'id-a']).toString(),
 					expand: TestItemExpandState.NotExpandable,
-					item: convert.TestItem.from(child),
+					item: convert.TestItem.from(child, 'ctrlId'),
 				}],
 			]);
 			assert.deepStrictEqual(
-				[...single.tree].map(n => n.actual.id).sort(),
+				[...single.tree.values()].map(n => n.actual.id).sort(),
 				[single.root.id, 'id-a', 'id-aa', 'id-ab', 'id-ac', 'id-b'],
 			);
 			assert.strictEqual(single.tree.size, 6);
@@ -184,7 +190,7 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(single.collectDiff(), [
 				[
 					TestDiffOpType.Update,
-					{ extId: 'id-a', expand: TestItemExpandState.Expanded, item: { label: 'Hello world' } },
+					{ extId: new TestId(['ctrlId', 'id-a']).toString(), expand: TestItemExpandState.Expanded, item: { label: 'Hello world' } },
 				],
 			]);
 
@@ -192,7 +198,7 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(single.collectDiff(), [
 				[
 					TestDiffOpType.Update,
-					{ extId: 'id-a', item: { label: 'still connected' } }
+					{ extId: new TestId(['ctrlId', 'id-a']).toString(), item: { label: 'still connected' } }
 				],
 			]);
 
@@ -215,11 +221,11 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(single.collectDiff(), [
 				[
 					TestDiffOpType.Update,
-					{ extId: 'id-a', expand: TestItemExpandState.Expanded },
+					{ extId: new TestId(['ctrlId', 'id-a']).toString(), expand: TestItemExpandState.Expanded },
 				],
 				[
 					TestDiffOpType.Update,
-					{ extId: 'id-ab', item: { label: 'Hello world' } },
+					{ extId: TestId.fromExtHostTestItem(oldAB, 'ctrlId').toString(), item: { label: 'Hello world' } },
 				],
 			]);
 
@@ -229,11 +235,11 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(single.collectDiff(), [
 				[
 					TestDiffOpType.Update,
-					{ extId: 'id-aa', item: { label: 'still connected1' } }
+					{ extId: new TestId(['ctrlId', 'id-a', 'id-aa']).toString(), item: { label: 'still connected1' } }
 				],
 				[
 					TestDiffOpType.Update,
-					{ extId: 'id-ab', item: { label: 'still connected2' } }
+					{ extId: new TestId(['ctrlId', 'id-a', 'id-ab']).toString(), item: { label: 'still connected2' } }
 				],
 			]);
 
@@ -250,11 +256,11 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(single.collectDiff(), [
 				[
 					TestDiffOpType.Remove,
-					'id-b',
+					new TestId(['ctrlId', 'id-b']).toString(),
 				],
 				[
 					TestDiffOpType.Add,
-					{ controllerId: 'ctrlId', parent: 'id-a', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(single.tree.get('id-b')!.actual) }
+					{ controllerId: 'ctrlId', parent: new TestId(['ctrlId', 'id-a']).toString(), expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(b, 'ctrlId') }
 				],
 			]);
 
@@ -262,7 +268,7 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(single.collectDiff(), [
 				[
 					TestDiffOpType.Update,
-					{ extId: 'id-b', item: { label: 'still connected' } }
+					{ extId: new TestId(['ctrlId', 'id-a', 'id-b']).toString(), item: { label: 'still connected' } }
 				],
 			]);
 
@@ -469,7 +475,7 @@ suite('ExtHost Testing', () => {
 			assert.strictEqual(tracker.isRunning, true);
 			assert.deepStrictEqual(proxy.$startedExtensionTestRun.args, [
 				[{
-					config: { group: 2, id: 42 },
+					profile: { group: 2, id: 42 },
 					controllerId: 'ctrl',
 					id: tracker.id,
 					include: [single.root.id],
@@ -504,9 +510,9 @@ suite('ExtHost Testing', () => {
 				'ctrl',
 				tracker.id,
 				[
-					convert.TestItem.from(single.root),
-					convert.TestItem.from(single.root.children.get('id-a')!),
-					convert.TestItem.from(single.root.children.get('id-a')!.children.get('id-aa')!),
+					convert.TestItem.from(single.root, 'ctrlId'),
+					convert.TestItem.from(single.root.children.get('id-a')!, 'ctrlId'),
+					convert.TestItem.from(single.root.children.get('id-a')!.children.get('id-aa')!, 'ctrlId'),
 				]
 			]);
 			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
@@ -517,8 +523,8 @@ suite('ExtHost Testing', () => {
 				'ctrl',
 				tracker.id,
 				[
-					convert.TestItem.from(single.root.children.get('id-a')!),
-					convert.TestItem.from(single.root.children.get('id-a')!.children.get('id-ab')!),
+					convert.TestItem.from(single.root.children.get('id-a')!, 'ctrlId'),
+					convert.TestItem.from(single.root.children.get('id-a')!.children.get('id-ab')!, 'ctrlId'),
 				],
 			]);
 			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
@@ -543,13 +549,12 @@ suite('ExtHost Testing', () => {
 		test('excludes tests outside tree or explicitly excluded', () => {
 			single.expand(single.root.id, Infinity);
 
-			const task = c.createTestRun('ctrl', single, {
+			const task = c.createTestRun('ctrlId', single, {
 				profile: configuration,
 				include: [single.root.children.get('id-a')!],
 				exclude: [single.root.children.get('id-a')!.children.get('id-aa')!],
 			}, 'hello world', false);
 
-			task.setState(single.root.children.get('b')!, TestResultState.Passed);
 			task.setState(single.root.children.get('id-a')!.children.get('id-aa')!, TestResultState.Passed);
 			task.setState(single.root.children.get('id-a')!.children.get('id-ab')!, TestResultState.Passed);
 
@@ -558,7 +563,7 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(proxy.$updateTestStateInRun.args, [[
 				args[0],
 				args[1],
-				'id-ab',
+				new TestId(['ctrlId', 'id-a', 'id-ab']).toString(),
 				TestResultState.Passed,
 				undefined,
 			]]);

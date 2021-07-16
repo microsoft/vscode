@@ -155,7 +155,9 @@ export class TestService extends Disposable implements ITestService {
 				group => this.testControllers.get(group.controllerId)?.runTests(
 					{
 						runId: result.id,
-						excludeExtIds: req.exclude!.filter(t => t.controllerId === group.controllerId).map(t => t.testId),
+						excludeExtIds: req.exclude!
+							.filter(t => t.controllerId === group.controllerId && !group.testIds.includes(t.testId))
+							.map(t => t.testId),
 						profileId: group.profileId,
 						controllerId: group.controllerId,
 						testIds: group.testIds,

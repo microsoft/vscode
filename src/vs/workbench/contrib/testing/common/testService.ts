@@ -11,8 +11,9 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { AbstractIncrementalTestCollection, IncrementalTestCollectionItem, InternalTestItem, ITestIdWithSrc, ResolvedTestRunRequest, RunTestForControllerRequest, TestIdPath, TestItemExpandState, TestRunProfileBitset, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { AbstractIncrementalTestCollection, IncrementalTestCollectionItem, InternalTestItem, ITestIdWithSrc, ResolvedTestRunRequest, RunTestForControllerRequest, TestItemExpandState, TestRunProfileBitset, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestExclusions } from 'vs/workbench/contrib/testing/common/testExclusions';
+import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 
 export const ITestService = createDecorator<ITestService>('testService');
@@ -82,18 +83,12 @@ export const testCollectionIsEmpty = (collection: IMainThreadTestCollection) =>
 	!Iterable.some(collection.rootItems, r => r.children.size > 0);
 
 /**
- * Ensures the test with the given path exists in the collection, if possible.
+ * Ensures the test with the given ID exists in the collection, if possible.
  * If cancellation is requested, or the test cannot be found, it will return
  * undefined.
  */
-export const getTestByPath = async (collection: IMainThreadTestCollection, idPath: TestIdPath, ct = CancellationToken.None) => {
-	// Expand all direct children since roots might well have different IDs, but
-	// children should start matching.
-	await expandFirstLevel(collection);
-
-	if (ct.isCancellationRequested) {
-		return undefined;
-	}
+export const expandAndGetTestById = async (collection: IMainThreadTestCollection, id: string, ct = CancellationToken.None) => {
+	const idPath = [...TestId.fromString(id).idsFromRoot()];
 
 	let expandToLevel = 0;
 	for (let i = idPath.length - 1; !ct.isCancellationRequested && i >= expandToLevel;) {

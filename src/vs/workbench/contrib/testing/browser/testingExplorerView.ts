@@ -55,12 +55,13 @@ import { ITestExplorerFilterState, TestExplorerFilterState, TestingExplorerFilte
 import { ITestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { labelForTestInState, TestExplorerStateFilter, TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
-import { identifyTest, ITestRunProfile, TestIdPath, TestItemExpandState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { identifyTest, ITestRunProfile, TestItemExpandState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { capabilityContextKeys, ITestProfileService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
+import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { cmpPriority, isFailedState, isStateWithResult } from 'vs/workbench/contrib/testing/common/testingStates';
-import { getPathForTestInResult, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
+import { TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService, testCollectionIsEmpty } from 'vs/workbench/contrib/testing/common/testService';
 import { ConfigureTestProfilesAction, DebugAllAction, GoToTest, RunAllAction, SelectDefaultTestProfiles } from './testExplorerActions';
@@ -451,7 +452,7 @@ export class TestingExplorerViewModel extends Disposable {
 			}
 		}));
 
-		this._register(filterState.reveal.onDidChange(this.revealByIdPath, this));
+		this._register(filterState.reveal.onDidChange(this.revealById, this));
 
 		this._register(onDidChangeVisibility(visible => {
 			if (visible) {
@@ -495,7 +496,7 @@ export class TestingExplorerViewModel extends Disposable {
 				return;
 			}
 
-			this.revealByIdPath(getPathForTestInResult(evt.item, evt.result), false, false);
+			this.revealById(evt.item.item.extId, false, false);
 		}));
 
 		this._register(testResults.onResultsChanged(evt => {
@@ -525,8 +526,8 @@ export class TestingExplorerViewModel extends Disposable {
 	 * Tries to reveal by extension ID. Queues the request if the extension
 	 * ID is not currently available.
 	 */
-	private revealByIdPath(idPath: TestIdPath | undefined, expand = true, focus = true) {
-		if (!idPath) {
+	private revealById(id: string | undefined, expand = true, focus = true) {
+		if (!id) {
 			this.hasPendingReveal = false;
 			return;
 		}
@@ -538,6 +539,7 @@ export class TestingExplorerViewModel extends Disposable {
 		// If the item itself is visible in the tree, show it. Otherwise, expand
 		// its closest parent.
 		let expandToLevel = 0;
+		const idPath = [...TestId.fromString(id).idsFromRoot()];
 		for (let i = idPath.length - 1; i >= expandToLevel; i--) {
 			const element = this.projection.value.getElementByTestId(idPath[i]);
 			// Skip all elements that aren't in the tree.
@@ -687,7 +689,7 @@ export class TestingExplorerViewModel extends Disposable {
 		this.projection.value?.applyTo(this.tree);
 
 		if (this.hasPendingReveal) {
-			this.revealByIdPath(this.filterState.reveal.value);
+			this.revealById(this.filterState.reveal.value);
 		}
 	}
 

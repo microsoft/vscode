@@ -13,7 +13,7 @@ import { localize } from 'vs/nls';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
 import { IObservableValue, MutableObservableValue, staticObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { ISerializedTestResults, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, ResolvedTestRunRequest, TestIdPath, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ISerializedTestResults, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, ResolvedTestRunRequest, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { maxPriority, statesInOrder } from 'vs/workbench/contrib/testing/common/testingStates';
 
@@ -84,15 +84,6 @@ export const resultItemParents = function* (results: ITestResult, item: TestResu
 		yield i;
 		i = i.parent ? results.getStateById(i.parent) : undefined;
 	}
-};
-
-export const getPathForTestInResult = (test: TestResultItem, results: ITestResult): TestIdPath => {
-	const path: TestIdPath = [];
-	for (const node of resultItemParents(results, test)) {
-		path.unshift(node.item.extId);
-	}
-
-	return path;
 };
 
 /**

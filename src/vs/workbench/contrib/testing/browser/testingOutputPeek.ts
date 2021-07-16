@@ -64,7 +64,7 @@ import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingC
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
 import { buildTestUri, ParsedTestUri, parseTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
-import { getPathForTestInResult, ITestResult, maxCountPriority, resultItemParents, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
+import { ITestResult, maxCountPriority, resultItemParents, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService, ResultChangeEvent } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -900,10 +900,6 @@ export class TestCaseElement implements ITreeElement {
 		return icons.testingStatesToIcons.get(this.test.computedState);
 	}
 
-	public get path() {
-		return getPathForTestInResult(this.test, this.results);
-	}
-
 	constructor(
 		private readonly results: ITestResult,
 		public readonly test: TestResultItem,
@@ -926,11 +922,7 @@ class TestTaskElement implements ITreeElement {
 	public readonly label: string;
 	public readonly icon = undefined;
 
-	public get path() {
-		return getPathForTestInResult(this.test, this.results);
-	}
-
-	constructor(private readonly results: ITestResult, public readonly test: TestResultItem, index: number) {
+	constructor(results: ITestResult, public readonly test: TestResultItem, index: number) {
 		this.id = `${results.id}/${test.item.extId}/${index}`;
 		this.task = results.tasks[index];
 		this.context = String(index);
@@ -1318,12 +1310,13 @@ class TreeActionsProvider {
 			}
 
 			if (element instanceof TestCaseElement || element instanceof TestTaskElement) {
+				const extId = element.test.item.extId;
 				primary.push(new Action(
 					'testing.outputPeek.revealInExplorer',
 					localize('testing.revealInExplorer', "Reveal in Test Explorer"),
 					Codicon.listTree.classNames,
 					undefined,
-					() => this.commandService.executeCommand('vscode.revealTestInExplorer', element.path),
+					() => this.commandService.executeCommand('vscode.revealTestInExplorer', extId),
 				));
 
 				if (capabilities & TestRunProfileBitset.Run) {
@@ -1332,17 +1325,17 @@ class TreeActionsProvider {
 						localize('run test', 'Run Test'),
 						ThemeIcon.asClassName(icons.testingRunIcon),
 						undefined,
-						() => this.commandService.executeCommand('vscode.runTestsByPath', false, element.path),
+						() => this.commandService.executeCommand('vscode.runTestsById', TestRunProfileBitset.Run, extId),
 					));
 				}
 
-				if (capabilities & TestRunProfileBitset.Coverage) {
+				if (capabilities & TestRunProfileBitset.Debug) {
 					primary.push(new Action(
 						'testing.outputPeek.debugTest',
 						localize('debug test', 'Debug Test'),
 						ThemeIcon.asClassName(icons.testingDebugIcon),
 						undefined,
-						() => this.commandService.executeCommand('vscode.runTestsByPath', true, element.path),
+						() => this.commandService.executeCommand('vscode.runTestsById', TestRunProfileBitset.Debug, extId),
 					));
 				}
 			}
