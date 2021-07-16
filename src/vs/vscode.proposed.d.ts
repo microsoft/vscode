@@ -697,6 +697,13 @@ declare module 'vscode' {
 		 * This property is ignored if the session has no parent session.
 		 */
 		lifecycleManagedByParent?: boolean;
+
+		debugUI?: {
+			/**
+			 * When true, the debug toolbar will not be shown for this session, the window statusbar color will not be changed, and the debug viewlet will not be automatically revealed.
+			 */
+			simple?: boolean;
+		}
 	}
 
 	//#endregion
