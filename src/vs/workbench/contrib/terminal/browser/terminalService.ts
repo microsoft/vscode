@@ -695,6 +695,11 @@ export class TerminalService implements ITerminalService {
 
 	async moveToTerminalView(source?: ITerminalInstance, target?: ITerminalInstance, side?: 'before' | 'after'): Promise<void> {
 		if (URI.isUri(source)) {
+			const [, workspaceId,] = source.path.split('/');
+			// Terminal from a different window
+			if (workspaceId !== this._workspaceContextService.getWorkspace().id) {
+				return;
+			}
 			source = this.getInstanceFromResource(source);
 		}
 
@@ -753,21 +758,33 @@ export class TerminalService implements ITerminalService {
 		}));
 		instance.addDisposable(instance.onMaximumDimensionsChanged(() => this._onDidMaxiumumDimensionsChange.fire(instance)));
 		instance.addDisposable(instance.onDidFocus(this._onDidChangeActiveInstance.fire, this._onDidChangeActiveInstance));
-		instance.addDisposable(instance.onRequestAddInstanceToGroup(e => {
-			const instanceId = this._getInstanceIdFromUri(e.uri);
+		instance.addDisposable(instance.onRequestAddInstanceToGroup(async e => {
+			const [, workspaceId, instanceId] = e.uri.path.split('/');
 			if (instanceId === undefined) {
 				return;
 			}
 
+			let sourceInstance: ITerminalInstance | undefined = undefined;
+
+			// Terminal from a different window
+			if (workspaceId !== this._workspaceContextService.getWorkspace().id) {
+				const attachPersistentProcess = await this._primaryOffProcessTerminalService?.requestDetachInstance(workspaceId, Number.parseInt(instanceId));
+				if (attachPersistentProcess) {
+					sourceInstance = this.createTerminal({ config: { attachPersistentProcess } });
+					this._terminalGroupService.moveInstance(sourceInstance, instance, e.side);
+					return;
+				}
+			}
+
 			// View terminals
-			let sourceInstance = this._terminalGroupService.instances.find(e => e.instanceId === instanceId);
+			sourceInstance = this._terminalGroupService.instances.find(e => e.instanceId === Number.parseInt(instanceId));
 			if (sourceInstance) {
 				this._terminalGroupService.moveInstance(sourceInstance, instance, e.side);
 				return;
 			}
 
 			// Terminal editors
-			sourceInstance = this._terminalEditorService.instances.find(e => e.instanceId === instanceId);
+			sourceInstance = this._terminalEditorService.instances.find(e => e.instanceId === Number.parseInt(instanceId));
 			if (sourceInstance) {
 				this.moveToTerminalView(sourceInstance, instance, e.side);
 			}

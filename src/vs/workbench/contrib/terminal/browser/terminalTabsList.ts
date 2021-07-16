@@ -577,8 +577,8 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		// Attach terminals type to event
 		const terminals: ITerminalInstance[] = dndData.filter(e => 'instanceId' in (e as any));
 		if (terminals.length > 0) {
+			originalEvent.dataTransfer.setData(DataTransfers.TERMINALS, JSON.stringify(terminals.map(e => e.resource.toString())));
 			originalEvent.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(terminals.map(e => e.resource.toString())));
-			originalEvent.dataTransfer.setData(DataTransfers.TERMINALS, JSON.stringify(terminals.map(e => e.instanceId)));
 		}
 	}
 
@@ -618,20 +618,19 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		this._autoFocusInstance = undefined;
 
 		let sourceInstances: ITerminalInstance[] | undefined;
-		const terminalResources = originalEvent.dataTransfer?.getData(DataTransfers.RESOURCES);
-		const terminals = originalEvent.dataTransfer?.getData(DataTransfers.TERMINALS);
 		let promises: Promise<IProcessDetails | undefined>[] = [];
-		if (terminals && terminalResources) {
-			const json = JSON.parse(terminalResources);
+		const resources = originalEvent.dataTransfer?.getData(DataTransfers.TERMINALS) || originalEvent.dataTransfer?.getData(DataTransfers.RESOURCES);
+		if (resources) {
+			const json = JSON.parse(resources);
 			for (const entry of json) {
 				const uri = URI.parse(entry);
 				const [, workspaceId, instanceId] = uri.path.split('/');
 				if (workspaceId && instanceId) {
-					const instance = this._terminalService.instances.find(e => e.resource.path === instanceId);
-					if (instance) {
+					const instance = this._terminalService.instances.find(e => e.instanceId === Number.parseInt(instanceId));
+					if (instance && workspaceId === this._workspaceContextService.getWorkspace().id) {
 						sourceInstances = [instance];
 						this._terminalService.moveToTerminalView(instance);
-					} else if (this._offProcessTerminalService && workspaceId !== this._workspaceContextService.getWorkspace().id) {
+					} else if (this._offProcessTerminalService) {
 						promises.push(this._offProcessTerminalService.requestDetachInstance(workspaceId, Number.parseInt(instanceId)));
 					}
 				}
