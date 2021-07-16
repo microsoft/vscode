@@ -7,6 +7,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IShellLaunchConfig, TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
@@ -218,5 +219,24 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			dispose(disposables);
 		}
 		this._onDidChangeInstances.fire();
+	}
+
+	revealActiveEditor(preserveFocus?: boolean): void {
+		const instance = this.activeInstance;
+		if (!instance) {
+			return;
+		}
+
+		const editorInput = this._editorInputs.get(instance.instanceId)!;
+		this._editorService.openEditor(
+			editorInput,
+			{
+				pinned: true,
+				forceReload: true,
+				preserveFocus,
+				activation: EditorActivation.PRESERVE
+			},
+			editorInput.group
+		);
 	}
 }

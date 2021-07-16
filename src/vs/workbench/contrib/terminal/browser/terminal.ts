@@ -202,6 +202,7 @@ export interface ITerminalEditorService extends ITerminalInstanceHost, ITerminal
 	detachActiveEditorInstance(): ITerminalInstance;
 	detachInstance(instance: ITerminalInstance): void;
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
+	revealActiveEditor(preserveFocus?: boolean): void
 }
 
 /**
