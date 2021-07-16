@@ -669,7 +669,7 @@ import { assertNoRpc } from '../utils';
 		});
 
 		suite('environmentVariableCollection', () => {
-			test.skip('should have collection variables apply to terminals immediately after setting', (done) => {
+			test('should have collection variables apply to terminals immediately after setting', (done) => {
 				// Text to match on before passing the test
 				const expectedText = [
 					'~a2~',
@@ -714,7 +714,7 @@ import { assertNoRpc } from '../utils';
 				terminal.sendText('echo $C');
 			});
 
-			test.skip('should have collection variables apply to environment variables that don\'t exist', (done) => {
+			test('should have collection variables apply to environment variables that don\'t exist', (done) => {
 				// Text to match on before passing the test
 				const expectedText = [
 					'~a2~',
@@ -759,7 +759,7 @@ import { assertNoRpc } from '../utils';
 				terminal.sendText('echo $C');
 			});
 
-			test.skip('should respect clearing entries', (done) => {
+			test('should respect clearing entries', (done) => {
 				// Text to match on before passing the test
 				const expectedText = [
 					'~a1~',
@@ -800,7 +800,7 @@ import { assertNoRpc } from '../utils';
 				terminal.sendText('echo $B');
 			});
 
-			test.skip('should respect deleting entries', (done) => {
+			test('should respect deleting entries', (done) => {
 				// Text to match on before passing the test
 				const expectedText = [
 					'~a1~',
@@ -868,12 +868,12 @@ import { assertNoRpc } from '../utils';
 
 function sanitizeData(data: string): string {
 	// Strip NL/CR so terminal dimensions don't impact tests
-	data = data.replaceAll(/[\r\n]/g, '');
+	data = data.replace(/[\r\n]/g, '');
 
 	// Strip escape sequences so winpty/conpty doesn't cause flakiness, do for all platforms for
 	// consistency
 	const terminalCodesRegex = /(?:\u001B|\u009B)[\[\]()#;?]*(?:(?:(?:[a-zA-Z0-9]*(?:;[a-zA-Z0-9]*)*)?\u0007)|(?:(?:\d{1,4}(?:;\d{0,4})*)?[0-9A-PR-TZcf-ntqry=><~]))/g;
-	data = data.replaceAll(terminalCodesRegex, '');
+	data = data.replace(terminalCodesRegex, '');
 
 	return data;
 }
