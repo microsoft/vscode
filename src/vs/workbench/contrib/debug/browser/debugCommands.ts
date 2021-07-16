@@ -8,8 +8,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, REPL_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, State, getStateLabel, CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_FOCUSED_SESSION_IS_ATTACH } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, REPL_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, State, getStateLabel, CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, VIEWLET_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, Variable, Breakpoint, FunctionBreakpoint, DataBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -67,7 +66,7 @@ export const STOP_LABEL = nls.localize('stop', "Stop");
 export const CONTINUE_LABEL = nls.localize('continueDebug', "Continue");
 export const FOCUS_SESSION_LABEL = nls.localize('focusSession', "Focus Session");
 export const SELECT_AND_START_LABEL = nls.localize('selectAndStartDebugging', "Select and Start Debugging");
-export const DEBUG_CONFIGURE_LABEL = nls.localize('openLaunchJson', "Open {0}", 'launch.json');
+export const DEBUG_CONFIGURE_LABEL = nls.localize('openLaunchJson', "Open '{0}'", 'launch.json');
 export const DEBUG_START_LABEL = nls.localize('startDebug', "Start Debugging");
 export const DEBUG_RUN_LABEL = nls.localize('startWithoutDebugging', "Start Without Debugging");
 
@@ -89,7 +88,15 @@ async function getThreadAndRun(accessor: ServicesAccessor, sessionAndThreadId: C
 		if (session) {
 			thread = session.getAllThreads().find(t => t.getId() === sessionAndThreadId.threadId);
 		}
-	} else {
+	} else if (isSessionContext(sessionAndThreadId)) {
+		const session = debugService.getModel().getSession(sessionAndThreadId.sessionId);
+		if (session) {
+			const threads = session.getAllThreads();
+			thread = threads.length > 0 ? threads[0] : undefined;
+		}
+	}
+
+	if (!thread) {
 		thread = debugService.getViewModel().focusedThread;
 		if (!thread) {
 			const focusedSession = debugService.getViewModel().focusedSession;
@@ -220,6 +227,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: CONTEXT_IN_DEBUG_MODE,
 	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 		const debugService = accessor.get(IDebugService);
+		const configurationService = accessor.get(IConfigurationService);
 		let session: IDebugSession | undefined;
 		if (isSessionContext(context)) {
 			session = debugService.getModel().getSession(context.sessionId);
@@ -231,6 +239,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			const { launch, name } = debugService.getConfigurationManager().selectedConfiguration;
 			await debugService.startDebugging(launch, name, { noDebug: false });
 		} else {
+			const showSubSessions = configurationService.getValue<IDebugConfiguration>('debug').showSubSessionsInToolBar;
+			// Stop should be sent to the root parent session
+			while (!showSubSessions && session && session.parentSession) {
+				session = session.parentSession;
+			}
 			session.removeReplExpressions();
 			await debugService.restartSession(session);
 		}
@@ -278,7 +291,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-async function stopHandler(accessor: ServicesAccessor, _: string, context: CallStackContext | unknown): Promise<void> {
+async function stopHandler(accessor: ServicesAccessor, _: string, context: CallStackContext | unknown, disconnect: boolean): Promise<void> {
 	const debugService = accessor.get(IDebugService);
 	let session: IDebugSession | undefined;
 	if (isSessionContext(context)) {
@@ -294,7 +307,7 @@ async function stopHandler(accessor: ServicesAccessor, _: string, context: CallS
 		session = session.parentSession;
 	}
 
-	await debugService.stopSession(session);
+	await debugService.stopSession(session, disconnect);
 }
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -302,7 +315,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyMod.Shift | KeyCode.F5,
 	when: ContextKeyExpr.and(CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_IN_DEBUG_MODE),
-	handler: stopHandler
+	handler: (accessor, _, context) => stopHandler(accessor, _, context, true)
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -310,7 +323,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyMod.Shift | KeyCode.F5,
 	when: ContextKeyExpr.and(CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated(), CONTEXT_IN_DEBUG_MODE),
-	handler: stopHandler
+	handler: (accessor, _, context) => stopHandler(accessor, _, context, false)
 });
 
 CommandsRegistry.registerCommand({
@@ -333,7 +346,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: CONTINUE_ID,
 	weight: KeybindingWeight.WorkbenchContrib + 10, // Use a stronger weight to get priority over start debugging F5 shortcut
 	primary: KeyCode.F5,
-	when: CONTEXT_IN_DEBUG_MODE,
+	when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
 	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 		getThreadAndRun(accessor, context, thread => thread.continue());
 	}
@@ -384,13 +397,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: DEBUG_START_COMMAND_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyCode.F5,
-	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE.notEqualsTo(getStateLabel(State.Initializing))),
-	handler: async (accessor: ServicesAccessor, debugStartOptions: { config?: Partial<IConfig>; noDebug?: boolean } = {}) => {
+	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE.isEqualTo('inactive')),
+	handler: async (accessor: ServicesAccessor, debugStartOptions?: { config?: Partial<IConfig>; noDebug?: boolean }) => {
 		const debugService = accessor.get(IDebugService);
 		let { launch, name, getConfig } = debugService.getConfigurationManager().selectedConfiguration;
 		const config = await getConfig();
-		const configOrName = config ? Object.assign(deepClone(config), debugStartOptions.config) : name;
-		await debugService.startDebugging(launch, configOrName, { noDebug: debugStartOptions.noDebug });
+		const configOrName = config ? Object.assign(deepClone(config), debugStartOptions?.config) : name;
+		await debugService.startDebugging(launch, configOrName, { noDebug: debugStartOptions?.noDebug });
 	}
 });
 
@@ -552,10 +565,14 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: undefined,
 	primary: undefined,
-	handler: async (accessor) => {
+	handler: async (accessor, query: string) => {
 		const viewletService = accessor.get(IViewletService);
 		const viewlet = (await viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer;
-		viewlet.search('tag:debuggers @sort:installs');
+		let searchFor = `@category:debuggers`;
+		if (typeof query === 'string') {
+			searchFor += ` ${query}`;
+		}
+		viewlet.search(searchFor);
 		viewlet.focus();
 	}
 });
@@ -567,10 +584,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: undefined,
 	handler: async (accessor, launchUri: string) => {
 		const manager = accessor.get(IDebugService).getConfigurationManager();
-		if (accessor.get(IWorkspaceContextService).getWorkbenchState() === WorkbenchState.EMPTY) {
-			accessor.get(INotificationService).info(nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
-			return;
-		}
 
 		const launch = manager.getLaunches().find(l => l.uri.toString() === launchUri) || manager.selectedConfiguration.launch;
 		if (launch) {
@@ -639,5 +652,18 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		}
 
 		return undefined;
+	}
+});
+
+// When there are no debug extensions, open the debug viewlet when F5 is pressed so the user can read the limitations
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'debug.openView',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: CONTEXT_DEBUGGERS_AVAILABLE.toNegated(),
+	primary: KeyCode.F5,
+	secondary: [KeyMod.CtrlCmd | KeyCode.F5],
+	handler: async (accessor) => {
+		const viewletService = accessor.get(IViewletService);
+		await viewletService.openViewlet(VIEWLET_ID, true);
 	}
 });

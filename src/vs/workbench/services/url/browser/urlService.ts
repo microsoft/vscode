@@ -9,7 +9,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractURLService } from 'vs/platform/url/common/urlService';
 import { Event } from 'vs/base/common/event';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
+import { IOpenerService, IOpener, OpenExternalOptions, OpenInternalOptions, matchesScheme } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 export interface IURLCallbackProvider {
@@ -38,9 +38,31 @@ export interface IURLCallbackProvider {
 	create(options?: Partial<UriComponents>): URI;
 }
 
-export class BrowserURLService extends AbstractURLService {
+class BrowserURLOpener implements IOpener {
 
-	declare readonly _serviceBrand: undefined;
+	constructor(
+		private urlService: IURLService,
+		private productService: IProductService
+	) { }
+
+	async open(resource: string | URI, options?: OpenInternalOptions | OpenExternalOptions): Promise<boolean> {
+		if ((options as OpenExternalOptions | undefined)?.openExternal) {
+			return false;
+		}
+
+		if (!matchesScheme(resource, this.productService.urlProtocol)) {
+			return false;
+		}
+
+		if (typeof resource === 'string') {
+			resource = URI.parse(resource);
+		}
+
+		return this.urlService.open(resource, { trusted: true });
+	}
+}
+
+export class BrowserURLService extends AbstractURLService {
 
 	private provider: IURLCallbackProvider | undefined;
 
@@ -52,28 +74,12 @@ export class BrowserURLService extends AbstractURLService {
 		super();
 
 		this.provider = environmentService.options?.urlCallbackProvider;
-		this.registerListeners();
 
-		const that = this;
-		this._register(openerService.registerOpener({
-			async open(resource: URI | string) {
-				if (!matchesScheme(resource, productService.urlProtocol)) {
-					return false;
-				}
-
-				if (typeof resource === 'string') {
-					resource = URI.parse(resource);
-				}
-
-				return that.open(resource);
-			}
-		}));
-	}
-
-	private registerListeners(): void {
 		if (this.provider) {
 			this._register(this.provider.onCallback(uri => this.open(uri, { trusted: true })));
 		}
+
+		this._register(openerService.registerOpener(new BrowserURLOpener(this, productService)));
 	}
 
 	create(options?: Partial<UriComponents>): URI {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Constants } from 'vs/base/common/uint';
-import { Range, IRange } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions, OverviewRulerLane } from 'vs/editor/common/model';
 import { IDebugService, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
 import { registerThemingParticipant, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -24,6 +24,7 @@ const stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 
 // we need a separate decoration for glyph margin, since we do not want it on each line of a multi line statement.
 const TOP_STACK_FRAME_MARGIN: IModelDecorationOptions = {
+	description: 'top-stack-frame-margin',
 	glyphMarginClassName: ThemeIcon.asClassName(debugStackframe),
 	stickiness,
 	overviewRuler: {
@@ -32,6 +33,7 @@ const TOP_STACK_FRAME_MARGIN: IModelDecorationOptions = {
 	}
 };
 const FOCUSED_STACK_FRAME_MARGIN: IModelDecorationOptions = {
+	description: 'focused-stack-frame-margin',
 	glyphMarginClassName: ThemeIcon.asClassName(debugStackframeFocused),
 	stickiness,
 	overviewRuler: {
@@ -40,20 +42,19 @@ const FOCUSED_STACK_FRAME_MARGIN: IModelDecorationOptions = {
 	}
 };
 const TOP_STACK_FRAME_DECORATION: IModelDecorationOptions = {
+	description: 'top-stack-frame-decoration',
 	isWholeLine: true,
 	className: 'debug-top-stack-frame-line',
 	stickiness
 };
-const TOP_STACK_FRAME_INLINE_DECORATION: IModelDecorationOptions = {
-	beforeContentClassName: 'debug-top-stack-frame-column'
-};
 const FOCUSED_STACK_FRAME_DECORATION: IModelDecorationOptions = {
+	description: 'focused-stack-frame-decoration',
 	isWholeLine: true,
 	className: 'debug-focused-stack-frame-line',
 	stickiness
 };
 
-export function createDecorationsForStackFrame(stackFrame: IStackFrame, topStackFrameRange: IRange | undefined, isFocusedSession: boolean): IModelDeltaDecoration[] {
+export function createDecorationsForStackFrame(stackFrame: IStackFrame, isFocusedSession: boolean, noCharactersBefore: boolean): IModelDeltaDecoration[] {
 	// only show decorations for the currently focused thread.
 	const result: IModelDeltaDecoration[] = [];
 	const columnUntilEOLRange = new Range(stackFrame.range.startLineNumber, stackFrame.range.startColumn, stackFrame.range.startLineNumber, Constants.MAX_SAFE_SMALL_INTEGER);
@@ -75,13 +76,15 @@ export function createDecorationsForStackFrame(stackFrame: IStackFrame, topStack
 			range: columnUntilEOLRange
 		});
 
-		if (topStackFrameRange && topStackFrameRange.startLineNumber === stackFrame.range.startLineNumber && topStackFrameRange.startColumn !== stackFrame.range.startColumn) {
+		if (stackFrame.range.startColumn > 1) {
 			result.push({
-				options: TOP_STACK_FRAME_INLINE_DECORATION,
+				options: {
+					description: 'top-stack-frame-inline-decoration',
+					beforeContentClassName: noCharactersBefore ? 'debug-top-stack-frame-column start-of-line' : 'debug-top-stack-frame-column'
+				},
 				range: columnUntilEOLRange
 			});
 		}
-		topStackFrameRange = columnUntilEOLRange;
 	} else {
 		if (isFocusedSession) {
 			result.push({
@@ -102,7 +105,6 @@ export function createDecorationsForStackFrame(stackFrame: IStackFrame, topStack
 export class CallStackEditorContribution implements IEditorContribution {
 	private toDispose: IDisposable[] = [];
 	private decorationIds: string[] = [];
-	private topStackFrameRange: Range | undefined;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -139,7 +141,8 @@ export class CallStackEditorContribution implements IEditorContribution {
 
 					stackFrames.forEach(candidateStackFrame => {
 						if (candidateStackFrame && this.uriIdentityService.extUri.isEqual(candidateStackFrame.source.uri, this.editor.getModel()?.uri)) {
-							decorations.push(...createDecorationsForStackFrame(candidateStackFrame, this.topStackFrameRange, isSessionFocused));
+							const noCharactersBefore = this.editor.hasModel() ? this.editor.getModel()?.getLineFirstNonWhitespaceColumn(candidateStackFrame.range.startLineNumber) >= candidateStackFrame.range.startColumn : false;
+							decorations.push(...createDecorationsForStackFrame(candidateStackFrame, isSessionFocused, noCharactersBefore));
 						}
 					});
 				}

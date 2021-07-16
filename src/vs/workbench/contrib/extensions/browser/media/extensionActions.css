@@ -15,6 +15,10 @@
 	padding: 0 5px;
 }
 
+.monaco-action-bar .action-dropdown-item > .monaco-dropdown .action-label {
+	padding: 0;
+}
+
 .monaco-action-bar .action-item .action-label.extension-action.label {
 	outline-offset: 1px;
 }
@@ -22,13 +26,16 @@
 .monaco-action-bar .action-item .action-label.extension-action.text,
 .monaco-action-bar .action-item .action-label.extension-action.label,
 .monaco-action-bar .action-dropdown-item .action-label.extension-action.label {
+	width: auto;
+	height: auto;
 	line-height: 14px;
-	margin-top: 2px;
 }
 
-.monaco-action-bar .action-item .action-label.extension-action.icon {
-	padding: 0 2px;
-	width: 16px;
+.monaco-action-bar .action-item:not(.disabled) .action-label.extension-action.text,
+.monaco-action-bar .action-item:not(.disabled) .action-label.extension-action.label,
+.monaco-action-bar .action-item .action-label.extension-action.icon,
+.monaco-action-bar .action-dropdown-item .action-label.extension-action.label {
+	margin-top: 2px; /* margin for outline */
 }
 
 .monaco-action-bar .action-item .action-label.extension-action.multiserver.install:after,
@@ -50,11 +57,14 @@
 .monaco-action-bar .action-item.action-dropdown-item .action-label.extension-action.hide,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.reload,
 .monaco-action-bar .action-item.disabled .action-label.disable-status.hide,
-.monaco-action-bar .action-item.disabled .action-label.system-disable.hide,
+.monaco-action-bar .action-item.disabled .action-label.extension-status-icon.hide,
 .monaco-action-bar .action-item.disabled .action-label.extension-status-label.hide,
-.monaco-action-bar .action-item .action-label.extension-action.manage.hide,
-.monaco-action-bar .action-item.disabled .action-label.malicious-status.not-malicious {
+.monaco-action-bar .action-item .action-label.extension-action.manage.hide {
 	display: none;
+}
+
+.monaco-action-bar .action-item.disabled .action-label.extension-status-icon:before {
+	opacity: 1;
 }
 
 .monaco-action-bar .action-item.disabled .action-label.extension-status-label:before {

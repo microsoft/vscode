@@ -380,10 +380,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	private getPreferredColorScheme(): ColorScheme | undefined {
-		if (this.configurationService.getValue<boolean>(ThemeSettings.DETECT_HC) && this.hostColorService.highContrast) {
+		if (this.configurationService.getValue(ThemeSettings.DETECT_HC) && this.hostColorService.highContrast) {
 			return ColorScheme.HIGH_CONTRAST;
 		}
-		if (this.configurationService.getValue<boolean>(ThemeSettings.DETECT_COLOR_SCHEME)) {
+		if (this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME)) {
 			return this.hostColorService.dark ? ColorScheme.DARK : ColorScheme.LIGHT;
 		}
 		return undefined;
@@ -391,8 +391,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 	private async applyPreferredColorTheme(type: ColorScheme): Promise<IWorkbenchColorTheme | null> {
 		const settingId = type === ColorScheme.DARK ? ThemeSettings.PREFERRED_DARK_THEME : type === ColorScheme.LIGHT ? ThemeSettings.PREFERRED_LIGHT_THEME : ThemeSettings.PREFERRED_HC_THEME;
-		const themeSettingId = this.configurationService.getValue<string>(settingId);
-		if (themeSettingId) {
+		const themeSettingId = this.configurationService.getValue(settingId);
+		if (themeSettingId && typeof themeSettingId === 'string') {
 			const theme = this.colorThemeRegistry.findThemeBySettingsId(themeSettingId, undefined);
 			if (theme) {
 				const configurationTarget = this.settings.findAutoConfigurationTarget(settingId);
@@ -692,19 +692,17 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 class ThemeFileWatcher {
 
-	private inExtensionDevelopment: boolean;
 	private watchedLocation: URI | undefined;
 	private watcherDisposable: IDisposable | undefined;
 	private fileChangeListener: IDisposable | undefined;
 
-	constructor(private fileService: IFileService, environmentService: IWorkbenchEnvironmentService, private onUpdate: () => void) {
-		this.inExtensionDevelopment = !!environmentService.extensionDevelopmentLocationURI;
+	constructor(private fileService: IFileService, private environmentService: IWorkbenchEnvironmentService, private onUpdate: () => void) {
 	}
 
 	update(theme: { location?: URI, watch?: boolean; }) {
 		if (!resources.isEqual(theme.location, this.watchedLocation)) {
 			this.dispose();
-			if (theme.location && (theme.watch || this.inExtensionDevelopment)) {
+			if (theme.location && (theme.watch || this.environmentService.isExtensionDevelopment)) {
 				this.watchedLocation = theme.location;
 				this.watcherDisposable = this.fileService.watch(theme.location);
 				this.fileService.onDidFilesChange(e => {

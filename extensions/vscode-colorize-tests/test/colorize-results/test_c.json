@@ -641,8 +641,8 @@
 		"c": "%f%f%f",
 		"t": "source.c meta.block.c meta.function-call.c string.quoted.double.c constant.other.placeholder.c",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "constant.other.placeholder: #9CDCFE",
+			"light_plus": "constant.other.placeholder: #001080",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178"
@@ -1499,8 +1499,8 @@
 		"c": "%.2f",
 		"t": "source.c meta.block.c meta.function-call.c string.quoted.double.c constant.other.placeholder.c",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "constant.other.placeholder: #9CDCFE",
+			"light_plus": "constant.other.placeholder: #001080",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178"
@@ -1521,8 +1521,8 @@
 		"c": "%.2f",
 		"t": "source.c meta.block.c meta.function-call.c string.quoted.double.c constant.other.placeholder.c",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "constant.other.placeholder: #9CDCFE",
+			"light_plus": "constant.other.placeholder: #001080",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178"
@@ -1972,8 +1972,8 @@
 		"c": "%.2f",
 		"t": "source.c meta.block.c meta.function-call.c string.quoted.double.c constant.other.placeholder.c",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "constant.other.placeholder: #9CDCFE",
+			"light_plus": "constant.other.placeholder: #001080",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178"
@@ -1994,8 +1994,8 @@
 		"c": "%.2f",
 		"t": "source.c meta.block.c meta.function-call.c string.quoted.double.c constant.other.placeholder.c",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "constant.other.placeholder: #9CDCFE",
+			"light_plus": "constant.other.placeholder: #001080",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178"
@@ -2500,8 +2500,8 @@
 		"c": "%.2f",
 		"t": "source.c meta.block.c meta.function-call.c string.quoted.double.c constant.other.placeholder.c",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "constant.other.placeholder: #9CDCFE",
+			"light_plus": "constant.other.placeholder: #001080",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178"
@@ -2522,8 +2522,8 @@
 		"c": "%.2f",
 		"t": "source.c meta.block.c meta.function-call.c string.quoted.double.c constant.other.placeholder.c",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "constant.other.placeholder: #9CDCFE",
+			"light_plus": "constant.other.placeholder: #001080",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178"
@@ -2544,8 +2544,8 @@
 		"c": "%.2f",
 		"t": "source.c meta.block.c meta.function-call.c string.quoted.double.c constant.other.placeholder.c",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "constant.other.placeholder: #9CDCFE",
+			"light_plus": "constant.other.placeholder: #001080",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178"
@@ -2566,8 +2566,8 @@
 		"c": "%.2f",
 		"t": "source.c meta.block.c meta.function-call.c string.quoted.double.c constant.other.placeholder.c",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "constant.other.placeholder: #9CDCFE",
+			"light_plus": "constant.other.placeholder: #001080",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178"

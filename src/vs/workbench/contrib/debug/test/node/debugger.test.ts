@@ -149,20 +149,6 @@ suite('Debug - Debugger', () => {
 		assert.deepStrictEqual(ae!.args, debuggerContribution.args);
 	});
 
-	test('schema attributes', () => {
-		const schemaAttribute = _debugger.getSchemaAttributes()![0];
-		assert.notDeepStrictEqual(schemaAttribute, debuggerContribution.configurationAttributes);
-		Object.keys(debuggerContribution.configurationAttributes.launch).forEach(key => {
-			assert.deepStrictEqual((<any>schemaAttribute)[key], (<any>debuggerContribution.configurationAttributes.launch)[key]);
-		});
-
-		assert.strictEqual(schemaAttribute['additionalProperties'], false);
-		assert.strictEqual(!!schemaAttribute['properties']!['request'], true);
-		assert.strictEqual(!!schemaAttribute['properties']!['name'], true);
-		assert.strictEqual(!!schemaAttribute['properties']!['type'], true);
-		assert.strictEqual(!!schemaAttribute['properties']!['preLaunchTask'], true);
-	});
-
 	test('merge platform specific attributes', () => {
 		const ae = ExecutableDebugAdapter.platformAdapterExecutable([extensionDescriptor1, extensionDescriptor2], 'mock')!;
 		assert.strictEqual(ae.command, platform.isLinux ? 'linuxRuntime' : (platform.isMacintosh ? 'osxRuntime' : 'winRuntime'));

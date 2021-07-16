@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TreeView, TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle as IResourceHandle, SyncStatus, IUserDataSyncResourceEnablementService, IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode, IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle as IResourceHandle, SyncStatus, IUserDataSyncResourceEnablementService, IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode, IUserDataAutoSyncEnablementService, getLastSyncResourceUri } from 'vs/platform/userDataSync/common/userDataSync';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
@@ -28,7 +28,10 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { flatten } from 'vs/base/common/arrays';
 import { UserDataSyncMergesViewPane } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncMergesView';
 import { basename } from 'vs/base/common/resources';
-import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class UserDataSyncDataViews extends Disposable {
 
@@ -51,6 +54,7 @@ export class UserDataSyncDataViews extends Disposable {
 		this.registerMachinesView(container);
 
 		this.registerActivityView(container, false);
+		this.registerTroubleShootView(container);
 	}
 
 	private registerMergesView(container: ViewContainer): void {
@@ -219,6 +223,34 @@ export class UserDataSyncDataViews extends Disposable {
 
 	}
 
+	private registerTroubleShootView(container: ViewContainer): void {
+		const id = `workbench.views.sync.troubleshoot`;
+		const name = localize('troubleshoot', "Troubleshoot");
+		const treeView = this.instantiationService.createInstance(TreeView, id, name);
+		const dataProvider = this.instantiationService.createInstance(UserDataSyncTroubleshootViewDataProvider);
+		treeView.showRefreshAction = true;
+		const disposable = treeView.onDidChangeVisibility(visible => {
+			if (visible && !treeView.dataProvider) {
+				disposable.dispose();
+				treeView.dataProvider = dataProvider;
+			}
+		});
+		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
+		viewsRegistry.registerViews([<ITreeViewDescriptor>{
+			id,
+			name,
+			ctorDescriptor: new SyncDescriptor(TreeViewPane),
+			when: CONTEXT_ENABLE_ACTIVITY_VIEWS,
+			canToggleVisibility: true,
+			canMoveView: false,
+			treeView,
+			collapsed: false,
+			order: 500,
+			hideByDefault: true
+		}], container);
+
+	}
+
 }
 
 interface ISyncResourceHandle extends IResourceHandle {
@@ -339,7 +371,7 @@ class RemoteUserDataSyncActivityViewDataProvider extends UserDataSyncActivityVie
 		super(userDataSyncService, userDataAutoSyncService, userDataSyncWorkbenchService, notificationService);
 	}
 
-	async getChildren(element?: ITreeItem): Promise<ITreeItem[]> {
+	override async getChildren(element?: ITreeItem): Promise<ITreeItem[]> {
 		if (!element) {
 			this.machinesPromise = undefined;
 		}
@@ -357,7 +389,7 @@ class RemoteUserDataSyncActivityViewDataProvider extends UserDataSyncActivityVie
 		return this.userDataSyncService.getRemoteSyncResourceHandles(syncResource);
 	}
 
-	protected async getChildrenForSyncResourceTreeItem(element: SyncResourceHandleTreeItem): Promise<ITreeItem[]> {
+	protected override async getChildrenForSyncResourceTreeItem(element: SyncResourceHandleTreeItem): Promise<ITreeItem[]> {
 		const children = await super.getChildrenForSyncResourceTreeItem(element);
 		if (children.length) {
 			const machineId = await this.userDataSyncService.getMachineId(element.syncResourceHandle.syncResource, element.syncResourceHandle);
@@ -478,4 +510,86 @@ class UserDataSyncMachinesViewDataProvider implements ITreeViewDataProvider {
 			}));
 		});
 	}
+}
+
+class UserDataSyncTroubleshootViewDataProvider implements ITreeViewDataProvider {
+
+	constructor(
+		@IFileService private readonly fileService: IFileService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+	) {
+	}
+
+	async getChildren(element?: ITreeItem): Promise<ITreeItem[]> {
+		if (!element) {
+			return [{
+				handle: 'SYNC_LOGS',
+				collapsibleState: TreeItemCollapsibleState.Collapsed,
+				label: { label: localize('sync logs', "Logs") },
+				themeIcon: Codicon.folder,
+			}, {
+				handle: 'LAST_SYNC_STATES',
+				collapsibleState: TreeItemCollapsibleState.Collapsed,
+				label: { label: localize('last sync states', "Last Synced Remotes") },
+				themeIcon: Codicon.folder,
+			}];
+		}
+
+		if (element.handle === 'LAST_SYNC_STATES') {
+			return this.getLastSyncStates();
+		}
+
+		if (element.handle === 'SYNC_LOGS') {
+			return this.getSyncLogs();
+		}
+
+		return [];
+	}
+
+	private async getLastSyncStates(): Promise<ITreeItem[]> {
+		const result: ITreeItem[] = [];
+		for (const syncResource of ALL_SYNC_RESOURCES) {
+			const resource = getLastSyncResourceUri(syncResource, this.environmentService, this.uriIdentityService.extUri);
+			if (await this.fileService.exists(resource)) {
+				result.push({
+					handle: resource.toString(),
+					label: { label: getSyncAreaLabel(syncResource) },
+					collapsibleState: TreeItemCollapsibleState.None,
+					resourceUri: resource,
+					command: { id: API_OPEN_EDITOR_COMMAND_ID, title: '', arguments: [resource, undefined, undefined] },
+				});
+			}
+		}
+		return result;
+	}
+
+	private async getSyncLogs(): Promise<ITreeItem[]> {
+		const logsFolders: URI[] = [];
+		const stat = await this.fileService.resolve(this.uriIdentityService.extUri.dirname(this.uriIdentityService.extUri.dirname(this.environmentService.userDataSyncLogResource)));
+		if (stat.children) {
+			logsFolders.push(...stat.children
+				.filter(stat => stat.isDirectory && /^\d{8}T\d{6}$/.test(stat.name))
+				.sort()
+				.reverse()
+				.map(d => d.resource));
+		}
+
+		const result: ITreeItem[] = [];
+		for (const logFolder of logsFolders) {
+			const syncLogResource = this.uriIdentityService.extUri.joinPath(logFolder, this.uriIdentityService.extUri.basename(this.environmentService.userDataSyncLogResource));
+			if (await this.fileService.exists(syncLogResource)) {
+				result.push({
+					handle: syncLogResource.toString(),
+					collapsibleState: TreeItemCollapsibleState.None,
+					resourceUri: syncLogResource,
+					label: { label: this.uriIdentityService.extUri.basename(logFolder) },
+					description: this.uriIdentityService.extUri.isEqual(syncLogResource, this.environmentService.userDataSyncLogResource) ? localize({ key: 'current', comment: ['Represents current log file'] }, "Current") : undefined,
+					command: { id: API_OPEN_EDITOR_COMMAND_ID, title: '', arguments: [syncLogResource, undefined, undefined] },
+				});
+			}
+		}
+		return result;
+	}
+
 }

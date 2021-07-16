@@ -177,7 +177,7 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 		template.container.style.removeProperty('--outline-element-color');
 		template.decoration.innerText = '';
 		if (markerInfo) {
-			const useBadges = this._configurationService.getValue<boolean>(OutlineConfigKeys.problemsBadges);
+			const useBadges = this._configurationService.getValue(OutlineConfigKeys.problemsBadges);
 			if (!useBadges) {
 				template.decoration.classList.remove('bubble');
 				template.decoration.innerText = '';
@@ -189,7 +189,7 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 				template.decoration.innerText = markerInfo.count > 9 ? '9+' : String(markerInfo.count);
 			}
 			const color = this._themeService.getColorTheme().getColor(markerInfo.topSev === MarkerSeverity.Error ? listErrorForeground : listWarningForeground);
-			const useColors = this._configurationService.getValue<boolean>(OutlineConfigKeys.problemsColors);
+			const useColors = this._configurationService.getValue(OutlineConfigKeys.problemsColors);
 			if (!useColors) {
 				template.container.style.removeProperty('--outline-element-color');
 				template.decoration.style.setProperty('--outline-element-color', color?.toString() ?? 'inherit');
@@ -391,12 +391,12 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		}
 
 		const focusedCellIndex = viewModel.getFocus().start;
-		const focused = viewModel.getCellByIndex(focusedCellIndex)?.handle;
+		const focused = viewModel.cellAt(focusedCellIndex)?.handle;
 		const entries: OutlineEntry[] = [];
 
-		for (let i = 0; i < viewModel.viewCells.length; i++) {
+		for (let i = 0; i < viewModel.length; i++) {
 			const cell = viewModel.viewCells[i];
-			const isMarkdown = cell.cellKind === CellKind.Markdown;
+			const isMarkdown = cell.cellKind === CellKind.Markup;
 			if (!isMarkdown && !includeCodeCells) {
 				continue;
 			}
@@ -518,7 +518,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		const { viewModel } = this._editor;
 
 		if (viewModel) {
-			const cell = viewModel.getCellByIndex(viewModel.getFocus().start);
+			const cell = viewModel.cellAt(viewModel.getFocus().start);
 			if (cell) {
 				for (let entry of this._entries) {
 					newActive = entry.find(cell, []);
@@ -541,7 +541,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 	async reveal(entry: OutlineEntry, options: IEditorOptions, sideBySide: boolean): Promise<void> {
 		await this._editorService.openEditor({
 			resource: entry.cell.uri,
-			options,
+			options: { ...options, override: this._editor.input?.editorId },
 		}, sideBySide ? SIDE_GROUP : undefined);
 	}
 

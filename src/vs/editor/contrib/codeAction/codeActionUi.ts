@@ -52,7 +52,7 @@ export class CodeActionUi extends Disposable {
 		});
 	}
 
-	dispose() {
+	override dispose() {
 		this.#disposed = true;
 		super.dispose();
 	}

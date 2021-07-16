@@ -8,7 +8,8 @@ import { URI } from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import { isWindows } from 'vs/base/common/platform';
 import { assertType } from 'vs/base/common/types';
-import { notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { Mimes } from 'vs/base/common/mime';
+import { MarshalledId } from 'vs/base/common/marshalling';
 
 function assertToJSON(a: any, expected: any) {
 	const raw = JSON.stringify(a);
@@ -22,14 +23,14 @@ suite('ExtHostTypes', function () {
 
 		let uri = URI.parse('file:///path/test.file');
 		assert.deepStrictEqual(uri.toJSON(), {
-			$mid: 1,
+			$mid: MarshalledId.Uri,
 			scheme: 'file',
 			path: '/path/test.file'
 		});
 
 		assert.ok(uri.fsPath);
 		assert.deepStrictEqual(uri.toJSON(), {
-			$mid: 1,
+			$mid: MarshalledId.Uri,
 			scheme: 'file',
 			path: '/path/test.file',
 			fsPath: '/path/test.file'.replace(/\//g, isWindows ? '\\' : '/'),
@@ -38,7 +39,7 @@ suite('ExtHostTypes', function () {
 
 		assert.ok(uri.toString());
 		assert.deepStrictEqual(uri.toJSON(), {
-			$mid: 1,
+			$mid: MarshalledId.Uri,
 			scheme: 'file',
 			path: '/path/test.file',
 			fsPath: '/path/test.file'.replace(/\//g, isWindows ? '\\' : '/'),
@@ -649,56 +650,46 @@ suite('ExtHostTypes', function () {
 		assert.deepStrictEqual(md.value, '\n```html\n<img src=0 onerror="alert(1)">\n```\n');
 	});
 
-	test('NotebookMetadata - defaults', function () {
-		const obj = new types.NotebookDocumentMetadata();
-		assert.strictEqual(obj.cellEditable, notebookDocumentMetadataDefaults.cellEditable);
-		assert.strictEqual(obj.cellHasExecutionOrder, notebookDocumentMetadataDefaults.cellHasExecutionOrder);
-		assert.deepStrictEqual(obj.custom, notebookDocumentMetadataDefaults.custom);
-		assert.strictEqual(obj.editable, notebookDocumentMetadataDefaults.editable);
-		assert.strictEqual(obj.runState, notebookDocumentMetadataDefaults.runState);
-		assert.strictEqual(obj.trusted, notebookDocumentMetadataDefaults.trusted);
-	});
+	test('NotebookCellOutputItem - factories', function () {
 
-	test('NotebookMetadata - with', function () {
-		const obj = new types.NotebookDocumentMetadata();
-		const newObj = obj.with({ trusted: false });
-		assert.ok(obj !== newObj);
-		const sameObj = newObj.with({ trusted: false });
-		assert.ok(newObj === sameObj);
-		assert.strictEqual(obj.trusted, true);
-		assert.strictEqual(newObj.trusted, false);
-	});
+		assert.throws(() => {
+			// invalid mime type
+			new types.NotebookCellOutputItem(new Uint8Array(), 'invalid');
+		});
 
-	test('NotebookCellMetadata - with', function () {
-		const obj = new types.NotebookCellMetadata(true, false, true);
+		// --- err
 
-		const newObj = obj.with({ statusMessage: 'hello' });
-		assert.ok(obj !== newObj);
-		assert.strictEqual(obj.statusMessage, undefined);
-		assert.strictEqual(obj.editable, true);
-		assert.strictEqual(obj.custom, undefined);
+		let item = types.NotebookCellOutputItem.error(new Error());
+		assert.strictEqual(item.mime, 'application/vnd.code.notebook.error');
+		item = types.NotebookCellOutputItem.error({ name: 'Hello' });
+		assert.strictEqual(item.mime, 'application/vnd.code.notebook.error');
 
-		assert.strictEqual(newObj.statusMessage, 'hello');
-		assert.strictEqual(newObj.editable, true);
-		assert.strictEqual(newObj.custom, undefined);
+		// --- JSON
 
-	});
+		item = types.NotebookCellOutputItem.json(1);
+		assert.strictEqual(item.mime, 'application/json');
+		assert.deepStrictEqual(item.data, new TextEncoder().encode(JSON.stringify(1)));
 
-	test('Unable to reset executionOrder of cells #116956', function () {
+		item = types.NotebookCellOutputItem.json(1, 'foo/bar');
+		assert.strictEqual(item.mime, 'foo/bar');
+		assert.deepStrictEqual(item.data, new TextEncoder().encode(JSON.stringify(1)));
 
-		let obj = new types.NotebookCellMetadata();
-		assert.strictEqual(obj.executionOrder, undefined);
+		item = types.NotebookCellOutputItem.json(true);
+		assert.strictEqual(item.mime, 'application/json');
+		assert.deepStrictEqual(item.data, new TextEncoder().encode(JSON.stringify(true)));
 
-		obj = obj.with({ executionOrder: 23 });
-		assert.strictEqual(obj.executionOrder, 23);
+		item = types.NotebookCellOutputItem.json([true, 1, 'ddd']);
+		assert.strictEqual(item.mime, 'application/json');
+		assert.deepStrictEqual(item.data, new TextEncoder().encode(JSON.stringify([true, 1, 'ddd'], undefined, '\t')));
 
-		obj = obj.with({ executionOrder: undefined });
-		assert.strictEqual(obj.executionOrder, 23);
+		// --- text
 
-		obj = obj.with({});
-		assert.strictEqual(obj.executionOrder, 23);
+		item = types.NotebookCellOutputItem.text('Hęłlö');
+		assert.strictEqual(item.mime, Mimes.text);
+		assert.deepStrictEqual(item.data, new TextEncoder().encode('Hęłlö'));
 
-		obj = obj.with({ executionOrder: null });
-		assert.strictEqual(obj.executionOrder, undefined);
+		item = types.NotebookCellOutputItem.text('Hęłlö', 'foo/bar');
+		assert.strictEqual(item.mime, 'foo/bar');
+		assert.deepStrictEqual(item.data, new TextEncoder().encode('Hęłlö'));
 	});
 });

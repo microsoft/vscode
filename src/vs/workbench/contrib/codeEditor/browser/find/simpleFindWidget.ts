@@ -43,7 +43,8 @@ export abstract class SimpleFindWidget extends Widget {
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		private readonly _state: FindReplaceState = new FindReplaceState(),
-		showOptionButtons?: boolean
+		showOptionButtons?: boolean,
+		checkImeCompletionState?: boolean
 	) {
 		super();
 
@@ -68,11 +69,14 @@ export abstract class SimpleFindWidget extends Widget {
 		// Find History with update delayer
 		this._updateHistoryDelayer = new Delayer<void>(500);
 
-		this.oninput(this._findInput.domNode, (e) => {
-			this.foundMatch = this.onInputChanged();
-			this.updateButtons(this.foundMatch);
-			this._delayedUpdateHistory();
-		});
+		this._register(this._findInput.onInput((e) => {
+			if (!checkImeCompletionState || !this._findInput.isImeSessionInProgress) {
+				this.foundMatch = this._onInputChanged();
+				this.updateButtons(this.foundMatch);
+				this.focusFindBox();
+				this._delayedUpdateHistory();
+			}
+		}));
 
 		this._findInput.setRegex(!!this._state.isRegex);
 		this._findInput.setCaseSensitive(!!this._state.matchCase);
@@ -138,25 +142,25 @@ export abstract class SimpleFindWidget extends Widget {
 		});
 
 		this._focusTracker = this._register(dom.trackFocus(this._innerDomNode));
-		this._register(this._focusTracker.onDidFocus(this.onFocusTrackerFocus.bind(this)));
-		this._register(this._focusTracker.onDidBlur(this.onFocusTrackerBlur.bind(this)));
+		this._register(this._focusTracker.onDidFocus(this._onFocusTrackerFocus.bind(this)));
+		this._register(this._focusTracker.onDidBlur(this._onFocusTrackerBlur.bind(this)));
 
 		this._findInputFocusTracker = this._register(dom.trackFocus(this._findInput.domNode));
-		this._register(this._findInputFocusTracker.onDidFocus(this.onFindInputFocusTrackerFocus.bind(this)));
-		this._register(this._findInputFocusTracker.onDidBlur(this.onFindInputFocusTrackerBlur.bind(this)));
+		this._register(this._findInputFocusTracker.onDidFocus(this._onFindInputFocusTrackerFocus.bind(this)));
+		this._register(this._findInputFocusTracker.onDidBlur(this._onFindInputFocusTrackerBlur.bind(this)));
 
 		this._register(dom.addDisposableListener(this._innerDomNode, 'click', (event) => {
 			event.stopPropagation();
 		}));
 	}
 
-	protected abstract onInputChanged(): boolean;
+	protected abstract _onInputChanged(): boolean;
 	protected abstract find(previous: boolean): void;
 	protected abstract findFirst(): void;
-	protected abstract onFocusTrackerFocus(): void;
-	protected abstract onFocusTrackerBlur(): void;
-	protected abstract onFindInputFocusTrackerFocus(): void;
-	protected abstract onFindInputFocusTrackerBlur(): void;
+	protected abstract _onFocusTrackerFocus(): void;
+	protected abstract _onFocusTrackerBlur(): void;
+	protected abstract _onFindInputFocusTrackerFocus(): void;
+	protected abstract _onFindInputFocusTrackerBlur(): void;
 
 	protected get inputValue() {
 		return this._findInput.getValue();
@@ -187,7 +191,7 @@ export abstract class SimpleFindWidget extends Widget {
 		this._findInput.style(inputStyles);
 	}
 
-	dispose() {
+	override dispose() {
 		super.dispose();
 
 		if (this._domNode && this._domNode.parentElement) {
@@ -269,6 +273,13 @@ export abstract class SimpleFindWidget extends Widget {
 		const hasInput = this.inputValue.length > 0;
 		this.prevBtn.setEnabled(this._isVisible && hasInput && foundMatch);
 		this.nextBtn.setEnabled(this._isVisible && hasInput && foundMatch);
+	}
+
+	protected focusFindBox() {
+		// Focus back onto the find box, which
+		// requires focusing onto the next button first
+		this.nextBtn.focus();
+		this._findInput.inputBox.focus();
 	}
 }
 

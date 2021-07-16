@@ -936,7 +936,16 @@ export class Repository implements Disposable {
 		this.disposables.push(this.workingTreeGroup);
 		this.disposables.push(this.untrackedGroup);
 
-		this.disposables.push(new AutoFetcher(this, globalState));
+		// Don't allow auto-fetch in untrusted workspaces
+		if (workspace.isTrusted) {
+			this.disposables.push(new AutoFetcher(this, globalState));
+		} else {
+			const trustDisposable = workspace.onDidGrantWorkspaceTrust(() => {
+				trustDisposable.dispose();
+				this.disposables.push(new AutoFetcher(this, globalState));
+			});
+			this.disposables.push(trustDisposable);
+		}
 
 		// https://github.com/microsoft/vscode/issues/39039
 		const onSuccessfulPush = filterEvent(this.onDidRunOperation, e => e.operation === Operation.Push && !e.error);
@@ -1835,7 +1844,10 @@ export class Repository implements Disposable {
 			// noop
 		}
 
-		const sort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder') || 'alphabetically';
+		let sort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder') || 'alphabetically';
+		if (sort !== 'alphabetically' && sort !== 'committerdate') {
+			sort = 'alphabetically';
+		}
 		const [refs, remotes, submodules, rebaseCommit] = await Promise.all([this.repository.getRefs({ sort }), this.repository.getRemotes(), this.repository.getSubmodules(), this.getRebaseCommit()]);
 
 		this._HEAD = HEAD;
@@ -1843,6 +1855,7 @@ export class Repository implements Disposable {
 		this._remotes = remotes!;
 		this._submodules = submodules!;
 		this.rebaseCommit = rebaseCommit;
+
 
 		const untrackedChanges = scopedConfig.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
 		const index: Resource[] = [];
@@ -1901,6 +1914,9 @@ export class Repository implements Disposable {
 
 		// set count badge
 		this.setCountBadge();
+
+		// Update context key with changed resources
+		commands.executeCommand('setContext', 'git.changedResources', workingTree.map(r => r.resourceUri.fsPath.toString()));
 
 		this._onDidChangeStatus.fire();
 

@@ -117,7 +117,7 @@ suite('ExtHostMessageService', function () {
 	suite('modal', () => {
 		test('calls dialog service', async () => {
 			const service = new MainThreadMessageService(null!, emptyNotificationService, emptyCommandService, new class extends mock<IDialogService>() {
-				show(severity: Severity, message: string, buttons: string[]) {
+				override show(severity: Severity, message: string, buttons: string[]) {
 					assert.strictEqual(severity, 1);
 					assert.strictEqual(message, 'h');
 					assert.strictEqual(buttons.length, 2);
@@ -132,7 +132,7 @@ suite('ExtHostMessageService', function () {
 
 		test('returns undefined when cancelled', async () => {
 			const service = new MainThreadMessageService(null!, emptyNotificationService, emptyCommandService, new class extends mock<IDialogService>() {
-				show() {
+				override show() {
 					return Promise.resolve({ choice: 1 });
 				}
 			} as IDialogService);
@@ -143,7 +143,7 @@ suite('ExtHostMessageService', function () {
 
 		test('hides Cancel button when not needed', async () => {
 			const service = new MainThreadMessageService(null!, emptyNotificationService, emptyCommandService, new class extends mock<IDialogService>() {
-				show(severity: Severity, message: string, buttons: string[]) {
+				override show(severity: Severity, message: string, buttons: string[]) {
 					assert.strictEqual(buttons.length, 1);
 					return Promise.resolve({ choice: 0 });
 				}

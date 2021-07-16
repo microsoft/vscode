@@ -13,4 +13,4 @@ export const renameTerminalIcon = registerIcon('terminal-rename', Codicon.gear, 
 export const killTerminalIcon = registerIcon('terminal-kill', Codicon.trash, localize('killTerminalIcon', 'Icon for killing a terminal instance.'));
 export const newTerminalIcon = registerIcon('terminal-new', Codicon.add, localize('newTerminalIcon', 'Icon for creating a new terminal instance.'));
 
-export const newQuickLaunchProfileIcon = registerIcon('terminal-quick-launch', Codicon.symbolEvent, localize('newQuickLaunchProfile', 'Icon for creating a new terminal quick launch profile.'));
+export const configureTerminalProfileIcon = registerIcon('terminal-configure-profile', Codicon.gear, localize('configureTerminalProfileIcon', 'Icon for creating a new terminal profile.'));

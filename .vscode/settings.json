@@ -4,6 +4,7 @@
 	"files.exclude": {
 		".git": true,
 		".build": true,
+		".profile-oss": true,
 		"**/.DS_Store": true,
 		"build/**/*.js": {
 			"when": "$(basename).ts"
@@ -86,5 +87,5 @@
 	},
 	"typescript.tsc.autoDetect": "off",
 	"notebook.experimental.useMarkdownRenderer": true,
-  "testing.autoRun.mode": "onlyPreviouslyRun",
+	"testing.autoRun.mode": "rerun",
 }

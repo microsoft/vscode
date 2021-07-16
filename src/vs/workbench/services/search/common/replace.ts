@@ -39,7 +39,7 @@ export class ReplacePattern {
 			this._regExp = strings.createRegExp(this._regExp.source, true, { matchCase: !this._regExp.ignoreCase, wholeWord: false, multiline: this._regExp.multiline, global: false });
 		}
 
-		this._caseOpsRegExp = new RegExp(/([^\\]*?)((?:\\[uUlL])+?|)(\$[0-9]+)(.*?)/g);
+		this._caseOpsRegExp = new RegExp(/(.*?)((?:\\[uUlL])+?|)(\$[0-9]+)(.*?)/g);
 	}
 
 	get hasParameters(): boolean {

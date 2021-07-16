@@ -7,6 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IframeUtils } from 'vs/base/browser/iframe';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { isIOS } from 'vs/base/common/platform';
 
 export interface IStandardMouseMoveEventData {
 	leftButton: boolean;
@@ -88,7 +89,7 @@ export class GlobalMouseMoveMonitor<R extends { buttons: number; }> implements I
 		this._onStopCallback = onStopCallback;
 
 		const windowChain = IframeUtils.getSameOriginWindowChain();
-		const mouseMove = 'mousemove';
+		const mouseMove = isIOS ? 'pointermove' : 'mousemove'; // Safari sends wrong event, workaround for #122653
 		const mouseUp = 'mouseup';
 
 		const listenTo: (Document | ShadowRoot)[] = windowChain.map(element => element.window.document);

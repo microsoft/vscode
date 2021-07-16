@@ -34,6 +34,8 @@ import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standal
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILanguageSelection, IModeService } from 'vs/editor/common/services/modeService';
 import { URI } from 'vs/base/common/uri';
+import { StandaloneCodeEditorServiceImpl } from 'vs/editor/standalone/browser/standaloneCodeServiceImpl';
+import { Mimes } from 'vs/base/common/mime';
 
 /**
  * Description of an action contribution
@@ -363,6 +365,20 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 
 		return toDispose;
 	}
+
+	protected override _triggerCommand(handlerId: string, payload: any): void {
+		if (this._codeEditorService instanceof StandaloneCodeEditorServiceImpl) {
+			// Help commands find this editor as the active editor
+			try {
+				this._codeEditorService.setActiveCodeEditor(this);
+				super._triggerCommand(handlerId, payload);
+			} finally {
+				this._codeEditorService.setActiveCodeEditor(null);
+			}
+		} else {
+			super._triggerCommand(handlerId, payload);
+		}
+	}
 }
 
 export class StandaloneEditor extends StandaloneCodeEditor implements IStandaloneCodeEditor {
@@ -410,7 +426,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 
 		let model: ITextModel | null;
 		if (typeof _model === 'undefined') {
-			model = createTextModel(modelService, modeService, options.value || '', options.language || 'text/plain', undefined);
+			model = createTextModel(modelService, modeService, options.value || '', options.language || Mimes.text, undefined);
 			this._ownsModel = true;
 		} else {
 			model = _model;
@@ -427,11 +443,11 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		}
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		super.dispose();
 	}
 
-	public updateOptions(newOptions: Readonly<IEditorOptions & IGlobalEditorOptions>): void {
+	public override updateOptions(newOptions: Readonly<IEditorOptions & IGlobalEditorOptions>): void {
 		updateConfigurationService(this._configurationService, newOptions, false);
 		if (typeof newOptions.theme === 'string') {
 			this._standaloneThemeService.setTheme(newOptions.theme);
@@ -442,14 +458,14 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		super.updateOptions(newOptions);
 	}
 
-	_attachModel(model: ITextModel | null): void {
+	override _attachModel(model: ITextModel | null): void {
 		super._attachModel(model);
 		if (this._modelData) {
 			this._contextViewService.setContainer(this._modelData.view.domNode.domNode);
 		}
 	}
 
-	_postDetachModelCleanup(detachedModel: ITextModel): void {
+	override _postDetachModelCleanup(detachedModel: ITextModel): void {
 		super._postDetachModelCleanup(detachedModel);
 		if (detachedModel && this._ownsModel) {
 			detachedModel.dispose();
@@ -503,11 +519,11 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		this._contextViewService.setContainer(this._containerDomElement);
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		super.dispose();
 	}
 
-	public updateOptions(newOptions: Readonly<IDiffEditorOptions & IGlobalEditorOptions>): void {
+	public override updateOptions(newOptions: Readonly<IDiffEditorOptions & IGlobalEditorOptions>): void {
 		updateConfigurationService(this._configurationService, newOptions, true);
 		if (typeof newOptions.theme === 'string') {
 			this._standaloneThemeService.setTheme(newOptions.theme);
@@ -518,15 +534,15 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		super.updateOptions(newOptions);
 	}
 
-	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: Readonly<IEditorOptions>): CodeEditorWidget {
+	protected override _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: Readonly<IEditorOptions>): CodeEditorWidget {
 		return instantiationService.createInstance(StandaloneCodeEditor, container, options);
 	}
 
-	public getOriginalEditor(): IStandaloneCodeEditor {
+	public override getOriginalEditor(): IStandaloneCodeEditor {
 		return <StandaloneCodeEditor>super.getOriginalEditor();
 	}
 
-	public getModifiedEditor(): IStandaloneCodeEditor {
+	public override getModifiedEditor(): IStandaloneCodeEditor {
 		return <StandaloneCodeEditor>super.getModifiedEditor();
 	}
 

@@ -15,6 +15,7 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 
 export enum DiffSide {
 	Original = 0,
@@ -26,6 +27,7 @@ export interface IDiffCellInfo extends ICommonCellInfo {
 }
 
 export interface INotebookTextDiffEditor extends ICommonNotebookEditor {
+	notebookOptions: NotebookOptions;
 	readonly textModel?: NotebookTextModel;
 	onMouseUp: Event<{ readonly event: MouseEvent; readonly target: DiffElementViewModelBase; }>;
 	onDidDynamicOutputRendered: Event<{ cell: IGenericCellViewModel, output: ICellOutputViewModel }>;

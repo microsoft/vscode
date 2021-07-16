@@ -315,12 +315,10 @@ function updateStatusBar(context: vscode.ExtensionContext, state: State, busy = 
 	}
 
 	if (!statusItem) {
-		statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+		statusItem = vscode.window.createStatusBarItem('status.debug.autoAttach', vscode.StatusBarAlignment.Left);
+		statusItem.name = localize('status.name.auto.attach', "Debug Auto Attach");
 		statusItem.command = TOGGLE_COMMAND;
-		statusItem.tooltip = localize(
-			'status.tooltip.auto.attach',
-			'Automatically attach to node.js processes in debug mode',
-		);
+		statusItem.tooltip = localize('status.tooltip.auto.attach', "Automatically attach to node.js processes in debug mode");
 		context.subscriptions.push(statusItem);
 	}
 

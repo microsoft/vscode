@@ -139,10 +139,15 @@ export interface IEditorOptions {
 	 */
 	extraEditorClassName?: string;
 	/**
-	 * Should the editor be read only.
+	 * Should the editor be read only. See also `domReadOnly`.
 	 * Defaults to false.
 	 */
 	readOnly?: boolean;
+	/**
+	 * Should the textarea used for input use the DOM `readonly` attribute.
+	 * Defaults to false.
+	 */
+	domReadOnly?: boolean;
 	/**
 	 * Enable linked editing.
 	 * Defaults to false.
@@ -377,8 +382,9 @@ export interface IEditorOptions {
 	 * Suggest options.
 	 */
 	suggest?: ISuggestOptions;
+	inlineSuggest?: IInlineSuggestOptions;
 	/**
-	 * Smart select opptions;
+	 * Smart select options.
 	 */
 	smartSelect?: ISmartSelectOptions;
 	/**
@@ -559,7 +565,7 @@ export interface IEditorOptions {
 	matchBrackets?: 'never' | 'near' | 'always';
 	/**
 	 * Enable rendering of whitespace.
-	 * Defaults to none.
+	 * Defaults to 'selection'.
 	 */
 	renderWhitespace?: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
 	/**
@@ -632,7 +638,11 @@ export interface IEditorOptions {
 	/**
 	 * Control the behavior and rendering of the inline hints.
 	 */
-	inlineHints?: IEditorInlineHintsOptions;
+	inlayHints?: IEditorInlayHintsOptions;
+	/**
+	 * Control if the editor should use shadow DOM.
+	 */
+	useShadowDOM?: boolean;
 }
 
 /**
@@ -901,7 +911,7 @@ class EditorBooleanOption<K1 extends EditorOption> extends SimpleEditorOption<K1
 		super(id, name, defaultValue, schema);
 	}
 
-	public validate(input: any): boolean {
+	public override validate(input: any): boolean {
 		return boolean(input, this.defaultValue);
 	}
 }
@@ -936,7 +946,7 @@ class EditorIntOption<K1 extends EditorOption> extends SimpleEditorOption<K1, nu
 		this.maximum = maximum;
 	}
 
-	public validate(input: any): number {
+	public override validate(input: any): number {
 		return EditorIntOption.clampedInt(input, this.defaultValue, this.minimum, this.maximum);
 	}
 }
@@ -975,7 +985,7 @@ class EditorFloatOption<K1 extends EditorOption> extends SimpleEditorOption<K1, 
 		this.validationFn = validationFn;
 	}
 
-	public validate(input: any): number {
+	public override validate(input: any): number {
 		return this.validationFn(EditorFloatOption.float(input, this.defaultValue));
 	}
 }
@@ -997,7 +1007,7 @@ class EditorStringOption<K1 extends EditorOption> extends SimpleEditorOption<K1,
 		super(id, name, defaultValue, schema);
 	}
 
-	public validate(input: any): string {
+	public override validate(input: any): string {
 		return EditorStringOption.string(input, this.defaultValue);
 	}
 }
@@ -1029,7 +1039,7 @@ class EditorStringEnumOption<K1 extends EditorOption, V extends string> extends 
 		this._allowedValues = allowedValues;
 	}
 
-	public validate(input: any): V {
+	public override validate(input: any): V {
 		return stringSet<V>(input, this.defaultValue, this._allowedValues);
 	}
 }
@@ -1107,7 +1117,7 @@ class EditorAccessibilitySupport extends BaseEditorOption<EditorOption.accessibi
 		return this.defaultValue;
 	}
 
-	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: AccessibilitySupport): AccessibilitySupport {
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: AccessibilitySupport): AccessibilitySupport {
 		if (value === AccessibilitySupport.Unknown) {
 			// The editor reads the `accessibilitySupport` from the environment
 			return env.accessibilitySupport;
@@ -1326,7 +1336,7 @@ class EditorEmptySelectionClipboard extends EditorBooleanOption<EditorOption.emp
 		);
 	}
 
-	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: boolean): boolean {
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: boolean): boolean {
 		return value && env.emptySelectionClipboard;
 	}
 }
@@ -1397,8 +1407,8 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 					enum: ['never', 'always', 'multiline'],
 					default: defaults.autoFindInSelection,
 					enumDescriptions: [
-						nls.localize('editor.find.autoFindInSelection.never', 'Never turn on Find in selection automatically (default)'),
-						nls.localize('editor.find.autoFindInSelection.always', 'Always turn on Find in selection automatically'),
+						nls.localize('editor.find.autoFindInSelection.never', 'Never turn on Find in selection automatically (default).'),
+						nls.localize('editor.find.autoFindInSelection.always', 'Always turn on Find in selection automatically.'),
 						nls.localize('editor.find.autoFindInSelection.multiline', 'Turn on Find in selection automatically when multiple lines of content are selected.')
 					],
 					description: nls.localize('find.autoFindInSelection', "Controls the condition for turning on find in selection automatically.")
@@ -1528,14 +1538,14 @@ class EditorFontSize extends SimpleEditorOption<EditorOption.fontSize, number> {
 		);
 	}
 
-	public validate(input: any): number {
+	public override validate(input: any): number {
 		let r = EditorFloatOption.float(input, this.defaultValue);
 		if (r === 0) {
 			return EDITOR_FONT_DEFAULTS.fontSize;
 		}
 		return EditorFloatOption.clamp(r, 6, 100);
 	}
-	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
 		// The final fontSize respects the editor zoom level.
 		// So take the result from env.fontInfo
 		return env.fontInfo.fontSize;
@@ -1638,6 +1648,7 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, GoT
 				nls.localize('editor.gotoLocation.multiple.goto', 'Go to the primary result and enable peek-less navigation to others')
 			]
 		};
+		const alternativeCommandOptions = ['', 'editor.action.referenceSearch.trigger', 'editor.action.goToReferences', 'editor.action.peekImplementation', 'editor.action.goToImplementation', 'editor.action.peekTypeDefinition', 'editor.action.goToTypeDefinition', 'editor.action.peekDeclaration', 'editor.action.revealDeclaration', 'editor.action.peekDefinition', 'editor.action.revealDefinitionAside', 'editor.action.revealDefinition'];
 		super(
 			EditorOption.gotoLocation, 'gotoLocation', defaults,
 			{
@@ -1667,26 +1678,31 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, GoT
 				'editor.gotoLocation.alternativeDefinitionCommand': {
 					type: 'string',
 					default: defaults.alternativeDefinitionCommand,
+					enum: alternativeCommandOptions,
 					description: nls.localize('alternativeDefinitionCommand', "Alternative command id that is being executed when the result of 'Go to Definition' is the current location.")
 				},
 				'editor.gotoLocation.alternativeTypeDefinitionCommand': {
 					type: 'string',
 					default: defaults.alternativeTypeDefinitionCommand,
+					enum: alternativeCommandOptions,
 					description: nls.localize('alternativeTypeDefinitionCommand', "Alternative command id that is being executed when the result of 'Go to Type Definition' is the current location.")
 				},
 				'editor.gotoLocation.alternativeDeclarationCommand': {
 					type: 'string',
 					default: defaults.alternativeDeclarationCommand,
+					enum: alternativeCommandOptions,
 					description: nls.localize('alternativeDeclarationCommand', "Alternative command id that is being executed when the result of 'Go to Declaration' is the current location.")
 				},
 				'editor.gotoLocation.alternativeImplementationCommand': {
 					type: 'string',
 					default: defaults.alternativeImplementationCommand,
+					enum: alternativeCommandOptions,
 					description: nls.localize('alternativeImplementationCommand', "Alternative command id that is being executed when the result of 'Go to Implementation' is the current location.")
 				},
 				'editor.gotoLocation.alternativeReferenceCommand': {
 					type: 'string',
 					default: defaults.alternativeReferenceCommand,
+					enum: alternativeCommandOptions,
 					description: nls.localize('alternativeReferenceCommand', "Alternative command id that is being executed when the result of 'Go to Reference' is the current location.")
 				},
 			}
@@ -2118,14 +2134,6 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 						maxMinimapScale = memory.stableFitMaxMinimapScale;
 					} else {
 						fitBecomesFill = (effectiveMinimapHeight > minimapCanvasInnerHeight);
-						if (isViewportWrapping && fitBecomesFill) {
-							// remember for next time
-							memory.stableMinimapLayoutInput = input;
-							memory.stableFitRemainingWidth = remainingWidth;
-						} else {
-							memory.stableMinimapLayoutInput = null;
-							memory.stableFitRemainingWidth = 0;
-						}
 					}
 				}
 
@@ -2133,14 +2141,28 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 					minimapHeightIsEditorHeight = true;
 					const configuredMinimapScale = minimapScale;
 					minimapLineHeight = Math.min(lineHeight * pixelRatio, Math.max(1, Math.floor(1 / desiredRatio)));
+					if (isViewportWrapping && couldUseMemory && remainingWidth <= memory.stableFitRemainingWidth) {
+						// There is a loop when using `fill` and viewport wrapping:
+						// - view line count impacts minimap layout
+						// - minimap layout impacts viewport width
+						// - viewport width impacts view line count
+						// To break the loop, once we go to a smaller minimap scale, we try to stick with it.
+						maxMinimapScale = memory.stableFitMaxMinimapScale;
+					}
 					minimapScale = Math.min(maxMinimapScale, Math.max(1, Math.floor(minimapLineHeight / baseCharHeight)));
 					if (minimapScale > configuredMinimapScale) {
 						minimapWidthMultiplier = Math.min(2, minimapScale / configuredMinimapScale);
 					}
 					minimapCharWidth = minimapScale / pixelRatio / minimapWidthMultiplier;
 					minimapCanvasInnerHeight = Math.ceil((Math.max(typicalViewportLineCount, viewLineCount + extraLinesBeyondLastLine)) * minimapLineHeight);
-					if (isViewportWrapping && fitBecomesFill) {
+					if (isViewportWrapping) {
+						// remember for next time
+						memory.stableMinimapLayoutInput = input;
+						memory.stableFitRemainingWidth = remainingWidth;
 						memory.stableFitMaxMinimapScale = minimapScale;
+					} else {
+						memory.stableMinimapLayoutInput = null;
+						memory.stableFitRemainingWidth = 0;
 					}
 				}
 			}
@@ -2385,12 +2407,12 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, EditorLig
 
 //#endregion
 
-//#region inlineHints
+//#region inlayHints
 
 /**
- * Configuration options for editor inlineHints
+ * Configuration options for editor inlayHints
  */
-export interface IEditorInlineHintsOptions {
+export interface IEditorInlayHintsOptions {
 	/**
 	 * Enable the inline hints.
 	 * Defaults to true.
@@ -2410,39 +2432,39 @@ export interface IEditorInlineHintsOptions {
 	fontFamily?: string;
 }
 
-export type EditorInlineHintsOptions = Readonly<Required<IEditorInlineHintsOptions>>;
+export type EditorInlayHintsOptions = Readonly<Required<IEditorInlayHintsOptions>>;
 
-class EditorInlineHints extends BaseEditorOption<EditorOption.inlineHints, EditorInlineHintsOptions> {
+class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, EditorInlayHintsOptions> {
 
 	constructor() {
-		const defaults: EditorInlineHintsOptions = { enabled: true, fontSize: 0, fontFamily: EDITOR_FONT_DEFAULTS.fontFamily };
+		const defaults: EditorInlayHintsOptions = { enabled: true, fontSize: 0, fontFamily: '' };
 		super(
-			EditorOption.inlineHints, 'inlineHints', defaults,
+			EditorOption.inlayHints, 'inlayHints', defaults,
 			{
-				'editor.inlineHints.enabled': {
+				'editor.inlayHints.enabled': {
 					type: 'boolean',
 					default: defaults.enabled,
-					description: nls.localize('inlineHints.enable', "Enables the inline hints in the editor.")
+					description: nls.localize('inlayHints.enable', "Enables the inlay hints in the editor.")
 				},
-				'editor.inlineHints.fontSize': {
+				'editor.inlayHints.fontSize': {
 					type: 'number',
 					default: defaults.fontSize,
-					description: nls.localize('inlineHints.fontSize', "Controls font size of inline hints in the editor. When set to `0`, the 90% of `#editor.fontSize#` is used.")
+					markdownDescription: nls.localize('inlayHints.fontSize', "Controls font size of inlay hints in the editor. When set to `0`, the 90% of `#editor.fontSize#` is used.")
 				},
-				'editor.inlineHints.fontFamily': {
+				'editor.inlayHints.fontFamily': {
 					type: 'string',
 					default: defaults.fontFamily,
-					description: nls.localize('inlineHints.fontFamily', "Controls font family of inline hints in the editor.")
+					description: nls.localize('inlayHints.fontFamily', "Controls font family of inlay hints in the editor. When set to empty, the `#editor.fontFamily#` is used.")
 				},
 			}
 		);
 	}
 
-	public validate(_input: any): EditorInlineHintsOptions {
+	public validate(_input: any): EditorInlayHintsOptions {
 		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
-		const input = _input as IEditorInlineHintsOptions;
+		const input = _input as IEditorInlayHintsOptions;
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			fontSize: EditorIntOption.clampedInt(input.fontSize, this.defaultValue.fontSize, 0, 100),
@@ -2455,17 +2477,18 @@ class EditorInlineHints extends BaseEditorOption<EditorOption.inlineHints, Edito
 
 //#region lineHeight
 
-class EditorLineHeight extends EditorIntOption<EditorOption.lineHeight> {
+class EditorLineHeight extends EditorFloatOption<EditorOption.lineHeight> {
 
 	constructor() {
 		super(
 			EditorOption.lineHeight, 'lineHeight',
-			EDITOR_FONT_DEFAULTS.lineHeight, 0, 150,
-			{ description: nls.localize('lineHeight', "Controls the line height. Use 0 to compute the line height from the font size.") }
+			EDITOR_FONT_DEFAULTS.lineHeight,
+			x => EditorFloatOption.clamp(x, 0, 150),
+			{ markdownDescription: nls.localize('lineHeight', "Controls the line height. \n - Use 0 to automatically compute the line height from the font size.\n - Values between 0 and 8 will be used as a multiplier with the font size.\n - Values greater than or equal to 8 will be used as effective values.") }
 		);
 	}
 
-	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
 		// The lineHeight is computed from the fontSize if it is 0.
 		// Moreover, the final lineHeight respects the editor zoom level.
 		// So take the result from env.fontInfo
@@ -2761,7 +2784,7 @@ export type ValidQuickSuggestionsOptions = boolean | Readonly<Required<IQuickSug
 
 class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggestions, ValidQuickSuggestionsOptions> {
 
-	public readonly defaultValue: Readonly<Required<IQuickSuggestionsOptions>>;
+	public override readonly defaultValue: Readonly<Required<IQuickSuggestionsOptions>>;
 
 	constructor() {
 		const defaults: ValidQuickSuggestionsOptions = {
@@ -2984,6 +3007,7 @@ export interface IEditorScrollbarOptions {
 	/**
 	 * The size of arrows (if displayed).
 	 * Defaults to 11.
+	 * **NOTE**: This option cannot be updated using `updateOptions()`
 	 */
 	arrowSize?: number;
 	/**
@@ -2999,16 +3023,19 @@ export interface IEditorScrollbarOptions {
 	/**
 	 * Cast horizontal and vertical shadows when the content is scrolled.
 	 * Defaults to true.
+	 * **NOTE**: This option cannot be updated using `updateOptions()`
 	 */
 	useShadows?: boolean;
 	/**
 	 * Render arrows at the top and bottom of the vertical scrollbar.
 	 * Defaults to false.
+	 * **NOTE**: This option cannot be updated using `updateOptions()`
 	 */
 	verticalHasArrows?: boolean;
 	/**
 	 * Render arrows at the left and right of the horizontal scrollbar.
 	 * Defaults to false.
+	 * **NOTE**: This option cannot be updated using `updateOptions()`
 	 */
 	horizontalHasArrows?: boolean;
 	/**
@@ -3019,6 +3046,7 @@ export interface IEditorScrollbarOptions {
 	/**
 	 * Always consume mouse wheel events (always call preventDefault() and stopPropagation() on the browser events).
 	 * Defaults to true.
+	 * **NOTE**: This option cannot be updated using `updateOptions()`
 	 */
 	alwaysConsumeMouseWheel?: boolean;
 	/**
@@ -3034,11 +3062,13 @@ export interface IEditorScrollbarOptions {
 	/**
 	 * Width in pixels for the vertical slider.
 	 * Defaults to `verticalScrollbarSize`.
+	 * **NOTE**: This option cannot be updated using `updateOptions()`
 	 */
 	verticalSliderSize?: number;
 	/**
 	 * Height in pixels for the horizontal slider.
 	 * Defaults to `horizontalScrollbarSize`.
+	 * **NOTE**: This option cannot be updated using `updateOptions()`
 	 */
 	horizontalSliderSize?: number;
 	/**
@@ -3078,22 +3108,61 @@ function _scrollbarVisibilityFromString(visibility: string | undefined, defaultV
 class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, InternalEditorScrollbarOptions> {
 
 	constructor() {
+		const defaults: InternalEditorScrollbarOptions = {
+			vertical: ScrollbarVisibility.Auto,
+			horizontal: ScrollbarVisibility.Auto,
+			arrowSize: 11,
+			useShadows: true,
+			verticalHasArrows: false,
+			horizontalHasArrows: false,
+			horizontalScrollbarSize: 12,
+			horizontalSliderSize: 12,
+			verticalScrollbarSize: 14,
+			verticalSliderSize: 14,
+			handleMouseWheel: true,
+			alwaysConsumeMouseWheel: true,
+			scrollByPage: false
+		};
 		super(
-			EditorOption.scrollbar, 'scrollbar',
+			EditorOption.scrollbar, 'scrollbar', defaults,
 			{
-				vertical: ScrollbarVisibility.Auto,
-				horizontal: ScrollbarVisibility.Auto,
-				arrowSize: 11,
-				useShadows: true,
-				verticalHasArrows: false,
-				horizontalHasArrows: false,
-				horizontalScrollbarSize: 12,
-				horizontalSliderSize: 12,
-				verticalScrollbarSize: 14,
-				verticalSliderSize: 14,
-				handleMouseWheel: true,
-				alwaysConsumeMouseWheel: true,
-				scrollByPage: false
+				'editor.scrollbar.vertical': {
+					type: 'string',
+					enum: ['auto', 'visible', 'hidden'],
+					enumDescriptions: [
+						nls.localize('scrollbar.vertical.auto', "The vertical scrollbar will be visible only when necessary."),
+						nls.localize('scrollbar.vertical.visible', "The vertical scrollbar will always be visible."),
+						nls.localize('scrollbar.vertical.fit', "The vertical scrollbar will always be hidden."),
+					],
+					default: 'auto',
+					description: nls.localize('scrollbar.vertical', "Controls the visibility of the vertical scrollbar.")
+				},
+				'editor.scrollbar.horizontal': {
+					type: 'string',
+					enum: ['auto', 'visible', 'hidden'],
+					enumDescriptions: [
+						nls.localize('scrollbar.horizontal.auto', "The horizontal scrollbar will be visible only when necessary."),
+						nls.localize('scrollbar.horizontal.visible', "The horizontal scrollbar will always be visible."),
+						nls.localize('scrollbar.horizontal.fit', "The horizontal scrollbar will always be hidden."),
+					],
+					default: 'auto',
+					description: nls.localize('scrollbar.horizontal', "Controls the visibility of the horizontal scrollbar.")
+				},
+				'editor.scrollbar.verticalScrollbarSize': {
+					type: 'number',
+					default: defaults.verticalScrollbarSize,
+					description: nls.localize('scrollbar.verticalScrollbarSize', "The width of the vertical scrollbar.")
+				},
+				'editor.scrollbar.horizontalScrollbarSize': {
+					type: 'number',
+					default: defaults.horizontalScrollbarSize,
+					description: nls.localize('scrollbar.horizontalScrollbarSize', "The height of the horizontal scrollbar.")
+				},
+				'editor.scrollbar.scrollByPage': {
+					type: 'boolean',
+					default: defaults.scrollByPage,
+					description: nls.localize('scrollbar.scrollByPage', "Controls whether clicks scroll by page or jump to click position.")
+				}
 			}
 		);
 	}
@@ -3119,6 +3188,73 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, InternalE
 			verticalScrollbarSize: verticalScrollbarSize,
 			verticalSliderSize: EditorIntOption.clampedInt(input.verticalSliderSize, verticalScrollbarSize, 0, 1000),
 			scrollByPage: boolean(input.scrollByPage, this.defaultValue.scrollByPage),
+		};
+	}
+}
+
+//#endregion
+
+//#region inlineSuggest
+
+export interface IInlineSuggestOptions {
+	/**
+	 * Enable or disable the rendering of automatic inline completions.
+	*/
+	enabled?: boolean;
+
+	/**
+	 * Configures the mode.
+	 * Use `prefix` to only show ghost text if the text to replace is a prefix of the suggestion text.
+	 * Use `subword` to only show ghost text if the replace text is a subword of the suggestion text.
+	 * Use `subwordSmart` to only show ghost text if the replace text is a subword of the suggestion text, but the subword must start after the cursor position.
+	 * Defaults to `prefix`.
+	*/
+	mode?: 'prefix' | 'subword' | 'subwordSmart';
+}
+
+export type InternalInlineSuggestOptions = Readonly<Required<IInlineSuggestOptions>>;
+
+/**
+ * Configuration options for inline suggestions
+ */
+class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, InternalInlineSuggestOptions> {
+	constructor() {
+		const defaults: InternalInlineSuggestOptions = {
+			enabled: false,
+			mode: 'subwordSmart'
+		};
+
+		super(
+			EditorOption.inlineSuggest, 'inlineSuggest', defaults,
+			{
+				'editor.inlineSuggest.enabled': {
+					type: 'boolean',
+					default: defaults.enabled,
+					description: nls.localize('inlineSuggest.enabled', "Controls whether to automatically show inline suggestions in the editor.")
+				},
+				'editor.inlineSuggest.mode': {
+					type: 'string',
+					enum: ['prefix', 'subword', 'subwordSmart'],
+					enumDescriptions: [
+						nls.localize('inlineSuggest.mode.prefix', "Only render an inline suggestion if the replace text is a prefix of the insert text."),
+						nls.localize('inlineSuggest.mode.subword', "Only render an inline suggestion if the replace text is a subword of the insert text."),
+						nls.localize('inlineSuggest.mode.subwordSmart', "Only render an inline suggestion if the replace text is a subword of the insert text, but the subword must start after the cursor."),
+					],
+					default: defaults.mode,
+					description: nls.localize('inlineSuggest.mode', "Controls which mode to use for rendering inline suggestions.")
+				},
+			}
+		);
+	}
+
+	public validate(_input: any): InternalInlineSuggestOptions {
+		if (!_input || typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as IInlineSuggestOptions;
+		return {
+			enabled: boolean(input.enabled, this.defaultValue.enabled),
+			mode: stringSet(input.mode, this.defaultValue.mode, ['prefix', 'subword', 'subwordSmart']),
 		};
 	}
 }
@@ -3160,6 +3296,14 @@ export interface ISuggestOptions {
 	 */
 	showStatusBar?: boolean;
 	/**
+	 * Enable or disable the rendering of the suggestion preview.
+	 */
+	preview?: boolean;
+	/**
+	 * Configures the mode of the preview.
+	*/
+	previewMode?: 'prefix' | 'subword' | 'subwordSmart';
+	/**
 	 * Show details inline with the label. Defaults to true.
 	 */
 	showInlineDetails?: boolean;
@@ -3175,6 +3319,10 @@ export interface ISuggestOptions {
 	 * Show constructor-suggestions.
 	 */
 	showConstructors?: boolean;
+	/**
+	 * Show deprecated-suggestions.
+	 */
+	showDeprecated?: boolean;
 	/**
 	 * Show field-suggestions.
 	 */
@@ -3286,10 +3434,13 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			shareSuggestSelections: false,
 			showIcons: true,
 			showStatusBar: false,
+			preview: false,
+			previewMode: 'subwordSmart',
 			showInlineDetails: true,
 			showMethods: true,
 			showFunctions: true,
 			showConstructors: true,
+			showDeprecated: true,
 			showFields: true,
 			showVariables: true,
 			showClasses: true,
@@ -3358,7 +3509,22 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					default: defaults.showStatusBar,
 					description: nls.localize('suggest.showStatusBar', "Controls the visibility of the status bar at the bottom of the suggest widget.")
 				},
-
+				'editor.suggest.preview': {
+					type: 'boolean',
+					default: defaults.preview,
+					description: nls.localize('suggest.preview', "Controls whether to preview the suggestion outcome in the editor.")
+				},
+				'editor.suggest.previewMode': {
+					type: 'string',
+					enum: ['prefix', 'subword', 'subwordSmart'],
+					enumDescriptions: [
+						nls.localize('suggest.previewMode.prefix', "Only render a preview if the replace text is a prefix of the insert text."),
+						nls.localize('suggest.previewMode.subword', "Only render a preview if the replace text is a subword of the insert text."),
+						nls.localize('suggest.previewMode.subwordSmart', "Render a preview if the replace text is a subword of the insert text, or if it is a prefix of the insert text."),
+					],
+					default: defaults.previewMode,
+					description: nls.localize('suggest.previewMode', "Controls which mode to use for rendering the suggest preview.")
+				},
 				'editor.suggest.showInlineDetails': {
 					type: 'boolean',
 					default: defaults.showInlineDetails,
@@ -3386,6 +3552,11 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					type: 'boolean',
 					default: true,
 					markdownDescription: nls.localize('editor.suggest.showConstructors', "When enabled IntelliSense shows `constructor`-suggestions.")
+				},
+				'editor.suggest.showDeprecated': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('editor.suggest.showDeprecated', "When enabled IntelliSense shows `deprecated`-suggestions.")
 				},
 				'editor.suggest.showFields': {
 					type: 'boolean',
@@ -3529,10 +3700,13 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			shareSuggestSelections: boolean(input.shareSuggestSelections, this.defaultValue.shareSuggestSelections),
 			showIcons: boolean(input.showIcons, this.defaultValue.showIcons),
 			showStatusBar: boolean(input.showStatusBar, this.defaultValue.showStatusBar),
+			preview: boolean(input.preview, this.defaultValue.preview),
+			previewMode: stringSet(input.previewMode, this.defaultValue.previewMode, ['prefix', 'subword', 'subwordSmart']),
 			showInlineDetails: boolean(input.showInlineDetails, this.defaultValue.showInlineDetails),
 			showMethods: boolean(input.showMethods, this.defaultValue.showMethods),
 			showFunctions: boolean(input.showFunctions, this.defaultValue.showFunctions),
 			showConstructors: boolean(input.showConstructors, this.defaultValue.showConstructors),
+			showDeprecated: boolean(input.showDeprecated, this.defaultValue.showDeprecated),
 			showFields: boolean(input.showFields, this.defaultValue.showFields),
 			showVariables: boolean(input.showVariables, this.defaultValue.showVariables),
 			showClasses: boolean(input.showClasses, this.defaultValue.showClasses),
@@ -3751,6 +3925,7 @@ export const enum EditorOption {
 	cursorWidth,
 	disableLayerHinting,
 	disableMonospaceOptimizations,
+	domReadOnly,
 	dragAndDrop,
 	emptySelectionClipboard,
 	extraEditorClassName,
@@ -3774,6 +3949,7 @@ export const enum EditorOption {
 	highlightActiveIndentGuide,
 	hover,
 	inDiffEditor,
+	inlineSuggest,
 	letterSpacing,
 	lightbulb,
 	lineDecorationsWidth,
@@ -3833,6 +4009,7 @@ export const enum EditorOption {
 	tabCompletion,
 	tabIndex,
 	unusualLineTerminators,
+	useShadowDOM,
 	useTabStops,
 	wordSeparators,
 	wordWrap,
@@ -3844,7 +4021,7 @@ export const enum EditorOption {
 	wrappingIndent,
 	wrappingStrategy,
 	showDeprecated,
-	inlineHints,
+	inlayHints,
 	// Leave these at the end (because they have dependencies!)
 	editorClassName,
 	pixelRatio,
@@ -3889,8 +4066,7 @@ export const EditorOptions = {
 	accessibilitySupport: register(new EditorAccessibilitySupport()),
 	accessibilityPageSize: register(new EditorIntOption(EditorOption.accessibilityPageSize, 'accessibilityPageSize', 10, 1, Constants.MAX_SAFE_SMALL_INTEGER,
 		{
-			description: nls.localize('accessibilityPageSize', "Controls the number of lines in the editor that can be read out by a screen reader at once. When we detect a screen reader we automatically set the default to be 2000. Warning: this has a performance implication for numbers larger than the default."),
-			deprecationMessage: nls.localize('accessibilityPageSize.deprecated', "This setting is deprecated, editor will automatically choose the accessibility page size when we detect a screen reader. 2000 lines will be the new default.")
+			description: nls.localize('accessibilityPageSize', "Controls the number of lines in the editor that can be read out by a screen reader at once. When we detect a screen reader we automatically set the default to be 500. Warning: this has a performance implication for numbers larger than the default.")
 		})),
 	ariaLabel: register(new EditorStringOption(
 		EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content")
@@ -3984,7 +4160,7 @@ export const EditorOptions = {
 	)),
 	stickyTabStops: register(new EditorBooleanOption(
 		EditorOption.stickyTabStops, 'stickyTabStops', false,
-		{ description: nls.localize('stickyTabStops', "Emulate selection behaviour of tab characters when using spaces for indentation. Selection will stick to tab stops.") }
+		{ description: nls.localize('stickyTabStops', "Emulate selection behavior of tab characters when using spaces for indentation. Selection will stick to tab stops.") }
 	)),
 	codeLens: register(new EditorBooleanOption(
 		EditorOption.codeLens, 'codeLens', true,
@@ -3999,7 +4175,7 @@ export const EditorOptions = {
 		default: 0,
 		minimum: 0,
 		maximum: 100,
-		description: nls.localize('codeLensFontSize', "Controls the font size in pixels for CodeLens. When set to `0`, the 90% of `#editor.fontSize#` is used.")
+		markdownDescription: nls.localize('codeLensFontSize', "Controls the font size in pixels for CodeLens. When set to `0`, the 90% of `#editor.fontSize#` is used.")
 	})),
 	colorDecorators: register(new EditorBooleanOption(
 		EditorOption.colorDecorators, 'colorDecorators', true,
@@ -4062,6 +4238,9 @@ export const EditorOptions = {
 	)),
 	disableMonospaceOptimizations: register(new EditorBooleanOption(
 		EditorOption.disableMonospaceOptimizations, 'disableMonospaceOptimizations', false
+	)),
+	domReadOnly: register(new EditorBooleanOption(
+		EditorOption.domReadOnly, 'domReadOnly', false,
 	)),
 	dragAndDrop: register(new EditorBooleanOption(
 		EditorOption.dragAndDrop, 'dragAndDrop', true,
@@ -4285,7 +4464,7 @@ export const EditorOptions = {
 	)),
 	renderLineHighlightOnlyWhenFocus: register(new EditorBooleanOption(
 		EditorOption.renderLineHighlightOnlyWhenFocus, 'renderLineHighlightOnlyWhenFocus', false,
-		{ description: nls.localize('renderLineHighlightOnlyWhenFocus', "Controls if the editor should render the current line highlight only when the editor is focused") }
+		{ description: nls.localize('renderLineHighlightOnlyWhenFocus', "Controls if the editor should render the current line highlight only when the editor is focused.") }
 	)),
 	renderValidationDecorations: register(new EditorStringEnumOption(
 		EditorOption.renderValidationDecorations, 'renderValidationDecorations',
@@ -4301,7 +4480,7 @@ export const EditorOptions = {
 				'',
 				nls.localize('renderWhitespace.boundary', "Render whitespace characters except for single spaces between words."),
 				nls.localize('renderWhitespace.selection', "Render whitespace characters only on selected text."),
-				nls.localize('renderWhitespace.trailing', "Render only trailing whitespace characters"),
+				nls.localize('renderWhitespace.trailing', "Render only trailing whitespace characters."),
 				''
 			],
 			description: nls.localize('renderWhitespace', "Controls how the editor should render whitespace characters.")
@@ -4364,7 +4543,7 @@ export const EditorOptions = {
 		EditorOption.showDeprecated, 'showDeprecated', true,
 		{ description: nls.localize('showDeprecated', "Controls strikethrough deprecated variables.") }
 	)),
-	inlineHints: register(new EditorInlineHints()),
+	inlayHints: register(new EditorInlayHints()),
 	snippetSuggestions: register(new EditorStringEnumOption(
 		EditorOption.snippetSuggestions, 'snippetSuggestions',
 		'inline' as 'top' | 'bottom' | 'inline' | 'none',
@@ -4389,6 +4568,7 @@ export const EditorOptions = {
 		10000, -1, Constants.MAX_SAFE_SMALL_INTEGER,
 	)),
 	suggest: register(new EditorSuggest()),
+	inlineSuggest: register(new InlineEditorSuggest()),
 	suggestFontSize: register(new EditorIntOption(
 		EditorOption.suggestFontSize, 'suggestFontSize',
 		0, 0, 1000,
@@ -4445,6 +4625,9 @@ export const EditorOptions = {
 			],
 			description: nls.localize('unusualLineTerminators', "Remove unusual line terminators that might cause problems.")
 		}
+	)),
+	useShadowDOM: register(new EditorBooleanOption(
+		EditorOption.useShadowDOM, 'useShadowDOM', true
 	)),
 	useTabStops: register(new EditorBooleanOption(
 		EditorOption.useTabStops, 'useTabStops', true,

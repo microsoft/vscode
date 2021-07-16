@@ -9,7 +9,6 @@ import { IDisposable, dispose, Disposable, DisposableStore, toDisposable } from 
 import { Action } from 'vs/base/common/actions';
 import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
 import { Event } from 'vs/base/common/event';
-import { domEvent } from 'vs/base/browser/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListService, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -22,12 +21,13 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IColorMapping } from 'vs/platform/theme/common/styler';
-import { Renderer, Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList';
+import { Delegate, Renderer } from 'vs/workbench/contrib/extensions/browser/extensionsList';
 import { listFocusForeground, listFocusBackground } from 'vs/platform/theme/common/colorRegistry';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 
 export class ExtensionsGridView extends Disposable {
 
@@ -43,7 +43,7 @@ export class ExtensionsGridView extends Disposable {
 	) {
 		super();
 		this.element = dom.append(parent, dom.$('.extensions-grid-view'));
-		this.renderer = this.instantiationService.createInstance(Renderer, { onFocus: Event.None, onBlur: Event.None });
+		this.renderer = this.instantiationService.createInstance(Renderer, { onFocus: Event.None, onBlur: Event.None }, { hoverOptions: { position() { return HoverPosition.BELOW; } } });
 		this.delegate = delegate;
 		this.disposableStore = this._register(new DisposableStore());
 	}
@@ -167,8 +167,7 @@ export class ExtensionRenderer implements IListRenderer<ITreeNode<IExtensionData
 
 	public renderElement(node: ITreeNode<IExtensionData>, index: number, data: IExtensionTemplateData): void {
 		const extension = node.element.extension;
-		const onError = Event.once(domEvent(data.icon, 'error'));
-		onError(() => data.icon.src = extension.iconUrlFallback, null, data.extensionDisposables);
+		data.extensionDisposables.push(dom.addDisposableListener(data.icon, 'error', () => data.icon.src = extension.iconUrlFallback, { once: true }));
 		data.icon.src = extension.iconUrl;
 
 		if (!data.icon.complete) {
@@ -226,7 +225,7 @@ class OpenExtensionAction extends Action {
 		this._extension = extension;
 	}
 
-	run(sideByside: boolean): Promise<any> {
+	override run(sideByside: boolean): Promise<any> {
 		if (this._extension) {
 			return this.extensionsWorkdbenchService.open(this._extension, { sideByside });
 		}

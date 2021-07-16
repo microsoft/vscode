@@ -19,7 +19,7 @@ const $ = dom.$;
 const fileService = new TestFileService();
 
 function createStat(this: any, path: string, name: string, isFolder: boolean, hasChildren: boolean, size: number, mtime: number, isSymLink = false, isUnknown = false): ExplorerItem {
-	return new ExplorerItem(toResource.call(this, path), fileService, undefined, isFolder, isSymLink, name, mtime, isUnknown);
+	return new ExplorerItem(toResource.call(this, path), fileService, undefined, isFolder, isSymLink, false, name, mtime, isUnknown);
 }
 
 suite('Files - ExplorerView', () => {

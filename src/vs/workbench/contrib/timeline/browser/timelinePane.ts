@@ -45,6 +45,7 @@ import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { MarshalledId } from 'vs/base/common/marshalling';
 
 const ItemHeight = 22;
 
@@ -216,7 +217,7 @@ class LoadMoreCommand {
 	}
 }
 
-export const TimelineFollowActiveEditorContext = new RawContextKey<boolean>('timelineFollowActiveEditor', true);
+export const TimelineFollowActiveEditorContext = new RawContextKey<boolean>('timelineFollowActiveEditor', true, true);
 
 export class TimelinePane extends ViewPane {
 	static readonly TITLE = localize('timeline', "Timeline");
@@ -239,12 +240,12 @@ export class TimelinePane extends ViewPane {
 
 	constructor(
 		options: IViewPaneOptions,
-		@IKeybindingService protected keybindingService: IKeybindingService,
-		@IContextMenuService protected contextMenuService: IContextMenuService,
-		@IContextKeyService protected contextKeyService: IContextKeyService,
-		@IConfigurationService protected configurationService: IConfigurationService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorService protected editorService: IEditorService,
 		@ICommandService protected commandService: ICommandService,
 		@IProgressService private readonly progressService: IProgressService,
@@ -797,12 +798,12 @@ export class TimelinePane extends ViewPane {
 		this.refresh();
 	}
 
-	focus(): void {
+	override focus(): void {
 		super.focus();
 		this.tree.domFocus();
 	}
 
-	setExpanded(expanded: boolean): boolean {
+	override setExpanded(expanded: boolean): boolean {
 		const changed = super.setExpanded(expanded);
 
 		if (changed && this.isBodyVisible()) {
@@ -816,7 +817,7 @@ export class TimelinePane extends ViewPane {
 		return changed;
 	}
 
-	setVisible(visible: boolean): void {
+	override setVisible(visible: boolean): void {
 		if (visible) {
 			this.visibilityDisposables = new DisposableStore();
 
@@ -834,18 +835,18 @@ export class TimelinePane extends ViewPane {
 		}
 	}
 
-	protected layoutBody(height: number, width: number): void {
+	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.tree.layout(height, width);
 	}
 
-	protected renderHeaderTitle(container: HTMLElement): void {
+	protected override renderHeaderTitle(container: HTMLElement): void {
 		super.renderHeaderTitle(container, this.title);
 
 		container.classList.add('timeline-view');
 	}
 
-	protected renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this.$container = container;
@@ -1051,15 +1052,16 @@ export class TimelineIdentityProvider implements IIdentityProvider<TreeElement> 
 
 class TimelineActionRunner extends ActionRunner {
 
-	runAction(action: IAction, { uri, item }: TimelineActionContext): Promise<any> {
+	override async runAction(action: IAction, { uri, item }: TimelineActionContext): Promise<void> {
 		if (!isTimelineItem(item)) {
 			// TODO@eamodio do we need to do anything else?
-			return action.run();
+			await action.run();
+			return;
 		}
 
-		return action.run(...[
+		await action.run(...[
 			{
-				$mid: 11,
+				$mid: MarshalledId.TimelineActionContext,
 				handle: item.handle,
 				source: item.source,
 				uri: uri
@@ -1121,18 +1123,24 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 
 		const { element: item } = node;
 
-		const icon = this.themeService.getColorTheme().type === ColorScheme.LIGHT ? item.icon : item.iconDark;
+		const theme = this.themeService.getColorTheme();
+		const icon = theme.type === ColorScheme.LIGHT ? item.icon : item.iconDark;
 		const iconUrl = icon ? URI.revive(icon) : null;
 
 		if (iconUrl) {
 			template.icon.className = 'custom-view-tree-node-item-icon';
 			template.icon.style.backgroundImage = DOM.asCSSUrl(iconUrl);
-		} else {
-			let iconClass: string | undefined;
-			if (item.themeIcon /*&& !this.isFileKindThemeIcon(element.themeIcon)*/) {
-				iconClass = ThemeIcon.asClassName(item.themeIcon);
+			template.icon.style.color = '';
+		} else if (item.themeIcon) {
+			template.icon.className = `custom-view-tree-node-item-icon ${ThemeIcon.asClassName(item.themeIcon)}`;
+			if (item.themeIcon.color) {
+				template.icon.style.color = theme.getColor(item.themeIcon.color.id)?.toString() ?? '';
 			}
-			template.icon.className = iconClass ? `custom-view-tree-node-item-icon ${iconClass}` : '';
+			template.icon.style.backgroundImage = '';
+		} else {
+			template.icon.className = 'custom-view-tree-node-item-icon';
+			template.icon.style.backgroundImage = '';
+			template.icon.style.color = '';
 		}
 
 		template.iconLabel.setLabel(item.label, item.description, {

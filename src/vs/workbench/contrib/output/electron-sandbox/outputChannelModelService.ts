@@ -77,7 +77,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implement
 		}
 	}
 
-	clear(till?: number): void {
+	override clear(till?: number): void {
 		super.clear(till);
 		this.appendedMessage = '';
 	}
@@ -122,7 +122,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implement
 			.then(content => this.appendedMessage ? content.value + this.appendedMessage : content.value.toString());
 	}
 
-	protected updateModel(): void {
+	protected override updateModel(): void {
 		if (this.model && this.appendedMessage) {
 			this.appendToModel(this.appendedMessage);
 			this.appendedMessage = '';
@@ -166,7 +166,7 @@ class DelegatedOutputChannelModel extends Disposable implements IOutputChannelMo
 		let outputChannelModel: IOutputChannelModel;
 		try {
 			const outputDir = await outputDirPromise;
-			const file = resources.joinPath(outputDir, `${id}.log`);
+			const file = resources.joinPath(outputDir, `${id.replace(/[\\/:\*\?"<>\|]/g, '')}.log`);
 			// Make sure file exists before creating the channel
 			await this.fileService.createFile(file);
 			outputChannelModel = this.instantiationService.createInstance(OutputChannelBackedByFile, id, modelUri, mimeType, file);
@@ -213,7 +213,7 @@ export class OutputChannelModelService extends AbstractOutputChannelModelService
 		super(instantiationService);
 	}
 
-	createOutputChannelModel(id: string, modelUri: URI, mimeType: string, file?: URI): IOutputChannelModel {
+	override createOutputChannelModel(id: string, modelUri: URI, mimeType: string, file?: URI): IOutputChannelModel {
 		return file ? super.createOutputChannelModel(id, modelUri, mimeType, file) :
 			this.instantiationService.createInstance(DelegatedOutputChannelModel, id, modelUri, mimeType, this.outputDir);
 	}

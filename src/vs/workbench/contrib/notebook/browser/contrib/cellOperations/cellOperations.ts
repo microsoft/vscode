@@ -11,10 +11,11 @@ import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Range } from 'vs/editor/common/core/range';
 import { CellOverflowToolbarGroups, CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, INotebookCellActionContext, NotebookCellAction } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { CellEditState, expandCellRangesWithHiddenCells, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, expandCellRangesWithHiddenCells, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { CellEditType, CellKind, cellRangeContains, cellRangesToIndexes, ICellRange, NOTEBOOK_EDITOR_CURSOR_BEGIN_END, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { cellRangeContains, cellRangesToIndexes, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { cloneNotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
@@ -39,6 +40,12 @@ registerAction2(class extends NotebookCellAction {
 					primary: KeyMod.Alt | KeyCode.UpArrow,
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext.toNegated()),
 					weight: KeybindingWeight.WorkbenchContrib
+				},
+				menu: {
+					id: MenuId.NotebookCellTitle,
+					when: ContextKeyExpr.equals('config.notebook.dragAndDropEnabled', false),
+					group: CellOverflowToolbarGroups.Edit,
+					order: 13
 				}
 			});
 	}
@@ -59,6 +66,12 @@ registerAction2(class extends NotebookCellAction {
 					primary: KeyMod.Alt | KeyCode.DownArrow,
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext.toNegated()),
 					weight: KeybindingWeight.WorkbenchContrib
+				},
+				menu: {
+					id: MenuId.NotebookCellTitle,
+					when: ContextKeyExpr.equals('config.notebook.dragAndDropEnabled', false),
+					group: CellOverflowToolbarGroups.Edit,
+					order: 14
 				}
 			});
 	}
@@ -69,12 +82,13 @@ registerAction2(class extends NotebookCellAction {
 });
 
 export async function moveCellRange(context: INotebookCellActionContext, direction: 'up' | 'down'): Promise<void> {
-	const viewModel = context.notebookEditor.viewModel;
-	if (!viewModel) {
+	if (!context.notebookEditor.hasModel()) {
 		return;
 	}
+	const viewModel = context.notebookEditor.viewModel;
+	const textModel = context.notebookEditor.textModel;
 
-	if (!viewModel.metadata.editable) {
+	if (viewModel.options.isReadOnly) {
 		return;
 	}
 
@@ -94,7 +108,7 @@ export async function moveCellRange(context: INotebookCellActionContext, directi
 		const finalSelection = { start: range.start - 1, end: range.end - 1 };
 		const focus = context.notebookEditor.getFocus();
 		const newFocus = cellRangeContains(range, focus) ? { start: focus.start - 1, end: focus.end - 1 } : { start: range.start - 1, end: range.start };
-		viewModel.notebookDocument.applyEdits([
+		textModel.applyEdits([
 			{
 				editType: CellEditType.Move,
 				index: indexAbove,
@@ -122,7 +136,7 @@ export async function moveCellRange(context: INotebookCellActionContext, directi
 		const focus = context.notebookEditor.getFocus();
 		const newFocus = cellRangeContains(range, focus) ? { start: focus.start + 1, end: focus.end + 1 } : { start: range.start + 1, end: range.start + 2 };
 
-		viewModel.notebookDocument.applyEdits([
+		textModel.applyEdits([
 			{
 				editType: CellEditType.Move,
 				index: indexBelow,
@@ -189,18 +203,28 @@ registerAction2(class extends NotebookCellAction {
 });
 
 export async function copyCellRange(context: INotebookCellActionContext, direction: 'up' | 'down'): Promise<void> {
+	if (!context.notebookEditor.hasModel()) {
+		return;
+	}
 	const viewModel = context.notebookEditor.viewModel;
-	if (!viewModel) {
+	const textModel = context.notebookEditor.textModel;
+
+	if (viewModel.options.isReadOnly) {
 		return;
 	}
 
-	if (!viewModel.metadata.editable) {
-		return;
+	let range: ICellRange | undefined = undefined;
+
+	if (context.ui) {
+		let targetCell = context.cell;
+		const targetCellIndex = viewModel.getCellIndex(targetCell);
+		range = { start: targetCellIndex, end: targetCellIndex + 1 };
+	} else {
+		const selections = context.notebookEditor.getSelections();
+		const modelRanges = expandCellRangesWithHiddenCells(context.notebookEditor, context.notebookEditor.viewModel!, selections);
+		range = modelRanges[0];
 	}
 
-	const selections = context.notebookEditor.getSelections();
-	const modelRanges = expandCellRangesWithHiddenCells(context.notebookEditor, context.notebookEditor.viewModel!, selections);
-	const range = modelRanges[0];
 	if (!range || range.start === range.end) {
 		return;
 	}
@@ -209,12 +233,12 @@ export async function copyCellRange(context: INotebookCellActionContext, directi
 		// insert up, without changing focus and selections
 		const focus = viewModel.getFocus();
 		const selections = viewModel.getSelections();
-		viewModel.notebookDocument.applyEdits([
+		textModel.applyEdits([
 			{
 				editType: CellEditType.Replace,
 				index: range.end,
 				count: 0,
-				cells: cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(viewModel.viewCells[index].model))
+				cells: cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(viewModel.cellAt(index)!.model))
 			}],
 			true,
 			{
@@ -229,16 +253,16 @@ export async function copyCellRange(context: INotebookCellActionContext, directi
 		// insert down, move selections
 		const focus = viewModel.getFocus();
 		const selections = viewModel.getSelections();
-		const newCells = cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(viewModel.viewCells[index].model));
+		const newCells = cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(viewModel.cellAt(index)!.model));
 		const countDelta = newCells.length;
-		const newFocus = { start: focus.start + countDelta, end: focus.end + countDelta };
-		const newSelections = [{ start: range.start + countDelta, end: range.end + countDelta }];
-		viewModel.notebookDocument.applyEdits([
+		const newFocus = context.ui ? focus : { start: focus.start + countDelta, end: focus.end + countDelta };
+		const newSelections = context.ui ? selections : [{ start: range.start + countDelta, end: range.end + countDelta }];
+		textModel.applyEdits([
 			{
 				editType: CellEditType.Replace,
 				index: range.end,
 				count: 0,
-				cells: cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(viewModel.viewCells[index].model))
+				cells: cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(viewModel.cellAt(index)!.model))
 			}],
 			true,
 			{
@@ -270,17 +294,13 @@ registerAction2(class extends NotebookCellAction {
 				title: localize('notebookActions.splitCell', "Split Cell"),
 				menu: {
 					id: MenuId.NotebookCellTitle,
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_EDITOR_CURSOR_BEGIN_END.toNegated()),
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
 					order: CellToolbarOrder.SplitCell,
-					group: CELL_TITLE_CELL_GROUP_ID,
-					// alt: {
-					// 	id: JOIN_CELL_BELOW_COMMAND_ID,
-					// 	title: localize('notebookActions.joinCellBelow', "Join with Next Cell")
-					// }
+					group: CELL_TITLE_CELL_GROUP_ID
 				},
 				icon: icons.splitCellIcon,
 				keybinding: {
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_EDITOR_CURSOR_BEGIN_END.toNegated()),
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
 					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKSLASH),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
@@ -292,12 +312,12 @@ registerAction2(class extends NotebookCellAction {
 	}
 });
 
-export async function joinNotebookCells(viewModel: NotebookViewModel, range: ICellRange, direction: 'above' | 'below', constraint?: CellKind): Promise<{ edits: ResourceEdit[], cell: ICellViewModel, endFocus: ICellRange, endSelections: ICellRange[] } | null> {
-	if (!viewModel || !viewModel.metadata.editable) {
+export async function joinNotebookCells(viewModel: NotebookViewModel, range: ICellRange, direction: 'above' | 'below', constraint?: CellKind): Promise<{ edits: ResourceEdit[], cell: ICellViewModel, endFocus: ICellRange, endSelections: ICellRange[]; } | null> {
+	if (!viewModel || viewModel.options.isReadOnly) {
 		return null;
 	}
 
-	const cells = viewModel.viewCells.slice(range.start, range.end);
+	const cells = viewModel.getCells(range);
 
 	if (!cells.length) {
 		return null;
@@ -313,9 +333,6 @@ export async function joinNotebookCells(viewModel: NotebookViewModel, range: ICe
 
 	for (let i = 0; i < cells.length; i++) {
 		const cell = cells[i];
-		if (!cell.getEvaluatedMetadata(viewModel.notebookDocument.metadata).editable) {
-			return null;
-		}
 
 		if (constraint && cell.cellKind !== constraint) {
 			return null;
@@ -323,12 +340,8 @@ export async function joinNotebookCells(viewModel: NotebookViewModel, range: ICe
 	}
 
 	if (direction === 'above') {
-		const above = viewModel.viewCells[range.start - 1] as CellViewModel;
+		const above = viewModel.cellAt(range.start - 1) as CellViewModel;
 		if (constraint && above.cellKind !== constraint) {
-			return null;
-		}
-
-		if (!above.getEvaluatedMetadata(viewModel.notebookDocument.metadata).editable) {
 			return null;
 		}
 
@@ -353,12 +366,8 @@ export async function joinNotebookCells(viewModel: NotebookViewModel, range: ICe
 			endSelections: [{ start: range.start - 1, end: range.start }]
 		};
 	} else {
-		const below = viewModel.viewCells[range.end] as CellViewModel;
+		const below = viewModel.cellAt(range.end) as CellViewModel;
 		if (constraint && below.cellKind !== constraint) {
-			return null;
-		}
-
-		if (!below.getEvaluatedMetadata(viewModel.notebookDocument.metadata).editable) {
 			return null;
 		}
 
@@ -409,7 +418,7 @@ export async function joinCellsWithSurrounds(bulkEditService: IBulkEditService, 
 			{ quotableLabel: 'Join Notebook Cells' }
 		);
 		viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: ret.endFocus, selections: ret.endSelections });
-		ret.cell.editState = CellEditState.Editing;
+		ret.cell.updateEditState(CellEditState.Editing, 'joinCellsWithSurrounds');
 		context.notebookEditor.revealCellRangeInView(viewModel.getFocus());
 	} else {
 		const selections = viewModel.getSelections();
@@ -431,10 +440,10 @@ export async function joinCellsWithSurrounds(bulkEditService: IBulkEditService, 
 				|| selection.start === 0 && direction === 'above'
 			) {
 				if (containFocus) {
-					cell = viewModel.getCellByIndex(focus.start);
+					cell = viewModel.cellAt(focus.start)!;
 				}
 
-				cells.push(...viewModel.viewCells.slice(selection.start, selection.end));
+				cells.push(...viewModel.getCells(selection));
 				continue;
 			}
 
@@ -466,7 +475,7 @@ export async function joinCellsWithSurrounds(bulkEditService: IBulkEditService, 
 		);
 
 		cells.forEach(cell => {
-			cell.editState = CellEditState.Editing;
+			cell.updateEditState(CellEditState.Editing, 'joinCellsWithSurrounds');
 		});
 
 		viewModel.updateSelectionsState({ kind: SelectionStateType.Handle, primary: cell.handle, selections: cells.map(cell => cell.handle) });
@@ -487,7 +496,7 @@ registerAction2(class extends NotebookCellAction {
 				},
 				menu: {
 					id: MenuId.NotebookCellTitle,
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE),
 					group: CellOverflowToolbarGroups.Edit,
 					order: 10
 				}
@@ -513,7 +522,7 @@ registerAction2(class extends NotebookCellAction {
 				},
 				menu: {
 					id: MenuId.NotebookCellTitle,
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE),
 					group: CellOverflowToolbarGroups.Edit,
 					order: 11
 				}

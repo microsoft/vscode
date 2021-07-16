@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, SaveDialogOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogReturnValue, MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
-import { IOpenedWindow, IWindowOpenable, IOpenEmptyWindowOptions, IOpenWindowOptions, IColorScheme } from 'vs/platform/windows/common/windows';
+import { IOpenedWindow, IWindowOpenable, IOpenEmptyWindowOptions, IOpenWindowOptions, IColorScheme, IPartsSplash } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
@@ -72,6 +72,8 @@ export interface ICommonNativeHostService {
 
 	setMinimumSize(width: number | undefined, height: number | undefined): Promise<void>;
 
+	saveWindowSplash(splash: IPartsSplash): Promise<void>;
+
 	/**
 	 * Make the window focused.
 	 *
@@ -97,7 +99,7 @@ export interface ICommonNativeHostService {
 	setRepresentedFilename(path: string): Promise<void>;
 	setDocumentEdited(edited: boolean): Promise<void>;
 	openExternal(url: string): Promise<boolean>;
-	moveItemToTrash(fullPath: string, deleteOnFail?: boolean): Promise<boolean>;
+	moveItemToTrash(fullPath: string): Promise<void>;
 
 	isAdmin(): Promise<boolean>;
 	writeElevated(source: URI, target: URI, options?: { unlock?: boolean }): Promise<void>;
@@ -126,6 +128,10 @@ export interface ICommonNativeHostService {
 	mergeAllWindowTabs(): Promise<void>;
 	toggleWindowTabsBar(): Promise<void>;
 	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
+
+	// macOS Shell command
+	installShellCommand(): Promise<void>;
+	uninstallShellCommand(): Promise<void>;
 
 	// Lifecycle
 	notifyReady(): Promise<void>

@@ -11,10 +11,11 @@ import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
 import { $, reset, safeInnerHtml, windowOpenNoOpener } from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
-import * as collections from 'vs/base/common/collections';
+import { Delayer } from 'vs/base/common/async';
+import { groupBy } from 'vs/base/common/collections';
 import { debounce } from 'vs/base/common/decorators';
 import { Disposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
+import { isWindows, isLinux, isLinuxSnap, isMacintosh } from 'vs/base/common/platform';
 import { escape } from 'vs/base/common/strings';
 import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
 import { IssueReporterData as IssueReporterModelData, IssueReporterModel } from 'vs/code/electron-sandbox/issue/issueReporterModel';
@@ -23,8 +24,7 @@ import { localize } from 'vs/nls';
 import { isRemoteDiagnosticError, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { IssueReporterData, IssueReporterExtensionData, IssueReporterFeatures, IssueReporterStyles, IssueType } from 'vs/platform/issue/common/issue';
-import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IssueReporterWindowConfiguration, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueType } from 'vs/platform/issue/common/issue';
 import { Codicon } from 'vs/base/common/codicons';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
@@ -43,28 +43,8 @@ enum IssueSource {
 	Marketplace = 'marketplace'
 }
 
-export interface IssueReporterConfiguration extends IWindowConfiguration {
-	windowId: number;
-	disableExtensions: boolean;
-	data: IssueReporterData;
-	features: IssueReporterFeatures;
-	os: {
-		type: string;
-		arch: string;
-		release: string;
-	},
-	product: {
-		nameShort: string;
-		version: string;
-		commit: string | undefined;
-		date: string | undefined;
-		reportIssueUrl: string | undefined;
-		reportMarketplaceIssueUrl: string | undefined;
-	}
-}
-
-export function startup(configuration: IssueReporterConfiguration) {
-	const platformClass = platform.isWindows ? 'windows' : platform.isLinux ? 'linux' : 'mac';
+export function startup(configuration: IssueReporterWindowConfiguration) {
+	const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
 	document.body.classList.add(platformClass); // used by our fonts
 
 	safeInnerHtml(document.body, BaseHtml());
@@ -83,10 +63,11 @@ export class IssueReporter extends Disposable {
 	private receivedPerformanceInfo = false;
 	private shouldQueueSearch = false;
 	private hasBeenSubmitted = false;
+	private delayedSubmit = new Delayer<void>(300);
 
 	private readonly previewButton!: Button;
 
-	constructor(private readonly configuration: IssueReporterConfiguration) {
+	constructor(private readonly configuration: IssueReporterWindowConfiguration) {
 		super();
 
 		this.initServices(configuration);
@@ -95,8 +76,8 @@ export class IssueReporter extends Disposable {
 		this.issueReporterModel = new IssueReporterModel({
 			issueType: configuration.data.issueType || IssueType.Bug,
 			versionInfo: {
-				vscodeVersion: `${configuration.product.nameShort} ${configuration.product.version} (${configuration.product.commit || 'Commit unknown'}, ${configuration.product.date || 'Date unknown'})`,
-				os: `${this.configuration.os.type} ${this.configuration.os.arch} ${this.configuration.os.release}${platform.isLinuxSnap ? ' snap' : ''}`
+				vscodeVersion: `${configuration.product.nameShort} ${!!configuration.product.darwinUniversalAssetId ? `${configuration.product.version} (Universal)` : configuration.product.version} (${configuration.product.commit || 'Commit unknown'}, ${configuration.product.date || 'Date unknown'})`,
+				os: `${this.configuration.os.type} ${this.configuration.os.arch} ${this.configuration.os.release}${isLinuxSnap ? ' snap' : ''}`
 			},
 			extensionsDisabled: !!configuration.disableExtensions,
 			fileOnExtension: configuration.data.extensionId ? !targetExtension?.isBuiltin : undefined,
@@ -106,6 +87,7 @@ export class IssueReporter extends Disposable {
 		const issueReporterElement = this.getElementById('issue-reporter');
 		if (issueReporterElement) {
 			this.previewButton = new Button(issueReporterElement);
+			this.updatePreviewButtonState();
 		}
 
 		const issueTitle = configuration.data.issueTitle;
@@ -158,6 +140,7 @@ export class IssueReporter extends Disposable {
 		this.applyStyles(configuration.data.styles);
 		this.handleExtensionData(configuration.data.enabledExtensions);
 		this.updateExperimentsInfo(configuration.data.experiments);
+		this.updateRestrictedMode(configuration.data.restrictedMode);
 	}
 
 	render(): void {
@@ -257,7 +240,7 @@ export class IssueReporter extends Disposable {
 
 	private handleExtensionData(extensions: IssueReporterExtensionData[]) {
 		const installedExtensions = extensions.filter(x => !x.isBuiltin);
-		const { nonThemes, themes } = collections.groupBy(installedExtensions, ext => {
+		const { nonThemes, themes } = groupBy(installedExtensions, ext => {
 			return ext.isTheme ? 'themes' : 'nonThemes';
 		});
 
@@ -272,7 +255,7 @@ export class IssueReporter extends Disposable {
 		this.updateExtensionSelector(installedExtensions);
 	}
 
-	private initServices(configuration: IssueReporterConfiguration): void {
+	private initServices(configuration: IssueReporterWindowConfiguration): void {
 		const serviceCollection = new ServiceCollection();
 		const mainProcessService = new ElectronIPCMainProcessService(configuration.windowId);
 		serviceCollection.set(IMainProcessService, mainProcessService);
@@ -376,7 +359,11 @@ export class IssueReporter extends Disposable {
 			this.searchIssues(title, fileOnExtension, fileOnMarketplace);
 		});
 
-		this.previewButton.onDidClick(() => this.createIssue());
+		this.previewButton.onDidClick(async () => {
+			this.delayedSubmit.trigger(async () => {
+				this.createIssue();
+			});
+		});
 
 		function sendWorkbenchCommand(commandId: string) {
 			ipcRenderer.send('vscode:workbenchCommand', { id: commandId, from: 'issueReporter' });
@@ -400,12 +387,14 @@ export class IssueReporter extends Disposable {
 		});
 
 		document.onkeydown = async (e: KeyboardEvent) => {
-			const cmdOrCtrlKey = platform.isMacintosh ? e.metaKey : e.ctrlKey;
+			const cmdOrCtrlKey = isMacintosh ? e.metaKey : e.ctrlKey;
 			// Cmd/Ctrl+Enter previews issue and closes window
 			if (cmdOrCtrlKey && e.keyCode === 13) {
-				if (await this.createIssue()) {
-					ipcRenderer.send('vscode:closeIssueReporter');
-				}
+				this.delayedSubmit.trigger(async () => {
+					if (await this.createIssue()) {
+						ipcRenderer.send('vscode:closeIssueReporter');
+					}
+				});
 			}
 
 			// Cmd/Ctrl + w closes issue window
@@ -434,7 +423,7 @@ export class IssueReporter extends Disposable {
 
 			// With latest electron upgrade, cmd+a is no longer propagating correctly for inputs in this window on mac
 			// Manually perform the selection
-			if (platform.isMacintosh) {
+			if (isMacintosh) {
 				if (cmdOrCtrlKey && e.keyCode === 65 && e.target) {
 					if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
 						(<HTMLInputElement>e.target).select();
@@ -1169,6 +1158,10 @@ export class IssueReporter extends Disposable {
 
 			reset(target, this.getExtensionTableHtml(extensions), document.createTextNode(themeExclusionStr));
 		}
+	}
+
+	private updateRestrictedMode(restrictedMode: boolean) {
+		this.issueReporterModel.update({ restrictedMode });
 	}
 
 	private updateExperimentsInfo(experimentInfo: string | undefined) {

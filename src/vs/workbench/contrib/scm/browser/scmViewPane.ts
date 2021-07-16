@@ -22,7 +22,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options, MenuRegistry, Action2 } from 'vs/platform/actions/common/actions';
 import { IAction, ActionRunner } from 'vs/base/common/actions';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IThemeService, registerThemingParticipant, IFileIconTheme } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, IFileIconTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider } from './util';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { WorkbenchCompressibleObjectTree, IOpenEvent } from 'vs/platform/list/browser/listService';
@@ -56,7 +56,7 @@ import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEdito
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
 import * as platform from 'vs/base/common/platform';
 import { compare, format } from 'vs/base/common/strings';
-import { inputPlaceholderForeground, inputValidationInfoBorder, inputValidationWarningBorder, inputValidationErrorBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputBackground, inputForeground, inputBorder, focusBorder, registerColor, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { inputPlaceholderForeground, inputValidationInfoBorder, inputValidationWarningBorder, inputValidationErrorBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputBackground, inputForeground, inputBorder, focusBorder, registerColor, contrastBorder, editorSelectionBackground, selectionBackground } from 'vs/platform/theme/common/colorRegistry';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { Schemas } from 'vs/base/common/network';
@@ -301,7 +301,7 @@ class RepositoryPaneActionRunner extends ActionRunner {
 		super();
 	}
 
-	async runAction(action: IAction, context: ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>): Promise<any> {
+	override async runAction(action: IAction, context: ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>): Promise<any> {
 		if (!(action instanceof MenuItemAction)) {
 			return super.runAction(action, context);
 		}
@@ -395,10 +395,23 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 			});
 
 			if (icon) {
-				template.decorationIcon.style.display = '';
-				template.decorationIcon.style.backgroundImage = asCSSUrl(icon);
+				if (ThemeIcon.isThemeIcon(icon)) {
+					template.decorationIcon.className = `decoration-icon ${ThemeIcon.asClassName(icon)}`;
+					if (icon.color) {
+						template.decorationIcon.style.color = theme.getColor(icon.color.id)?.toString() ?? '';
+					}
+					template.decorationIcon.style.display = '';
+					template.decorationIcon.style.backgroundImage = '';
+				} else {
+					template.decorationIcon.className = 'decoration-icon';
+					template.decorationIcon.style.color = '';
+					template.decorationIcon.style.display = '';
+					template.decorationIcon.style.backgroundImage = asCSSUrl(icon);
+				}
 				template.decorationIcon.title = tooltip;
 			} else {
+				template.decorationIcon.className = 'decoration-icon';
+				template.decorationIcon.style.color = '';
 				template.decorationIcon.style.display = 'none';
 				template.decorationIcon.style.backgroundImage = '';
 				template.decorationIcon.title = '';
@@ -1402,7 +1415,7 @@ class CollapseAllRepositoriesAction extends ViewAction<SCMViewPane>  {
 			menu: {
 				id: MenuId.SCMTitle,
 				group: 'navigation',
-				when: ContextKeyExpr.and(ContextKeys.ViewModelIsAnyRepositoryCollapsible.isEqualTo(true), ContextKeys.ViewModelAreAllRepositoriesCollapsed.isEqualTo(false))
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.ViewModelIsAnyRepositoryCollapsible.isEqualTo(true), ContextKeys.ViewModelAreAllRepositoriesCollapsed.isEqualTo(false))
 			}
 		});
 	}
@@ -1424,7 +1437,7 @@ class ExpandAllRepositoriesAction extends ViewAction<SCMViewPane>  {
 			menu: {
 				id: MenuId.SCMTitle,
 				group: 'navigation',
-				when: ContextKeyExpr.and(ContextKeys.ViewModelIsAnyRepositoryCollapsible.isEqualTo(true), ContextKeys.ViewModelAreAllRepositoriesCollapsed.isEqualTo(true))
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.ViewModelIsAnyRepositoryCollapsible.isEqualTo(true), ContextKeys.ViewModelAreAllRepositoriesCollapsed.isEqualTo(true))
 			}
 		});
 	}
@@ -1438,6 +1451,11 @@ registerAction2(CollapseAllRepositoriesAction);
 registerAction2(ExpandAllRepositoriesAction);
 
 class SCMInputWidget extends Disposable {
+	private static readonly ValidationTimeouts: { [severity: number]: number } = {
+		[InputValidationType.Information]: 5000,
+		[InputValidationType.Warning]: 8000,
+		[InputValidationType.Error]: 10000
+	};
 
 	private readonly defaultInputFontFamily = DEFAULT_FONT_FAMILY;
 
@@ -1452,6 +1470,7 @@ class SCMInputWidget extends Disposable {
 
 	private validation: IInputValidation | undefined;
 	private validationDisposable: IDisposable = Disposable.None;
+	private _validationTimer: any;
 
 	// This is due to "Setup height change listener on next tick" above
 	// https://github.com/microsoft/vscode/issues/108067
@@ -1509,8 +1528,7 @@ class SCMInputWidget extends Disposable {
 			const offset = position && textModel.getOffsetAt(position);
 			const value = textModel.getValue();
 
-			this.validation = await input.validateInput(value, offset || 0);
-			this.renderValidation();
+			this.setValidation(await input.validateInput(value, offset || 0));
 		};
 
 		const triggerValidation = () => validationDelayer.trigger(validate);
@@ -1536,6 +1554,8 @@ class SCMInputWidget extends Disposable {
 			this.inputEditor.setPosition(position);
 			this.inputEditor.revealPositionInCenterIfOutsideViewport(position);
 		}));
+		this.repositoryDisposables.add(input.onDidChangeFocus(() => this.focus()));
+		this.repositoryDisposables.add(input.onDidChangeValidationMessage((e) => this.setValidation(e, { focus: true, timeout: true })));
 
 		// Keep API in sync with model, update placeholder visibility and validate
 		const updatePlaceholderVisibility = () => this.placeholderTextContainer.classList.toggle('hidden', textModel.getValueLength() > 0);
@@ -1594,6 +1614,24 @@ class SCMInputWidget extends Disposable {
 		}
 	}
 
+	private setValidation(validation: IInputValidation | undefined, options?: { focus?: boolean; timeout?: boolean }) {
+		if (this._validationTimer) {
+			clearTimeout(this._validationTimer);
+			this._validationTimer = 0;
+		}
+
+		this.validation = validation;
+		this.renderValidation();
+
+		if (options?.focus && !this.hasFocus()) {
+			this.focus();
+		}
+
+		if (validation && options?.timeout) {
+			this._validationTimer = setTimeout(() => this.setValidation(undefined), SCMInputWidget.ValidationTimeouts[validation.type]);
+		}
+	}
+
 	constructor(
 		container: HTMLElement,
 		overflowWidgetsDomNode: HTMLElement,
@@ -1612,6 +1650,12 @@ class SCMInputWidget extends Disposable {
 		this.editorContainer = append(this.element, $('.scm-editor-container'));
 		this.placeholderTextContainer = append(this.editorContainer, $('.scm-editor-placeholder'));
 
+		const fontFamily = this.getInputEditorFontFamily();
+		const fontSize = this.getInputEditorFontSize();
+		const lineHeight = this.computeLineHeight(fontSize);
+
+		this.setPlaceholderFontStyles(fontFamily, fontSize, lineHeight);
+
 		const contextKeyService2 = contextKeyService.createScoped(this.element);
 		this.repositoryContextKey = contextKeyService2.createKey('scmRepository', undefined);
 
@@ -1620,9 +1664,9 @@ class SCMInputWidget extends Disposable {
 			lineDecorationsWidth: 4,
 			dragAndDrop: false,
 			cursorWidth: 1,
-			fontSize: 13,
-			lineHeight: 20,
-			fontFamily: this.getInputEditorFontFamily(),
+			fontSize: fontSize,
+			lineHeight: lineHeight,
+			fontFamily: fontFamily,
 			wrappingStrategy: 'advanced',
 			wrappingIndent: 'none',
 			padding: { top: 3, bottom: 3 },
@@ -1676,11 +1720,20 @@ class SCMInputWidget extends Disposable {
 			lastLineKey.set(viewPosition.lineNumber === lastLineNumber && viewPosition.column === lastLineCol);
 		}));
 
-		const onInputFontFamilyChanged = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.inputFontFamily'));
-		this._register(onInputFontFamilyChanged(() => this.inputEditor.updateOptions({ fontFamily: this.getInputEditorFontFamily() })));
+		const onInputFontFamilyChanged = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.inputFontFamily') || e.affectsConfiguration('scm.inputFontSize'));
+		this._register(onInputFontFamilyChanged(() => {
+			const fontFamily = this.getInputEditorFontFamily();
+			const fontSize = this.getInputEditorFontSize();
+			const lineHeight = this.computeLineHeight(fontSize);
 
-		const onInputFontSizeChanged = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.inputFontSize'));
-		this._register(onInputFontSizeChanged(() => this.inputEditor.updateOptions({ fontSize: this.getInputEditorFontSize() })));
+			this.inputEditor.updateOptions({
+				fontFamily: fontFamily,
+				fontSize: fontSize,
+				lineHeight: lineHeight,
+			});
+
+			this.setPlaceholderFontStyles(fontFamily, fontSize, lineHeight);
+		}));
 
 		this.onDidChangeContentHeight = Event.signal(Event.filter(this.inputEditor.onDidContentSizeChange, e => e.contentHeightChanged));
 	}
@@ -1768,11 +1821,21 @@ class SCMInputWidget extends Disposable {
 		return this.configurationService.getValue<number>('scm.inputFontSize');
 	}
 
+	private computeLineHeight(fontSize: number): number {
+		return Math.round(fontSize * 1.5);
+	}
+
+	private setPlaceholderFontStyles(fontFamily: string, fontSize: number, lineHeight: number): void {
+		this.placeholderTextContainer.style.fontFamily = fontFamily;
+		this.placeholderTextContainer.style.fontSize = `${fontSize}px`;
+		this.placeholderTextContainer.style.lineHeight = `${lineHeight}px`;
+	}
+
 	clearValidation(): void {
 		this.validationDisposable.dispose();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.input = undefined;
 		this.repositoryDisposables.dispose();
 		this.validationDisposable.dispose();
@@ -1822,7 +1885,7 @@ export class SCMViewPane extends ViewPane {
 		this._register(Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository)(() => this._onDidChangeViewWelcomeState.fire()));
 	}
 
-	protected renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		// List
@@ -1944,7 +2007,7 @@ export class SCMViewPane extends ViewPane {
 		this.storageService.store(`scm.viewMode`, this._viewModel.mode, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
-	layoutBody(height: number | undefined = this.layoutCache.height, width: number | undefined = this.layoutCache.width): void {
+	override layoutBody(height: number | undefined = this.layoutCache.height, width: number | undefined = this.layoutCache.width): void {
 		if (height === undefined) {
 			return;
 		}
@@ -1961,7 +2024,7 @@ export class SCMViewPane extends ViewPane {
 		this.tree.layout(height, width);
 	}
 
-	focus(): void {
+	override focus(): void {
 		super.focus();
 
 		if (this.isExpanded()) {
@@ -2097,7 +2160,7 @@ export class SCMViewPane extends ViewPane {
 			.filter(r => !!r && !isSCMResourceGroup(r))! as any;
 	}
 
-	shouldShowWelcome(): boolean {
+	override shouldShowWelcome(): boolean {
 		return this.scmService.repositories.length === 0;
 	}
 }
@@ -2111,6 +2174,11 @@ registerThemingParticipant((theme, collector) => {
 		.scm-view .scm-editor-container .monaco-editor,
 		.scm-view .scm-editor-container .monaco-editor .margin
 		{ background-color: ${inputBackgroundColor} !important; }`);
+	}
+
+	const selectionBackgroundColor = theme.getColor(selectionBackground) ?? theme.getColor(editorSelectionBackground);
+	if (selectionBackgroundColor) {
+		collector.addRule(`.scm-view .scm-editor-container .monaco-editor .focused .selected-text { background-color: ${selectionBackgroundColor}; }`);
 	}
 
 	const inputForegroundColor = theme.getColor(inputForeground);

@@ -10,9 +10,10 @@ import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { isStandalone } from 'vs/base/browser/browser';
 
+const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+
 // Configuration
 (function registerConfiguration(): void {
-	const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	// Workbench
 	registry.registerConfiguration({
@@ -23,7 +24,7 @@ import { isStandalone } from 'vs/base/browser/browser';
 				enum: ['default', 'large'],
 				enumDescriptions: [
 					localize('workbench.editor.titleScrollbarSizing.default', "The default size."),
-					localize('workbench.editor.titleScrollbarSizing.large', "Increases the size, so it can be grabbed more easily with the mouse")
+					localize('workbench.editor.titleScrollbarSizing.large', "Increases the size, so it can be grabbed more easily with the mouse.")
 				],
 				description: localize('tabScrollbarHeight', "Controls the height of the scrollbars used for tabs and breadcrumbs in the editor title area."),
 				default: 'default',
@@ -40,7 +41,7 @@ import { isStandalone } from 'vs/base/browser/browser';
 			},
 			'workbench.editor.scrollToSwitchTabs': {
 				'type': 'boolean',
-				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'scrollToSwitchTabs' }, "Controls whether scrolling over tabs will open them or not. By default tabs will only reveal upon scrolling, but not open. You can press and hold the Shift-key while scrolling to change this behaviour for that duration. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'scrollToSwitchTabs' }, "Controls whether scrolling over tabs will open them or not. By default tabs will only reveal upon scrolling, but not open. You can press and hold the Shift-key while scrolling to change this behavior for that duration. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
 				'default': false
 			},
 			'workbench.editor.highlightModifiedTabs': {
@@ -88,8 +89,8 @@ import { isStandalone } from 'vs/base/browser/browser';
 			},
 			'workbench.editor.untitled.hint': {
 				'type': 'string',
-				'enum': ['text', 'button', 'hidden', 'default'],
-				'default': 'default',
+				'enum': ['text', 'hidden'],
+				'default': 'text',
 				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'untitledHint' }, "Controls if the untitled hint should be inline text in the editor or a floating button or hidden.")
 			},
 			'workbench.editor.tabCloseButton': {
@@ -174,7 +175,7 @@ import { isStandalone } from 'vs/base/browser/browser';
 				'type': 'string',
 				'enum': ['right', 'down'],
 				'default': 'right',
-				'markdownDescription': localize('sideBySideDirection', "Controls the default direction of editors that are opened side by side (e.g. from the explorer). By default, editors will open on the right hand side of the currently active one. If changed to `down`, the editors will open below the currently active one.")
+				'markdownDescription': localize('sideBySideDirection', "Controls the default direction of editors that are opened side by side (for example, from the Explorer). By default, editors will open on the right hand side of the currently active one. If changed to `down`, the editors will open below the currently active one.")
 			},
 			'workbench.editor.closeEmptyGroups': {
 				'type': 'boolean',
@@ -193,9 +194,14 @@ import { isStandalone } from 'vs/base/browser/browser';
 			},
 			'workbench.editor.restoreViewState': {
 				'type': 'boolean',
-				'description': localize('restoreViewState', "Restores the last view state (e.g. scroll position) when re-opening textual editors after they have been closed."),
+				'markdownDescription': localize('restoreViewState', "Restores the last editor view state (e.g. scroll position) when re-opening editors after they have been closed. Editor view state is stored per editor group and discarded when a group closes. Use the `#workbench.editor.sharedViewState#` setting to use the last known view state across all editor groups in case no previous view state was found for a editor group."),
 				'default': true,
 				'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
+			},
+			'workbench.editor.sharedViewState': {
+				'type': 'boolean',
+				'description': localize('sharedViewState', "Preserves the most recent editor view state (e.g. scroll position) across all editor groups and restores that if no specific editor view state is found for the editor group."),
+				'default': false
 			},
 			'workbench.editor.centeredLayoutAutoResize': {
 				'type': 'boolean',

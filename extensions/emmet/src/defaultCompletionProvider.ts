@@ -176,7 +176,8 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 				return;
 			}
 
-			let result = helper.doComplete(toLSTextDocument(document), position, syntax, getEmmetConfiguration(syntax!));
+			const config = getEmmetConfiguration(syntax!);
+			const result = helper.doComplete(toLSTextDocument(document), position, syntax, config);
 
 			// https://github.com/microsoft/vscode/issues/86941
 			if (result && result.items && result.items.length === 1) {

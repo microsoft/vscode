@@ -10,7 +10,7 @@ import { XHRRequest } from 'request-light';
 
 import {
 	CompletionItem, CompletionItemProvider, CompletionList, TextDocument, Position, Hover, HoverProvider,
-	CancellationToken, Range, MarkedString, DocumentSelector, languages, Disposable, Uri
+	CancellationToken, Range, DocumentSelector, languages, Disposable, Uri, MarkdownString
 } from 'vscode';
 
 export interface ISuggestionsCollector {
@@ -22,15 +22,15 @@ export interface ISuggestionsCollector {
 
 export interface IJSONContribution {
 	getDocumentSelector(): DocumentSelector;
-	getInfoContribution(resourceUri: Uri, location: Location): Thenable<MarkedString[] | null> | null;
+	getInfoContribution(resourceUri: Uri, location: Location): Thenable<MarkdownString[] | null> | null;
 	collectPropertySuggestions(resourceUri: Uri, location: Location, currentWord: string, addValue: boolean, isLast: boolean, result: ISuggestionsCollector): Thenable<any> | null;
 	collectValueSuggestions(resourceUri: Uri, location: Location, result: ISuggestionsCollector): Thenable<any> | null;
 	collectDefaultSuggestions(resourceUri: Uri, result: ISuggestionsCollector): Thenable<any>;
 	resolveSuggestion?(resourceUri: Uri | undefined, item: CompletionItem): Thenable<CompletionItem | null> | null;
 }
 
-export function addJSONProviders(xhr: XHRRequest, canRunNPM: boolean): Disposable {
-	const contributions = [new PackageJSONContribution(xhr, canRunNPM), new BowerJSONContribution(xhr)];
+export function addJSONProviders(xhr: XHRRequest, npmCommandPath: string | undefined): Disposable {
+	const contributions = [new PackageJSONContribution(xhr, npmCommandPath), new BowerJSONContribution(xhr)];
 	const subscriptions: Disposable[] = [];
 	contributions.forEach(contribution => {
 		const selector = contribution.getDocumentSelector();
@@ -109,8 +109,11 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 		const proposed: { [key: string]: boolean } = {};
 		const collector: ISuggestionsCollector = {
 			add: (suggestion: CompletionItem) => {
-				if (!proposed[suggestion.label]) {
-					proposed[suggestion.label] = true;
+				const key = typeof suggestion.label === 'string'
+					? suggestion.label
+					: suggestion.label.label;
+				if (!proposed[key]) {
+					proposed[key] = true;
 					suggestion.range = { replacing: overwriteRange, inserting: new Range(overwriteRange.start, overwriteRange.start) };
 					items.push(suggestion);
 				}
@@ -136,7 +139,7 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 		}
 		if (collectPromise) {
 			return collectPromise.then(() => {
-				if (items.length > 0) {
+				if (items.length > 0 || isIncomplete) {
 					return new CompletionList(items, isIncomplete);
 				}
 				return null;

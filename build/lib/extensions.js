@@ -4,9 +4,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.translatePackageJSON = exports.scanBuiltinExtensions = exports.packageMarketplaceExtensionsStream = exports.packageLocalExtensionsStream = exports.fromMarketplace = void 0;
+exports.buildExtensionMedia = exports.webpackExtensions = exports.translatePackageJSON = exports.scanBuiltinExtensions = exports.packageMarketplaceExtensionsStream = exports.packageLocalExtensionsStream = exports.fromMarketplace = void 0;
 const es = require("event-stream");
 const fs = require("fs");
+const cp = require("child_process");
 const glob = require("glob");
 const gulp = require("gulp");
 const path = require("path");
@@ -143,7 +144,7 @@ function fromLocalWebpack(extensionPath, webpackConfigFileName) {
         console.error(packagedDependencies);
         result.emit('error', err);
     });
-    return result.pipe(stats_1.createStatsStream(path.basename(extensionPath)));
+    return result.pipe((0, stats_1.createStatsStream)(path.basename(extensionPath)));
 }
 function fromLocalNormal(extensionPath) {
     const result = es.through();
@@ -161,7 +162,7 @@ function fromLocalNormal(extensionPath) {
         es.readArray(files).pipe(result);
     })
         .catch(err => result.emit('error', err));
-    return result.pipe(stats_1.createStatsStream(path.basename(extensionPath)));
+    return result.pipe((0, stats_1.createStatsStream)(path.basename(extensionPath)));
 }
 const baseHeaders = {
     'X-Market-Client-Id': 'VSCode Build',
@@ -212,7 +213,7 @@ const productJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../produ
 const builtInExtensions = productJson.builtInExtensions || [];
 const webBuiltInExtensions = productJson.webBuiltInExtensions || [];
 /**
- * Loosely based on `getExtensionKind` from `src/vs/workbench/services/extensions/common/extensionsUtil.ts`
+ * Loosely based on `getExtensionKind` from `src/vs/workbench/services/extensions/common/extensionManifestPropertiesService.ts`
  */
 function isWebExtension(manifest) {
     if (typeof manifest.extensionKind !== 'undefined') {
@@ -319,7 +320,7 @@ function translatePackageJSON(packageJSON, packageNLSPath) {
             else if (typeof val === 'string' && val.charCodeAt(0) === CharCode_PC && val.charCodeAt(val.length - 1) === CharCode_PC) {
                 const translated = packageNls[val.substr(1, val.length - 2)];
                 if (translated) {
-                    obj[key] = translated;
+                    obj[key] = typeof translated === 'string' ? translated : (typeof translated.message === 'string' ? translated.message : val);
                 }
             }
         }
@@ -328,3 +329,132 @@ function translatePackageJSON(packageJSON, packageNLSPath) {
     return packageJSON;
 }
 exports.translatePackageJSON = translatePackageJSON;
+const extensionsPath = path.join(root, 'extensions');
+// Additional projects to webpack. These typically build code for webviews
+const webpackMediaConfigFiles = [
+    'markdown-language-features/webpack.config.js',
+    'simple-browser/webpack.config.js',
+];
+// Additional projects to run esbuild on. These typically build code for webviews
+const esbuildMediaScripts = [
+    'markdown-language-features/esbuild.js',
+    'markdown-math/esbuild.js',
+];
+async function webpackExtensions(taskName, isWatch, webpackConfigLocations) {
+    const webpack = require('webpack');
+    const webpackConfigs = [];
+    for (const { configPath, outputRoot } of webpackConfigLocations) {
+        const configOrFnOrArray = require(configPath);
+        function addConfig(configOrFn) {
+            let config;
+            if (typeof configOrFn === 'function') {
+                config = configOrFn({}, {});
+                webpackConfigs.push(config);
+            }
+            else {
+                config = configOrFn;
+            }
+            if (outputRoot) {
+                config.output.path = path.join(outputRoot, path.relative(path.dirname(configPath), config.output.path));
+            }
+            webpackConfigs.push(configOrFn);
+        }
+        addConfig(configOrFnOrArray);
+    }
+    function reporter(fullStats) {
+        if (Array.isArray(fullStats.children)) {
+            for (const stats of fullStats.children) {
+                const outputPath = stats.outputPath;
+                if (outputPath) {
+                    const relativePath = path.relative(extensionsPath, outputPath).replace(/\\/g, '/');
+                    const match = relativePath.match(/[^\/]+(\/server|\/client)?/);
+                    fancyLog(`Finished ${ansiColors.green(taskName)} ${ansiColors.cyan(match[0])} with ${stats.errors.length} errors.`);
+                }
+                if (Array.isArray(stats.errors)) {
+                    stats.errors.forEach((error) => {
+                        fancyLog.error(error);
+                    });
+                }
+                if (Array.isArray(stats.warnings)) {
+                    stats.warnings.forEach((warning) => {
+                        fancyLog.warn(warning);
+                    });
+                }
+            }
+        }
+    }
+    return new Promise((resolve, reject) => {
+        if (isWatch) {
+            webpack(webpackConfigs).watch({}, (err, stats) => {
+                if (err) {
+                    reject();
+                }
+                else {
+                    reporter(stats === null || stats === void 0 ? void 0 : stats.toJson());
+                }
+            });
+        }
+        else {
+            webpack(webpackConfigs).run((err, stats) => {
+                if (err) {
+                    fancyLog.error(err);
+                    reject();
+                }
+                else {
+                    reporter(stats === null || stats === void 0 ? void 0 : stats.toJson());
+                    resolve();
+                }
+            });
+        }
+    });
+}
+exports.webpackExtensions = webpackExtensions;
+async function esbuildExtensions(taskName, isWatch, scripts) {
+    function reporter(stdError, script) {
+        const matches = (stdError || '').match(/\> (.+): error: (.+)?/g);
+        fancyLog(`Finished ${ansiColors.green(taskName)} ${script} with ${matches ? matches.length : 0} errors.`);
+        for (const match of matches || []) {
+            fancyLog.error(match);
+        }
+    }
+    const tasks = scripts.map(({ script, outputRoot }) => {
+        return new Promise((resolve, reject) => {
+            const args = [script];
+            if (isWatch) {
+                args.push('--watch');
+            }
+            if (outputRoot) {
+                args.push('--outputRoot', outputRoot);
+            }
+            const proc = cp.execFile(process.argv[0], args, {}, (error, _stdout, stderr) => {
+                if (error) {
+                    return reject(error);
+                }
+                reporter(stderr, script);
+                if (stderr) {
+                    return reject();
+                }
+                return resolve();
+            });
+            proc.stdout.on('data', (data) => {
+                fancyLog(`${ansiColors.green(taskName)}: ${data.toString('utf8')}`);
+            });
+        });
+    });
+    return Promise.all(tasks);
+}
+async function buildExtensionMedia(isWatch, outputRoot) {
+    return Promise.all([
+        webpackExtensions('webpacking extension media', isWatch, webpackMediaConfigFiles.map(p => {
+            return {
+                configPath: path.join(extensionsPath, p),
+                outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(p)) : undefined
+            };
+        })),
+        esbuildExtensions('esbuilding extension media', isWatch, esbuildMediaScripts.map(p => ({
+            script: path.join(extensionsPath, p),
+            outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(p)) : undefined
+        }))),
+    ]);
+}
+exports.buildExtensionMedia = buildExtensionMedia;

@@ -50,7 +50,7 @@ export class NoTabsTitleControl extends TitleControl {
 		this._register(addDisposableListener(this.editorLabel.element, EventType.CLICK, e => this.onTitleLabelClick(e)));
 
 		// Breadcrumbs
-		this.createBreadcrumbsControl(labelContainer, { showFileIcons: false, showSymbolIcons: true, showDecorationColors: false, breadcrumbsBackground: () => Color.transparent });
+		this.createBreadcrumbsControl(labelContainer, { showFileIcons: false, showSymbolIcons: true, showDecorationColors: false, breadcrumbsBackground: Color.transparent.toString(), showPlaceholder: false });
 		titleContainer.classList.toggle('breadcrumbs', Boolean(this.breadcrumbsControl));
 		this._register(toDisposable(() => titleContainer.classList.remove('breadcrumbs'))); // important to remove because the container is a shared dom node
 
@@ -114,7 +114,7 @@ export class NoTabsTitleControl extends TitleControl {
 	private onTitleTap(e: GestureEvent): void {
 
 		// We only want to open the quick access picker when
-		// the tap occured over the editor label, so we need
+		// the tap occurred over the editor label, so we need
 		// to check on the target
 		// (https://github.com/microsoft/vscode/issues/107543)
 		const target = e.initialTarget;
@@ -167,6 +167,10 @@ export class NoTabsTitleControl extends TitleControl {
 		this.ifEditorIsActive(editor, () => this.redraw());
 	}
 
+	updateEditorCapabilities(editor: IEditorInput): void {
+		this.ifEditorIsActive(editor, () => this.redraw());
+	}
+
 	updateEditorLabels(): void {
 		if (this.group.activeEditor) {
 			this.updateEditorLabel(this.group.activeEditor); // we only have the active one to update
@@ -195,7 +199,7 @@ export class NoTabsTitleControl extends TitleControl {
 		}
 	}
 
-	updateStyles(): void {
+	override updateStyles(): void {
 		this.redraw();
 	}
 
@@ -294,7 +298,7 @@ export class NoTabsTitleControl extends TitleControl {
 				{
 					title,
 					italic: !isEditorPinned,
-					extraClasses: ['no-tabs', 'title-label'],
+					extraClasses: ['no-tabs', 'title-label'].concat(editor.getLabelExtraClasses()),
 					fileDecorations: {
 						colors: Boolean(options.decorations?.colors),
 						badges: Boolean(options.decorations?.badges)
@@ -321,7 +325,7 @@ export class NoTabsTitleControl extends TitleControl {
 		}
 	}
 
-	protected prepareEditorActions(editorActions: IToolbarActions): { primaryEditorActions: IAction[], secondaryEditorActions: IAction[] } {
+	protected override prepareEditorActions(editorActions: IToolbarActions): { primaryEditorActions: IAction[], secondaryEditorActions: IAction[] } {
 		const isGroupActive = this.accessor.activeGroup === this.group;
 
 		// Group active: show all actions

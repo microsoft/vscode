@@ -195,6 +195,7 @@ export class SearchService implements IRawSearchService {
 							workspaceFolderCount: config.folderQueries.length,
 							resultCount: sortedResults.length
 						},
+						messages: result.messages,
 						limitHit: result.limitHit || typeof config.maxResults === 'number' && results.length > config.maxResults
 					} as ISerializedSearchSuccess, sortedResults];
 				});

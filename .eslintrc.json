@@ -7,7 +7,8 @@
 	},
 	"plugins": [
 		"@typescript-eslint",
-		"jsdoc"
+		"jsdoc",
+		"header"
 	],
 	"rules": {
 		"constructor-super": "warn",
@@ -104,6 +105,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/common/**",
 					"**/vs/base/test/common/**"
@@ -139,6 +141,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/base/test/{common,browser}/**"
@@ -212,12 +215,27 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/common/**",
 					"**/vs/base/parts/*/common/**",
 					"**/vs/base/test/common/**",
 					"**/vs/platform/*/common/**",
 					"**/vs/platform/*/test/common/**"
+				]
+			},
+			{
+				"target": "**/vs/platform/*/test/browser/**",
+				"restrictions": [
+					"assert",
+					"sinon",
+					"sinon-test",
+					"vs/nls",
+					"**/vs/base/{common,browser}/**",
+					"**/vs/base/parts/*/{common,browser}/**",
+					"**/vs/base/test/{common,browser}/**",
+					"**/vs/platform/*/{common,browser}/**",
+					"**/vs/platform/*/test/{common,browser}/**"
 				]
 			},
 			{
@@ -276,6 +294,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/base/parts/*/{common,browser}/**",
@@ -298,6 +317,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/common/**",
 					"**/vs/platform/*/common/**",
@@ -321,6 +341,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/platform/*/{common,browser}/**",
@@ -344,6 +365,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/common/**",
 					"**/vs/platform/*/common/**",
@@ -370,6 +392,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/platform/*/{common,browser}/**",
@@ -384,6 +407,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/base/test/{common,browser}/**",
@@ -501,7 +525,7 @@
 					"**/vs/platform/**",
 					"**/vs/editor/**",
 					"**/vs/workbench/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"vs/workbench/contrib/files/common/editors/fileEditorInput",
+					"vs/workbench/contrib/files/browser/editors/fileEditorInput",
 					"**/vs/workbench/services/**",
 					"**/vs/workbench/test/**",
 					"*" // node modules
@@ -908,6 +932,7 @@
 					"**/vs/**",
 					"assert",
 					"sinon",
+					"sinon-test",
 					"crypto",
 					"vscode"
 				]
@@ -939,6 +964,7 @@
 					"**/vs/**",
 					"assert",
 					"sinon",
+					"sinon-test",
 					"crypto",
 					"xterm*"
 				]
@@ -949,10 +975,21 @@
 					"**/vs/**",
 					"assert",
 					"sinon",
+					"sinon-test",
 					"crypto",
 					"xterm*"
 				]
 			}
+		],
+		"header/header": [
+			2,
+			"block",
+			[
+				"---------------------------------------------------------------------------------------------",
+				" *  Copyright (c) Microsoft Corporation. All rights reserved.",
+				" *  Licensed under the MIT License. See License.txt in the project root for license information.",
+				" *--------------------------------------------------------------------------------------------"
+			]
 		]
 	},
 	"overrides": [
@@ -976,12 +1013,14 @@
 				"vscode-dts-cancellation": "warn",
 				"vscode-dts-use-thenable": "warn",
 				"vscode-dts-region-comments": "warn",
+				"vscode-dts-vscode-in-comments": "warn",
 				"vscode-dts-provider-naming": [
 					"warn",
 					{
 						"allowed": [
 							"FileSystemProvider",
 							"TreeDataProvider",
+							"TestProvider",
 							"CustomEditorProvider",
 							"CustomReadonlyEditorProvider",
 							"TerminalLinkProvider",
@@ -1009,12 +1048,14 @@
 							"edit",
 							"end",
 							"expand",
+							"grant",
 							"hide",
 							"invalidate",
 							"open",
 							"override",
 							"receive",
 							"register",
+							"remove",
 							"rename",
 							"save",
 							"send",

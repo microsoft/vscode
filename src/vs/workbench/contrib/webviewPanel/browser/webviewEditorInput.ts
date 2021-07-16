@@ -5,13 +5,22 @@
 
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { EditorInput, GroupIdentifier, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, GroupIdentifier, IEditorInput, IUntypedEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewIconManager, WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
 
 export class WebviewInput extends EditorInput {
 
 	public static typeId = 'workbench.editors.webviewInput';
+
+	public override get typeId(): string {
+		return WebviewInput.typeId;
+	}
+
+	public override get capabilities(): EditorInputCapabilities {
+		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton;
+	}
 
 	private _name: string;
 	private _iconPath?: WebviewIcons;
@@ -40,7 +49,7 @@ export class WebviewInput extends EditorInput {
 		this._webview = webview;
 	}
 
-	dispose() {
+	override dispose() {
 		if (!this.isDisposed()) {
 			if (!this._hasTransfered) {
 				this._webview?.dispose();
@@ -49,19 +58,15 @@ export class WebviewInput extends EditorInput {
 		super.dispose();
 	}
 
-	public getTypeId(): string {
-		return WebviewInput.typeId;
-	}
-
-	public getName(): string {
+	public override getName(): string {
 		return this._name;
 	}
 
-	public getTitle(_verbosity?: Verbosity): string {
+	public override getTitle(_verbosity?: Verbosity): string {
 		return this.getName();
 	}
 
-	public getDescription(): string | undefined {
+	public override getDescription(): string | undefined {
 		return undefined;
 	}
 
@@ -87,8 +92,8 @@ export class WebviewInput extends EditorInput {
 		this._iconManager.setIcons(this.id, value);
 	}
 
-	public matches(other: IEditorInput): boolean {
-		return other === this;
+	public override matches(other: IEditorInput | IUntypedEditorInput): boolean {
+		return super.matches(other) || other === this;
 	}
 
 	public get group(): GroupIdentifier | undefined {
@@ -97,10 +102,6 @@ export class WebviewInput extends EditorInput {
 
 	public updateGroup(group: GroupIdentifier): void {
 		this._group = group;
-	}
-
-	public supportsSplitEditor() {
-		return false;
 	}
 
 	protected transfer(other: WebviewInput): WebviewInput | undefined {

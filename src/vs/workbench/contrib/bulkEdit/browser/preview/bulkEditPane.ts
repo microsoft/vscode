@@ -100,12 +100,12 @@ export class BulkEditPane extends ViewPane {
 		this._ctxHasCheckedChanges = BulkEditPane.ctxHasCheckedChanges.bindTo(_contextKeyService);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._tree.dispose();
 		this._disposables.dispose();
 	}
 
-	protected renderBody(parent: HTMLElement): void {
+	protected override renderBody(parent: HTMLElement): void {
 		super.renderBody(parent);
 
 		const resourceLabels = this._instaService.createInstance(
@@ -154,7 +154,7 @@ export class BulkEditPane extends ViewPane {
 		this._setState(State.Message);
 	}
 
-	protected layoutBody(height: number, width: number): void {
+	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this._tree.layout(height, width);
 	}
@@ -245,7 +245,7 @@ export class BulkEditPane extends ViewPane {
 			message = localize('conflict.N', "Cannot apply refactoring because {0} other files have changed in the meantime.", conflicts.length);
 		}
 
-		this._dialogService.show(Severity.Warning, message, []).finally(() => this._done(false));
+		this._dialogService.show(Severity.Warning, message).finally(() => this._done(false));
 	}
 
 	discard() {
@@ -353,8 +353,8 @@ export class BulkEditPane extends ViewPane {
 			}
 
 			this._editorService.openEditor({
-				leftResource,
-				rightResource: previewUri,
+				original: { resource: leftResource },
+				modified: { resource: previewUri },
 				label,
 				description: this._labelService.getUriLabel(dirname(leftResource), { relative: true }),
 				options

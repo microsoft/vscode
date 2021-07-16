@@ -5,9 +5,11 @@
 
 import 'vs/platform/update/common/update.config.contribution';
 import { app, dialog } from 'electron';
-import { promises, unlinkSync } from 'fs';
+import { unlinkSync } from 'fs';
+import { Promises as FSPromises } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
 import { isWindows, IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
+import { mark } from 'vs/base/common/performance';
 import product from 'vs/platform/product/common/product';
 import { parseMainProcessArgv, addArg } from 'vs/platform/environment/node/argvHelper';
 import { createWaitMarkerFile } from 'vs/platform/environment/node/wait';
@@ -21,8 +23,8 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService, ConsoleMainLogger, MultiplexLogService, getLogLevel, ILoggerService } from 'vs/platform/log/common/log';
-import { StateService } from 'vs/platform/state/node/stateService';
-import { IStateService } from 'vs/platform/state/node/state';
+import { StateMainService } from 'vs/platform/state/electron-main/stateMainService';
+import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
@@ -54,6 +56,10 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { cwd } from 'vs/base/common/process';
+import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
+import { ProtocolMainService } from 'vs/platform/protocol/electron-main/protocolMainService';
+import { Promises } from 'vs/base/common/async';
+import { toDisposable } from 'vs/base/common/lifecycle';
 
 /**
  * The main VS Code entry point.
@@ -80,21 +86,18 @@ class CodeMain {
 		// default electron error dialog popping up
 		setUnexpectedErrorHandler(err => console.error(err));
 
-		// Resolve command line arguments
-		const args = this.resolveArgs();
-
 		// Create services
-		const [instantiationService, instanceEnvironment, environmentService, configurationService, stateService, bufferLogService, productService] = this.createServices(args);
+		const [instantiationService, instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogService, productService] = this.createServices();
 
 		try {
 
 			// Init services
 			try {
-				await this.initServices(environmentService, configurationService, stateService);
+				await this.initServices(environmentMainService, configurationService, stateMainService);
 			} catch (error) {
 
 				// Show a dialog for errors that can be resolved by the user
-				this.handleStartupDataDirError(environmentService, productService.nameLong, error);
+				this.handleStartupDataDirError(environmentMainService, productService.nameLong, error);
 
 				throw error;
 			}
@@ -108,10 +111,10 @@ class CodeMain {
 				// Create the main IPC server by trying to be the server
 				// If this throws an error it means we are not the first
 				// instance of VS Code running and so we would quit.
-				const mainProcessNodeIpcServer = await this.doStartup(args, logService, environmentService, lifecycleMainService, instantiationService, productService, true);
+				const mainProcessNodeIpcServer = await this.claimInstance(logService, environmentMainService, lifecycleMainService, instantiationService, productService, true);
 
 				// Delay creation of spdlog for perf reasons (https://github.com/microsoft/vscode/issues/72906)
-				bufferLogService.logger = new SpdLogLogger('main', join(environmentService.logsPath, 'main.log'), true, bufferLogService.getLevel());
+				bufferLogService.logger = new SpdLogLogger('main', join(environmentMainService.logsPath, 'main.log'), true, bufferLogService.getLevel());
 
 				// Lifecycle
 				once(lifecycleMainService.onWillShutdown)(() => {
@@ -126,7 +129,7 @@ class CodeMain {
 		}
 	}
 
-	private createServices(args: NativeParsedArgs): [IInstantiationService, IProcessEnvironment, IEnvironmentMainService, ConfigurationService, StateService, BufferLogService, IProductService] {
+	private createServices(): [IInstantiationService, IProcessEnvironment, IEnvironmentMainService, ConfigurationService, StateMainService, BufferLogService, IProductService] {
 		const services = new ServiceCollection();
 
 		// Product
@@ -134,7 +137,7 @@ class CodeMain {
 		services.set(IProductService, productService);
 
 		// Environment
-		const environmentMainService = new EnvironmentMainService(args, productService);
+		const environmentMainService = new EnvironmentMainService(this.resolveArgs(), productService);
 		const instanceEnvironment = this.patchEnvironment(environmentMainService); // Patch `process.env` with the instance's environment
 		services.set(IEnvironmentMainService, environmentMainService);
 
@@ -163,8 +166,8 @@ class CodeMain {
 		services.set(ILifecycleMainService, new SyncDescriptor(LifecycleMainService));
 
 		// State
-		const stateService = new StateService(environmentMainService, logService);
-		services.set(IStateService, stateService);
+		const stateMainService = new StateMainService(environmentMainService, logService, fileService);
+		services.set(IStateMainService, stateMainService);
 
 		// Request
 		services.set(IRequestService, new SyncDescriptor(RequestMainService));
@@ -178,7 +181,10 @@ class CodeMain {
 		// Tunnel
 		services.set(ITunnelService, new SyncDescriptor(TunnelService));
 
-		return [new InstantiationService(services, true), instanceEnvironment, environmentMainService, configurationService, stateService, bufferLogService, productService];
+		// Protocol
+		services.set(IProtocolMainService, new SyncDescriptor(ProtocolMainService));
+
+		return [new InstantiationService(services, true), instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogService, productService];
 	}
 
 	private patchEnvironment(environmentMainService: IEnvironmentMainService): IProcessEnvironment {
@@ -198,35 +204,37 @@ class CodeMain {
 		return instanceEnvironment;
 	}
 
-	private initServices(environmentMainService: IEnvironmentMainService, configurationService: ConfigurationService, stateService: StateService): Promise<unknown> {
+	private initServices(environmentMainService: IEnvironmentMainService, configurationService: ConfigurationService, stateMainService: StateMainService): Promise<unknown> {
+		return Promises.settled<unknown>([
 
-		// Environment service (paths)
-		const environmentServiceInitialization = Promise.all<void | undefined>([
-			environmentMainService.extensionsPath,
-			environmentMainService.nodeCachedDataDir,
-			environmentMainService.logsPath,
-			environmentMainService.globalStorageHome.fsPath,
-			environmentMainService.workspaceStorageHome.fsPath,
-			environmentMainService.backupHome
-		].map(path => path ? promises.mkdir(path, { recursive: true }) : undefined));
+			// Environment service (paths)
+			Promise.all<string | undefined>([
+				environmentMainService.extensionsPath,
+				environmentMainService.codeCachePath,
+				environmentMainService.logsPath,
+				environmentMainService.globalStorageHome.fsPath,
+				environmentMainService.workspaceStorageHome.fsPath,
+				environmentMainService.backupHome
+			].map(path => path ? FSPromises.mkdir(path, { recursive: true }) : undefined)),
 
-		// Configuration service
-		const configurationServiceInitialization = configurationService.initialize();
+			// Configuration service
+			configurationService.initialize(),
 
-		// State service
-		const stateServiceInitialization = stateService.init();
-
-		return Promise.all([environmentServiceInitialization, configurationServiceInitialization, stateServiceInitialization]);
+			// State service
+			stateMainService.init()
+		]);
 	}
 
-	private async doStartup(args: NativeParsedArgs, logService: ILogService, environmentMainService: IEnvironmentMainService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, productService: IProductService, retry: boolean): Promise<NodeIPCServer> {
+	private async claimInstance(logService: ILogService, environmentMainService: IEnvironmentMainService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, productService: IProductService, retry: boolean): Promise<NodeIPCServer> {
 
 		// Try to setup a server for running. If that succeeds it means
 		// we are the first instance to startup. Otherwise it is likely
 		// that another instance is already running.
 		let mainProcessNodeIpcServer: NodeIPCServer;
 		try {
+			mark('code/willStartMainServer');
 			mainProcessNodeIpcServer = await nodeIPCServe(environmentMainService.mainIPCHandle);
+			mark('code/didStartMainServer');
 			once(lifecycleMainService.onWillShutdown)(() => mainProcessNodeIpcServer.dispose());
 		} catch (error) {
 
@@ -271,7 +279,7 @@ class CodeMain {
 					throw error;
 				}
 
-				return this.doStartup(args, logService, environmentMainService, lifecycleMainService, instantiationService, productService, false);
+				return this.claimInstance(logService, environmentMainService, lifecycleMainService, instantiationService, productService, false);
 			}
 
 			// Tests from CLI require to be the only instance currently
@@ -287,7 +295,7 @@ class CodeMain {
 			// Skip this if we are running with --wait where it is expected that we wait for a while.
 			// Also skip when gathering diagnostics (--status) which can take a longer time.
 			let startupWarningDialogHandle: NodeJS.Timeout | undefined = undefined;
-			if (!args.wait && !args.status) {
+			if (!environmentMainService.args.wait && !environmentMainService.args.status) {
 				startupWarningDialogHandle = setTimeout(() => {
 					this.showStartupWarningDialog(
 						localize('secondInstanceNoResponse', "Another instance of {0} is running but not responding", productService.nameShort),
@@ -300,7 +308,7 @@ class CodeMain {
 			const launchService = ProxyChannel.toService<ILaunchMainService>(client.getChannel('launch'), { disableMarshalling: true });
 
 			// Process Info
-			if (args.status) {
+			if (environmentMainService.args.status) {
 				return instantiationService.invokeFunction(async () => {
 					const diagnosticsService = new DiagnosticsService(NullTelemetryService, productService);
 					const mainProcessInfo = await launchService.getMainProcessInfo();
@@ -319,7 +327,7 @@ class CodeMain {
 
 			// Send environment over...
 			logService.trace('Sending env to running instance...');
-			await launchService.start(args, process.env as IProcessEnvironment);
+			await launchService.start(environmentMainService.args, process.env as IProcessEnvironment);
 
 			// Cleanup
 			client.dispose();
@@ -332,8 +340,11 @@ class CodeMain {
 			throw new ExpectedError('Sent env to running instance. Terminating...');
 		}
 
+		const lockFile = await this.createLockfile(environmentMainService);
+		once(lifecycleMainService.onWillShutdown)(() => lockFile.dispose());
+
 		// Print --status usage info
-		if (args.status) {
+		if (environmentMainService.args.status) {
 			logService.warn('Warning: The --status argument can only be used if Code is already running. Please run it again after Code has started.');
 
 			throw new ExpectedError('Terminating...');
@@ -368,6 +379,7 @@ class CodeMain {
 			buttons: [mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
 			message,
 			detail,
+			defaultId: 0,
 			noLink: true
 		});
 	}
@@ -409,6 +421,18 @@ class CodeMain {
 		}
 
 		lifecycleMainService.kill(exitCode);
+	}
+
+	private async createLockfile(env: IEnvironmentMainService) {
+		await FSPromises.writeFile(env.mainLockfile, String(process.pid));
+
+		return toDisposable(() => {
+			try {
+				unlinkSync(env.mainLockfile);
+			} catch {
+				// ignored
+			}
+		});
 	}
 
 	//#region Command line arguments utilities

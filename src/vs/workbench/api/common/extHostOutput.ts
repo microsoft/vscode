@@ -11,6 +11,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export abstract class AbstractExtHostOutputChannel extends Disposable implements vscode.OutputChannel {
 
@@ -23,12 +24,12 @@ export abstract class AbstractExtHostOutputChannel extends Disposable implements
 	protected readonly _onDidAppend: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidAppend: Event<void> = this._onDidAppend.event;
 
-	constructor(name: string, log: boolean, file: URI | undefined, proxy: MainThreadOutputServiceShape) {
+	constructor(name: string, log: boolean, file: URI | undefined, extensionId: string | undefined, proxy: MainThreadOutputServiceShape) {
 		super();
 
 		this._name = name;
 		this._proxy = proxy;
-		this._id = proxy.$register(this.name, log, file);
+		this._id = proxy.$register(this.name, log, file, extensionId);
 		this._disposed = false;
 		this._offset = 0;
 	}
@@ -73,7 +74,7 @@ export abstract class AbstractExtHostOutputChannel extends Disposable implements
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		if (!this._disposed) {
@@ -86,11 +87,11 @@ export abstract class AbstractExtHostOutputChannel extends Disposable implements
 
 export class ExtHostPushOutputChannel extends AbstractExtHostOutputChannel {
 
-	constructor(name: string, proxy: MainThreadOutputServiceShape) {
-		super(name, false, undefined, proxy);
+	constructor(name: string, extensionId: string, proxy: MainThreadOutputServiceShape) {
+		super(name, false, undefined, extensionId, proxy);
 	}
 
-	append(value: string): void {
+	override append(value: string): void {
 		super.append(value);
 		this._id.then(id => this._proxy.$append(id, value));
 		this._onDidAppend.fire();
@@ -100,10 +101,10 @@ export class ExtHostPushOutputChannel extends AbstractExtHostOutputChannel {
 class ExtHostLogFileOutputChannel extends AbstractExtHostOutputChannel {
 
 	constructor(name: string, file: URI, proxy: MainThreadOutputServiceShape) {
-		super(name, true, file, proxy);
+		super(name, true, file, undefined, proxy);
 	}
 
-	append(value: string): void {
+	override append(value: string): void {
 		throw new Error('Not supported');
 	}
 }
@@ -148,12 +149,12 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 	$setVisibleChannel(channelId: string): void {
 	}
 
-	createOutputChannel(name: string): vscode.OutputChannel {
+	createOutputChannel(name: string, extension: IExtensionDescription): vscode.OutputChannel {
 		name = name.trim();
 		if (!name) {
 			throw new Error('illegal argument `name`. must not be falsy');
 		}
-		return new ExtHostPushOutputChannel(name, this._proxy);
+		return new ExtHostPushOutputChannel(extension.identifier.value, name, this._proxy);
 	}
 
 	createOutputChannelFromLogFile(name: string, file: URI): vscode.OutputChannel {

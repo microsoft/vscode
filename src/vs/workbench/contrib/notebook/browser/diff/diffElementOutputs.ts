@@ -14,7 +14,6 @@ import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/r
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { BUILTIN_RENDERER_ID, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { mimetypeIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
@@ -49,7 +48,7 @@ export class OutputElement extends Disposable {
 		const outputItemDiv = document.createElement('div');
 		let result: IRenderOutput | undefined = undefined;
 
-		const [mimeTypes, pick] = this.output.resolveMimeTypes(this._notebookTextModel);
+		const [mimeTypes, pick] = this.output.resolveMimeTypes(this._notebookTextModel, undefined);
 		const pickedMimeTypeRenderer = mimeTypes[pick];
 		if (mimeTypes.length > 1) {
 			outputItemDiv.style.position = 'relative';
@@ -90,7 +89,7 @@ export class OutputElement extends Disposable {
 				result = this._notebookEditor.getOutputRenderer().render(this.output, innerContainer, pickedMimeTypeRenderer.mimeType, this._notebookTextModel.uri);
 			}
 
-			this.output.pickedMimeType = pick;
+			this.output.pickedMimeType = pickedMimeTypeRenderer;
 		}
 
 		this.domNode = outputItemDiv;
@@ -128,7 +127,7 @@ export class OutputElement extends Disposable {
 
 
 
-		const clientHeight = Math.ceil(outputItemDiv.clientHeight);
+		let clientHeight = Math.ceil(outputItemDiv.clientHeight);
 		const elementSizeObserver = getResizesObserver(outputItemDiv, undefined, () => {
 			if (this._outputContainer && document.body.contains(this._outputContainer)) {
 				const height = Math.ceil(elementSizeObserver.getHeight());
@@ -136,6 +135,8 @@ export class OutputElement extends Disposable {
 				if (clientHeight === height) {
 					return;
 				}
+
+				clientHeight = height;
 
 				const currIndex = this.getCellOutputCurrentIndex();
 				if (currIndex < 0) {
@@ -154,7 +155,7 @@ export class OutputElement extends Disposable {
 	}
 
 	private async pickActiveMimeTypeRenderer(notebookTextModel: NotebookTextModel, viewModel: ICellOutputViewModel) {
-		const [mimeTypes, currIndex] = viewModel.resolveMimeTypes(notebookTextModel);
+		const [mimeTypes, currIndex] = viewModel.resolveMimeTypes(notebookTextModel, undefined);
 
 		const items = mimeTypes.filter(mimeType => mimeType.isTrusted).map((mimeType, index): IMimeTypeRenderer => ({
 			label: mimeType.mimeType,
@@ -200,7 +201,7 @@ export class OutputElement extends Disposable {
 				);
 			}
 
-			viewModel.pickedMimeType = pick;
+			viewModel.pickedMimeType = mimeTypes[pick];
 			this.render(index, nextElement as HTMLElement);
 		}
 	}
@@ -248,9 +249,7 @@ export class OutputContainer extends Disposable {
 		private _outputContainer: HTMLElement,
 		@INotebookService private _notebookService: INotebookService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@IOpenerService readonly _openerService: IOpenerService,
-		@ITextFileService readonly _textFileService: ITextFileService,
-
+		@IOpenerService readonly _openerService: IOpenerService
 	) {
 		super();
 		this._register(this._diffElementViewModel.onDidLayoutChange(() => {
@@ -263,16 +262,12 @@ export class OutputContainer extends Disposable {
 			});
 		}));
 
-		this._register(this._nestedCellViewModel.textModel.onDidChangeOutputs(splices => {
-			this._updateOutputs(splices);
+		this._register(this._nestedCellViewModel.textModel.onDidChangeOutputs(splice => {
+			this._updateOutputs(splice);
 		}));
 	}
 
-	private _updateOutputs(splices: NotebookCellOutputsSplice[]) {
-		if (!splices.length) {
-			return;
-		}
-
+	private _updateOutputs(splice: NotebookCellOutputsSplice) {
 		const removedKeys: ICellOutputViewModel[] = [];
 
 		this._outputEntries.forEach((value, key) => {

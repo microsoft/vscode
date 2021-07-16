@@ -12,14 +12,15 @@ import { IExtensionsViewPaneContainer, IExtensionsWorkbenchService, IExtension }
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { localize } from 'vs/nls';
 import { StorageScope, IStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ImportantExtensionTip, IProductService } from 'vs/platform/product/common/productService';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { ImportantExtensionTip } from 'vs/base/common/product';
 import { forEach, IStringDictionary } from 'vs/base/common/collections';
 import { ITextModel } from 'vs/editor/common/model';
 import { Schemas } from 'vs/base/common/network';
 import { basename, extname } from 'vs/base/common/resources';
 import { match } from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
-import { MIME_UNKNOWN, guessMimeTypes } from 'vs/base/common/mime';
+import { Mimes, guessMimeTypes } from 'vs/base/common/mime';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -229,7 +230,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		}
 
 		const mimeTypes = guessMimeTypes(uri);
-		if (mimeTypes.length !== 1 || mimeTypes[0] !== MIME_UNKNOWN) {
+		if (mimeTypes.length !== 1 || mimeTypes[0] !== Mimes.unknown) {
 			return;
 		}
 

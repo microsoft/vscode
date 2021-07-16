@@ -9,16 +9,19 @@
 
 const sw = /** @type {ServiceWorkerGlobalScope} */ (/** @type {any} */ (self));
 
-const VERSION = 1;
+const VERSION = 2;
 
 const resourceCacheName = `vscode-resource-cache-${VERSION}`;
 
 const rootPath = sw.location.pathname.replace(/\/service-worker.js$/, '');
 
+
+const searchParams = new URL(location.toString()).searchParams;
+
 /**
- * Root path for resources
+ * Origin used for resources
  */
-const resourceRoot = rootPath + '/vscode-resource';
+const resourceBaseAuthority = searchParams.get('vscode-resource-base-authority');
 
 const resolveTimeout = 30000;
 
@@ -57,9 +60,15 @@ class RequestStore {
 	create() {
 		const requestId = ++this.requestPool;
 
+		/** @type {undefined | ((x: T) => void)} */
 		let resolve;
+
+		/** @type {Promise<T>} */
 		const promise = new Promise(r => resolve = r);
-		const entry = { resolve, promise };
+
+		/** @type {RequestStoreEntry<T>} */
+		const entry = { resolve: /** @type {(x: T) => void} */ (resolve), promise };
+
 		this.map.set(requestId, entry);
 
 		const dispose = () => {
@@ -91,7 +100,9 @@ class RequestStore {
 
 /**
  * Map of requested paths to responses.
- * @typedef {{ type: 'response', body: any, mime: string, etag: string | undefined, } | { type: 'not-modified', mime: string } | undefined} ResourceResponse
+ * @typedef {{ type: 'response', body: Uint8Array, mime: string, etag: string | undefined, mtime: number | undefined } |
+ *           { type: 'not-modified', mime: string, mtime: number | undefined } |
+ *           undefined} ResourceResponse
  * @type {RequestStore<ResourceResponse>}
  */
 const resourceRequestStore = new RequestStore();
@@ -105,6 +116,9 @@ const localhostRequestStore = new RequestStore();
 
 const notFound = () =>
 	new Response('Not Found', { status: 404, });
+
+const methodNotAllowed = () =>
+	new Response('Method Not Allowed', { status: 405, });
 
 sw.addEventListener('message', async (event) => {
 	switch (event.data.channel) {
@@ -130,12 +144,12 @@ sw.addEventListener('message', async (event) => {
 				switch (data.status) {
 					case 200:
 						{
-							response = { type: 'response', body: data.data, mime: data.mime, etag: data.etag };
+							response = { type: 'response', body: data.data, mime: data.mime, etag: data.etag, mtime: data.mtime };
 							break;
 						}
 					case 304:
 						{
-							response = { type: 'not-modified', mime: data.mime };
+							response = { type: 'not-modified', mime: data.mime, mtime: data.mtime };
 							break;
 						}
 				}
@@ -147,7 +161,6 @@ sw.addEventListener('message', async (event) => {
 			}
 		case 'did-load-localhost':
 			{
-				const webviewId = getWebviewIdForClient(event.source);
 				const data = event.data.data;
 				if (!localhostRequestStore.resolve(data.id, data.location)) {
 					console.log('Could not resolve unknown localhost', data.origin);
@@ -161,14 +174,19 @@ sw.addEventListener('message', async (event) => {
 
 sw.addEventListener('fetch', (event) => {
 	const requestUrl = new URL(event.request.url);
+	if (requestUrl.protocol === 'https:' && requestUrl.hostname.endsWith('.' + resourceBaseAuthority)) {
+		switch (event.request.method) {
+			case 'GET':
+			case 'HEAD':
+				return event.respondWith(processResourceRequest(event, requestUrl));
 
-	// See if it's a resource request
-	if (requestUrl.origin === sw.origin && requestUrl.pathname.startsWith(resourceRoot + '/')) {
-		return event.respondWith(processResourceRequest(event, requestUrl));
+			default:
+				return event.respondWith(methodNotAllowed());
+		}
 	}
 
 	// See if it's a localhost request
-	if (requestUrl.origin !== sw.origin && requestUrl.host.match(/^localhost:(\d+)$/)) {
+	if (requestUrl.origin !== sw.origin && requestUrl.host.match(/^(localhost|127.0.0.1|0.0.0.0):(\d+)$/)) {
 		return event.respondWith(processLocalhostRequest(event, requestUrl));
 	}
 });
@@ -188,12 +206,17 @@ sw.addEventListener('activate', (event) => {
 async function processResourceRequest(event, requestUrl) {
 	const client = await sw.clients.get(event.clientId);
 	if (!client) {
-		console.log('Could not find inner client for request');
+		console.error('Could not find inner client for request');
 		return notFound();
 	}
 
 	const webviewId = getWebviewIdForClient(client);
-	const resourcePath = requestUrl.pathname.startsWith(resourceRoot + '/') ? requestUrl.pathname.slice(resourceRoot.length) : requestUrl.pathname;
+	if (!webviewId) {
+		console.error('Could not resolve webview id');
+		return notFound();
+	}
+
+	const shouldTryCaching = (event.request.method === 'GET');
 
 	/**
 	 * @param {ResourceResponse} entry
@@ -212,20 +235,25 @@ async function processResourceRequest(event, requestUrl) {
 			}
 		}
 
-		const cacheHeaders = entry.etag ? {
-			'ETag': entry.etag,
-			'Cache-Control': 'no-cache'
-		} : {};
-
+		/** @type {Record<string, string>} */
+		const headers = {
+			'Content-Type': entry.mime,
+			'Content-Length': entry.body.byteLength.toString(),
+			'Access-Control-Allow-Origin': '*',
+		};
+		if (entry.etag) {
+			headers['ETag'] = entry.etag;
+			headers['Cache-Control'] = 'no-cache';
+		}
+		if (entry.mtime) {
+			headers['Last-Modified'] = new Date(entry.mtime).toUTCString();
+		}
 		const response = new Response(entry.body, {
 			status: 200,
-			headers: {
-				'Content-Type': entry.mime,
-				...cacheHeaders
-			}
+			headers
 		});
 
-		if (entry.etag) {
+		if (shouldTryCaching && entry.etag) {
 			caches.open(resourceCacheName).then(cache => {
 				return cache.put(event.request, response);
 			});
@@ -233,44 +261,65 @@ async function processResourceRequest(event, requestUrl) {
 		return response.clone();
 	}
 
-	const parentClient = await getOuterIframeClient(webviewId);
-	if (!parentClient) {
+	const parentClients = await getOuterIframeClient(webviewId);
+	if (!parentClients.length) {
 		console.log('Could not find parent client for request');
 		return notFound();
 	}
 
-	const cache = await caches.open(resourceCacheName);
-	const cached = await cache.match(event.request);
+	/** @type {Response | undefined} */
+	let cached;
+	if (shouldTryCaching) {
+		const cache = await caches.open(resourceCacheName);
+		cached = await cache.match(event.request);
+	}
 
 	const { requestId, promise } = resourceRequestStore.create();
-	parentClient.postMessage({
-		channel: 'load-resource',
-		id: requestId,
-		path: resourcePath,
-		ifNoneMatch: cached?.headers.get('ETag'),
-	});
+
+	const firstHostSegment = requestUrl.hostname.slice(0, requestUrl.hostname.length - (resourceBaseAuthority.length + 1));
+	const scheme = firstHostSegment.split('+', 1)[0];
+	const authority = firstHostSegment.slice(scheme.length + 1); // may be empty
+
+	for (const parentClient of parentClients) {
+		parentClient.postMessage({
+			channel: 'load-resource',
+			id: requestId,
+			path: requestUrl.pathname,
+			scheme,
+			authority,
+			query: requestUrl.search.replace(/^\?/, ''),
+			ifNoneMatch: cached?.headers.get('ETag'),
+		});
+	}
 
 	return promise.then(entry => resolveResourceEntry(entry, cached));
 }
 
 /**
- * @param {*} event
+ * @param {FetchEvent} event
  * @param {URL} requestUrl
+ * @return {Promise<Response>}
  */
 async function processLocalhostRequest(event, requestUrl) {
 	const client = await sw.clients.get(event.clientId);
 	if (!client) {
 		// This is expected when requesting resources on other localhost ports
 		// that are not spawned by vs code
-		return undefined;
+		return fetch(event.request);
 	}
 	const webviewId = getWebviewIdForClient(client);
+	if (!webviewId) {
+		console.error('Could not resolve webview id');
+		return fetch(event.request);
+	}
+
 	const origin = requestUrl.origin;
 
 	/**
-	 * @param {string} redirectOrigin
+	 * @param {string | undefined} redirectOrigin
+	 * @return {Promise<Response>}
 	 */
-	const resolveRedirect = (redirectOrigin) => {
+	const resolveRedirect = async (redirectOrigin) => {
 		if (!redirectOrigin) {
 			return fetch(event.request);
 		}
@@ -283,31 +332,42 @@ async function processLocalhostRequest(event, requestUrl) {
 		});
 	};
 
-	const parentClient = await getOuterIframeClient(webviewId);
-	if (!parentClient) {
+	const parentClients = await getOuterIframeClient(webviewId);
+	if (!parentClients.length) {
 		console.log('Could not find parent client for request');
 		return notFound();
 	}
 
 	const { requestId, promise } = localhostRequestStore.create();
-	parentClient.postMessage({
-		channel: 'load-localhost',
-		origin: origin,
-		id: requestId,
-	});
+	for (const parentClient of parentClients) {
+		parentClient.postMessage({
+			channel: 'load-localhost',
+			origin: origin,
+			id: requestId,
+		});
+	}
 
 	return promise.then(resolveRedirect);
 }
 
+/**
+ * @param {Client} client
+ * @returns {string | null}
+ */
 function getWebviewIdForClient(client) {
 	const requesterClientUrl = new URL(client.url);
-	return requesterClientUrl.search.match(/\bid=([a-z0-9-]+)/i)[1];
+	return requesterClientUrl.searchParams.get('id');
 }
 
+/**
+ * @param {string} webviewId
+ * @returns {Promise<Client[]>}
+ */
 async function getOuterIframeClient(webviewId) {
 	const allClients = await sw.clients.matchAll({ includeUncontrolled: true });
-	return allClients.find(client => {
+	return allClients.filter(client => {
 		const clientUrl = new URL(client.url);
-		return (clientUrl.pathname === `${rootPath}/` || clientUrl.pathname === `${rootPath}/index.html`) && clientUrl.search.match(new RegExp('\\bid=' + webviewId));
+		const hasExpectedPathName = (clientUrl.pathname === `${rootPath}/` || clientUrl.pathname === `${rootPath}/index.html`);
+		return hasExpectedPathName && clientUrl.searchParams.get('id') === webviewId;
 	});
 }

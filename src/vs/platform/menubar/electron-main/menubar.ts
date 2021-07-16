@@ -19,7 +19,7 @@ import { IWindowsMainService, IWindowsCountChangedEvent, OpenContext } from 'vs/
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { IMenubarData, IMenubarKeybinding, MenubarMenuItem, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, isMenubarMenuItemAction, IMenubarMenu, isMenubarMenuItemRecentAction, IMenubarMenuRecentItemAction } from 'vs/platform/menubar/common/menubar';
 import { URI } from 'vs/base/common/uri';
-import { IStateService } from 'vs/platform/state/node/state';
+import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
@@ -70,7 +70,7 @@ export class Menubar {
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspacesHistoryMainService private readonly workspacesHistoryMainService: IWorkspacesHistoryMainService,
-		@IStateService private readonly stateService: IStateService,
+		@IStateMainService private readonly stateMainService: IStateMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService,
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
@@ -100,7 +100,7 @@ export class Menubar {
 	}
 
 	private restoreCachedMenubarData() {
-		const menubarData = this.stateService.getItem<IMenubarData>(Menubar.lastKnownMenubarStorageKey);
+		const menubarData = this.stateMainService.getItem<IMenubarData>(Menubar.lastKnownMenubarStorageKey);
 		if (menubarData) {
 			if (menubarData.menus) {
 				this.menubarMenus = menubarData.menus;
@@ -168,16 +168,16 @@ export class Menubar {
 		// Keep flag when app quits
 		this.lifecycleMainService.onWillShutdown(() => this.willShutdown = true);
 
-		// // Listen to some events from window service to update menu
+		// Listen to some events from window service to update menu
 		this.windowsMainService.onDidChangeWindowsCount(e => this.onDidChangeWindowsCount(e));
 		this.nativeHostMainService.onDidBlurWindow(() => this.onDidChangeWindowFocus());
 		this.nativeHostMainService.onDidFocusWindow(() => this.onDidChangeWindowFocus());
 	}
 
 	private get currentEnableMenuBarMnemonics(): boolean {
-		let enableMenuBarMnemonics = this.configurationService.getValue<boolean>('window.enableMenuBarMnemonics');
+		let enableMenuBarMnemonics = this.configurationService.getValue('window.enableMenuBarMnemonics');
 		if (typeof enableMenuBarMnemonics !== 'boolean') {
-			enableMenuBarMnemonics = true;
+			return true;
 		}
 
 		return enableMenuBarMnemonics;
@@ -188,9 +188,9 @@ export class Menubar {
 			return false;
 		}
 
-		let enableNativeTabs = this.configurationService.getValue<boolean>('window.nativeTabs');
+		let enableNativeTabs = this.configurationService.getValue('window.nativeTabs');
 		if (typeof enableNativeTabs !== 'boolean') {
-			enableNativeTabs = false;
+			return false;
 		}
 		return enableNativeTabs;
 	}
@@ -200,7 +200,7 @@ export class Menubar {
 		this.keybindings = menubarData.keybindings;
 
 		// Save off new menu and keybindings
-		this.stateService.setItem(Menubar.lastKnownMenubarStorageKey, menubarData);
+		this.stateMainService.setItem(Menubar.lastKnownMenubarStorageKey, menubarData);
 
 		this.scheduleUpdateMenu();
 	}
@@ -285,53 +285,60 @@ export class Menubar {
 		}
 
 		// File
-		const fileMenu = new Menu();
-		const fileMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mFile', comment: ['&& denotes a mnemonic'] }, "&&File")), submenu: fileMenu });
-
-		this.setMenuById(fileMenu, 'File');
-		menubar.append(fileMenuItem);
+		if (this.shouldDrawMenu('File')) {
+			const fileMenu = new Menu();
+			const fileMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mFile', comment: ['&& denotes a mnemonic'] }, "&&File")), submenu: fileMenu });
+			this.setMenuById(fileMenu, 'File');
+			menubar.append(fileMenuItem);
+		}
 
 		// Edit
-		const editMenu = new Menu();
-		const editMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mEdit', comment: ['&& denotes a mnemonic'] }, "&&Edit")), submenu: editMenu });
-
-		this.setMenuById(editMenu, 'Edit');
-		menubar.append(editMenuItem);
+		if (this.shouldDrawMenu('Edit')) {
+			const editMenu = new Menu();
+			const editMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mEdit', comment: ['&& denotes a mnemonic'] }, "&&Edit")), submenu: editMenu });
+			this.setMenuById(editMenu, 'Edit');
+			menubar.append(editMenuItem);
+		}
 
 		// Selection
-		const selectionMenu = new Menu();
-		const selectionMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mSelection', comment: ['&& denotes a mnemonic'] }, "&&Selection")), submenu: selectionMenu });
-
-		this.setMenuById(selectionMenu, 'Selection');
-		menubar.append(selectionMenuItem);
+		if (this.shouldDrawMenu('Selection')) {
+			const selectionMenu = new Menu();
+			const selectionMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mSelection', comment: ['&& denotes a mnemonic'] }, "&&Selection")), submenu: selectionMenu });
+			this.setMenuById(selectionMenu, 'Selection');
+			menubar.append(selectionMenuItem);
+		}
 
 		// View
-		const viewMenu = new Menu();
-		const viewMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mView', comment: ['&& denotes a mnemonic'] }, "&&View")), submenu: viewMenu });
-
-		this.setMenuById(viewMenu, 'View');
-		menubar.append(viewMenuItem);
+		if (this.shouldDrawMenu('View')) {
+			const viewMenu = new Menu();
+			const viewMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mView', comment: ['&& denotes a mnemonic'] }, "&&View")), submenu: viewMenu });
+			this.setMenuById(viewMenu, 'View');
+			menubar.append(viewMenuItem);
+		}
 
 		// Go
-		const gotoMenu = new Menu();
-		const gotoMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mGoto', comment: ['&& denotes a mnemonic'] }, "&&Go")), submenu: gotoMenu });
-
-		this.setMenuById(gotoMenu, 'Go');
-		menubar.append(gotoMenuItem);
+		if (this.shouldDrawMenu('Go')) {
+			const gotoMenu = new Menu();
+			const gotoMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mGoto', comment: ['&& denotes a mnemonic'] }, "&&Go")), submenu: gotoMenu });
+			this.setMenuById(gotoMenu, 'Go');
+			menubar.append(gotoMenuItem);
+		}
 
 		// Debug
-		const debugMenu = new Menu();
-		const debugMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mRun', comment: ['&& denotes a mnemonic'] }, "&&Run")), submenu: debugMenu });
-
-		this.setMenuById(debugMenu, 'Run');
-		menubar.append(debugMenuItem);
+		if (this.shouldDrawMenu('Run')) {
+			const debugMenu = new Menu();
+			const debugMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mRun', comment: ['&& denotes a mnemonic'] }, "&&Run")), submenu: debugMenu });
+			this.setMenuById(debugMenu, 'Run');
+			menubar.append(debugMenuItem);
+		}
 
 		// Terminal
-		const terminalMenu = new Menu();
-		const terminalMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal")), submenu: terminalMenu });
-
-		this.setMenuById(terminalMenu, 'Terminal');
-		menubar.append(terminalMenuItem);
+		if (this.shouldDrawMenu('Terminal')) {
+			const terminalMenu = new Menu();
+			const terminalMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal")), submenu: terminalMenu });
+			this.setMenuById(terminalMenu, 'Terminal');
+			menubar.append(terminalMenuItem);
+		}
 
 		// Mac: Window
 		let macWindowMenuItem: MenuItem | undefined;
@@ -346,11 +353,12 @@ export class Menubar {
 		}
 
 		// Help
-		const helpMenu = new Menu();
-		const helpMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mHelp', comment: ['&& denotes a mnemonic'] }, "&&Help")), submenu: helpMenu, role: 'help' });
-
-		this.setMenuById(helpMenu, 'Help');
-		menubar.append(helpMenuItem);
+		if (this.shouldDrawMenu('Help')) {
+			const helpMenu = new Menu();
+			const helpMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mHelp', comment: ['&& denotes a mnemonic'] }, "&&Help")), submenu: helpMenu, role: 'help' });
+			this.setMenuById(helpMenu, 'Help');
+			menubar.append(helpMenuItem);
+		}
 
 		if (menubar.items && menubar.items.length > 0) {
 			Menu.setApplicationMenu(menubar);
@@ -569,10 +577,7 @@ export class Menubar {
 				return [new MenuItem({
 					label: this.mnemonicLabel(nls.localize('miCheckForUpdates', "Check for &&Updates...")), click: () => setTimeout(() => {
 						this.reportMenuActionTelemetry('CheckForUpdate');
-
-						const window = this.windowsMainService.getLastActiveWindow();
-						const context = window && `window:${window.id}`; // sessionId
-						this.updateService.checkForUpdates(context);
+						this.updateService.checkForUpdates(true);
 					}, 0)
 				})];
 

@@ -40,6 +40,10 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 		return this._cache.get(authority)!;
 	}
 
+	async getCanonicalURI(uri: URI): Promise<URI> {
+		return uri;
+	}
+
 	getConnectionData(authority: string): IRemoteConnectionData | null {
 		if (!this._cache.has(authority)) {
 			return null;
@@ -75,5 +79,8 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 		this._connectionTokens.set(authority, connectionToken);
 		RemoteAuthorities.setConnectionToken(authority, connectionToken);
 		this._onDidChangeConnectionData.fire();
+	}
+
+	_setCanonicalURIProvider(provider: (uri: URI) => Promise<URI>): void {
 	}
 }

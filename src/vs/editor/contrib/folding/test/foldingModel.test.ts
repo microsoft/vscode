@@ -29,16 +29,19 @@ interface ExpectedDecoration {
 export class TestDecorationProvider {
 
 	private static readonly collapsedDecoration = ModelDecorationOptions.register({
+		description: 'test',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		linesDecorationsClassName: 'folding'
 	});
 
 	private static readonly expandedDecoration = ModelDecorationOptions.register({
+		description: 'test',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		linesDecorationsClassName: 'folding'
 	});
 
 	private static readonly hiddenDecoration = ModelDecorationOptions.register({
+		description: 'test',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		linesDecorationsClassName: 'folding'
 	});
@@ -90,11 +93,11 @@ suite('Folding Model', () => {
 	}
 
 	function assertRegion(actual: FoldingRegion | null, expected: ExpectedRegion | null, message?: string) {
-		assert.equal(!!actual, !!expected, message);
+		assert.strictEqual(!!actual, !!expected, message);
 		if (actual && expected) {
-			assert.equal(actual.startLineNumber, expected.startLineNumber, message);
-			assert.equal(actual.endLineNumber, expected.endLineNumber, message);
-			assert.equal(actual.isCollapsed, expected.isCollapsed, message);
+			assert.strictEqual(actual.startLineNumber, expected.startLineNumber, message);
+			assert.strictEqual(actual.endLineNumber, expected.endLineNumber, message);
+			assert.strictEqual(actual.isCollapsed, expected.isCollapsed, message);
 		}
 	}
 
@@ -106,7 +109,7 @@ suite('Folding Model', () => {
 				actualRanges.push(r(actual.getStartLineNumber(i), actual.getEndLineNumber(i)));
 			}
 		}
-		assert.deepEqual(actualRanges, expectedRegions, message);
+		assert.deepStrictEqual(actualRanges, expectedRegions, message);
 	}
 
 	function assertRanges(foldingModel: FoldingModel, expectedRegions: ExpectedRegion[], message?: string) {
@@ -115,16 +118,16 @@ suite('Folding Model', () => {
 		for (let i = 0; i < actual.length; i++) {
 			actualRanges.push(r(actual.getStartLineNumber(i), actual.getEndLineNumber(i), actual.isCollapsed(i)));
 		}
-		assert.deepEqual(actualRanges, expectedRegions, message);
+		assert.deepStrictEqual(actualRanges, expectedRegions, message);
 	}
 
 	function assertDecorations(foldingModel: FoldingModel, expectedDecoration: ExpectedDecoration[], message?: string) {
 		const decorationProvider = foldingModel.decorationProvider as TestDecorationProvider;
-		assert.deepEqual(decorationProvider.getDecorations(), expectedDecoration, message);
+		assert.deepStrictEqual(decorationProvider.getDecorations(), expectedDecoration, message);
 	}
 
 	function assertRegions(actual: FoldingRegion[], expectedRegions: ExpectedRegion[], message?: string) {
-		assert.deepEqual(actual.map(r => ({ startLineNumber: r.startLineNumber, endLineNumber: r.endLineNumber, isCollapsed: r.isCollapsed })), expectedRegions, message);
+		assert.deepStrictEqual(actual.map(r => ({ startLineNumber: r.startLineNumber, endLineNumber: r.endLineNumber, isCollapsed: r.isCollapsed })), expectedRegions, message);
 	}
 
 	test('getRegionAtLine', () => {

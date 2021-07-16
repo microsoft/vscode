@@ -75,7 +75,7 @@ export class WatchExpressionsView extends ViewPane {
 		this.watchItemType = CONTEXT_WATCH_ITEM_TYPE.bindTo(contextKeyService);
 	}
 
-	renderBody(container: HTMLElement): void {
+	override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this.element.classList.add('debug-pane');
@@ -94,7 +94,7 @@ export class WatchExpressionsView extends ViewPane {
 						return undefined;
 					}
 
-					return e;
+					return e.name;
 				}
 			},
 			dnd: new WatchExpressionsDragAndDrop(this.debugService),
@@ -163,12 +163,12 @@ export class WatchExpressionsView extends ViewPane {
 		}));
 	}
 
-	layoutBody(height: number, width: number): void {
+	override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.tree.layout(height, width);
 	}
 
-	focus(): void {
+	override focus(): void {
 		this.tree.domFocus();
 	}
 

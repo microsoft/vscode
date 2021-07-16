@@ -275,6 +275,7 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 }
 
 export interface INotificationViewItem {
+	readonly id: string | undefined;
 	readonly severity: Severity;
 	readonly sticky: boolean;
 	readonly silent: boolean;
@@ -285,6 +286,7 @@ export interface INotificationViewItem {
 	readonly progress: INotificationViewItemProgress;
 
 	readonly expanded: boolean;
+	readonly visible: boolean;
 	readonly canCollapse: boolean;
 	readonly hasProgress: boolean;
 
@@ -467,7 +469,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 			actions = { primary: notification.message.actions };
 		}
 
-		return new NotificationViewItem(severity, notification.sticky, notification.silent || filter === NotificationsFilter.SILENT || (filter === NotificationsFilter.ERROR && notification.severity !== Severity.Error), message, notification.source, notification.progress, actions);
+		return new NotificationViewItem(notification.id, severity, notification.sticky, notification.silent || filter === NotificationsFilter.SILENT || (filter === NotificationsFilter.ERROR && notification.severity !== Severity.Error), message, notification.source, notification.progress, actions);
 	}
 
 	private static parseNotificationMessage(input: NotificationMessage): INotificationMessage | undefined {
@@ -499,6 +501,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	}
 
 	private constructor(
+		readonly id: string | undefined,
 		private _severity: Severity,
 		private _sticky: boolean | undefined,
 		private _silent: boolean | undefined,
@@ -611,14 +614,22 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		return this._actions;
 	}
 
+	get visible(): boolean {
+		return this._visible;
+	}
+
 	updateSeverity(severity: Severity): void {
+		if (severity === this._severity) {
+			return;
+		}
+
 		this._severity = severity;
 		this._onDidChangeContent.fire({ kind: NotificationViewItemContentChangeKind.SEVERITY });
 	}
 
 	updateMessage(input: NotificationMessage): void {
 		const message = NotificationViewItem.parseNotificationMessage(input);
-		if (!message) {
+		if (!message || message.raw === this._message.raw) {
 			return;
 		}
 
@@ -679,7 +690,15 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 			return false;
 		}
 
-		if (this._source !== other.source) {
+		if (typeof this.id === 'string' || typeof other.id === 'string') {
+			return this.id === other.id;
+		}
+
+		if (typeof this._source === 'object') {
+			if (this._source.label !== other.source || this._source.id !== other.sourceId) {
+				return false;
+			}
+		} else if (this._source !== other.source) {
 			return false;
 		}
 
@@ -689,7 +708,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 
 		const primaryActions = (this._actions && this._actions.primary) || [];
 		const otherPrimaryActions = (other.actions && other.actions.primary) || [];
-		return equals(primaryActions, otherPrimaryActions, (a, b) => (a.id + a.label) === (b.id + b.label));
+		return equals(primaryActions, otherPrimaryActions, (action, otherAction) => (action.id + action.label) === (otherAction.id + otherAction.label));
 	}
 }
 
