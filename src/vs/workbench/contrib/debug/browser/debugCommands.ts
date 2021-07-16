@@ -257,8 +257,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
 	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 		const contextKeyService = accessor.get(IContextKeyService);
-		const disassemblyViewFocus = CONTEXT_DISASSEMBLY_VIEW_FOCUS.getValue(contextKeyService);
-		if (disassemblyViewFocus) {
+		if (CONTEXT_DISASSEMBLY_VIEW_FOCUS.getValue(contextKeyService)) {
 			getThreadAndRun(accessor, context, (thread: IThread) => thread.next('instruction'));
 		} else {
 			getThreadAndRun(accessor, context, (thread: IThread) => thread.next());
