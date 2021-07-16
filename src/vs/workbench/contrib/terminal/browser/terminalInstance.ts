@@ -327,6 +327,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 
 		this.addDisposable(this._configurationService.onDidChangeConfiguration(async e => {
+			if (e.affectsConfiguration(TerminalSettingId.GpuAcceleration)) {
+				this._storageService.remove(TerminalStorageKeys.SuggestedRendererType, StorageScope.GLOBAL);
+			}
 			if (e.affectsConfiguration('terminal.integrated') || e.affectsConfiguration('editor.fastScrollSensitivity') || e.affectsConfiguration('editor.mouseWheelScrollSensitivity') || e.affectsConfiguration('editor.multiCursorModifier')) {
 				this.updateConfig();
 				// HACK: Trigger another async layout to ensure xterm's CharMeasure is ready to use,
@@ -351,9 +354,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 			if (e.affectsConfiguration('editor.accessibilitySupport')) {
 				this.updateAccessibilitySupport();
-			}
-			if (e.affectsConfiguration(TerminalSettingId.GpuAcceleration)) {
-				this._storageService.remove(TerminalStorageKeys.SuggestedRendererType, StorageScope.GLOBAL);
 			}
 		}));
 
