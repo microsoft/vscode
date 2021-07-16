@@ -564,7 +564,8 @@ export class LanguageConfigurationRegistryImpl {
 						indentation = indentConverter.unshiftIndent(indentation);
 					}
 
-					if (enterResult.appendText) {
+					// Ignore " * " JavaDoc style comments (issue #119225)
+					if (enterResult.appendText && enterResult.appendText !== " * ") {
 						indentation += enterResult.appendText;
 					}
 
