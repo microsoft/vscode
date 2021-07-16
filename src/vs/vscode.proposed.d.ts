@@ -2159,27 +2159,37 @@ declare module 'vscode' {
 	 * Collection of test items, found in {@link TestItem.children} and
 	 * {@link TestController.items}.
 	 */
-	export interface TestItemCollection {
+	export interface TestItemCollection extends Iterable<TestItem> {
 		/**
-		 * A read-only array of all the test items children. Can be retrieved, or
-		 * set in order to replace children in the collection.
+		 * Updates the items stored by the collection.
+		 * @param items Items to store, can be an array or other iterable.
 		 */
-		// todo@API unsure if this should readonly and have a separate replaceAll-like function
-		all: readonly TestItem[];
+		set(items: Iterable<TestItem>): void;
+
+		/**
+		 * Iterate over each entry in this collection.
+		 *
+		 * @param callback Function to execute for each entry.
+		 * @param thisArg The `this` context used when invoking the handler function.
+		 */
+		forEach(callback: (item: TestItem, collection: TestItemCollection) => unknown, thisArg?: unknown): void;
 
 		/**
 		 * Adds the test item to the children. If an item with the same ID already
 		 * exists, it'll be replaced.
+		 * @param items Item to add.
 		 */
 		add(item: TestItem): void;
 
 		/**
 		 * Removes the a single test item from the collection.
+		 * @param itemId Item ID to delete.
 		 */
 		delete(itemId: string): void;
 
 		/**
 		 * Efficiently gets a test item by ID, if it exists, in the children.
+		 * @param itemId Item ID to get.
 		 */
 		get(itemId: string): TestItem | undefined;
 	}

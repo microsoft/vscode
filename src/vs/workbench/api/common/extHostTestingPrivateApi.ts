@@ -145,24 +145,22 @@ export class InvalidTestItemError extends Error {
 	}
 }
 
-export const createTestItemCollection = (owningItem: TestItemImpl):
-	vscode.TestItemCollection & { toJSON(): readonly vscode.TestItem[] } => {
+export type TestItemCollectionImpl = vscode.TestItemCollection & { toJSON(): readonly TestItemImpl[] };
+
+export const createTestItemCollection = (owningItem: TestItemImpl): TestItemCollectionImpl => {
 	const api = getPrivateApiFor(owningItem);
-	let all: readonly TestItemImpl[] | undefined;
 	let mapped = new Map<string, TestItemImpl>();
 
 	return {
 		/** @inheritdoc */
-		get all() {
-			if (!all) {
-				all = Object.freeze([...mapped.values()]);
+		forEach(callback: (item: vscode.TestItem, collection: vscode.TestItemCollection) => unknown, thisArg?: unknown) {
+			for (const item of mapped.values()) {
+				callback.call(thisArg, item, this);
 			}
-
-			return all;
 		},
 
 		/** @inheritdoc */
-		set all(items: readonly vscode.TestItem[]) {
+		set(items: Iterable<vscode.TestItem>) {
 			const newMapped = new Map<string, TestItemImpl>();
 			const toDelete = new Set(mapped.keys());
 			const bulk: ITestItemBulkReplace = { op: ExtHostTestItemEventOp.Bulk, ops: [] };
@@ -190,7 +188,6 @@ export const createTestItemCollection = (owningItem: TestItemImpl):
 			// important mutations come after firing, so if an error happens no
 			// changes will be "saved":
 			mapped = newMapped;
-			all = undefined;
 		},
 
 
@@ -201,14 +198,12 @@ export const createTestItemCollection = (owningItem: TestItemImpl):
 			}
 
 			mapped.set(item.id, item);
-			all = undefined;
 			api.listener?.({ op: ExtHostTestItemEventOp.Upsert, item });
 		},
 
 		/** @inheritdoc */
 		delete(id: string) {
 			if (mapped.delete(id)) {
-				all = undefined;
 				api.listener?.({ op: ExtHostTestItemEventOp.RemoveChild, id });
 			}
 		},
@@ -220,7 +215,12 @@ export const createTestItemCollection = (owningItem: TestItemImpl):
 
 		/** JSON serialization function. */
 		toJSON() {
-			return this.all;
+			return Array.from(mapped.values());
+		},
+
+		/** @inheritdoc */
+		[Symbol.iterator]() {
+			return mapped.values();
 		},
 	};
 };
@@ -228,7 +228,7 @@ export const createTestItemCollection = (owningItem: TestItemImpl):
 export class TestItemImpl implements vscode.TestItem {
 	public readonly id!: string;
 	public readonly uri!: vscode.Uri | undefined;
-	public readonly children!: vscode.TestItemCollection;
+	public readonly children!: TestItemCollectionImpl;
 	public readonly parent!: TestItemImpl | undefined;
 
 	public range!: vscode.Range | undefined;

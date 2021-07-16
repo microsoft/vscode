@@ -32,12 +32,12 @@ export const testStubs = {
 				const a = new TestItemImpl(idPrefix + 'a', 'a', URI.file('/'));
 				a.canResolveChildren = true;
 				const b = new TestItemImpl(idPrefix + 'b', 'b', URI.file('/'));
-				item.children.all = [a, b];
+				item.children.set([a, b]);
 			} else if (item.id === idPrefix + 'a') {
-				item.children.all = [
+				item.children.set([
 					new TestItemImpl(idPrefix + 'aa', 'aa', URI.file('/')),
 					new TestItemImpl(idPrefix + 'ab', 'ab', URI.file('/')),
-				];
+				]);
 			}
 		};
 

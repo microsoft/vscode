@@ -234,7 +234,7 @@ export class SingleUseTestCollection extends Disposable {
 		}
 
 		// Case 3: upsert of an existing item by ID, with a new instance
-		const oldChildren = internal.actual.children.all;
+		const oldChildren = internal.actual.children;
 		const oldActual = internal.actual;
 		const changedProps = diffTestItems(oldActual, actual);
 		getPrivateApiFor(oldActual).listener = undefined;
@@ -271,7 +271,7 @@ export class SingleUseTestCollection extends Disposable {
 		this.connectItem(actual, internal, parent);
 
 		// Discover any existing children that might have already been added
-		for (const child of actual.children.all) {
+		for (const child of actual.children) {
 			this.upsertItem(child, internal);
 		}
 	}
@@ -317,12 +317,16 @@ export class SingleUseTestCollection extends Disposable {
 			return;
 		}
 
-		const asyncChildren = internal.actual.children.all
-			.map(c => this.expand(TestId.joinToString(internal.fullId, c.id), levels))
-			.filter(isThenable);
+		const expandRequests: Promise<void>[] = [];
+		for (const child of internal.actual.children) {
+			const promise = this.expand(TestId.joinToString(internal.fullId, child.id), levels);
+			if (isThenable(promise)) {
+				expandRequests.push(promise);
+			}
+		}
 
-		if (asyncChildren.length) {
-			return Promise.all(asyncChildren).then(() => { });
+		if (expandRequests.length) {
+			return Promise.all(expandRequests).then(() => { });
 		}
 	}
 
@@ -386,7 +390,7 @@ export class SingleUseTestCollection extends Disposable {
 
 			getPrivateApiFor(item.actual).listener = undefined;
 			this.tree.delete(item.fullId.toString());
-			for (const child of item.actual.children.all) {
+			for (const child of item.actual.children) {
 				queue.push(this.tree.get(TestId.joinToString(item.fullId, child.id)));
 			}
 		}

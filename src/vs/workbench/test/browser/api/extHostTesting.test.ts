@@ -36,8 +36,8 @@ const assertTreesEqual = (a: TestItem | undefined, b: TestItem | undefined) => {
 
 	assert.deepStrictEqual(simplify(a), simplify(b));
 
-	const aChildren = a.children.all.map(c => c.id).sort();
-	const bChildren = b.children.all.map(c => c.id).sort();
+	const aChildren = [...a.children].map(c => c.id).sort();
+	const bChildren = [...b.children].map(c => c.id).sort();
 	assert.strictEqual(aChildren.length, bChildren.length, `expected ${a.label}.children.length == ${b.label}.children.length`);
 	aChildren.forEach(key => assertTreesEqual(a.children.get(key), b.children.get(key)));
 };
@@ -179,13 +179,13 @@ suite('ExtHost Testing', () => {
 			single.expand(single.root.id, Infinity);
 			single.collectDiff();
 
-			const oldA = single.root.children.get('id-a')!;
+			const oldA = single.root.children.get('id-a') as TestItemImpl;
 			const newA = new TestItemImpl('id-a', 'Hello world', undefined);
-			newA.children.all = oldA.children.all;
-			single.root.children.all = [
+			newA.children.set(oldA.children);
+			single.root.children.set([
 				newA,
 				new TestItemImpl('id-b', single.root.children.get('id-b')!.label, undefined),
-			];
+			]);
 
 			assert.deepStrictEqual(single.collectDiff(), [
 				[
@@ -215,8 +215,8 @@ suite('ExtHost Testing', () => {
 			const oldAA = oldA.children.get('id-aa')!;
 			const oldAB = oldA.children.get('id-ab')!;
 			const newAB = new TestItemImpl('id-ab', 'Hello world', undefined);
-			newA.children.all = [oldAA, newAB];
-			single.root.children.all = [newA, single.root.children.get('id-b')!];
+			newA.children.set([oldAA, newAB]);
+			single.root.children.set([newA, single.root.children.get('id-b')!]);
 
 			assert.deepStrictEqual(single.collectDiff(), [
 				[
@@ -272,7 +272,7 @@ suite('ExtHost Testing', () => {
 				],
 			]);
 
-			assert.deepStrictEqual(single.root.children.all, [single.root.children.get('id-a')]);
+			assert.deepStrictEqual([...single.root.children], [single.root.children.get('id-a')]);
 			assert.deepStrictEqual(b.parent, a);
 		});
 	});
