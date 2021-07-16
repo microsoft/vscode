@@ -9,56 +9,13 @@ import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/commo
 import { FileAccess } from 'vs/base/common/network';
 import type { ModelOperations } from '@vscode/vscode-languagedetection';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { URI } from 'vs/base/common/uri';
+import { isWeb } from 'vs/base/common/platform';
 
 export class LanguageDetectionService extends Disposable implements ILanguageDetectionService {
 	private static readonly expectedConfidence = 0.6;
-	private static readonly ModelLangToLangIdMap: { [key: string]: string } = {
-		bat: 'bat',
-		cmd: 'bat',
-		btm: 'bat',
-		c: 'c',
-		cs: 'csharp',
-		cpp: 'cpp',
-		cc: 'cpp',
-		coffee: 'coffeescript',
-		litcoffee: 'coffeescript',
-		css: 'css',
-		erl: 'erlang',
-		hrl: 'erlang',
-		go: 'go',
-		hs: 'haskell',
-		lhs: 'haskell',
-		html: 'html',
-		java: 'java',
-		js: 'javascript',
-		es6: 'javascript',
-		ipynb: 'jupyter',
-		lua: 'lua',
-		md: 'markdown',
-		matlab: 'matlab',
-		m: 'objective-c',
-		mm: 'objective-c',
-		pl: 'perl',
-		pm: 'perl',
-		php: 'php',
-		ps1: 'powershell',
-		py: 'python',
-		r: 'r',
-		rdata: 'r',
-		rds: 'r',
-		rda: 'r',
-		rb: 'ruby',
-		rs: 'rust',
-		scala: 'scala',
-		sh: 'shellscript',
-		sql: 'sql',
-		swift: 'swift',
-		tex: 'tex',
-		ts: 'typescript',
-		tsx: 'typescriptreact'
-	};
 
 	private _loadFailed = false;
 	private _modelOperations: ModelOperations | undefined;
@@ -66,6 +23,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 
 	constructor(
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IModeService private readonly _modeService: IModeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService) {
 		super();
@@ -91,7 +49,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		const { ModelOperations } = await import('@vscode/vscode-languagedetection');
 		this._modelOperations = new ModelOperations(
 			async () => {
-				const response = await fetch(this._environmentService.isBuilt
+				const response = await fetch(this._environmentService.isBuilt && !isWeb
 					? FileAccess.asBrowserUri('../../../../../../node_modules.asar.unpacked/@vscode/vscode-languagedetection/model/model.json', require).toString(true)
 					: FileAccess.asBrowserUri('../../../../../../node_modules/@vscode/vscode-languagedetection/model/model.json', require).toString(true));
 				try {
@@ -103,7 +61,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 				}
 			},
 			async () => {
-				const response = await fetch(this._environmentService.isBuilt
+				const response = await fetch(this._environmentService.isBuilt && !isWeb
 					? FileAccess.asBrowserUri('../../../../../../node_modules.asar.unpacked/@vscode/vscode-oniguruma/model/group1-shard1of1.bin', require).toString(true)
 					: FileAccess.asBrowserUri('../../../../../../node_modules/@vscode/vscode-languagedetection/model/group1-shard1of1.bin', require).toString(true));
 				const buffer = await response.arrayBuffer();
@@ -162,17 +120,12 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 				break;
 		}
 
-		const vscodeLanguageId = LanguageDetectionService.ModelLangToLangIdMap[languageId];
-		if (vscodeLanguageId && confidence >= LanguageDetectionService.expectedConfidence) {
-			const langIds = ModesRegistry.getLanguages();
-			if (!langIds.some(l => l.id === vscodeLanguageId)) {
-				// The language isn't supported in VS Code
-				return;
-			}
-
-			return vscodeLanguageId;
+		if (confidence < LanguageDetectionService.expectedConfidence) {
+			return;
 		}
 
-		return;
+		// TODO: see if there's a better way to do this.
+		const vscodeLanguageId = this._modeService.getModeIdByFilepathOrFirstLine(URI.file(`file.${languageId}`));
+		return vscodeLanguageId ?? undefined;
 	}
 }
