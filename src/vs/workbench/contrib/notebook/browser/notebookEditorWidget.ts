@@ -244,7 +244,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _cellContextKeyManager: CellContextKeyManager | null = null;
 	private _isVisible = false;
 	private readonly _uuid = generateUuid();
-	private _webiewFocused: boolean = false;
+	private _webviewFocused: boolean = false;
 
 	private _isDisposed: boolean = false;
 
@@ -934,8 +934,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._register(widgetFocusTracker.onDidFocus(() => this._onDidFocusEmitter.fire()));
 		this._register(widgetFocusTracker.onDidBlur(() => this._onDidBlurEmitter.fire()));
 
-		this._reigsterNotebookActionsToolbar();
-
+		this._registerNotebookActionsToolbar();
 	}
 
 	private showListContextMenu(e: IListContextMenuEvent<CellViewModel>) {
@@ -951,7 +950,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		});
 	}
 
-	private _reigsterNotebookActionsToolbar() {
+	private _registerNotebookActionsToolbar() {
 		this._notebookTopToolbar = this._register(this.instantiationService.createInstance(NotebookEditorToolbar, this, this.scopedContextKeyService, this._notebookTopToolbarContainer));
 		this._register(this._notebookTopToolbar.onDidChangeState(() => {
 			if (this._dimension && this._isVisible) {
@@ -1160,40 +1159,41 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this._createWebview(this.getId(), this.textModel.uri);
 		}
 
-		this._webviewResolvePromise = new Promise(async resolve => {
+		this._webviewResolvePromise = (async () => {
 			if (!this._webview) {
 				throw new Error('Notebook output webview object is not created successfully.');
 			}
 
 			this._webview.createWebview();
 			if (!this._webview.webview) {
-				throw new Error('Notebook output webview elemented is not created successfully.');
+				throw new Error('Notebook output webview element was not created successfully.');
 			}
 
-			this._webview.webview.onDidBlur(() => {
+			this._localStore.add(this._webview.webview.onDidBlur(() => {
 				this._outputFocus.set(false);
 				this.updateEditorFocus();
 
 				if (this._overlayContainer.contains(document.activeElement)) {
-					this._webiewFocused = false;
+					this._webviewFocused = false;
 				}
-			});
-			this._webview.webview.onDidFocus(() => {
+			}));
+
+			this._localStore.add(this._webview.webview.onDidFocus(() => {
 				this._outputFocus.set(true);
 				this.updateEditorFocus();
 				this._onDidFocusEmitter.fire();
 
 				if (this._overlayContainer.contains(document.activeElement)) {
-					this._webiewFocused = true;
+					this._webviewFocused = true;
 				}
-			});
+			}));
 
 			this._localStore.add(this._webview.onMessage(e => {
 				this._onDidReceiveMessage.fire(e);
 			}));
 
-			resolve(this._webview);
-		});
+			return this._webview;
+		})();
 
 		return this._webviewResolvePromise;
 	}
@@ -1590,7 +1590,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._isVisible = true;
 		this._editorFocus.set(true);
 
-		if (this._webiewFocused) {
+		if (this._webviewFocused) {
 			this._webview?.focusWebview();
 		} else {
 			if (this.viewModel) {
@@ -1634,7 +1634,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	hasWebviewFocus() {
-		return this._webiewFocused;
+		return this._webviewFocused;
 	}
 
 	hasOutputTextSelection() {

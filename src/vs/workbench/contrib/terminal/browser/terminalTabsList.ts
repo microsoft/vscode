@@ -612,24 +612,28 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		this._autoFocusInstance = undefined;
 
 		let sourceInstances: ITerminalInstance[] | undefined;
-		const terminalResources = originalEvent.dataTransfer?.getData(DataTransfers.RESOURCES);
-		const terminals = originalEvent.dataTransfer?.getData(DataTransfers.TERMINALS);
+		const terminalResources = originalEvent.dataTransfer?.getData(DataTransfers.TERMINALS);
 		let promises: Promise<IProcessDetails | undefined>[] = [];
-		if (terminals && terminalResources) {
+		if (terminalResources) {
 			const json = JSON.parse(terminalResources);
 			for (const entry of json) {
 				const uri = URI.parse(entry);
 				const [, workspaceId, instanceId] = uri.path.split('/');
-				if (workspaceId && instanceId) {
-					const instance = this._terminalService.instances.find(e => e.resource.path === instanceId);
+				if (workspaceId && workspaceId !== this._workspaceContextService.getWorkspace().id) {
+					if (this._offProcessTerminalService && instanceId) {
+						promises.push(this._offProcessTerminalService.requestDetachInstance(workspaceId, Number.parseInt(instanceId)));
+					}
+				} else {
+					const instance = this._terminalService.getInstanceFromResource(uri);
 					if (instance) {
 						sourceInstances = [instance];
 						this._terminalService.moveToTerminalView(instance);
-					} else if (this._offProcessTerminalService && workspaceId !== this._workspaceContextService.getWorkspace().id) {
-						promises.push(this._offProcessTerminalService.requestDetachInstance(workspaceId, Number.parseInt(instanceId)));
 					}
 				}
 			}
+		}
+
+		if (promises.length) {
 			let processes = await Promise.all(promises);
 			processes = processes.filter(p => p !== undefined);
 			for (const attachPersistentProcess of processes) {

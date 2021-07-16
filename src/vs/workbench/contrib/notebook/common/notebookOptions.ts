@@ -59,7 +59,6 @@ export interface NotebookLayoutConfiguration {
 	fontSize: number;
 	focusIndicatorLeftMargin: number;
 	editorOptionsCustomizations: any | undefined;
-	cellBreakpointMarginActive: boolean;
 }
 
 interface NotebookOptionsChangeEvent {
@@ -154,7 +153,6 @@ export class NotebookOptions {
 			showFoldingControls,
 			fontSize,
 			editorOptionsCustomizations,
-			cellBreakpointMarginActive: false
 		};
 
 		this._disposables.push(this.configurationService.onDidChangeConfiguration(e => {
