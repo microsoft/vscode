@@ -840,7 +840,7 @@ export class DebugSession implements IDebugSession {
 					if (!event.body.preserveFocusHint && thread.getCallStack().length) {
 						await this.debugService.focusStackFrame(undefined, thread);
 						if (thread.stoppedDetails) {
-							if (this.configurationService.getValue<IDebugConfiguration>('debug').openDebug === 'openOnDebugBreak') {
+							if (this.configurationService.getValue<IDebugConfiguration>('debug').openDebug === 'openOnDebugBreak' && !this.isSimpleUI) {
 								this.viewletService.openViewlet(VIEWLET_ID);
 							}
 
