@@ -1184,6 +1184,27 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				}
 			}
 
+			const root = (this.element.shadowRoot ?? this.element);
+			const html = [];
+			for (const child of root.children) {
+				switch (child.tagName) {
+					case 'LINK':
+					case 'SCRIPT':
+					case 'STYLE':
+						// not worth sending over since it will be stripped before rendering
+						break;
+
+					default:
+						html.push(child.outerHTML);
+						break;
+				}
+			}
+
+			postNotebookMessage<webviewMessages.IRenderedMarkupMessage>('renderedMarkup', {
+				cellId: this.id,
+				html: html.join(''),
+			});
+
 			dimensionUpdater.updateHeight(this.id, this.element.offsetHeight, {
 				isOutput: false
 			});
