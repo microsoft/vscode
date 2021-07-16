@@ -1339,7 +1339,8 @@ suite('Editor Controller - Regression tests', () => {
 			].join('\n'),
 			{
 				insertSpaces: false,
-				trimAutoWhitespace: false
+				trimAutoWhitespace: false,
+				trimTrailingWhitespace: false
 			},
 		);
 
@@ -2800,7 +2801,10 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'    Third Line',
 				'',
 				'1'
-			]
+			],
+			modelOpts: {
+				trimTrailingWhitespace: false
+			}
 		}, (editor, model, viewModel) => {
 			CoreNavigationCommands.MoveTo.runCoreEditorCommand(viewModel, { position: new Position(1, 21), source: 'keyboard' });
 			viewModel.type('\n', 'keyboard');
@@ -2940,7 +2944,8 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'    some  line abc  '
 			],
 			modelOpts: {
-				trimAutoWhitespace: false
+				trimAutoWhitespace: false,
+				trimTrailingWhitespace: false
 			}
 		}, (editor, model, viewModel) => {
 
@@ -2962,7 +2967,10 @@ suite('Editor Controller - Cursor Configuration', () => {
 		usingCursor({
 			text: [
 				'    '
-			]
+			],
+			modelOpts: {
+				trimTrailingWhitespace: false
+			}
 		}, (editor, model, viewModel) => {
 			moveTo(editor, viewModel, 1, model.getLineContent(1).length + 1);
 			viewModel.type('\n', 'keyboard');
@@ -2973,6 +2981,73 @@ suite('Editor Controller - Cursor Configuration', () => {
 			assert.strictEqual(model.getLineContent(1), '    ');
 			assert.strictEqual(model.getLineContent(2), '');
 			assert.strictEqual(model.getLineContent(3), '    ');
+		});
+	});
+
+	test('trimTrailingWhitespace on: blank lines removed: Enter at end of line', () => {
+		usingCursor({
+			text: [
+				'      '
+			]
+		}, (editor, model, viewModel) => {
+			moveTo(editor, viewModel, 1, 7);
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getLineContent(1), '');
+			assert.strictEqual(model.getLineContent(2), '      ');
+		});
+	});
+
+	test('trimTrailingWhitespace on: blank lines removed: Enter in middle of line', () => {
+		usingCursor({
+			text: [
+				'      '
+			]
+		}, (editor, model, viewModel) => {
+			moveTo(editor, viewModel, 1, 3);
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getLineContent(1), '');
+			assert.strictEqual(model.getLineContent(2), '      ');
+		});
+	});
+
+	test('trimTrailingWhitespace on: blank lines removed: Enter at start of line', () => {
+		usingCursor({
+			text: [
+				'      '
+			]
+		}, (editor, model, viewModel) => {
+			moveTo(editor, viewModel, 1, 1);
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getLineContent(1), '');
+			assert.strictEqual(model.getLineContent(2), '      ');
+		});
+	});
+
+	test('trimTrailingWhitespace on: whitespace removed at end', () => {
+		usingCursor({
+			text: [
+				'  abc '
+			]
+		}, (editor, model, viewModel) => {
+			moveTo(editor, viewModel, 1, 6);
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getLineContent(1), '  abc');
+			assert.strictEqual(model.getLineContent(2), '  ');
+		});
+	});
+
+	test('issue #61972: trimTrailingWhitespace on: whitespace removed before text', () => {
+		usingCursor({
+			text: [
+				'  [',
+				'    1, 2, 3, 4',
+				'  ]'
+			]
+		}, (editor, model, viewModel) => {
+			moveTo(editor, viewModel, 2, 10);
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getLineContent(2), '    1, 2,');
+			assert.strictEqual(model.getLineContent(3), '    3, 4');
 		});
 	});
 
@@ -3090,7 +3165,10 @@ suite('Editor Controller - Cursor Configuration', () => {
 		let model = createTextModel(
 			[
 				'    some  line abc  '
-			].join('\n')
+			].join('\n'),
+			{
+				trimTrailingWhitespace: false
+			}
 		);
 
 		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
@@ -3689,7 +3767,7 @@ suite('Editor Controller - Indentation Rules', () => {
 
 			viewModel.type('\n', 'keyboard');
 			assertCursor(viewModel, new Selection(4, 3, 4, 3));
-			assert.strictEqual(model.getLineContent(4), '\t\t true;', '001');
+			assert.strictEqual(model.getLineContent(4), '\t\ttrue;', '001');
 		});
 	});
 
@@ -3728,7 +3806,7 @@ suite('Editor Controller - Indentation Rules', () => {
 
 			viewModel.type('\n', 'keyboard');
 			assertCursor(viewModel, new Selection(4, 5, 4, 5));
-			assert.strictEqual(model.getLineContent(4), '     true;', '001');
+			assert.strictEqual(model.getLineContent(4), '    true;', '001');
 		});
 	});
 
@@ -4476,7 +4554,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				new Selection(1, 14, 1, 14),
 			]);
 			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getValue(), '    let a,\n\t b,\n\t c;');
+			assert.strictEqual(model.getValue(), '    let a,\n\tb,\n\tc;');
 		});
 	});
 

@@ -23,6 +23,7 @@ export interface IRelaxedTextModelCreationOptions {
 	insertSpaces?: boolean;
 	detectIndentation?: boolean;
 	trimAutoWhitespace?: boolean;
+	trimTrailingWhitespace?: boolean;
 	defaultEOL?: DefaultEndOfLine;
 	isForSimpleWidget?: boolean;
 	largeFileOptimizations?: boolean;
@@ -35,6 +36,7 @@ export function createTextModel(text: string, _options: IRelaxedTextModelCreatio
 		insertSpaces: (typeof _options.insertSpaces === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.insertSpaces : _options.insertSpaces),
 		detectIndentation: (typeof _options.detectIndentation === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.detectIndentation : _options.detectIndentation),
 		trimAutoWhitespace: (typeof _options.trimAutoWhitespace === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.trimAutoWhitespace : _options.trimAutoWhitespace),
+		trimTrailingWhitespace: (typeof _options.trimTrailingWhitespace === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.trimTrailingWhitespace : _options.trimTrailingWhitespace),
 		defaultEOL: (typeof _options.defaultEOL === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.defaultEOL : _options.defaultEOL),
 		isForSimpleWidget: (typeof _options.isForSimpleWidget === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.isForSimpleWidget : _options.isForSimpleWidget),
 		largeFileOptimizations: (typeof _options.largeFileOptimizations === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.largeFileOptimizations : _options.largeFileOptimizations),

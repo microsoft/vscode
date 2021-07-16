@@ -191,6 +191,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		detectIndentation: false,
 		defaultEOL: model.DefaultEndOfLine.LF,
 		trimAutoWhitespace: EDITOR_MODEL_DEFAULTS.trimAutoWhitespace,
+		trimTrailingWhitespace: EDITOR_MODEL_DEFAULTS.trimTrailingWhitespace,
 		largeFileOptimizations: EDITOR_MODEL_DEFAULTS.largeFileOptimizations,
 	};
 
@@ -202,6 +203,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				indentSize: guessedIndentation.tabSize, // TODO@Alex: guess indentSize independent of tabSize
 				insertSpaces: guessedIndentation.insertSpaces,
 				trimAutoWhitespace: options.trimAutoWhitespace,
+				trimTrailingWhitespace: options.trimTrailingWhitespace,
 				defaultEOL: options.defaultEOL
 			});
 		}
@@ -211,6 +213,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			indentSize: options.indentSize,
 			insertSpaces: options.insertSpaces,
 			trimAutoWhitespace: options.trimAutoWhitespace,
+			trimTrailingWhitespace: options.trimTrailingWhitespace,
 			defaultEOL: options.defaultEOL
 		});
 
@@ -621,13 +624,15 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		let indentSize = (typeof _newOpts.indentSize !== 'undefined') ? _newOpts.indentSize : this._options.indentSize;
 		let insertSpaces = (typeof _newOpts.insertSpaces !== 'undefined') ? _newOpts.insertSpaces : this._options.insertSpaces;
 		let trimAutoWhitespace = (typeof _newOpts.trimAutoWhitespace !== 'undefined') ? _newOpts.trimAutoWhitespace : this._options.trimAutoWhitespace;
+		let trimTrailingWhitespace = (typeof _newOpts.trimTrailingWhitespace !== 'undefined') ? _newOpts.trimTrailingWhitespace : this._options.trimTrailingWhitespace;
 
 		let newOpts = new model.TextModelResolvedOptions({
 			tabSize: tabSize,
 			indentSize: indentSize,
 			insertSpaces: insertSpaces,
 			defaultEOL: this._options.defaultEOL,
-			trimAutoWhitespace: trimAutoWhitespace
+			trimAutoWhitespace: trimAutoWhitespace,
+			trimTrailingWhitespace: trimTrailingWhitespace
 		});
 
 		if (this._options.equals(newOpts)) {
@@ -1273,7 +1278,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 
 	private _pushEditOperations(beforeCursorState: Selection[] | null, editOperations: model.ValidAnnotatedEditOperation[], cursorStateComputer: model.ICursorStateComputer | null): Selection[] | null {
-		if (this._options.trimAutoWhitespace && this._trimAutoWhitespaceLines) {
+		if ((this._options.trimAutoWhitespace && this._trimAutoWhitespaceLines) || this._options.trimTrailingWhitespace) {
 			// Go through each saved line number and insert a trim whitespace edit
 			// if it is safe to do so (no conflicts with other edits).
 
@@ -1308,49 +1313,98 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			}
 
 			if (editsAreNearCursors) {
-				for (let i = 0, len = this._trimAutoWhitespaceLines.length; i < len; i++) {
-					let trimLineNumber = this._trimAutoWhitespaceLines[i];
-					let maxLineColumn = this.getLineMaxColumn(trimLineNumber);
+				// Remove auto-whitespace lines
+				if (this._options.trimAutoWhitespace && this._trimAutoWhitespaceLines) {
+					for (let i = 0, len = this._trimAutoWhitespaceLines.length; i < len; i++) {
+						let trimLineNumber = this._trimAutoWhitespaceLines[i];
+						let maxLineColumn = this.getLineMaxColumn(trimLineNumber);
 
-					let allowTrimLine = true;
+						let allowTrimLine = true;
+						for (let j = 0, lenJ = incomingEdits.length; j < lenJ; j++) {
+							let editRange = incomingEdits[j].range;
+							let editText = incomingEdits[j].text;
+
+							if (trimLineNumber < editRange.startLineNumber || trimLineNumber > editRange.endLineNumber) {
+								// `trimLine` is completely outside this edit
+								continue;
+							}
+
+							// At this point:
+							//   editRange.startLineNumber <= trimLine <= editRange.endLineNumber
+
+							if (
+								trimLineNumber === editRange.startLineNumber && editRange.startColumn === maxLineColumn
+								&& editRange.isEmpty() && editText && editText.length > 0 && editText.charAt(0) === '\n'
+							) {
+								// This edit inserts a new line (and maybe other text) after `trimLine`
+								continue;
+							}
+
+							if (
+								trimLineNumber === editRange.startLineNumber && editRange.startColumn === 1
+								&& editRange.isEmpty() && editText && editText.length > 0 && editText.charAt(editText.length - 1) === '\n'
+							) {
+								// This edit inserts a new line (and maybe other text) before `trimLine`
+								continue;
+							}
+
+							// Looks like we can't trim this line as it would interfere with an incoming edit
+							allowTrimLine = false;
+							break;
+						}
+
+						if (allowTrimLine) {
+							const trimRange = new Range(trimLineNumber, 1, trimLineNumber, maxLineColumn);
+							editOperations.push(new model.ValidAnnotatedEditOperation(null, trimRange, null, false, false, false));
+						}
+
+					}
+				}
+
+				// Trim any trailing whitespace
+				if (this._options.trimTrailingWhitespace) {
 					for (let j = 0, lenJ = incomingEdits.length; j < lenJ; j++) {
-						let editRange = incomingEdits[j].range;
-						let editText = incomingEdits[j].text;
+						// Check if the edit was to add a newline.
+						let text = incomingEdits[j].text;
+						if (text !== null) {
+							if (/^(\r?\n|\r)/.test(text)) {
+								// Remove whitespace from the end of the line.
+								let editRange = incomingEdits[j].range;
+								let lineTextPriorToEnter = this.getValueInRange(new Range(editRange.endLineNumber, 1, editRange.endLineNumber, editRange.startColumn));
+								let maxNonWhitespaceIndex = strings.lastNonWhitespaceIndex(lineTextPriorToEnter);
+								let maxNonWhitespaceLineColumn = maxNonWhitespaceIndex + 2;
+								let isBlankLine = (maxNonWhitespaceIndex === -1);
+								if (isBlankLine)
+									maxNonWhitespaceLineColumn = 1;
+								let maxLineColumn = this.getLineMaxColumn(editRange.startLineNumber);
+								if (maxNonWhitespaceLineColumn < maxLineColumn) {
+									// Set up whitespace range to delete.
+									let trimRange = new Range(editRange.startLineNumber, maxNonWhitespaceLineColumn, editRange.startLineNumber, maxLineColumn);
+									// Check for overlap with existing edits
+									trimRange = this._reduceSingleLineRangeForEditOperationsOverlap(trimRange, editOperations);
+									if (trimRange.startColumn < trimRange.endColumn)
+										editOperations.push(new model.ValidAnnotatedEditOperation(null, trimRange, null, false, false, false));
+								}
 
-						if (trimLineNumber < editRange.startLineNumber || trimLineNumber > editRange.endLineNumber) {
-							// `trimLine` is completely outside this edit
-							continue;
+								// Remove whitespace from the end of edit to first non-whitespace.
+								// Skip if the whole line was blank because that means it should have been caught above and we'd end up with an overlap otherwise.
+								if (!isBlankLine) {
+									let lineTextAfterEnterPosition = this.getValueInRange(new Range(editRange.endLineNumber, editRange.startColumn, editRange.endLineNumber, maxLineColumn));
+									let leadingWhitespaceLen = strings.getLeadingWhitespace(lineTextAfterEnterPosition).length;
+									if (leadingWhitespaceLen > 0) {
+										// Skip if an asterisk is next because it's probably JavaDoc style comment.
+										let nextChar = lineTextAfterEnterPosition.substring(leadingWhitespaceLen, leadingWhitespaceLen + 1);
+										if (nextChar !== "*") {
+											// Set up whitespace range to delete.
+											let trimRange = new Range(editRange.startLineNumber, editRange.startColumn, editRange.startLineNumber, editRange.startColumn + leadingWhitespaceLen);
+											// Check for overlap with existing edits
+											editOperations = this._addSingleLineTrimRangeToEditOperations(trimRange, editOperations);
+										}
+									}
+								}
+							}
 						}
-
-						// At this point:
-						//   editRange.startLineNumber <= trimLine <= editRange.endLineNumber
-
-						if (
-							trimLineNumber === editRange.startLineNumber && editRange.startColumn === maxLineColumn
-							&& editRange.isEmpty() && editText && editText.length > 0 && editText.charAt(0) === '\n'
-						) {
-							// This edit inserts a new line (and maybe other text) after `trimLine`
-							continue;
-						}
-
-						if (
-							trimLineNumber === editRange.startLineNumber && editRange.startColumn === 1
-							&& editRange.isEmpty() && editText && editText.length > 0 && editText.charAt(editText.length - 1) === '\n'
-						) {
-							// This edit inserts a new line (and maybe other text) before `trimLine`
-							continue;
-						}
-
-						// Looks like we can't trim this line as it would interfere with an incoming edit
-						allowTrimLine = false;
-						break;
 					}
-
-					if (allowTrimLine) {
-						const trimRange = new Range(trimLineNumber, 1, trimLineNumber, maxLineColumn);
-						editOperations.push(new model.ValidAnnotatedEditOperation(null, trimRange, null, false, false, false));
-					}
-
 				}
 			}
 
@@ -1360,6 +1414,66 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			this._initialUndoRedoSnapshot = this._undoRedoService.createSnapshot(this.uri);
 		}
 		return this._commandManager.pushEditOperation(beforeCursorState, editOperations, cursorStateComputer);
+	}
+
+	/**
+	 * Reduce a single line range so that it does not overlap with an existing range
+	 */
+	private _reduceSingleLineRangeForEditOperationsOverlap(range: Range, editOperations: model.ValidAnnotatedEditOperation[]): Range {
+		// Check for overlap with existing edits
+		for (let editOperation of editOperations) {
+			let editRange = editOperation.range;
+
+			// range does not overlap
+			if (range.startLineNumber < editRange.startLineNumber || range.startLineNumber > editRange.endLineNumber) {
+				continue;
+			}
+			// range is on the same line, so don't go farther than start of edit
+			if (range.startLineNumber === editRange.startLineNumber) {
+				let endColumn = Math.min(range.endColumn, editRange.startColumn);
+				if (endColumn < range.startColumn)
+					endColumn = range.startColumn;
+				range = new Range(range.startLineNumber, range.startColumn, range.startLineNumber, endColumn);
+			}
+		}
+		return range;
+	}
+
+	/**
+	 * Reduce a single line trim range so that it does not overlap with an existing range
+	 */
+	private _addSingleLineTrimRangeToEditOperations(trimRange: Range, editOperations: model.ValidAnnotatedEditOperation[]): model.ValidAnnotatedEditOperation[] {
+		// Check for overlap with existing edits
+		let newEditOperations = editOperations;
+		for (let editOperation of editOperations) {
+			let editRange = editOperation.range;
+
+			// trimRange does not overlap
+			if (trimRange.startLineNumber < editRange.startLineNumber || trimRange.startLineNumber > editRange.endLineNumber) {
+				continue;
+			}
+			// trimRange is on the same line, so trim off start of original edit.
+			if (trimRange.startLineNumber === editRange.startLineNumber) {
+				// Does the trimRange eat into the existing edit range (must start before edit range)?
+				if (trimRange.endColumn > editRange.startColumn && trimRange.startColumn <= editRange.startColumn) {
+					let newStartColumn = trimRange.endColumn;
+					// If edit range is a single line, make sure we don't go past the end of the original range.
+					if (editRange.endLineNumber === editRange.startLineNumber && newStartColumn > editRange.endColumn) {
+						newStartColumn = editRange.endColumn;
+					}
+					let newEditRange = new Range(editRange.startLineNumber, newStartColumn, editRange.endLineNumber, editRange.endColumn);
+					newEditOperations = newEditOperations.map(function (row: model.ValidAnnotatedEditOperation): model.ValidAnnotatedEditOperation {
+						if (row === editOperation)
+							return new model.ValidAnnotatedEditOperation(row.identifier, newEditRange, row.text, row.forceMoveMarkers, row.isAutoWhitespaceEdit, row._isTracked);
+						return row;
+					});
+				}
+			}
+		}
+		if (trimRange.startColumn < trimRange.endColumn)
+			newEditOperations.push(new model.ValidAnnotatedEditOperation(null, trimRange, null, false, false, false));
+
+		return newEditOperations;
 	}
 
 	_applyUndo(changes: TextChange[], eol: model.EndOfLineSequence, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): void {

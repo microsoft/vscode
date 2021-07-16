@@ -109,6 +109,11 @@ export interface IGlobalEditorOptions {
 	 */
 	trimAutoWhitespace?: boolean;
 	/**
+	 * Remove any trailing whitespace.
+	 * Defaults to true.
+	 */
+	trimTrailingWhitespace?: boolean;
+	/**
 	 * Special handling for large files to disable certain memory intensive features.
 	 * Defaults to true.
 	 */

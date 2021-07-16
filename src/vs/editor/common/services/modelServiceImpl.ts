@@ -99,6 +99,7 @@ interface IRawEditorConfig {
 	insertSpaces?: any;
 	detectIndentation?: any;
 	trimAutoWhitespace?: any;
+	trimTrailingWhitespace?: any;
 	creationOptions?: any;
 	largeFileOptimizations?: any;
 }
@@ -223,6 +224,11 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 			trimAutoWhitespace = (config.editor.trimAutoWhitespace === 'false' ? false : Boolean(config.editor.trimAutoWhitespace));
 		}
 
+		let trimTrailingWhitespace = EDITOR_MODEL_DEFAULTS.trimTrailingWhitespace;
+		if (config.editor && typeof config.editor.trimTrailingWhitespace !== 'undefined') {
+			trimTrailingWhitespace = (config.editor.trimTrailingWhitespace === 'false' ? false : Boolean(config.editor.trimTrailingWhitespace));
+		}
+
 		let detectIndentation = EDITOR_MODEL_DEFAULTS.detectIndentation;
 		if (config.editor && typeof config.editor.detectIndentation !== 'undefined') {
 			detectIndentation = (config.editor.detectIndentation === 'false' ? false : Boolean(config.editor.detectIndentation));
@@ -241,6 +247,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 			detectIndentation: detectIndentation,
 			defaultEOL: newDefaultEOL,
 			trimAutoWhitespace: trimAutoWhitespace,
+			trimTrailingWhitespace: trimTrailingWhitespace,
 			largeFileOptimizations: largeFileOptimizations
 		};
 	}
@@ -303,6 +310,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 			&& (currentOptions.tabSize === newOptions.tabSize)
 			&& (currentOptions.indentSize === newOptions.indentSize)
 			&& (currentOptions.trimAutoWhitespace === newOptions.trimAutoWhitespace)
+			&& (currentOptions.trimTrailingWhitespace === newOptions.trimTrailingWhitespace)
 		) {
 			// Same indent opts, no need to touch the model
 			return;
@@ -311,14 +319,16 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		if (newOptions.detectIndentation) {
 			model.detectIndentation(newOptions.insertSpaces, newOptions.tabSize);
 			model.updateOptions({
-				trimAutoWhitespace: newOptions.trimAutoWhitespace
+				trimAutoWhitespace: newOptions.trimAutoWhitespace,
+				trimTrailingWhitespace: newOptions.trimTrailingWhitespace
 			});
 		} else {
 			model.updateOptions({
 				insertSpaces: newOptions.insertSpaces,
 				tabSize: newOptions.tabSize,
 				indentSize: newOptions.indentSize,
-				trimAutoWhitespace: newOptions.trimAutoWhitespace
+				trimAutoWhitespace: newOptions.trimAutoWhitespace,
+				trimTrailingWhitespace: newOptions.trimTrailingWhitespace
 			});
 		}
 	}

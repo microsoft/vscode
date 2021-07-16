@@ -431,6 +431,7 @@ export class TextModelResolvedOptions {
 	readonly insertSpaces: boolean;
 	readonly defaultEOL: DefaultEndOfLine;
 	readonly trimAutoWhitespace: boolean;
+	readonly trimTrailingWhitespace: boolean;
 
 	/**
 	 * @internal
@@ -441,12 +442,14 @@ export class TextModelResolvedOptions {
 		insertSpaces: boolean;
 		defaultEOL: DefaultEndOfLine;
 		trimAutoWhitespace: boolean;
+		trimTrailingWhitespace: boolean;
 	}) {
 		this.tabSize = Math.max(1, src.tabSize | 0);
 		this.indentSize = src.tabSize | 0;
 		this.insertSpaces = Boolean(src.insertSpaces);
 		this.defaultEOL = src.defaultEOL | 0;
 		this.trimAutoWhitespace = Boolean(src.trimAutoWhitespace);
+		this.trimTrailingWhitespace = Boolean(src.trimTrailingWhitespace);
 	}
 
 	/**
@@ -459,6 +462,7 @@ export class TextModelResolvedOptions {
 			&& this.insertSpaces === other.insertSpaces
 			&& this.defaultEOL === other.defaultEOL
 			&& this.trimAutoWhitespace === other.trimAutoWhitespace
+			&& this.trimTrailingWhitespace === other.trimTrailingWhitespace
 		);
 	}
 
@@ -471,6 +475,7 @@ export class TextModelResolvedOptions {
 			indentSize: this.indentSize !== newOpts.indentSize,
 			insertSpaces: this.insertSpaces !== newOpts.insertSpaces,
 			trimAutoWhitespace: this.trimAutoWhitespace !== newOpts.trimAutoWhitespace,
+			trimTrailingWhitespace: this.trimTrailingWhitespace !== newOpts.trimTrailingWhitespace,
 		};
 	}
 }
@@ -484,6 +489,7 @@ export interface ITextModelCreationOptions {
 	insertSpaces: boolean;
 	detectIndentation: boolean;
 	trimAutoWhitespace: boolean;
+	trimTrailingWhitespace: boolean;
 	defaultEOL: DefaultEndOfLine;
 	isForSimpleWidget: boolean;
 	largeFileOptimizations: boolean;
@@ -494,6 +500,7 @@ export interface ITextModelUpdateOptions {
 	indentSize?: number;
 	insertSpaces?: boolean;
 	trimAutoWhitespace?: boolean;
+	trimTrailingWhitespace?: boolean;
 }
 
 export class FindMatch {

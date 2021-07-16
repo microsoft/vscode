@@ -492,6 +492,11 @@ const editorConfiguration: IConfigurationNode = {
 			default: EDITOR_MODEL_DEFAULTS.trimAutoWhitespace,
 			description: nls.localize('trimAutoWhitespace', "Remove trailing auto inserted whitespace.")
 		},
+		'editor.trimTrailingWhitespace': {
+			type: 'boolean',
+			default: EDITOR_MODEL_DEFAULTS.trimTrailingWhitespace,
+			description: nls.localize('trimTrailingWhitespace', "Remove any trailing whitespace.")
+		},
 		'editor.largeFileOptimizations': {
 			type: 'boolean',
 			default: EDITOR_MODEL_DEFAULTS.largeFileOptimizations,
