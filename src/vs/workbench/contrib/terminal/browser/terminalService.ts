@@ -259,7 +259,7 @@ export class TerminalService implements ITerminalService {
 			: enableTerminalReconnection
 				? this._localTerminalsInitPromise = this._reconnectToLocalTerminals()
 				: Promise.resolve();
-		this._primaryOffProcessTerminalService = !!this._environmentService.remoteAuthority ? this._remoteTerminalService : this._localTerminalService;
+		this._primaryOffProcessTerminalService = !!this._environmentService.remoteAuthority ? this._remoteTerminalService : (this._localTerminalService || this._remoteTerminalService);
 		this._primaryOffProcessTerminalService.onDidRequestDetach(async (e) => {
 			if (e.workspaceId && this._workspaceContextService.getWorkspace().id === e.workspaceId) {
 				const instanceToDetach = this.getInstanceFromId(e.instanceId);
