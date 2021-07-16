@@ -6,6 +6,7 @@
 import * as fs from 'fs';
 import * as cp from 'child_process';
 import * as path from 'path';
+import * as os from 'os';
 import * as minimist from 'minimist';
 import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
@@ -247,7 +248,11 @@ async function ensureStableCode(): Promise<void> {
 
 		console.log(`*** Found VS Code v${version}, downloading previous VS Code version ${previousVersion.version}...`);
 
-		const stableCodeExecutable = await vscodetest.downloadAndUnzipVSCode(previousVersion.version);
+		const stableCodeExecutable = await vscodetest.download({
+			cachePath: path.join(os.tmpdir(), 'vscode-test'),
+			version: previousVersion.version
+		});
+
 		if (process.platform === 'darwin') {
 			// Visual Studio Code.app/Contents/MacOS/Electron
 			stableCodePath = path.dirname(path.dirname(path.dirname(stableCodeExecutable)));

@@ -18,9 +18,10 @@ import { isWindows } from 'vs/base/common/platform';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, ILocalTerminalService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ILocalTerminalService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
+import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 
 let Terminal: typeof XTermTerminal;
 let SearchAddon: typeof XTermSearchAddon;
@@ -46,9 +47,9 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	) {
 		super();
 		this._localTerminalService = localTerminalService;
-		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
-		this._terminalShellTypeContextKey = KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE.bindTo(this._contextKeyService);
-		this._terminalAltBufferActiveContextKey = KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE.bindTo(this._contextKeyService);
+		this._terminalFocusContextKey = TerminalContextKeys.focus.bindTo(this._contextKeyService);
+		this._terminalShellTypeContextKey = TerminalContextKeys.shellType.bindTo(this._contextKeyService);
+		this._terminalAltBufferActiveContextKey = TerminalContextKeys.altBufferActive.bindTo(this._contextKeyService);
 		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
 	}
 

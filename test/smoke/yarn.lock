@@ -932,10 +932,10 @@ validate-npm-package-license@^3.0.1:
     spdx-correct "^3.0.0"
     spdx-expression-parse "^3.0.0"
 
-vscode-test@^1.5.2:
-  version "1.5.2"
-  resolved "https://registry.yarnpkg.com/vscode-test/-/vscode-test-1.5.2.tgz#d9ec3cab1815afae1d7d81923e3c685d13d32303"
-  integrity sha512-x9PVfKxF6EInH9iSFGQi0V8H5zIW1fC7RAer6yNQR6sy3WyOwlWkuT3I+wf75xW/cO53hxMi1aj/EvqQfDFOAg==
+vscode-test@^1.6.1:
+  version "1.6.1"
+  resolved "https://registry.yarnpkg.com/vscode-test/-/vscode-test-1.6.1.tgz#44254c67036de92b00fdd72f6ace5f1854e1a563"
+  integrity sha512-086q88T2ca1k95mUzffvbzb7esqQNvJgiwY4h29ukPhFo8u+vXOOmelUoU5EQUHs3Of8+JuQ3oGdbVCqaxuTXA==
   dependencies:
     http-proxy-agent "^4.0.1"
     https-proxy-agent "^5.0.0"

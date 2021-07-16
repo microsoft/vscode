@@ -8,7 +8,6 @@ import * as paths from 'vs/base/common/path';
 import { DEFAULT_TERMINAL_OSX, IExternalTerminalService, IExternalTerminalSettings } from 'vs/platform/externalTerminal/common/externalTerminal';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Schemas } from 'vs/base/common/network';
@@ -18,12 +17,13 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IExternalTerminalMainService } from 'vs/platform/externalTerminal/electron-sandbox/externalTerminalMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 
 const OPEN_NATIVE_CONSOLE_COMMAND_ID = 'workbench.action.terminal.openNativeConsole';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: OPEN_NATIVE_CONSOLE_COMMAND_ID,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C,
-	when: KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED,
+	when: TerminalContextKeys.notFocus,
 	weight: KeybindingWeight.WorkbenchContrib,
 	handler: async (accessor) => {
 		const historyService = accessor.get(IHistoryService);
