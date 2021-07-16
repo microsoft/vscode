@@ -76,11 +76,16 @@ export const KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION = new RawContex
 
 export const IS_SPLIT_TERMINAL_CONTEXT_KEY = new RawContextKey<boolean>(TerminalContextKey.SplitTerminal, false, nls.localize('isSplitTerminalContextKey', "Whether or not the focused tab's terminal is a split terminal"));
 
-export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverMeasureRenderTime';
-
 export const TERMINAL_CREATION_COMMANDS = ['workbench.action.terminal.toggleTerminal', 'workbench.action.terminal.new', 'workbench.action.togglePanel', 'workbench.action.terminal.focus'];
 
-export const SUGGESTED_RENDERER_TYPE = 'terminal.integrated.suggestedRendererType';
+
+export const enum TerminalStorageKeys {
+	NeverMeasureRenderTime = 'terminal.integrated.neverMeasureRenderTime',
+	SuggestedRendererType = 'terminal.integrated.suggestedRendererType',
+	TabsListWidthHorizontal = 'tabs-list-width-horizontal',
+	TabsListWidthVertical = 'tabs-list-width-vertical',
+	EnvironmentVariableCollections = 'terminal.integrated.environmentVariableCollections',
+}
 
 export const TerminalCursorStyle = {
 	BLOCK: 'block',

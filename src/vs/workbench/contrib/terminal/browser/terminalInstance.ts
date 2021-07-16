@@ -24,7 +24,7 @@ import { activeContrastBorder, editorBackground, scrollbarSliderActiveBackground
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_VIEW_ID, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, SUGGESTED_RENDERER_TYPE, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, ProcessState, TERMINAL_VIEW_ID, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, ITerminalProfileResolverService, TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ansiColorIdentifiers, ansiColorMap, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
@@ -351,7 +351,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this.updateAccessibilitySupport();
 			}
 			if (e.affectsConfiguration(TerminalSettingId.GpuAcceleration)) {
-				this._storageService.remove(SUGGESTED_RENDERER_TYPE, StorageScope.GLOBAL);
+				this._storageService.remove(TerminalStorageKeys.SuggestedRendererType, StorageScope.GLOBAL);
 			}
 		}));
 
@@ -583,7 +583,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			fastScrollModifier: 'alt',
 			fastScrollSensitivity: editorOptions.fastScrollSensitivity,
 			scrollSensitivity: editorOptions.mouseWheelScrollSensitivity,
-			rendererType: this._getBuiltInXtermRenderer(config.gpuAcceleration, this._storageService.get(SUGGESTED_RENDERER_TYPE, StorageScope.GLOBAL)),
+			rendererType: this._getBuiltInXtermRenderer(config.gpuAcceleration, this._storageService.get(TerminalStorageKeys.SuggestedRendererType, StorageScope.GLOBAL)),
 			wordSeparator: config.wordSeparators
 		});
 		this._xterm = xterm;
@@ -876,7 +876,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			const medianTime = frameTimes.sort((a, b) => a - b)[Math.floor(frameTimes.length / 2)];
 			if (medianTime > SLOW_CANVAS_RENDER_THRESHOLD) {
 				if (this._configHelper.config.gpuAcceleration === 'auto') {
-					this._storageService.store(SUGGESTED_RENDERER_TYPE, 'dom', StorageScope.GLOBAL, StorageTarget.MACHINE);
+					this._storageService.store(TerminalStorageKeys.SuggestedRendererType, 'dom', StorageScope.GLOBAL, StorageTarget.MACHINE);
 					this.updateConfig();
 				} else {
 					const promptChoices: IPromptChoice[] = [
@@ -891,7 +891,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						{
 							label: nls.localize('dontShowAgain', "Don't Show Again"),
 							isSecondary: true,
-							run: () => this._storageService.store(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, true, StorageScope.GLOBAL, StorageTarget.MACHINE)
+							run: () => this._storageService.store(TerminalStorageKeys.NeverMeasureRenderTime, true, StorageScope.GLOBAL, StorageTarget.MACHINE)
 						} as IPromptChoice
 					];
 					this._notificationService.prompt(
@@ -1487,7 +1487,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
 		this._safeSetOption('wordSeparator', config.wordSeparators);
 
-		const suggestedRendererType = this._storageService.get(SUGGESTED_RENDERER_TYPE, StorageScope.GLOBAL);
+		const suggestedRendererType = this._storageService.get(TerminalStorageKeys.SuggestedRendererType, StorageScope.GLOBAL);
 		if ((config.gpuAcceleration === 'auto' && suggestedRendererType === undefined) || config.gpuAcceleration === 'on') {
 			this._enableWebglRenderer();
 		} else {
@@ -1520,13 +1520,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			});
 		} catch (e) {
 			this._logService.warn(`Webgl could not be loaded. Falling back to the canvas renderer type.`, e);
-			const neverMeasureRenderTime = this._storageService.getBoolean(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, StorageScope.GLOBAL, false);
+			const neverMeasureRenderTime = this._storageService.getBoolean(TerminalStorageKeys.NeverMeasureRenderTime, StorageScope.GLOBAL, false);
 			// if it's already set to dom, no need to measure render time
 			if (!neverMeasureRenderTime && this._configHelper.config.gpuAcceleration !== 'off') {
 				this._measureRenderTime();
 			}
 			this._safeSetOption('rendererType', 'canvas');
-			this._storageService.store(SUGGESTED_RENDERER_TYPE, 'canvas', StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this._storageService.store(TerminalStorageKeys.SuggestedRendererType, 'canvas', StorageScope.GLOBAL, StorageTarget.MACHINE);
 			this._disposeOfWebglRenderer();
 		}
 	}
