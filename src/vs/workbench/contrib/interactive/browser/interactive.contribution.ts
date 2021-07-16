@@ -44,6 +44,9 @@ import { IInteractiveDocumentService, InteractiveDocumentService } from 'vs/work
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
+import { contrastBorder, listInactiveSelectionBackground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { Color } from 'vs/base/common/color';
+import { PANEL_BORDER } from 'vs/workbench/common/theme';
 
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -491,3 +494,30 @@ registerAction2(class extends Action2 {
 	}
 });
 
+// peekView.border
+registerColor('interactive.activeCodeBorder', {
+	dark: '#007acc',
+	light: '#007acc',
+	hc: contrastBorder
+}, localize('interactive.activeCodeBorder', 'The border color for the current interactive code cell when the editor has focus.'));
+
+// peekViewEditor.background
+registerColor('interactive.activeCodeBackground', {
+	dark: '#001F33',
+	light: '#F2F8FC',
+	hc: Color.black
+}, localize('interactive.activeCodeBackground', 'The background color for the current interactive code cell when the editor has focus.'));
+
+// notebook.cellBorderColor
+registerColor('interactive.inactiveCodeBorder', {
+	dark: transparent(listInactiveSelectionBackground, 1),
+	light: transparent(listInactiveSelectionBackground, 1),
+	hc: PANEL_BORDER
+}, localize('interactive.inactiveCodeBorder', 'The border color for the current interactive code cell when the editor does not have focus.'));
+
+// peekViewResult.background
+registerColor('interactive.inactiveCodeBackground', {
+	dark: '#252526',
+	light: '#F3F3F3',
+	hc: Color.black
+}, localize('interactive.inactiveCodeBackground', 'The backgorund color for the current interactive code cell when the editor does not have focus.'));
