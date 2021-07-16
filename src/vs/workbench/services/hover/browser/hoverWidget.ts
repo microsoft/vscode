@@ -82,6 +82,9 @@ export class HoverWidget extends Widget {
 		if (options.compact) {
 			this._hover.containerDomNode.classList.add('workbench-hover', 'compact');
 		}
+		if (options.skipFadeInAnimation) {
+			this._hover.containerDomNode.classList.add('skip-fade-in');
+		}
 		if (options.additionalClasses) {
 			this._hover.containerDomNode.classList.add(...options.additionalClasses);
 		}
