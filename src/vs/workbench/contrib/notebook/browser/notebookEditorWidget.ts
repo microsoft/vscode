@@ -1170,16 +1170,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				throw new Error('Notebook output webview element was not created successfully.');
 			}
 
-			this._webview.webview.onDidBlur(() => {
+			this._localStore.add(this._webview.webview.onDidBlur(() => {
 				this._outputFocus.set(false);
 				this.updateEditorFocus();
 
 				if (this._overlayContainer.contains(document.activeElement)) {
 					this._webviewFocused = false;
 				}
-			});
+			}));
 
-			this._webview.webview.onDidFocus(() => {
+			this._localStore.add(this._webview.webview.onDidFocus(() => {
 				this._outputFocus.set(true);
 				this.updateEditorFocus();
 				this._onDidFocusEmitter.fire();
@@ -1187,7 +1187,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				if (this._overlayContainer.contains(document.activeElement)) {
 					this._webviewFocused = true;
 				}
-			});
+			}));
 
 			this._localStore.add(this._webview.onMessage(e => {
 				this._onDidReceiveMessage.fire(e);
