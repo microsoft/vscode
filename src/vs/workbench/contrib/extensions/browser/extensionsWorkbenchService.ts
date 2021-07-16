@@ -474,7 +474,7 @@ class Extensions extends Disposable {
 				}
 			}
 			this._onChange.fire(!local || !extension ? undefined : { extension, operation: event.operation });
-			if (extension && !extension.gallery) {
+			if (extension && extension.local && !extension.gallery) {
 				this.syncInstalledExtensionWithGallery(extension);
 			}
 		}
