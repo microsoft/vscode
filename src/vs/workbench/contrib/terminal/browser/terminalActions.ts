@@ -38,6 +38,7 @@ import { ILocalTerminalService, IRemoteTerminalAttachTarget, ITerminalConfigHelp
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -558,20 +559,26 @@ export function registerTerminalActions() {
 			const terminalInstanceService = accessor.get(ITerminalInstanceService);
 			const codeEditorService = accessor.get(ICodeEditorService);
 			const notificationService = accessor.get(INotificationService);
+			const workbenchEnvironmentService = accessor.get(IWorkbenchEnvironmentService);
 
 			const editor = codeEditorService.getActiveCodeEditor();
 			if (!editor || !editor.hasModel()) {
 				return;
 			}
 
+			let instance = terminalService.activeInstance;
+			const isRemote = instance ? instance.isRemote : (workbenchEnvironmentService.remoteAuthority ? true : false);
 			const uri = editor.getModel().uri;
-			if (uri.scheme !== Schemas.file) {
+			if ((!isRemote && uri.scheme !== Schemas.file) || (isRemote && uri.scheme !== Schemas.vscodeRemote)) {
 				notificationService.warn(localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
 				return;
 			}
 
+			if (!instance) {
+				instance = terminalService.getActiveOrCreateInstance();
+			}
+
 			// TODO: Convert this to ctrl+c, ctrl+v for pwsh?
-			const instance = terminalService.getActiveOrCreateInstance();
 			const path = await terminalInstanceService.preparePathForTerminalAsync(uri.fsPath, instance.shellLaunchConfig.executable, instance.title, instance.shellType, instance.isRemote);
 			instance.sendText(path, true);
 			return terminalGroupService.showPanel();
