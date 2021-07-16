@@ -26,13 +26,12 @@ export const testStubs = {
 	nested: (idPrefix = 'id-') => {
 		const collection = new TestSingleUseCollection('ctrlId');
 		collection.root.label = 'root';
-		collection.root.canResolveChildren = true;
 		collection.resolveHandler = item => {
-			if (item === collection.root) {
+			if (item === undefined) {
 				const a = new TestItemImpl(idPrefix + 'a', 'a', URI.file('/'));
 				a.canResolveChildren = true;
 				const b = new TestItemImpl(idPrefix + 'b', 'b', URI.file('/'));
-				item.children.set([a, b]);
+				collection.root.children.set([a, b]);
 			} else if (item.id === idPrefix + 'a') {
 				item.children.set([
 					new TestItemImpl(idPrefix + 'aa', 'aa', URI.file('/')),

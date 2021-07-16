@@ -83,19 +83,7 @@ suite('ExtHost Testing', () => {
 				],
 				[
 					TestDiffOpType.Add,
-					{ controllerId: 'ctrlId', parent: single.root.id, expand: TestItemExpandState.Expandable, item: { ...convert.TestItem.from(a, 'ctrlId') } }
-				],
-				[
-					TestDiffOpType.Add,
-					{ controllerId: 'ctrlId', parent: single.root.id, expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(b, 'ctrlId') }
-				],
-				[
-					TestDiffOpType.Update,
-					{ extId: single.root.id, expand: TestItemExpandState.Expanded }
-				],
-				[
-					TestDiffOpType.Update,
-					{ extId: new TestId(['ctrlId', 'id-a']).toString(), expand: TestItemExpandState.BusyExpanding }
+					{ controllerId: 'ctrlId', parent: single.root.id, expand: TestItemExpandState.BusyExpanding, item: { ...convert.TestItem.from(a, 'ctrlId') } }
 				],
 				[
 					TestDiffOpType.Add,
@@ -108,6 +96,14 @@ suite('ExtHost Testing', () => {
 				[
 					TestDiffOpType.Update,
 					{ extId: new TestId(['ctrlId', 'id-a']).toString(), expand: TestItemExpandState.Expanded }
+				],
+				[
+					TestDiffOpType.Add,
+					{ controllerId: 'ctrlId', parent: single.root.id, expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(b, 'ctrlId') }
+				],
+				[
+					TestDiffOpType.Update,
+					{ extId: single.root.id, expand: TestItemExpandState.Expanded }
 				],
 			]);
 		});
@@ -248,7 +244,8 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(newA.parent, undefined);
 		});
 
-		test('moves an item to be a new child', () => {
+		test('moves an item to be a new child', async () => {
+			await single.expand(single.root.id, 0);
 			single.collectDiff();
 			const b = single.root.children.get('id-b')!;
 			const a = single.root.children.get('id-a')!;
@@ -424,12 +421,15 @@ suite('ExtHost Testing', () => {
 
 		let dto: TestRunDto;
 
-		setup(() => {
+		setup(async () => {
 			proxy = mockObject();
 			cts = new CancellationTokenSource();
 			c = new TestRunCoordinator(proxy);
 
 			configuration = new TestRunProfileImpl(mockObject<MainThreadTestingShape, {}>(), 'ctrlId', 42, 'Do Run', TestRunProfileGroup.Run, () => { }, false);
+
+			await single.expand(single.root.id, Infinity);
+			single.collectDiff();
 
 			req = {
 				include: undefined,
@@ -503,7 +503,6 @@ suite('ExtHost Testing', () => {
 			const tracker = Iterable.first(c.trackers)!;
 			const expectedArgs: unknown[][] = [];
 			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
-			single.expand(single.root.id, Infinity);
 
 			task1.setState(single.root.children.get('id-a')!.children.get('id-aa')!, TestResultState.Passed);
 			expectedArgs.push([
@@ -547,8 +546,6 @@ suite('ExtHost Testing', () => {
 		});
 
 		test('excludes tests outside tree or explicitly excluded', () => {
-			single.expand(single.root.id, Infinity);
-
 			const task = c.createTestRun('ctrlId', single, {
 				profile: configuration,
 				include: [single.root.children.get('id-a')!],

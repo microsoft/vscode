@@ -42,7 +42,7 @@ export interface OwnedCollectionTestItem {
 export class SingleUseTestCollection extends Disposable {
 	private readonly debounceSendDiff = this._register(new RunOnceScheduler(() => this.flushDiff(), 200));
 	private readonly diffOpEmitter = this._register(new Emitter<TestsDiff>());
-	private _resolveHandler?: (item: TestItemRaw) => Promise<void> | void;
+	private _resolveHandler?: (item: TestItemRaw | undefined) => Promise<void> | void;
 
 	public readonly root = new TestItemRootImpl(this.controllerId, this.controllerId);
 	public readonly tree = new Map</* full test id */string, OwnedCollectionTestItem>();
@@ -50,13 +50,14 @@ export class SingleUseTestCollection extends Disposable {
 
 	constructor(private readonly controllerId: string) {
 		super();
+		this.root.canResolveChildren = true;
 		this.upsertItem(this.root, undefined);
 	}
 
 	/**
 	 * Handler used for expanding test items.
 	 */
-	public set resolveHandler(handler: undefined | ((item: TestItemRaw) => void)) {
+	public set resolveHandler(handler: undefined | ((item: TestItemRaw | undefined) => void)) {
 		this._resolveHandler = handler;
 		for (const test of this.tree.values()) {
 			this.updateExpandability(test);
@@ -201,13 +202,11 @@ export class SingleUseTestCollection extends Disposable {
 		let internal = this.tree.get(fullId.toString());
 		// Case 1: a brand new item
 		if (!internal) {
-			// always expand root node to know if there are tests (and whether to show the welcome view)
-			const pExpandLvls = parent ? parent.expandLevels : 1;
 			internal = {
 				fullId,
 				actual,
 				parent: parent ? fullId.parentId : null,
-				expandLevels: pExpandLvls /* intentionally undefined or 0 */ ? pExpandLvls - 1 : undefined,
+				expandLevels: parent?.expandLevels /* intentionally undefined or 0 */ ? parent.expandLevels - 1 : undefined,
 				expand: TestItemExpandState.NotExpandable, // updated by `connectItemAndChildren`
 			};
 
@@ -351,7 +350,7 @@ export class SingleUseTestCollection extends Disposable {
 
 		let r: Thenable<void> | void;
 		try {
-			r = this._resolveHandler(internal.actual);
+			r = this._resolveHandler(internal.actual === this.root ? undefined : internal.actual);
 		} catch (err) {
 			internal.actual.error = err.stack || err.message;
 		}

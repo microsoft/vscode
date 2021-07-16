@@ -2018,21 +2018,20 @@ declare module 'vscode' {
 
 		/**
 		 * A function provided by the extension that the editor may call to request
-		 * children of a test item, if the {@link TestItem.canExpand} is `true`.
-		 * When called, the item should discover children and call
+		 * children of a test item, if the {@link TestItem.canResolveChildren} is
+		 * `true`. When called, the item should discover children and call
 		 * {@link vscode.test.createTestItem} as children are discovered.
 		 *
 		 * The item in the explorer will automatically be marked as "busy" until
 		 * the function returns or the returned thenable resolves.
 		 *
-		 * The controller may wish to set up listeners or watchers to update the
-		 * children as files and documents change.
+		 * The handler will be called `undefined` to resolve the controller's
+		 * initial children.
 		 *
 		 * @param item An unresolved test item for which
 		 * children are being requested
 		 */
-		// todo@API maybe just `resolveHandler` so that we could extends its usage in the future?
-		resolveChildrenHandler?: (item: TestItem) => Thenable<void> | void;
+		resolveChildrenHandler?: (item: TestItem | undefined) => Thenable<void> | void;
 
 		/**
 		 * Creates a {@link TestRun<T>}. This should be called by the

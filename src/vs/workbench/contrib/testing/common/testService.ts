@@ -76,9 +76,6 @@ export const getCollectionItemParents = function* (collection: IMainThreadTestCo
 	}
 };
 
-const expandFirstLevel = (collection: IMainThreadTestCollection) =>
-	Promise.all([...collection.rootItems].map(r => collection.expand(r.item.extId, 0)));
-
 export const testCollectionIsEmpty = (collection: IMainThreadTestCollection) =>
 	!Iterable.some(collection.rootItems, r => r.children.size > 0);
 
@@ -103,7 +100,11 @@ export const expandAndGetTestById = async (collection: IMainThreadTestCollection
 			return existing;
 		}
 
-		await collection.expand(id, 0);
+		// expand children only if it looks like it's necessary
+		if (!existing.children.has(idPath[i + 1])) {
+			await collection.expand(id, 0);
+		}
+
 		expandToLevel = i + 1; // avoid an infinite loop if the test does not exist
 		i = idPath.length - 1;
 	}
@@ -131,10 +132,7 @@ export const getAllTestsInHierarchy = async (collection: IMainThreadTestCollecti
  * Iterator that expands to and iterates through tests in the file. Iterates
  * in strictly descending order.
  */
-export const testsInFile = async function* (collection: IMainThreadTestCollection, uri: URI) {
-	// Expand all direct children since roots will not have URIs, but children should.
-	await expandFirstLevel(collection);
-
+export const testsInFile = async function* (collection: IMainThreadTestCollection, uri: URI): AsyncIterable<IncrementalTestCollectionItem> {
 	const demandUriStr = uri.toString();
 	for (const test of collection.all) {
 		if (!test.item.uri) {

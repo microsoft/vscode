@@ -428,6 +428,12 @@ export class TestingExplorerViewModel extends Disposable {
 			}
 		}));
 
+		this._register(onDidChangeVisibility(visible => {
+			if (visible) {
+				this.ensureProjection();
+			}
+		}));
+
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
 		this._register(Event.any(
@@ -532,16 +538,14 @@ export class TestingExplorerViewModel extends Disposable {
 			return;
 		}
 
-		if (!this.projection.value) {
-			return;
-		}
+		const projection = this.ensureProjection();
 
 		// If the item itself is visible in the tree, show it. Otherwise, expand
 		// its closest parent.
 		let expandToLevel = 0;
 		const idPath = [...TestId.fromString(id).idsFromRoot()];
 		for (let i = idPath.length - 1; i >= expandToLevel; i--) {
-			const element = this.projection.value.getElementByTestId(idPath[i]);
+			const element = projection.getElementByTestId(idPath[i]);
 			// Skip all elements that aren't in the tree.
 			if (!element || !this.tree.hasElement(element)) {
 				continue;
@@ -665,6 +669,10 @@ export class TestingExplorerViewModel extends Disposable {
 		}
 	}
 
+	private ensureProjection() {
+		return this.projection.value ?? this.updatePreferredProjection();
+	}
+
 	private updatePreferredProjection() {
 		this.projection.clear();
 
@@ -682,6 +690,7 @@ export class TestingExplorerViewModel extends Disposable {
 		});
 
 		this.applyProjectionChanges();
+		return this.projection.value;
 	}
 
 	private applyProjectionChanges() {
