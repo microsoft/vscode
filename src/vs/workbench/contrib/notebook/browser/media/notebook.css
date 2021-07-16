@@ -1007,7 +1007,7 @@
 	overflow-x: auto;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .codicon {
+.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .codicon:not(.suggest-icon) {
 	color: inherit;
 }
 
