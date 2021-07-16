@@ -73,8 +73,7 @@ export class DisassemblyView extends EditorPane {
 		this._register(editorService.onDidActiveEditorChange(() => {
 			if (this.editorService.activeEditorPane?.getId() === `workbench.debug.disassemblyView`) {
 				this._disassemblyViewFocus.set(true);
-			}
-			else {
+			} else {
 				this._disassemblyViewFocus.reset();
 			}
 		}));
@@ -241,12 +240,13 @@ export class DisassemblyView extends EditorPane {
 			const index = this.getIndexFromAddress(address);
 			if (index >= 0) {
 				this._disassembledInstructions?.reveal(index, 0.5);
-			} else {
-				// Address is very far from what's shown in the view now. Clear the table and reload.
-				this.reloadDisassembly(address);
+				return;
 			}
-		} else {
-			this.reloadDisassembly();
+		}
+		// Address is not provided or not in the table currently, clear the table
+		// and reload if we are in the state where we can load disassembly.
+		if (this._debugService.state === State.Stopped) {
+			this.reloadDisassembly(address);
 		}
 	}
 

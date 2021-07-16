@@ -43,6 +43,8 @@ import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Codicon } from 'vs/base/common/codicons';
 import { equals } from 'vs/base/common/arrays';
+import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
+import { DisassemblyView } from 'vs/workbench/contrib/debug/browser/disassemblyView';
 
 const $ = dom.$;
 
@@ -161,7 +163,8 @@ export class BreakpointsView extends ViewPane {
 				openBreakpointSource(e.element, e.sideBySide, e.editorOptions.preserveFocus || false, e.editorOptions.pinned || !e.editorOptions.preserveFocus, this.debugService, this.editorService);
 			}
 			if (e.element instanceof InstructionBreakpoint) {
-
+				const disassemblyView = await this.editorService.openEditor(DisassemblyViewInput.instance);
+				(disassemblyView as DisassemblyView).goToAddress(e.element.instructionReference);
 			}
 			if (e.browserEvent instanceof MouseEvent && e.browserEvent.detail === 2 && e.element instanceof FunctionBreakpoint && e.element !== this.inputBoxData?.breakpoint) {
 				// double click
