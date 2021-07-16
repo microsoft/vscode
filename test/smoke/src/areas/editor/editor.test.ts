@@ -17,7 +17,7 @@ export function setup(opts: minimist.ParsedArgs) {
 			await app.workbench.quickaccess.openFile('www');
 
 			await app.workbench.quickaccess.openQuickOutline();
-			await app.workbench.quickinput.waitForQuickInputElements(names => names.length >= 6000);
+			await app.workbench.quickinput.waitForQuickInputElements(names => names.length >= 6);
 		});
 	});
 }
