@@ -38,7 +38,7 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 		return this.getIterator();
 	}
 
-	private get rootIds() {
+	public get rootIds() {
 		return Iterable.map(this.roots.values(), r => r.item.extId);
 	}
 
