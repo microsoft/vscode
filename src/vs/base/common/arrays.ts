@@ -556,6 +556,53 @@ export function mapFind<T, R>(array: Iterable<T>, mapFn: (value: T) => R | undef
 }
 
 /**
+ * Insert the new items in the array.
+ * @param array The original array.
+ * @param start The zero-based location in the array from which to start inserting elements.
+ * @param newItems The items to be inserted
+ */
+export function insertInto<T>(array: T[], start: number, newItems: T[]): void {
+	const startIdx = getActualStartIndex(array, start);
+	const originalLength = array.length;
+	const newItemsLength = newItems.length;
+	array.length = originalLength + newItemsLength;
+	// Move the items after the start index, start from the end so that we don't overwrite any value.
+	for (let i = originalLength - 1; i >= startIdx; i--) {
+		array[i + newItemsLength] = array[i];
+	}
+
+	for (let i = 0; i < newItemsLength; i++) {
+		array[i + startIdx] = newItems[i];
+	}
+}
+
+/**
+ * Removes elements from an array and inserts new elements in their place, returning the deleted elements. Alternative to the native Array.splice method, it
+ * can only support limited number of items due to the maximum call stack size limit.
+ * @param array The original array.
+ * @param start The zero-based location in the array from which to start removing elements.
+ * @param deleteCount The number of elements to remove.
+ * @returns An array containing the elements that were deleted.
+ */
+export function splice<T>(array: T[], start: number, deleteCount: number, newItems: T[]): T[] {
+	const index = getActualStartIndex(array, start);
+	const result = array.splice(index, deleteCount);
+	insertInto(array, index, newItems);
+	return result;
+}
+
+/**
+ * Determine the actual start index (same logic as the native splice() or slice())
+ * If greater than the length of the array, start will be set to the length of the array. In this case, no element will be deleted but the method will behave as an adding function, adding as many element as item[n*] provided.
+ * If negative, it will begin that many elements from the end of the array. (In this case, the origin -1, meaning -n is the index of the nth last element, and is therefore equivalent to the index of array.length - n.) If array.length + start is less than 0, it will begin from index 0.
+ * @param array The target array.
+ * @param start The operation index.
+ */
+function getActualStartIndex<T>(array: T[], start: number): number {
+	return start < 0 ? Math.max(start + array.length, 0) : Math.min(start, array.length);
+}
+
+/**
  * Like Math.min with a delegate, and returns the winning index
  */
 export function minIndex<T>(array: readonly T[], fn: (value: T) => number): number {
