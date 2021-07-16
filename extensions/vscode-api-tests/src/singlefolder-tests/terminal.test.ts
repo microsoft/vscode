@@ -669,7 +669,7 @@ import { assertNoRpc } from '../utils';
 		});
 
 		suite('environmentVariableCollection', () => {
-			test('should have collection variables apply to terminals immediately after setting', (done) => {
+			test.skip('should have collection variables apply to terminals immediately after setting', (done) => {
 				// Text to match on before passing the test
 				const expectedText = [
 					'~a2~',
@@ -714,7 +714,7 @@ import { assertNoRpc } from '../utils';
 				terminal.sendText('echo $C');
 			});
 
-			test('should have collection variables apply to environment variables that don\'t exist', (done) => {
+			test.skip('should have collection variables apply to environment variables that don\'t exist', (done) => {
 				// Text to match on before passing the test
 				const expectedText = [
 					'~a2~',
@@ -759,7 +759,7 @@ import { assertNoRpc } from '../utils';
 				terminal.sendText('echo $C');
 			});
 
-			test('should respect clearing entries', (done) => {
+			test.skip('should respect clearing entries', (done) => {
 				// Text to match on before passing the test
 				const expectedText = [
 					'~a1~',
@@ -800,7 +800,7 @@ import { assertNoRpc } from '../utils';
 				terminal.sendText('echo $B');
 			});
 
-			test('should respect deleting entries', (done) => {
+			test.skip('should respect deleting entries', (done) => {
 				// Text to match on before passing the test
 				const expectedText = [
 					'~a1~',
