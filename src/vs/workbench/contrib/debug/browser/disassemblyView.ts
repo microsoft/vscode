@@ -16,7 +16,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { CONTEXT_DISASSEMBLE_VIEW_FOCUS, CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, DISASSEMBLY_VIEW_ID, IDebugService, IInstructionBreakpoint, State } from 'vs/workbench/contrib/debug/common/debug';
+import { CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, DISASSEMBLY_VIEW_ID, IDebugService, IInstructionBreakpoint, State } from 'vs/workbench/contrib/debug/common/debug';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -48,7 +48,6 @@ export class DisassemblyView extends EditorPane {
 	private _onDidChangeStackFrame: Emitter<void>;
 	private _previousDebuggingState: State;
 	private _instructionBpList: readonly IInstructionBreakpoint[] = [];
-	_disassemblyViewFocus: IContextKey<boolean>;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -56,11 +55,14 @@ export class DisassemblyView extends EditorPane {
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IDebugService private readonly _debugService: IDebugService,
-		@IEditorService private readonly editorService: IEditorService,
+		@IEditorService editorService: IEditorService,
 	) {
 		super(DISASSEMBLY_VIEW_ID, telemetryService, themeService, storageService);
+
+		this._disassembledInstructions = undefined;
+		this._onDidChangeStackFrame = new Emitter<void>();
+		this._previousDebuggingState = _debugService.state;
 
 		this._fontInfo = BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel(), getPixelRatio());
 		this._register(configurationService.onDidChangeConfiguration(e => {
@@ -69,19 +71,6 @@ export class DisassemblyView extends EditorPane {
 				this._disassembledInstructions?.rerender();
 			}
 		}));
-
-		this._register(editorService.onDidActiveEditorChange(() => {
-			if (this.editorService.activeEditorPane?.getId() === `workbench.debug.disassemblyView`) {
-				this._disassemblyViewFocus.set(true);
-			} else {
-				this._disassemblyViewFocus.reset();
-			}
-		}));
-
-		this._disassembledInstructions = undefined;
-		this._onDidChangeStackFrame = new Emitter<void>();
-		this._previousDebuggingState = _debugService.state;
-		this._disassemblyViewFocus = CONTEXT_DISASSEMBLE_VIEW_FOCUS.bindTo(contextKeyService);
 	}
 
 	get fontInfo() { return this._fontInfo; }

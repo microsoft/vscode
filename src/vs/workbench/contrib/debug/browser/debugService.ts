@@ -30,7 +30,7 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { deepClone, equals } from 'vs/base/common/objects';
 import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IDebugModel, IEnablement, IBreakpoint, IBreakpointData, ICompound, IStackFrame, getStateLabel, IDebugSessionOptions, CONTEXT_DEBUG_UX, REPL_VIEW_ID, CONTEXT_BREAKPOINTS_EXIST, IGlobalConfig, CALLSTACK_VIEW_ID, IAdapterManager, IExceptionBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IDebugModel, IEnablement, IBreakpoint, IBreakpointData, ICompound, IStackFrame, getStateLabel, IDebugSessionOptions, CONTEXT_DEBUG_UX, REPL_VIEW_ID, CONTEXT_BREAKPOINTS_EXIST, IGlobalConfig, CALLSTACK_VIEW_ID, IAdapterManager, IExceptionBreakpoint, CONTEXT_DISASSEMBLY_VIEW_FOCUS } from 'vs/workbench/contrib/debug/common/debug';
 import { getExtensionHostDebugSession } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
@@ -52,6 +52,7 @@ import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/work
 import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { DisassemblyView } from 'vs/workbench/contrib/debug/browser/disassemblyView';
+import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 
 export class DebugService implements IDebugService {
 	declare readonly _serviceBrand: undefined;
@@ -73,6 +74,7 @@ export class DebugService implements IDebugService {
 	private inDebugMode!: IContextKey<boolean>;
 	private debugUx!: IContextKey<string>;
 	private breakpointsExist!: IContextKey<boolean>;
+	private disassemblyViewFocus!: IContextKey<boolean>;
 	private breakpointsToSendOnResourceSaved: Set<URI>;
 	private initializing = false;
 	private previousState: State | undefined;
@@ -122,6 +124,8 @@ export class DebugService implements IDebugService {
 			this.debugUx = CONTEXT_DEBUG_UX.bindTo(contextKeyService);
 			this.debugUx.set(this.debugStorage.loadDebugUxState());
 			this.breakpointsExist = CONTEXT_BREAKPOINTS_EXIST.bindTo(contextKeyService);
+			// Need to set disassemblyViewFocus here to make it in the same context as the debug event handlers
+			this.disassemblyViewFocus = CONTEXT_DISASSEMBLY_VIEW_FOCUS.bindTo(contextKeyService);
 		});
 		this.chosenEnvironments = this.debugStorage.loadChosenEnvironments();
 
@@ -177,6 +181,16 @@ export class DebugService implements IDebugService {
 			}
 		}));
 		this.toDispose.push(this.model.onDidChangeBreakpoints(() => setBreakpointsExistContext()));
+
+		this.toDispose.push(editorService.onDidActiveEditorChange(() => {
+			this.contextKeyService.bufferChangeEvents(() => {
+				if (editorService.activeEditor === DisassemblyViewInput.instance) {
+					this.disassemblyViewFocus.set(true);
+				} else {
+					this.disassemblyViewFocus.reset();
+				}
+			});
+		}));
 	}
 
 	getModel(): IDebugModel {
