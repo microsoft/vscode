@@ -225,7 +225,7 @@ export class TerminalService implements ITerminalService {
 		});
 
 		this._handleInstanceContextKeys();
-		this._processSupportContextKey = TerminalContextKeys.KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED.bindTo(this._contextKeyService);
+		this._processSupportContextKey = TerminalContextKeys.processSupported.bindTo(this._contextKeyService);
 		this._processSupportContextKey.set(!isWeb || this._remoteAgentService.getConnection() !== null);
 
 		lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal'));
@@ -432,7 +432,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private _handleInstanceContextKeys(): void {
-		const terminalIsOpenContext = TerminalContextKeys.KEYBINDING_CONTEXT_TERMINAL_IS_OPEN.bindTo(this._contextKeyService);
+		const terminalIsOpenContext = TerminalContextKeys.isOpen.bindTo(this._contextKeyService);
 		const updateTerminalContextKeys = () => {
 			terminalIsOpenContext.set(this.instances.length > 0);
 		};

@@ -92,7 +92,7 @@ export class TerminalEditorInput extends EditorInput {
 	) {
 		super();
 
-		this._terminalEditorFocusContextKey = TerminalContextKeys.KEYBINDING_CONTEXT_TERMINAL_EDITOR_FOCUS.bindTo(contextKeyService);
+		this._terminalEditorFocusContextKey = TerminalContextKeys.editorFocus.bindTo(contextKeyService);
 
 		this._register(toDisposable(() => {
 			if (!this._isDetached && !this._isShuttingDown) {

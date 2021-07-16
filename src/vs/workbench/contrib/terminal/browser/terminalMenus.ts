@@ -59,7 +59,7 @@ export function setupTerminalMenus(): void {
 						precondition: ContextKeyExpr.has(TerminalContextKeyStrings.IsOpen)
 					},
 					order: 2,
-					when: TerminalContextKeys.KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+					when: TerminalContextKeys.processSupported
 				}
 			},
 			{
@@ -71,7 +71,7 @@ export function setupTerminalMenus(): void {
 						title: localize({ key: 'miRunActiveFile', comment: ['&& denotes a mnemonic'] }, "Run &&Active File")
 					},
 					order: 3,
-					when: TerminalContextKeys.KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+					when: TerminalContextKeys.processSupported
 				}
 			},
 			{
@@ -83,7 +83,7 @@ export function setupTerminalMenus(): void {
 						title: localize({ key: 'miRunSelectedText', comment: ['&& denotes a mnemonic'] }, "Run &&Selected Text")
 					},
 					order: 4,
-					when: TerminalContextKeys.KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+					when: TerminalContextKeys.processSupported
 				}
 			}
 		]
@@ -493,7 +493,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.JoinInstance,
 						title: localize('workbench.action.terminal.joinInstance', "Join Terminals")
 					},
-					when: TerminalContextKeys.KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION.toNegated()
+					when: TerminalContextKeys.tabsSingularSelection.toNegated()
 				}
 			},
 			{
@@ -504,7 +504,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.UnsplitInstance,
 						title: terminalStrings.unsplit.value
 					},
-					when: ContextKeyExpr.and(TerminalContextKeys.KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TerminalContextKeys.IS_SPLIT_TERMINAL_CONTEXT_KEY)
+					when: ContextKeyExpr.and(TerminalContextKeys.tabsSingularSelection, TerminalContextKeys.splitTerminal)
 				}
 			},
 			{

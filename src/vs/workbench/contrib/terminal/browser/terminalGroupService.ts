@@ -67,8 +67,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 
 		this.onDidDisposeGroup(group => this._removeGroup(group));
 
-		this._terminalGroupCountContextKey = TerminalContextKeys.KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT.bindTo(this._contextKeyService);
-		this._terminalCountContextKey = TerminalContextKeys.KEYBINDING_CONTEXT_GROUP_TERMINAL_COUNT.bindTo(this._contextKeyService);
+		this._terminalGroupCountContextKey = TerminalContextKeys.groupCount.bindTo(this._contextKeyService);
+		this._terminalCountContextKey = TerminalContextKeys.count.bindTo(this._contextKeyService);
 
 		this.onDidChangeGroups(() => this._terminalGroupCountContextKey.set(this.groups.length));
 		this.onDidChangeInstances(() => this._terminalCountContextKey.set(this.instances.length));
@@ -83,7 +83,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 			const panel = this._viewDescriptorService.getViewContainerByViewId(TERMINAL_VIEW_ID);
 			if (panel && this._viewDescriptorService.getViewContainerModel(panel).activeViewDescriptors.length === 1) {
 				this._layoutService.setPanelHidden(true);
-				TerminalContextKeys.KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE.bindTo(this._contextKeyService).set(false);
+				TerminalContextKeys.tabsMouse.bindTo(this._contextKeyService).set(false);
 			}
 		}
 	}

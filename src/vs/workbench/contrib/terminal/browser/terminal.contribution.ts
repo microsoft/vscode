@@ -45,7 +45,7 @@ import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalSt
 import { TerminalEditorService } from 'vs/workbench/contrib/terminal/browser/terminalEditorService';
 import { TerminalInputSerializer } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
 import { TerminalGroupService } from 'vs/workbench/contrib/terminal/browser/terminalGroupService';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { TerminalContextKeys, TerminalContextKeyStrings } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 
 // Register services
 registerSingleton(ITerminalService, TerminalService, true);
@@ -121,7 +121,7 @@ function registerSendSequenceKeybinding(text: string, rule: { when?: ContextKeyE
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: TerminalCommandId.SendSequence,
 		weight: KeybindingWeight.WorkbenchContrib,
-		when: rule.when || TerminalContextKeys.KEYBINDING_CONTEXT_TERMINAL_FOCUS,
+		when: rule.when || TerminalContextKeys.focus,
 		primary: rule.primary,
 		mac: rule.mac,
 		linux: rule.linux,
@@ -140,7 +140,7 @@ const CTRL_LETTER_OFFSET = 64;
 // reader. This works even when clipboard.readText is not supported.
 if (isWindows) {
 	registerSendSequenceKeybinding(String.fromCharCode('V'.charCodeAt(0) - CTRL_LETTER_OFFSET), { // ctrl+v
-		when: ContextKeyExpr.and(TerminalContextKeys.KEYBINDING_CONTEXT_TERMINAL_FOCUS, ContextKeyExpr.equals(TerminalContextKeys.KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, WindowsShellType.PowerShell), CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
+		when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, WindowsShellType.PowerShell), CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_V
 	});
 }
@@ -148,7 +148,7 @@ if (isWindows) {
 // send ctrl+c to the iPad when the terminal is focused and ctrl+c is pressed to kill the process (work around for #114009)
 if (isIOS) {
 	registerSendSequenceKeybinding(String.fromCharCode('C'.charCodeAt(0) - CTRL_LETTER_OFFSET), { // ctrl+c
-		when: ContextKeyExpr.and(TerminalContextKeys.KEYBINDING_CONTEXT_TERMINAL_FOCUS),
+		when: ContextKeyExpr.and(TerminalContextKeys.focus),
 		primary: KeyMod.WinCtrl | KeyCode.KEY_C
 	});
 }
@@ -162,7 +162,7 @@ if (isWindows) {
 	// Delete word left: ctrl+h
 	// Windows cmd.exe requires ^H to delete full word left
 	registerSendSequenceKeybinding(String.fromCharCode('H'.charCodeAt(0) - CTRL_LETTER_OFFSET), {
-		when: ContextKeyExpr.and(TerminalContextKeys.KEYBINDING_CONTEXT_TERMINAL_FOCUS, ContextKeyExpr.equals(TerminalContextKeys.KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, WindowsShellType.CommandPrompt)),
+		when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, WindowsShellType.CommandPrompt)),
 		primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 	});
 }

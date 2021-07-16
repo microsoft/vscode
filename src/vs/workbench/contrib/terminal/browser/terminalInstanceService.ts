@@ -47,9 +47,9 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	) {
 		super();
 		this._localTerminalService = localTerminalService;
-		this._terminalFocusContextKey = TerminalContextKeys.KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
-		this._terminalShellTypeContextKey = TerminalContextKeys.KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE.bindTo(this._contextKeyService);
-		this._terminalAltBufferActiveContextKey = TerminalContextKeys.KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE.bindTo(this._contextKeyService);
+		this._terminalFocusContextKey = TerminalContextKeys.focus.bindTo(this._contextKeyService);
+		this._terminalShellTypeContextKey = TerminalContextKeys.shellType.bindTo(this._contextKeyService);
+		this._terminalAltBufferActiveContextKey = TerminalContextKeys.altBufferActive.bindTo(this._contextKeyService);
 		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
 	}
 

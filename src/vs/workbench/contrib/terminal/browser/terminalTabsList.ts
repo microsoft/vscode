@@ -166,8 +166,8 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			}
 		});
 
-		this._terminalTabsSingleSelectedContextKey = TerminalContextKeys.KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION.bindTo(contextKeyService);
-		this._isSplitContextKey = TerminalContextKeys.IS_SPLIT_TERMINAL_CONTEXT_KEY.bindTo(contextKeyService);
+		this._terminalTabsSingleSelectedContextKey = TerminalContextKeys.tabsSingularSelection.bindTo(contextKeyService);
+		this._isSplitContextKey = TerminalContextKeys.splitTerminal.bindTo(contextKeyService);
 
 		this.onDidChangeSelection(e => this._updateContextKey());
 		this.onDidChangeFocus(() => this._updateContextKey());
