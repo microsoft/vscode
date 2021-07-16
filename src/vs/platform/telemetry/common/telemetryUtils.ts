@@ -56,6 +56,8 @@ export class NullEndpointTelemetryService implements ICustomEndpointTelemetrySer
 export interface ITelemetryAppender {
 	log(eventName: string, data: any): void;
 	flush(): Promise<any>;
+	// If specified replaces common.product in the telemetry data
+	productIdentifier?: string;
 }
 
 export function combinedAppender(...appenders: ITelemetryAppender[]): ITelemetryAppender {
