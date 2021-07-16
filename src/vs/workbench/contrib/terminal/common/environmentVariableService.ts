@@ -10,7 +10,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
 import { deserializeEnvironmentVariableCollection, serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
 import { IEnvironmentVariableCollectionWithPersistence, IEnvironmentVariableService, IMergedEnvironmentVariableCollection, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 
 interface ISerializableExtensionEnvironmentVariableCollection {
 	extensionIdentifier: string,
