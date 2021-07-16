@@ -123,7 +123,6 @@ export function extractEditorsDropData(e: DragEvent, externalOnly?: boolean): Ar
 						resource: URI.parse(e), isExternal: true
 					};
 				}));
-				console.log(editors);
 			} catch (error) {
 				// Invalid transfer
 			}
