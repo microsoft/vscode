@@ -132,7 +132,6 @@ interface IExtensionEditorTemplate {
 	iconContainer: HTMLElement;
 	icon: HTMLImageElement;
 	name: HTMLElement;
-	identifier: HTMLElement;
 	preview: HTMLElement;
 	builtin: HTMLElement;
 	version: HTMLElement;
@@ -213,7 +212,7 @@ export class ExtensionEditor extends EditorPane {
 		const details = append(header, $('.details'));
 		const title = append(details, $('.title'));
 		const name = append(title, $('span.name.clickable', { title: localize('name', "Extension name"), role: 'heading', tabIndex: 0 }));
-		const identifier = append(title, $('span.identifier', { title: localize('extension id', "Extension identifier") }));
+		const version = append(title, $('code.version', { title: localize('extension version', "Extension Version") }));
 
 		const preview = append(title, $('span.preview', { title: localize('preview', "Preview") }));
 		preview.textContent = localize('preview', "Preview");
@@ -225,7 +224,6 @@ export class ExtensionEditor extends EditorPane {
 		const publisher = append(append(subtitle, $('.subtitle-entry')), $('span.publisher.clickable', { title: localize('publisher', "Publisher name"), tabIndex: 0 }));
 		const installCount = append(append(subtitle, $('.subtitle-entry')), $('span.install', { title: localize('install count', "Install count"), tabIndex: 0 }));
 		const rating = append(append(subtitle, $('.subtitle-entry')), $('span.rating.clickable', { title: localize('rating', "Rating"), tabIndex: 0 }));
-		const version = append(append(subtitle, $('.subtitle-entry')), $('span.version', { title: localize('version', 'Version'), tabIndex: 0 }));
 
 		const description = append(details, $('.description'));
 
@@ -272,7 +270,6 @@ export class ExtensionEditor extends EditorPane {
 			header,
 			icon,
 			iconContainer,
-			identifier,
 			version,
 			ignoreActionbar,
 			installCount,
@@ -334,7 +331,7 @@ export class ExtensionEditor extends EditorPane {
 		template.icon.src = extension.iconUrl;
 
 		template.name.textContent = extension.displayName;
-		template.identifier.textContent = extension.identifier.id;
+		template.version.textContent = `v${extension.version}`;
 		template.preview.style.display = extension.preview ? 'inherit' : 'none';
 		template.builtin.style.display = extension.isBuiltin ? 'inherit' : 'none';
 
@@ -366,8 +363,6 @@ export class ExtensionEditor extends EditorPane {
 
 		template.rating.parentElement?.classList.toggle('hide', !extension.url);
 		template.rating.classList.toggle('clickable', !!extension.url);
-
-		template.version.textContent = `v${extension.version}`;
 
 		if (extension.url) {
 			this.transientDisposables.add(this.onClick(template.name, () => this.openerService.open(URI.parse(extension.url!))));
@@ -786,7 +781,6 @@ export class ExtensionEditor extends EditorPane {
 		const resources: [string, URI][] = [];
 		if (extension.url) {
 			resources.push([localize('Marketplace', "Marketplace"), URI.parse(extension.url)]);
-			resources.push([localize('Reviews', "Rating & Review"), URI.parse(`${extension.url}&ssr=false#review-details`)]);
 		}
 		if (extension.repository) {
 			resources.push([localize('repository', "Repository"), URI.parse(extension.repository)]);
@@ -806,22 +800,26 @@ export class ExtensionEditor extends EditorPane {
 
 	private renderMoreInfo(container: HTMLElement, extension: IExtension): void {
 		const gallery = extension.gallery;
-		if (!gallery) {
-			return;
-		}
 		const moreInfoContainer = append(container, $('.more-info-container'));
 		append(moreInfoContainer, $('.additional-details-title', undefined, localize('more info', "More Info")));
 		const moreInfo = append(moreInfoContainer, $('.more-info'));
+		if (gallery) {
+			append(moreInfo,
+				$('.more-info-entry', undefined,
+					$('span', undefined, localize('release date', "Released on")),
+					$('span', undefined, new Date(gallery.releaseDate).toLocaleString())
+				),
+				$('.more-info-entry', undefined,
+					$('span', undefined, localize('last updated', "Last updated")),
+					$('span', undefined, new Date(gallery.lastUpdated).toLocaleString())
+				)
+			);
+		}
 		append(moreInfo,
 			$('.more-info-entry', undefined,
-				$('span', undefined, localize('release date', "Released on")),
-				$('span', undefined, new Date(gallery.releaseDate).toLocaleString())
-			),
-			$('.more-info-entry', undefined,
-				$('span', undefined, localize('last updated', "Last updated")),
-				$('span', undefined, new Date(gallery.lastUpdated).toLocaleString())
-			)
-		);
+				$('span', undefined, localize('id', "Identifier")),
+				$('code', undefined, extension.identifier.id)
+			));
 	}
 
 	private openChangelog(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
