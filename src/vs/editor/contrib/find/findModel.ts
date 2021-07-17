@@ -68,7 +68,8 @@ export const FIND_IDS = {
 	TogglePreserveCaseCommand: 'togglePreserveCase',
 	ReplaceOneAction: 'editor.action.replaceOne',
 	ReplaceAllAction: 'editor.action.replaceAll',
-	SelectAllMatchesAction: 'editor.action.selectAllMatches'
+	SelectAllMatchesAction: 'editor.action.selectAllMatches',
+	FindAllInCurrentFileAction: 'editor.action.findAllInCurrentFile',
 };
 
 export const MATCHES_LIMIT = 19999;
