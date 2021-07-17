@@ -47,7 +47,7 @@ export const findReplaceIcon = registerIcon('find-replace', Codicon.replace, nls
 export const findReplaceAllIcon = registerIcon('find-replace-all', Codicon.replaceAll, nls.localize('findReplaceAllIcon', 'Icon for \'Replace All\' in the editor find widget.'));
 export const findPreviousMatchIcon = registerIcon('find-previous-match', Codicon.arrowUp, nls.localize('findPreviousMatchIcon', 'Icon for \'Find Previous\' in the editor find widget.'));
 export const findNextMatchIcon = registerIcon('find-next-match', Codicon.arrowDown, nls.localize('findNextMatchIcon', 'Icon for \'Find Next\' in the editor find widget.'));
-export const findAllMatchesIcon = registerIcon('find-all-in-current-file', Codicon.file, nls.localize('findAllMatchesIcon', 'Icon for \'Find All in Current File\' in the editor find widget.'));
+export const findAllMatchesIcon = registerIcon('find-all-in-current-file', Codicon.search, nls.localize('findAllMatchesIcon', 'Icon for \'Find All in Current File\' in the editor find widget.'));
 
 export interface IFindController {
 	replace(): void;
