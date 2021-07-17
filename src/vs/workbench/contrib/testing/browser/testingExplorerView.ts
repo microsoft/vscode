@@ -56,7 +56,7 @@ import { ITestExplorerFilterState, TestExplorerFilterState, TestingExplorerFilte
 import { ITestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { labelForTestInState, TestExplorerStateFilter, TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
-import { identifyTest, IncrementalTestCollectionItem, ITestRunProfile, TestItemExpandState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { identifyTest, ITestRunProfile, TestItemExpandState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { capabilityContextKeys, ITestProfileService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
