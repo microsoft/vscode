@@ -503,8 +503,8 @@ registerColor('interactive.activeCodeBorder', {
 
 // peekViewEditor.background
 registerColor('interactive.activeCodeBackground', {
-	dark: '#001F33',
-	light: '#F2F8FC',
+	dark: Color.fromHex('#001F33').transparent(0.25),
+	light: Color.fromHex('#F2F8FC').transparent(0.25),
 	hc: Color.black
 }, localize('interactive.activeCodeBackground', 'The background color for the current interactive code cell when the editor has focus.'));
 
@@ -517,7 +517,7 @@ registerColor('interactive.inactiveCodeBorder', {
 
 // peekViewResult.background
 registerColor('interactive.inactiveCodeBackground', {
-	dark: '#252526',
-	light: '#F3F3F3',
+	dark: Color.fromHex('#252526').transparent(0.25),
+	light: Color.fromHex('#F3F3F3').transparent(0.25),
 	hc: Color.black
 }, localize('interactive.inactiveCodeBackground', 'The backgorund color for the current interactive code cell when the editor does not have focus.'));
