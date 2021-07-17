@@ -13,6 +13,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { URI } from 'vs/base/common/uri';
 import { isWeb } from 'vs/base/common/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export class LanguageDetectionService extends Disposable implements ILanguageDetectionService {
 	private static readonly expectedConfidence = 0.6;
@@ -29,7 +32,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		super();
 
 		this._register(untitledTextEditorService.onDidChangeContent(async e => {
-			if (!configurationService.getValue<boolean>('languageDetection.enabled', { overrideIdentifier: e.getMode() })) {
+			if (!configurationService.getValue<boolean>('workbench.editor.untitled.languageDetection', { overrideIdentifier: e.getMode() })) {
 				return;
 			}
 
@@ -129,3 +132,6 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		return vscodeLanguageId ?? undefined;
 	}
 }
+
+Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench)
+	.registerWorkbenchContribution(LanguageDetectionService, LifecyclePhase.Eventually);
