@@ -24,7 +24,7 @@ import { OpenSearchEditorArgs } from 'vs/workbench/contrib/searchEditor/browser/
 import { getOrMakeSearchEditorInput, SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { serializeSearchResultForEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { ACTIVE_GROUP, BELOW_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 
@@ -97,7 +97,7 @@ export async function openSearchEditor(accessor: ServicesAccessor): Promise<void
 }
 
 export const openNewSearchEditor =
-	async (accessor: ServicesAccessor, _args: OpenSearchEditorArgs = {}, toSide = false) => {
+	async (accessor: ServicesAccessor, _args: OpenSearchEditorArgs = {}) => {
 		const editorService = accessor.get(IEditorService);
 		const telemetryService = accessor.get(ITelemetryService);
 		const instantiationService = accessor.get(IInstantiationService);
@@ -153,7 +153,12 @@ export const openNewSearchEditor =
 			editor.setSearchConfig(args);
 		} else {
 			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { config: args, resultsContents: '', from: 'rawData' });
-			editor = await editorService.openEditor(input, { pinned: true }, toSide ? SIDE_GROUP : ACTIVE_GROUP) as SearchEditor;
+			let editorGroup = ACTIVE_GROUP;
+			if (args.position === 'side')
+				editorGroup = SIDE_GROUP;
+			else if (args.position === 'below')
+				editorGroup = BELOW_GROUP;
+			editor = await editorService.openEditor(input, { pinned: true }, editorGroup) as SearchEditor;
 		}
 
 		const searchOnType = configurationService.getValue<ISearchConfigurationProperties>('search').searchOnType;

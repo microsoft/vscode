@@ -379,6 +379,8 @@ export interface ISearchConfigurationProperties {
 	seedWithNearestWord: boolean;
 	searchOnTypeDebouncePeriod: number;
 	mode: 'view' | 'reuseEditor' | 'newEditor';
+	newEditorGroup: 'active' | 'side' | 'bottom';
+
 	searchEditor: {
 		doubleClickBehaviour: 'selectWord' | 'goToLocation' | 'openLocationToSide',
 		reusePriorSearchConfiguration: boolean,

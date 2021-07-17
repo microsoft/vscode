@@ -34,7 +34,7 @@ import * as search from 'vs/workbench/contrib/search/common/search';
 import { CoverageDetails, DetailType, ICoveredCount, IFileCoverage, ISerializedTestResults, ITestItem, ITestItemContext, ITestMessage, SerializedTestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { ACTIVE_GROUP, SIDE_GROUP, BELOW_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
 
@@ -231,6 +231,9 @@ export namespace ViewColumn {
 
 		if (column === types.ViewColumn.Beside) {
 			return SIDE_GROUP;
+		}
+		if (column === types.ViewColumn.Below) {
+			return BELOW_GROUP;
 		}
 
 		return ACTIVE_GROUP; // default is always the active group

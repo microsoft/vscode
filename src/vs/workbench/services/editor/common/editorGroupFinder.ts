@@ -7,8 +7,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInputWithOptions, isEditorInputWithOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { IEditorGroup, GroupsOrder, preferredSideBySideGroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { PreferredGroup, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroup, GroupsOrder, preferredSideBySideGroupDirection, IEditorGroupsService, GroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { PreferredGroup, SIDE_GROUP, BELOW_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 /**
  * Finds the target `IEditorGroup` given the instructions provided
@@ -61,6 +61,11 @@ function doFindGroup(input: IEditorInputWithOptions | IUntypedEditorInput, prefe
 	// Group: Side by Side
 	else if (preferredGroup === SIDE_GROUP) {
 		group = doFindSideBySideGroup(editorGroupService, configurationService);
+	}
+
+	// Group: Below
+	else if (preferredGroup === BELOW_GROUP) {
+		group = doFindBelowGroup(editorGroupService, configurationService);
 	}
 
 	// Group: Specific Group
@@ -121,6 +126,17 @@ function doFindGroup(input: IEditorInputWithOptions | IUntypedEditorInput, prefe
 
 function doFindSideBySideGroup(editorGroupService: IEditorGroupsService, configurationService: IConfigurationService): IEditorGroup {
 	const direction = preferredSideBySideGroupDirection(configurationService);
+
+	let neighbourGroup = editorGroupService.findGroup({ direction });
+	if (!neighbourGroup) {
+		neighbourGroup = editorGroupService.addGroup(editorGroupService.activeGroup, direction);
+	}
+
+	return neighbourGroup;
+}
+
+function doFindBelowGroup(editorGroupService: IEditorGroupsService, configurationService: IConfigurationService): IEditorGroup {
+	const direction = GroupDirection.DOWN;
 
 	let neighbourGroup = editorGroupService.findGroup({ direction });
 	if (!neighbourGroup) {

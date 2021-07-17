@@ -31,10 +31,11 @@ import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEd
 import { createEditorFromSearchResult, modifySearchEditorContextLinesCommand, openNewSearchEditor, openSearchEditor, selectAllSearchEditorMatchesCommand, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorContextLinesCommand, toggleSearchEditorRegexCommand, toggleSearchEditorWholeWordCommand } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
 import { getOrMakeSearchEditorInput, SearchConfiguration, SearchEditorInput, SEARCH_EDITOR_EXT } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { VIEW_ID } from 'vs/workbench/services/search/common/search';
+import { ISearchConfiguration, VIEW_ID } from 'vs/workbench/services/search/common/search';
 import { RegisteredEditorPriority, IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 
 const OpenInEditorCommandId = 'search.action.openInEditor';
@@ -199,7 +200,7 @@ const translateLegacyConfig = (legacyConfig: LegacySearchEditorArgs & OpenSearch
 	return config;
 };
 
-export type OpenSearchEditorArgs = Partial<SearchConfiguration & { triggerSearch: boolean, focusResults: boolean, location: 'reuse' | 'new' }>;
+export type OpenSearchEditorArgs = Partial<SearchConfiguration & { triggerSearch: boolean, focusResults: boolean, location: 'reuse' | 'new', position: 'side' | 'below' | null }>;
 const openArgDescription = {
 	description: 'Open a new search editor. Arguments passed can include variables like ${relativeFileDirname}.',
 	args: [{
@@ -257,7 +258,14 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor, args: LegacySearchEditorArgs | OpenSearchEditorArgs) {
-		await accessor.get(IInstantiationService).invokeFunction(openNewSearchEditor, translateLegacyConfig({ location: 'new', ...args }));
+		let finalArgs = translateLegacyConfig({ location: 'new', ...args });
+		const searchConfig = accessor.get(IConfigurationService).getValue<ISearchConfiguration>().search;
+		const newEditorGroup = searchConfig.newEditorGroup;
+		if (newEditorGroup === 'side')
+			finalArgs.position = 'side';
+		else if (newEditorGroup === 'bottom')
+			finalArgs.position = 'below';
+		await accessor.get(IInstantiationService).invokeFunction(openNewSearchEditor, finalArgs);
 	}
 });
 
@@ -287,7 +295,9 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor, args: LegacySearchEditorArgs | OpenSearchEditorArgs) {
-		await accessor.get(IInstantiationService).invokeFunction(openNewSearchEditor, translateLegacyConfig(args), true);
+		let finalArgs = translateLegacyConfig(args);
+		finalArgs.position = "side";
+		await accessor.get(IInstantiationService).invokeFunction(openNewSearchEditor, finalArgs);
 	}
 });
 

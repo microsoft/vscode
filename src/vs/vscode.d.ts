@@ -5480,6 +5480,12 @@ declare module 'vscode' {
 		 */
 		Beside = -2,
 		/**
+		 * A *symbolic* editor column representing the column below the active one. This value can be used
+		 * when opening editors, but the *resolved* {@link TextEditor.viewColumn viewColumn}-value of
+		 * editors will always be `One`, `Two`, `Three`,... or `undefined` but never `Below`.
+		 */
+		Below = -3,
+		/**
 		 * The first editor column.
 		 */
 		One = 1,

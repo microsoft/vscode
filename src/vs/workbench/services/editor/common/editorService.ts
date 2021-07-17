@@ -26,7 +26,13 @@ export type ACTIVE_GROUP_TYPE = typeof ACTIVE_GROUP;
 export const SIDE_GROUP = -2;
 export type SIDE_GROUP_TYPE = typeof SIDE_GROUP;
 
-export type PreferredGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
+/**
+ * Open an editor below the active group.
+ */
+export const BELOW_GROUP = -3;
+export type BELOW_GROUP_TYPE = typeof SIDE_GROUP;
+
+export type PreferredGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | BELOW_GROUP_TYPE;
 
 export function isPreferredGroup(obj: unknown): obj is PreferredGroup {
 	const candidate = obj as PreferredGroup | undefined;

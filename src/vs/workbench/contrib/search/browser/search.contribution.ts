@@ -614,6 +614,7 @@ class ShowAllSymbolsAction extends Action {
 }
 
 const SEARCH_MODE_CONFIG = 'search.mode';
+const SEARCH_NEW_EDITOR_GROUP_CONFIG = 'search.newEditorGroup';
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: VIEWLET_ID,
@@ -856,6 +857,17 @@ configurationRegistry.registerConfiguration({
 				nls.localize('search.mode.view', "Search in the search view, either in the panel or sidebar."),
 				nls.localize('search.mode.reuseEditor', "Search in an existing search editor if present, otherwise in a new search editor."),
 				nls.localize('search.mode.newEditor', "Search in a new search editor."),
+			]
+		},
+		[SEARCH_NEW_EDITOR_GROUP_CONFIG]: {
+			type: 'string',
+			enum: ['active', 'side', 'bottom'],
+			default: 'active',
+			markdownDescription: nls.localize('search.newEditorGroup', "Controls group where new `Search: Find in Files` and `Find in Folder` operations occur when opening a new search editor"),
+			enumDescriptions: [
+				nls.localize('search.newEditorGroup.active', "Search in the active editor group."),
+				nls.localize('search.newEditorGroup.side', "Search in editor group to the side."),
+				nls.localize('search.newEditorGroup.beside', "Search in editor group below."),
 			]
 		},
 		'search.useRipgrep': {

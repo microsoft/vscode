@@ -193,6 +193,7 @@ export const FindInFilesCommand: ICommandHandler = (accessor, args: IFindInFiles
 			}
 		});
 	} else {
+		const newEditorGroup = searchConfig.newEditorGroup;
 		const convertArgs = (args: IFindInFilesArgs): OpenSearchEditorArgs => ({
 			location: mode === 'newEditor' ? 'new' : 'reuse',
 			query: args.query,
@@ -205,7 +206,12 @@ export const FindInFilesCommand: ICommandHandler = (accessor, args: IFindInFiles
 			onlyOpenEditors: args.onlyOpenEditors,
 			showIncludesExcludes: !!(args.filesToExclude || args.filesToExclude || !args.useExcludeSettingsAndIgnoreFiles),
 		});
-		accessor.get(ICommandService).executeCommand(OpenEditorCommandId, convertArgs(args));
+		let finalArgs = convertArgs(args);
+		if (newEditorGroup === 'side')
+			finalArgs.position = 'side';
+		else if (newEditorGroup === 'bottom')
+			finalArgs.position = 'below';
+		accessor.get(ICommandService).executeCommand(OpenEditorCommandId, finalArgs);
 	}
 };
 
