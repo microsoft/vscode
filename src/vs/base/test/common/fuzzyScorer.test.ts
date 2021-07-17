@@ -1205,4 +1205,30 @@ suite('Fuzzy Scorer', () => {
 		assert.ok(typeof score[0] === 'number');
 		assert.ok(score[1].length > 0);
 	});
+
+	test('Fuzzy match should allow exact matches match', function () {
+		const target = 'exact';
+		const score = _doScore(target, '"exct"', true);
+		assert.strictEqual(score[0], 0);
+	});
+
+	test('Fuzzy match should exclude non-exact matches', function () {
+		const target = 'exact';
+		const score = _doScore(target, '"exact"', true);
+		assert.strictEqual(score[0], 63);
+	});
+
+	test('Fuzzy match should allow excluded matches', function () {
+		const target = 'include exclude';
+		let score = _doScore(target, '-exclude', true);
+		assert.strictEqual(score[0], 0);
+		score = _doScore(target, '-"exclude"', true);
+		assert.strictEqual(score[0], 0);
+	});
+
+	test('Fuzzy match should allow excluded matches (non-excluded)', function () {
+		const target = 'yes';
+		const score = _doScore(target, '-exclude', true);
+		assert.strictEqual(score[0], 1);
+	});
 });

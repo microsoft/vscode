@@ -27,7 +27,29 @@ export function scoreFuzzy(target: string, query: string, queryLower: string, fu
 	}
 
 	const targetLength = target.length;
-	const queryLength = query.length;
+	let queryLength = query.length;
+
+	const targetLower = target.toLowerCase();
+
+	// Check if the query is in quotes or is a negation
+	let match = /^(-?)"([^"]+)"$/.exec(queryLower);
+	if (match === null)
+		match = /^(-)(.+)$/.exec(queryLower); // Allow excludes with no quotes
+	if (match !== null) {
+		queryLower = match[2];
+		queryLength = queryLower.length;
+		let includesFullString = targetLower.includes(queryLower);
+		if (includesFullString) {
+			if (match[1] === '-')
+				return NO_SCORE;
+			return doScoreFuzzy(query, queryLower, queryLength, target, targetLower, targetLength);
+		}
+		else {
+			if (match[1] === '')
+				return NO_SCORE;
+			return [1, []];
+		}
+	}
 
 	if (targetLength < queryLength) {
 		return NO_SCORE; // impossible for query to be contained in target
@@ -36,8 +58,6 @@ export function scoreFuzzy(target: string, query: string, queryLower: string, fu
 	// if (DEBUG) {
 	// 	console.group(`Target: ${target}, Query: ${query}`);
 	// }
-
-	const targetLower = target.toLowerCase();
 
 	// When not searching fuzzy, we require the query to be contained fully
 	// in the target string contiguously.
