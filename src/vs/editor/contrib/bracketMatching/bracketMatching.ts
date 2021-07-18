@@ -216,8 +216,10 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 		this._editor.getSelections().forEach(selection => {
 			const position = selection.getStartPosition();
 			let brackets = model.matchBracket(position);
+			let forceOpenBracketFirst = false;
 
 			if (!brackets) {
+				forceOpenBracketFirst = true;
 				brackets = model.findEnclosingBrackets(position);
 				if (!brackets) {
 					const nextBracket = model.findNextBracket(position);
@@ -231,10 +233,22 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 			let selectTo: Position | null = null;
 
 			if (brackets) {
-				brackets.sort(Range.compareRangesUsingStarts);
-				const [open, close] = brackets;
-				selectFrom = selectBrackets ? open.getStartPosition() : open.getEndPosition();
-				selectTo = selectBrackets ? close.getEndPosition() : close.getStartPosition();
+				let [firstBracket, secondBracket] = brackets;
+				let startsFromClosingBracket = Range.compareRangesUsingStarts(firstBracket, secondBracket) > 0;
+				if (startsFromClosingBracket && forceOpenBracketFirst) {
+					let tmp = firstBracket;
+					firstBracket = secondBracket;
+					secondBracket = tmp;
+					startsFromClosingBracket = false;
+				}
+				if (startsFromClosingBracket) {
+					selectFrom = selectBrackets ? firstBracket.getEndPosition() : firstBracket.getStartPosition();
+					selectTo = selectBrackets ? secondBracket.getStartPosition() : secondBracket.getEndPosition();
+				}
+				else {
+					selectFrom = selectBrackets ? firstBracket.getStartPosition() : firstBracket.getEndPosition();
+					selectTo = selectBrackets ? secondBracket.getEndPosition() : secondBracket.getStartPosition();
+				}
 			}
 
 			if (selectFrom && selectTo) {
