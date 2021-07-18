@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { timeout } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -35,6 +37,8 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	readonly onDidChangeActiveInstance = this._onDidChangeActiveInstance.event;
 	private readonly _onDidChangeInstances = new Emitter<void>();
 	readonly onDidChangeInstances = this._onDidChangeInstances.event;
+	private readonly _onDidRequestDetachInstance = new Emitter<{ workspaceId: string, instanceId: number }>();
+	readonly onDidRequestDetachInstance = this._onDidRequestDetachInstance.event;
 
 	constructor(
 		@ICommandService private readonly _commandService: ICommandService,
@@ -152,7 +156,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		input.setGroup(editorPane?.group);
 	}
 
-	getOrCreateEditorInput(instance: ITerminalInstance | SerializedTerminalEditorInput, isFutureSplit: boolean = false): TerminalEditorInput {
+	getOrCreateEditorInput(instance: ITerminalInstance | SerializedTerminalEditorInput | URI, isFutureSplit: boolean = false): TerminalEditorInput {
 		let cachedEditor;
 		if ('id' in instance) {
 			cachedEditor = this._editorInputs.get(instance.id);
@@ -167,7 +171,23 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			instance = this._terminalInstanceService.createInstance({ attachPersistentProcess: instance }, TerminalLocation.Editor);
 		}
 
-		const input = this._instantiationService.createInstance(TerminalEditorInput, instance);
+		if (URI.isUri(instance)) {
+			console.log('here');
+			const [, workspaceId, instanceId] = instance.path.split('/');
+
+			// Terminal from a different window
+			this._onDidRequestDetachInstance.fire({ workspaceId, instanceId: Number.parseInt(instanceId) });
+			timeout(300);
+			if (this.activeInstance) {
+				instance = this.activeInstance;
+			} else {
+				// should not happen
+				instance = this._terminalInstanceService.createInstance({});
+			}
+		}
+
+		const input = this._instantiationService.createInstance(TerminalEditorInput, instance.resource, instance);
+
 		instance.target = TerminalLocation.Editor;
 		this._editorInputs.set(instance.instanceId, input);
 		this._instanceDisposables.set(instance.instanceId, [

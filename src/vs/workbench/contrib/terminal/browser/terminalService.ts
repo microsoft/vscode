@@ -187,11 +187,9 @@ export class TerminalService implements ITerminalService {
 					if (sourceGroup) {
 						sourceGroup.removeInstance(instance);
 					}
-				} else {
-					instance = _terminalInstanceService.createInstance({});
 				}
 				return {
-					editor: this._terminalEditorService.getOrCreateEditorInput(instance),
+					editor: this._terminalEditorService.getOrCreateEditorInput(instance || resource),
 					options: {
 						...options,
 						pinned: true,
@@ -274,6 +272,15 @@ export class TerminalService implements ITerminalService {
 				}
 			}
 		});
+		this._terminalEditorService.onDidRequestDetachInstance(async (e) => {
+			const attachPersistentProcess = await this._primaryOffProcessTerminalService?.requestDetachInstance(e.workspaceId, e.instanceId);
+			console.log(attachPersistentProcess);
+			this.createTerminal({
+				target: TerminalLocation.Editor,
+				config: { attachPersistentProcess }
+			});
+		});
+
 		initPromise.then(() => this._setConnected());
 
 		// Wait up to 5 seconds for profiles to be ready so it's assured that we know the actual
@@ -619,6 +626,10 @@ export class TerminalService implements ITerminalService {
 
 	private _getInstanceIdFromUri(resource: URI): number | undefined {
 		if (resource.scheme !== Schemas.vscodeTerminal) {
+			return undefined;
+		}
+		const [, workspaceId,] = resource.path.split('/');
+		if (this._workspaceContextService.getWorkspace().id !== workspaceId) {
 			return undefined;
 		}
 		const base = basename(resource.path);
