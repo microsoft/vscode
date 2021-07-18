@@ -61,6 +61,7 @@ export const COMPARE_RESOURCE_COMMAND_ID = 'compareFiles';
 export const COMPARE_WITH_SAVED_COMMAND_ID = 'workbench.files.action.compareWithSaved';
 export const COPY_PATH_COMMAND_ID = 'copyFilePath';
 export const COPY_RELATIVE_PATH_COMMAND_ID = 'copyRelativeFilePath';
+export const COPY_FILENAME_COMMAND_ID = 'copyFilename';
 
 export const SAVE_FILE_AS_COMMAND_ID = 'workbench.action.files.saveAs';
 export const SAVE_FILE_AS_LABEL = nls.localize('saveAs', "Save As...");
@@ -289,6 +290,14 @@ async function resourcesToClipboard(resources: URI[], relative: boolean, clipboa
 	}
 }
 
+async function resourceNamesToClipboard(resources: URI[], clipboardService: IClipboardService): Promise<void> {
+	if (resources.length) {
+		const lineDelimiter = isWindows ? '\r\n' : '\n';
+		const text = resources.map(resource => basename(resource)).join(lineDelimiter);
+		await clipboardService.writeText(text);
+	}
+}
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: EditorContextKeys.focus.toNegated(),
@@ -328,6 +337,16 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const resource = EditorResourceAccessor.getOriginalUri(activeInput, { supportSideBySide: SideBySideEditor.PRIMARY });
 		const resources = resource ? [resource] : [];
 		await resourcesToClipboard(resources, false, accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: EditorContextKeys.focus.toNegated(),
+	id: COPY_FILENAME_COMMAND_ID,
+	handler: async (accessor, resource: URI | object) => {
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
+		await resourceNamesToClipboard(resources, accessor.get(IClipboardService));
 	}
 });
 
