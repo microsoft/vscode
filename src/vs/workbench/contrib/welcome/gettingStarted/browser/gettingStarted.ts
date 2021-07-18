@@ -1247,6 +1247,11 @@ export class GettingStartedPage extends EditorPane {
 	private buildCategorySlide(categoryID: string, selectedStep?: string) {
 		if (this.detailsScrollbar) { this.detailsScrollbar.dispose(); }
 
+		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
+			// Remove internal extension id specifier from exposed id's
+			this.extensionService.activateByEvent(`onWalkthrough:${categoryID.replace(/[^#]+#/, '')}`);
+		});
+
 		this.detailsPageDisposables.clear();
 
 		const category = this.gettingStartedCategories.find(category => category.id === categoryID);
