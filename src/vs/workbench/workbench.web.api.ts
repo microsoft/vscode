@@ -346,7 +346,7 @@ interface IWorkbenchConstructionOptions {
 	/**
 	 * List of extensions to be enabled.
 	 */
-	readonly enableExtensions?: readonly ExtensionId[];
+	readonly enabledExtensions?: readonly ExtensionId[];
 
 	/**
 	 * [TEMPORARY]: This will be removed soon.
