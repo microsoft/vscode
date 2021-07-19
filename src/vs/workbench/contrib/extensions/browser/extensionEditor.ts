@@ -918,37 +918,18 @@ export class ExtensionEditor extends EditorPane {
 		return Promise.resolve({ focus() { dependenciesTree.domFocus(); } });
 	}
 
-	private openExtensionPack(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+	private async openExtensionPack(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		if (token.isCancellationRequested) {
 			return Promise.resolve(null);
 		}
-
-		if (arrays.isFalsyOrEmpty(extension.extensionPack)) {
-			append(template.content, $('p.nocontent')).textContent = localize('noextensions', "No Extensions");
-			return Promise.resolve(template.content);
+		const manifest = await this.loadContents(() => this.extensionManifest!.get(), template.content);
+		if (token.isCancellationRequested) {
+			return null;
 		}
-
-		const content = $('div', { class: 'subcontent' });
-		const scrollableContent = new DomScrollableElement(content, {});
-		append(template.content, scrollableContent.getDomNode());
-		this.contentDisposables.add(scrollableContent);
-
-		const dependenciesTree = this.instantiationService.createInstance(ExtensionsTree,
-			new ExtensionData(extension, null, extension => extension.extensionPack || [], this.extensionsWorkbenchService), content,
-			{
-				listBackground: editorBackground
-			});
-		const layout = () => {
-			scrollableContent.scanDomNode();
-			const scrollDimensions = scrollableContent.getScrollDimensions();
-			dependenciesTree.layout(scrollDimensions.height);
-		};
-		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
-		this.contentDisposables.add(toDisposable(removeLayoutParticipant));
-
-		this.contentDisposables.add(dependenciesTree);
-		scrollableContent.scanDomNode();
-		return Promise.resolve({ focus() { dependenciesTree.domFocus(); } });
+		if (!manifest) {
+			return null;
+		}
+		return this.renderExtensionPack(manifest, template.content, token);
 	}
 
 	private async openRuntimeStatus(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
@@ -1021,9 +1002,9 @@ export class ExtensionEditor extends EditorPane {
 		return element;
 	}
 
-	private async renderExtensionPack(manifest: IExtensionManifest, parent: HTMLElement, token: CancellationToken): Promise<void> {
+	private async renderExtensionPack(manifest: IExtensionManifest, parent: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {
 		if (token.isCancellationRequested) {
-			return;
+			return null;
 		}
 
 		const content = $('div', { class: 'subcontent' });
@@ -1038,6 +1019,8 @@ export class ExtensionEditor extends EditorPane {
 		this.contentDisposables.add(scrollableContent);
 		this.contentDisposables.add(extensionsGridView);
 		this.contentDisposables.add(toDisposable(arrays.insert(this.layoutParticipants, { layout: () => scrollableContent.scanDomNode() })));
+
+		return content;
 	}
 
 	private renderSettings(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {

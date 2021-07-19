@@ -346,7 +346,7 @@ export class ExtensionPackCountWidget extends ExtensionWidget {
 
 	render(): void {
 		this.clear();
-		if (!this.extension || !this.extension.extensionPack.length) {
+		if (!this.extension || !(this.extension.categories?.some(category => category.toLowerCase() === 'extension packs')) || !this.extension.extensionPack.length) {
 			return;
 		}
 		this.element = append(this.parent, $('.extension-badge.extension-pack-badge'));
