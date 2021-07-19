@@ -182,6 +182,8 @@ export class TerminalService implements ITerminalService {
 			},
 			({ resource, options }) => {
 				let instance = this.getInstanceFromResource(resource);
+				console.log('here', instance);
+				console.log(resource);
 				if (instance) {
 					const sourceGroup = this._terminalGroupService.getGroupForInstance(instance);
 					if (sourceGroup) {
@@ -272,12 +274,12 @@ export class TerminalService implements ITerminalService {
 				}
 			}
 		});
+
 		this._terminalEditorService.onDidRequestDetachInstance(async (e) => {
 			const attachPersistentProcess = await this._primaryOffProcessTerminalService?.requestDetachInstance(e.workspaceId, e.instanceId);
-			this.createTerminal({
-				target: TerminalLocation.Editor,
-				config: { attachPersistentProcess }
-			});
+			if (attachPersistentProcess) {
+				this._primaryOffProcessTerminalService?.fireAcceptDetachInstanceReply(attachPersistentProcess);
+			}
 		});
 
 		initPromise.then(() => this._setConnected());
@@ -679,7 +681,6 @@ export class TerminalService implements ITerminalService {
 				break;
 		}
 
-		this._initInstanceListeners(instance);
 
 		if (instanceToSplit.target !== TerminalLocation.Editor) {
 			this._terminalGroupService.groups.forEach((g, i) => g.setVisible(i === this._terminalGroupService.activeGroupIndex));
@@ -764,12 +765,9 @@ export class TerminalService implements ITerminalService {
 		}));
 		instance.addDisposable(instance.onMaximumDimensionsChanged(() => this._onDidMaxiumumDimensionsChange.fire(instance)));
 		instance.addDisposable(instance.onDidFocus(this._onDidChangeActiveInstance.fire, this._onDidChangeActiveInstance));
-		instance.addDisposable(instance.onRequestAddInstanceToGroup(async e => {
-			await this._addInstanceToGroup(instance, e);
-		}));
+		instance.addDisposable(instance.onRequestAddInstanceToGroup(async e => await this._addInstanceToGroup(instance, e)));
 	}
 
-	@debounce(50)
 	private async _addInstanceToGroup(instance: ITerminalInstance, e: IRequestAddInstanceToGroupEvent): Promise<void> {
 		const terminalIdentifier = parseTerminalUri(e.uri);
 		if (terminalIdentifier.instanceId === undefined) {
@@ -1108,7 +1106,6 @@ export class TerminalService implements ITerminalService {
 			this._backgroundedTerminalDisposables.set(instance.instanceId, [
 				instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance)
 			]);
-			this._initInstanceListeners(instance);
 			return instance;
 		}
 
@@ -1124,7 +1121,6 @@ export class TerminalService implements ITerminalService {
 			const group = this._terminalGroupService.createGroup(shellLaunchConfig);
 			instance = group.terminalInstances[0];
 		}
-		this._initInstanceListeners(instance);
 		return instance;
 	}
 

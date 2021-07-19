@@ -9,15 +9,17 @@ import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IShellLaunchConfig, TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
-import { ITerminalEditorService, ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRemoteTerminalService, ITerminalEditorService, ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { SerializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
 import { parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUriParser';
+import { ILocalTerminalService, IOffProcessTerminalService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export class TerminalEditorService extends Disposable implements ITerminalEditorService {
@@ -29,6 +31,8 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 
 	private _editorInputs: Map</*instanceId*/number, TerminalEditorInput> = new Map();
 	private _instanceDisposables: Map</*instanceId*/number, IDisposable[]> = new Map();
+
+	private readonly _primaryOffProcessTerminalService?: IOffProcessTerminalService;
 
 	private readonly _onDidDisposeInstance = new Emitter<ITerminalInstance>();
 	readonly onDidDisposeInstance = this._onDidDisposeInstance.event;
@@ -46,9 +50,29 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		@IEditorService private readonly _editorService: IEditorService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ILifecycleService lifecycleService: ILifecycleService
+		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService,
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@optional(ILocalTerminalService) private readonly _localTerminalService: ILocalTerminalService
 	) {
 		super();
+		this._primaryOffProcessTerminalService = !!environmentService.remoteAuthority ? this._remoteTerminalService : (this._localTerminalService || this._remoteTerminalService);
+		this._primaryOffProcessTerminalService.onDidAcceptAttachInstanceReply(attachPersistentProcess => {
+			console.log('on did accept attach instance reply');
+			const input = this._editorInputs.get(-1);
+			if (input) {
+				this._editorInputs.delete(-1);
+				const instance = this._terminalInstanceService.createInstance({ attachPersistentProcess }, TerminalLocation.Editor);
+				input.setTerminalInstance(instance);
+				this._editorInputs.set(instance.instanceId, input);
+				this._instanceDisposables.set(instance.instanceId, [
+					instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance),
+					instance.onDidFocus(this._onDidFocusInstance.fire, this._onDidFocusInstance)
+				]);
+				this.instances.push(instance);
+				this._onDidChangeInstances.fire();
+			}
+		});
 		this._register(toDisposable(() => {
 			for (const d of this._instanceDisposables.values()) {
 				dispose(d);
@@ -175,29 +199,27 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		// Terminal from a different window
 		if (URI.isUri(instance)) {
 			const terminalIdentifier = parseTerminalUri(instance);
-			if (!terminalIdentifier?.instanceId) {
-				instance = this._terminalInstanceService.createInstance({});
-			} else {
+			if (terminalIdentifier.instanceId) {
 				this._onDidRequestDetachInstance.fire({ workspaceId: terminalIdentifier.workspaceId, instanceId: terminalIdentifier.instanceId });
-			}
-			if (this.activeInstance) {
-				instance = this.activeInstance;
-			} else {
-				// should not happen
-				instance = this._terminalInstanceService.createInstance({});
 			}
 		}
 
-		const input = this._instantiationService.createInstance(TerminalEditorInput, instance.resource, instance);
+		let input: TerminalEditorInput | undefined = undefined;
+		if ('instanceId' in instance) {
+			instance.target = TerminalLocation.Editor;
+			input = this._instantiationService.createInstance(TerminalEditorInput, instance.resource, instance);
+			this._editorInputs.set(instance.instanceId, input);
+			this._instanceDisposables.set(instance.instanceId, [
+				instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance),
+				instance.onDidFocus(this._onDidFocusInstance.fire, this._onDidFocusInstance)
+			]);
+			this.instances.push(instance);
+			this._onDidChangeInstances.fire();
+		} else {
+			input = this._instantiationService.createInstance(TerminalEditorInput, undefined, undefined);
+			this._editorInputs.set(-1, input);
+		}
 
-		instance.target = TerminalLocation.Editor;
-		this._editorInputs.set(instance.instanceId, input);
-		this._instanceDisposables.set(instance.instanceId, [
-			instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance),
-			instance.onDidFocus(this._onDidFocusInstance.fire, this._onDidFocusInstance)
-		]);
-		this.instances.push(instance);
-		this._onDidChangeInstances.fire();
 		return input;
 	}
 

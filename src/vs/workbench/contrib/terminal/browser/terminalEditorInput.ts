@@ -86,7 +86,7 @@ export class TerminalEditorInput extends EditorInput {
 	}
 
 	constructor(
-		public readonly resource: URI,
+		public readonly resource: URI | undefined,
 		private _terminalInstance: ITerminalInstance | undefined,
 		@IThemeService private readonly _themeService: IThemeService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
@@ -140,7 +140,7 @@ export class TerminalEditorInput extends EditorInput {
 	}
 
 	override getName() {
-		return this._terminalInstance?.title || this.resource.fragment;
+		return this._terminalInstance?.title || this.resource?.fragment || '';
 	}
 
 	override getLabelExtraClasses(): string[] {

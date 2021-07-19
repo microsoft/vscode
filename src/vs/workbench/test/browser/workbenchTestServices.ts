@@ -1666,10 +1666,9 @@ export class TestLocalTerminalService implements ILocalTerminalService {
 	onPtyHostRestart = Event.None;
 	onDidMoveWindowInstance = Event.None;
 	onDidRequestDetach = Event.None;
+	onDidAcceptAttachInstanceReply = Event.None;
 
-	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess> {
-		return new TestTerminalChildProcess(shouldPersist);
-	}
+	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess> { return new TestTerminalChildProcess(shouldPersist); }
 	async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> { throw new Error('Method not implemented.'); }
 	async listProcesses(): Promise<IProcessDetails[]> { throw new Error('Method not implemented.'); }
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> { throw new Error('Method not implemented.'); }
@@ -1685,6 +1684,7 @@ export class TestLocalTerminalService implements ILocalTerminalService {
 	updateIcon(id: number, icon: URI | { light: URI; dark: URI } | { id: string, color?: { id: string } }, color?: string): Promise<void> { throw new Error('Method not implemented.'); }
 	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> { throw new Error('Method not implemented.'); }
 	acceptDetachInstanceReply(requestId: number, persistentProcessId: number): Promise<void> { throw new Error('Method not implemented.'); }
+	fireAcceptDetachInstanceReply(options: ICreateTerminalOptions): void { throw new Error('Method not implemented.'); }
 }
 
 class TestTerminalChildProcess implements ITerminalChildProcess {
