@@ -47,6 +47,7 @@ interface FoldingStateMemento {
 	collapsedRegions?: CollapseMemento;
 	lineCount?: number;
 	provider?: string;
+	foldedImports?: boolean
 }
 
 export class FoldingController extends Disposable implements IEditorContribution {
@@ -64,6 +65,8 @@ export class FoldingController extends Disposable implements IEditorContribution
 	private _useFoldingProviders: boolean;
 	private _unfoldOnClickAfterEndOfLine: boolean;
 	private _restoringViewState: boolean;
+	private _foldingImportsByDefault: boolean;
+	private _currentModelHasFoldedImports: boolean;
 
 	private readonly foldingDecorationProvider: FoldingDecorationProvider;
 
@@ -95,6 +98,8 @@ export class FoldingController extends Disposable implements IEditorContribution
 		this._useFoldingProviders = options.get(EditorOption.foldingStrategy) !== 'indentation';
 		this._unfoldOnClickAfterEndOfLine = options.get(EditorOption.unfoldOnClickAfterEndOfLine);
 		this._restoringViewState = false;
+		this._currentModelHasFoldedImports = false;
+		this._foldingImportsByDefault = options.get(EditorOption.foldingImportsByDefault);
 
 		this.foldingModel = null;
 		this.hiddenRangeModel = null;
@@ -133,6 +138,9 @@ export class FoldingController extends Disposable implements IEditorContribution
 			if (e.hasChanged(EditorOption.unfoldOnClickAfterEndOfLine)) {
 				this._unfoldOnClickAfterEndOfLine = this.editor.getOptions().get(EditorOption.unfoldOnClickAfterEndOfLine);
 			}
+			if (e.hasChanged(EditorOption.foldingImportsByDefault)) {
+				this._foldingImportsByDefault = this.editor.getOptions().get(EditorOption.foldingImportsByDefault);
+			}
 		}));
 		this.onModelChanged();
 	}
@@ -148,7 +156,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		if (this.foldingModel) { // disposed ?
 			let collapsedRegions = this.foldingModel.isInitialized ? this.foldingModel.getMemento() : this.hiddenRangeModel!.getMemento();
 			let provider = this.rangeProvider ? this.rangeProvider.id : undefined;
-			return { collapsedRegions, lineCount: model.getLineCount(), provider };
+			return { collapsedRegions, lineCount: model.getLineCount(), provider, foldedImports: this._currentModelHasFoldedImports };
 		}
 		return undefined;
 	}
@@ -161,7 +169,12 @@ export class FoldingController extends Disposable implements IEditorContribution
 		if (!model || !this._isEnabled || model.isTooLargeForTokenization() || !this.hiddenRangeModel) {
 			return;
 		}
-		if (!state || !state.collapsedRegions || state.lineCount !== model.getLineCount()) {
+		if (!state || state.lineCount !== model.getLineCount()) {
+			return;
+		}
+
+		this._currentModelHasFoldedImports = !!state.foldedImports;
+		if (!state.collapsedRegions) {
 			return;
 		}
 
@@ -170,7 +183,6 @@ export class FoldingController extends Disposable implements IEditorContribution
 		}
 
 		const collapsedRegions = state.collapsedRegions;
-
 		// set the hidden ranges right away, before waiting for the folding model.
 		if (this.hiddenRangeModel.applyMemento(collapsedRegions)) {
 			const foldingModel = this.getFoldingModel();
@@ -198,6 +210,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 			return;
 		}
 
+		this._currentModelHasFoldedImports = false;
 		this.foldingModel = new FoldingModel(model, this.foldingDecorationProvider);
 		this.localToDispose.add(this.foldingModel);
 
@@ -293,6 +306,11 @@ export class FoldingController extends Disposable implements IEditorContribution
 						let selections = this.editor.getSelections();
 						let selectionLineNumbers = selections ? selections.map(s => s.startLineNumber) : [];
 						foldingModel.update(foldingRanges, selectionLineNumbers);
+
+						if (this._foldingImportsByDefault && !this._currentModelHasFoldedImports) {
+							this._currentModelHasFoldedImports = true;
+							setCollapseStateForType(foldingModel, FoldingRangeKind.Imports.value, true);
+						}
 					}
 					return foldingModel;
 				});
