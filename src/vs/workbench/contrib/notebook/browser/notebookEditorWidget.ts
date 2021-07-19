@@ -2739,8 +2739,8 @@ export const cellSymbolHighlight = registerColor('notebook.symbolHighlightBackgr
 }, nls.localize('notebook.symbolHighlightBackground', "Background color of highlighted cell"));
 
 export const cellEditorBackground = registerColor('notebook.cellEditorBackground', {
-	light: null,
-	dark: null,
+	light: transparent(foreground, 0.04),
+	dark: transparent(foreground, 0.04),
 	hc: null
 }, nls.localize('notebook.cellEditorBackground', "Cell editor background color."));
 
