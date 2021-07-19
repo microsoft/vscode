@@ -19,7 +19,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
 import { hash } from 'vs/base/common/hash';
 import { isEmptyObject } from 'vs/base/common/types';
-import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 export class WorkingCopyBackupsModel {
 
@@ -404,7 +404,7 @@ class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingC
 		}
 
 		return {
-			typeId: typeId ?? '', // Fallback for previous backups that do not encode the typeId (TODO@bpasero remove me eventually)
+			typeId: typeId ?? NO_TYPE_ID,
 			resource: URI.parse(resourcePreamble)
 		};
 	}

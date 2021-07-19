@@ -206,9 +206,15 @@ export function isProgressMessage(p: ISearchProgressItem | ISerializedSearchProg
 	return !!(p as IProgressMessage).message;
 }
 
+export interface ITextSearchCompleteMessage {
+	text: string;
+	type: TextSearchCompleteMessageType;
+	trusted?: boolean;
+}
+
 export interface ISearchCompleteStats {
 	limitHit?: boolean;
-	messages: { text: string, type: TextSearchCompleteMessageType }[];
+	messages: ITextSearchCompleteMessage[];
 	stats?: IFileSearchStats | ITextSearchStats;
 }
 
@@ -366,6 +372,7 @@ export interface ISearchConfigurationProperties {
 	usePCRE2: boolean;
 	actionsPosition: 'auto' | 'right';
 	maintainFileSearchCache: boolean;
+	maxResults: number | null;
 	collapseResults: 'auto' | 'alwaysCollapse' | 'alwaysExpand';
 	searchOnType: boolean;
 	seedOnFocus: boolean;
@@ -508,13 +515,13 @@ export interface ISearchEngine<T> {
 export interface ISerializedSearchSuccess {
 	type: 'success';
 	limitHit: boolean;
-	messages: { text: string, type: TextSearchCompleteMessageType }[];
+	messages: ITextSearchCompleteMessage[];
 	stats?: IFileSearchStats | ITextSearchStats;
 }
 
 export interface ISearchEngineSuccess {
 	limitHit: boolean;
-	messages: { text: string, type: TextSearchCompleteMessageType }[];
+	messages: ITextSearchCompleteMessage[];
 	stats: ISearchEngineStats;
 }
 

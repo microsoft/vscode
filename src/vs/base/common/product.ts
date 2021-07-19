@@ -25,6 +25,11 @@ export type ExtensionUntrustedWorkspaceSupport = {
 	readonly override?: boolean | 'limited'
 };
 
+export type ExtensionVirtualWorkspaceSupport = {
+	readonly default?: boolean,
+	readonly override?: boolean
+};
+
 export interface IProductConfiguration {
 	readonly version: string;
 	readonly date?: string;
@@ -46,6 +51,7 @@ export interface IProductConfiguration {
 	readonly downloadUrl?: string;
 	readonly updateUrl?: string;
 	readonly webEndpointUrl?: string;
+	readonly webEndpointUrlTemplate?: string;
 	readonly target?: string;
 
 	readonly settingsSearchBuildId?: number;
@@ -63,6 +69,7 @@ export interface IProductConfiguration {
 	readonly extensionsGallery?: {
 		readonly serviceUrl: string;
 		readonly itemUrl: string;
+		readonly resourceUrlTemplate: string;
 		readonly controlUrl: string;
 		readonly recommendationsUrl: string;
 	};
@@ -74,6 +81,7 @@ export interface IProductConfiguration {
 	readonly remoteExtensionTips?: { [remoteName: string]: IRemoteExtensionTip; };
 	readonly extensionKeywords?: { [extension: string]: readonly string[]; };
 	readonly keymapExtensionTips?: readonly string[];
+	readonly languageExtensionTips?: readonly string[];
 	readonly trustedExtensionUrlPublicKeys?: { [id: string]: string[]; };
 
 	readonly crashReporter?: {
@@ -119,10 +127,11 @@ export interface IProductConfiguration {
 	readonly portable?: string;
 
 	readonly extensionKind?: { readonly [extensionId: string]: ('ui' | 'workspace' | 'web')[]; };
+	readonly extensionPointExtensionKind?: { readonly [extensionPointId: string]: ('ui' | 'workspace' | 'web')[]; };
 	readonly extensionSyncedKeys?: { readonly [extensionId: string]: string[]; };
 	readonly extensionAllowedProposedApi?: readonly string[];
 	readonly extensionUntrustedWorkspaceSupport?: { readonly [extensionId: string]: ExtensionUntrustedWorkspaceSupport };
-	readonly extensionVirtualWorkspacesSupport?: { readonly [extensionId: string]: { default?: boolean, override?: boolean } };
+	readonly extensionVirtualWorkspacesSupport?: { readonly [extensionId: string]: ExtensionVirtualWorkspaceSupport };
 
 	readonly msftInternalDomains?: string[];
 	readonly linkProtectionTrustedDomains?: readonly string[];
@@ -130,6 +139,8 @@ export interface IProductConfiguration {
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
 
 	readonly darwinUniversalAssetId?: string;
+
+	readonly webviewContentExternalBaseUrlTemplate?: string;
 }
 
 export type ImportantExtensionTip = { name: string; languages?: string[]; pattern?: string; isExtensionPack?: boolean };

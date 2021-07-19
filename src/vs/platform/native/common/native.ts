@@ -129,6 +129,10 @@ export interface ICommonNativeHostService {
 	toggleWindowTabsBar(): Promise<void>;
 	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
 
+	// macOS Shell command
+	installShellCommand(): Promise<void>;
+	uninstallShellCommand(): Promise<void>;
+
 	// Lifecycle
 	notifyReady(): Promise<void>
 	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void>;

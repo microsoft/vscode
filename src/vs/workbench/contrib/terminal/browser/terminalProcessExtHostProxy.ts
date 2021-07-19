@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 
@@ -17,8 +17,8 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	readonly onProcessData: Event<string> = this._onProcessData.event;
 	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
 	readonly onProcessExit: Event<number | undefined> = this._onProcessExit.event;
-	private readonly _onProcessReady = this._register(new Emitter<{ pid: number, cwd: string }>());
-	get onProcessReady(): Event<{ pid: number, cwd: string }> { return this._onProcessReady.event; }
+	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
+	get onProcessReady(): Event<IProcessReadyEvent> { return this._onProcessReady.event; }
 	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
 	readonly onProcessTitleChanged: Event<string> = this._onProcessTitleChanged.event;
 	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());

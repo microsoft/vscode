@@ -10,7 +10,7 @@ import { EncodingMode, ITextFileService, TextFileEditorModelState, ITextFileEdit
 import { IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IWorkingCopyBackupService, IResolvedWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IFileService, FileOperationError, FileOperationResult, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { IFileService, FileOperationError, FileOperationResult, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED, FileSystemProviderCapabilities, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { timeout, TaskSequentializer } from 'vs/base/common/async';
@@ -64,6 +64,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private readonly _onDidChangeOrphaned = this._register(new Emitter<void>());
 	readonly onDidChangeOrphaned = this._onDidChangeOrphaned.event;
 
+	private readonly _onDidChangeReadonly = this._register(new Emitter<void>());
+	readonly onDidChangeReadonly = this._onDidChangeReadonly.event;
+
 	//#endregion
 
 	readonly typeId = NO_TYPE_ID; // IMPORTANT: never change this to not break existing assumptions (e.g. backups)
@@ -91,7 +94,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private inErrorMode = false;
 
 	constructor(
-		public readonly resource: URI,
+		readonly resource: URI,
 		private preferredEncoding: string | undefined,	// encoding as chosen by the user
 		private preferredMode: string | undefined,		// mode as chosen by the user
 		@IModeService modeService: IModeService,
@@ -336,7 +339,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			size,
 			etag,
 			value: buffer,
-			encoding: preferredEncoding.encoding
+			encoding: preferredEncoding.encoding,
+			readonly: false
 		}, true /* dirty (resolved from buffer) */, options);
 	}
 
@@ -382,7 +386,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			size: backup.meta ? backup.meta.size : 0,
 			etag: backup.meta ? backup.meta.etag : ETAG_DISABLED, // etag disabled if unknown!
 			value: await createTextBufferFactoryFromStream(await this.textFileService.getDecodedStream(this.resource, backup.value, { encoding: UTF8 })),
-			encoding
+			encoding,
+			readonly: false
 		}, true /* dirty (resolved from backup) */, options);
 
 		// Restore orphaned flag based on state
@@ -432,8 +437,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.setOrphaned(result === FileOperationResult.FILE_NOT_FOUND);
 
 			// NotModified status is expected and can be handled gracefully
-			// if we are resolved
+			// if we are resolved. We still want to update our last resolved
+			// stat to e.g. detect changes to the file's readonly state
 			if (this.isResolved() && result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
+				if (error instanceof NotModifiedSinceFileOperationError) {
+					this.updateLastResolvedFileStat(error.stat);
+				}
+
 				return;
 			}
 
@@ -468,6 +478,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			ctime: content.ctime,
 			size: content.size,
 			etag: content.etag,
+			readonly: content.readonly,
 			isFile: true,
 			isDirectory: false,
 			isSymbolicLink: false
@@ -879,6 +890,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private updateLastResolvedFileStat(newFileStat: IFileStatWithMetadata): void {
+		const oldReadonly = this.isReadonly();
 
 		// First resolve - just take
 		if (!this.lastResolvedFileStat) {
@@ -890,6 +902,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// was called, the mtime could be out of sync.
 		else if (this.lastResolvedFileStat.mtime <= newFileStat.mtime) {
 			this.lastResolvedFileStat = newFileStat;
+		}
+
+		// Signal that the readonly state changed
+		if (this.isReadonly() !== oldReadonly) {
+			this._onDidChangeReadonly.fire();
 		}
 	}
 
@@ -996,7 +1013,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	override isReadonly(): boolean {
-		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
+		return this.lastResolvedFileStat?.readonly || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
 	override dispose(): void {

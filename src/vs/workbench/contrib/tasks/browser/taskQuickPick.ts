@@ -55,7 +55,8 @@ export class TaskQuickPick extends Disposable {
 	}
 
 	private showDetail(): boolean {
-		return this.configurationService.getValue<boolean>(QUICKOPEN_DETAIL_CONFIG);
+		// Ensure invalid values get converted into boolean values
+		return !!this.configurationService.getValue(QUICKOPEN_DETAIL_CONFIG);
 	}
 
 	private guessTaskLabel(task: Task | ConfiguringTask): string {
@@ -215,7 +216,13 @@ export class TaskQuickPick extends Disposable {
 				if (ContributedTask.is(task)) {
 					this.taskService.customize(task, undefined, true);
 				} else if (CustomTask.is(task) || ConfiguringTask.is(task)) {
-					if (!(await this.taskService.openConfig(task))) {
+					let canOpenConfig: boolean = false;
+					try {
+						canOpenConfig = await this.taskService.openConfig(task);
+					} catch (e) {
+						// do nothing.
+					}
+					if (!canOpenConfig) {
 						this.taskService.customize(task, undefined, true);
 					}
 				}

@@ -38,6 +38,7 @@ import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { EditorResolution } from 'vs/platform/editor/common/editor';
 
 export class UserDataSyncMergesViewPane extends TreeViewPane {
 
@@ -267,7 +268,7 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 		previewResource = this.userDataSyncPreview.resources.find(({ local }) => isEqual(local, previewResource.local))!;
 		await this.reopen(previewResource);
 		if (previewResource.mergeState === MergeState.Conflict) {
-			await this.dialogService.show(Severity.Warning, localize('conflicts detected', "Conflicts Detected"), [], {
+			await this.dialogService.show(Severity.Warning, localize('conflicts detected', "Conflicts Detected"), undefined, {
 				detail: localize('resolve', "Unable to merge due to conflicts. Please resolve them to continue.")
 			});
 		}
@@ -315,14 +316,15 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 			const rightResourceName = previewResource.mergeState === MergeState.Conflict ? localize('merges', "{0} (Merges)", basename(rightResource))
 				: localize({ key: 'rightResourceName', comment: ['local as in file in disk'] }, "{0} (Local)", basename(rightResource));
 			await this.editorService.openEditor({
-				leftResource,
-				rightResource,
+				original: { resource: leftResource },
+				modified: { resource: rightResource },
 				label: localize('sideBySideLabels', "{0} ↔ {1}", leftResourceName, rightResourceName),
 				description: localize('sideBySideDescription', "Settings Sync"),
 				options: {
 					preserveFocus: true,
 					revealIfVisible: true,
-					pinned: true
+					pinned: true,
+					override: EditorResolution.DISABLED
 				},
 			});
 		}
@@ -419,7 +421,7 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 		return editor.getContribution<AcceptChangesContribution>(AcceptChangesContribution.ID);
 	}
 
-	public static readonly ID = 'editor.contrib.acceptChangesButton';
+	public static readonly ID = 'editor.contrib.acceptChangesButton2';
 
 	private acceptChangesButton: FloatingClickWidget | undefined;
 

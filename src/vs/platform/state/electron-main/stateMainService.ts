@@ -10,7 +10,7 @@ import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ThrottledDelayer } from 'vs/base/common/async';
-import { IFileService } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
 
 type StorageDatabase = { [key: string]: unknown; };
@@ -45,7 +45,7 @@ export class FileStorage {
 			this.lastSavedStorageContents = (await this.fileService.readFile(this.storagePath)).value.toString();
 			this.storage = JSON.parse(this.lastSavedStorageContents);
 		} catch (error) {
-			if (error.code !== 'ENOENT') {
+			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
 				this.logService.error(error);
 			}
 		}

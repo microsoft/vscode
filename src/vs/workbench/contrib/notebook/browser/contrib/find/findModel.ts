@@ -88,7 +88,7 @@ export class FindModel extends Disposable {
 		} else {
 			// const currIndex = this._findMatchesStarts!.getIndexOf(this._currentMatch);
 			// currCell = this._findMatches[currIndex.index].cell;
-			const totalVal = this._findMatchesStarts.getTotalValue();
+			const totalVal = this._findMatchesStarts.getTotalSum();
 			if (this._currentMatch === -1) {
 				this._currentMatch = previous ? totalVal - 1 : 0;
 			} else {

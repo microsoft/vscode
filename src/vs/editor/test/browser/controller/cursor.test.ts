@@ -2691,6 +2691,103 @@ suite('Editor Controller - Regression tests', () => {
 
 		model.dispose();
 	});
+
+	test('issue #105730: move left behaves differently for multiple cursors', () => {
+		const model = createTextModel('asdfghjkl, asdfghjkl, asdfghjkl, ');
+
+		withTestCodeEditor(
+			null,
+			{
+				model: model,
+				wordWrap: 'wordWrapColumn',
+				wordWrapColumn: 24
+			},
+			(editor, viewModel) => {
+				viewModel.setSelections('test', [
+					new Selection(1, 10, 1, 12),
+					new Selection(1, 21, 1, 23),
+					new Selection(1, 32, 1, 34)
+				]);
+				moveLeft(editor, viewModel, false);
+				assertCursor(viewModel, [
+					new Selection(1, 10, 1, 10),
+					new Selection(1, 21, 1, 21),
+					new Selection(1, 32, 1, 32)
+				]);
+
+				viewModel.setSelections('test', [
+					new Selection(1, 10, 1, 12),
+					new Selection(1, 21, 1, 23),
+					new Selection(1, 32, 1, 34)
+				]);
+				moveLeft(editor, viewModel, true);
+				assertCursor(viewModel, [
+					new Selection(1, 10, 1, 11),
+					new Selection(1, 21, 1, 22),
+					new Selection(1, 32, 1, 33)
+				]);
+			});
+	});
+
+	test('issue #105730: move right should always skip wrap point', () => {
+		const model = createTextModel('asdfghjkl, asdfghjkl, asdfghjkl, \nasdfghjkl,');
+
+		withTestCodeEditor(
+			null,
+			{
+				model: model,
+				wordWrap: 'wordWrapColumn',
+				wordWrapColumn: 24
+			},
+			(editor, viewModel) => {
+				viewModel.setSelections('test', [
+					new Selection(1, 22, 1, 22)
+				]);
+				moveRight(editor, viewModel, false);
+				moveRight(editor, viewModel, false);
+				assertCursor(viewModel, [
+					new Selection(1, 24, 1, 24),
+				]);
+
+				viewModel.setSelections('test', [
+					new Selection(1, 22, 1, 22)
+				]);
+				moveRight(editor, viewModel, true);
+				moveRight(editor, viewModel, true);
+				assertCursor(viewModel, [
+					new Selection(1, 22, 1, 24),
+				]);
+			}
+		);
+	});
+
+	test('issue #123178: sticky tab in consecutive wrapped lines', () => {
+		const model = createTextModel('    aaaa        aaaa', { tabSize: 4 });
+
+		withTestCodeEditor(
+			null,
+			{
+				model: model,
+				wordWrap: 'wordWrapColumn',
+				wordWrapColumn: 8,
+				stickyTabStops: true,
+			},
+			(editor, viewModel) => {
+				viewModel.setSelections('test', [
+					new Selection(1, 9, 1, 9)
+				]);
+				moveRight(editor, viewModel, false);
+				assertCursor(viewModel, [
+					new Selection(1, 10, 1, 10),
+				]);
+
+				moveLeft(editor, viewModel, false);
+				assertCursor(viewModel, [
+					new Selection(1, 9, 1, 9),
+				]);
+			}
+		);
+	});
 });
 
 suite('Editor Controller - Cursor Configuration', () => {

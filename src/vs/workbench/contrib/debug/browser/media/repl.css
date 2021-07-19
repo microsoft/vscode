@@ -90,6 +90,11 @@
 	align-items: center;
 }
 
+/* Do not render show more in REPL suggest widget status bar */
+.monaco-workbench .repl .repl-input-wrapper .suggest-status-bar .monaco-action-bar.right {
+	display: none;
+}
+
 .monaco-workbench .repl .repl-input-wrapper .repl-input-chevron {
 	padding: 0 6px 0 8px;
 	width: 16px;

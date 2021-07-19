@@ -4,31 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Barrier } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
 import { RemoteTerminalChannelClient } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class RemotePty extends Disposable implements ITerminalChildProcess {
 
-	readonly _onProcessData = this._register(new Emitter<string | IProcessDataEvent>());
-	readonly onProcessData: Event<string | IProcessDataEvent> = this._onProcessData.event;
+	private readonly _onProcessData = this._register(new Emitter<string | IProcessDataEvent>());
+	readonly onProcessData = this._onProcessData.event;
 	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
-	readonly onProcessExit: Event<number | undefined> = this._onProcessExit.event;
-	readonly _onProcessReady = this._register(new Emitter<{ pid: number, cwd: string }>());
-	get onProcessReady(): Event<{ pid: number, cwd: string }> { return this._onProcessReady.event; }
+	readonly onProcessExit = this._onProcessExit.event;
+	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
+	readonly onProcessReady = this._onProcessReady.event;
 	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
-	readonly onProcessTitleChanged: Event<string> = this._onProcessTitleChanged.event;
+	readonly onProcessTitleChanged = this._onProcessTitleChanged.event;
 	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType | undefined>());
 	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());
-	readonly onProcessOverrideDimensions: Event<ITerminalDimensionsOverride | undefined> = this._onProcessOverrideDimensions.event;
+	readonly onProcessOverrideDimensions = this._onProcessOverrideDimensions.event;
 	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
-	get onProcessResolvedShellLaunchConfig(): Event<IShellLaunchConfig> { return this._onProcessResolvedShellLaunchConfig.event; }
+	readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
+	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
+	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
 
 	private _startBarrier: Barrier;
 
@@ -66,6 +68,11 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 
 		this._startBarrier.open();
 		return undefined;
+	}
+
+	async detach(): Promise<void> {
+		await this._startBarrier.wait();
+		return this._remoteTerminalChannel.detachFromProcess(this.id);
 	}
 
 	shutdown(immediate: boolean): void {
@@ -124,7 +131,7 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	handleExit(e: number | undefined) {
 		this._onProcessExit.fire(e);
 	}
-	handleReady(e: { pid: number, cwd: string }) {
+	handleReady(e: IProcessReadyEvent) {
 		this._onProcessReady.fire(e);
 	}
 	handleTitleChanged(e: string) {
@@ -142,6 +149,9 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 			e.cwd = URI.revive(e.cwd);
 		}
 		this._onProcessResolvedShellLaunchConfig.fire(e);
+	}
+	handleDidChangeHasChildProcesses(e: boolean) {
+		this._onDidChangeHasChildProcesses.fire(e);
 	}
 
 	async handleReplay(e: IPtyHostProcessReplayEvent) {

@@ -5,11 +5,11 @@
 
 import * as assert from 'assert';
 import { tmpdir } from 'os';
-import { promises, readFileSync } from 'fs';
+import { readFileSync } from 'fs';
 import { join } from 'vs/base/common/path';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileStorage } from 'vs/platform/state/electron-main/stateMainService';
-import { rimraf, writeFileSync } from 'vs/base/node/pfs';
+import { Promises, writeFileSync } from 'vs/base/node/pfs';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
@@ -33,14 +33,14 @@ flakySuite('StateMainService', () => {
 		diskFileSystemProvider = new DiskFileSystemProvider(logService);
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
-		return promises.mkdir(testDir, { recursive: true });
+		return Promises.mkdir(testDir, { recursive: true });
 	});
 
 	teardown(() => {
 		fileService.dispose();
 		diskFileSystemProvider.dispose();
 
-		return rimraf(testDir);
+		return Promises.rm(testDir);
 	});
 
 	test('Basics', async function () {

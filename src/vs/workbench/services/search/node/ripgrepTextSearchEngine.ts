@@ -11,12 +11,12 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { groupBy } from 'vs/base/common/collections';
 import { splitGlobAware } from 'vs/base/common/glob';
 import * as path from 'vs/base/common/path';
-import { createRegExp, escapeRegExpCharacters, startsWithUTF8BOM, stripUTF8BOM } from 'vs/base/common/strings';
+import { createRegExp, escapeRegExpCharacters } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { IExtendedExtensionSearchOptions, SearchError, SearchErrorCode, serializeSearchError } from 'vs/workbench/services/search/common/search';
 import { Range, TextSearchComplete, TextSearchContext, TextSearchMatch, TextSearchOptions, TextSearchPreviewOptions, TextSearchQuery, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
-import { RegExpParser, RegExpVisitor, AST as ReAST } from 'vscode-regexpp';
+import { AST as ReAST, RegExpParser, RegExpVisitor } from 'vscode-regexpp';
 import { rgPath } from 'vscode-ripgrep';
 import { anchorGlob, createTextSearchResult, IOutputChannel, Maybe } from './ripgrepSearchUtils';
 
@@ -272,12 +272,7 @@ export class RipgrepParser extends EventEmitter {
 
 	private createTextSearchMatch(data: IRgMatch, uri: URI): TextSearchMatch {
 		const lineNumber = data.line_number - 1;
-		let isBOMStripped = false;
-		let fullText = bytesOrTextToString(data.lines);
-		if (lineNumber === 0 && startsWithUTF8BOM(fullText)) {
-			isBOMStripped = true;
-			fullText = stripUTF8BOM(fullText);
-		}
+		const fullText = bytesOrTextToString(data.lines);
 		const fullTextBytes = Buffer.from(fullText);
 
 		let prevMatchEnd = 0;
@@ -306,12 +301,7 @@ export class RipgrepParser extends EventEmitter {
 				this.hitLimit = true;
 			}
 
-			let matchText = bytesOrTextToString(match.match);
-			if (lineNumber === 0 && i === 0 && isBOMStripped) {
-				matchText = stripUTF8BOM(matchText);
-				match.start = match.start <= 3 ? 0 : match.start - 3;
-				match.end = match.end <= 3 ? 0 : match.end - 3;
-			}
+			const matchText = bytesOrTextToString(match.match);
 			const inBetweenChars = fullTextBytes.slice(prevMatchEnd, match.start).toString().length;
 			const startCol = prevMatchEndCol + inBetweenChars;
 

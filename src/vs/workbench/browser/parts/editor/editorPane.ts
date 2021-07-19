@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Composite } from 'vs/workbench/browser/composite';
-import { EditorInput, EditorOptions, IEditorPane, GroupIdentifier, IEditorMemento, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { IEditorPane, GroupIdentifier, IEditorMemento, IEditorOpenContext, isEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -18,8 +19,10 @@ import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs
 import { MementoObject } from 'vs/workbench/common/memento';
 import { joinPath, IExtUri, isEqual } from 'vs/base/common/resources';
 import { indexOfPath } from 'vs/base/common/extpath';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
@@ -56,8 +59,8 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	protected _input: EditorInput | undefined;
 	get input(): EditorInput | undefined { return this._input; }
 
-	protected _options: EditorOptions | undefined;
-	get options(): EditorOptions | undefined { return this._options; }
+	protected _options: IEditorOptions | undefined;
+	get options(): IEditorOptions | undefined { return this._options; }
 
 	private _group: IEditorGroup | undefined;
 	get group(): IEditorGroup | undefined { return this._group; }
@@ -102,7 +105,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	 * The provided cancellation token should be used to test if the operation
 	 * was cancelled.
 	 */
-	async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	async setInput(input: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this._input = input;
 		this._options = options;
 	}
@@ -129,7 +132,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	 * Sets the given options to the editor. Clients should apply the options
 	 * to the current input.
 	 */
-	setOptions(options: EditorOptions | undefined): void {
+	setOptions(options: IEditorOptions | undefined): void {
 		this._options = options;
 	}
 
@@ -151,12 +154,12 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 		this._group = group;
 	}
 
-	protected getEditorMemento<T>(editorGroupService: IEditorGroupsService, key: string, limit: number = 10): IEditorMemento<T> {
+	protected getEditorMemento<T>(editorGroupService: IEditorGroupsService, configurationService: ITextResourceConfigurationService, key: string, limit: number = 10): IEditorMemento<T> {
 		const mementoKey = `${this.getId()}${key}`;
 
 		let editorMemento = EditorPane.EDITOR_MEMENTOS.get(mementoKey);
 		if (!editorMemento) {
-			editorMemento = new EditorMemento(this.getId(), key, this.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE), limit, editorGroupService);
+			editorMemento = this._register(new EditorMemento(this.getId(), key, this.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE), limit, editorGroupService, configurationService));
 			EditorPane.EDITOR_MEMENTOS.set(mementoKey, editorMemento);
 		}
 
@@ -184,21 +187,39 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 }
 
 interface MapGroupToMemento<T> {
-	[group: number]: T;
+	[group: GroupIdentifier]: T;
 }
 
-export class EditorMemento<T> implements IEditorMemento<T> {
+export class EditorMemento<T> extends Disposable implements IEditorMemento<T> {
+
+	private static readonly SHARED_EDITOR_STATE = -1; // pick a number < 0 to be outside group id range
+
 	private cache: LRUCache<string, MapGroupToMemento<T>> | undefined;
 	private cleanedUp = false;
 	private editorDisposables: Map<EditorInput, IDisposable> | undefined;
+	private shareEditorState = false;
 
 	constructor(
-		public readonly id: string,
+		readonly id: string,
 		private key: string,
 		private memento: MementoObject,
 		private limit: number,
-		private editorGroupService: IEditorGroupsService
-	) { }
+		private editorGroupService: IEditorGroupsService,
+		private configurationService: ITextResourceConfigurationService
+	) {
+		super();
+
+		this.updateConfiguration();
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.configurationService.onDidChangeConfiguration(() => this.updateConfiguration()));
+	}
+
+	private updateConfiguration(): void {
+		this.shareEditorState = this.configurationService.getValue(undefined, 'workbench.editor.sharedViewState') === true;
+	}
 
 	saveEditorState(group: IEditorGroup, resource: URI, state: T): void;
 	saveEditorState(group: IEditorGroup, editor: EditorInput, state: T): void;
@@ -210,16 +231,23 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 
 		const cache = this.doLoad();
 
-		let mementoForResource = cache.get(resource.toString());
-		if (!mementoForResource) {
-			mementoForResource = Object.create(null) as MapGroupToMemento<T>;
-			cache.set(resource.toString(), mementoForResource);
+		// Ensure mementos for resource map
+		let mementosForResource = cache.get(resource.toString());
+		if (!mementosForResource) {
+			mementosForResource = Object.create(null) as MapGroupToMemento<T>;
+			cache.set(resource.toString(), mementosForResource);
 		}
 
-		mementoForResource[group.id] = state;
+		// Store state for group
+		mementosForResource[group.id] = state;
+
+		// Store state as most recent one based on settings
+		if (this.shareEditorState) {
+			mementosForResource[EditorMemento.SHARED_EDITOR_STATE] = state;
+		}
 
 		// Automatically clear when editor input gets disposed if any
-		if (resourceOrEditor instanceof EditorInput) {
+		if (isEditorInput(resourceOrEditor)) {
 			this.clearEditorStateOnDispose(resource, resourceOrEditor);
 		}
 	}
@@ -234,18 +262,28 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 
 		const cache = this.doLoad();
 
-		const mementoForResource = cache.get(resource.toString());
-		if (mementoForResource) {
-			return mementoForResource[group.id];
+		const mementosForResource = cache.get(resource.toString());
+		if (mementosForResource) {
+			let mementoForResourceAndGroup = mementosForResource[group.id];
+
+			// Return state for group if present
+			if (mementoForResourceAndGroup) {
+				return mementoForResourceAndGroup;
+			}
+
+			// Return most recent state based on settings otherwise
+			if (this.shareEditorState) {
+				return mementosForResource[EditorMemento.SHARED_EDITOR_STATE];
+			}
 		}
 
-		return;
+		return undefined;
 	}
 
 	clearEditorState(resource: URI, group?: IEditorGroup): void;
 	clearEditorState(editor: EditorInput, group?: IEditorGroup): void;
 	clearEditorState(resourceOrEditor: URI | EditorInput, group?: IEditorGroup): void {
-		if (resourceOrEditor instanceof EditorInput) {
+		if (isEditorInput(resourceOrEditor)) {
 			this.editorDisposables?.delete(resourceOrEditor);
 		}
 
@@ -253,16 +291,20 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 		if (resource) {
 			const cache = this.doLoad();
 
+			// Clear state for group
 			if (group) {
-				const resourceViewState = cache.get(resource.toString());
-				if (resourceViewState) {
-					delete resourceViewState[group.id];
+				const mementosForResource = cache.get(resource.toString());
+				if (mementosForResource) {
+					delete mementosForResource[group.id];
 
-					if (isEmptyObject(resourceViewState)) {
+					if (isEmptyObject(mementosForResource)) {
 						cache.delete(resource.toString());
 					}
 				}
-			} else {
+			}
+
+			// Clear state across all groups for resource
+			else {
 				cache.delete(resource.toString());
 			}
 		}
@@ -303,7 +345,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 				targetResource = joinPath(target, resource.path.substr(index + source.path.length + 1)); // parent folder got moved
 			}
 
-			// Don't modify LRU state.
+			// Don't modify LRU state
 			const value = cache.get(cacheKey, Touch.None);
 			if (value) {
 				cache.delete(cacheKey);
@@ -313,7 +355,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 	}
 
 	private doGetResource(resourceOrEditor: URI | EditorInput): URI | undefined {
-		if (resourceOrEditor instanceof EditorInput) {
+		if (isEditorInput(resourceOrEditor)) {
 			return resourceOrEditor.resource;
 		}
 
@@ -352,12 +394,16 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 		// Remove groups from states that no longer exist. Since we modify the
 		// cache and its is a LRU cache make a copy to ensure iteration succeeds
 		const entries = [...cache.entries()];
-		for (const [resource, mapGroupToMemento] of entries) {
-			for (const group of Object.keys(mapGroupToMemento)) {
+		for (const [resource, mapGroupToMementos] of entries) {
+			for (const group of Object.keys(mapGroupToMementos)) {
 				const groupId: GroupIdentifier = Number(group);
+				if (groupId === EditorMemento.SHARED_EDITOR_STATE && this.shareEditorState) {
+					continue; // skip over shared entries if sharing is enabled
+				}
+
 				if (!this.editorGroupService.getGroup(groupId)) {
-					delete mapGroupToMemento[groupId];
-					if (isEmptyObject(mapGroupToMemento)) {
+					delete mapGroupToMementos[groupId];
+					if (isEmptyObject(mapGroupToMementos)) {
 						cache.delete(resource);
 					}
 				}

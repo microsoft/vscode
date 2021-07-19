@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from 'vs/base/common/network';
-import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
+import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
 import { ICodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -23,7 +24,6 @@ import { OpenSearchEditorArgs } from 'vs/workbench/contrib/searchEditor/browser/
 import { getOrMakeSearchEditorInput, SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { serializeSearchResultForEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
@@ -99,7 +99,6 @@ export async function openSearchEditor(accessor: ServicesAccessor): Promise<void
 export const openNewSearchEditor =
 	async (accessor: ServicesAccessor, _args: OpenSearchEditorArgs = {}, toSide = false) => {
 		const editorService = accessor.get(IEditorService);
-		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const telemetryService = accessor.get(ITelemetryService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const configurationService = accessor.get(IConfigurationService);
@@ -148,7 +147,7 @@ export const openNewSearchEditor =
 		let editor: SearchEditor;
 		if (existing && args.location === 'reuse') {
 			const input = existing.editor as SearchEditorInput;
-			editor = assertIsDefined(await assertIsDefined(editorGroupsService.getGroup(existing.groupId)).openEditor(input)) as SearchEditor;
+			editor = (await editorService.openEditor(input, { override: EditorResolution.DISABLED }, existing.groupId)) as SearchEditor;
 			if (selected) { editor.setQuery(selected); }
 			else { editor.selectQuery(); }
 			editor.setSearchConfig(args);

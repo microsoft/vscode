@@ -23,7 +23,7 @@ jobs:
 
       - uses: actions/setup-node@v2
         with:
-          node-version: 12
+          node-version: 14
 
       - uses: actions/setup-python@v2
         with:
@@ -99,7 +99,7 @@ jobs:
 
       - uses: actions/setup-node@v2
         with:
-          node-version: 12
+          node-version: 14
 
       - name: Compute node modules cache key
         id: nodeModulesCacheKey
@@ -109,8 +109,8 @@ jobs:
         uses: actions/cache@v2
         with:
           path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModules13-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules13-
+          key: ${{ runner.os }}-cacheNodeModules14-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules14-
       - name: Get yarn cache directory path
         id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
@@ -155,7 +155,7 @@ jobs:
 
       - uses: actions/setup-node@v2
         with:
-          node-version: 12
+          node-version: 14
 
       - name: Compute node modules cache key
         id: nodeModulesCacheKey
@@ -165,8 +165,8 @@ jobs:
         uses: actions/cache@v2
         with:
           path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModules13-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules13-
+          key: ${{ runner.os }}-cacheNodeModules14-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules14-
       - name: Get yarn cache directory path
         id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
@@ -208,7 +208,7 @@ jobs:
 
       - uses: actions/setup-node@v2
         with:
-          node-version: 12
+          node-version: 14
 
       - name: Compute node modules cache key
         id: nodeModulesCacheKey
@@ -218,8 +218,8 @@ jobs:
         uses: actions/cache@v2
         with:
           path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModules13-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules13-
+          key: ${{ runner.os }}-cacheNodeModules14-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules14-
       - name: Get yarn cache directory path
         id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
@@ -244,8 +244,17 @@ jobs:
       - name: Run Valid Layers Checks
         run: yarn valid-layers-check
 
+      - name: Compile /build/
+        run: yarn --cwd build compile
+
+      - name: Run eslint
+        run: yarn eslint
+
       - name: Run Monaco Editor Checks
         run: yarn monaco-compile-check
+
+      - name: Run vscode-dts Compile Checks
+        run: yarn vscode-dts-compile-check
 
       - name: Run Trusted Types Checks
         run: yarn tsec-compile-check

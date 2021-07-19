@@ -24,8 +24,8 @@ import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/
 import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange, cellRangesToIndexes } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { clamp } from 'vs/base/common/numbers';
-import { SCROLLABLE_ELEMENT_PADDING_TOP } from 'vs/workbench/contrib/notebook/browser/constants';
 import { ISplice } from 'vs/base/common/sequence';
+import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 
 export interface IFocusNextPreviousDelegate {
 	onFocusNext(applyFocusNext: () => void): void;
@@ -91,10 +91,13 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	private readonly _focusNextPreviousDelegate: IFocusNextPreviousDelegate;
 
+	private readonly _viewContext: ViewContext;
+
 	constructor(
 		private listUser: string,
 		parentContainer: HTMLElement,
 		container: HTMLElement,
+		viewContext: ViewContext,
 		delegate: IListVirtualDelegate<CellViewModel>,
 		renderers: IListRenderer<CellViewModel, BaseCellRenderTemplate>[],
 		contextKeyService: IContextKeyService,
@@ -106,6 +109,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	) {
 		super(listUser, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, keybindingService);
 		NOTEBOOK_CELL_LIST_FOCUSED.bindTo(this.contextKeyService).set(true);
+		this._viewContext = viewContext;
 		this._focusNextPreviousDelegate = options.focusNextPreviousDelegate;
 		this._previousFocusedElements = this.getFocusedElements();
 		this._localDisposableStore.add(this.onDidChangeFocus((e) => {
@@ -177,7 +181,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this._localDisposableStore.add(this.view.onMouseDblClick(() => {
 			const focus = this.getFocusedElements()[0];
 
-			if (focus && focus.cellKind === CellKind.Markup && !focus.metadata?.inputCollapsed) {
+			if (focus && focus.cellKind === CellKind.Markup && !focus.metadata.inputCollapsed && !this._viewModel?.options.isReadOnly) {
 				focus.updateEditState(CellEditState.Editing, 'dbclick');
 				focus.focusMode = CellFocusMode.Editor;
 			}
@@ -465,7 +469,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			return viewIndex;
 		}
 
-		const modelIndex = this.hiddenRangesPrefixSum.getAccumulatedValue(viewIndex - 1);
+		const modelIndex = this.hiddenRangesPrefixSum.getPrefixSum(viewIndex - 1);
 		return modelIndex;
 	}
 
@@ -482,9 +486,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const viewIndexInfo = this.hiddenRangesPrefixSum.getIndexOf(modelIndex);
 
 		if (viewIndexInfo.remainder !== 0) {
-			if (modelIndex >= this.hiddenRangesPrefixSum.getTotalValue()) {
+			if (modelIndex >= this.hiddenRangesPrefixSum.getTotalSum()) {
 				// it's already after the last hidden range
-				return modelIndex - (this.hiddenRangesPrefixSum.getTotalValue() - this.hiddenRangesPrefixSum.getCount());
+				return modelIndex - (this.hiddenRangesPrefixSum.getTotalSum() - this.hiddenRangesPrefixSum.getCount());
 			}
 			return undefined;
 		} else {
@@ -500,7 +504,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		let modelIndex = topModelIndex;
 
 		while (index <= bottomViewIndex) {
-			const accu = this.hiddenRangesPrefixSum!.getAccumulatedValue(index);
+			const accu = this.hiddenRangesPrefixSum!.getPrefixSum(index);
 			if (accu === modelIndex + 1) {
 				// no hidden area after it
 				if (stack.length) {
@@ -571,8 +575,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const viewIndexInfo = this.hiddenRangesPrefixSum.getIndexOf(modelIndex);
 
 		if (viewIndexInfo.remainder !== 0) {
-			if (modelIndex >= this.hiddenRangesPrefixSum.getTotalValue()) {
-				return modelIndex - (this.hiddenRangesPrefixSum.getTotalValue() - this.hiddenRangesPrefixSum.getCount());
+			if (modelIndex >= this.hiddenRangesPrefixSum.getTotalSum()) {
+				return modelIndex - (this.hiddenRangesPrefixSum.getTotalSum() - this.hiddenRangesPrefixSum.getCount());
 			}
 		}
 
@@ -587,8 +591,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const viewIndexInfo = this.hiddenRangesPrefixSum.getIndexOf(modelIndex);
 
 		if (viewIndexInfo.remainder !== 0) {
-			if (modelIndex >= this.hiddenRangesPrefixSum.getTotalValue()) {
-				return modelIndex - (this.hiddenRangesPrefixSum.getTotalValue() - this.hiddenRangesPrefixSum.getCount());
+			if (modelIndex >= this.hiddenRangesPrefixSum.getTotalSum()) {
+				return modelIndex - (this.hiddenRangesPrefixSum.getTotalSum() - this.hiddenRangesPrefixSum.getCount());
 			}
 		}
 
@@ -900,7 +904,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	getViewScrollBottom() {
-		return this.getViewScrollTop() + this.view.renderHeight - SCROLLABLE_ELEMENT_PADDING_TOP;
+		const topInsertToolbarHeight = this._viewContext.notebookOptions.computeTopInserToolbarHeight(this.viewModel?.viewType);
+		return this.getViewScrollTop() + this.view.renderHeight - topInsertToolbarHeight;
 	}
 
 	private _revealRange(viewIndex: number, range: Range, revealType: CellRevealType, newlyCreated: boolean, alignToBottom: boolean) {

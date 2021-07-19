@@ -702,9 +702,6 @@ export class MainThreadTask implements MainThreadTaskShape {
 					});
 				});
 			},
-			getDefaultShellAndArgs: (): Promise<{ shell: string, args: string[] | string | undefined }> => {
-				return Promise.resolve(this._proxy.$getDefaultShellAndArgs());
-			},
 			findExecutable: (command: string, cwd?: string, paths?: string[]): Promise<string | undefined> => {
 				return this._proxy.$findExecutable(command, cwd, paths);
 			}

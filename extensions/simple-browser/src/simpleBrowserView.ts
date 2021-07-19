@@ -85,7 +85,7 @@ export class SimpleBrowserView extends Disposable {
 	private getHtml(url: string) {
 		const configuration = vscode.workspace.getConfiguration('simpleBrowser');
 
-		const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
+		const nonce = getNonce();
 
 		const mainJs = this.extensionResourceUrl('media', 'index.js');
 		const mainCss = this.extensionResourceUrl('media', 'main.css');
@@ -153,4 +153,14 @@ export class SimpleBrowserView extends Disposable {
 
 function escapeAttribute(value: string | vscode.Uri): string {
 	return value.toString().replace(/"/g, '&quot;');
+}
+
+
+function getNonce() {
+	let text = '';
+	const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+	for (let i = 0; i < 64; i++) {
+		text += possible.charAt(Math.floor(Math.random() * possible.length));
+	}
+	return text;
 }

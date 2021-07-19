@@ -14,6 +14,7 @@ import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { LazyPromise } from 'vs/workbench/services/extensions/common/lazyPromise';
 import { IRPCProtocol, ProxyIdentifier, getStringIdentifierForProxy } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { MarshalledId } from 'vs/base/common/marshalling';
 
 export interface JSONStringifyReplacer {
 	(key: string, value: any): any;
@@ -36,7 +37,7 @@ function createURIReplacer(transformer: IURITransformer | null): JSONStringifyRe
 		return null;
 	}
 	return (key: string, value: any): any => {
-		if (value && value.$mid === 1) {
+		if (value && value.$mid === MarshalledId.Uri) {
 			return transformer.transformOutgoing(value);
 		}
 		return value;

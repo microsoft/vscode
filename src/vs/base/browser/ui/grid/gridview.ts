@@ -243,6 +243,10 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 	private readonly _onDidChange = new Emitter<number | undefined>();
 	readonly onDidChange: Event<number | undefined> = this._onDidChange.event;
 
+	private _onDidScroll = new Emitter<void>();
+	private onDidScrollDisposable: IDisposable = Disposable.None;
+	readonly onDidScroll: Event<void> = this._onDidScroll.event;
+
 	private childrenChangeDisposable: IDisposable = Disposable.None;
 
 	private readonly _onDidSashReset = new Emitter<number[]>();
@@ -344,11 +348,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		const onDidSashReset = Event.map(this.splitview.onDidSashReset, i => [i]);
 		this.splitviewSashResetDisposable = onDidSashReset(this._onDidSashReset.fire, this._onDidSashReset);
 
-		const onDidChildrenChange = Event.map(Event.any(...this.children.map(c => c.onDidChange)), () => undefined);
-		this.childrenChangeDisposable = onDidChildrenChange(this._onDidChange.fire, this._onDidChange);
-
-		const onDidChildrenSashReset = Event.any(...this.children.map((c, i) => Event.map(c.onDidSashReset, location => [i, ...location])));
-		this.childrenSashResetDisposable = onDidChildrenSashReset(this._onDidSashReset.fire, this._onDidSashReset);
+		this.updateChildrenEvents();
 	}
 
 	style(styles: IGridViewStyles): void {
@@ -567,6 +567,11 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 	}
 
 	private onDidChildrenChange(): void {
+		this.updateChildrenEvents();
+		this._onDidChange.fire(undefined);
+	}
+
+	private updateChildrenEvents(): void {
 		const onDidChildrenChange = Event.map(Event.any(...this.children.map(c => c.onDidChange)), () => undefined);
 		this.childrenChangeDisposable.dispose();
 		this.childrenChangeDisposable = onDidChildrenChange(this._onDidChange.fire, this._onDidChange);
@@ -575,7 +580,9 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		this.childrenSashResetDisposable.dispose();
 		this.childrenSashResetDisposable = onDidChildrenSashReset(this._onDidSashReset.fire, this._onDidSashReset);
 
-		this._onDidChange.fire(undefined);
+		const onDidScroll = Event.any(Event.signal(this.splitview.onDidScroll), ...this.children.map(c => c.onDidScroll));
+		this.onDidScrollDisposable.dispose();
+		this.onDidScrollDisposable = onDidScroll(this._onDidScroll.fire, this._onDidScroll);
 	}
 
 	trySet2x2(other: BranchNode): IDisposable {
@@ -677,6 +684,7 @@ class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
 	private absoluteOffset: number = 0;
 	private absoluteOrthogonalOffset: number = 0;
 
+	readonly onDidScroll: Event<void> = Event.None;
 	readonly onDidSashReset: Event<number[]> = Event.None;
 
 	private _onDidLinkedWidthNodeChange = new Relay<number | undefined>();
@@ -891,6 +899,7 @@ export class GridView implements IDisposable {
 		this.element.appendChild(root.element);
 		this.onDidSashResetRelay.input = root.onDidSashReset;
 		this._onDidChange.input = Event.map(root.onDidChange, () => undefined); // TODO
+		this._onDidScroll.input = root.onDidScroll;
 	}
 
 	get orientation(): Orientation {
@@ -915,6 +924,9 @@ export class GridView implements IDisposable {
 	get minimumHeight(): number { return this.root.minimumHeight; }
 	get maximumWidth(): number { return this.root.maximumHeight; }
 	get maximumHeight(): number { return this.root.maximumHeight; }
+
+	private _onDidScroll = new Relay<void>();
+	readonly onDidScroll = this._onDidScroll.event;
 
 	private _onDidChange = new Relay<IViewSize | undefined>();
 	readonly onDidChange = this._onDidChange.event;

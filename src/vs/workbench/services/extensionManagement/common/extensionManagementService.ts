@@ -5,9 +5,9 @@
 
 import { Event, EventMultiplexer } from 'vs/base/common/event';
 import {
-	ILocalExtension, IGalleryExtension, InstallExtensionEvent, DidInstallExtensionEvent, IExtensionIdentifier, DidUninstallExtensionEvent, IReportedExtension, IGalleryMetadata, IExtensionGalleryService, InstallOptions, UninstallOptions, INSTALL_ERROR_NOT_SUPPORTED
+	ILocalExtension, IGalleryExtension, IExtensionIdentifier, IReportedExtension, IGalleryMetadata, IExtensionGalleryService, InstallOptions, UninstallOptions, INSTALL_ERROR_NOT_SUPPORTED, InstallVSIXOptions, InstallExtensionResult
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionManagementServer, IExtensionManagementServerService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { DidUninstallExtensionOnServerEvent, IExtensionManagementServer, IExtensionManagementServerService, InstallExtensionOnServerEvent, IWorkbenchExtensionManagementService, UninstallExtensionOnServerEvent } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionType, isLanguagePackExtension, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -31,10 +31,10 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 
 	declare readonly _serviceBrand: undefined;
 
-	readonly onInstallExtension: Event<InstallExtensionEvent>;
-	readonly onDidInstallExtension: Event<DidInstallExtensionEvent>;
-	readonly onUninstallExtension: Event<IExtensionIdentifier>;
-	readonly onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
+	readonly onInstallExtension: Event<InstallExtensionOnServerEvent>;
+	readonly onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
+	readonly onUninstallExtension: Event<UninstallExtensionOnServerEvent>;
+	readonly onDidUninstallExtension: Event<DidUninstallExtensionOnServerEvent>;
 
 	protected readonly servers: IExtensionManagementServer[] = [];
 
@@ -61,10 +61,10 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			this.servers.push(this.extensionManagementServerService.webExtensionManagementServer);
 		}
 
-		this.onInstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<InstallExtensionEvent>, server) => { emitter.add(server.extensionManagementService.onInstallExtension); return emitter; }, new EventMultiplexer<InstallExtensionEvent>())).event;
-		this.onDidInstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<DidInstallExtensionEvent>, server) => { emitter.add(server.extensionManagementService.onDidInstallExtension); return emitter; }, new EventMultiplexer<DidInstallExtensionEvent>())).event;
-		this.onUninstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<IExtensionIdentifier>, server) => { emitter.add(server.extensionManagementService.onUninstallExtension); return emitter; }, new EventMultiplexer<IExtensionIdentifier>())).event;
-		this.onDidUninstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<DidUninstallExtensionEvent>, server) => { emitter.add(server.extensionManagementService.onDidUninstallExtension); return emitter; }, new EventMultiplexer<DidUninstallExtensionEvent>())).event;
+		this.onInstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<InstallExtensionOnServerEvent>, server) => { emitter.add(Event.map(server.extensionManagementService.onInstallExtension, e => ({ ...e, server }))); return emitter; }, new EventMultiplexer<InstallExtensionOnServerEvent>())).event;
+		this.onDidInstallExtensions = this._register(this.servers.reduce((emitter: EventMultiplexer<readonly InstallExtensionResult[]>, server) => { emitter.add(server.extensionManagementService.onDidInstallExtensions); return emitter; }, new EventMultiplexer<readonly InstallExtensionResult[]>())).event;
+		this.onUninstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<UninstallExtensionOnServerEvent>, server) => { emitter.add(Event.map(server.extensionManagementService.onUninstallExtension, e => ({ ...e, server }))); return emitter; }, new EventMultiplexer<UninstallExtensionOnServerEvent>())).event;
+		this.onDidUninstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<DidUninstallExtensionOnServerEvent>, server) => { emitter.add(Event.map(server.extensionManagementService.onDidUninstallExtension, e => ({ ...e, server }))); return emitter; }, new EventMultiplexer<DidUninstallExtensionOnServerEvent>())).event;
 	}
 
 	async getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> {
@@ -171,35 +171,42 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			.map(({ extensionManagementService }) => extensionManagementService.unzip(zipLocation))).then(([extensionIdentifier]) => extensionIdentifier);
 	}
 
-	async install(vsix: URI): Promise<ILocalExtension> {
+	async install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension> {
 		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
 			const manifest = await this.getManifest(vsix);
 			if (isLanguagePackExtension(manifest)) {
 				// Install on both servers
-				const [local] = await Promises.settled([this.extensionManagementServerService.localExtensionManagementServer, this.extensionManagementServerService.remoteExtensionManagementServer].map(server => this.installVSIX(vsix, server)));
+				const [local] = await Promises.settled([this.extensionManagementServerService.localExtensionManagementServer, this.extensionManagementServerService.remoteExtensionManagementServer].map(server => this.installVSIX(vsix, server, options)));
 				return local;
 			}
 			if (this.extensionManifestPropertiesService.prefersExecuteOnUI(manifest)) {
 				// Install only on local server
-				return this.installVSIX(vsix, this.extensionManagementServerService.localExtensionManagementServer);
+				return this.installVSIX(vsix, this.extensionManagementServerService.localExtensionManagementServer, options);
 			}
 			// Install only on remote server
-			return this.installVSIX(vsix, this.extensionManagementServerService.remoteExtensionManagementServer);
+			return this.installVSIX(vsix, this.extensionManagementServerService.remoteExtensionManagementServer, options);
 		}
 		if (this.extensionManagementServerService.localExtensionManagementServer) {
-			return this.installVSIX(vsix, this.extensionManagementServerService.localExtensionManagementServer);
+			return this.installVSIX(vsix, this.extensionManagementServerService.localExtensionManagementServer, options);
 		}
 		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
-			return this.installVSIX(vsix, this.extensionManagementServerService.remoteExtensionManagementServer);
+			return this.installVSIX(vsix, this.extensionManagementServerService.remoteExtensionManagementServer, options);
 		}
 		return Promise.reject('No Servers to Install');
 	}
 
-	protected async installVSIX(vsix: URI, server: IExtensionManagementServer): Promise<ILocalExtension> {
+	async installWebExtension(location: URI): Promise<ILocalExtension> {
+		if (!this.extensionManagementServerService.webExtensionManagementServer) {
+			throw new Error('Web extension management server is not found');
+		}
+		return this.extensionManagementServerService.webExtensionManagementServer.extensionManagementService.install(location);
+	}
+
+	protected async installVSIX(vsix: URI, server: IExtensionManagementServer, options: InstallVSIXOptions | undefined): Promise<ILocalExtension> {
 		const manifest = await this.getManifest(vsix);
 		if (manifest) {
 			await this.checkForWorkspaceTrust(manifest);
-			return server.extensionManagementService.install(vsix);
+			return server.extensionManagementService.install(vsix, options);
 		}
 		return Promise.reject('Unable to get the extension manifest.');
 	}
@@ -375,4 +382,6 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 
 		return Promise.resolve();
 	}
+
+	registerParticipant() { throw new Error('Not Supported'); }
 }

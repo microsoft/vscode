@@ -226,7 +226,11 @@
             },
             "output.selfClosingStyle": {
               "type": "string",
-              "enum": ["html", "xhtml", "xml"],
+              "enum": [
+                "html",
+                "xhtml",
+                "xml"
+              ],
               "default": "html",
               "markdownDescription": "%emmetPreferencesOutputSelfClosingStyle%"
             },

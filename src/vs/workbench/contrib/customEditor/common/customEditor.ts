@@ -11,7 +11,7 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import * as nls from 'vs/nls';
 import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
-import { ContributedEditorPriority, globMatchesResource, priorityToRank } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { RegisteredEditorPriority, globMatchesResource, priorityToRank } from 'vs/workbench/services/editor/common/editorResolverService';
 
 export const ICustomEditorService = createDecorator<ICustomEditorService>('customEditorService');
 
@@ -41,6 +41,8 @@ export interface ICustomEditorService {
 }
 
 export interface ICustomEditorModelManager {
+	getAllModels(resource: URI): Promise<ICustomEditorModel[]>
+
 	get(resource: URI, viewType: string): Promise<ICustomEditorModel | undefined>;
 
 	tryRetain(resource: URI, viewType: string): Promise<IReference<ICustomEditorModel>> | undefined;
@@ -55,8 +57,8 @@ export interface ICustomEditorModel extends IDisposable {
 	readonly resource: URI;
 	readonly backupId: string | undefined;
 
-	isEditable(): boolean;
-	isOnReadonlyFileSystem(): boolean;
+	isReadonly(): boolean;
+	readonly onDidChangeReadonly: Event<void>;
 
 	isOrphaned(): boolean;
 	readonly onDidChangeOrphaned: Event<void>;
@@ -84,7 +86,7 @@ export interface CustomEditorDescriptor {
 	readonly id: string;
 	readonly displayName: string;
 	readonly providerDisplayName: string;
-	readonly priority: ContributedEditorPriority;
+	readonly priority: RegisteredEditorPriority;
 	readonly selector: readonly CustomEditorSelector[];
 }
 
@@ -93,7 +95,7 @@ export class CustomEditorInfo implements CustomEditorDescriptor {
 	public readonly id: string;
 	public readonly displayName: string;
 	public readonly providerDisplayName: string;
-	public readonly priority: ContributedEditorPriority;
+	public readonly priority: RegisteredEditorPriority;
 	public readonly selector: readonly CustomEditorSelector[];
 
 	constructor(descriptor: CustomEditorDescriptor) {
@@ -128,8 +130,8 @@ export class CustomEditorInfoCollection {
 	public get defaultEditor(): CustomEditorInfo | undefined {
 		return this.allEditors.find(editor => {
 			switch (editor.priority) {
-				case ContributedEditorPriority.default:
-				case ContributedEditorPriority.builtin:
+				case RegisteredEditorPriority.default:
+				case RegisteredEditorPriority.builtin:
 					// A default editor must have higher priority than all other contributed editors.
 					return this.allEditors.every(otherEditor =>
 						otherEditor === editor || isLowerPriority(otherEditor, editor));

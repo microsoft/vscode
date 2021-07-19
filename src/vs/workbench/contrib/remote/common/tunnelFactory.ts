@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITunnelService, TunnelOptions, RemoteTunnel, TunnelCreationOptions, ITunnel } from 'vs/platform/remote/common/tunnel';
+import { ITunnelService, TunnelOptions, RemoteTunnel, TunnelCreationOptions, ITunnel, TunnelProtocol } from 'vs/platform/remote/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -13,10 +13,11 @@ import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remo
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class TunnelFactoryContribution extends Disposable implements IWorkbenchContribution {
+
 	constructor(
 		@ITunnelService tunnelService: ITunnelService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IOpenerService openerService: IOpenerService,
+		@IOpenerService private openerService: IOpenerService,
 		@IRemoteExplorerService remoteExplorerService: IRemoteExplorerService,
 		@ILogService logService: ILogService
 	) {
@@ -51,8 +52,9 @@ export class TunnelFactoryContribution extends Disposable implements IWorkbenchC
 							tunnelRemoteHost: tunnel.remoteAddress.host,
 							// The tunnel factory may give us an inaccessible local address.
 							// To make sure this doesn't happen, resolve the uri immediately.
-							localAddress: (await openerService.resolveExternalUri(URI.parse(localAddress))).resolved.toString(),
+							localAddress: await this.resolveExternalUri(localAddress),
 							public: !!tunnel.public,
+							protocol: tunnel.protocol ?? TunnelProtocol.Http,
 							dispose: async () => { await tunnel.dispose(); }
 						};
 						resolve(remoteTunnel);
@@ -60,6 +62,14 @@ export class TunnelFactoryContribution extends Disposable implements IWorkbenchC
 				}
 			}, environmentService.options?.tunnelProvider?.features ?? { elevation: false, public: false }));
 			remoteExplorerService.setTunnelInformation(undefined);
+		}
+	}
+
+	private async resolveExternalUri(uri: string): Promise<string> {
+		try {
+			return (await this.openerService.resolveExternalUri(URI.parse(uri))).resolved.toString();
+		} catch {
+			return uri;
 		}
 	}
 }

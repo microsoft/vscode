@@ -130,6 +130,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 			}
 		} else {
 			const itemProps: IStatusbarEntry = {
+				name: nls.localize('status.runningTasks', "Running Tasks"),
 				text: `$(tools) ${tasks.length}`,
 				ariaLabel: nls.localize('numberOfRunningTasks', "{0} running tasks", tasks.length),
 				tooltip: nls.localize('runningTasks', "Show Running Tasks"),
@@ -137,7 +138,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 			};
 
 			if (!this.runningTasksStatusItem) {
-				this.runningTasksStatusItem = this.statusbarService.addEntry(itemProps, 'status.runningTasks', nls.localize('status.runningTasks', "Running Tasks"), StatusbarAlignment.LEFT, 49 /* Medium Priority, next to Markers */);
+				this.runningTasksStatusItem = this.statusbarService.addEntry(itemProps, 'status.runningTasks', StatusbarAlignment.LEFT, 49 /* Medium Priority, next to Markers */);
 			} else {
 				this.runningTasksStatusItem.update(itemProps);
 			}

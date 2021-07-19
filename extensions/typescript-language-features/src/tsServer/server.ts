@@ -23,9 +23,14 @@ export enum ExecutionTarget {
 	Syntax
 }
 
+export interface TypeScriptServerExitEvent {
+	readonly code: number | null;
+	readonly signal: string | null;
+}
+
 export interface ITypeScriptServer {
 	readonly onEvent: vscode.Event<Proto.Event>;
-	readonly onExit: vscode.Event<any>;
+	readonly onExit: vscode.Event<TypeScriptServerExitEvent>;
 	readonly onError: vscode.Event<any>;
 
 	readonly tsServerLogFile: string | undefined;
@@ -66,7 +71,7 @@ export interface TsServerProcess {
 	write(serverRequest: Proto.Request): void;
 
 	onData(handler: (data: Proto.Response) => void): void;
-	onExit(handler: (code: number | null) => void): void;
+	onExit(handler: (code: number | null, signal: string | null) => void): void;
 	onError(handler: (error: Error) => void): void;
 
 	kill(): void;
@@ -93,8 +98,8 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 			this.dispatchMessage(msg);
 		});
 
-		this._process.onExit(code => {
-			this._onExit.fire(code);
+		this._process.onExit((code, signal) => {
+			this._onExit.fire({ code, signal });
 			this._callbacks.destroy('server exited');
 		});
 
@@ -107,7 +112,7 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 	private readonly _onEvent = this._register(new vscode.EventEmitter<Proto.Event>());
 	public readonly onEvent = this._onEvent.event;
 
-	private readonly _onExit = this._register(new vscode.EventEmitter<any>());
+	private readonly _onExit = this._register(new vscode.EventEmitter<TypeScriptServerExitEvent>());
 	public readonly onExit = this._onExit.event;
 
 	private readonly _onError = this._register(new vscode.EventEmitter<any>());
@@ -449,7 +454,7 @@ export class GetErrRoutingTsServer extends Disposable implements ITypeScriptServ
 	private readonly _onEvent = this._register(new vscode.EventEmitter<Proto.Event>());
 	public readonly onEvent = this._onEvent.event;
 
-	private readonly _onExit = this._register(new vscode.EventEmitter<any>());
+	private readonly _onExit = this._register(new vscode.EventEmitter<TypeScriptServerExitEvent>());
 	public readonly onExit = this._onExit.event;
 
 	private readonly _onError = this._register(new vscode.EventEmitter<any>());

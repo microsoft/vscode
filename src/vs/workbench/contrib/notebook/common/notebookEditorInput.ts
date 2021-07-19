@@ -4,20 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as glob from 'vs/base/common/glob';
-import { IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions } from 'vs/workbench/common/editor';
+import { IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorInputCapabilities, Verbosity, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
 import { isEqual, joinPath } from 'vs/base/common/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
-import { IReference } from 'vs/base/common/lifecycle';
+import { IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
 import { mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
-import { IFileService } from 'vs/platform/files/common/files';
+import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { AbstractResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -32,6 +34,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 	static readonly ID: string = 'workbench.input.notebook';
 
 	private _editorModelReference: IReference<IResolvedNotebookEditorModel> | null = null;
+	private _sideLoadedListener: IDisposable;
 	private _defaultDirtyState: boolean = false;
 
 	constructor(
@@ -47,9 +50,19 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 	) {
 		super(resource, undefined, labelService, fileService);
 		this._defaultDirtyState = !!options.startDirty;
+
+		// Automatically resolve this input when the "wanted" model comes to life via
+		// some other way. This happens only once per input and resolve disposes
+		// this listener
+		this._sideLoadedListener = _notebookService.onDidAddNotebookDocument(e => {
+			if (e.viewType === this.viewType && e.uri.toString() === this.resource.toString()) {
+				this.resolve().catch(onUnexpectedError);
+			}
+		});
 	}
 
 	override dispose() {
+		this._sideLoadedListener.dispose();
 		this._editorModelReference?.dispose();
 		this._editorModelReference = null;
 		super.dispose();
@@ -59,23 +72,43 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		return NotebookEditorInput.ID;
 	}
 
+	override get editorId(): string | undefined {
+		return this.viewType;
+	}
+
+	override get capabilities(): EditorInputCapabilities {
+		let capabilities = EditorInputCapabilities.None;
+
+		if (this.resource.scheme === Schemas.untitled) {
+			capabilities |= EditorInputCapabilities.Untitled;
+		}
+
+		if (this._editorModelReference) {
+			if (this._editorModelReference.object.isReadonly()) {
+				capabilities |= EditorInputCapabilities.Readonly;
+			}
+		} else {
+			if (this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
+				capabilities |= EditorInputCapabilities.Readonly;
+			}
+		}
+
+		return capabilities;
+	}
+
+	override getDescription(verbosity = Verbosity.MEDIUM): string | undefined {
+		if (!this.hasCapability(EditorInputCapabilities.Untitled) || this._editorModelReference?.object.hasAssociatedFilePath()) {
+			return super.getDescription(verbosity);
+		}
+
+		return undefined; // no description for untitled notebooks without associated file path
+	}
+
 	override isDirty() {
 		if (!this._editorModelReference) {
 			return this._defaultDirtyState;
 		}
 		return this._editorModelReference.object.isDirty();
-	}
-
-	override isUntitled(): boolean {
-		return this.resource.scheme === Schemas.untitled;
-	}
-
-	override isReadonly() {
-		if (!this._editorModelReference) {
-			return super.isReadonly();
-		}
-
-		return this._editorModelReference.object.isReadonly();
 	}
 
 	override isOrphaned() {
@@ -89,7 +122,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		if (this._editorModelReference) {
 
-			if (this.isUntitled()) {
+			if (this.hasCapability(EditorInputCapabilities.Untitled)) {
 				return this.saveAs(group, options);
 			} else {
 				await this._editorModelReference.object.save(options);
@@ -112,7 +145,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			return undefined;
 		}
 
-		const dialogPath = this.isUntitled() ? await this._suggestName(this.labelService.getUriBasenameLabel(this.resource)) : this._editorModelReference.object.resource;
+		const dialogPath = this.hasCapability(EditorInputCapabilities.Untitled) ? await this._suggestName(this.labelService.getUriBasenameLabel(this.resource)) : this._editorModelReference.object.resource;
 
 		const target = await this._fileDialogService.pickFileToSave(dialogPath, options?.availableFileSystems);
 		if (!target) {
@@ -153,7 +186,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		return undefined;
 	}
 
-	private _move(_group: GroupIdentifier, newResource: URI): { editor: IEditorInput } {
+	private _move(_group: GroupIdentifier, newResource: URI): { editor: IEditorInput; } {
 		const editorInput = NotebookEditorInput.create(this._instantiationService, newResource, this.viewType);
 		return { editor: editorInput };
 	}
@@ -171,8 +204,19 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 
 		mark(this.resource, 'extensionActivated');
 
+		// we are now loading the notebook and don't need to listen to
+		// "other" loading anymore
+		this._sideLoadedListener.dispose();
+
 		if (!this._editorModelReference) {
-			this._editorModelReference = await this._notebookModelResolverService.resolve(this.resource, this.viewType);
+			const ref = await this._notebookModelResolverService.resolve(this.resource, this.viewType);
+			if (this._editorModelReference) {
+				// Re-entrant, double resolve happened. Dispose the addition references and proceed
+				// with the truth.
+				ref.dispose();
+				return (<IReference<IResolvedNotebookEditorModel>>this._editorModelReference).object;
+			}
+			this._editorModelReference = ref;
 			if (this.isDisposed()) {
 				this._editorModelReference.dispose();
 				this._editorModelReference = null;
@@ -180,6 +224,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			}
 			this._register(this._editorModelReference.object.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
 			this._register(this._editorModelReference.object.onDidChangeOrphaned(() => this._onDidChangeLabel.fire()));
+			this._register(this._editorModelReference.object.onDidChangeReadonly(() => this._onDidChangeCapabilities.fire()));
 			if (this._editorModelReference.object.isDirty()) {
 				this._onDidChangeDirty.fire();
 			}
@@ -190,8 +235,17 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		return this._editorModelReference.object;
 	}
 
-	override matches(otherInput: unknown): boolean {
-		if (this === otherInput) {
+	override toUntyped(): IResourceEditorInput {
+		return {
+			resource: this.preferredResource,
+			options: {
+				override: this.viewType
+			}
+		};
+	}
+
+	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
+		if (super.matches(otherInput)) {
 			return true;
 		}
 		if (otherInput instanceof NotebookEditorInput) {
@@ -199,4 +253,15 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		}
 		return false;
 	}
+}
+
+export interface ICompositeNotebookEditorInput {
+	readonly editorInputs: NotebookEditorInput[];
+}
+
+export function isCompositeNotebookEditorInput(thing: unknown): thing is ICompositeNotebookEditorInput {
+	return !!thing
+		&& typeof thing === 'object'
+		&& Array.isArray((<ICompositeNotebookEditorInput>thing).editorInputs)
+		&& ((<ICompositeNotebookEditorInput>thing).editorInputs.every(input => input instanceof NotebookEditorInput));
 }

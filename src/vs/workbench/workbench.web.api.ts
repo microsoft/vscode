@@ -19,6 +19,7 @@ import { IProductConfiguration } from 'vs/base/common/product';
 import { mark } from 'vs/base/common/performance';
 import { ICredentialsProvider } from 'vs/workbench/services/credentials/common/credentials';
 import { TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
+import { ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -29,6 +30,12 @@ interface IStaticExtension {
 	extensionLocation: UriComponents;
 	isBuiltin?: boolean;
 }
+
+/**
+ * The identifier of an extension in the format: `PUBLISHER.NAME`.
+ * For example: `vscode.csharp`
+ */
+type ExtensionId = string;
 
 interface ICommonTelemetryPropertiesResolver {
 	(): { [key: string]: any };
@@ -72,6 +79,8 @@ interface ITunnelOptions {
 	label?: string;
 
 	public?: boolean;
+
+	protocol?: string;
 }
 
 export interface TunnelCreationOptions {
@@ -92,6 +101,11 @@ interface ITunnel {
 	localAddress: string;
 
 	public?: boolean;
+
+	/**
+	 * If protocol is not provided, it is assumed to be http, regardless of the localAddress
+	 */
+	protocol?: string;
 
 	/**
 	 * Implementers of Tunnel should fire onDidDispose when dispose is called.
@@ -147,7 +161,7 @@ interface IWindowIndicator {
 	/**
 	 * Triggering this event will cause the window indicator to update.
 	 */
-	onDidChange: Event<void>;
+	readonly onDidChange?: Event<void>;
 
 	/**
 	 * Label of the window indicator may include octicons
@@ -179,12 +193,12 @@ interface IInitialColorTheme {
 	/**
 	 * Initial color theme type.
 	 */
-	themeType: ColorScheme;
+	readonly themeType: ColorScheme;
 
 	/**
 	 * A list of workbench colors to apply initially.
 	 */
-	colors?: { [colorId: string]: string };
+	readonly colors?: { [colorId: string]: string };
 }
 
 interface IDefaultView {
@@ -258,8 +272,16 @@ interface IWorkbenchConstructionOptions {
 
 	/**
 	 * An URL pointing to the web worker extension host <iframe> src.
+	 * @deprecated. This will be removed soon.
 	 */
 	readonly webWorkerExtensionHostIframeSrc?: string;
+
+	/**
+	 * [TEMPORARY]: This will be removed soon.
+	 * Use an unique origin for the web worker extension host.
+	 * Defaults to false.
+	 */
+	readonly __uniqueWebWorkerExtensionHostOrigin?: boolean;
 
 	/**
 	 * A factory for web sockets.
@@ -298,15 +320,6 @@ interface IWorkbenchConstructionOptions {
 	readonly workspaceProvider?: IWorkspaceProvider;
 
 	/**
-	 * Enables Settings Sync by default.
-	 *
-	 * Syncs with the current authenticated user account (provided in [credentialsProvider](#credentialsProvider)) by default.
-	 *
-	 * @deprecated Instead use [settingsSyncOptions](#settingsSyncOptions) to enable/disable settings sync in the workbench.
-	 */
-	readonly enableSyncByDefault?: boolean;
-
-	/**
 	 * Settings sync options
 	 */
 	readonly settingsSyncOptions?: ISettingsSyncOptions;
@@ -318,8 +331,22 @@ interface IWorkbenchConstructionOptions {
 
 	/**
 	 * Add static extensions that cannot be uninstalled but only be disabled.
+	 * @deprecated. Use `additionalBuiltinExtensions` instead.
 	 */
 	readonly staticExtensions?: readonly IStaticExtension[];
+
+	/**
+	 * Additional builtin extensions that cannot be uninstalled but only be disabled.
+	 * It can be one of the following:
+	 * 	- `ExtensionId`: id of the extension that is available in Marketplace
+	 * 	- `UriComponents`: location of the extension where it is hosted.
+	 */
+	readonly additionalBuiltinExtensions?: readonly (ExtensionId | UriComponents)[];
+
+	/**
+	 * List of extensions to be enabled.
+	 */
+	readonly enableExtensions?: readonly ExtensionId[];
 
 	/**
 	 * [TEMPORARY]: This will be removed soon.
@@ -337,6 +364,12 @@ interface IWorkbenchConstructionOptions {
 	 * Support adding additional properties to telemetry.
 	 */
 	readonly resolveCommonTelemetryProperties?: ICommonTelemetryPropertiesResolver;
+
+	/**
+	 * When provided used as the interface for sending telemetry events rather than the VS Code server.
+	 * If no appender is provided and no server is present, no telemetry is sent.
+	 */
+	readonly telemetryAppender?: ITelemetryAppender;
 
 	/**
 	 * A set of optional commands that should be registered with the commands
@@ -426,7 +459,7 @@ interface IDevelopmentOptions {
 	/**
 	 * Add extensions under development.
 	 */
-	readonly extensions?: readonly IStaticExtension[];
+	readonly extensions?: readonly UriComponents[];
 
 	/**
 	 * Whether to enable the smoke test driver.
@@ -457,10 +490,12 @@ interface IWorkbench {
 	}
 
 	env: {
+		readonly uriScheme: string;
 		/**
 		 * @see [retrievePerformanceMarks](#commands.retrievePerformanceMarks)
 		 */
 		retrievePerformanceMarks(): Promise<[string, readonly IPerformanceMark[]][]>;
+		openUri(uri: URI): Promise<boolean>;
 	}
 
 	/**
@@ -560,6 +595,16 @@ namespace env {
 
 		return workbench.env.retrievePerformanceMarks();
 	}
+
+	export async function getUriScheme(): Promise<string> {
+		const workbench = await workbenchPromise;
+		return workbench.env.uriScheme;
+	}
+
+	export async function openUri(target: URI): Promise<boolean> {
+		const workbench = await workbenchPromise;
+		return workbench.env.openUri(target);
+	}
 }
 
 export {
@@ -611,6 +656,7 @@ export {
 
 	// Telemetry
 	ICommonTelemetryPropertiesResolver,
+	ITelemetryAppender,
 
 	// External Uris
 	IExternalUriResolver,

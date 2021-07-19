@@ -19,7 +19,12 @@ export const WindowMinimumSize = {
 };
 
 export interface IBaseOpenWindowsOptions {
+
+	/**
+	 * Whether to reuse the window or open a new one.
+	 */
 	readonly forceReuseWindow?: boolean;
+
 	/**
 	 * The remote authority to use when windows are opened with either
 	 * - no workspace (empty window)
@@ -56,8 +61,7 @@ export interface IOpenedWindow {
 	readonly dirty: boolean;
 }
 
-export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions {
-}
+export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions { }
 
 export type IWindowOpenable = IWorkspaceToOpen | IFolderToOpen | IFileToOpen;
 

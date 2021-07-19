@@ -264,12 +264,7 @@ export class ExtUri implements IExtUri {
 				path: newURI.path
 			});
 		}
-		if (path.indexOf('/') === -1) { // no slashes? it's likely a Windows path
-			path = extpath.toSlashes(path);
-			if (/^[a-zA-Z]:(\/|$)/.test(path)) { // starts with a drive letter
-				path = '/' + path;
-			}
-		}
+		path = extpath.toPosixPath(path); // we allow path to be a windows path
 		return base.with({
 			path: paths.posix.resolve(base.path, path)
 		});

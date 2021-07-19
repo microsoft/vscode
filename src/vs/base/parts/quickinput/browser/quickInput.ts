@@ -32,6 +32,7 @@ import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { isString } from 'vs/base/common/types';
 import { IKeybindingLabelStyles } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
+import { isIOS } from 'vs/base/common/platform';
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -235,8 +236,11 @@ class QuickInput extends Disposable implements IQuickInput {
 	}
 
 	set ignoreFocusOut(ignoreFocusOut: boolean) {
-		this._ignoreFocusOut = ignoreFocusOut;
-		this.update();
+		const shouldUpdate = this._ignoreFocusOut !== ignoreFocusOut && !isIOS;
+		this._ignoreFocusOut = ignoreFocusOut && !isIOS;
+		if (shouldUpdate) {
+			this.update();
+		}
 	}
 
 	get buttons() {

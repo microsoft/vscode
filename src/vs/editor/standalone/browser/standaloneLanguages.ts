@@ -548,6 +548,20 @@ export function registerDocumentRangeSemanticTokensProvider(languageId: string, 
 }
 
 /**
+ * Register an inline completions provider.
+ */
+export function registerInlineCompletionsProvider(languageId: string, provider: modes.InlineCompletionsProvider): IDisposable {
+	return modes.InlineCompletionsProviderRegistry.register(languageId, provider);
+}
+
+/**
+ * Register an inlay hints provider.
+ */
+export function registerInlayHintsProvider(languageId: string, provider: modes.InlayHintsProvider): IDisposable {
+	return modes.InlayHintsProviderRegistry.register(languageId, provider);
+}
+
+/**
  * Contains additional diagnostic information about the context in which
  * a [code action](#CodeActionProvider.provideCodeActions) is run.
  */
@@ -613,6 +627,8 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		registerSelectionRangeProvider: <any>registerSelectionRangeProvider,
 		registerDocumentSemanticTokensProvider: <any>registerDocumentSemanticTokensProvider,
 		registerDocumentRangeSemanticTokensProvider: <any>registerDocumentRangeSemanticTokensProvider,
+		registerInlineCompletionsProvider: <any>registerInlineCompletionsProvider,
+		registerInlayHintsProvider: <any>registerInlayHintsProvider,
 
 		// enums
 		DocumentHighlightKind: standaloneEnums.DocumentHighlightKind,
@@ -625,6 +641,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		CompletionTriggerKind: standaloneEnums.CompletionTriggerKind,
 		SignatureHelpTriggerKind: standaloneEnums.SignatureHelpTriggerKind,
 		InlayHintKind: standaloneEnums.InlayHintKind,
+		InlineCompletionTriggerKind: standaloneEnums.InlineCompletionTriggerKind,
 
 		// classes
 		FoldingRangeKind: modes.FoldingRangeKind,

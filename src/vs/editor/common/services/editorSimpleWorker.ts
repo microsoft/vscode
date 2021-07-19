@@ -235,7 +235,7 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 	public offsetAt(position: IPosition): number {
 		position = this._validatePosition(position);
 		this._ensureLineStarts();
-		return this._lineStarts!.getAccumulatedValue(position.lineNumber - 2) + (position.column - 1);
+		return this._lineStarts!.getPrefixSum(position.lineNumber - 2) + (position.column - 1);
 	}
 
 	public positionAt(offset: number): IPosition {

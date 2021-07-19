@@ -916,4 +916,55 @@ suite('Editor Diff - DiffComputer', () => {
 		];
 		assertDiff(original, modified, expected, false, false, false);
 	});
+
+	test('issue #121436: Diff chunk contains an unchanged line part 1', () => {
+		const original = [
+			'if (cond) {',
+			'    cmd',
+			'}',
+		];
+		const modified = [
+			'if (cond) {',
+			'    if (other_cond) {',
+			'        cmd',
+			'    }',
+			'}',
+		];
+		const expected = [
+			createLineChange(
+				1, 0, 2, 2
+			),
+			createLineChange(
+				2, 0, 4, 4
+			)
+		];
+		assertDiff(original, modified, expected, false, false, true);
+	});
+
+	test('issue #121436: Diff chunk contains an unchanged line part 2', () => {
+		const original = [
+			'if (cond) {',
+			'    cmd',
+			'}',
+		];
+		const modified = [
+			'if (cond) {',
+			'    if (other_cond) {',
+			'        cmd',
+			'    }',
+			'}',
+		];
+		const expected = [
+			createLineChange(
+				1, 0, 2, 2
+			),
+			createLineChange(
+				2, 2, 3, 3
+			),
+			createLineChange(
+				2, 0, 4, 4
+			)
+		];
+		assertDiff(original, modified, expected, false, false, false);
+	});
 });

@@ -145,6 +145,7 @@ function tokenGroupSettings(description: string): IJSONSchema {
 }
 
 const tokenColorSchema: IJSONSchema = {
+	type: 'object',
 	properties: {
 		comments: tokenGroupSettings(nls.localize('editorColors.comments', "Sets the colors and styles for comments")),
 		strings: tokenGroupSettings(nls.localize('editorColors.strings', "Sets the colors and styles for strings literals.")),

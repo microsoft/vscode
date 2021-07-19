@@ -59,12 +59,12 @@ suite('Decoration Render Options', () => {
 	};
 	test('register and resolve decoration type', () => {
 		let s = new TestCodeEditorServiceImpl(null, themeServiceMock);
-		s.registerDecorationType('example', options);
+		s.registerDecorationType('test', 'example', options);
 		assert.notStrictEqual(s.resolveDecorationOptions('example', false), undefined);
 	});
 	test('remove decoration type', () => {
 		let s = new TestCodeEditorServiceImpl(null, themeServiceMock);
-		s.registerDecorationType('example', options);
+		s.registerDecorationType('test', 'example', options);
 		assert.notStrictEqual(s.resolveDecorationOptions('example', false), undefined);
 		s.removeDecorationType('example');
 		assert.throws(() => s.resolveDecorationOptions('example', false));
@@ -77,7 +77,7 @@ suite('Decoration Render Options', () => {
 	test('css properties', () => {
 		const styleSheet = new TestGlobalStyleSheet();
 		const s = new TestCodeEditorServiceImpl(styleSheet, themeServiceMock);
-		s.registerDecorationType('example', options);
+		s.registerDecorationType('test', 'example', options);
 		const sheet = readStyleSheet(styleSheet);
 		assert(sheet.indexOf(`{background:url('https://github.com/microsoft/vscode/blob/main/resources/linux/code.png') center center no-repeat;background-size:contain;}`) >= 0);
 		assert(sheet.indexOf(`{background-color:red;border-color:yellow;box-sizing: border-box;}`) >= 0);
@@ -94,7 +94,7 @@ suite('Decoration Render Options', () => {
 			editorBackground: '#FF0000'
 		}));
 		const s = new TestCodeEditorServiceImpl(styleSheet, themeService);
-		s.registerDecorationType('example', options);
+		s.registerDecorationType('test', 'example', options);
 		assert.strictEqual(readStyleSheet(styleSheet), '.monaco-editor .ced-example-0 {background-color:#ff0000;border-color:transparent;box-sizing: border-box;}');
 
 		themeService.setTheme(new TestColorTheme({
@@ -127,7 +127,7 @@ suite('Decoration Render Options', () => {
 			infoForeground: '#444444'
 		}));
 		const s = new TestCodeEditorServiceImpl(styleSheet, themeService);
-		s.registerDecorationType('example', options);
+		s.registerDecorationType('test', 'example', options);
 		const expected = [
 			'.vs-dark.monaco-editor .ced-example-4::after, .hc-black.monaco-editor .ced-example-4::after {color:#444444 !important;}',
 			'.vs-dark.monaco-editor .ced-example-1, .hc-black.monaco-editor .ced-example-1 {color:#000000 !important;}',
@@ -145,7 +145,7 @@ suite('Decoration Render Options', () => {
 		const s = new TestCodeEditorServiceImpl(styleSheet, themeServiceMock);
 
 		// URI, only minimal encoding
-		s.registerDecorationType('example', { gutterIconPath: URI.parse('data:image/svg+xml;base64,PHN2ZyB4b+') });
+		s.registerDecorationType('test', 'example', { gutterIconPath: URI.parse('data:image/svg+xml;base64,PHN2ZyB4b+') });
 		assert(readStyleSheet(styleSheet).indexOf(`{background:url('data:image/svg+xml;base64,PHN2ZyB4b+') center center no-repeat;}`) > 0);
 		s.removeDecorationType('example');
 
@@ -159,27 +159,27 @@ suite('Decoration Render Options', () => {
 
 		if (platform.isWindows) {
 			// windows file path (used as string)
-			s.registerDecorationType('example', { gutterIconPath: URI.file('c:\\files\\miles\\more.png') });
+			s.registerDecorationType('test', 'example', { gutterIconPath: URI.file('c:\\files\\miles\\more.png') });
 			assertBackground('file:///c:/files/miles/more.png', 'vscode-file://vscode-app/c:/files/miles/more.png');
 			s.removeDecorationType('example');
 
 			// single quote must always be escaped/encoded
-			s.registerDecorationType('example', { gutterIconPath: URI.file('c:\\files\\foo\\b\'ar.png') });
+			s.registerDecorationType('test', 'example', { gutterIconPath: URI.file('c:\\files\\foo\\b\'ar.png') });
 			assertBackground('file:///c:/files/foo/b%27ar.png', 'vscode-file://vscode-app/c:/files/foo/b%27ar.png');
 			s.removeDecorationType('example');
 		} else {
 			// unix file path (used as string)
-			s.registerDecorationType('example', { gutterIconPath: URI.file('/Users/foo/bar.png') });
+			s.registerDecorationType('test', 'example', { gutterIconPath: URI.file('/Users/foo/bar.png') });
 			assertBackground('file:///Users/foo/bar.png', 'vscode-file://vscode-app/Users/foo/bar.png');
 			s.removeDecorationType('example');
 
 			// single quote must always be escaped/encoded
-			s.registerDecorationType('example', { gutterIconPath: URI.file('/Users/foo/b\'ar.png') });
+			s.registerDecorationType('test', 'example', { gutterIconPath: URI.file('/Users/foo/b\'ar.png') });
 			assertBackground('file:///Users/foo/b%27ar.png', 'vscode-file://vscode-app/Users/foo/b%27ar.png');
 			s.removeDecorationType('example');
 		}
 
-		s.registerDecorationType('example', { gutterIconPath: URI.parse('http://test/pa\'th') });
+		s.registerDecorationType('test', 'example', { gutterIconPath: URI.parse('http://test/pa\'th') });
 		assert(readStyleSheet(styleSheet).indexOf(`{background:url('http://test/pa%27th') center center no-repeat;}`) > 0);
 		s.removeDecorationType('example');
 	});

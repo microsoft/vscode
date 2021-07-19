@@ -165,8 +165,8 @@ if (isMacintosh) {
 		});
 	};
 
-	registerTouchBarEntry(DEBUG_START_COMMAND_ID, DEBUG_START_LABEL, 0, CONTEXT_IN_DEBUG_MODE.toNegated(), FileAccess.asFileUri('vs/workbench/contrib/debug/browser/media/continue-tb.png', require));
-	registerTouchBarEntry(DEBUG_RUN_COMMAND_ID, DEBUG_RUN_LABEL, 1, CONTEXT_IN_DEBUG_MODE.toNegated(), FileAccess.asFileUri('vs/workbench/contrib/debug/browser/media/continue-without-debugging-tb.png', require));
+	registerTouchBarEntry(DEBUG_RUN_COMMAND_ID, DEBUG_RUN_LABEL, 0, CONTEXT_IN_DEBUG_MODE.toNegated(), FileAccess.asFileUri('vs/workbench/contrib/debug/browser/media/continue-tb.png', require));
+	registerTouchBarEntry(DEBUG_START_COMMAND_ID, DEBUG_START_LABEL, 1, CONTEXT_IN_DEBUG_MODE.toNegated(), FileAccess.asFileUri('vs/workbench/contrib/debug/browser/media/run-with-debugging-tb.png', require));
 	registerTouchBarEntry(CONTINUE_ID, CONTINUE_LABEL, 0, CONTEXT_DEBUG_STATE.isEqualTo('stopped'), FileAccess.asFileUri('vs/workbench/contrib/debug/browser/media/continue-tb.png', require));
 	registerTouchBarEntry(PAUSE_ID, PAUSE_LABEL, 1, ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, ContextKeyExpr.notEquals('debugState', 'stopped')), FileAccess.asFileUri('vs/workbench/contrib/debug/browser/media/pause-tb.png', require));
 	registerTouchBarEntry(STEP_OVER_ID, STEP_OVER_LABEL, 2, CONTEXT_IN_DEBUG_MODE, FileAccess.asFileUri('vs/workbench/contrib/debug/browser/media/stepover-tb.png', require));
@@ -177,6 +177,17 @@ if (isMacintosh) {
 }
 
 // Debug menu
+
+MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
+	submenu: MenuId.MenubarDebugMenu,
+	title: {
+		value: 'Run',
+		original: 'Run',
+		mnemonicTitle: nls.localize({ key: 'mRun', comment: ['&& denotes a mnemonic'] }, "&&Run")
+	},
+	when: ContextKeyExpr.or(CONTEXT_DEBUGGERS_AVAILABLE),
+	order: 6
+});
 
 MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 	group: '1_debug',
@@ -306,6 +317,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 		id: 'debug.installAdditionalDebuggers',
 		title: nls.localize({ key: 'miInstallAdditionalDebuggers', comment: ['&& denotes a mnemonic'] }, "&&Install Additional Debuggers...")
 	},
+	when: CONTEXT_DEBUGGERS_AVAILABLE,
 	order: 1
 });
 

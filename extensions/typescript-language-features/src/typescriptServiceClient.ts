@@ -12,14 +12,14 @@ import { EventName } from './protocol.const';
 import BufferSyncSupport from './tsServer/bufferSyncSupport';
 import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
 import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
-import { ITypeScriptServer, TsServerProcessFactory } from './tsServer/server';
+import { ITypeScriptServer, TsServerProcessFactory, TypeScriptServerExitEvent } from './tsServer/server';
 import { TypeScriptServerError } from './tsServer/serverError';
 import { TypeScriptServerSpawner } from './tsServer/spawner';
 import { TypeScriptVersionManager } from './tsServer/versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './tsServer/versionProvider';
 import { ClientCapabilities, ClientCapability, ExecConfig, ITypeScriptServiceClient, ServerResponse, TypeScriptRequests } from './typescriptService';
 import API from './utils/api';
-import { TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
+import { areServiceConfigurationsEqual, ServiceConfigurationProvider, SeparateSyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
 import { Disposable } from './utils/dispose';
 import * as fileSchemes from './utils/fileSchemes';
 import { Logger } from './utils/logger';
@@ -135,6 +135,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			cancellerFactory: OngoingRequestCancellerFactory,
 			versionProvider: ITypeScriptVersionProvider,
 			processFactory: TsServerProcessFactory,
+			serviceConfigurationProvider: ServiceConfigurationProvider,
 		},
 		allModeIds: readonly string[]
 	) {
@@ -161,7 +162,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		this.numberRestarts = 0;
 
-		this._configuration = TypeScriptServiceConfiguration.loadFromWorkspace();
+		this._configuration = services.serviceConfigurationProvider.loadFromWorkspace();
 		this.versionProvider.updateConfiguration(this._configuration);
 
 		this.pluginPathsProvider = new TypeScriptPluginPathsProvider(this._configuration);
@@ -185,7 +186,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		vscode.workspace.onDidChangeConfiguration(() => {
 			const oldConfiguration = this._configuration;
-			this._configuration = TypeScriptServiceConfiguration.loadFromWorkspace();
+			this._configuration = services.serviceConfigurationProvider.loadFromWorkspace();
 
 			this.versionProvider.updateConfiguration(this._configuration);
 			this._versionManager.updateConfiguration(this._configuration);
@@ -193,11 +194,11 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			this.tracer.updateConfiguration();
 
 			if (this.serverState.type === ServerState.Type.Running) {
-				if (!this._configuration.implictProjectConfiguration.isEqualTo(oldConfiguration.implictProjectConfiguration)) {
+				if (!this._configuration.implicitProjectConfiguration.isEqualTo(oldConfiguration.implicitProjectConfiguration)) {
 					this.setCompilerOptionsForInferredProjects(this._configuration);
 				}
 
-				if (!this._configuration.isEqualTo(oldConfiguration)) {
+				if (!areServiceConfigurationsEqual(this._configuration, oldConfiguration)) {
 					this.restartTsServer();
 				}
 			}
@@ -224,6 +225,12 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public get capabilities() {
+		if (this._configuration.separateSyntaxServer === SeparateSyntaxServerConfiguration.ForAllRequests) {
+			return new ClientCapabilities(
+				ClientCapability.Syntax,
+				ClientCapability.EnhancedSyntax);
+		}
+
 		if (isWeb()) {
 			return new ClientCapabilities(
 				ClientCapability.Syntax,
@@ -426,27 +433,30 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			this.serviceExited(false);
 		});
 
-		handle.onExit((code: any) => {
+		handle.onExit((data: TypeScriptServerExitEvent) => {
 			if (this.token !== mytoken) {
 				// this is coming from an old process
 				return;
 			}
 
+			const { code, signal } = data;
+
 			if (code === null || typeof code === 'undefined') {
-				this.info('TSServer exited');
+				this.info(`TSServer exited. Signal: ${signal}`);
 			} else {
 				// In practice, the exit code is an integer with no ties to any identity,
 				// so it can be classified as SystemMetaData, rather than CallstackOrException.
-				this.error(`TSServer exited with code: ${code}`);
+				this.error(`TSServer exited with code: ${code}. Signal: ${signal}`);
 				/* __GDPR__
 					"tsserver.exitWithCode" : {
 						"code" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+						"signal" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 						"${include}": [
 							"${TypeScriptCommonProperties}"
 						]
 					}
 				*/
-				this.logTelemetry('tsserver.exitWithCode', { code: code });
+				this.logTelemetry('tsserver.exitWithCode', { code, signal: signal ?? undefined });
 			}
 
 			if (handle.tsServerLogFile) {
@@ -676,6 +686,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public hasCapabilityForResource(resource: vscode.Uri, capability: ClientCapability): boolean {
+		if (!this.capabilities.has(capability)) {
+			return false;
+		}
+
 		switch (capability) {
 			case ClientCapability.Semantic:
 				{
@@ -693,7 +707,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		if (isWeb()) {
 			// On web, treat absolute paths as pointing to standard lib files
 			if (filepath.startsWith('/')) {
-				return vscode.Uri.joinPath(this.context.extensionUri, 'node_modules', 'typescript', 'lib', filepath.slice(1));
+				return vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'browser', 'typescript', filepath.slice(1));
 			}
 		}
 
@@ -811,7 +825,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			}
 		*/
 		this.logTelemetry('fatalError', { ...(error instanceof TypeScriptServerError ? error.telemetry : { command }) });
-		console.error(`A non-recoverable error occured while executing tsserver command: ${command}`);
+		console.error(`A non-recoverable error occurred while executing tsserver command: ${command}`);
 		if (error instanceof TypeScriptServerError && error.serverErrorText) {
 			console.error(error.serverErrorText);
 		}
@@ -1055,4 +1069,3 @@ class ServerInitializingIndicator extends Disposable {
 		}
 	}
 }
-

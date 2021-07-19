@@ -19,7 +19,7 @@ const GOLDEN_LINE_HEIGHT_RATIO = platform.isMacintosh ? 1.5 : 1.35;
 const MINIMUM_LINE_HEIGHT = 8;
 
 export class BareFontInfo {
-	readonly _bareFontInfoBrand: void;
+	readonly _bareFontInfoBrand: void = undefined;
 
 	/**
 	 * @internal
@@ -52,8 +52,15 @@ export class BareFontInfo {
 	 */
 	private static _create(fontFamily: string, fontWeight: string, fontSize: number, fontFeatureSettings: string, lineHeight: number, letterSpacing: number, zoomLevel: number, pixelRatio: number, ignoreEditorZoom: boolean): BareFontInfo {
 		if (lineHeight === 0) {
-			lineHeight = Math.round(GOLDEN_LINE_HEIGHT_RATIO * fontSize);
+			lineHeight = GOLDEN_LINE_HEIGHT_RATIO * fontSize;
 		} else if (lineHeight < MINIMUM_LINE_HEIGHT) {
+			// Values too small to be line heights in pixels are probably in ems. Accept them gracefully.
+			lineHeight = lineHeight * fontSize;
+		}
+
+		// Enforce integer, minimum constraints
+		lineHeight = Math.round(lineHeight);
+		if (lineHeight < MINIMUM_LINE_HEIGHT) {
 			lineHeight = MINIMUM_LINE_HEIGHT;
 		}
 
@@ -133,7 +140,7 @@ export class BareFontInfo {
 export const SERIALIZED_FONT_INFO_VERSION = 1;
 
 export class FontInfo extends BareFontInfo {
-	readonly _editorStylingBrand: void;
+	readonly _editorStylingBrand: void = undefined;
 
 	readonly version: number = SERIALIZED_FONT_INFO_VERSION;
 	readonly isTrusted: boolean;

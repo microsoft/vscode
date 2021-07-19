@@ -43,6 +43,7 @@ suite('CompletionModel', function () {
 		showMethods: true,
 		showFunctions: true,
 		showConstructors: true,
+		showDeprecated: true,
 		showFields: true,
 		showVariables: true,
 		showClasses: true,

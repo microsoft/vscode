@@ -12,10 +12,6 @@
 	overflow: hidden;
 }
 
-.settings-editor .codicon {
-	color: inherit !important;
-}
-
 .settings-editor:focus {
 	outline: none !important;
 }
@@ -572,4 +568,17 @@
 
 .settings-editor.search-mode > .settings-body .settings-toc-container .monaco-list-row .settings-toc-count {
 	display: block;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-list-widget .setting-list-object-list-row.select-container {
+	width: 320px;
+}
+.settings-editor > .settings-body > .settings-tree-container .setting-list-widget .setting-list-object-list-row.select-container > select {
+	width: inherit;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .codicon,
+.settings-editor > .settings-body .settings-toc-container .monaco-list-row.focused .codicon,
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row.focused .setting-item-contents .setting-toolbar-container > .monaco-toolbar .codicon {
+	color: inherit !important;
 }

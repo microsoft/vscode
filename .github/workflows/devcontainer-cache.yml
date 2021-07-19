@@ -1,6 +1,7 @@
 name: VS Code Repo Dev Container Cache Image Generation
 
 on:
+  workflow_dispatch:
   push:
     # Currently doing this for main, but could be done for PRs as well
     branches:

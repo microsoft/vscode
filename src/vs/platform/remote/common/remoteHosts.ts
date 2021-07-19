@@ -26,7 +26,7 @@ export function getRemoteName(authority: string | undefined): string | undefined
 	return authority.substr(0, pos);
 }
 
-function isVirtualResource(resource: URI) {
+export function isVirtualResource(resource: URI) {
 	return resource.scheme !== Schemas.file && resource.scheme !== Schemas.vscodeRemote;
 }
 
@@ -41,4 +41,8 @@ export function getVirtualWorkspaceLocation(workspace: IWorkspace): { scheme: st
 
 export function getVirtualWorkspaceScheme(workspace: IWorkspace): string | undefined {
 	return getVirtualWorkspaceLocation(workspace)?.scheme;
+}
+
+export function isVirtualWorkspace(workspace: IWorkspace): boolean {
+	return getVirtualWorkspaceLocation(workspace) !== undefined;
 }

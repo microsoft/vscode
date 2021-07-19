@@ -19,9 +19,9 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { ActiveEditorContext, IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
+import { ActiveEditorContext, IEditorSerializer, IEditorFactoryRegistry, EditorExtensions, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { IViewsService } from 'vs/workbench/common/views';
 import { getSearchView } from 'vs/workbench/contrib/search/browser/searchActions';
 import { searchNewEditorIcon, searchRefreshIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
@@ -32,7 +32,7 @@ import { createEditorFromSearchResult, modifySearchEditorContextLinesCommand, op
 import { getOrMakeSearchEditorInput, SearchConfiguration, SearchEditorInput, SEARCH_EDITOR_EXT } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { VIEW_ID } from 'vs/workbench/services/search/common/search';
-import { ContributedEditorPriority, DEFAULT_EDITOR_ASSOCIATION, IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { RegisteredEditorPriority, IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { Disposable } from 'vs/base/common/lifecycle';
 
@@ -54,8 +54,8 @@ const SelectAllSearchEditorMatchesCommandId = 'selectAllSearchEditorMatches';
 
 
 //#region Editor Descriptior
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
 		SearchEditor,
 		SearchEditor.ID,
 		localize('searchEditor', "Search Editor")
@@ -69,27 +69,26 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 //#region Startup Contribution
 class SearchEditorContribution implements IWorkbenchContribution {
 	constructor(
-		@IEditorOverrideService private readonly editorOverrideService: IEditorOverrideService,
+		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@ITelemetryService protected readonly telemetryService: ITelemetryService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 	) {
 
-		this.editorOverrideService.registerContributionPoint(
+		this.editorResolverService.registerEditor(
 			'*' + SEARCH_EDITOR_EXT,
 			{
 				id: SearchEditorInput.ID,
 				label: localize('promptOpenWith.searchEditor.displayName', "Search Editor"),
 				detail: DEFAULT_EDITOR_ASSOCIATION.providerDisplayName,
-				describes: (editor) => editor instanceof SearchEditorInput,
-				priority: ContributedEditorPriority.default,
+				priority: RegisteredEditorPriority.default,
 			},
 			{
 				singlePerResource: true,
 				canHandleDiff: false,
 				canSupportResource: resource => (extname(resource) === SEARCH_EDITOR_EXT)
 			},
-			(resource, options, group) => {
+			({ resource }) => {
 				return { editor: instantiationService.invokeFunction(getOrMakeSearchEditorInput, { from: 'existingFile', fileUri: resource }) };
 			}
 		);
@@ -103,7 +102,7 @@ workbenchContributionsRegistry.registerWorkbenchContribution(SearchEditorContrib
 //#region Input Serializer
 type SerializedSearchEditor = { modelUri: string | undefined, dirty: boolean, config: SearchConfiguration, name: string, matchRanges: Range[], backingUri: string };
 
-class SearchEditorInputSerializer implements IEditorInputSerializer {
+class SearchEditorInputSerializer implements IEditorSerializer {
 
 	canSerialize(input: SearchEditorInput) {
 		return !!input.tryReadConfigSync();
@@ -150,7 +149,7 @@ class SearchEditorInputSerializer implements IEditorInputSerializer {
 	}
 }
 
-Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(
 	SearchEditorInput.ID,
 	SearchEditorInputSerializer);
 //#endregion
@@ -218,6 +217,7 @@ const openArgDescription = {
 				showIncludesExcludes: { type: 'boolean' },
 				triggerSearch: { type: 'boolean' },
 				focusResults: { type: 'boolean' },
+				onlyOpenEditors: { type: 'boolean' },
 			}
 		}
 	}]
@@ -507,7 +507,7 @@ registerAction2(class OpenSearchEditorAction extends Action2 {
 	constructor() {
 		super({
 			id: 'search.action.openNewEditorFromView',
-			title: localize('search.openNewEditor', "Open New Search Editor from View"),
+			title: localize('search.openNewEditor', "Open New Search Editor"),
 			category,
 			icon: searchNewEditorIcon,
 			menu: [{
@@ -538,12 +538,8 @@ class SearchEditorWorkingCopyEditorHandler extends Disposable implements IWorkbe
 
 	private installHandler(): void {
 		this._register(this.workingCopyEditorService.registerHandler({
-			handles: workingCopy => {
-				return workingCopy.resource.scheme === SearchEditorConstants.SearchEditorScheme;
-			},
-			isOpen: (workingCopy, editor) => {
-				return editor instanceof SearchEditorInput && isEqual(workingCopy.resource, editor.modelUri);
-			},
+			handles: workingCopy => workingCopy.resource.scheme === SearchEditorConstants.SearchEditorScheme,
+			isOpen: (workingCopy, editor) => editor instanceof SearchEditorInput && isEqual(workingCopy.resource, editor.modelUri),
 			createEditor: workingCopy => {
 				const input = this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { from: 'model', modelUri: workingCopy.resource });
 				input.setDirty(true);

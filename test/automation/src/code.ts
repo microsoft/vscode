@@ -9,7 +9,7 @@ import * as os from 'os';
 import * as fs from 'fs';
 import * as mkdirp from 'mkdirp';
 import { tmpName } from 'tmp';
-import { IDriver, connect as connectElectronDriver, IDisposable, IElement, Thenable } from './driver';
+import { IDriver, connect as connectElectronDriver, IDisposable, IElement, Thenable, ILocalizedStrings, ILocaleInfo } from './driver';
 import { connect as connectPlaywrightDriver, launch } from './playwrightDriver';
 import { Logger } from './logger';
 import { ncp } from 'ncp';
@@ -97,11 +97,9 @@ export interface SpawnOptions {
 	verbose?: boolean;
 	extraArgs?: string[];
 	log?: string;
-	/** Run in the test resolver */
 	remote?: boolean;
-	/** Run in the web */
 	web?: boolean;
-	/** A specific browser to use (requires web: true) */
+	headless?: boolean;
 	browser?: 'chromium' | 'webkit' | 'firefox';
 }
 
@@ -123,25 +121,28 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 	copyExtension(options.extensionsPath, 'vscode-notebook-tests');
 
 	if (options.web) {
-		await launch(options.userDataDir, options.workspacePath, options.codePath, options.extensionsPath);
-		connectDriver = connectPlaywrightDriver.bind(connectPlaywrightDriver, options.browser);
+		await launch(options.userDataDir, options.workspacePath, options.codePath, options.extensionsPath, Boolean(options.verbose));
+		connectDriver = connectPlaywrightDriver.bind(connectPlaywrightDriver, options);
 		return connect(connectDriver, child, '', handle, options.logger);
 	}
 
-	const env = process.env;
+	const env = { ...process.env };
 	const codePath = options.codePath;
 	const outPath = codePath ? getBuildOutPath(codePath) : getDevOutPath();
 
 	const args = [
 		options.workspacePath,
 		'--skip-release-notes',
+		'--skip-welcome',
 		'--disable-telemetry',
 		'--no-cached-data',
 		'--disable-updates',
 		'--disable-keytar',
 		'--disable-crash-reporter',
+		'--disable-workspace-trust',
 		`--extensions-dir=${options.extensionsPath}`,
 		`--user-data-dir=${options.userDataDir}`,
+		`--logsPath=${path.join(repoPath, '.build', 'logs', 'smoke-tests')}`,
 		'--driver', handle
 	];
 
@@ -171,6 +172,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
 	}
 
+	const spawnOptions: cp.SpawnOptions = { env };
 
 	args.push('--enable-proposed-api=vscode.vscode-notebook-tests');
 
@@ -180,6 +182,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 
 	if (options.verbose) {
 		args.push('--driver-verbose');
+		spawnOptions.stdio = ['ignore', 'inherit', 'inherit'];
 	}
 
 	if (options.log) {
@@ -191,7 +194,6 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 	}
 
 	const electronPath = codePath ? getBuildElectronPath(codePath) : getDevElectronPath();
-	const spawnOptions: cp.SpawnOptions = { env };
 	child = cp.spawn(electronPath, args, spawnOptions);
 	instances.add(child);
 	child.once('exit', () => instances.delete(child!));
@@ -234,7 +236,7 @@ async function poll<T>(
 			} else {
 				lastError = 'Did not pass accept function';
 			}
-		} catch (e) {
+		} catch (e: any) {
 			lastError = Array.isArray(e.stack) ? e.stack.join(os.EOL) : e.stack;
 		}
 
@@ -307,9 +309,9 @@ export class Code {
 		);
 	}
 
-	async waitAndClick(selector: string, xoffset?: number, yoffset?: number): Promise<void> {
+	async waitAndClick(selector: string, xoffset?: number, yoffset?: number, retryCount: number = 200): Promise<void> {
 		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.click(windowId, selector, xoffset, yoffset), () => true, `click '${selector}'`);
+		await poll(() => this.driver.click(windowId, selector, xoffset, yoffset), () => true, `click '${selector}'`, retryCount);
 	}
 
 	async waitAndDoubleClick(selector: string): Promise<void> {
@@ -355,6 +357,16 @@ export class Code {
 	async writeInTerminal(selector: string, value: string): Promise<void> {
 		const windowId = await this.getActiveWindowId();
 		await poll(() => this.driver.writeInTerminal(windowId, selector, value), () => true, `writeInTerminal '${selector}'`);
+	}
+
+	async getLocaleInfo(): Promise<ILocaleInfo> {
+		const windowId = await this.getActiveWindowId();
+		return await this.driver.getLocaleInfo(windowId);
+	}
+
+	async getLocalizedStrings(): Promise<ILocalizedStrings> {
+		const windowId = await this.getActiveWindowId();
+		return await this.driver.getLocalizedStrings(windowId);
 	}
 
 	private async getActiveWindowId(): Promise<number> {

@@ -15,6 +15,7 @@ export async function resolveWorkbenchCommonProperties(
 	commit: string | undefined,
 	version: string | undefined,
 	remoteAuthority?: string,
+	productIdentifier?: string,
 	resolveAdditionalProperties?: () => { [key: string]: any }
 ): Promise<{ [name: string]: string | undefined }> {
 	const result: { [name: string]: string | undefined; } = Object.create(null);
@@ -51,7 +52,7 @@ export async function resolveWorkbenchCommonProperties(
 	// __GDPR__COMMON__ "common.platform" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.platform'] = Platform.PlatformToString(Platform.platform);
 	// __GDPR__COMMON__ "common.product" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-	result['common.product'] = 'web';
+	result['common.product'] = productIdentifier ?? 'web';
 	// __GDPR__COMMON__ "common.userAgent" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.userAgent'] = Platform.userAgent;
 

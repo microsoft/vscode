@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorModel } from 'vs/workbench/common/editor';
+import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 
 /**

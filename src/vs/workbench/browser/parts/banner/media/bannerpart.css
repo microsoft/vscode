@@ -7,7 +7,7 @@
 	box-sizing: border-box;
 	cursor: default;
 	width: 100%;
-	height: 26px;
+	height: 100%;
 	font-size: 12px;
 	display: flex;
 	overflow: visible;
@@ -38,12 +38,9 @@
 }
 
 .monaco-workbench .part.banner .message-actions-container a {
+	padding: 3px;
 	margin-left: 12px;
 	text-decoration: underline;
-}
-
-.monaco-workbench .part.banner .message-actions-container a:hover {
-	text-decoration: none;
 }
 
 .monaco-workbench .part.banner .action-container {

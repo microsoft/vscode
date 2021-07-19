@@ -11,16 +11,16 @@ import { combinedDisposable, DisposableStore, dispose, IDisposable, IReference, 
 import { ComplexNotebookProviderInfo, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
-import { FileWorkingCopyManager, IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { ResourceMap } from 'vs/base/common/map';
+import { FileWorkingCopyManager, IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
 
 class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IResolvedNotebookEditorModel>> {
 
 	private readonly _disposables = new DisposableStore();
-	private readonly _workingCopyManagers = new Map<string, IFileWorkingCopyManager<NotebookFileWorkingCopyModel>>();
+	private readonly _workingCopyManagers = new Map<string, IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>>();
 	private readonly _modelListener = new Map<IResolvedNotebookEditorModel, IDisposable>();
 
 	private readonly _onDidSaveNotebook = new Emitter<URI>();
@@ -40,9 +40,7 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 
 		this._disposables.add(_notebookService.onWillRemoveViewType(viewType => {
 			const manager = this._workingCopyManagers.get(NotebookWorkingCopyTypeIdentifier.create(viewType));
-			if (manager) {
-				manager.dispose();
-			}
+			manager?.destroy().catch(err => _logService.error(err));
 		}));
 	}
 
@@ -72,10 +70,12 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 			const workingCopyTypeId = NotebookWorkingCopyTypeIdentifier.create(viewType);
 			let workingCopyManager = this._workingCopyManagers.get(workingCopyTypeId);
 			if (!workingCopyManager) {
-				workingCopyManager = <IFileWorkingCopyManager<NotebookFileWorkingCopyModel>><any>this._instantiationService.createInstance(
+				const factory = new NotebookFileWorkingCopyModelFactory(viewType, this._notebookService);
+				workingCopyManager = <IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>><any>this._instantiationService.createInstance(
 					FileWorkingCopyManager,
 					workingCopyTypeId,
-					new NotebookFileWorkingCopyModelFactory(viewType, this._notebookService)
+					factory,
+					factory,
 				);
 				this._workingCopyManagers.set(workingCopyTypeId, workingCopyManager);
 			}
@@ -181,12 +181,15 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 		}
 
 		const reference = this._data.acquire(resource.toString(), viewType);
-		const model = await reference.object;
-		return {
-			object: model,
-			dispose() {
-				reference.dispose();
-			}
-		};
+		try {
+			const model = await reference.object;
+			return {
+				object: model,
+				dispose() { reference.dispose(); }
+			};
+		} catch (err) {
+			reference.dispose();
+			throw err;
+		}
 	}
 }

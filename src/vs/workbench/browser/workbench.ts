@@ -13,7 +13,7 @@ import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/err
 import { Registry } from 'vs/platform/registry/common/platform';
 import { isWindows, isLinux, isWeb, isNative, isMacintosh } from 'vs/base/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IEditorInputFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
+import { IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
 import { Position, Parts, IWorkbenchLayoutService, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { IStorageService, WillSaveStateReason, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -142,7 +142,7 @@ export class Workbench extends Layout {
 
 				// Registries
 				Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).start(accessor);
-				Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor);
+				Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor);
 
 				// Context Keys
 				this._register(instantiationService.createInstance(WorkbenchContextKeysHandler));
@@ -328,7 +328,7 @@ export class Workbench extends Layout {
 		// Create Parts
 		[
 			{ id: Parts.TITLEBAR_PART, role: 'contentinfo', classes: ['titlebar'] },
-			{ id: Parts.BANNER_PART, role: 'alert', classes: ['banner'] },
+			{ id: Parts.BANNER_PART, role: 'banner', classes: ['banner'] },
 			{ id: Parts.ACTIVITYBAR_PART, role: 'none', classes: ['activitybar', this.state.sideBar.position === Position.LEFT ? 'left' : 'right'] }, // Use role 'none' for some parts to make screen readers less chatty #114892
 			{ id: Parts.SIDEBAR_PART, role: 'none', classes: ['sidebar', this.state.sideBar.position === Position.LEFT ? 'left' : 'right'] },
 			{ id: Parts.EDITOR_PART, role: 'main', classes: ['editor'], options: { restorePreviousState: this.state.editor.restoreEditors } },

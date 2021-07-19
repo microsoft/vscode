@@ -23,8 +23,7 @@ suite('ListViewInfoAccessor', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor) => {
-				const viewModel = editor.viewModel;
+			(editor, viewModel) => {
 				const foldingModel = new FoldingModel();
 				foldingModel.attachViewModel(viewModel);
 

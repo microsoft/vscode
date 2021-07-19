@@ -1443,6 +1443,32 @@ declare namespace monaco.editor {
 		 * If set, the decoration will be rendered after the text with this CSS class name.
 		 */
 		afterContentClassName?: string | null;
+		/**
+		 * If set, text will be injected in the view after the range.
+		 */
+		after?: InjectedTextOptions | null;
+		/**
+		 * If set, text will be injected in the view before the range.
+		 */
+		before?: InjectedTextOptions | null;
+	}
+
+	/**
+	 * Configures text that is injected into the view without changing the underlying document.
+	*/
+	export interface InjectedTextOptions {
+		/**
+		 * Sets the text to inject. Must be a single line.
+		 */
+		readonly content: string;
+		/**
+		 * If set, the decoration will be rendered inline with the text with this CSS class name.
+		 */
+		readonly inlineClassName?: string | null;
+		/**
+		 * If there is an `inlineClassName` which affects letter spacing.
+		 */
+		readonly inlineClassNameAffectsLetterSpacing?: boolean;
 	}
 
 	/**
@@ -1909,6 +1935,11 @@ declare namespace monaco.editor {
 		 */
 		getOverviewRulerDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
 		/**
+		 * Gets all the decorations that contain injected text.
+		 * @param ownerId If set, it will ignore decorations belonging to other owners.
+		 */
+		getInjectedTextDecorations(ownerId?: number): IModelDecoration[];
+		/**
 		 * Normalize a string containing whitespace according to indentation rules (converts to spaces or to tabs).
 		 */
 		normalizeIndentation(str: string): string;
@@ -1984,6 +2015,11 @@ declare namespace monaco.editor {
 		 */
 		onDidChangeLanguageConfiguration(listener: (e: IModelLanguageConfigurationChangedEvent) => void): IDisposable;
 		/**
+		 * An event emitted when the model has been attached to the first editor or detached from the last editor.
+		 * @event
+		 */
+		onDidChangeAttached(listener: () => void): IDisposable;
+		/**
 		 * An event emitted right before disposing the model.
 		 * @event
 		 */
@@ -1993,6 +2029,10 @@ declare namespace monaco.editor {
 		 * and make all necessary clean-up to release this object to the GC.
 		 */
 		dispose(): void;
+		/**
+		 * Returns if this model is attached to an editor or not.
+		 */
+		isAttachedToEditor(): boolean;
 	}
 
 	/**
@@ -2964,8 +3004,9 @@ declare namespace monaco.editor {
 		 * Suggest options.
 		 */
 		suggest?: ISuggestOptions;
+		inlineSuggest?: IInlineSuggestOptions;
 		/**
-		 * Smart select opptions;
+		 * Smart select options.
 		 */
 		smartSelect?: ISmartSelectOptions;
 		/**
@@ -3146,7 +3187,7 @@ declare namespace monaco.editor {
 		matchBrackets?: 'never' | 'near' | 'always';
 		/**
 		 * Enable rendering of whitespace.
-		 * Defaults to none.
+		 * Defaults to 'selection'.
 		 */
 		renderWhitespace?: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
 		/**
@@ -3220,6 +3261,10 @@ declare namespace monaco.editor {
 		 * Control the behavior and rendering of the inline hints.
 		 */
 		inlayHints?: IEditorInlayHintsOptions;
+		/**
+		 * Control if the editor should use shadow DOM.
+		 */
+		useShadowDOM?: boolean;
 	}
 
 	/**
@@ -3719,6 +3764,7 @@ declare namespace monaco.editor {
 		/**
 		 * The size of arrows (if displayed).
 		 * Defaults to 11.
+		 * **NOTE**: This option cannot be updated using `updateOptions()`
 		 */
 		arrowSize?: number;
 		/**
@@ -3734,16 +3780,19 @@ declare namespace monaco.editor {
 		/**
 		 * Cast horizontal and vertical shadows when the content is scrolled.
 		 * Defaults to true.
+		 * **NOTE**: This option cannot be updated using `updateOptions()`
 		 */
 		useShadows?: boolean;
 		/**
 		 * Render arrows at the top and bottom of the vertical scrollbar.
 		 * Defaults to false.
+		 * **NOTE**: This option cannot be updated using `updateOptions()`
 		 */
 		verticalHasArrows?: boolean;
 		/**
 		 * Render arrows at the left and right of the horizontal scrollbar.
 		 * Defaults to false.
+		 * **NOTE**: This option cannot be updated using `updateOptions()`
 		 */
 		horizontalHasArrows?: boolean;
 		/**
@@ -3754,6 +3803,7 @@ declare namespace monaco.editor {
 		/**
 		 * Always consume mouse wheel events (always call preventDefault() and stopPropagation() on the browser events).
 		 * Defaults to true.
+		 * **NOTE**: This option cannot be updated using `updateOptions()`
 		 */
 		alwaysConsumeMouseWheel?: boolean;
 		/**
@@ -3769,11 +3819,13 @@ declare namespace monaco.editor {
 		/**
 		 * Width in pixels for the vertical slider.
 		 * Defaults to `verticalScrollbarSize`.
+		 * **NOTE**: This option cannot be updated using `updateOptions()`
 		 */
 		verticalSliderSize?: number;
 		/**
 		 * Height in pixels for the horizontal slider.
 		 * Defaults to `horizontalScrollbarSize`.
+		 * **NOTE**: This option cannot be updated using `updateOptions()`
 		 */
 		horizontalSliderSize?: number;
 		/**
@@ -3798,6 +3850,23 @@ declare namespace monaco.editor {
 		readonly verticalSliderSize: number;
 		readonly scrollByPage: boolean;
 	}
+
+	export interface IInlineSuggestOptions {
+		/**
+		 * Enable or disable the rendering of automatic inline completions.
+		*/
+		enabled?: boolean;
+		/**
+		 * Configures the mode.
+		 * Use `prefix` to only show ghost text if the text to replace is a prefix of the suggestion text.
+		 * Use `subword` to only show ghost text if the replace text is a subword of the suggestion text.
+		 * Use `subwordSmart` to only show ghost text if the replace text is a subword of the suggestion text, but the subword must start after the cursor position.
+		 * Defaults to `prefix`.
+		*/
+		mode?: 'prefix' | 'subword' | 'subwordSmart';
+	}
+
+	export type InternalInlineSuggestOptions = Readonly<Required<IInlineSuggestOptions>>;
 
 	/**
 	 * Configuration options for editor suggest widget
@@ -3832,6 +3901,14 @@ declare namespace monaco.editor {
 		 */
 		showStatusBar?: boolean;
 		/**
+		 * Enable or disable the rendering of the suggestion preview.
+		 */
+		preview?: boolean;
+		/**
+		 * Configures the mode of the preview.
+		*/
+		previewMode?: 'prefix' | 'subword' | 'subwordSmart';
+		/**
 		 * Show details inline with the label. Defaults to true.
 		 */
 		showInlineDetails?: boolean;
@@ -3847,6 +3924,10 @@ declare namespace monaco.editor {
 		 * Show constructor-suggestions.
 		 */
 		showConstructors?: boolean;
+		/**
+		 * Show deprecated-suggestions.
+		 */
+		showDeprecated?: boolean;
 		/**
 		 * Show field-suggestions.
 		 */
@@ -4035,82 +4116,84 @@ declare namespace monaco.editor {
 		highlightActiveIndentGuide = 49,
 		hover = 50,
 		inDiffEditor = 51,
-		letterSpacing = 52,
-		lightbulb = 53,
-		lineDecorationsWidth = 54,
-		lineHeight = 55,
-		lineNumbers = 56,
-		lineNumbersMinChars = 57,
-		linkedEditing = 58,
-		links = 59,
-		matchBrackets = 60,
-		minimap = 61,
-		mouseStyle = 62,
-		mouseWheelScrollSensitivity = 63,
-		mouseWheelZoom = 64,
-		multiCursorMergeOverlapping = 65,
-		multiCursorModifier = 66,
-		multiCursorPaste = 67,
-		occurrencesHighlight = 68,
-		overviewRulerBorder = 69,
-		overviewRulerLanes = 70,
-		padding = 71,
-		parameterHints = 72,
-		peekWidgetDefaultFocus = 73,
-		definitionLinkOpensInPeek = 74,
-		quickSuggestions = 75,
-		quickSuggestionsDelay = 76,
-		readOnly = 77,
-		renameOnType = 78,
-		renderControlCharacters = 79,
-		renderIndentGuides = 80,
-		renderFinalNewline = 81,
-		renderLineHighlight = 82,
-		renderLineHighlightOnlyWhenFocus = 83,
-		renderValidationDecorations = 84,
-		renderWhitespace = 85,
-		revealHorizontalRightPadding = 86,
-		roundedSelection = 87,
-		rulers = 88,
-		scrollbar = 89,
-		scrollBeyondLastColumn = 90,
-		scrollBeyondLastLine = 91,
-		scrollPredominantAxis = 92,
-		selectionClipboard = 93,
-		selectionHighlight = 94,
-		selectOnLineNumbers = 95,
-		showFoldingControls = 96,
-		showUnused = 97,
-		snippetSuggestions = 98,
-		smartSelect = 99,
-		smoothScrolling = 100,
-		stickyTabStops = 101,
-		stopRenderingLineAfter = 102,
-		suggest = 103,
-		suggestFontSize = 104,
-		suggestLineHeight = 105,
-		suggestOnTriggerCharacters = 106,
-		suggestSelection = 107,
-		tabCompletion = 108,
-		tabIndex = 109,
-		unusualLineTerminators = 110,
-		useTabStops = 111,
-		wordSeparators = 112,
-		wordWrap = 113,
-		wordWrapBreakAfterCharacters = 114,
-		wordWrapBreakBeforeCharacters = 115,
-		wordWrapColumn = 116,
-		wordWrapOverride1 = 117,
-		wordWrapOverride2 = 118,
-		wrappingIndent = 119,
-		wrappingStrategy = 120,
-		showDeprecated = 121,
-		inlayHints = 122,
-		editorClassName = 123,
-		pixelRatio = 124,
-		tabFocusMode = 125,
-		layoutInfo = 126,
-		wrappingInfo = 127
+		inlineSuggest = 52,
+		letterSpacing = 53,
+		lightbulb = 54,
+		lineDecorationsWidth = 55,
+		lineHeight = 56,
+		lineNumbers = 57,
+		lineNumbersMinChars = 58,
+		linkedEditing = 59,
+		links = 60,
+		matchBrackets = 61,
+		minimap = 62,
+		mouseStyle = 63,
+		mouseWheelScrollSensitivity = 64,
+		mouseWheelZoom = 65,
+		multiCursorMergeOverlapping = 66,
+		multiCursorModifier = 67,
+		multiCursorPaste = 68,
+		occurrencesHighlight = 69,
+		overviewRulerBorder = 70,
+		overviewRulerLanes = 71,
+		padding = 72,
+		parameterHints = 73,
+		peekWidgetDefaultFocus = 74,
+		definitionLinkOpensInPeek = 75,
+		quickSuggestions = 76,
+		quickSuggestionsDelay = 77,
+		readOnly = 78,
+		renameOnType = 79,
+		renderControlCharacters = 80,
+		renderIndentGuides = 81,
+		renderFinalNewline = 82,
+		renderLineHighlight = 83,
+		renderLineHighlightOnlyWhenFocus = 84,
+		renderValidationDecorations = 85,
+		renderWhitespace = 86,
+		revealHorizontalRightPadding = 87,
+		roundedSelection = 88,
+		rulers = 89,
+		scrollbar = 90,
+		scrollBeyondLastColumn = 91,
+		scrollBeyondLastLine = 92,
+		scrollPredominantAxis = 93,
+		selectionClipboard = 94,
+		selectionHighlight = 95,
+		selectOnLineNumbers = 96,
+		showFoldingControls = 97,
+		showUnused = 98,
+		snippetSuggestions = 99,
+		smartSelect = 100,
+		smoothScrolling = 101,
+		stickyTabStops = 102,
+		stopRenderingLineAfter = 103,
+		suggest = 104,
+		suggestFontSize = 105,
+		suggestLineHeight = 106,
+		suggestOnTriggerCharacters = 107,
+		suggestSelection = 108,
+		tabCompletion = 109,
+		tabIndex = 110,
+		unusualLineTerminators = 111,
+		useShadowDOM = 112,
+		useTabStops = 113,
+		wordSeparators = 114,
+		wordWrap = 115,
+		wordWrapBreakAfterCharacters = 116,
+		wordWrapBreakBeforeCharacters = 117,
+		wordWrapColumn = 118,
+		wordWrapOverride1 = 119,
+		wordWrapOverride2 = 120,
+		wrappingIndent = 121,
+		wrappingStrategy = 122,
+		showDeprecated = 123,
+		inlayHints = 124,
+		editorClassName = 125,
+		pixelRatio = 126,
+		tabFocusMode = 127,
+		layoutInfo = 128,
+		wrappingInfo = 129
 	}
 	export const EditorOptions: {
 		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
@@ -4219,6 +4302,7 @@ declare namespace monaco.editor {
 		smoothScrolling: IEditorOption<EditorOption.smoothScrolling, boolean>;
 		stopRenderingLineAfter: IEditorOption<EditorOption.stopRenderingLineAfter, number>;
 		suggest: IEditorOption<EditorOption.suggest, InternalSuggestOptions>;
+		inlineSuggest: IEditorOption<EditorOption.inlineSuggest, any>;
 		suggestFontSize: IEditorOption<EditorOption.suggestFontSize, number>;
 		suggestLineHeight: IEditorOption<EditorOption.suggestLineHeight, number>;
 		suggestOnTriggerCharacters: IEditorOption<EditorOption.suggestOnTriggerCharacters, boolean>;
@@ -4226,6 +4310,7 @@ declare namespace monaco.editor {
 		tabCompletion: IEditorOption<EditorOption.tabCompletion, 'on' | 'off' | 'onlySnippets'>;
 		tabIndex: IEditorOption<EditorOption.tabIndex, number>;
 		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'auto' | 'off' | 'prompt'>;
+		useShadowDOM: IEditorOption<EditorOption.useShadowDOM, boolean>;
 		useTabStops: IEditorOption<EditorOption.useTabStops, boolean>;
 		wordSeparators: IEditorOption<EditorOption.wordSeparators, string>;
 		wordWrap: IEditorOption<EditorOption.wordWrap, 'on' | 'off' | 'wordWrapColumn' | 'bounded'>;
@@ -5299,6 +5384,16 @@ declare namespace monaco.languages {
 	export function registerDocumentRangeSemanticTokensProvider(languageId: string, provider: DocumentRangeSemanticTokensProvider): IDisposable;
 
 	/**
+	 * Register an inline completions provider.
+	 */
+	export function registerInlineCompletionsProvider(languageId: string, provider: InlineCompletionsProvider): IDisposable;
+
+	/**
+	 * Register an inlay hints provider.
+	 */
+	export function registerInlayHintsProvider(languageId: string, provider: InlayHintsProvider): IDisposable;
+
+	/**
 	 * Contains additional diagnostic information about the context in which
 	 * a [code action](#CodeActionProvider.provideCodeActions) is run.
 	 */
@@ -5622,22 +5717,9 @@ declare namespace monaco.languages {
 	}
 
 	export interface CompletionItemLabel {
-		/**
-		 * The function or variable. Rendered leftmost.
-		 */
-		name: string;
-		/**
-		 * The parameters without the return type. Render after `name`.
-		 */
-		parameters?: string;
-		/**
-		 * The fully qualified name, like package name or file path. Rendered after `signature`.
-		 */
-		qualifier?: string;
-		/**
-		 * The return-type of a function or type of a property/variable. Rendered rightmost.
-		 */
-		type?: string;
+		label: string;
+		detail?: string;
+		description?: string;
 	}
 
 	export enum CompletionItemTag {
@@ -5802,6 +5884,60 @@ declare namespace monaco.languages {
 		 * The editor will only resolve a completion item once.
 		 */
 		resolveCompletionItem?(item: CompletionItem, token: CancellationToken): ProviderResult<CompletionItem>;
+	}
+
+	/**
+	 * How an {@link InlineCompletionsProvider inline completion provider} was triggered.
+	 */
+	export enum InlineCompletionTriggerKind {
+		/**
+		 * Completion was triggered automatically while editing.
+		 * It is sufficient to return a single completion item in this case.
+		 */
+		Automatic = 0,
+		/**
+		 * Completion was triggered explicitly by a user gesture.
+		 * Return multiple completion items to enable cycling through them.
+		 */
+		Explicit = 1
+	}
+
+	export interface InlineCompletionContext {
+		/**
+		 * How the completion was triggered.
+		 */
+		readonly triggerKind: InlineCompletionTriggerKind;
+	}
+
+	export interface InlineCompletion {
+		/**
+		 * The text to insert.
+		 * If the text contains a line break, the range must end at the end of a line.
+		 * If existing text should be replaced, the existing text must be a prefix of the text to insert.
+		*/
+		readonly text: string;
+		/**
+		 * The range to replace.
+		 * Must begin and end on the same line.
+		*/
+		readonly range?: IRange;
+		readonly command?: Command;
+	}
+
+	export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
+		readonly items: readonly TItem[];
+	}
+
+	export interface InlineCompletionsProvider<T extends InlineCompletions = InlineCompletions> {
+		provideInlineCompletions(model: editor.ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
+		/**
+		 * Will be called when an item is shown.
+		*/
+		handleItemDidShow?(completions: T, item: T['items'][number]): void;
+		/**
+		 * Will be called when a completions list is no longer in use and can be garbage-collected.
+		*/
+		freeInlineCompletions(completions: T): void;
 	}
 
 	export interface CodeAction {

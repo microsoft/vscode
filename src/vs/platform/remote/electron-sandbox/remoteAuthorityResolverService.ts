@@ -8,22 +8,27 @@ import * as errors from 'vs/base/common/errors';
 import { RemoteAuthorities } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
 
-class PendingResolveAuthorityRequest {
+class PendingPromise<I, R> {
+	public readonly promise: Promise<R>;
+	public readonly input: I;
+	public result: R | null;
+	private _resolve!: (value: R) => void;
+	private _reject!: (err: any) => void;
 
-	public value: ResolverResult | null;
-
-	constructor(
-		private readonly _resolve: (value: ResolverResult) => void,
-		private readonly _reject: (err: any) => void,
-		public readonly promise: Promise<ResolverResult>,
-	) {
-		this.value = null;
+	constructor(request: I) {
+		this.input = request;
+		this.promise = new Promise<R>((resolve, reject) => {
+			this._resolve = resolve;
+			this._reject = reject;
+		});
+		this.result = null;
 	}
 
-	resolve(value: ResolverResult): void {
-		this.value = value;
-		this._resolve(this.value);
+	resolve(result: R): void {
+		this.result = result;
+		this._resolve(this.result);
 	}
 
 	reject(err: any): void {
@@ -38,26 +43,36 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 	private readonly _onDidChangeConnectionData = this._register(new Emitter<void>());
 	public readonly onDidChangeConnectionData = this._onDidChangeConnectionData.event;
 
-	private readonly _resolveAuthorityRequests: Map<string, PendingResolveAuthorityRequest>;
+	private readonly _resolveAuthorityRequests: Map<string, PendingPromise<string, ResolverResult>>;
 	private readonly _connectionTokens: Map<string, string>;
+	private readonly _canonicalURIRequests: Map<string, PendingPromise<URI, URI>>;
+	private _canonicalURIProvider: ((uri: URI) => Promise<URI>) | null;
 
 	constructor() {
 		super();
-		this._resolveAuthorityRequests = new Map<string, PendingResolveAuthorityRequest>();
+		this._resolveAuthorityRequests = new Map<string, PendingPromise<string, ResolverResult>>();
 		this._connectionTokens = new Map<string, string>();
+		this._canonicalURIRequests = new Map<string, PendingPromise<URI, URI>>();
+		this._canonicalURIProvider = null;
 	}
 
 	resolveAuthority(authority: string): Promise<ResolverResult> {
 		if (!this._resolveAuthorityRequests.has(authority)) {
-			let resolve: (value: ResolverResult) => void;
-			let reject: (err: any) => void;
-			const promise = new Promise<ResolverResult>((_resolve, _reject) => {
-				resolve = _resolve;
-				reject = _reject;
-			});
-			this._resolveAuthorityRequests.set(authority, new PendingResolveAuthorityRequest(resolve!, reject!, promise));
+			this._resolveAuthorityRequests.set(authority, new PendingPromise<string, ResolverResult>(authority));
 		}
 		return this._resolveAuthorityRequests.get(authority)!.promise;
+	}
+
+	async getCanonicalURI(uri: URI): Promise<URI> {
+		const key = uri.toString();
+		if (!this._canonicalURIRequests.has(key)) {
+			const request = new PendingPromise<URI, URI>(uri);
+			if (this._canonicalURIProvider) {
+				this._canonicalURIProvider(request.input).then((uri) => request.resolve(uri), (err) => request.reject(err));
+			}
+			this._canonicalURIRequests.set(key, request);
+		}
+		return this._canonicalURIRequests.get(key)!.promise;
 	}
 
 	getConnectionData(authority: string): IRemoteConnectionData | null {
@@ -65,13 +80,13 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 			return null;
 		}
 		const request = this._resolveAuthorityRequests.get(authority)!;
-		if (!request.value) {
+		if (!request.result) {
 			return null;
 		}
 		const connectionToken = this._connectionTokens.get(authority);
 		return {
-			host: request.value.authority.host,
-			port: request.value.authority.port,
+			host: request.result.authority.host,
+			port: request.result.authority.port,
 			connectionToken: connectionToken
 		};
 	}
@@ -106,5 +121,12 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 		this._connectionTokens.set(authority, connectionToken);
 		RemoteAuthorities.setConnectionToken(authority, connectionToken);
 		this._onDidChangeConnectionData.fire();
+	}
+
+	_setCanonicalURIProvider(provider: (uri: URI) => Promise<URI>): void {
+		this._canonicalURIProvider = provider;
+		this._canonicalURIRequests.forEach((value) => {
+			this._canonicalURIProvider!(value.input).then((uri) => value.resolve(uri), (err) => value.reject(err));
+		});
 	}
 }

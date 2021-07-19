@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult, isTextEditorPane } from 'vs/workbench/common/editor';
+import { IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult, EditorInputCapabilities, IEditorDescriptor, IEditorPane, IEditorInput, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
+import { ITextEditorOptions, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { ITextFileService, TextFileEditorModelState, TextFileResolveReason, TextFileOperationError, TextFileOperationResult, ITextFileEditorModel, EncodingMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IReference, dispose, DisposableStore } from 'vs/base/common/lifecycle';
@@ -18,8 +19,9 @@ import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isEqual } from 'vs/base/common/resources';
 import { Event } from 'vs/base/common/event';
-import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { Schemas } from 'vs/base/common/network';
+import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 const enum ForceOpenAs {
 	None,
@@ -36,10 +38,35 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		return FILE_EDITOR_INPUT_ID;
 	}
 
+	override get editorId(): string | undefined {
+		return DEFAULT_EDITOR_ASSOCIATION.id;
+	}
+
+	override get capabilities(): EditorInputCapabilities {
+		let capabilities = EditorInputCapabilities.None;
+
+		if (this.model) {
+			if (this.model.isReadonly()) {
+				capabilities |= EditorInputCapabilities.Readonly;
+			}
+		} else {
+			if (this.fileService.canHandleResource(this.resource)) {
+				if (this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
+					capabilities |= EditorInputCapabilities.Readonly;
+				}
+			} else {
+				capabilities |= EditorInputCapabilities.Untitled;
+			}
+		}
+
+		return capabilities;
+	}
+
 	private preferredName: string | undefined;
 	private preferredDescription: string | undefined;
 	private preferredEncoding: string | undefined;
 	private preferredMode: string | undefined;
+	private preferredContents: string | undefined;
 
 	private forceOpenAs: ForceOpenAs = ForceOpenAs.None;
 
@@ -55,13 +82,15 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		preferredDescription: string | undefined,
 		preferredEncoding: string | undefined,
 		preferredMode: string | undefined,
+		preferredContents: string | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextFileService textFileService: ITextFileService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@ILabelService labelService: ILabelService,
 		@IFileService fileService: IFileService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IEditorService editorService: IEditorService
+		@IEditorService editorService: IEditorService,
+		@IPathService private readonly pathService: IPathService
 	) {
 		super(resource, preferredResource, editorService, textFileService, labelService, fileService);
 
@@ -81,6 +110,10 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 
 		if (preferredMode) {
 			this.setPreferredMode(preferredMode);
+		}
+
+		if (typeof preferredContents === 'string') {
+			this.setPreferredContents(preferredContents);
 		}
 
 		// Attach to model that matches our resource once created
@@ -111,6 +144,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		// re-emit some events from the model
 		this.modelListeners.add(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
 		this.modelListeners.add(model.onDidChangeOrphaned(() => this._onDidChangeLabel.fire()));
+		this.modelListeners.add(model.onDidChangeReadonly(() => this._onDidChangeCapabilities.fire()));
 
 		// important: treat save errors as potential dirty change because
 		// a file that is in save conflict or error will report dirty even
@@ -130,7 +164,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 
 	setPreferredName(name: string): void {
 		if (!this.allowLabelOverride()) {
-			return; // block for specific schemes we own
+			return; // block for specific schemes we consider to be owning
 		}
 
 		if (this.preferredName !== name) {
@@ -141,7 +175,10 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 	}
 
 	private allowLabelOverride(): boolean {
-		return this.resource.scheme !== Schemas.file && this.resource.scheme !== Schemas.vscodeRemote && this.resource.scheme !== Schemas.userData;
+		return this.resource.scheme !== this.pathService.defaultUriScheme &&
+			this.resource.scheme !== Schemas.userData &&
+			this.resource.scheme !== Schemas.file &&
+			this.resource.scheme !== Schemas.vscodeRemote;
 	}
 
 	getPreferredName(): string | undefined {
@@ -154,7 +191,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 
 	setPreferredDescription(description: string): void {
 		if (!this.allowLabelOverride()) {
-			return; // block for specific schemes we own
+			return; // block for specific schemes we consider to be owning
 		}
 
 		if (this.preferredDescription !== description) {
@@ -193,6 +230,14 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		this.setForceOpenAsText();
 	}
 
+	getMode(): string | undefined {
+		if (this.model) {
+			return this.model.getMode();
+		}
+
+		return this.preferredMode;
+	}
+
 	getPreferredMode(): string | undefined {
 		return this.preferredMode;
 	}
@@ -210,6 +255,13 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		this.setForceOpenAsText();
 	}
 
+	setPreferredContents(contents: string): void {
+		this.preferredContents = contents;
+
+		// contents is a good hint to open the file as text
+		this.setForceOpenAsText();
+	}
+
 	setForceOpenAsText(): void {
 		this.forceOpenAs = ForceOpenAs.Text;
 	}
@@ -220,14 +272,6 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 
 	override isDirty(): boolean {
 		return !!(this.model?.isDirty());
-	}
-
-	override isReadonly(): boolean {
-		if (this.model) {
-			return this.model.isReadonly();
-		}
-
-		return super.isReadonly();
 	}
 
 	override isOrphaned(): boolean {
@@ -255,8 +299,12 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		return super.isSaving();
 	}
 
-	override getPreferredEditorId(candidates: string[]): string {
-		return this.forceOpenAs === ForceOpenAs.Binary ? BINARY_FILE_EDITOR_ID : TEXT_FILE_EDITOR_ID;
+	override prefersEditorPane<T extends IEditorDescriptor<IEditorPane>>(editorPanes: T[]): T | undefined {
+		if (this.forceOpenAs === ForceOpenAs.Binary) {
+			return editorPanes.find(editorPane => editorPane.typeId === BINARY_FILE_EDITOR_ID);
+		}
+
+		return editorPanes.find(editorPane => editorPane.typeId === TEXT_FILE_EDITOR_ID);
 	}
 
 	override resolve(): Promise<ITextFileEditorModel | BinaryEditorModel> {
@@ -273,11 +321,18 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 	private async doResolveAsText(): Promise<ITextFileEditorModel | BinaryEditorModel> {
 		try {
 
+			// Unset preferred contents after having applied it once
+			// to prevent this property to stick. We still want future
+			// `resolve` calls to fetch the contents from disk.
+			const preferredContents = this.preferredContents;
+			this.preferredContents = undefined;
+
 			// Resolve resource via text file service and only allow
 			// to open binary files if we are instructed so
 			await this.textFileService.files.resolve(this.resource, {
 				mode: this.preferredMode,
 				encoding: this.preferredEncoding,
+				contents: typeof preferredContents === 'string' ? createTextBufferFactory(preferredContents) : undefined,
 				reload: { async: true }, // trigger a reload of the model if it exists already but do not wait to show the model
 				allowBinary: this.forceOpenAs === ForceOpenAs.Text,
 				reason: TextFileResolveReason.EDITOR
@@ -339,20 +394,35 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		};
 	}
 
-	private getViewStateFor(group: GroupIdentifier): IEditorViewState | undefined {
-		for (const editorPane of this.editorService.visibleEditorPanes) {
-			if (editorPane.group.id === group && this.matches(editorPane.input)) {
-				if (isTextEditorPane(editorPane)) {
-					return editorPane.getViewState();
-				}
+	override toUntyped(options?: { preserveViewState: GroupIdentifier }): ITextResourceEditorInput {
+		const untypedInput: ITextResourceEditorInput & { options: ITextEditorOptions } = {
+			resource: this.preferredResource,
+			forceFile: true,
+			options: {
+				override: this.editorId
 			}
+		};
+
+		if (typeof options?.preserveViewState === 'number') {
+			untypedInput.encoding = this.getEncoding();
+			untypedInput.mode = this.getMode();
+			untypedInput.contents = (() => {
+				const model = this.textFileService.files.get(this.resource);
+				if (model && model.isDirty()) {
+					return model.textEditorModel.getValue(); // only if dirty
+				}
+
+				return undefined;
+			})();
+
+			untypedInput.options.viewState = this.getViewStateFor(options.preserveViewState);
 		}
 
-		return undefined;
+		return untypedInput;
 	}
 
-	override matches(otherInput: unknown): boolean {
-		if (otherInput === this) {
+	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
+		if (super.matches(otherInput)) {
 			return true;
 		}
 

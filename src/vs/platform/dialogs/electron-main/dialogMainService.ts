@@ -10,7 +10,7 @@ import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { isMacintosh } from 'vs/base/common/platform';
 import { dirname } from 'vs/base/common/path';
 import { normalizeNFC } from 'vs/base/common/normalization';
-import { exists } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
@@ -194,7 +194,7 @@ export class DialogMainService implements IDialogMainService {
 
 		// Ensure the path exists (if provided)
 		if (options.defaultPath) {
-			const pathExists = await exists(options.defaultPath);
+			const pathExists = await Promises.exists(options.defaultPath);
 			if (!pathExists) {
 				options.defaultPath = undefined;
 			}

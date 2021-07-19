@@ -8,7 +8,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, REPL_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, State, getStateLabel, CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_FOCUSED_SESSION_IS_ATTACH } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, REPL_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, State, getStateLabel, CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, VIEWLET_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, Variable, Breakpoint, FunctionBreakpoint, DataBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -88,7 +88,15 @@ async function getThreadAndRun(accessor: ServicesAccessor, sessionAndThreadId: C
 		if (session) {
 			thread = session.getAllThreads().find(t => t.getId() === sessionAndThreadId.threadId);
 		}
-	} else {
+	} else if (isSessionContext(sessionAndThreadId)) {
+		const session = debugService.getModel().getSession(sessionAndThreadId.sessionId);
+		if (session) {
+			const threads = session.getAllThreads();
+			thread = threads.length > 0 ? threads[0] : undefined;
+		}
+	}
+
+	if (!thread) {
 		thread = debugService.getViewModel().focusedThread;
 		if (!thread) {
 			const focusedSession = debugService.getViewModel().focusedSession;
@@ -338,7 +346,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: CONTINUE_ID,
 	weight: KeybindingWeight.WorkbenchContrib + 10, // Use a stronger weight to get priority over start debugging F5 shortcut
 	primary: KeyCode.F5,
-	when: CONTEXT_IN_DEBUG_MODE,
+	when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
 	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 		getThreadAndRun(accessor, context, thread => thread.continue());
 	}
@@ -389,7 +397,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: DEBUG_START_COMMAND_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyCode.F5,
-	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE.notEqualsTo(getStateLabel(State.Initializing))),
+	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE.isEqualTo('inactive')),
 	handler: async (accessor: ServicesAccessor, debugStartOptions?: { config?: Partial<IConfig>; noDebug?: boolean }) => {
 		const debugService = accessor.get(IDebugService);
 		let { launch, name, getConfig } = debugService.getConfigurationManager().selectedConfiguration;
@@ -644,5 +652,18 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		}
 
 		return undefined;
+	}
+});
+
+// When there are no debug extensions, open the debug viewlet when F5 is pressed so the user can read the limitations
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'debug.openView',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: CONTEXT_DEBUGGERS_AVAILABLE.toNegated(),
+	primary: KeyCode.F5,
+	secondary: [KeyMod.CtrlCmd | KeyCode.F5],
+	handler: async (accessor) => {
+		const viewletService = accessor.get(IViewletService);
+		await viewletService.openViewlet(VIEWLET_ID, true);
 	}
 });

@@ -101,7 +101,7 @@ export async function resolveCommonProperties(
 	return result;
 }
 
-function verifyMicrosoftInternalDomain(domainList: readonly string[]): boolean {
+export function verifyMicrosoftInternalDomain(domainList: readonly string[]): boolean {
 	const userDnsDomain = env['USERDNSDOMAIN'];
 	if (!userDnsDomain) {
 		return false;

@@ -255,7 +255,7 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 			const installExtensions = async (isMachineScoped?: boolean) => {
 				this.runAction(this.instantiationService.createInstance(SearchExtensionsAction, searchValue));
 				onDidInstallRecommendedExtensions(extensions);
-				await Promises.settled([
+				await Promises.settled<any>([
 					Promises.settled(extensions.map(extension => this.extensionsWorkbenchService.open(extension, { pinned: true }))),
 					this.extensionManagementService.installExtensions(extensions.map(e => e.gallery!), { isMachineScoped })
 				]);

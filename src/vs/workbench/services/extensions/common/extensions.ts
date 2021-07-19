@@ -288,12 +288,12 @@ export function toExtension(extensionDescription: IExtensionDescription): IExten
 	};
 }
 
-export function toExtensionDescription(extension: IExtension): IExtensionDescription {
+export function toExtensionDescription(extension: IExtension, isUnderDevelopment?: boolean): IExtensionDescription {
 	return {
 		identifier: new ExtensionIdentifier(extension.identifier.id),
 		isBuiltin: extension.type === ExtensionType.System,
 		isUserBuiltin: extension.type === ExtensionType.User && extension.isBuiltin,
-		isUnderDevelopment: false,
+		isUnderDevelopment: !!isUnderDevelopment,
 		extensionLocation: extension.location,
 		...extension.manifest,
 		uuid: extension.identifier.uuid

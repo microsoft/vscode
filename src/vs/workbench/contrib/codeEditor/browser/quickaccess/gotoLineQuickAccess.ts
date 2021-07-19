@@ -17,6 +17,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickAccessTextEditorContext } from 'vs/editor/contrib/quickAccess/editorNavigationQuickAccess';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProvider {
 
@@ -47,11 +48,13 @@ export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProv
 		if ((options.keyMods.alt || (this.configuration.openEditorPinned && options.keyMods.ctrlCmd) || options.forceSideBySide) && this.editorService.activeEditor) {
 			context.restoreViewState?.(); // since we open to the side, restore view state in this editor
 
-			this.editorService.openEditor(this.editorService.activeEditor, {
+			const editorOptions: ITextEditorOptions = {
 				selection: options.range,
 				pinned: options.keyMods.ctrlCmd || this.configuration.openEditorPinned,
 				preserveFocus: options.preserveFocus
-			}, SIDE_GROUP);
+			};
+
+			this.editorService.openEditor(this.editorService.activeEditor, editorOptions, SIDE_GROUP);
 		}
 
 		// Otherwise let parent handle it

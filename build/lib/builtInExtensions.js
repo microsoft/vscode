@@ -18,8 +18,8 @@ const ansiColors = require("ansi-colors");
 const mkdirp = require('mkdirp');
 const root = path.dirname(path.dirname(__dirname));
 const productjson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
-const builtInExtensions = productjson.builtInExtensions;
-const webBuiltInExtensions = productjson.webBuiltInExtensions;
+const builtInExtensions = productjson.builtInExtensions || [];
+const webBuiltInExtensions = productjson.webBuiltInExtensions || [];
 const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
 const ENABLE_LOGGING = !process.env['VSCODE_BUILD_BUILTIN_EXTENSIONS_SILENCE_PLEASE'];
 function log(...messages) {

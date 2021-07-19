@@ -443,6 +443,7 @@ class WordHighlighter {
 	}
 
 	private static readonly _WRITE_OPTIONS = ModelDecorationOptions.register({
+		description: 'word-highlight-strong',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'wordHighlightStrong',
 		overviewRuler: {
@@ -452,6 +453,7 @@ class WordHighlighter {
 	});
 
 	private static readonly _TEXT_OPTIONS = ModelDecorationOptions.register({
+		description: 'selection-highlight',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'selectionHighlight',
 		overviewRuler: {
@@ -461,6 +463,7 @@ class WordHighlighter {
 	});
 
 	private static readonly _REGULAR_OPTIONS = ModelDecorationOptions.register({
+		description: 'word-highlight',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'wordHighlight',
 		overviewRuler: {

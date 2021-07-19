@@ -44,7 +44,7 @@ import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder, IWorkspace,
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IOutputService, IOutputChannel } from 'vs/workbench/contrib/output/common/output';
 
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 
 import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, TaskErrors, TaskTerminateResponse, TaskSystemInfo, ITaskExecuteResult } from 'vs/workbench/contrib/tasks/common/taskSystem';
@@ -252,6 +252,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IConfigurationResolverService protected readonly configurationResolverService: IConfigurationResolverService,
 		@ITerminalService private readonly terminalService: ITerminalService,
+		@ITerminalGroupService private readonly terminalGroupService: ITerminalGroupService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IOpenerService private readonly openerService: IOpenerService,
@@ -278,9 +279,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._providerTypes = new Map<number, string>();
 		this._taskSystemInfos = new Map<string, TaskSystemInfo>();
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => {
-			if (!this._taskSystem && !this._workspaceTasksPromise) {
-				return;
-			}
 			let folderSetup = this.computeWorkspaceFolderSetup();
 			if (this.executionEngine !== folderSetup[2]) {
 				this.disposeTaskSystemListeners();
@@ -521,7 +519,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	protected showOutput(runSource: TaskRunSource = TaskRunSource.User): void {
-		if ((runSource === TaskRunSource.User) || (runSource === TaskRunSource.ConfigurationChange)) {
+		if (!VirtualWorkspaceContext.getValue(this.contextKeyService) && ((runSource === TaskRunSource.User) || (runSource === TaskRunSource.ConfigurationChange))) {
 			this.notificationService.prompt(Severity.Warning, nls.localize('taskServiceOutputPrompt', 'There are task errors. See the output for details.'),
 				[{
 					label: nls.localize('showOutput', "Show output"),
@@ -553,6 +551,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				this._providerTypes.delete(handle);
 			}
 		};
+	}
+
+	get hasTaskSystemInfo(): boolean {
+		return this._taskSystemInfos.size > 0;
 	}
 
 	public registerTaskSystem(key: string, info: TaskSystemInfo): void {
@@ -1630,7 +1632,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	protected createTerminalTaskSystem(): ITaskSystem {
 		return new TerminalTaskSystem(
-			this.terminalService, this.outputService, this.panelService, this.viewsService, this.markerService,
+			this.terminalService, this.terminalGroupService, this.outputService, this.panelService, this.viewsService, this.markerService,
 			this.modelService, this.configurationResolverService, this.telemetryService,
 			this.contextService, this.environmentService,
 			AbstractTaskService.OutputChannelId, this.fileService, this.terminalProfileResolverService,
@@ -2020,7 +2022,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (this.executionEngine === ExecutionEngine.Process) {
 			return this.emptyWorkspaceTaskResults(workspaceFolder);
 		}
-		const configuration = this.testParseExternalConfig(this.configurationService.inspect<TaskConfig.ExternalTaskRunnerConfiguration>('tasks').workspaceValue, nls.localize('TasksSystem.locationWorkspaceConfig', 'workspace file'));
+		const workspaceFileConfig = this.getConfiguration(workspaceFolder, TaskSourceKind.WorkspaceFile);
+		const configuration = this.testParseExternalConfig(workspaceFileConfig.config, nls.localize('TasksSystem.locationWorkspaceConfig', 'workspace file'));
 		let customizedTasks: { byIdentifier: IStringDictionary<ConfiguringTask>; } = {
 			byIdentifier: Object.create(null)
 		};
@@ -2039,7 +2042,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (this.executionEngine === ExecutionEngine.Process) {
 			return this.emptyWorkspaceTaskResults(workspaceFolder);
 		}
-		const configuration = this.testParseExternalConfig(this.configurationService.inspect<TaskConfig.ExternalTaskRunnerConfiguration>('tasks').userValue, nls.localize('TasksSystem.locationUserConfig', 'user settings'));
+		const userTasksConfig = this.getConfiguration(workspaceFolder, TaskSourceKind.User);
+		const configuration = this.testParseExternalConfig(userTasksConfig.config, nls.localize('TasksSystem.locationUserConfig', 'user settings'));
 		let customizedTasks: { byIdentifier: IStringDictionary<ConfiguringTask>; } = {
 			byIdentifier: Object.create(null)
 		};
@@ -2156,9 +2160,20 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		} else {
 			const wholeConfig = this.configurationService.inspect<TaskConfig.ExternalTaskRunnerConfiguration>('tasks', { resource: workspaceFolder.uri });
 			switch (source) {
-				case TaskSourceKind.User: result = Objects.deepClone(wholeConfig.userValue); break;
+				case TaskSourceKind.User: {
+					if (wholeConfig.userValue !== wholeConfig.workspaceFolderValue) {
+						result = Objects.deepClone(wholeConfig.userValue);
+					}
+					break;
+				}
 				case TaskSourceKind.Workspace: result = Objects.deepClone(wholeConfig.workspaceFolderValue); break;
-				case TaskSourceKind.WorkspaceFile: result = Objects.deepClone(wholeConfig.workspaceValue); break;
+				case TaskSourceKind.WorkspaceFile: {
+					if ((this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE)
+						&& (wholeConfig.workspaceFolderValue !== wholeConfig.workspaceValue)) {
+						result = Objects.deepClone(wholeConfig.workspaceValue);
+					}
+					break;
+				}
 				default: result = Objects.deepClone(wholeConfig.workspaceFolderValue);
 			}
 		}
@@ -2870,7 +2885,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					return Promise.resolve(undefined);
 				}
 				content = pickTemplateResult.content;
-				let editorConfig = this.configurationService.getValue<any>();
+				let editorConfig = this.configurationService.getValue() as any;
 				if (editorConfig.editor.insertSpaces) {
 					content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + ' '.repeat(s2.length * editorConfig.editor.tabSize));
 				}
@@ -3262,7 +3277,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return;
 		}
 
-		if (!this.workspaceTrustManagementService.isWorkpaceTrusted()) {
+		if (!this.workspaceTrustManagementService.isWorkspaceTrusted()) {
 			this._register(Event.once(this.workspaceTrustManagementService.onDidChangeTrust)(isTrusted => {
 				if (isTrusted) {
 					this.upgrade();
@@ -3320,8 +3335,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				run: async () => {
 					for (const upgrade of fileDiffs) {
 						await this.editorService.openEditor({
-							leftResource: upgrade[0],
-							rightResource: upgrade[1],
+							original: { resource: upgrade[0] },
+							modified: { resource: upgrade[1] }
 						});
 					}
 				}

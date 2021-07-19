@@ -5,43 +5,71 @@
 
 import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/path';
-import { DEFAULT_TERMINAL_OSX, IExternalTerminalService } from 'vs/platform/externalTerminal/common/externalTerminal';
+import { DEFAULT_TERMINAL_OSX, IExternalTerminalService, IExternalTerminalSettings } from 'vs/platform/externalTerminal/common/externalTerminal';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Schemas } from 'vs/base/common/network';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IConfigurationRegistry, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IExternalTerminalMainService } from 'vs/platform/externalTerminal/electron-sandbox/externalTerminalMainService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 const OPEN_NATIVE_CONSOLE_COMMAND_ID = 'workbench.action.terminal.openNativeConsole';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: OPEN_NATIVE_CONSOLE_COMMAND_ID,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C,
-	when: KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED,
+	when: TerminalContextKeys.notFocus,
 	weight: KeybindingWeight.WorkbenchContrib,
 	handler: async (accessor) => {
 		const historyService = accessor.get(IHistoryService);
 		// Open external terminal in local workspaces
 		const terminalService = accessor.get(IExternalTerminalService);
-		const root = historyService.getLastActiveWorkspaceRoot(Schemas.file);
-		if (root) {
-			terminalService.openTerminal(root.fsPath);
-		} else {
-			// Opens current file's folder, if no folder is open in editor
-			const activeFile = historyService.getLastActiveFile(Schemas.file);
-			if (activeFile) {
-				terminalService.openTerminal(paths.dirname(activeFile.fsPath));
-			} else {
-				const pathService = accessor.get(IPathService);
-				const userHome = await pathService.userHome();
-				terminalService.openTerminal(userHome.fsPath);
-			}
+		const configurationService = accessor.get(IConfigurationService);
+		const remoteAuthorityResolverService = accessor.get(IRemoteAuthorityResolverService);
+		const root = historyService.getLastActiveWorkspaceRoot();
+		const config = configurationService.getValue<IExternalTerminalSettings>('terminal.external');
+
+		// It's a local workspace, open the root
+		if (root?.scheme === Schemas.file) {
+			terminalService.openTerminal(config, root.fsPath);
+			return;
 		}
+
+		// If it's a remote workspace, open the canonical URI if it is a local folder
+		try {
+			if (root?.scheme === Schemas.vscodeRemote) {
+				const canonicalUri = await remoteAuthorityResolverService.getCanonicalURI(root);
+				if (canonicalUri.scheme === Schemas.file) {
+					terminalService.openTerminal(config, canonicalUri.fsPath);
+					return;
+				}
+			}
+		} catch { }
+
+		// Open the current file's folder if it's local or its canonical URI is local
+		// Opens current file's folder, if no folder is open in editor
+		const activeFile = historyService.getLastActiveFile(Schemas.file);
+		if (activeFile?.scheme === Schemas.file) {
+			terminalService.openTerminal(config, paths.dirname(activeFile.fsPath));
+			return;
+		}
+		try {
+			if (activeFile?.scheme === Schemas.vscodeRemote) {
+				const canonicalUri = await remoteAuthorityResolverService.getCanonicalURI(activeFile);
+				if (canonicalUri.scheme === Schemas.file) {
+					terminalService.openTerminal(config, canonicalUri.fsPath);
+					return;
+				}
+			}
+		} catch { }
+
+		// Fallback to opening without a cwd which will end up using the local home path
+		terminalService.openTerminal(config, undefined);
 	}
 });
 

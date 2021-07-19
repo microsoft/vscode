@@ -26,7 +26,7 @@ export class DeleteOperations {
 
 			if (deleteSelection.isEmpty()) {
 				let position = selection.getPosition();
-				let rightOfPosition = MoveOperations.right(config, model, position.lineNumber, position.column);
+				let rightOfPosition = MoveOperations.right(config, model, position);
 				deleteSelection = new Range(
 					rightOfPosition.lineNumber,
 					rightOfPosition.column,

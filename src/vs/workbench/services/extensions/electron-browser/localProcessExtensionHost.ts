@@ -180,9 +180,9 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				}
 
 				if (this._isExtensionDevHost) {
-					// Unset `VSCODE_NODE_CACHED_DATA_DIR` when developing extensions because it might
+					// Unset `VSCODE_CODE_CACHE_PATH` when developing extensions because it might
 					// be that dependencies, that otherwise would be cached, get modified.
-					delete env['VSCODE_NODE_CACHED_DATA_DIR'];
+					delete env['VSCODE_CODE_CACHE_PATH'];
 				}
 
 				const opts = {
@@ -238,7 +238,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				}
 
 				// Run Extension Host as fork of current process
-				this._extensionHostProcess = fork(FileAccess.asFileUri('bootstrap-fork', require).fsPath, ['--type=extensionHost'], opts);
+				this._extensionHostProcess = fork(FileAccess.asFileUri('bootstrap-fork', require).fsPath, ['--type=extensionHost', '--skipWorkspaceStorageLock'], opts);
 
 				// Catch all output coming from the extension host process
 				type Output = { data: string, format: string[] };
@@ -476,8 +476,6 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: this._environmentService.globalStorageHome,
 				workspaceStorageHome: this._environmentService.workspaceStorageHome,
-				webviewResourceRoot: this._environmentService.webviewResourceRoot,
-				webviewCspSource: this._environmentService.webviewCspSource,
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
 				configuration: withNullAsUndefined(workspace.configuration),
@@ -626,6 +624,8 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 			// Send the extension host a request to terminate itself
 			// (graceful termination)
 			protocol.send(createMessageOfType(MessageType.Terminate));
+
+			protocol.getSocket().dispose();
 
 			protocol.dispose();
 

@@ -161,7 +161,7 @@ suite('Decorators', () => {
 
 			clock.tick(200);
 			assert.deepStrictEqual(spy.args, [[1], [5]]);
-			spy.reset();
+			spy.resetHistory();
 
 			t.report(4);
 			t.report(5);

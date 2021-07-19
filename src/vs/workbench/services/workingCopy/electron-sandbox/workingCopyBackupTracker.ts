@@ -8,7 +8,7 @@ import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/com
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopy, IWorkingCopyIdentifier, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ConfirmResult, IFileDialogService, IDialogService, getFileNamesMessage } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
@@ -24,7 +24,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { Promises, raceCancellation } from 'vs/base/common/async';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 
 export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker implements IWorkbenchContribution {
@@ -41,7 +40,6 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		@ILogService logService: ILogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IProgressService private readonly progressService: IProgressService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IWorkingCopyEditorService workingCopyEditorService: IWorkingCopyEditorService,
 		@IEditorService editorService: IEditorService
 	) {
@@ -145,7 +143,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 			? getFileNamesMessage(dirtyWorkingCopies.map(x => x.name)) + '\n' + advice
 			: advice;
 
-		this.dialogService.show(Severity.Error, msg, [localize('ok', 'OK')], { detail });
+		this.dialogService.show(Severity.Error, msg, undefined, { detail });
 
 		this.logService.error(error ? `[backup tracker] ${msg}: ${error}` : `[backup tracker] ${msg}`);
 	}
@@ -328,40 +326,66 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		}, () => raceCancellation(promiseFactory(cts.token), cts.token), () => cts.dispose(true));
 	}
 
-	private async noVeto(backupsToDiscard: IWorkingCopy[]): Promise<boolean> {
+	private async noVeto(backupsToDiscard: IWorkingCopyIdentifier[]): Promise<boolean> {
 
-		// If we have proceeded enough that editors and dirty state
-		// has restored, we make sure that the dirty working copies
-		// that have been handled by the user get discarded.
-		if (this.editorGroupService.isRestored()) {
-			try {
-				await Promises.settled(backupsToDiscard.map(workingCopy => this.workingCopyBackupService.discardBackup(workingCopy)));
-			} catch (error) {
-				this.logService.error(`[backup tracker] error discarding backups: ${error}`);
-			}
-		}
+		// Discard backups from working copies the
+		// user either saved or reverted
+		await this.discardBackupsBeforeShutdown(backupsToDiscard);
 
 		return false; // no veto (no dirty)
 	}
 
 	private async onBeforeShutdownWithoutDirty(): Promise<boolean> {
 
-		// If we have proceeded enough that editors and dirty state
-		// has restored, we make sure that no backups lure around
-		// given we have no known dirty working copy. This helps
-		// to clean up stale backups as for example reported in
-		// https://github.com/microsoft/vscode/issues/92962
+		// We are about to shutdown without dirty editors
+		// and will discard any backups that are still
+		// around that have not been handled depending
+		// on the window state.
+		//
+		// Empty window: discard even unrestored backups to
+		// prevent empty windows from restoring that cannot
+		// be closed (workaround for not having implemented
+		// https://github.com/microsoft/vscode/issues/127163
+		// and a fix for what users have reported in issue
+		// https://github.com/microsoft/vscode/issues/126725)
+		//
+		// Workspace/Folder window: do not discard unrestored
+		// backups to give a chance to restore them in the
+		// future. Since we do not restore workspace/folder
+		// windows with backups, this is fine.
+
+		await this.discardBackupsBeforeShutdown({ except: this.contextService.getWorkbenchState() === WorkbenchState.EMPTY ? [] : Array.from(this.unrestoredBackups) });
+
+		return false; // no veto (no dirty)
+	}
+
+	private discardBackupsBeforeShutdown(backupsToDiscard: IWorkingCopyIdentifier[]): Promise<void>;
+	private discardBackupsBeforeShutdown(backupsToKeep: { except: IWorkingCopyIdentifier[] }): Promise<void>;
+	private async discardBackupsBeforeShutdown(arg1: IWorkingCopyIdentifier[] | { except: IWorkingCopyIdentifier[] }): Promise<void> {
+
+		// We never discard any backups before we are ready
+		// and have resolved all backups that exist. This
+		// is important to not loose backups that have not
+		// been handled.
+		if (!this.isReady) {
+			return;
+		}
+
+		// When we shutdown either with no dirty working copies left
+		// or with some handled, we start to discard these backups
+		// to free them up. This helps to get rid of stale backups
+		// as reported in https://github.com/microsoft/vscode/issues/92962
 		//
 		// However, we never want to discard backups that we know
 		// were not restored in the session.
-		if (this.editorGroupService.isRestored()) {
-			try {
-				await this.workingCopyBackupService.discardBackups({ except: Array.from(this.unrestoredBackups) });
-			} catch (error) {
-				this.logService.error(`[backup tracker] error discarding backups: ${error}`);
+		try {
+			if (Array.isArray(arg1)) {
+				await Promises.settled(arg1.map(workingCopy => this.workingCopyBackupService.discardBackup(workingCopy)));
+			} else {
+				await this.workingCopyBackupService.discardBackups(arg1);
 			}
+		} catch (error) {
+			this.logService.error(`[backup tracker] error discarding backups: ${error}`);
 		}
-
-		return false; // no veto (no dirty)
 	}
 }

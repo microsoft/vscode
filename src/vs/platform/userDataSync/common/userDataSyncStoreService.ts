@@ -23,6 +23,7 @@ import { createCancelablePromise, timeout, CancelablePromise } from 'vs/base/com
 import { isString, isObject, isArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
+import { Mimes } from 'vs/base/common/mime';
 
 const SYNC_PREVIOUS_STORE = 'sync.previous.store';
 const DONOT_MAKE_REQUESTS_UNTIL_KEY = 'sync.donot-make-requests-until';
@@ -304,7 +305,7 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 
 		const url = joinPath(this.userDataSyncStoreUrl, 'resource', resource).toString();
 		headers = { ...headers };
-		headers['Content-Type'] = 'text/plain';
+		headers['Content-Type'] = Mimes.text;
 		if (ref) {
 			headers['If-Match'] = ref;
 		}
@@ -356,7 +357,7 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 		}
 
 		const url = joinPath(this.userDataSyncStoreUrl, 'resource').toString();
-		const headers: IHeaders = { 'Content-Type': 'text/plain' };
+		const headers: IHeaders = { 'Content-Type': Mimes.text };
 
 		await this.request(url, { type: 'DELETE', headers }, [], CancellationToken.None);
 

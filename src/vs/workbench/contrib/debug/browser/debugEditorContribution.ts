@@ -37,7 +37,6 @@ import { ITextModel } from 'vs/editor/common/model';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { basename } from 'vs/base/common/path';
-import { domEvent } from 'vs/base/browser/event';
 import { ModesHoverController } from 'vs/editor/contrib/hover/hover';
 import { HoverStartMode } from 'vs/editor/contrib/hover/hoverOperation';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -45,12 +44,28 @@ import { Event } from 'vs/base/common/event';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Expression } from 'vs/workbench/contrib/debug/common/debugModel';
+import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { addDisposableListener } from 'vs/base/browser/dom';
+import { DomEmitter } from 'vs/base/browser/event';
 
 const LAUNCH_JSON_REGEX = /\.vscode\/launch\.json$/;
 const INLINE_VALUE_DECORATION_KEY = 'inlinevaluedecoration';
 const MAX_NUM_INLINE_VALUES = 100; // JS Global scope can have 700+ entries. We want to limit ourselves for perf reasons
 const MAX_INLINE_DECORATOR_LENGTH = 150; // Max string length of each inline decorator when debugging. If exceeded ... is added
 const MAX_TOKENIZATION_LINE_LEN = 500; // If line is too long, then inline values for the line are skipped
+
+export const debugInlineForeground = registerColor('editor.inlineValuesForeground', {
+	dark: '#ffffff80',
+	light: '#00000080',
+	hc: '#ffffff80'
+}, nls.localize('editor.inlineValuesForeground', "Color for the debug inline value text."));
+
+export const debugInlineBackground = registerColor('editor.inlineValuesBackground', {
+	dark: '#ffc80033',
+	light: '#ffc80033',
+	hc: '#ffc80033'
+}, nls.localize('editor.inlineValuesBackground', "Color for the debug inline value background."));
 
 class InlineSegment {
 	constructor(public column: number, public text: string) {
@@ -73,18 +88,9 @@ function createInlineValueDecoration(lineNumber: number, contentText: string, co
 		renderOptions: {
 			after: {
 				contentText,
-				backgroundColor: 'rgba(255, 200, 0, 0.2)',
-				margin: '10px'
-			},
-			dark: {
-				after: {
-					color: 'rgba(255, 255, 255, 0.5)',
-				}
-			},
-			light: {
-				after: {
-					color: 'rgba(0, 0, 0, 0.5)',
-				}
+				backgroundColor: themeColorFromId(debugInlineBackground),
+				margin: '10px',
+				color: themeColorFromId(debugInlineForeground)
 			}
 		}
 	};
@@ -207,7 +213,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.toDispose = [];
 		this.registerListeners();
 		this.updateConfigurationWidgetVisibility();
-		this.codeEditorService.registerDecorationType(INLINE_VALUE_DECORATION_KEY, {});
+		this.codeEditorService.registerDecorationType('debug-inline-value-decoration', INLINE_VALUE_DECORATION_KEY, {});
 		this.exceptionWidgetVisible = CONTEXT_EXCEPTION_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this.toggleExceptionWidget();
 	}
@@ -279,7 +285,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				this.altListener.dispose();
 			}
 			// When the alt key is pressed show regular editor hover and hide the debug hover #84561
-			this.altListener = domEvent(document, 'keydown')(keydownEvent => {
+			this.altListener = addDisposableListener(document, 'keydown', keydownEvent => {
 				const standardKeyboardEvent = new StandardKeyboardEvent(keydownEvent);
 				if (standardKeyboardEvent.keyCode === KeyCode.Alt) {
 					this.altPressed = true;
@@ -292,7 +298,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 						hoverController.showContentHover(this.hoverRange, HoverStartMode.Immediate, false);
 					}
 
-					const listener = Event.any<KeyboardEvent | boolean>(this.hostService.onDidChangeFocus, domEvent(document, 'keyup'))(keyupEvent => {
+					const onKeyUp = new DomEmitter(document, 'keyup');
+					const listener = Event.any<KeyboardEvent | boolean>(this.hostService.onDidChangeFocus, onKeyUp.event)(keyupEvent => {
 						let standardKeyboardEvent = undefined;
 						if (keyupEvent instanceof KeyboardEvent) {
 							standardKeyboardEvent = new StandardKeyboardEvent(keyupEvent);
@@ -301,6 +308,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 							this.altPressed = false;
 							this.editor.updateOptions({ hover: { enabled: false } });
 							listener.dispose();
+							onKeyUp.dispose();
 						}
 					});
 				}
@@ -710,7 +718,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			allDecorations = decorationsPerScope.reduce((previous, current) => previous.concat(current), []);
 		}
 
-		this.editor.setDecorations(INLINE_VALUE_DECORATION_KEY, allDecorations);
+		this.editor.setDecorations('debug-inline-value-decoration', INLINE_VALUE_DECORATION_KEY, allDecorations);
 	}
 
 	dispose(): void {

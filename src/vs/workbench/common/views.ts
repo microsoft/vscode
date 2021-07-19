@@ -626,15 +626,23 @@ export interface IViewDescriptorService {
 
 // Custom views
 
+export interface ITreeDataTransferItem {
+	asString(): Thenable<string>;
+}
+
+export interface ITreeDataTransfer {
+	items: Map<string, ITreeDataTransferItem>;
+}
+
 export interface ITreeView extends IDisposable {
 
 	dataProvider: ITreeViewDataProvider | undefined;
 
+	dragAndDropController?: ITreeViewDragAndDropController;
+
 	showCollapseAllAction: boolean;
 
 	canSelectMany: boolean;
-
-	canDragAndDrop: boolean;
 
 	message?: string;
 
@@ -812,7 +820,11 @@ export interface ITreeViewDataProvider {
 	readonly isTreeEmpty?: boolean;
 	onDidChangeEmpty?: Event<void>;
 	getChildren(element?: ITreeItem): Promise<ITreeItem[]>;
-	setParent?(elements: ITreeItem[], newParent: ITreeItem): Promise<void>;
+}
+
+export const TREE_ITEM_DATA_TRANSFER_TYPE = 'text/treeitems';
+export interface ITreeViewDragAndDropController {
+	onDrop(elements: ITreeDataTransfer, target: ITreeItem): Promise<void>;
 }
 
 export interface IEditableData {

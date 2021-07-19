@@ -36,7 +36,6 @@ import { ActionBar, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionb
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { domEvent } from 'vs/base/browser/event';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
 import { IMarker, IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { withUndefinedAsNull } from 'vs/base/common/types';
@@ -443,7 +442,7 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		}));
 
 		// move focus to input, whenever a key is pressed in the panel container
-		this._register(domEvent(parent, 'keydown')(e => {
+		this._register(dom.addDisposableListener(parent, 'keydown', e => {
 			if (this.keybindingService.mightProducePrintableCharacter(new StandardKeyboardEvent(e))) {
 				this.focusFilter();
 			}

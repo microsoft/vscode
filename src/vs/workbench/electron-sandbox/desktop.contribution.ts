@@ -22,6 +22,8 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { PartsSplash } from 'vs/workbench/electron-sandbox/splash';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { InstallShellScriptAction, UninstallShellScriptAction } from 'vs/workbench/electron-sandbox/actions/installActions';
+import { EditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
 
 // Actions
 (function registerActions(): void {
@@ -35,6 +37,25 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 	registerAction2(SwitchWindowAction);
 	registerAction2(QuickSwitchWindowAction);
 	registerAction2(CloseWindowAction);
+
+	if (isMacintosh) {
+		// macOS: behave like other native apps that have documents
+		// but can run without a document opened and allow to close
+		// the window when the last document is closed
+		// (https://github.com/microsoft/vscode/issues/126042)
+		KeybindingsRegistry.registerKeybindingRule({
+			id: CloseWindowAction.ID,
+			weight: KeybindingWeight.WorkbenchContrib,
+			when: ContextKeyExpr.and(EditorsVisibleContext.toNegated(), SingleEditorGroupsContext),
+			primary: KeyMod.CtrlCmd | KeyCode.KEY_W
+		});
+	}
+
+	// Actions: Install Shell Script (macOS only)
+	if (isMacintosh) {
+		registerAction2(InstallShellScriptAction);
+		registerAction2(UninstallShellScriptAction);
+	}
 
 	// Quit
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -212,7 +233,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 				'type': 'boolean',
 				'description': localize('telemetry.enableCrashReporting', "Enable crash reports to be sent to a Microsoft online service. \nThis option requires restart to take effect."),
 				'default': true,
-				'tags': ['usesOnlineServices']
+				'tags': ['usesOnlineServices', 'telemetry']
 			}
 		}
 	});

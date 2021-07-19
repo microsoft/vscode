@@ -2,12 +2,12 @@
   {
     "kind": 1,
     "language": "markdown",
-    "value": "#### Config"
+    "value": "#### Config $x^x$"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$repo=repo:microsoft/vscode\n$milestone=milestone:\"May 2021\""
+    "value": "$repo=repo:microsoft/vscode\n$milestone=milestone:\"July 2021\""
   },
   {
     "kind": 1,

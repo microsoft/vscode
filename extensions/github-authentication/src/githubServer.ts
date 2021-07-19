@@ -20,6 +20,7 @@ const AUTH_RELAY_SERVER = 'vscode-auth.github.com';
 
 class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {
 	public handleUri(uri: vscode.Uri) {
+		Logger.trace('Handling Uri...');
 		this.fire(uri);
 	}
 }
@@ -49,12 +50,12 @@ export class GitHubServer {
 
 	// TODO@joaomoreno TODO@RMacfarlane
 	private async isNoCorsEnvironment(): Promise<boolean> {
-		const uri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate`));
-		return uri.scheme === 'https' && /^vscode\./.test(uri.authority);
+		const uri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/dummy`));
+		return (uri.scheme === 'https' && /^(vscode|github)\./.test(uri.authority)) || (uri.scheme === 'http' && /^localhost/.test(uri.authority));
 	}
 
 	public async login(scopes: string): Promise<string> {
-		Logger.info('Logging in...');
+		Logger.info(`Logging in for the following scopes: ${scopes}`);
 		this.updateStatusBarItem(true);
 
 		const state = uuid();
@@ -119,17 +120,22 @@ export class GitHubServer {
 
 	private exchangeCodeForToken: (scopes: string) => PromiseAdapter<vscode.Uri, string> =
 		(scopes) => async (uri, resolve, reject) => {
-			Logger.info('Exchanging code for token...');
 			const query = parseQuery(uri);
 			const code = query.code;
 
 			const acceptedStates = this._pendingStates.get(scopes) || [];
 			if (!acceptedStates.includes(query.state)) {
-				reject('Received mismatched state');
+				// A common scenario of this happening is if you:
+				// 1. Trigger a sign in with one set of scopes
+				// 2. Before finishing 1, you trigger a sign in with a different set of scopes
+				// In this scenario we should just return and wait for the next UriHandler event
+				// to run as we are probably still waiting on the user to hit 'Continue'
+				Logger.info('State not found in accepted state. Skipping this execution...');
 				return;
 			}
 
 			const url = `https://${AUTH_RELAY_SERVER}/token?code=${code}&state=${query.state}`;
+			Logger.info('Exchanging code for token...');
 
 			// TODO@joao: remove
 			if (query.nocors) {
@@ -179,7 +185,8 @@ export class GitHubServer {
 
 	private updateStatusBarItem(isStart?: boolean) {
 		if (isStart && !this._statusBarItem) {
-			this._statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+			this._statusBarItem = vscode.window.createStatusBarItem('status.git.signIn', vscode.StatusBarAlignment.Left);
+			this._statusBarItem.name = localize('status.git.signIn.name', "GitHub Sign-in");
 			this._statusBarItem.text = this.type === AuthProviderType.github
 				? localize('signingIn', "$(mark-github) Signing in to github.com...")
 				: localize('signingInEnterprise', "$(mark-github) Signing in to {0}...", this.getServerUri().authority);

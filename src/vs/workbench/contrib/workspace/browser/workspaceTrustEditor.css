@@ -42,13 +42,15 @@
 }
 
 .workspace-trust-editor .workspace-trust-header .workspace-trust-title .workspace-trust-title-icon {
-	color: var(--workspace-trust-selected-state-color) !important;
+	color: var(--workspace-trust-selected-color) !important;
 }
 
 .workspace-trust-editor .workspace-trust-header .workspace-trust-description {
 	cursor: default;
 	user-select: text;
 	max-width: 600px;
+	text-align: center;
+	padding: 14px 0;
 }
 
 .workspace-trust-editor .workspace-trust-section-title {
@@ -80,16 +82,18 @@
 
 .workspace-trust-editor .workspace-trust-features .workspace-trust-limitations {
 	min-height: 315px;
+	border: 1px solid var(--workspace-trust-unselected-color);
+	margin: 4px 4px;
+	display: flex;
+	flex-direction: column;
+	padding: 10px 40px;
 }
 
-.workspace-trust-editor.trusted .workspace-trust-features .workspace-trust-limitations.trusted {
-	border-width: 2px;
-	border-color: var(--workspace-trust-selected-state-color) !important;
-}
-
+.workspace-trust-editor.trusted .workspace-trust-features .workspace-trust-limitations.trusted,
 .workspace-trust-editor.untrusted .workspace-trust-features .workspace-trust-limitations.untrusted {
 	border-width: 2px;
-	border-color: var(--workspace-trust-selected-state-color) !important;
+	border-color: var(--workspace-trust-selected-color) !important;
+	padding: 9px 39px;
 }
 
 .workspace-trust-editor .workspace-trust-features .workspace-trust-limitations ul {
@@ -108,12 +112,12 @@
 }
 
 .workspace-trust-editor .workspace-trust-features .workspace-trust-limitations.trusted .list-item-icon {
-	color: var(--workspace-trust-trusted-color) !important;
+	color: var(--workspace-trust-check-color) !important;
 	font-size: 18px;
 }
 
 .workspace-trust-editor .workspace-trust-features .workspace-trust-limitations.untrusted .list-item-icon {
-	color: var(--workspace-trust-untrusted-color) !important;
+	color: var(--workspace-trust-x-color) !important;
 	font-size: 20px;
 }
 
@@ -142,14 +146,10 @@
 	display: none;
 }
 
-.workspace-trust-editor.trusted .workspace-trust-features .workspace-trust-limitations.trusted .workspace-trust-limitations-header .workspace-trust-limitations-title .workspace-trust-title-icon {
-	display: unset;
-	color: var(--workspace-trust-selected-state-color) !important;
-}
-
+.workspace-trust-editor.trusted .workspace-trust-features .workspace-trust-limitations.trusted .workspace-trust-limitations-header .workspace-trust-limitations-title .workspace-trust-title-icon,
 .workspace-trust-editor.untrusted .workspace-trust-features .workspace-trust-limitations.untrusted .workspace-trust-limitations-header .workspace-trust-limitations-title .workspace-trust-title-icon {
 	display: unset;
-	color: var(--workspace-trust-selected-state-color) !important;
+	color: var(--workspace-trust-selected-color) !important;
 }
 
 .workspace-trust-editor .workspace-trust-features .workspace-trust-untrusted-description {
@@ -199,41 +199,6 @@
 	flex: 1;
 }
 
-/** Settings */
-.workspace-trust-editor .workspace-trust-settings .workspace-trust-section-title {
-	padding: 14px;
-}
-
-.workspace-trust-editor .settings-editor .settings-body {
-	margin-top: 0;
-}
-
-.workspace-trust-editor .settings-editor .settings-body .settings-tree-container .shadow.top {
-	left: initial;
-	margin-left: initial;
-	max-width: initial;
-}
-
-.workspace-trust-editor .settings-editor .settings-body .settings-tree-container .monaco-list-rows {
-	background: unset;
-}
-
-.workspace-trust-editor .settings-editor .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents {
-	padding-left: 0;
-	padding-right: 0;
-}
-
-.workspace-trust-editor .settings-editor .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents .setting-list-edit-row > .setting-list-valueInput {
-	width: 100%;
-	max-width: 100%;
-}
-
-.workspace-trust-editor .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-key,
-.workspace-trust-editor .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input-key {
-	margin-left: 4px;
-	min-width: 20%;
-}
-
 .workspace-trust-intro-dialog {
 	min-width: min(50vw, 500px);
 	padding-right: 24px;
@@ -252,4 +217,80 @@
 .workspace-trust-intro-dialog .workspace-trust-dialog-image-row.status-bar img {
 	max-height: 32px;
 	padding-right: 10px;
+}
+
+.workspace-trust-editor .workspace-trust-settings {
+	padding: 20px 14px;
+}
+
+.workspace-trust-editor .workspace-trust-settings .workspace-trusted-folders-title {
+	font-weight: 600;
+}
+
+.workspace-trust-editor .monaco-table-tr .monaco-table-td .path:not(.input-mode) .monaco-inputbox,
+.workspace-trust-editor .monaco-table-tr .monaco-table-td .path.input-mode .path-label {
+	display: none;
+}
+
+.workspace-trust-editor .monaco-table-tr .monaco-table-td .current-workspace-parent .path-label,
+.workspace-trust-editor .monaco-table-tr .monaco-table-td .current-workspace-parent .host-label {
+	font-weight: bold;
+	font-style: italic;
+}
+
+
+.workspace-trust-editor .monaco-table-tr .monaco-table-td .path .monaco-inputbox input {
+	padding-left: 5px;
+}
+
+.workspace-trust-editor .monaco-table-th,
+.workspace-trust-editor .monaco-table-td {
+	padding-left: 5px;
+}
+
+.workspace-trust-editor .workspace-trust-settings .monaco-action-bar .action-item > .codicon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: inherit;
+}
+
+.workspace-trust-editor .workspace-trust-settings .monaco-table-tr .monaco-table-td {
+	align-items: center;
+	display: flex;
+	overflow: hidden;
+}
+
+.workspace-trust-editor .workspace-trust-settings .monaco-table-tr .monaco-table-td .host,
+.workspace-trust-editor .workspace-trust-settings .monaco-table-tr .monaco-table-td .path {
+	max-width: 100%;
+}
+
+.workspace-trust-editor .workspace-trust-settings .monaco-table-tr .monaco-table-td .monaco-button {
+	height: 18px;
+	padding-left: 8px;
+	padding-right: 8px;
+}
+
+.workspace-trust-editor .workspace-trust-settings .monaco-table-tr .monaco-table-td .host .button-bar {
+	padding-right: 5px;
+}
+.workspace-trust-editor .workspace-trust-settings .monaco-table-tr .monaco-table-td .host .monaco-button {
+	display: block;
+	line-height: 18px;
+	padding-top: 0px;
+	padding-bottom: 0px;
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+.workspace-trust-editor .workspace-trust-settings .monaco-table-tr .monaco-table-td .actions .monaco-action-bar {
+	display: none;
+	flex: 1;
+}
+
+.workspace-trust-editor .workspace-trust-settings .monaco-list-row.selected .monaco-table-tr .monaco-table-td .actions .monaco-action-bar,
+.workspace-trust-editor .workspace-trust-settings .monaco-table .monaco-list-row.focused .monaco-table-tr .monaco-table-td .actions .monaco-action-bar,
+.workspace-trust-editor .workspace-trust-settings .monaco-list-row:hover .monaco-table-tr .monaco-table-td .actions .monaco-action-bar {
+	display: flex;
 }

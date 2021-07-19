@@ -177,7 +177,7 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 		template.container.style.removeProperty('--outline-element-color');
 		template.decoration.innerText = '';
 		if (markerInfo) {
-			const useBadges = this._configurationService.getValue<boolean>(OutlineConfigKeys.problemsBadges);
+			const useBadges = this._configurationService.getValue(OutlineConfigKeys.problemsBadges);
 			if (!useBadges) {
 				template.decoration.classList.remove('bubble');
 				template.decoration.innerText = '';
@@ -189,7 +189,7 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 				template.decoration.innerText = markerInfo.count > 9 ? '9+' : String(markerInfo.count);
 			}
 			const color = this._themeService.getColorTheme().getColor(markerInfo.topSev === MarkerSeverity.Error ? listErrorForeground : listWarningForeground);
-			const useColors = this._configurationService.getValue<boolean>(OutlineConfigKeys.problemsColors);
+			const useColors = this._configurationService.getValue(OutlineConfigKeys.problemsColors);
 			if (!useColors) {
 				template.container.style.removeProperty('--outline-element-color');
 				template.decoration.style.setProperty('--outline-element-color', color?.toString() ?? 'inherit');
@@ -541,7 +541,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 	async reveal(entry: OutlineEntry, options: IEditorOptions, sideBySide: boolean): Promise<void> {
 		await this._editorService.openEditor({
 			resource: entry.cell.uri,
-			options,
+			options: { ...options, override: this._editor.input?.editorId },
 		}, sideBySide ? SIDE_GROUP : undefined);
 	}
 

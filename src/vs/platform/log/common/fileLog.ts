@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogService, LogLevel, AbstractLogger, ILoggerService, ILogger, AbstractLoggerService } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel, AbstractLogger, ILoggerService, ILogger, AbstractLoggerService, ILoggerOptions } from 'vs/platform/log/common/log';
 import { URI } from 'vs/base/common/uri';
 import { ByteSize, FileOperationError, FileOperationResult, IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
 import { Queue } from 'vs/base/common/async';
@@ -24,6 +24,7 @@ export class FileLogger extends AbstractLogger implements ILogger {
 		private readonly name: string,
 		private readonly resource: URI,
 		level: LogLevel,
+		private readonly donotUseFormatters: boolean,
 		@IFileService private readonly fileService: IFileService
 	) {
 		super();
@@ -101,7 +102,11 @@ export class FileLogger extends AbstractLogger implements ILogger {
 				await this.fileService.writeFile(this.getBackupResource(), VSBuffer.fromString(content));
 				content = '';
 			}
-			content += `[${this.getCurrentTimestamp()}] [${this.name}] [${this.stringifyLogLevel(level)}] ${message}\n`;
+			if (this.donotUseFormatters) {
+				content += message;
+			} else {
+				content += `[${this.getCurrentTimestamp()}] [${this.name}] [${this.stringifyLogLevel(level)}] ${message}\n`;
+			}
 			await this.fileService.writeFile(this.resource, VSBuffer.fromString(content));
 		});
 	}
@@ -168,9 +173,9 @@ export class FileLoggerService extends AbstractLoggerService implements ILoggerS
 		super(logService.getLevel(), logService.onDidChangeLogLevel);
 	}
 
-	protected doCreateLogger(resource: URI, logLevel: LogLevel): ILogger {
+	protected doCreateLogger(resource: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {
 		const logger = new BufferLogService(logLevel);
-		whenProviderRegistered(resource, this.fileService).then(() => (<BufferLogService>logger).logger = this.instantiationService.createInstance(FileLogger, basename(resource), resource, logger.getLevel()));
+		whenProviderRegistered(resource, this.fileService).then(() => (<BufferLogService>logger).logger = this.instantiationService.createInstance(FileLogger, basename(resource), resource, logger.getLevel(), !!options?.donotUseFormatters));
 		return logger;
 	}
 }
