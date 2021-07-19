@@ -1437,7 +1437,12 @@ export class SettingMultilineTextRenderer extends AbstractSettingTextRenderer im
 	}
 
 	protected override renderValue(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: string) => void) {
-		super.renderValue(dataElement, template, onChange);
+		const onChangeOverride = (value: string) => {
+			// Ensure the model is up to date since a different value will be rendered as different height when probing the height.
+			dataElement.value = value;
+			onChange(value);
+		};
+		super.renderValue(dataElement, template, onChangeOverride);
 		template.toDispose.add(
 			template.inputBox.onDidHeightChange(e => {
 				const height = template.containerElement.clientHeight;
