@@ -187,6 +187,11 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	getFindHost(instance?: ITerminalInstance): ITerminalFindHost;
 }
 
+export interface ITerminalIdentifier {
+	workspaceId: string;
+	instanceId: number | undefined;
+}
+
 /**
  * This service is responsible for integrating with the editor service and managing terminal
  * editors.
@@ -204,6 +209,7 @@ export interface ITerminalEditorService extends ITerminalInstanceHost, ITerminal
 	detachActiveEditorInstance(): ITerminalInstance;
 	detachInstance(instance: ITerminalInstance): void;
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
+	parseTerminalUri(resource: URI): ITerminalIdentifier;
 }
 
 /**

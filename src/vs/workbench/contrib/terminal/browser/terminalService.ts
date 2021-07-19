@@ -11,7 +11,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { equals } from 'vs/base/common/objects';
-import { basename } from 'vs/base/common/path';
 import { isMacintosh, isWeb, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
@@ -627,15 +626,11 @@ export class TerminalService implements ITerminalService {
 		if (resource.scheme !== Schemas.vscodeTerminal) {
 			return undefined;
 		}
-		const [, workspaceId,] = resource.path.split('/');
-		if (this._workspaceContextService.getWorkspace().id !== workspaceId) {
+		const terminalIdentifier = this._terminalEditorService.parseTerminalUri(resource);
+		if (this._workspaceContextService.getWorkspace().id !== terminalIdentifier.workspaceId) {
 			return undefined;
 		}
-		const base = basename(resource.path);
-		if (base === '') {
-			return undefined;
-		}
-		return parseInt(base);
+		return terminalIdentifier.instanceId;
 	}
 
 	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean {
