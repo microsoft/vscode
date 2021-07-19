@@ -23,6 +23,7 @@ export function createValidator(prop: IConfigurationPropertySchema): (value: any
 	const numericValidations = getNumericValidators(prop);
 	const stringValidations = getStringValidators(prop);
 	const stringArrayValidator = getArrayOfStringValidator(prop);
+	const objectValidator = getObjectValidator(prop);
 
 	return value => {
 		if (prop.type === 'string' && stringValidations.length === 0) { return null; }
@@ -31,6 +32,13 @@ export function createValidator(prop: IConfigurationPropertySchema): (value: any
 		const errors: string[] = [];
 		if (stringArrayValidator) {
 			const err = stringArrayValidator(value);
+			if (err) {
+				errors.push(err);
+			}
+		}
+
+		if (objectValidator) {
+			const err = objectValidator(value);
 			if (err) {
 				errors.push(err);
 			}
@@ -137,6 +145,14 @@ function getStringValidators(prop: IConfigurationPropertySchema) {
 			}),
 			message: nls.localize('validations.uriSchemeMissing', "URI with a scheme is expected.")
 		},
+		{
+			enabled: prop.enum !== undefined,
+			isValid: ((value: string) => {
+				return prop.enum!.includes(value);
+			}),
+			message: nls.localize('validations.invalidStringEnumValue', "Value is not accepted. Valid values: {0}.",
+				prop.enum ? prop.enum.map(key => `"${key}"`).join(', ') : '[]')
+		}
 	].filter(validation => validation.enabled);
 }
 
@@ -268,4 +284,54 @@ function getArrayOfStringValidator(prop: IConfigurationPropertySchema): ((value:
 	}
 
 	return null;
+}
+
+function getObjectValidator(prop: IConfigurationPropertySchema): ((value: any) => (string | null)) | null {
+	// see if it is renderable object
+	// the only renderable values for now are strings and bools
+	if (prop.type === 'object' && !prop.additionalProperties) {
+		const { properties, patternProperties } = prop;
+		return value => {
+			if (!value) {
+				return null;
+			}
+
+			const errors: string[] = [];
+
+			Object.keys(value).forEach((key: string) => {
+				const data = value[key];
+				if (properties && key in properties) {
+					const errorMessage = getErrorsForSchema(properties[key], data);
+					if (errorMessage) {
+						errors.push(nls.localize('validations.errorsForKey', 'For key "{0}": {1}\n', key, errorMessage));
+					}
+				} else if (patternProperties) {
+					for (const pattern in patternProperties) {
+						if (RegExp(pattern).test(key)) {
+							const errorMessage = getErrorsForSchema(patternProperties[pattern], data);
+							if (errorMessage) {
+								errors.push(nls.localize('validations.errorsForKey', 'For key "{0}": {1}\n', key, errorMessage));
+							}
+							return;
+						}
+					}
+					errors.push(nls.localize('validations.objectPattern', 'Property {0} is not allowed.\n', key));
+				}
+			});
+
+			if (errors.length) {
+				return prop.errorMessage ? [prop.errorMessage, ...errors].join(' ') : errors.join(' ');
+			}
+
+			return '';
+		};
+	}
+
+	return null;
+}
+
+function getErrorsForSchema(propertySchema: IConfigurationPropertySchema, data: any): string | null {
+	const validator = createValidator(propertySchema);
+	const errorMessage = validator(data);
+	return errorMessage;
 }

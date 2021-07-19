@@ -225,6 +225,31 @@ suite('Preferences Validation', () => {
 		}
 	});
 
+	test('objects work', () => {
+		{
+			const obj = new Tester({ properties: { 'a': { type: 'string', maxLength: 2 } }, additionalProperties: false });
+			obj.rejects('{ "a": "string" }');
+			obj.accepts('{ "a": "st" }');
+			obj.rejects('{ "a": null }');
+			obj.rejects('{ "a": undefined }');
+			obj.rejects('{}');
+			obj.rejects('23');
+		}
+		{
+			const pattern = new Tester({ patternProperties: { '^a[a-z]$': { type: 'string', minLength: 2 } }, additionalProperties: false });
+			pattern.accepts('{ "ab": "string" }');
+			pattern.accepts('{ "ab": "string", "ac": "hmm" }');
+			pattern.rejects('{ "ab": "string", "ac": "h" }');
+			pattern.rejects('{ "abc": "string" }');
+			pattern.rejects('{ "a0": "string" }');
+			pattern.rejects('{ "ab": "string", "bc": "hmm" }');
+			pattern.rejects('{ "be": "string" }');
+			pattern.rejects('{ "be": "a" }');
+			pattern.accepts('{}');
+			pattern.rejects('23');
+		}
+	});
+
 	test('patterns work', () => {
 		{
 			const urls = new Tester({ pattern: '^(hello)*$', type: 'string' });

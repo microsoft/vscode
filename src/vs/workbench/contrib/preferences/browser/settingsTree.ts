@@ -512,9 +512,10 @@ interface ISettingExcludeItemTemplate extends ISettingItemTemplate<void> {
 	excludeWidget: ListSettingWidget;
 }
 
-interface ISettingObjectItemTemplate extends ISettingItemTemplate<void> {
+interface ISettingObjectItemTemplate extends ISettingItemTemplate<Record<string, unknown> | undefined> {
 	objectDropdownWidget?: ObjectSettingDropdownWidget,
 	objectCheckboxWidget?: ObjectSettingCheckboxWidget;
+	validationErrorMessageElement: HTMLElement;
 }
 
 interface ISettingNewExtensionsTemplate extends IDisposableTemplate {
@@ -1138,8 +1139,13 @@ abstract class AbstractSettingObjectRenderer extends AbstractSettingRenderer imp
 		widget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
 		common.toDispose.add(widget);
 
+		const descriptionElement = common.containerElement.querySelector('.setting-item-description')!;
+		const validationErrorMessageElement = $('.setting-item-validation-message');
+		descriptionElement.after(validationErrorMessageElement);
+
 		const template: ISettingObjectItemTemplate = {
-			...common
+			...common,
+			validationErrorMessageElement
 		};
 		if (widget instanceof ObjectSettingCheckboxWidget) {
 			template.objectCheckboxWidget = widget;
@@ -1149,7 +1155,9 @@ abstract class AbstractSettingObjectRenderer extends AbstractSettingRenderer imp
 
 		this.addSettingElementFocusHandler(template);
 
-		common.toDispose.add(widget.onDidChangeList(e => this.onDidChangeObject(template, e)));
+		common.toDispose.add(widget.onDidChangeList(e => {
+			this.onDidChangeObject(template, e);
+		}));
 
 		return template;
 	}
@@ -1208,9 +1216,11 @@ abstract class AbstractSettingObjectRenderer extends AbstractSettingRenderer imp
 				}
 			});
 
+			const newObject = Object.keys(newValue).length === 0 ? undefined : newValue;
+
 			this._onDidChangeSetting.fire({
 				key: template.context.setting.key,
-				value: Object.keys(newValue).length === 0 ? undefined : newValue,
+				value: newObject,
 				type: template.context.valueType
 			});
 
@@ -1218,6 +1228,10 @@ abstract class AbstractSettingObjectRenderer extends AbstractSettingRenderer imp
 				template.objectCheckboxWidget.setValue(newItems);
 			} else {
 				template.objectDropdownWidget!.setValue(newItems);
+			}
+
+			if (template.onChange) {
+				template.onChange(newObject);
 			}
 		}
 	}
@@ -1236,7 +1250,7 @@ export class SettingObjectRenderer extends AbstractSettingObjectRenderer impleme
 		return this.renderTemplateWithWidget(common, widget);
 	}
 
-	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingObjectItemTemplate, onChange: (value: string) => void): void {
+	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingObjectItemTemplate, onChange: (value: Record<string, unknown> | undefined) => void): void {
 		const items = getObjectDisplayValue(dataElement);
 		const { key, objectProperties, objectPatternProperties, objectAdditionalProperties } = dataElement.setting;
 
@@ -1253,6 +1267,10 @@ export class SettingObjectRenderer extends AbstractSettingObjectRenderer impleme
 		});
 
 		template.context = dataElement;
+		template.onChange = (v: Record<string, unknown> | undefined) => {
+			renderArrayValidations(dataElement, template, v, false);
+		};
+		template.onChange(dataElement.value);
 	}
 }
 
@@ -1276,7 +1294,7 @@ export class SettingBoolObjectRenderer extends AbstractSettingObjectRenderer imp
 		}
 	}
 
-	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingObjectItemTemplate, onChange: (value: string) => void): void {
+	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingObjectItemTemplate, onChange: (value: Record<string, unknown> | undefined) => void): void {
 		const items = getObjectDisplayValue(dataElement);
 		const { key } = dataElement.setting;
 
@@ -1893,8 +1911,8 @@ function renderValidations(dataElement: SettingsTreeSettingElement, template: IS
 
 function renderArrayValidations(
 	dataElement: SettingsTreeSettingElement,
-	template: ISettingListItemTemplate,
-	value: string[] | undefined,
+	template: ISettingListItemTemplate | ISettingObjectItemTemplate,
+	value: string[] | Record<string, unknown> | undefined,
 	calledOnStartup: boolean
 ) {
 	template.containerElement.classList.add('invalid-input');
