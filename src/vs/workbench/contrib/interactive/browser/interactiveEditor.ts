@@ -234,8 +234,9 @@ export class InteractiveEditor extends EditorPane {
 		}));
 
 		this.#widgetDisposableStore.add(editorModel.onDidChangeContent(() => {
-			if (this.input?.resource) {
-				this.#historyService.replaceLast(this.input.resource, editorModel!.getValue());
+			const value = editorModel!.getValue();
+			if (this.input?.resource && value !== '') {
+				this.#historyService.replaceLast(this.input.resource, value);
 			}
 		}));
 

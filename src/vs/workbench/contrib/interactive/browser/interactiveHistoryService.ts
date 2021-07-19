@@ -21,7 +21,7 @@ export interface IInteractiveHistoryService {
 	clearHistory(uri: URI): void;
 }
 
-export class InteractiveHistoryService extends Disposable {
+export class InteractiveHistoryService extends Disposable implements IInteractiveHistoryService {
 	declare readonly _serviceBrand: undefined;
 	#history: ResourceMap<HistoryNavigator2<string>>;
 
@@ -37,7 +37,9 @@ export class InteractiveHistoryService extends Disposable {
 			return;
 		}
 
-		const history = this.#history.get(uri);
+		const history = this.#history.get(uri)!;
+
+		history.resetCursor();
 		if (history?.current() !== value) {
 			history?.add(value);
 		}
