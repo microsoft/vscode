@@ -180,7 +180,9 @@ export interface IDebugSessionOptions {
 	repl?: IDebugSessionReplMode;
 	compoundRoot?: DebugCompoundRoot;
 	compact?: boolean;
-	simpleUI?: boolean;
+	debugUI?: {
+		simple?: boolean;
+	};
 }
 
 export interface IDataBreakpointInfoResponse {

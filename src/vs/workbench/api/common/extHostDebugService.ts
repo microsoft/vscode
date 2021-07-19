@@ -292,7 +292,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 			repl: options.consoleMode === DebugConsoleMode.MergeWithParent ? 'mergeWithParent' : 'separate',
 			noDebug: options.noDebug,
 			compact: options.compact,
-			simpleUI: options.debugUI?.simple
+			debugUI: options.debugUI
 		});
 	}
 
