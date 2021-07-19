@@ -445,8 +445,9 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		for (let key in colors) {
 			const scopedColors = colors[key];
 			if (this.isThemeScope(key) && scopedColors instanceof Object && !types.isArray(scopedColors)) {
-				const themeIdList = key.match(themeScopeRegex) || [];
-				for (let themeId of themeIdList) {
+				const themeScopeList = key.match(themeScopeRegex) || [];
+				for (let themeScope of themeScopeList) {
+					const themeId = themeScope.substring(1, themeScope.length - 1);
 					if (this.isThemeScopeMatch(themeId)) {
 						if (!themeSpecificColors) {
 							themeSpecificColors = {} as IThemeScopedCustomizations;

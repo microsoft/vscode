@@ -22,7 +22,7 @@ export const THEME_SCOPE_OPEN_PAREN = '[';
 export const THEME_SCOPE_CLOSE_PAREN = ']';
 export const THEME_SCOPE_WILDCARD = '*';
 
-export const themeScopeRegex = /(?<=\[).+?(?=\])/g;
+export const themeScopeRegex = /\[(.+?)\]/g;
 
 export enum ThemeSettings {
 	COLOR_THEME = 'workbench.colorTheme',
