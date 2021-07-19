@@ -695,6 +695,7 @@ export interface INotebookCellList {
 	getFocusedElements(): ICellViewModel[];
 	getSelectedElements(): ICellViewModel[];
 	revealElementsInView(range: ICellRange): void;
+	scrollToBottom(): void;
 	revealElementInView(element: ICellViewModel): void;
 	revealElementInViewAtTop(element: ICellViewModel): void;
 	revealElementInCenterIfOutsideViewport(element: ICellViewModel): void;

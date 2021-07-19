@@ -246,7 +246,6 @@ export class InteractiveEditor extends EditorPane {
 
 	#lastCell: ICellViewModel | undefined = undefined;
 	#lastCellDisposable = new DisposableStore();
-
 	#state: ScrollingState = ScrollingState.Initial;
 
 	#cellAtBottom(widget: NotebookEditorWidget & IActiveNotebookEditor, cell: ICellViewModel): boolean {
@@ -266,7 +265,7 @@ export class InteractiveEditor extends EditorPane {
 	 * - height change of the last cell, if state 0, do nothing, if state 1, scroll the last cell fully into view
 	 */
 	#registerExecutionScrollListener(widget: NotebookEditorWidget & IActiveNotebookEditor) {
-		widget.textModel.onWillAddRemoveCells(e => {
+		this.#widgetDisposableStore.add(widget.textModel.onWillAddRemoveCells(e => {
 			const lastViewCell = widget.viewModel.viewCells[widget.viewModel.viewCells.length - 1];
 
 			// check if the last cell is at the bottom
@@ -275,9 +274,9 @@ export class InteractiveEditor extends EditorPane {
 			} else {
 				this.#state = ScrollingState.Initial;
 			}
-		});
+		}));
 
-		widget.onDidScroll(() => {
+		this.#widgetDisposableStore.add(widget.onDidScroll(() => {
 			const lastViewCell = widget.viewModel.viewCells[widget.viewModel.viewCells.length - 1];
 
 			// check if the last cell is at the bottom
@@ -286,9 +285,9 @@ export class InteractiveEditor extends EditorPane {
 			} else {
 				this.#state = ScrollingState.Initial;
 			}
-		});
+		}));
 
-		widget.textModel.onDidChangeContent(e => {
+		this.#widgetDisposableStore.add(widget.textModel.onDidChangeContent(e => {
 			for (let i = 0; i < e.rawEvents.length; i++) {
 				const event = e.rawEvents[i];
 
@@ -301,7 +300,7 @@ export class InteractiveEditor extends EditorPane {
 					}
 				}
 			}
-		});
+		}));
 	}
 
 	#registerListenerForCell() {
@@ -309,13 +308,24 @@ export class InteractiveEditor extends EditorPane {
 			return;
 		}
 
-		this.#lastCellDisposable.add(this.#lastCell.onDidChangeLayout(() => {
-			// potentially height change
-			if (this.#state === ScrollingState.StickyToBottom) {
-				// scroll to bottom
-				const index = this.#notebookWidget.value!.viewModel!.getCellIndex(this.#lastCell!);
-				this.#notebookWidget.value!.revealCellRangeInView({ start: index, end: index + 1 });
+		this.#lastCellDisposable.add(this.#lastCell.onDidChangeLayout((e) => {
+			if (e.totalHeight === undefined) {
+				// not cell height change
+				return;
 			}
+
+			if (this.#state !== ScrollingState.StickyToBottom) {
+				return;
+			}
+
+			// scroll to bottom
+			// postpone to next tick as the list view might not process the output height change yet
+			// e.g., when we register this listener later than the list view
+			this.#lastCellDisposable.add(DOM.scheduleAtNextAnimationFrame(() => {
+				if (this.#state === ScrollingState.StickyToBottom) {
+					this.#notebookWidget.value!.scrollToBottom();
+				}
+			}));
 		}));
 	}
 
