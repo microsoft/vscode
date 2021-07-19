@@ -1902,22 +1902,6 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Handler called to start a test run. When invoked, the function should
-	 * {@link TestController.createTestRun} at least once, and all tasks
-	 * associated with the run should be created before the function returns
-	 * or the reutrned promise is resolved.
-	 *
-	 * @param request Request information for the test run
-	 * @param cancellationToken Token that signals the used asked to abort the
-	 * test run. If cancellation is requested on this token, all {@link TestRun}
-	 * instances associated with the request will be
-	 * automatically cancelled as well.
-	 */
-	// todo@api We have been there with NotebookCtrl#executeHandler and I believe the recommendation is still not to inline.
-	// At least with that we can still do it later
-	export type TestRunHandler = (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void;
-
-	/**
 	 * A TestRunProfile describes one way to execute tests in a {@link TestController}.
 	 */
 	export interface TestRunProfile {
@@ -1955,10 +1939,10 @@ declare module 'vscode' {
 		configureHandler?: () => void;
 
 		/**
-		 * Starts a test run. When called, the profile should call
-		 * {@link TestController.createTestRun}. All tasks associated with the
-		 * run should be created before the function returns or the reutrned
-		 * promise is resolved.
+		 * Handler called to start a test run. When invoked, the function should
+		 * {@link TestController.createTestRun} at least once, and all tasks
+		 * associated with the run should be created before the function returns
+		 * or the reutrned promise is resolved.
 		 *
 		 * @param request Request information for the test run
 		 * @param cancellationToken Token that signals the used asked to abort the
@@ -1966,7 +1950,7 @@ declare module 'vscode' {
 		 * instances associated with the request will be
 		 * automatically cancelled as well.
 		 */
-		runHandler: TestRunHandler;
+		runHandler: (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void;
 
 		/**
 		 * Deletes the run profile.
@@ -2014,7 +1998,7 @@ declare module 'vscode' {
 		 * @param runHandler Function called to start a test run
 		 * @param isDefault Whether this is the default action for the group
 		 */
-		createRunProfile(label: string, group: TestRunProfileGroup, runHandler: TestRunHandler, isDefault?: boolean): TestRunProfile;
+		createRunProfile(label: string, group: TestRunProfileGroup, runHandler: (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void, isDefault?: boolean): TestRunProfile;
 
 		/**
 		 * A function provided by the extension that the editor may call to request
@@ -2158,7 +2142,7 @@ declare module 'vscode' {
 	 * Collection of test items, found in {@link TestItem.children} and
 	 * {@link TestController.items}.
 	 */
-	export interface TestItemCollection extends Iterable<TestItem> {
+	export interface TestItemCollection {
 		/**
 		 * Updates the items stored by the collection.
 		 * @param items Items to store, can be an array or other iterable.
