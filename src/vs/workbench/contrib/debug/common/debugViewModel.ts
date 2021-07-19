@@ -80,7 +80,7 @@ export class ViewModel implements IViewModel {
 			this.jumpToCursorSupported.set(session ? !!session.capabilities.supportsGotoTargetsRequest : false);
 			this.setVariableSupported.set(session ? !!session.capabilities.supportsSetVariable : false);
 			this.terminateDebuggeeSuported.set(session ? !!session.capabilities.supportTerminateDebuggee : false);
-			this.disassembleRequestSupported.set(session ? !!session?.capabilities.supportsDisassembleRequest : false);
+			this.disassembleRequestSupported.set(!!stackFrame?.instructionPointerReference && !!session?.capabilities.supportsDisassembleRequest);
 			const attach = !!session && isSessionAttach(session);
 			this.focusedSessionIsAttach.set(attach);
 		});
