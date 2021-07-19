@@ -492,8 +492,8 @@ export class GettingStartedPage extends EditorPane {
 
 		if (stepToExpand.media.type === 'image') {
 
-			this.stepMediaComponent.classList.add('image');
-			this.stepMediaComponent.classList.remove('markdown');
+			this.stepsContent.classList.add('image');
+			this.stepsContent.classList.remove('markdown');
 
 			const media = stepToExpand.media;
 			const mediaElement = $<HTMLImageElement>('img');
@@ -516,8 +516,8 @@ export class GettingStartedPage extends EditorPane {
 
 		}
 		else if (stepToExpand.media.type === 'svg') {
-			this.stepMediaComponent.classList.add('image');
-			this.stepMediaComponent.classList.remove('markdown');
+			this.stepsContent.classList.add('image');
+			this.stepsContent.classList.remove('markdown');
 
 			const media = stepToExpand.media;
 			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement(this.webviewID, {}, {}, undefined));
@@ -556,8 +556,8 @@ export class GettingStartedPage extends EditorPane {
 		}
 		else if (stepToExpand.media.type === 'markdown') {
 
-			this.stepMediaComponent.classList.remove('image');
-			this.stepMediaComponent.classList.add('markdown');
+			this.stepsContent.classList.remove('image');
+			this.stepsContent.classList.add('markdown');
 
 			const media = stepToExpand.media;
 
