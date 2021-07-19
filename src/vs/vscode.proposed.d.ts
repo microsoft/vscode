@@ -3096,8 +3096,7 @@ declare module 'vscode' {
 		range: Range;
 		/**
 		 * The range that should be selected and revealed when this symbol is being
-		 * picked, e.g. the name of a function. Must be contained by the
-		 * [`range`](#TypeHierarchyItem.range).
+		 * picked, e.g. the name of a class. Must be contained by the {@link TypeHierarchyItem.range range}-property.
 		 */
 		selectionRange: Range;
 
