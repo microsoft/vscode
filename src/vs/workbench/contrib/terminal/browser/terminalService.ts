@@ -769,7 +769,7 @@ export class TerminalService implements ITerminalService {
 		}));
 	}
 
-	@debounce(300)
+	@debounce(50)
 	private async _addInstanceToGroup(instance: ITerminalInstance, e: IRequestAddInstanceToGroupEvent): Promise<void> {
 		const terminalIdentifier = parseTerminalUri(e.uri);
 		if (terminalIdentifier.instanceId === undefined) {
