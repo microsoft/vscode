@@ -274,7 +274,7 @@ const terminalConfiguration: IConfigurationNode = {
 				localize('terminal.integrated.confirmOnExit.always', "Always confirm if there are terminals."),
 				localize('terminal.integrated.confirmOnExit.hasChildProcesses', "Confirm if there are any terminals that has child processes."),
 			],
-			default: 'hasChildProcesses'
+			default: 'never'
 		},
 		[TerminalSettingId.ConfirmOnKill]: {
 			description: localize('terminal.integrated.confirmOnKill', "Controls whether to confirm killing terminals when they have child processes. When set to editor, terminals in the editor area will be marked as dirty when they have child processes."),

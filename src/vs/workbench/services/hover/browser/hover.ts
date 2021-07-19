@@ -96,6 +96,12 @@ export interface IHoverOptions {
 	 * Whether to show a compact hover
 	 */
 	compact?: boolean;
+
+	/**
+	 * Whether to skip the fade in animation, this should be used when hovering from one hover to
+	 * another in the same group so it looks like the hover is moving from one element to the other.
+	 */
+	skipFadeInAnimation?: boolean;
 }
 
 export interface IHoverAction {

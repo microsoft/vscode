@@ -145,7 +145,7 @@ export class InvalidTestItemError extends Error {
 	}
 }
 
-export type TestItemCollectionImpl = vscode.TestItemCollection & { toJSON(): readonly TestItemImpl[] };
+export type TestItemCollectionImpl = vscode.TestItemCollection & { toJSON(): readonly TestItemImpl[] } & Iterable<TestItemImpl>;
 
 export const createTestItemCollection = (owningItem: TestItemImpl): TestItemCollectionImpl => {
 	const api = getPrivateApiFor(owningItem);

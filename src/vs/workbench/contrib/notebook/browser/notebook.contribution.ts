@@ -30,7 +30,7 @@ import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEd
 import { isCompositeNotebookEditorInput, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
-import { CellKind, CellToolbarLocation, CellToolbarVisibility, CellUri, DisplayOrderKey, UndoRedoPerCell, ExperimentalUseMarkdownRenderer, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, NotebookWorkingCopyTypeIdentifier, ShowCellStatusBar, CompactView, FocusIndicator, InsertToolbarLocation, GlobalToolbar, ConsolidatedOutputButton, ShowFoldingControls, DragAndDropEnabled, NotebookCellEditorOptionsCustomizations, ConsolidatedRunButton } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellToolbarLocation, CellToolbarVisibility, CellUri, DisplayOrderKey, UndoRedoPerCell, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, NotebookWorkingCopyTypeIdentifier, ShowCellStatusBar, CompactView, FocusIndicator, InsertToolbarLocation, GlobalToolbar, ConsolidatedOutputButton, ShowFoldingControls, DragAndDropEnabled, NotebookCellEditorOptionsCustomizations, ConsolidatedRunButton } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
@@ -648,11 +648,6 @@ configurationRegistry.registerConfiguration({
 		},
 		[NotebookTextDiffEditorPreview]: {
 			description: nls.localize('notebook.diff.enablePreview.description', "Whether to use the enhanced text diff editor for notebook."),
-			type: 'boolean',
-			default: true
-		},
-		[ExperimentalUseMarkdownRenderer]: {
-			description: nls.localize('notebook.experimental.useMarkdownRenderer.description', "Enable/disable using the new extensible markdown renderer."),
 			type: 'boolean',
 			default: true
 		},

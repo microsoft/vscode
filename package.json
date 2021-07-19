@@ -40,6 +40,7 @@
     "download-builtin-extensions-cg": "node build/lib/builtInExtensionsCG.js",
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
     "tsec-compile-check": "node node_modules/tsec/bin/tsec -p src/tsconfig.tsec.json",
+    "vscode-dts-compile-check": "node node_modules/tsec/bin/tsec -p src/tsconfig.vscode-dts.json",
     "valid-layers-check": "node build/lib/layersChecker.js",
     "update-distro": "node build/npm/update-distro.js",
     "web": "node resources/web/code-web.js",
@@ -57,6 +58,7 @@
     "extensions-ci": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js extensions-ci"
   },
   "dependencies": {
+    "@vscode/vscode-languagedetection": "1.0.12",
     "applicationinsights": "1.0.8",
     "chokidar": "3.5.1",
     "eslint-plugin-header": "3.1.1",
@@ -127,7 +129,7 @@
     "cssnano": "^4.1.11",
     "debounce": "^1.0.0",
     "deemon": "^1.4.0",
-    "electron": "13.1.6",
+    "electron": "13.1.7",
     "eslint": "6.8.0",
     "eslint-plugin-jsdoc": "^19.1.0",
     "event-stream": "3.3.4",
@@ -193,7 +195,7 @@
     "style-loader": "^1.0.0",
     "ts-loader": "^9.2.3",
     "tsec": "0.1.4",
-    "typescript": "^4.4.0-dev.20210713",
+    "typescript": "^4.4.0-dev.20210719",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.12.1",
     "util": "^0.12.4",

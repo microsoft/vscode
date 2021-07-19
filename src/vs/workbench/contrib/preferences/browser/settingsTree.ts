@@ -60,6 +60,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { settingsMoreActionIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 
 const $ = DOM.$;
 
@@ -634,6 +635,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		@IContextMenuService protected readonly _contextMenuService: IContextMenuService,
 		@IKeybindingService protected readonly _keybindingService: IKeybindingService,
 		@IConfigurationService protected readonly _configService: IConfigurationService,
+		@IWorkbenchLayoutService protected readonly _layoutService: IWorkbenchLayoutService
 	) {
 		super();
 
@@ -1432,21 +1434,34 @@ export class SettingTextRenderer extends AbstractSettingTextRenderer implements 
 export class SettingMultilineTextRenderer extends AbstractSettingTextRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingTextItemTemplate> {
 	templateId = SETTINGS_MULTILINE_TEXT_TEMPLATE_ID;
 
+	private cachedHeight: number = 0;
+
 	override renderTemplate(_container: HTMLElement): ISettingTextItemTemplate {
 		return super.renderTemplate(_container, true);
 	}
 
 	protected override renderValue(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: string) => void) {
 		super.renderValue(dataElement, template, onChange);
-		template.toDispose.add(
+		template.elementDisposables.add(
 			template.inputBox.onDidHeightChange(e => {
 				const height = template.containerElement.clientHeight;
 				// Don't fire event if height is reported as 0,
 				// which sometimes happens when clicking onto a new setting.
 				if (height) {
+					this.cachedHeight = height;
 					this._onDidChangeSettingHeight.fire({
 						element: dataElement,
 						height: template.containerElement.clientHeight
+					});
+				}
+			})
+		);
+		template.elementDisposables.add(
+			this._layoutService.onDidLayout(() => {
+				if (this.cachedHeight) {
+					this._onDidChangeSettingHeight.fire({
+						element: dataElement,
+						height: this.cachedHeight
 					});
 				}
 			})

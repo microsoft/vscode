@@ -62,6 +62,7 @@ import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { coalesce, flatten } from 'vs/base/common/arrays';
 import { ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from 'vs/workbench/common/theme';
+import { Codicon } from 'vs/base/common/codicons';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -491,8 +492,8 @@ export class GettingStartedPage extends EditorPane {
 
 		if (stepToExpand.media.type === 'image') {
 
-			this.stepMediaComponent.classList.add('image');
-			this.stepMediaComponent.classList.remove('markdown');
+			this.stepsContent.classList.add('image');
+			this.stepsContent.classList.remove('markdown');
 
 			const media = stepToExpand.media;
 			const mediaElement = $<HTMLImageElement>('img');
@@ -515,8 +516,8 @@ export class GettingStartedPage extends EditorPane {
 
 		}
 		else if (stepToExpand.media.type === 'svg') {
-			this.stepMediaComponent.classList.add('image');
-			this.stepMediaComponent.classList.remove('markdown');
+			this.stepsContent.classList.add('image');
+			this.stepsContent.classList.remove('markdown');
 
 			const media = stepToExpand.media;
 			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement(this.webviewID, {}, {}, undefined));
@@ -555,8 +556,8 @@ export class GettingStartedPage extends EditorPane {
 		}
 		else if (stepToExpand.media.type === 'markdown') {
 
-			this.stepMediaComponent.classList.remove('image');
-			this.stepMediaComponent.classList.add('markdown');
+			this.stepsContent.classList.remove('image');
+			this.stepsContent.classList.add('markdown');
 
 			const media = stepToExpand.media;
 
@@ -850,20 +851,19 @@ export class GettingStartedPage extends EditorPane {
 		const recentList = this.buildRecentlyOpenedList();
 		const gettingStartedList = this.buildGettingStartedWalkthroughsList();
 
-		const footer = $('.footer');
+		const footer = $('.footer', $('p.showOnStartup', {}, showOnStartupCheckbox, $('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show welcome page on startup"))));
 
 		const layoutLists = () => {
 			if (gettingStartedList.itemCount) {
+				this.container.classList.remove('noWalkthroughs');
 				reset(leftColumn, startList.getDomElement(), recentList.getDomElement());
 				reset(rightColumn, gettingStartedList.getDomElement());
-				reset(footer, $('p.showOnStartup', {}, showOnStartupCheckbox, $('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show welcome page on startup"))));
 				recentList.setLimit(5);
 			}
 			else {
+				this.container.classList.add('noWalkthroughs');
 				reset(leftColumn, startList.getDomElement());
 				reset(rightColumn, recentList.getDomElement());
-				reset(footer, $('p.showOnStartup', {}, showOnStartupCheckbox, $('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show welcome page on startup"))),
-					$('p.openAWalkthrough', {}, $('button.button-link', { 'x-dispatch': 'seeAllWalkthroughs' }, localize('openAWalkthrough', "Open Walkthrough..."))));
 				recentList.setLimit(10);
 			}
 			setTimeout(() => this.categoriesPageScrollbar?.scanDomNode(), 50);
@@ -997,15 +997,26 @@ export class GettingStartedPage extends EditorPane {
 
 		if (this.startList) { this.startList.dispose(); }
 
+
+		// Handle this a bit specially because it's the only item that hides/shows based on live context...
+		const showWalkthroughsEntry = $('li.showWalkthroughsEntry',
+			{},
+			$('button.button-link',
+				{},
+				this.iconWidgetFor({ icon: { type: 'icon', icon: Codicon.checklist } }),
+				$('span', {}, localize('showAllWalkthroughs', "Open a Walkthrough..."))));
+
 		const startList = this.startList = new GettingStartedIndexList(
 			localize('start', "Start"),
 			'start-container',
 			10,
 			undefined,
 			undefined,
-			undefined,
+			showWalkthroughsEntry,
 			renderStartEntry,
 		);
+
+		startList.register(addDisposableListener(showWalkthroughsEntry, 'click', () => this.commandService.executeCommand('welcome.showAllWalkthroughs')));
 
 		startList.setEntries(this.gettingStartedCategories);
 		startList.onDidChange(() => this.registerDispatchListeners());
@@ -1143,7 +1154,7 @@ export class GettingStartedPage extends EditorPane {
 		});
 	}
 
-	private iconWidgetFor(category: IGettingStartedCategory) {
+	private iconWidgetFor(category: IGettingStartedCategory | { icon: { type: 'icon', icon: ThemeIcon } }) {
 		const widget = category.icon.type === 'icon' ? $(ThemeIcon.asCSSSelector(category.icon.icon)) : $('img.category-icon', { src: category.icon.path });
 		widget.classList.add('icon-widget');
 		return widget;
@@ -1235,6 +1246,11 @@ export class GettingStartedPage extends EditorPane {
 
 	private buildCategorySlide(categoryID: string, selectedStep?: string) {
 		if (this.detailsScrollbar) { this.detailsScrollbar.dispose(); }
+
+		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
+			// Remove internal extension id specifier from exposed id's
+			this.extensionService.activateByEvent(`onWalkthrough:${categoryID.replace(/[^#]+#/, '')}`);
+		});
 
 		this.detailsPageDisposables.clear();
 

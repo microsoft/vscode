@@ -152,6 +152,8 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 	private readonly hover = this._register(new MutableDisposable<IDisposable>());
 	private readonly showHoverScheduler = new RunOnceScheduler(() => this.showHover(), 0);
 
+	private static _hoverLeaveTime = 0;
+
 	constructor(
 		action: ActivityAction,
 		options: IActivityActionViewItemOptions,
@@ -389,10 +391,15 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		this.updateTitle();
 		this.hoverDisposables.add(addDisposableListener(this.container, EventType.MOUSE_OVER, () => {
 			if (!this.showHoverScheduler.isScheduled()) {
-				this.showHoverScheduler.schedule(this.configurationService.getValue<number>('workbench.hover.delay'));
+				if (Date.now() - ActivityActionViewItem._hoverLeaveTime < 200) {
+					this.showHover(true);
+				} else {
+					this.showHoverScheduler.schedule(this.configurationService.getValue<number>('workbench.hover.delay'));
+				}
 			}
 		}, true));
 		this.hoverDisposables.add(addDisposableListener(this.container, EventType.MOUSE_LEAVE, () => {
+			ActivityActionViewItem._hoverLeaveTime = Date.now();
 			this.hover.value = undefined;
 			this.showHoverScheduler.cancel();
 		}, true));
@@ -402,7 +409,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		}));
 	}
 
-	private showHover(): void {
+	private showHover(skipFadeInAnimation: boolean = false): void {
 		if (this.hover.value) {
 			return;
 		}
@@ -412,7 +419,8 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 			hoverPosition,
 			text: this.computeTitle(),
 			showPointer: true,
-			compact: true
+			compact: true,
+			skipFadeInAnimation
 		});
 	}
 

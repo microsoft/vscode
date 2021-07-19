@@ -25,7 +25,7 @@ const simplify = (item: TestItem) => ({
 	range: item.range,
 });
 
-const assertTreesEqual = (a: TestItem | undefined, b: TestItem | undefined) => {
+const assertTreesEqual = (a: TestItemImpl | undefined, b: TestItemImpl | undefined) => {
 	if (!a) {
 		throw new assert.AssertionError({ message: 'Expected a to be defined', actual: a });
 	}
@@ -39,7 +39,7 @@ const assertTreesEqual = (a: TestItem | undefined, b: TestItem | undefined) => {
 	const aChildren = [...a.children].map(c => c.id).sort();
 	const bChildren = [...b.children].map(c => c.id).sort();
 	assert.strictEqual(aChildren.length, bChildren.length, `expected ${a.label}.children.length == ${b.label}.children.length`);
-	aChildren.forEach(key => assertTreesEqual(a.children.get(key), b.children.get(key)));
+	aChildren.forEach(key => assertTreesEqual(a.children.get(key) as TestItemImpl, b.children.get(key) as TestItemImpl));
 };
 
 // const assertTreeListEqual = (a: ReadonlyArray<TestItem>, b: ReadonlyArray<TestItem>) => {

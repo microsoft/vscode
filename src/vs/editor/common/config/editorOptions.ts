@@ -549,6 +549,11 @@ export interface IEditorOptions {
 	 */
 	foldingHighlight?: boolean;
 	/**
+	 * Auto fold imports folding regions.
+	 * Defaults to true.
+	 */
+	foldingImportsByDefault?: boolean;
+	/**
 	 * Controls whether the fold actions in the gutter stay always visible or hide unless the mouse is over the gutter.
 	 * Defaults to 'mouseover'.
 	 */
@@ -3935,6 +3940,7 @@ export const enum EditorOption {
 	folding,
 	foldingStrategy,
 	foldingHighlight,
+	foldingImportsByDefault,
 	unfoldOnClickAfterEndOfLine,
 	fontFamily,
 	fontInfo,
@@ -4278,6 +4284,10 @@ export const EditorOptions = {
 	foldingHighlight: register(new EditorBooleanOption(
 		EditorOption.foldingHighlight, 'foldingHighlight', true,
 		{ description: nls.localize('foldingHighlight', "Controls whether the editor should highlight folded ranges.") }
+	)),
+	foldingImportsByDefault: register(new EditorBooleanOption(
+		EditorOption.foldingImportsByDefault, 'foldingImportsByDefault', false,
+		{ description: nls.localize('foldingImportsByDefault', "Controls whether the editor should auto collapse folded ranges or not.") }
 	)),
 	unfoldOnClickAfterEndOfLine: register(new EditorBooleanOption(
 		EditorOption.unfoldOnClickAfterEndOfLine, 'unfoldOnClickAfterEndOfLine', false,

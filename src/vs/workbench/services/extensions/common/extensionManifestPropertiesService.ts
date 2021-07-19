@@ -106,31 +106,15 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 	}
 
 	getExtensionKind(manifest: IExtensionManifest): ExtensionKind[] {
-		const extensionIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
-
-		// check in config
-		let result: ExtensionKind | ExtensionKind[] | undefined = this.getUserConfiguredExtensionKind(extensionIdentifier);
-		if (typeof result !== 'undefined') {
-			return this.toArray(result);
-		}
-
-		// check product.json
-		result = this.getProductExtensionKind(manifest);
-		if (typeof result !== 'undefined') {
-			return result;
-		}
-
 		const deducedExtensionKind = this.deduceExtensionKind(manifest);
+		const configuredExtensionKind = this.getConfiguredExtensionKind(manifest);
 
-		// check the manifest itself
-		result = manifest.extensionKind;
-		if (typeof result !== 'undefined') {
-			result = this.toArray(result);
-			// Override extension declared extensionKind by adding web kind if the extension can run as web extension
-			if (deducedExtensionKind.includes('web') && !result.includes('web')) {
-				result.push('web');
+		if (configuredExtensionKind) {
+			// Add web kind if the extension can run as web extension
+			if (deducedExtensionKind.includes('web') && !configuredExtensionKind.includes('web')) {
+				configuredExtensionKind.push('web');
 			}
-			return result;
+			return configuredExtensionKind;
 		}
 
 		return deducedExtensionKind;
@@ -273,6 +257,31 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 		}
 
 		return ['workspace', 'web'] /* Unknown extension point => workspace, web */;
+	}
+
+	private getConfiguredExtensionKind(manifest: IExtensionManifest): ExtensionKind[] | null {
+		const extensionIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
+
+		// check in config
+		let result: ExtensionKind | ExtensionKind[] | undefined = this.getUserConfiguredExtensionKind(extensionIdentifier);
+		if (typeof result !== 'undefined') {
+			return this.toArray(result);
+		}
+
+		// check product.json
+		result = this.getProductExtensionKind(manifest);
+		if (typeof result !== 'undefined') {
+			return result;
+		}
+
+		// check the manifest itself
+		result = manifest.extensionKind;
+		if (typeof result !== 'undefined') {
+			result = this.toArray(result);
+			return result;
+		}
+
+		return null;
 	}
 
 	private getProductExtensionKind(manifest: IExtensionManifest): ExtensionKind[] | undefined {

@@ -253,6 +253,9 @@ jobs:
       - name: Run Monaco Editor Checks
         run: yarn monaco-compile-check
 
+      - name: Run vscode-dts Compile Checks
+        run: yarn vscode-dts-compile-check
+
       - name: Run Trusted Types Checks
         run: yarn tsec-compile-check
 

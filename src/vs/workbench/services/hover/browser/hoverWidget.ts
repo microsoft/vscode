@@ -82,6 +82,9 @@ export class HoverWidget extends Widget {
 		if (options.compact) {
 			this._hover.containerDomNode.classList.add('workbench-hover', 'compact');
 		}
+		if (options.skipFadeInAnimation) {
+			this._hover.containerDomNode.classList.add('skip-fade-in');
+		}
 		if (options.additionalClasses) {
 			this._hover.containerDomNode.classList.add(...options.additionalClasses);
 		}
@@ -267,7 +270,7 @@ export class HoverWidget extends Widget {
 		}
 
 		else if (this._hoverPosition === HoverPosition.LEFT) {
-			this._x = target.left;
+			this._x = target.left - hoverWidth;
 		}
 
 		else {

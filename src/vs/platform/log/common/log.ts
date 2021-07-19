@@ -79,9 +79,14 @@ export interface ILoggerService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Creates a logger
+	 * Creates a logger, or gets one if it already exists.
 	 */
 	createLogger(file: URI, options?: ILoggerOptions): ILogger;
+
+	/**
+	 * Gets an existing logger, if any.
+	 */
+	getLogger(file: URI): ILogger | undefined;
 }
 
 export abstract class AbstractLogger extends Disposable {
@@ -503,6 +508,10 @@ export abstract class AbstractLoggerService extends Disposable implements ILogge
 			this.logLevel = logLevel;
 			this.logLevelChangeableLoggers.forEach(logger => logger.setLevel(logLevel));
 		}));
+	}
+
+	getLogger(resource: URI) {
+		return this.loggers.get(resource.toString());
 	}
 
 	createLogger(resource: URI, options?: ILoggerOptions): ILogger {

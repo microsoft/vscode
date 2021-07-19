@@ -241,7 +241,7 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'file/newFile',
 		id: MenuId.NewFile,
-		description: localize('file.newFile', "The 'New File...' quick pick, shown on welcome page and File menu. Supports property `{0}` to override the default title if needed.)", 'title'),
+		description: localize('file.newFile', "The 'New File...' quick pick, shown on welcome page and File menu."),
 		supportsSubmenus: false,
 	},
 	{

@@ -868,7 +868,7 @@ export class TestRunProfileImpl implements vscode.TestRunProfile {
 		public readonly profileId: number,
 		private _label: string,
 		public readonly group: vscode.TestRunProfileGroup,
-		public runHandler: vscode.TestRunHandler,
+		public runHandler: (request: vscode.TestRunRequest, token: vscode.CancellationToken) => Thenable<void> | void,
 		private _isDefault = false,
 	) {
 		this.#proxy = proxy;

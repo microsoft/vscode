@@ -1408,36 +1408,6 @@ declare module 'vscode' {
 
 	//#region @https://github.com/microsoft/vscode/issues/123601, notebook messaging
 
-	export interface NotebookRendererMessage<T> {
-		/**
-		 * Editor that sent the message.
-		 */
-		editor: NotebookEditor;
-
-		/**
-		 * Message sent from the webview.
-		 */
-		message: T;
-	}
-
-	/**
-	 * Renderer messaging is used to communicate with a single renderer. It's
-	 * returned from {@link notebooks.createRendererMessaging}.
-	 */
-	export interface NotebookRendererMessaging<TSend = any, TReceive = TSend> {
-		/**
-		 * Events that fires when a message is received from a renderer.
-		 */
-		onDidReceiveMessage: Event<NotebookRendererMessage<TReceive>>;
-
-		/**
-		 * Sends a message to the renderer.
-		 * @param editor Editor to target with the message
-		 * @param message Message to send
-		 */
-		postMessage(editor: NotebookEditor, message: TSend): void;
-	}
-
 	/**
 	 * Represents a script that is loaded into the notebook renderer before rendering output. This allows
 	 * to provide and share functionality for notebook markup and notebook output renderers.
@@ -1493,18 +1463,6 @@ declare module 'vscode' {
 	export namespace notebooks {
 
 		export function createNotebookController(id: string, viewType: string, label: string, handler?: (cells: NotebookCell[], notebook: NotebookDocument, controller: NotebookController) => void | Thenable<void>, rendererScripts?: NotebookRendererScript[]): NotebookController;
-
-		/**
-		 * Creates a new messaging instance used to communicate with a specific
-		 * renderer. The renderer only has access to messaging if `requiresMessaging`
-		 * is set to `always` or `optional` in its `notebookRenderer ` contribution.
-		 *
-		 * @see https://github.com/microsoft/vscode/issues/123601
-		 * @param rendererId The renderer ID to communicate with
-		*/
-		// todo@API can ANY extension talk to renderer or is there a check that the calling extension
-		// declared the renderer in its package.json?
-		export function createRendererMessaging<TSend = any, TReceive = TSend>(rendererId: string): NotebookRendererMessaging<TSend, TReceive>;
 	}
 
 	//#endregion
@@ -1902,22 +1860,6 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Handler called to start a test run. When invoked, the function should
-	 * {@link TestController.createTestRun} at least once, and all tasks
-	 * associated with the run should be created before the function returns
-	 * or the reutrned promise is resolved.
-	 *
-	 * @param request Request information for the test run
-	 * @param cancellationToken Token that signals the used asked to abort the
-	 * test run. If cancellation is requested on this token, all {@link TestRun}
-	 * instances associated with the request will be
-	 * automatically cancelled as well.
-	 */
-	// todo@api We have been there with NotebookCtrl#executeHandler and I believe the recommendation is still not to inline.
-	// At least with that we can still do it later
-	export type TestRunHandler = (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void;
-
-	/**
 	 * A TestRunProfile describes one way to execute tests in a {@link TestController}.
 	 */
 	export interface TestRunProfile {
@@ -1955,10 +1897,10 @@ declare module 'vscode' {
 		configureHandler?: () => void;
 
 		/**
-		 * Starts a test run. When called, the profile should call
-		 * {@link TestController.createTestRun}. All tasks associated with the
-		 * run should be created before the function returns or the reutrned
-		 * promise is resolved.
+		 * Handler called to start a test run. When invoked, the function should
+		 * {@link TestController.createTestRun} at least once, and all tasks
+		 * associated with the run should be created before the function returns
+		 * or the reutrned promise is resolved.
 		 *
 		 * @param request Request information for the test run
 		 * @param cancellationToken Token that signals the used asked to abort the
@@ -1966,7 +1908,7 @@ declare module 'vscode' {
 		 * instances associated with the request will be
 		 * automatically cancelled as well.
 		 */
-		runHandler: TestRunHandler;
+		runHandler: (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void;
 
 		/**
 		 * Deletes the run profile.
@@ -2014,7 +1956,7 @@ declare module 'vscode' {
 		 * @param runHandler Function called to start a test run
 		 * @param isDefault Whether this is the default action for the group
 		 */
-		createRunProfile(label: string, group: TestRunProfileGroup, runHandler: TestRunHandler, isDefault?: boolean): TestRunProfile;
+		createRunProfile(label: string, group: TestRunProfileGroup, runHandler: (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void, isDefault?: boolean): TestRunProfile;
 
 		/**
 		 * A function provided by the extension that the editor may call to request
@@ -2158,7 +2100,7 @@ declare module 'vscode' {
 	 * Collection of test items, found in {@link TestItem.children} and
 	 * {@link TestController.items}.
 	 */
-	export interface TestItemCollection extends Iterable<TestItem> {
+	export interface TestItemCollection {
 		/**
 		 * Updates the items stored by the collection.
 		 * @param items Items to store, can be an array or other iterable.
@@ -3068,42 +3010,65 @@ declare module 'vscode' {
 
 
 	//#region https://github.com/microsoft/vscode/issues/15533 --- Type hierarchy --- @eskibear
+
+	/**
+	 * Represents an item of a type hierarchy, like a class or an interface.
+	 */
 	export class TypeHierarchyItem {
 		/**
 		 * The name of this item.
 		 */
 		name: string;
+
 		/**
 		 * The kind of this item.
 		 */
 		kind: SymbolKind;
+
 		/**
 		 * Tags for this item.
 		 */
 		tags?: ReadonlyArray<SymbolTag>;
+
 		/**
 		 * More detail for this item, e.g. the signature of a function.
 		 */
 		detail?: string;
+
 		/**
 		 * The resource identifier of this item.
 		 */
 		uri: Uri;
+
 		/**
 		 * The range enclosing this symbol not including leading/trailing whitespace
 		 * but everything else, e.g. comments and code.
 		 */
 		range: Range;
+
 		/**
 		 * The range that should be selected and revealed when this symbol is being
-		 * picked, e.g. the name of a function. Must be contained by the
-		 * [`range`](#TypeHierarchyItem.range).
+		 * picked, e.g. the name of a class. Must be contained by the {@link TypeHierarchyItem.range range}-property.
 		 */
 		selectionRange: Range;
 
+		/**
+		 * Creates a new type hierarchy item.
+		 *
+		 * @param kind The kind of the item.
+		 * @param name The name of the item.
+		 * @param detail The details of the item.
+		 * @param uri The Uri of the item.
+		 * @param range The whole range of the item.
+		 * @param selectionRange The selection range of the item.
+		 */
 		constructor(kind: SymbolKind, name: string, detail: string, uri: Uri, range: Range, selectionRange: Range);
 	}
 
+	/**
+	 * The type hierarchy provider interface describes the contract between extensions
+	 * and the type hierarchy feature.
+	 */
 	export interface TypeHierarchyProvider {
 
 		/**

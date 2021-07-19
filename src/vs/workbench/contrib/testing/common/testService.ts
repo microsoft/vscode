@@ -37,6 +37,11 @@ export interface IMainThreadTestCollection extends AbstractIncrementalTestCollec
 	busyProviders: number;
 
 	/**
+	 * Root item IDs.
+	 */
+	rootIds: Iterable<string>;
+
+	/**
 	 * Root items, correspond to registered controllers.
 	 */
 	rootItems: Iterable<IncrementalTestCollectionItem>;
