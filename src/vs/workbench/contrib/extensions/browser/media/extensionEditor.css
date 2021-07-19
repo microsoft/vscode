@@ -599,7 +599,7 @@
 }
 
 .extension-editor .extensions-grid-view > .extension-container {
-	width: 275px;
+	width: 350px;
 	margin: 0 10px 20px 0;
 }
 
@@ -618,9 +618,10 @@
 }
 
 .extension-editor .extensions-grid-view > .extension-container:focus > .extension-list-item > .details .header > .name,
-.extension-editor .extensions-grid-view > .extension-container:focus > .extension-list-item > .details .header > .name:hover {
+.extension-editor .extensions-grid-view > .extension-container:hover > .extension-list-item > .details .header > .name {
 	text-decoration: underline;
 }
+
 .extension-editor > .body > .content .runtime-status .no-status-message,
 .extension-editor > .body > .content .runtime-status .activation-message {
 	font-size: medium;
