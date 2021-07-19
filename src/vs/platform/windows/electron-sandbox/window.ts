@@ -16,7 +16,7 @@ export function applyZoom(zoomLevel: number): void {
 	setZoomFactor(zoomLevelToZoomFactor(zoomLevel));
 	// Cannot be trusted because the webFrame might take some time
 	// until it really applies the new zoom level
-	// See https://github.com/Microsoft/vscode/issues/26151
+	// See https://github.com/microsoft/vscode/issues/26151
 	setZoomLevel(zoomLevel, false /* isTrusted */);
 }
 

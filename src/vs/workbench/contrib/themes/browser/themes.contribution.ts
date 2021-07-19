@@ -5,11 +5,10 @@
 
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { firstIndex } from 'vs/base/common/arrays';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
+import { IWorkbenchActionRegistry, Extensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { IWorkbenchThemeService, IWorkbenchTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -17,7 +16,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IColorRegistry, Extensions as ColorRegistryExtensions } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Color } from 'vs/base/common/color';
-import { LIGHT, DARK, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { colorThemeSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
@@ -40,14 +39,14 @@ export class SelectColorThemeAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<void> {
+	override run(): Promise<void> {
 		return this.themeService.getColorThemes().then(themes => {
 			const currentTheme = this.themeService.getColorTheme();
 
 			const picks: QuickPickInput<ThemeItem>[] = [
-				...toEntries(themes.filter(t => t.type === LIGHT), localize('themes.category.light', "light themes")),
-				...toEntries(themes.filter(t => t.type === DARK), localize('themes.category.dark', "dark themes")),
-				...toEntries(themes.filter(t => t.type === HIGH_CONTRAST), localize('themes.category.hc', "high contrast themes")),
+				...toEntries(themes.filter(t => t.type === ColorScheme.LIGHT), localize('themes.category.light', "light themes")),
+				...toEntries(themes.filter(t => t.type === ColorScheme.DARK), localize('themes.category.dark', "dark themes")),
+				...toEntries(themes.filter(t => t.type === ColorScheme.HIGH_CONTRAST), localize('themes.category.hc', "high contrast themes")),
 				...configurationEntries(this.extensionGalleryService, localize('installColorThemes', "Install Additional Color Themes..."))
 			];
 
@@ -73,7 +72,7 @@ export class SelectColorThemeAction extends Action {
 			return new Promise((s, _) => {
 				let isCompleted = false;
 
-				const autoFocusIndex = firstIndex(picks, p => isItem(p) && p.id === currentTheme.id);
+				const autoFocusIndex = picks.findIndex(p => isItem(p) && p.id === currentTheme.id);
 				const quickpick = this.quickInputService.createQuickPick<ThemeItem>();
 				quickpick.items = picks;
 				quickpick.placeholder = localize('themes.selectTheme', "Select Color Theme (Up/Down Keys to Preview)");
@@ -147,10 +146,10 @@ abstract class AbstractIconThemeAction extends Action {
 			}, applyTheme ? 0 : 200);
 		};
 
-		return new Promise((s, _) => {
+		return new Promise<void>((s, _) => {
 			let isCompleted = false;
 
-			const autoFocusIndex = firstIndex(picks, p => isItem(p) && p.id === currentTheme.id);
+			const autoFocusIndex = picks.findIndex(p => isItem(p) && p.id === currentTheme.id);
 			const quickpick = this.quickInputService.createQuickPick<ThemeItem>();
 			quickpick.items = picks;
 			quickpick.placeholder = this.placeholderMessage;
@@ -196,7 +195,7 @@ class SelectFileIconThemeAction extends AbstractIconThemeAction {
 		super(id, label, quickInputService, extensionGalleryService, viewletService);
 	}
 
-	protected builtInEntry: QuickPickInput<ThemeItem> = { id: '', label: localize('noIconThemeLabel', 'None'), description: localize('noIconThemeDesc', 'Disable file icons') };
+	protected builtInEntry: QuickPickInput<ThemeItem> = { id: '', label: localize('noIconThemeLabel', 'None'), description: localize('noIconThemeDesc', 'Disable File Icons') };
 	protected installMessage = localize('installIconThemes', "Install Additional File Icon Themes...");
 	protected placeholderMessage = localize('themes.selectIconTheme', "Select File Icon Theme");
 	protected marketplaceTag = 'tag:icon-theme';
@@ -204,7 +203,7 @@ class SelectFileIconThemeAction extends AbstractIconThemeAction {
 		return this.themeService.setFileIconTheme(id, settingsTarget);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.pick(await this.themeService.getFileIconThemes(), this.themeService.getFileIconTheme());
 	}
 }
@@ -228,14 +227,14 @@ class SelectProductIconThemeAction extends AbstractIconThemeAction {
 	}
 
 	protected builtInEntry: QuickPickInput<ThemeItem> = { id: DEFAULT_PRODUCT_ICON_THEME_ID, label: localize('defaultProductIconThemeLabel', 'Default') };
-	protected installMessage = undefined; //localize('installProductIconThemes', "Install Additional Product Icon Themes...");
+	protected installMessage = localize('installProductIconThemes', "Install Additional Product Icon Themes...");
 	protected placeholderMessage = localize('themes.selectProductIconTheme', "Select Product Icon Theme");
 	protected marketplaceTag = 'tag:product-icon-theme';
 	protected setTheme(id: string, settingsTarget: ConfigurationTarget | undefined | 'auto') {
 		return this.themeService.setProductIconTheme(id, settingsTarget);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.pick(await this.themeService.getProductIconThemes(), this.themeService.getProductIconTheme());
 	}
 }
@@ -299,11 +298,11 @@ class GenerateColorThemeAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	override run(): Promise<any> {
 		let theme = this.themeService.getColorTheme();
 		let colors = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution).getColors();
 		let colorIds = colors.map(c => c.id).sort();
-		let resultingColors: { [key: string]: string } = {};
+		let resultingColors: { [key: string]: string | null } = {};
 		let inherited: string[] = [];
 		for (let colorId of colorIds) {
 			const color = theme.getColor(colorId, false);
@@ -313,11 +312,17 @@ class GenerateColorThemeAction extends Action {
 				inherited.push(colorId);
 			}
 		}
+		const nullDefaults = [];
 		for (let id of inherited) {
 			const color = theme.getColor(id);
 			if (color) {
 				resultingColors['__' + id] = Color.Format.CSS.formatHexA(color, true);
+			} else {
+				nullDefaults.push(id);
 			}
+		}
+		for (let id of nullDefaults) {
+			resultingColors['__' + id] = null;
 		}
 		let contents = JSON.stringify({
 			'$schema': colorThemeSchemaId,
@@ -327,7 +332,7 @@ class GenerateColorThemeAction extends Action {
 		}, null, '\t');
 		contents = contents.replace(/\"__/g, '//"');
 
-		return this.editorService.openEditor({ contents, mode: 'jsonc' });
+		return this.editorService.openEditor({ resource: undefined, contents, mode: 'jsonc', options: { pinned: true } });
 	}
 }
 
@@ -343,10 +348,8 @@ const productIconThemeDescriptor = SyncActionDescriptor.from(SelectProductIconTh
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(productIconThemeDescriptor, 'Preferences: Product Icon Theme', category);
 
 
-const developerCategory = localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer");
-
 const generateColorThemeDescriptor = SyncActionDescriptor.from(GenerateColorThemeAction);
-Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(generateColorThemeDescriptor, 'Developer: Generate Color Theme From Current Settings', developerCategory);
+Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(generateColorThemeDescriptor, 'Developer: Generate Color Theme From Current Settings', CATEGORIES.Developer.value);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	group: '4_themes',
@@ -366,6 +369,16 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	order: 2
 });
 
+MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+	group: '4_themes',
+	command: {
+		id: SelectProductIconThemeAction.ID,
+		title: localize({ key: 'miSelectProductIconTheme', comment: ['&& denotes a mnemonic'] }, "&&Product Icon Theme")
+	},
+	order: 3
+});
+
+
 MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 	group: '4_themes',
 	command: {
@@ -382,4 +395,13 @@ MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 		title: localize('themes.selectIconTheme.label', "File Icon Theme")
 	},
 	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '4_themes',
+	command: {
+		id: SelectProductIconThemeAction.ID,
+		title: localize('themes.selectProductIconTheme.label', "Product Icon Theme")
+	},
+	order: 3
 });

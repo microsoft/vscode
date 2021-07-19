@@ -17,11 +17,11 @@ suite('Preferences Validation', () => {
 		}
 
 		public accepts(input: string) {
-			assert.equal(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to accept \`${input}\`. Got ${this.validator(input)}.`);
+			assert.strictEqual(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to accept \`${input}\`. Got ${this.validator(input)}.`);
 		}
 
 		public rejects(input: string) {
-			assert.notEqual(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to reject \`${input}\`.`);
+			assert.notStrictEqual(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to reject \`${input}\`.`);
 			return {
 				withMessage:
 					(message: string) => {
@@ -259,11 +259,11 @@ suite('Preferences Validation', () => {
 		}
 
 		public accepts(input: string[]) {
-			assert.equal(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to accept \`${JSON.stringify(input)}\`. Got ${this.validator(input)}.`);
+			assert.strictEqual(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to accept \`${JSON.stringify(input)}\`. Got ${this.validator(input)}.`);
 		}
 
 		public rejects(input: any[]) {
-			assert.notEqual(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to reject \`${JSON.stringify(input)}\`.`);
+			assert.notStrictEqual(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to reject \`${JSON.stringify(input)}\`.`);
 			return {
 				withMessage:
 					(message: string) => {
@@ -372,5 +372,21 @@ suite('Preferences Validation', () => {
 		testInvalidTypeError(false, 'null', false);
 		testInvalidTypeError([null], 'null', false);
 		testInvalidTypeError('null', 'null', false);
+	});
+
+	test('uri checks work', () => {
+		const tester = new Tester({ type: 'string', format: 'uri' });
+		tester.rejects('example.com');
+		tester.rejects('example.com/example');
+		tester.rejects('example/example.html');
+		tester.rejects('www.example.com');
+		tester.rejects('');
+		tester.rejects(' ');
+		tester.rejects('example');
+
+		tester.accepts('https:');
+		tester.accepts('https://');
+		tester.accepts('https://example.com');
+		tester.accepts('https://www.example.com');
 	});
 });

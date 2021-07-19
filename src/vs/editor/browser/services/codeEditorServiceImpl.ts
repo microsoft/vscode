@@ -10,8 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
 import { IContentDecorationRenderOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions, isThemeColor } from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, InjectedTextOptions, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IColorTheme, IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
 
 export class RefCountedStyleSheet {
@@ -20,6 +19,10 @@ export class RefCountedStyleSheet {
 	private readonly _editorId: string;
 	private readonly _styleSheet: HTMLStyleElement;
 	private _refCount: number;
+
+	public get sheet() {
+		return this._styleSheet.sheet as CSSStyleSheet;
+	}
 
 	constructor(parent: CodeEditorServiceImpl, editorId: string, styleSheet: HTMLStyleElement) {
 		this._parent = parent;
@@ -53,6 +56,10 @@ export class RefCountedStyleSheet {
 export class GlobalStyleSheet {
 	private readonly _styleSheet: HTMLStyleElement;
 
+	public get sheet() {
+		return this._styleSheet.sheet as CSSStyleSheet;
+	}
+
 	constructor(styleSheet: HTMLStyleElement) {
 		this._styleSheet = styleSheet;
 	}
@@ -80,7 +87,10 @@ export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 	private readonly _editorStyleSheets = new Map<string, RefCountedStyleSheet>();
 	private readonly _themeService: IThemeService;
 
-	constructor(@IThemeService themeService: IThemeService, styleSheet: GlobalStyleSheet | null = null) {
+	constructor(
+		styleSheet: GlobalStyleSheet | null,
+		@IThemeService themeService: IThemeService,
+	) {
 		super();
 		this._globalStyleSheet = styleSheet ? styleSheet : null;
 		this._themeService = themeService;
@@ -113,7 +123,7 @@ export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 		this._editorStyleSheets.delete(editorId);
 	}
 
-	public registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string, editor?: ICodeEditor): void {
+	public registerDecorationType(description: string, key: string, options: IDecorationRenderOptions, parentTypeKey?: string, editor?: ICodeEditor): void {
 		let provider = this._decorationOptionProviders.get(key);
 		if (!provider) {
 			const styleSheet = this._getOrCreateStyleSheet(editor);
@@ -124,11 +134,12 @@ export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 				options: options || Object.create(null)
 			};
 			if (!parentTypeKey) {
-				provider = new DecorationTypeOptionsProvider(this._themeService, styleSheet, providerArgs);
+				provider = new DecorationTypeOptionsProvider(description, this._themeService, styleSheet, providerArgs);
 			} else {
 				provider = new DecorationSubTypeOptionsProvider(this._themeService, styleSheet, providerArgs);
 			}
 			this._decorationOptionProviders.set(key, provider);
+			this._onDecorationTypeRegistered.fire(key);
 		}
 		provider.refCount++;
 	}
@@ -153,16 +164,22 @@ export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 		return provider.getOptions(this, writable);
 	}
 
-	abstract getActiveCodeEditor(): ICodeEditor | null;
-	abstract openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null>;
+	public resolveDecorationCSSRules(decorationTypeKey: string) {
+		const provider = this._decorationOptionProviders.get(decorationTypeKey);
+		if (!provider) {
+			return null;
+		}
+		return provider.resolveDecorationCSSRules();
+	}
 }
 
 interface IModelDecorationOptionsProvider extends IDisposable {
 	refCount: number;
 	getOptions(codeEditorService: AbstractCodeEditorService, writable: boolean): IModelDecorationOptions;
+	resolveDecorationCSSRules(): CSSRuleList;
 }
 
-class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvider {
+export class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
 	private readonly _styleSheet: GlobalStyleSheet | RefCountedStyleSheet;
 	public refCount: number;
@@ -192,6 +209,10 @@ class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvide
 		return options;
 	}
 
+	public resolveDecorationCSSRules(): CSSRuleList {
+		return this._styleSheet.sheet.cssRules;
+	}
+
 	public dispose(): void {
 		if (this._beforeContentRules) {
 			this._beforeContentRules.dispose();
@@ -213,12 +234,13 @@ interface ProviderArguments {
 }
 
 
-class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
+export class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _styleSheet: GlobalStyleSheet | RefCountedStyleSheet;
 	public refCount: number;
 
+	public description: string;
 	public className: string | undefined;
 	public inlineClassName: string | undefined;
 	public inlineClassNameAffectsLetterSpacing: boolean | undefined;
@@ -228,8 +250,12 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	public isWholeLine: boolean;
 	public overviewRuler: IModelDecorationOverviewRulerOptions | undefined;
 	public stickiness: TrackedRangeStickiness | undefined;
+	public beforeInjectedText: InjectedTextOptions | undefined;
+	public afterInjectedText: InjectedTextOptions | undefined;
 
-	constructor(themeService: IThemeService, styleSheet: GlobalStyleSheet | RefCountedStyleSheet, providerArgs: ProviderArguments) {
+	constructor(description: string, themeService: IThemeService, styleSheet: GlobalStyleSheet | RefCountedStyleSheet, providerArgs: ProviderArguments) {
+		this.description = description;
+
 		this._styleSheet = styleSheet;
 		this._styleSheet.ref();
 		this.refCount = 0;
@@ -259,6 +285,25 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 		}
 		this.beforeContentClassName = createCSSRules(ModelDecorationCSSRuleType.BeforeContentClassName);
 		this.afterContentClassName = createCSSRules(ModelDecorationCSSRuleType.AfterContentClassName);
+
+		if (providerArgs.options.beforeInjectedText && providerArgs.options.beforeInjectedText.contentText) {
+			const beforeInlineData = createInlineCSSRules(ModelDecorationCSSRuleType.BeforeInjectedTextClassName);
+			this.beforeInjectedText = {
+				content: providerArgs.options.beforeInjectedText.contentText,
+				inlineClassName: beforeInlineData?.className,
+				inlineClassNameAffectsLetterSpacing: beforeInlineData?.hasLetterSpacing || providerArgs.options.beforeInjectedText.affectsLetterSpacing
+			};
+		}
+
+		if (providerArgs.options.afterInjectedText && providerArgs.options.afterInjectedText.contentText) {
+			const afterInlineData = createInlineCSSRules(ModelDecorationCSSRuleType.AfterInjectedTextClassName);
+			this.afterInjectedText = {
+				content: providerArgs.options.afterInjectedText.contentText,
+				inlineClassName: afterInlineData?.className,
+				inlineClassNameAffectsLetterSpacing: afterInlineData?.hasLetterSpacing || providerArgs.options.afterInjectedText.affectsLetterSpacing
+			};
+		}
+
 		this.glyphMarginClassName = createCSSRules(ModelDecorationCSSRuleType.GlyphMarginClassName);
 
 		const options = providerArgs.options;
@@ -283,7 +328,9 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 		if (!writable) {
 			return this;
 		}
+
 		return {
+			description: this.description,
 			inlineClassName: this.inlineClassName,
 			beforeContentClassName: this.beforeContentClassName,
 			afterContentClassName: this.afterContentClassName,
@@ -291,8 +338,13 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 			glyphMarginClassName: this.glyphMarginClassName,
 			isWholeLine: this.isWholeLine,
 			overviewRuler: this.overviewRuler,
-			stickiness: this.stickiness
+			stickiness: this.stickiness,
+			before: this.beforeInjectedText
 		};
+	}
+
+	public resolveDecorationCSSRules(): CSSRuleList {
+		return this._styleSheet.sheet.rules;
 	}
 
 	public dispose(): void {
@@ -302,7 +354,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 }
 
 
-const _CSS_MAP: { [prop: string]: string; } = {
+export const _CSS_MAP: { [prop: string]: string; } = {
 	color: 'color:{0} !important;',
 	opacity: 'opacity:{0};',
 	backgroundColor: 'background-color:{0};',
@@ -321,6 +373,8 @@ const _CSS_MAP: { [prop: string]: string; } = {
 
 	fontStyle: 'font-style:{0};',
 	fontWeight: 'font-weight:{0};',
+	fontSize: 'font-size:{0};',
+	fontFamily: 'font-family:{0};',
 	textDecoration: 'text-decoration:{0};',
 	cursor: 'cursor:{0};',
 	letterSpacing: 'letter-spacing:{0};',
@@ -331,6 +385,7 @@ const _CSS_MAP: { [prop: string]: string; } = {
 	contentText: 'content:\'{0}\';',
 	contentIconPath: 'content:{0};',
 	margin: 'margin:{0};',
+	padding: 'padding:{0};',
 	width: 'width:{0};',
 	height: 'height:{0};'
 };
@@ -429,6 +484,16 @@ class DecorationCSSRules {
 				lightCSS = this.getCSSTextForModelDecorationContentClassName(options.light && options.light.after);
 				darkCSS = this.getCSSTextForModelDecorationContentClassName(options.dark && options.dark.after);
 				break;
+			case ModelDecorationCSSRuleType.BeforeInjectedTextClassName:
+				unthemedCSS = this.getCSSTextForModelDecorationContentClassName(options.beforeInjectedText);
+				lightCSS = this.getCSSTextForModelDecorationContentClassName(options.light && options.light.beforeInjectedText);
+				darkCSS = this.getCSSTextForModelDecorationContentClassName(options.dark && options.dark.beforeInjectedText);
+				break;
+			case ModelDecorationCSSRuleType.AfterInjectedTextClassName:
+				unthemedCSS = this.getCSSTextForModelDecorationContentClassName(options.afterInjectedText);
+				lightCSS = this.getCSSTextForModelDecorationContentClassName(options.light && options.light.afterInjectedText);
+				darkCSS = this.getCSSTextForModelDecorationContentClassName(options.dark && options.dark.afterInjectedText);
+				break;
 			default:
 				throw new Error('Unknown rule type: ' + this._ruleType);
 		}
@@ -503,7 +568,7 @@ class DecorationCSSRules {
 
 				cssTextArr.push(strings.format(_CSS_MAP.contentText, escaped));
 			}
-			this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'textDecoration', 'color', 'opacity', 'backgroundColor', 'margin'], cssTextArr);
+			this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'fontSize', 'fontFamily', 'textDecoration', 'color', 'opacity', 'backgroundColor', 'margin', 'padding'], cssTextArr);
 			if (this.collectCSSText(opts, ['width', 'height'], cssTextArr)) {
 				cssTextArr.push('display:inline-block;');
 			}
@@ -568,7 +633,9 @@ const enum ModelDecorationCSSRuleType {
 	InlineClassName = 1,
 	GlyphMarginClassName = 2,
 	BeforeContentClassName = 3,
-	AfterContentClassName = 4
+	AfterContentClassName = 4,
+	BeforeInjectedTextClassName = 5,
+	AfterInjectedTextClassName = 6,
 }
 
 class CSSNameHelper {

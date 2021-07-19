@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/anythingQuickAccess';
-import { IQuickInputButton, IKeyMods, quickPickItemScorerAccessor, QuickPickItemScorerAccessor, IQuickPick, IQuickPickItemWithResource } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputButton, IKeyMods, quickPickItemScorerAccessor, QuickPickItemScorerAccessor, IQuickPick, IQuickPickItemWithResource, QuickInputHideReason } from 'vs/platform/quickinput/common/quickInput';
 import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction, FastAndSlowPicks, Picks, PicksWithActive } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { prepareQuery, IPreparedQuery, compareItemsByFuzzyScore, scoreItemFuzzy, FuzzyScorerCache } from 'vs/base/common/fuzzyScorer';
 import { IFileQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
@@ -15,7 +15,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { untildify } from 'vs/base/common/labels';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { URI } from 'vs/base/common/uri';
-import { toLocalResource, dirname, basenameOrAuthority, isEqual } from 'vs/base/common/resources';
+import { toLocalResource, dirname, basenameOrAuthority } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -27,7 +27,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { localize } from 'vs/nls';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchEditorConfiguration, IEditorInput, EditorInput } from 'vs/workbench/common/editor';
+import { IWorkbenchEditorConfiguration, IEditorInput, EditorResourceAccessor, isEditorInput } from 'vs/workbench/common/editor';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -48,7 +48,9 @@ import { once } from 'vs/base/common/functional';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { getIEditor } from 'vs/editor/browser/editorBrowser';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { Codicon, stripCodicons } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { stripIcons } from 'vs/base/common/iconLabels';
 
 interface IAnythingQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource { }
 
@@ -58,9 +60,9 @@ interface IEditorSymbolAnythingQuickPickItem extends IAnythingQuickPickItem {
 }
 
 function isEditorSymbolQuickPickItem(pick?: IAnythingQuickPickItem): pick is IEditorSymbolAnythingQuickPickItem {
-	const candidate = pick ? pick as IEditorSymbolAnythingQuickPickItem : undefined;
+	const candidate = pick as IEditorSymbolAnythingQuickPickItem | undefined;
 
-	return !!candidate && !!candidate.range && !!candidate.resource;
+	return !!candidate?.range && !!candidate.resource;
 }
 
 export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnythingQuickPickItem> {
@@ -141,11 +143,12 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		async restoreEditorViewState(): Promise<void> {
 			if (this.editorViewState) {
-				await this.editorService.openEditor(
-					this.editorViewState.editor,
-					{ viewState: this.editorViewState.state, preserveFocus: true /* import to not close the picker as a result */ },
-					this.editorViewState.group
-				);
+				const options: ITextEditorOptions = {
+					viewState: this.editorViewState.state,
+					preserveFocus: true /* import to not close the picker as a result */
+				};
+
+				await this.editorViewState.group.openEditor(this.editorViewState.editor, options);
 			}
 		}
 	}(this, this.editorService);
@@ -173,7 +176,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		@IEditorService private readonly editorService: IEditorService,
 		@IHistoryService private readonly historyService: IHistoryService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@ITextModelService private readonly textModelService: ITextModelService
+		@ITextModelService private readonly textModelService: ITextModelService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super(AnythingQuickAccessProvider.PREFIX, {
 			canAcceptInBackground: true,
@@ -182,22 +186,22 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	}
 
 	private get configuration() {
-		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor;
+		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench?.editor;
 		const searchConfig = this.configurationService.getValue<IWorkbenchSearchConfiguration>().search;
 		const quickAccessConfig = this.configurationService.getValue<IWorkbenchQuickAccessConfiguration>().workbench.quickOpen;
 
 		return {
-			openEditorPinned: !editorConfig.enablePreviewFromQuickOpen,
-			openSideBySideDirection: editorConfig.openSideBySideDirection,
-			includeSymbols: searchConfig.quickOpen.includeSymbols,
-			includeHistory: searchConfig.quickOpen.includeHistory,
-			historyFilterSortOrder: searchConfig.quickOpen.history.filterSortOrder,
+			openEditorPinned: !editorConfig?.enablePreviewFromQuickOpen || !editorConfig?.enablePreview,
+			openSideBySideDirection: editorConfig?.openSideBySideDirection,
+			includeSymbols: searchConfig?.quickOpen.includeSymbols,
+			includeHistory: searchConfig?.quickOpen.includeHistory,
+			historyFilterSortOrder: searchConfig?.quickOpen.history.filterSortOrder,
 			shortAutoSaveDelay: this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY,
 			preserveInput: quickAccessConfig.preserveInput
 		};
 	}
 
-	provide(picker: IQuickPick<IAnythingQuickPickItem>, token: CancellationToken): IDisposable {
+	override provide(picker: IQuickPick<IAnythingQuickPickItem>, token: CancellationToken): IDisposable {
 		const disposables = new DisposableStore();
 
 		// Update the pick state for this run
@@ -218,7 +222,14 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		}));
 
 		// Restore view state upon cancellation if we changed it
-		disposables.add(once(token.onCancellationRequested)(() => this.pickState.restoreEditorViewState()));
+		// but only when the picker was closed via explicit user
+		// gesture and not e.g. when focus was lost because that
+		// could mean the user clicked into the editor directly.
+		disposables.add(once(picker.onDidHide)(({ reason }) => {
+			if (reason === QuickInputHideReason.Gesture) {
+				this.pickState.restoreEditorViewState();
+			}
+		}));
 
 		// Start picker
 		disposables.add(super.provide(picker, token));
@@ -228,7 +239,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private decorateAndRevealSymbolRange(pick: IEditorSymbolAnythingQuickPickItem): IDisposable {
 		const activeEditor = this.editorService.activeEditor;
-		if (!isEqual(pick.resource, activeEditor?.resource)) {
+		if (!this.uriIdentityService.extUri.isEqual(pick.resource, activeEditor?.resource)) {
 			return Disposable.None; // active editor needs to be for resource
 		}
 
@@ -249,7 +260,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		return toDisposable(() => this.clearDecorations(activeEditorControl));
 	}
 
-	protected getPicks(originalFilter: string, disposables: DisposableStore, token: CancellationToken): Picks<IAnythingQuickPickItem> | Promise<Picks<IAnythingQuickPickItem>> | FastAndSlowPicks<IAnythingQuickPickItem> | null {
+	protected _getPicks(originalFilter: string, disposables: DisposableStore, token: CancellationToken): Picks<IAnythingQuickPickItem> | Promise<Picks<IAnythingQuickPickItem>> | FastAndSlowPicks<IAnythingQuickPickItem> | null {
 
 		// Find a suitable range from the pattern looking for ":", "#" or ","
 		// unless we have the `@` editor symbol character inside the filter
@@ -661,7 +672,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		if (isAbsolutePathQuery) {
 			const resource = toLocalResource(
 				await this.pathService.fileURI(detildifiedQuery),
-				this.environmentService.configuration.remoteAuthority
+				this.environmentService.remoteAuthority,
+				this.pathService.defaultUriScheme
 			);
 
 			if (token.isCancellationRequested) {
@@ -697,7 +709,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 				const resource = toLocalResource(
 					folder.toResource(query.original),
-					this.environmentService.configuration.remoteAuthority
+					this.environmentService.remoteAuthority,
+					this.pathService.defaultUriScheme
 				);
 
 				try {
@@ -811,7 +824,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		}
 
 		// Ask provider for editor symbols
-		const editorSymbolPicks = (await this.editorSymbolsQuickAccess.getSymbolPicks(model, filter, { extraContainerLabel: stripCodicons(activeGlobalPick.label) }, disposables, token));
+		const editorSymbolPicks = (await this.editorSymbolsQuickAccess.getSymbolPicks(model, filter, { extraContainerLabel: stripIcons(activeGlobalPick.label) }, disposables, token));
 		if (token.isCancellationRequested) {
 			return [];
 		}
@@ -858,17 +871,20 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		let label: string;
 		let description: string | undefined = undefined;
 		let isDirty: boolean | undefined = undefined;
+		let extraClasses: string[];
 
-		if (resourceOrEditor instanceof EditorInput) {
-			resource = resourceOrEditor.resource;
+		if (isEditorInput(resourceOrEditor)) {
+			resource = EditorResourceAccessor.getOriginalUri(resourceOrEditor);
 			label = resourceOrEditor.getName();
 			description = resourceOrEditor.getDescription();
 			isDirty = resourceOrEditor.isDirty() && !resourceOrEditor.isSaving();
+			extraClasses = resourceOrEditor.getLabelExtraClasses();
 		} else {
-			resource = URI.isUri(resourceOrEditor) ? resourceOrEditor : (resourceOrEditor as IResourceEditorInput).resource;
+			resource = URI.isUri(resourceOrEditor) ? resourceOrEditor : resourceOrEditor.resource;
 			label = basenameOrAuthority(resource);
 			description = this.labelService.getUriLabel(dirname(resource), { relative: true });
 			isDirty = this.workingCopyService.isDirty(resource) && !configuration.shortAutoSaveDelay;
+			extraClasses = [];
 		}
 
 		const labelAndDescription = description ? `${label} ${description}` : label;
@@ -877,7 +893,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			label,
 			ariaLabel: isDirty ? localize('filePickAriaLabelDirty', "{0} dirty", labelAndDescription) : labelAndDescription,
 			description,
-			iconClasses: getIconClasses(this.modelService, this.modeService, resource),
+			iconClasses: getIconClasses(this.modelService, this.modeService, resource).concat(extraClasses),
 			buttons: (() => {
 				const openSideBySideDirection = configuration.openSideBySideDirection;
 				const buttons: IQuickInputButton[] = [];
@@ -913,7 +929,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 					// Remove from History
 					case 1:
 						if (!URI.isUri(resourceOrEditor)) {
-							this.historyService.remove(resourceOrEditor);
+							this.historyService.removeFromHistory(resourceOrEditor);
 
 							return TriggerAction.REMOVE_ITEM;
 						}
@@ -926,29 +942,46 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	}
 
 	private async openAnything(resourceOrEditor: URI | IEditorInput | IResourceEditorInput, options: { keyMods?: IKeyMods, preserveFocus?: boolean, range?: IRange, forceOpenSideBySide?: boolean, forcePinned?: boolean }): Promise<void> {
+
+		// Craft some editor options based on quick access usage
 		const editorOptions: ITextEditorOptions = {
 			preserveFocus: options.preserveFocus,
-			pinned: options.keyMods?.alt || options.forcePinned || this.configuration.openEditorPinned,
+			pinned: options.keyMods?.ctrlCmd || options.forcePinned || this.configuration.openEditorPinned,
 			selection: options.range ? Range.collapseToStart(options.range) : undefined
 		};
 
-		const targetGroup = options.keyMods?.ctrlCmd || options.forceOpenSideBySide ? SIDE_GROUP : ACTIVE_GROUP;
+		const targetGroup = options.keyMods?.alt || (this.configuration.openEditorPinned && options.keyMods?.ctrlCmd) || options.forceOpenSideBySide ? SIDE_GROUP : ACTIVE_GROUP;
 
 		// Restore any view state if the target is the side group
 		if (targetGroup === SIDE_GROUP) {
 			await this.pickState.restoreEditorViewState();
 		}
 
-		// Open editor
-		if (resourceOrEditor instanceof EditorInput) {
-			await this.editorService.openEditor(resourceOrEditor, editorOptions);
-		} else {
-			await this.editorService.openEditor({
-				resource: URI.isUri(resourceOrEditor) ? resourceOrEditor : resourceOrEditor.resource,
-				options: editorOptions
-			}, targetGroup);
+		// Open editor (typed)
+		if (isEditorInput(resourceOrEditor)) {
+			await this.editorService.openEditor(resourceOrEditor, editorOptions, targetGroup);
 		}
 
+		// Open editor (untyped)
+		else {
+			let resourceEditorInput: IResourceEditorInput;
+			if (URI.isUri(resourceOrEditor)) {
+				resourceEditorInput = {
+					resource: resourceOrEditor,
+					options
+				};
+			} else {
+				resourceEditorInput = {
+					...resourceOrEditor,
+					options: {
+						...resourceOrEditor.options,
+						...editorOptions
+					}
+				};
+			}
+
+			await this.editorService.openEditor(resourceEditorInput, targetGroup);
+		}
 	}
 
 	//#endregion

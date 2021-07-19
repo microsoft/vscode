@@ -10,7 +10,9 @@ import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import { TsServerProcessFactory } from './tsServer/server';
 import { ITypeScriptVersionProvider } from './tsServer/versionProvider';
 import TypeScriptServiceClientHost from './typeScriptServiceClientHost';
+import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
 import { flatten } from './utils/arrays';
+import { ServiceConfigurationProvider } from './utils/configuration';
 import * as fileSchemes from './utils/fileSchemes';
 import { standardLanguageDescriptions } from './utils/languageDescription';
 import { lazy, Lazy } from './utils/lazy';
@@ -19,7 +21,7 @@ import { PluginManager } from './utils/plugins';
 
 export function createLazyClientHost(
 	context: vscode.ExtensionContext,
-	onCaseInsenitiveFileSystem: boolean,
+	onCaseInsensitiveFileSystem: boolean,
 	services: {
 		pluginManager: PluginManager,
 		commandManager: CommandManager,
@@ -27,14 +29,16 @@ export function createLazyClientHost(
 		cancellerFactory: OngoingRequestCancellerFactory,
 		versionProvider: ITypeScriptVersionProvider,
 		processFactory: TsServerProcessFactory,
+		activeJsTsEditorTracker: ActiveJsTsEditorTracker,
+		serviceConfigurationProvider: ServiceConfigurationProvider,
 	},
 	onCompletionAccepted: (item: vscode.CompletionItem) => void,
 ): Lazy<TypeScriptServiceClientHost> {
 	return lazy(() => {
 		const clientHost = new TypeScriptServiceClientHost(
 			standardLanguageDescriptions,
-			context.workspaceState,
-			onCaseInsenitiveFileSystem,
+			context,
+			onCaseInsensitiveFileSystem,
 			services,
 			onCompletionAccepted);
 
@@ -47,6 +51,7 @@ export function createLazyClientHost(
 export function lazilyActivateClient(
 	lazyClientHost: Lazy<TypeScriptServiceClientHost>,
 	pluginManager: PluginManager,
+	activeJsTsEditorTracker: ActiveJsTsEditorTracker,
 ): vscode.Disposable {
 	const disposables: vscode.Disposable[] = [];
 
@@ -62,7 +67,7 @@ export function lazilyActivateClient(
 			// Force activation
 			void lazyClientHost.value;
 
-			disposables.push(new ManagedFileContextManager(resource => {
+			disposables.push(new ManagedFileContextManager(activeJsTsEditorTracker, resource => {
 				return lazyClientHost.value.serviceClient.toPath(resource);
 			}));
 			return true;

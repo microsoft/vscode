@@ -51,6 +51,9 @@ class ApplyCodeActionCommand implements Command {
 	}
 }
 
+type ApplyFixAllCodeAction_args = {
+	readonly action: VsCodeFixAllCodeAction;
+};
 
 class ApplyFixAllCodeAction implements Command {
 	public static readonly ID = '_typescript.applyFixAllCodeAction';
@@ -61,14 +64,7 @@ class ApplyFixAllCodeAction implements Command {
 		private readonly telemetryReporter: TelemetryReporter,
 	) { }
 
-	public async execute(
-		file: string,
-		tsAction: Proto.CodeFixAction,
-	): Promise<void> {
-		if (!tsAction.fixId) {
-			return;
-		}
-
+	public async execute(args: ApplyFixAllCodeAction_args): Promise<void> {
 		/* __GDPR__
 			"quickFixAll.execute" : {
 				"fixName" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
@@ -78,25 +74,12 @@ class ApplyFixAllCodeAction implements Command {
 			}
 		*/
 		this.telemetryReporter.logTelemetry('quickFixAll.execute', {
-			fixName: tsAction.fixName
+			fixName: args.action.tsAction.fixName
 		});
 
-		const args: Proto.GetCombinedCodeFixRequestArgs = {
-			scope: {
-				type: 'file',
-				args: { file }
-			},
-			fixId: tsAction.fixId,
-		};
-
-		const response = await this.client.execute('getCombinedCodeFix', args, nulToken);
-		if (response.type !== 'response' || !response.body) {
-			return undefined;
+		if (args.action.combinedResponse) {
+			await applyCodeActionCommands(this.client, args.action.combinedResponse.body.commands, nulToken);
 		}
-
-		const edit = typeConverters.WorkspaceEdit.fromFileCodeEdits(this.client, response.body.changes);
-		await vscode.workspace.applyEdit(edit);
-		await applyCodeActionCommands(this.client, response.body.commands, nulToken);
 	}
 }
 
@@ -134,11 +117,23 @@ class VsCodeCodeAction extends vscode.CodeAction {
 	constructor(
 		public readonly tsAction: Proto.CodeFixAction,
 		title: string,
-		kind: vscode.CodeActionKind,
-		public readonly isFixAll: boolean,
+		kind: vscode.CodeActionKind
 	) {
 		super(title, kind);
 	}
+}
+
+class VsCodeFixAllCodeAction extends VsCodeCodeAction {
+	constructor(
+		tsAction: Proto.CodeFixAction,
+		public readonly file: string,
+		title: string,
+		kind: vscode.CodeActionKind
+	) {
+		super(tsAction, title, kind);
+	}
+
+	public combinedResponse?: Proto.GetCombinedCodeFixResponse;
 }
 
 class CodeActionSet {
@@ -202,7 +197,7 @@ class SupportedCodeActionProvider {
 	}
 }
 
-class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
+class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCodeAction> {
 
 	public static readonly metadata: vscode.CodeActionProviderMetadata = {
 		providedCodeActionKinds: [vscode.CodeActionKind.QuickFix]
@@ -228,7 +223,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 		_range: vscode.Range,
 		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
-	): Promise<vscode.CodeAction[]> {
+	): Promise<VsCodeCodeAction[]> {
 		const file = this.client.toOpenedFilePath(document);
 		if (!file) {
 			return [];
@@ -255,6 +250,28 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 			action.isPreferred = isPreferredFix(action, allActions);
 		}
 		return allActions;
+	}
+
+	public async resolveCodeAction(codeAction: VsCodeCodeAction, token: vscode.CancellationToken): Promise<VsCodeCodeAction> {
+		if (!(codeAction instanceof VsCodeFixAllCodeAction) || !codeAction.tsAction.fixId) {
+			return codeAction;
+		}
+
+		const arg: Proto.GetCombinedCodeFixRequestArgs = {
+			scope: {
+				type: 'file',
+				args: { file: codeAction.file }
+			},
+			fixId: codeAction.tsAction.fixId,
+		};
+
+		const response = await this.client.execute('getCombinedCodeFix', arg, token);
+		if (response.type === 'response') {
+			codeAction.combinedResponse = response;
+			codeAction.edit = typeConverters.WorkspaceEdit.fromFileCodeEdits(this.client, response.body.changes);
+		}
+
+		return codeAction;
 	}
 
 	private async getFixesForDiagnostic(
@@ -295,7 +312,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 		diagnostic: vscode.Diagnostic,
 		tsAction: Proto.CodeFixAction
 	): VsCodeCodeAction {
-		const codeAction = new VsCodeCodeAction(tsAction, tsAction.description, vscode.CodeActionKind.QuickFix, false);
+		const codeAction = new VsCodeCodeAction(tsAction, tsAction.description, vscode.CodeActionKind.QuickFix);
 		codeAction.edit = getEditForCodeAction(this.client, tsAction);
 		codeAction.diagnostics = [diagnostic];
 		codeAction.command = {
@@ -328,14 +345,16 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 			return results;
 		}
 
-		const action = new VsCodeCodeAction(
+		const action = new VsCodeFixAllCodeAction(
 			tsAction,
+			file,
 			tsAction.fixAllDescription || localize('fixAllInFileLabel', '{0} (Fix all in file)', tsAction.description),
-			vscode.CodeActionKind.QuickFix, true);
+			vscode.CodeActionKind.QuickFix);
+
 		action.diagnostics = [diagnostic];
 		action.command = {
 			command: ApplyFixAllCodeAction.ID,
-			arguments: [file, tsAction],
+			arguments: [<ApplyFixAllCodeAction_args>{ action }],
 			title: ''
 		};
 		results.addFixAllAction(tsAction.fixId, action);
@@ -351,26 +370,27 @@ const fixAllErrorCodes = new Map<number, number>([
 	[2345, 2339],
 ]);
 
-const preferredFixes = new Map<string, { readonly value: number, readonly thereCanOnlyBeOne?: boolean }>([
-	[fixNames.annotateWithTypeFromJSDoc, { value: 1 }],
-	[fixNames.constructorForDerivedNeedSuperCall, { value: 1 }],
-	[fixNames.extendsInterfaceBecomesImplements, { value: 1 }],
-	[fixNames.awaitInSyncFunction, { value: 1 }],
-	[fixNames.classIncorrectlyImplementsInterface, { value: 3 }],
-	[fixNames.classDoesntImplementInheritedAbstractMember, { value: 3 }],
-	[fixNames.unreachableCode, { value: 1 }],
-	[fixNames.unusedIdentifier, { value: 1 }],
-	[fixNames.forgottenThisPropertyAccess, { value: 1 }],
-	[fixNames.spelling, { value: 2 }],
-	[fixNames.addMissingAwait, { value: 1 }],
-	[fixNames.fixImport, { value: 0, thereCanOnlyBeOne: true }],
+const preferredFixes = new Map<string, { readonly priority: number, readonly thereCanOnlyBeOne?: boolean }>([
+	[fixNames.annotateWithTypeFromJSDoc, { priority: 2 }],
+	[fixNames.constructorForDerivedNeedSuperCall, { priority: 2 }],
+	[fixNames.extendsInterfaceBecomesImplements, { priority: 2 }],
+	[fixNames.awaitInSyncFunction, { priority: 2 }],
+	[fixNames.classIncorrectlyImplementsInterface, { priority: 3 }],
+	[fixNames.classDoesntImplementInheritedAbstractMember, { priority: 3 }],
+	[fixNames.unreachableCode, { priority: 2 }],
+	[fixNames.unusedIdentifier, { priority: 2 }],
+	[fixNames.forgottenThisPropertyAccess, { priority: 2 }],
+	[fixNames.spelling, { priority: 0 }],
+	[fixNames.addMissingAwait, { priority: 2 }],
+	[fixNames.addMissingOverride, { priority: 2 }],
+	[fixNames.fixImport, { priority: 1, thereCanOnlyBeOne: true }],
 ]);
 
 function isPreferredFix(
 	action: VsCodeCodeAction,
 	allActions: readonly VsCodeCodeAction[]
 ): boolean {
-	if (action.isFixAll) {
+	if (action instanceof VsCodeFixAllCodeAction) {
 		return false;
 	}
 
@@ -384,14 +404,14 @@ function isPreferredFix(
 			return true;
 		}
 
-		if (otherAction.isFixAll) {
+		if (otherAction instanceof VsCodeFixAllCodeAction) {
 			return true;
 		}
 
 		const otherFixPriority = preferredFixes.get(otherAction.tsAction.fixName);
-		if (!otherFixPriority || otherFixPriority.value < fixPriority.value) {
+		if (!otherFixPriority || otherFixPriority.priority < fixPriority.priority) {
 			return true;
-		} else if (otherFixPriority.value > fixPriority.value) {
+		} else if (otherFixPriority.priority > fixPriority.priority) {
 			return false;
 		}
 

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mergeSort } from 'vs/base/common/arrays';
 import { stringDiff } from 'vs/base/common/diff/diff';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { globals } from 'vs/base/common/platform';
@@ -14,7 +13,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { DiffComputer } from 'vs/editor/common/diff/diffComputer';
 import { IChange } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence, IWordAtPosition } from 'vs/editor/common/model';
-import { IModelChangedEvent, MirrorTextModel as BaseMirrorModel } from 'vs/editor/common/model/mirrorTextModel';
+import { IMirrorTextModel, IModelChangedEvent, MirrorTextModel as BaseMirrorModel } from 'vs/editor/common/model/mirrorTextModel';
 import { ensureValidWordDefinition, getWordAtText } from 'vs/editor/common/model/wordHelper';
 import { IInplaceReplaceSupportResult, ILink, TextEdit } from 'vs/editor/common/modes';
 import { ILinkComputerTarget, computeLinks } from 'vs/editor/common/modes/linkComputer';
@@ -23,8 +22,9 @@ import { IDiffComputationResult } from 'vs/editor/common/services/editorWorkerSe
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
 import * as types from 'vs/base/common/types';
 import { EditorWorkerHost } from 'vs/editor/common/services/editorWorkerServiceImpl';
+import { StopWatch } from 'vs/base/common/stopwatch';
 
-export interface IMirrorModel {
+export interface IMirrorModel extends IMirrorTextModel {
 	readonly uri: URI;
 	readonly version: number;
 	getValue(): string;
@@ -94,10 +94,6 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 
 	public get uri(): URI {
 		return this._uri;
-	}
-
-	public get version(): number {
-		return this._versionId;
 	}
 
 	public get eol(): string {
@@ -239,7 +235,7 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 	public offsetAt(position: IPosition): number {
 		position = this._validatePosition(position);
 		this._ensureLineStarts();
-		return this._lineStarts!.getAccumulatedValue(position.lineNumber - 2) + (position.column - 1);
+		return this._lineStarts!.getPrefixSum(position.lineNumber - 2) + (position.column - 1);
 	}
 
 	public positionAt(offset: number): IPosition {
@@ -454,7 +450,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 		const result: TextEdit[] = [];
 		let lastEol: EndOfLineSequence | undefined = undefined;
 
-		edits = mergeSort(edits, (a, b) => {
+		edits = edits.slice(0).sort((a, b) => {
 			if (a.range && b.range) {
 				return Range.compareRangesUsingStarts(a.range, b.range);
 			}
@@ -529,36 +525,30 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 
 	private static readonly _suggestionsLimit = 10000;
 
-	public async textualSuggest(modelUrl: string, position: IPosition, wordDef: string, wordDefFlags: string): Promise<string[] | null> {
-		const model = this._getModel(modelUrl);
-		if (!model) {
-			return null;
-		}
+	public async textualSuggest(modelUrls: string[], leadingWord: string | undefined, wordDef: string, wordDefFlags: string): Promise<{ words: string[], duration: number } | null> {
 
-
-		const words: string[] = [];
-		const seen = new Set<string>();
+		const sw = new StopWatch(true);
 		const wordDefRegExp = new RegExp(wordDef, wordDefFlags);
+		const seen = new Set<string>();
 
-		const wordAt = model.getWordAtPosition(position, wordDefRegExp);
-		if (wordAt) {
-			seen.add(model.getValueInRange(wordAt));
-		}
-
-		for (let word of model.words(wordDefRegExp)) {
-			if (seen.has(word)) {
+		outer: for (let url of modelUrls) {
+			const model = this._getModel(url);
+			if (!model) {
 				continue;
 			}
-			seen.add(word);
-			if (!isNaN(Number(word))) {
-				continue;
-			}
-			words.push(word);
-			if (seen.size > EditorSimpleWorker._suggestionsLimit) {
-				break;
+
+			for (let word of model.words(wordDefRegExp)) {
+				if (word === leadingWord || !isNaN(Number(word))) {
+					continue;
+				}
+				seen.add(word);
+				if (seen.size > EditorSimpleWorker._suggestionsLimit) {
+					break outer;
+				}
 			}
 		}
-		return words;
+
+		return { words: Array.from(seen), duration: sw.elapsed() };
 	}
 
 

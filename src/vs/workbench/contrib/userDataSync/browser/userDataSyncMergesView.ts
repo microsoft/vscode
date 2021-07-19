@@ -34,10 +34,11 @@ import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
+import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { EditorResolution } from 'vs/platform/editor/common/editor';
 
 export class UserDataSyncMergesViewPane extends TreeViewPane {
 
@@ -77,7 +78,7 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 		this.registerActions();
 	}
 
-	protected renderTreeView(container: HTMLElement): void {
+	protected override renderTreeView(container: HTMLElement): void {
 		super.renderTreeView(DOM.append(container, DOM.$('')));
 		this.createButtons(container);
 
@@ -101,7 +102,7 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 		this._register(this.cancelButton.onDidClick(() => this.cancel()));
 	}
 
-	protected layoutTreeView(height: number, width: number): void {
+	protected override layoutTreeView(height: number, width: number): void {
 		const buttonContainerHeight = 78;
 		this.buttonsContainer.style.height = `${buttonContainerHeight}px`;
 		this.buttonsContainer.style.width = `${width}px`;
@@ -267,7 +268,7 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 		previewResource = this.userDataSyncPreview.resources.find(({ local }) => isEqual(local, previewResource.local))!;
 		await this.reopen(previewResource);
 		if (previewResource.mergeState === MergeState.Conflict) {
-			await this.dialogService.show(Severity.Warning, localize('conflicts detected', "Conflicts Detected"), [], {
+			await this.dialogService.show(Severity.Warning, localize('conflicts detected', "Conflicts Detected"), undefined, {
 				detail: localize('resolve', "Unable to merge due to conflicts. Please resolve them to continue.")
 			});
 		}
@@ -302,7 +303,11 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 		if (previewResource.mergeState === MergeState.Accepted) {
 			if (previewResource.localChange !== Change.Deleted && previewResource.remoteChange !== Change.Deleted) {
 				// Do not open deleted preview
-				await this.editorService.openEditor({ resource: previewResource.accepted, label: localize('preview', "{0} (Preview)", basename(previewResource.accepted)) });
+				await this.editorService.openEditor({
+					resource: previewResource.accepted,
+					label: localize('preview', "{0} (Preview)", basename(previewResource.accepted)),
+					options: { pinned: true }
+				});
 			}
 		} else {
 			const leftResource = previewResource.remote;
@@ -311,12 +316,15 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 			const rightResourceName = previewResource.mergeState === MergeState.Conflict ? localize('merges', "{0} (Merges)", basename(rightResource))
 				: localize({ key: 'rightResourceName', comment: ['local as in file in disk'] }, "{0} (Local)", basename(rightResource));
 			await this.editorService.openEditor({
-				leftResource,
-				rightResource,
+				original: { resource: leftResource },
+				modified: { resource: rightResource },
 				label: localize('sideBySideLabels', "{0} ↔ {1}", leftResourceName, rightResourceName),
+				description: localize('sideBySideDescription', "Settings Sync"),
 				options: {
 					preserveFocus: true,
 					revealIfVisible: true,
+					pinned: true,
+					override: EditorResolution.DISABLED
 				},
 			});
 		}
@@ -413,7 +421,7 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 		return editor.getContribution<AcceptChangesContribution>(AcceptChangesContribution.ID);
 	}
 
-	public static readonly ID = 'editor.contrib.acceptChangesButton';
+	public static readonly ID = 'editor.contrib.acceptChangesButton2';
 
 	private acceptChangesButton: FloatingClickWidget | undefined;
 
@@ -493,7 +501,7 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 		this.acceptChangesButton = undefined;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.disposeAcceptChangesWidgetRenderer();
 		super.dispose();
 	}

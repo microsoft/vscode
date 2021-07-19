@@ -75,14 +75,14 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return Promise.resolve(this._proxy.$substituteVariables(folder ? folder.uri : undefined, config));
 	}
 
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined> {
-		return this._proxy.$runInTerminal(args);
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined> {
+		return this._proxy.$runInTerminal(args, sessionId);
 	}
 
 	// RPC methods (MainThreadDebugServiceShape)
 
 	public $registerDebugTypes(debugTypes: string[]) {
-		this._toDispose.add(this.debugService.getConfigurationManager().registerDebugAdapterFactory(debugTypes, this));
+		this._toDispose.add(this.debugService.getAdapterManager().registerDebugAdapterFactory(debugTypes, this));
 	}
 
 	public $startBreakpointEvents(): void {
@@ -138,11 +138,11 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 						logMessage: l.logMessage
 					}
 				);
-				this.debugService.addBreakpoints(uri.revive(dto.uri), rawbps, 'extension');
+				this.debugService.addBreakpoints(uri.revive(dto.uri), rawbps);
 			} else if (dto.type === 'function') {
 				this.debugService.addFunctionBreakpoint(dto.functionName, dto.id);
 			} else if (dto.type === 'data') {
-				this.debugService.addDataBreakpoint(dto.label, dto.dataId, dto.canPersist, dto.accessTypes);
+				this.debugService.addDataBreakpoint(dto.label, dto.dataId, dto.canPersist, dto.accessTypes, dto.accessType);
 			}
 		}
 		return Promise.resolve();
@@ -155,7 +155,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return Promise.resolve();
 	}
 
-	public $registerDebugConfigurationProvider(debugType: string, providerTriggerKind: DebugConfigurationProviderTriggerKind, hasProvide: boolean, hasResolve: boolean, hasResolve2: boolean, hasProvideDebugAdapter: boolean, handle: number): Promise<void> {
+	public $registerDebugConfigurationProvider(debugType: string, providerTriggerKind: DebugConfigurationProviderTriggerKind, hasProvide: boolean, hasResolve: boolean, hasResolve2: boolean, handle: number): Promise<void> {
 
 		const provider = <IDebugConfigurationProvider>{
 			type: debugType,
@@ -174,12 +174,6 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		if (hasResolve2) {
 			provider.resolveDebugConfigurationWithSubstitutedVariables = (folder, config, token) => {
 				return this._proxy.$resolveDebugConfigurationWithSubstitutedVariables(handle, folder, config, token);
-			};
-		}
-		if (hasProvideDebugAdapter) {
-			console.info('DebugConfigurationProvider.debugAdapterExecutable is deprecated and will be removed soon; please use DebugAdapterDescriptorFactory.createDebugAdapterDescriptor instead.');
-			provider.debugAdapterExecutable = (folder) => {
-				return this._proxy.$legacyDebugAdapterExecutable(handle, folder);
 			};
 		}
 		this._debugConfigurationProviders.set(handle, provider);
@@ -205,7 +199,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			}
 		};
 		this._debugAdapterDescriptorFactories.set(handle, provider);
-		this._toDispose.add(this.debugService.getConfigurationManager().registerDebugAdapterDescriptorFactory(provider));
+		this._toDispose.add(this.debugService.getAdapterManager().registerDebugAdapterDescriptorFactory(provider));
 
 		return Promise.resolve(undefined);
 	}
@@ -214,7 +208,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		const provider = this._debugAdapterDescriptorFactories.get(handle);
 		if (provider) {
 			this._debugAdapterDescriptorFactories.delete(handle);
-			this.debugService.getConfigurationManager().unregisterDebugAdapterDescriptorFactory(provider);
+			this.debugService.getAdapterManager().unregisterDebugAdapterDescriptorFactory(provider);
 		}
 	}
 
@@ -333,9 +327,10 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 				return {
 					id: sessionID,
 					type: session.configuration.type,
-					name: session.configuration.name,
+					name: session.name,
 					folderUri: session.root ? session.root.uri : undefined,
-					configuration: session.configuration
+					configuration: session.configuration,
+					parent: session.parentSession?.getId(),
 				};
 			}
 		}

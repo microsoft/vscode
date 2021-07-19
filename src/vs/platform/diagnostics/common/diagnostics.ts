@@ -7,6 +7,20 @@ import { UriComponents } from 'vs/base/common/uri';
 import { ProcessItem } from 'vs/base/common/processes';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { IMainProcessInfo } from 'vs/platform/launch/common/launch';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+
+export const ID = 'diagnosticsService';
+export const IDiagnosticsService = createDecorator<IDiagnosticsService>(ID);
+
+export interface IDiagnosticsService {
+	readonly _serviceBrand: undefined;
+
+	getPerformanceInfo(mainProcessInfo: IMainProcessInfo, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<PerformanceInfo>;
+	getSystemInfo(mainProcessInfo: IMainProcessInfo, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<SystemInfo>;
+	getDiagnostics(mainProcessInfo: IMainProcessInfo, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<string>;
+	reportWorkspaceStats(workspace: IWorkspaceInformation): Promise<void>;
+}
 
 export interface IMachineInfo {
 	os: string;

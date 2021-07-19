@@ -12,7 +12,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import Messages from 'vs/workbench/contrib/markers/browser/messages';
 import Constants from 'vs/workbench/contrib/markers/browser/constants';
-import { IThemeService, registerThemingParticipant, ICssStyleCollector, IColorTheme } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ICssStyleCollector, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -24,26 +24,11 @@ import { Marker } from 'vs/workbench/contrib/markers/browser/markersModel';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { IViewsService } from 'vs/workbench/common/views';
 import { Codicon } from 'vs/base/common/codicons';
 import { BaseActionViewItem, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
-
-export class ShowProblemsPanelAction extends Action {
-
-	public static readonly ID = 'workbench.action.problems.focus';
-	public static readonly LABEL = Messages.MARKERS_PANEL_SHOW_LABEL;
-
-	constructor(id: string, label: string,
-		@IViewsService private readonly viewsService: IViewsService
-	) {
-		super(id, label);
-	}
-
-	public run(): Promise<any> {
-		return this.viewsService.openView(Constants.MARKERS_VIEW_ID, true);
-	}
-}
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { IMarkersView } from 'vs/workbench/contrib/markers/browser/markers';
 
 export interface IMarkersFiltersChangeEvent {
 	filterText?: boolean;
@@ -163,14 +148,6 @@ export class MarkersFilters extends Disposable {
 	}
 }
 
-export interface IMarkerFilterController {
-	readonly onDidFocusFilter: Event<void>;
-	readonly onDidClearFilterText: Event<void>;
-	readonly filters: MarkersFilters;
-	readonly onDidChangeFilterStats: Event<{ total: number, filtered: number }>;
-	getFilterStats(): { total: number, filtered: number };
-}
-
 class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 
 	constructor(
@@ -183,12 +160,13 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 			{
 				actionRunner,
 				classNames: action.class,
-				anchorAlignmentProvider: () => AnchorAlignment.RIGHT
+				anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
+				menuAsChild: true
 			}
 		);
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		super.render(container);
 		this.updateChecked();
 	}
@@ -249,11 +227,14 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 		];
 	}
 
-	updateChecked(): void {
-		DOM.toggleClass(this.element!, 'checked', this._action.checked);
+	override updateChecked(): void {
+		this.element!.classList.toggle('checked', this._action.checked);
 	}
 
 }
+
+
+const filterIcon = registerIcon('markers-view-filter', Codicon.filter, localize('filterIcon', 'Icon for the filter configuration in the markers view.'));
 
 export class MarkersFilterActionViewItem extends BaseActionViewItem {
 
@@ -263,10 +244,11 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	private filterBadge: HTMLElement | null = null;
 	private focusContextKey: IContextKey<boolean>;
 	private readonly filtersAction: IAction;
+	private actionbar: ActionBar | null = null;
 
 	constructor(
 		action: IAction,
-		private filterController: IMarkerFilterController,
+		private markersView: IMarkersView,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IThemeService private readonly themeService: IThemeService,
@@ -274,18 +256,18 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	) {
 		super(null, action);
 		this.focusContextKey = Constants.MarkerViewFilterFocusContextKey.bindTo(contextKeyService);
-		this.delayedFilterUpdate = new Delayer<void>(200);
+		this.delayedFilterUpdate = new Delayer<void>(400);
 		this._register(toDisposable(() => this.delayedFilterUpdate.cancel()));
-		this._register(filterController.onDidFocusFilter(() => this.focus()));
-		this._register(filterController.onDidClearFilterText(() => this.clearFilterText()));
-		this.filtersAction = new Action('markersFiltersAction', Messages.MARKERS_PANEL_ACTION_TOOLTIP_MORE_FILTERS, 'markers-filters codicon-filter');
+		this._register(markersView.onDidFocusFilter(() => this.focus()));
+		this._register(markersView.onDidClearFilterText(() => this.clearFilterText()));
+		this.filtersAction = new Action('markersFiltersAction', Messages.MARKERS_PANEL_ACTION_TOOLTIP_MORE_FILTERS, 'markers-filters ' + ThemeIcon.asClassName(filterIcon));
 		this.filtersAction.checked = this.hasFiltersChanged();
-		this._register(filterController.filters.onDidChange(e => this.onDidFiltersChange(e)));
+		this._register(markersView.filters.onDidChange(e => this.onDidFiltersChange(e)));
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		this.container = container;
-		DOM.addClass(this.container, 'markers-panel-action-filter-container');
+		this.container.classList.add('markers-panel-action-filter-container');
 
 		this.element = DOM.append(this.container, DOM.$(''));
 		this.element.className = this.class;
@@ -296,10 +278,24 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 		this.adjustInputBox();
 	}
 
-	focus(): void {
+	override focus(): void {
 		if (this.filterInputBox) {
 			this.filterInputBox.focus();
 		}
+	}
+
+	override blur(): void {
+		if (this.filterInputBox) {
+			this.filterInputBox.blur();
+		}
+	}
+
+	override setFocusable(): void {
+		// noop input elements are focusable by default
+	}
+
+	override get trapsArrowNavigation(): boolean {
+		return true;
 	}
 
 	private clearFilterText(): void {
@@ -316,21 +312,21 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	}
 
 	private hasFiltersChanged(): boolean {
-		return !this.filterController.filters.showErrors || !this.filterController.filters.showWarnings || !this.filterController.filters.showInfos || this.filterController.filters.excludedFiles || this.filterController.filters.activeFile;
+		return !this.markersView.filters.showErrors || !this.markersView.filters.showWarnings || !this.markersView.filters.showInfos || this.markersView.filters.excludedFiles || this.markersView.filters.activeFile;
 	}
 
 	private createInput(container: HTMLElement): void {
 		this.filterInputBox = this._register(this.instantiationService.createInstance(ContextScopedHistoryInputBox, container, this.contextViewService, {
 			placeholder: Messages.MARKERS_PANEL_FILTER_PLACEHOLDER,
 			ariaLabel: Messages.MARKERS_PANEL_FILTER_ARIA_LABEL,
-			history: this.filterController.filters.filterHistory
+			history: this.markersView.filters.filterHistory
 		}));
 		this._register(attachInputBoxStyler(this.filterInputBox, this.themeService));
-		this.filterInputBox.value = this.filterController.filters.filterText;
+		this.filterInputBox.value = this.markersView.filters.filterText;
 		this._register(this.filterInputBox.onDidChange(filter => this.delayedFilterUpdate.trigger(() => this.onDidInputChange(this.filterInputBox!))));
-		this._register(this.filterController.filters.onDidChange((event: IMarkersFiltersChangeEvent) => {
+		this._register(this.markersView.filters.onDidChange((event: IMarkersFiltersChangeEvent) => {
 			if (event.filterText) {
-				this.filterInputBox!.value = this.filterController.filters.filterText;
+				this.filterInputBox!.value = this.markersView.filters.filterText;
 			}
 		}));
 		this._register(DOM.addStandardDisposableListener(this.filterInputBox.inputElement, DOM.EventType.KEY_DOWN, (e: any) => this.onInputKeyDown(e, this.filterInputBox!)));
@@ -368,31 +364,31 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 			filterBadge.style.color = foreground;
 		}));
 		this.updateBadge();
-		this._register(this.filterController.onDidChangeFilterStats(() => this.updateBadge()));
+		this._register(this.markersView.onDidChangeFilterStats(() => this.updateBadge()));
 	}
 
 	private createFilters(container: HTMLElement): void {
-		const actionbar = this._register(new ActionBar(container, {
+		this.actionbar = this._register(new ActionBar(container, {
 			actionViewItemProvider: action => {
 				if (action.id === this.filtersAction.id) {
-					return this.instantiationService.createInstance(FiltersDropdownMenuActionViewItem, action, this.filterController.filters, this.actionRunner);
+					return this.instantiationService.createInstance(FiltersDropdownMenuActionViewItem, action, this.markersView.filters, this.actionRunner);
 				}
 				return undefined;
 			}
 		}));
-		actionbar.push(this.filtersAction, { icon: true, label: false });
+		this.actionbar.push(this.filtersAction, { icon: true, label: false });
 	}
 
 	private onDidInputChange(inputbox: HistoryInputBox) {
 		inputbox.addToHistory();
-		this.filterController.filters.filterText = inputbox.value;
-		this.filterController.filters.filterHistory = inputbox.getHistory();
+		this.markersView.filters.filterText = inputbox.value;
+		this.markersView.filters.filterHistory = inputbox.getHistory();
 	}
 
 	private updateBadge(): void {
 		if (this.filterBadge) {
-			const { total, filtered } = this.filterController.getFilterStats();
-			DOM.toggleClass(this.filterBadge, 'hidden', total === filtered || filtered === 0);
+			const { total, filtered } = this.markersView.getFilterStats();
+			this.filterBadge.classList.toggle('hidden', total === filtered || total === 0);
 			this.filterBadge.textContent = localize('showing filtered problems', "Showing {0} of {1}", filtered, total);
 			this.adjustInputBox();
 		}
@@ -400,7 +396,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 
 	private adjustInputBox(): void {
 		if (this.element && this.filterInputBox && this.filterBadge) {
-			this.filterInputBox.inputElement.style.paddingRight = DOM.hasClass(this.element, 'small') || DOM.hasClass(this.filterBadge, 'hidden') ? '25px' : '150px';
+			this.filterInputBox.inputElement.style.paddingRight = this.element.classList.contains('small') || this.filterBadge.classList.contains('hidden') ? '25px' : '150px';
 		}
 	}
 
@@ -421,24 +417,28 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 			this.clearFilterText();
 			handled = true;
 		}
+		if (event.equals(KeyCode.Tab)) {
+			this.actionbar?.focus();
+			handled = true;
+		}
 		if (handled) {
 			event.stopPropagation();
 			event.preventDefault();
 		}
 	}
 
-	protected updateClass(): void {
+	protected override updateClass(): void {
 		if (this.element && this.container) {
 			this.element.className = this.class;
-			DOM.toggleClass(this.container, 'grow', DOM.hasClass(this.element, 'grow'));
+			this.container.classList.toggle('grow', this.element.classList.contains('grow'));
 			this.adjustInputBox();
 		}
 	}
 
 	protected get class(): string {
-		if (this.filterController.filters.layout.width > 600) {
+		if (this.markersView.filters.layout.width > 600) {
 			return 'markers-panel-action-filter grow';
-		} else if (this.filterController.filters.layout.width < 400) {
+		} else if (this.markersView.filters.layout.width < 400) {
 			return 'markers-panel-action-filter small';
 		} else {
 			return 'markers-panel-action-filter';
@@ -474,7 +474,7 @@ export class QuickFixAction extends Action {
 		super(QuickFixAction.ID, Messages.MARKERS_PANEL_ACTION_TOOLTIP_QUICKFIX, QuickFixAction.CLASS, false);
 	}
 
-	run(): Promise<void> {
+	override run(): Promise<void> {
 		this._onShowQuickFixes.fire();
 		return Promise.resolve();
 	}
@@ -488,7 +488,7 @@ export class QuickFixActionViewItem extends ActionViewItem {
 		super(null, action, { icon: true, label: false });
 	}
 
-	public onClick(event: DOM.EventLike): void {
+	public override onClick(event: DOM.EventLike): void {
 		DOM.EventHelper.stop(event, true);
 		this.showQuickFixes();
 	}

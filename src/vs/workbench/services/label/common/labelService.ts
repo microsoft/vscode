@@ -11,14 +11,14 @@ import { Emitter } from 'vs/base/common/event';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspace, isWorkspace } from 'vs/platform/workspace/common/workspace';
 import { basenameOrAuthority, basename, joinPath, dirname } from 'vs/base/common/resources';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, WORKSPACE_EXTENSION, toWorkspaceIdentifier, isWorkspaceIdentifier, isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, WORKSPACE_EXTENSION, toWorkspaceIdentifier, isWorkspaceIdentifier, isUntitledWorkspace, isSingleFolderWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormatterChangeEvent } from 'vs/platform/label/common/label';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { match } from 'vs/base/common/glob';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
@@ -73,7 +73,7 @@ const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoin
 const sepRegexp = /\//g;
 const labelMatchingRegexp = /\$\{(scheme|authority|path|(query)\.(.+?))\}/g;
 
-function hasDriveLetter(path: string): boolean {
+function hasDriveLetterIgnorePlatform(path: string): boolean {
 	return !!(path && path[2] === ':');
 }
 
@@ -83,6 +83,10 @@ class ResourceLabelFormattersHandler implements IWorkbenchContribution {
 	constructor(@ILabelService labelService: ILabelService) {
 		resourceLabelFormattersExtPoint.setHandler((extensions, delta) => {
 			delta.added.forEach(added => added.value.forEach(formatter => {
+				if (!added.description.enableProposedApi && formatter.formatting.workspaceTooltip) {
+					// workspaceTooltip is only proposed
+					formatter.formatting.workspaceTooltip = undefined;
+				}
 				this.formattersDisposables.set(formatter, labelService.registerFormatter(formatter));
 			}));
 			delta.removed.forEach(removed => removed.value.forEach(formatter => {
@@ -99,7 +103,7 @@ export class LabelService extends Disposable implements ILabelService {
 
 	private formatters: ResourceLabelFormatter[] = [];
 
-	private readonly _onDidChangeFormatters = this._register(new Emitter<IFormatterChangeEvent>());
+	private readonly _onDidChangeFormatters = this._register(new Emitter<IFormatterChangeEvent>({ leakWarningThreshold: 400 }));
 	readonly onDidChangeFormatters = this._onDidChangeFormatters.event;
 
 	constructor(
@@ -115,7 +119,7 @@ export class LabelService extends Disposable implements ILabelService {
 
 		this.formatters.forEach(formatter => {
 			if (formatter.scheme === resource.scheme) {
-				if (!bestResult && !formatter.authority) {
+				if (!formatter.authority && (!bestResult || formatter.priority)) {
 					bestResult = formatter;
 					return;
 				}
@@ -132,8 +136,14 @@ export class LabelService extends Disposable implements ILabelService {
 		return bestResult ? bestResult.formatting : undefined;
 	}
 
-	getUriLabel(resource: URI, options: { relative?: boolean, noPrefix?: boolean, endWithSeparator?: boolean } = {}): string {
-		return this.doGetUriLabel(resource, this.findFormatting(resource), options);
+	getUriLabel(resource: URI, options: { relative?: boolean, noPrefix?: boolean, endWithSeparator?: boolean, separator?: '/' | '\\' } = {}): string {
+		let formatting = this.findFormatting(resource);
+		if (formatting && options.separator) {
+			// mixin separator if defined from the outside
+			formatting = { ...formatting, separator: options.separator };
+		}
+
+		return this.doGetUriLabel(resource, formatting, options);
 	}
 
 	private doGetUriLabel(resource: URI, formatting?: ResourceLabelFormatting, options: { relative?: boolean, noPrefix?: boolean, endWithSeparator?: boolean } = {}): string {
@@ -152,6 +162,8 @@ export class LabelService extends Disposable implements ILabelService {
 			while (relativeLabel[overlap] && relativeLabel[overlap] === baseResourceLabel[overlap]) { overlap++; }
 			if (!relativeLabel[overlap] || relativeLabel[overlap] === formatting.separator) {
 				relativeLabel = relativeLabel.substring(1 + overlap);
+			} else if (overlap === baseResourceLabel.length && baseResource.uri.path === '/') {
+				relativeLabel = relativeLabel.substring(overlap);
 			}
 
 			const hasMultipleRoots = this.contextService.getWorkspace().folders.length > 1;
@@ -181,54 +193,75 @@ export class LabelService extends Disposable implements ILabelService {
 		return paths.basename(label);
 	}
 
-	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWorkspace), options?: { verbose: boolean }): string {
-		if (IWorkspace.isIWorkspace(workspace)) {
+	getWorkspaceLabel(workspace: IWorkspace | IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, options?: { verbose: boolean }): string {
+		if (isWorkspace(workspace)) {
 			const identifier = toWorkspaceIdentifier(workspace);
-			if (!identifier) {
-				return '';
+			if (identifier) {
+				return this.getWorkspaceLabel(identifier, options);
 			}
 
-			workspace = identifier;
+			return '';
 		}
 
-		// Workspace: Single Folder
+		// Workspace: Single Folder (as URI)
+		if (URI.isUri(workspace)) {
+			return this.doGetSingleFolderWorkspaceLabel(workspace, options);
+		}
+
+		// Workspace: Single Folder (as workspace identifier)
 		if (isSingleFolderWorkspaceIdentifier(workspace)) {
-			// Folder on disk
-			const label = options && options.verbose ? this.getUriLabel(workspace) : basename(workspace) || '/';
-			return this.appendWorkspaceSuffix(label, workspace);
+			return this.doGetSingleFolderWorkspaceLabel(workspace.uri, options);
 		}
 
+		// Workspace: Multi Root
 		if (isWorkspaceIdentifier(workspace)) {
-			// Workspace: Untitled
-			if (isUntitledWorkspace(workspace.configPath, this.environmentService)) {
-				return localize('untitledWorkspace', "Untitled (Workspace)");
-			}
-
-			// Workspace: Saved
-			let filename = basename(workspace.configPath);
-			if (filename.endsWith(WORKSPACE_EXTENSION)) {
-				filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
-			}
-			let label;
-			if (options && options.verbose) {
-				label = localize('workspaceNameVerbose', "{0} (Workspace)", this.getUriLabel(joinPath(dirname(workspace.configPath), filename)));
-			} else {
-				label = localize('workspaceName', "{0} (Workspace)", filename);
-			}
-			return this.appendWorkspaceSuffix(label, workspace.configPath);
+			return this.doGetWorkspaceLabel(workspace.configPath, options);
 		}
-		return '';
 
+		return '';
+	}
+
+	private doGetWorkspaceLabel(workspaceUri: URI, options?: { verbose: boolean }): string {
+
+		// Workspace: Untitled
+		if (isUntitledWorkspace(workspaceUri, this.environmentService)) {
+			return localize('untitledWorkspace', "Untitled (Workspace)");
+		}
+
+		// Workspace: Saved
+		let filename = basename(workspaceUri);
+		if (filename.endsWith(WORKSPACE_EXTENSION)) {
+			filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
+		}
+
+		let label;
+		if (options?.verbose) {
+			label = localize('workspaceNameVerbose', "{0} (Workspace)", this.getUriLabel(joinPath(dirname(workspaceUri), filename)));
+		} else {
+			label = localize('workspaceName', "{0} (Workspace)", filename);
+		}
+
+		return this.appendWorkspaceSuffix(label, workspaceUri);
+	}
+
+	private doGetSingleFolderWorkspaceLabel(folderUri: URI, options?: { verbose: boolean }): string {
+		const label = options?.verbose ? this.getUriLabel(folderUri) : basename(folderUri) || '/';
+		return this.appendWorkspaceSuffix(label, folderUri);
 	}
 
 	getSeparator(scheme: string, authority?: string): '/' | '\\' {
 		const formatter = this.findFormatting(URI.from({ scheme, authority }));
-		return formatter && formatter.separator || '/';
+		return formatter?.separator || '/';
 	}
 
 	getHostLabel(scheme: string, authority?: string): string {
 		const formatter = this.findFormatting(URI.from({ scheme, authority }));
-		return formatter && formatter.workspaceSuffix || '';
+		return formatter?.workspaceSuffix || '';
+	}
+
+	getHostTooltip(scheme: string, authority?: string): string | undefined {
+		const formatter = this.findFormatting(URI.from({ scheme, authority }));
+		return formatter?.workspaceTooltip;
 	}
 
 	registerFormatter(formatter: ResourceLabelFormatter): IDisposable {
@@ -268,7 +301,7 @@ export class LabelService extends Disposable implements ILabelService {
 		});
 
 		// convert \c:\something => C:\something
-		if (formatting.normalizeDriveLetter && hasDriveLetter(label)) {
+		if (formatting.normalizeDriveLetter && hasDriveLetterIgnorePlatform(label)) {
 			label = label.charAt(1).toUpperCase() + label.substr(2);
 		}
 

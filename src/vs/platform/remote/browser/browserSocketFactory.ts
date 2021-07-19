@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ISocketFactory, IConnectCallback } from 'vs/platform/remote/common/remoteAgentConnection';
-import { ISocket } from 'vs/base/parts/ipc/common/ipc.net';
+import { ISocket, SocketCloseEvent, SocketCloseEventType } from 'vs/base/parts/ipc/common/ipc.net';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -16,10 +16,29 @@ export interface IWebSocketFactory {
 	create(url: string): IWebSocket;
 }
 
+export interface IWebSocketCloseEvent {
+	/**
+	 * Returns the WebSocket connection close code provided by the server.
+	 */
+	readonly code: number;
+	/**
+	 * Returns the WebSocket connection close reason provided by the server.
+	 */
+	readonly reason: string;
+	/**
+	 * Returns true if the connection closed cleanly; false otherwise.
+	 */
+	readonly wasClean: boolean;
+	/**
+	 * Underlying event.
+	 */
+	readonly event: any | undefined;
+}
+
 export interface IWebSocket {
 	readonly onData: Event<ArrayBuffer>;
 	readonly onOpen: Event<void>;
-	readonly onClose: Event<void>;
+	readonly onClose: Event<IWebSocketCloseEvent | void>;
 	readonly onError: Event<any>;
 
 	send(data: ArrayBuffer | ArrayBufferView): void;
@@ -33,7 +52,7 @@ class BrowserWebSocket extends Disposable implements IWebSocket {
 
 	public readonly onOpen: Event<void>;
 
-	private readonly _onClose = this._register(new Emitter<void>());
+	private readonly _onClose = this._register(new Emitter<IWebSocketCloseEvent>());
 	public readonly onClose = this._onClose.event;
 
 	private readonly _onError = this._register(new Emitter<any>());
@@ -135,7 +154,7 @@ class BrowserWebSocket extends Disposable implements IWebSocket {
 				}
 			}
 
-			this._onClose.fire();
+			this._onClose.fire({ code: e.code, reason: e.reason, wasClean: e.wasClean, event: e });
 		}));
 
 		this._register(dom.addDisposableListener(this._socket, 'error', sendErrorSoon));
@@ -178,8 +197,21 @@ class BrowserSocket implements ISocket {
 		return this.socket.onData((data) => listener(VSBuffer.wrap(new Uint8Array(data))));
 	}
 
-	public onClose(listener: () => void): IDisposable {
-		return this.socket.onClose(listener);
+	public onClose(listener: (e: SocketCloseEvent) => void): IDisposable {
+		const adapter = (e: IWebSocketCloseEvent | void) => {
+			if (typeof e === 'undefined') {
+				listener(e);
+			} else {
+				listener({
+					type: SocketCloseEventType.WebSocketCloseEvent,
+					code: e.code,
+					reason: e.reason,
+					wasClean: e.wasClean,
+					event: e.event
+				});
+			}
+		};
+		return this.socket.onClose(adapter);
 	}
 
 	public onEnd(listener: () => void): IDisposable {
@@ -208,7 +240,7 @@ export class BrowserSocketFactory implements ISocketFactory {
 	}
 
 	connect(host: string, port: number, query: string, callback: IConnectCallback): void {
-		const socket = this._webSocketFactory.create(`ws://${host}:${port}/?${query}&skipWebSocketFrames=false`);
+		const socket = this._webSocketFactory.create(`ws://${/:/.test(host) ? `[${host}]` : host}:${port}/?${query}&skipWebSocketFrames=false`);
 		const errorListener = socket.onError((err) => callback(err, undefined));
 		socket.onOpen(() => {
 			errorListener.dispose();

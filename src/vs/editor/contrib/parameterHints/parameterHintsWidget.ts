@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { domEvent, stop } from 'vs/base/browser/event';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Event } from 'vs/base/common/event';
@@ -14,22 +13,25 @@ import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentW
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as modes from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
+import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { Context } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
 import * as nls from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorHoverBackground, editorHoverBorder, textCodeBlockBackground, textLinkForeground, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
-import { HIGH_CONTRAST, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ParameterHintsModel, TriggerContext } from 'vs/editor/contrib/parameterHints/parameterHintsModel';
-import { pad } from 'vs/base/common/strings';
-import { registerIcon, Codicon } from 'vs/base/common/codicons';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
+import { Codicon } from 'vs/base/common/codicons';
 import { assertIsDefined } from 'vs/base/common/types';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 const $ = dom.$;
 
-const parameterHintsNextIcon = registerIcon('parameter-hints-next', Codicon.chevronDown);
-const parameterHintsPreviousIcon = registerIcon('parameter-hints-previous', Codicon.chevronUp);
+const parameterHintsNextIcon = registerIcon('parameter-hints-next', Codicon.chevronDown, nls.localize('parameterHintsNextIcon', 'Icon for show next parameter hint.'));
+const parameterHintsPreviousIcon = registerIcon('parameter-hints-previous', Codicon.chevronUp, nls.localize('parameterHintsPreviousIcon', 'Icon for show previous parameter hint.'));
 
 export class ParameterHintsWidget extends Disposable implements IContentWidget {
 
@@ -62,7 +64,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		@IModeService modeService: IModeService,
 	) {
 		super();
-		this.markdownRenderer = this._register(new MarkdownRenderer(editor, modeService, openerService));
+		this.markdownRenderer = this._register(new MarkdownRenderer({ editor }, modeService, openerService));
 		this.model = this._register(new ParameterHintsModel(editor));
 		this.keyVisible = Context.Visible.bindTo(contextKeyService);
 		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);
@@ -77,21 +79,25 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		}));
 	}
 
-	private createParamaterHintDOMNodes() {
+	private createParameterHintDOMNodes() {
 		const element = $('.editor-widget.parameter-hints-widget');
-		const wrapper = dom.append(element, $('.wrapper'));
+		const wrapper = dom.append(element, $('.phwrapper'));
 		wrapper.tabIndex = -1;
 
 		const controls = dom.append(wrapper, $('.controls'));
-		const previous = dom.append(controls, $('.button' + parameterHintsPreviousIcon.cssSelector));
+		const previous = dom.append(controls, $('.button' + ThemeIcon.asCSSSelector(parameterHintsPreviousIcon)));
 		const overloads = dom.append(controls, $('.overloads'));
-		const next = dom.append(controls, $('.button' + parameterHintsNextIcon.cssSelector));
+		const next = dom.append(controls, $('.button' + ThemeIcon.asCSSSelector(parameterHintsNextIcon)));
 
-		const onPreviousClick = stop(domEvent(previous, 'click'));
-		this._register(onPreviousClick(this.previous, this));
+		this._register(dom.addDisposableListener(previous, 'click', e => {
+			dom.EventHelper.stop(e);
+			this.previous();
+		}));
 
-		const onNextClick = stop(domEvent(next, 'click'));
-		this._register(onNextClick(this.next, this));
+		this._register(dom.addDisposableListener(next, 'click', e => {
+			dom.EventHelper.stop(e);
+			this.next();
+		}));
 
 		const body = $('.body');
 		const scrollbar = new DomScrollableElement(body, {});
@@ -144,14 +150,14 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		}
 
 		if (!this.domNodes) {
-			this.createParamaterHintDOMNodes();
+			this.createParameterHintDOMNodes();
 		}
 
 		this.keyVisible.set(true);
 		this.visible = true;
 		setTimeout(() => {
 			if (this.domNodes) {
-				dom.addClass(this.domNodes.element, 'visible');
+				this.domNodes.element.classList.add('visible');
 			}
 		}, 100);
 		this.editor.layoutContentWidget(this);
@@ -168,7 +174,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		this.visible = false;
 		this.announcedLabel = null;
 		if (this.domNodes) {
-			dom.removeClass(this.domNodes.element, 'visible');
+			this.domNodes.element.classList.remove('visible');
 		}
 		this.editor.layoutContentWidget(this);
 	}
@@ -191,7 +197,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		}
 
 		const multiple = hints.signatures.length > 1;
-		dom.toggleClass(this.domNodes.element, 'multiple', multiple);
+		this.domNodes.element.classList.toggle('multiple', multiple);
 		this.keyMultipleSignatures.set(multiple);
 
 		this.domNodes.signature.innerText = '';
@@ -223,8 +229,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 			if (typeof activeParameter.documentation === 'string') {
 				documentation.textContent = activeParameter.documentation;
 			} else {
-				const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(activeParameter.documentation));
-				dom.addClass(renderedContents.element, 'markdown-docs');
+				const renderedContents = this.renderMarkdownDocs(activeParameter.documentation);
 				documentation.appendChild(renderedContents.element);
 			}
 			dom.append(this.domNodes.docs, $('p', {}, documentation));
@@ -235,18 +240,17 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		} else if (typeof signature.documentation === 'string') {
 			dom.append(this.domNodes.docs, $('p', {}, signature.documentation));
 		} else {
-			const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(signature.documentation));
-			dom.addClass(renderedContents.element, 'markdown-docs');
+			const renderedContents = this.renderMarkdownDocs(signature.documentation);
 			dom.append(this.domNodes.docs, renderedContents.element);
 		}
 
 		const hasDocs = this.hasDocs(signature, activeParameter);
 
-		dom.toggleClass(this.domNodes.signature, 'has-docs', hasDocs);
-		dom.toggleClass(this.domNodes.docs, 'empty', !hasDocs);
+		this.domNodes.signature.classList.toggle('has-docs', hasDocs);
+		this.domNodes.docs.classList.toggle('empty', !hasDocs);
 
 		this.domNodes.overloads.textContent =
-			pad(hints.activeSignature + 1, hints.signatures.length.toString().length) + '/' + hints.signatures.length;
+			String(hints.activeSignature + 1).padStart(hints.signatures.length.toString().length, '0') + '/' + hints.signatures.length;
 
 		if (activeParameter) {
 			const labelToAnnounce = this.getParameterLabel(signature, activeParameterIndex);
@@ -261,6 +265,16 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 
 		this.editor.layoutContentWidget(this);
 		this.domNodes.scrollbar.scanDomNode();
+	}
+
+	private renderMarkdownDocs(markdown: IMarkdownString | undefined): IMarkdownRenderResult {
+		const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(markdown, {
+			asyncRenderCallback: () => {
+				this.domNodes?.scrollbar.scanDomNode();
+			}
+		}));
+		renderedContents.element.classList.add('markdown-docs');
+		return renderedContents;
 	}
 
 	private hasDocs(signature: modes.SignatureInformation, activeParameter: modes.ParameterInformation | undefined): boolean {
@@ -310,10 +324,14 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 			return [0, 0];
 		} else if (Array.isArray(param.label)) {
 			return param.label;
+		} else if (!param.label.length) {
+			return [0, 0];
 		} else {
-			const idx = signature.label.lastIndexOf(param.label);
+			const regex = new RegExp(`(\\W|^)${escapeRegExpCharacters(param.label)}(?=\\W|$)`, 'g');
+			regex.test(signature.label);
+			const idx = regex.lastIndex - param.label.length;
 			return idx >= 0
-				? [idx, idx + param.label.length]
+				? [idx, regex.lastIndex]
 				: [0, 0];
 		}
 	}
@@ -334,7 +352,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 
 	getDomNode(): HTMLElement {
 		if (!this.domNodes) {
-			this.createParamaterHintDOMNodes();
+			this.createParameterHintDOMNodes();
 		}
 		return this.domNodes!.element;
 	}
@@ -354,7 +372,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		const height = Math.max(this.editor.getLayoutInfo().height / 4, 250);
 		const maxHeight = `${height}px`;
 		this.domNodes.element.style.maxHeight = maxHeight;
-		const wrapper = this.domNodes.element.getElementsByClassName('wrapper') as HTMLCollectionOf<HTMLElement>;
+		const wrapper = this.domNodes.element.getElementsByClassName('phwrapper') as HTMLCollectionOf<HTMLElement>;
 		if (wrapper.length) {
 			wrapper[0].style.maxHeight = maxHeight;
 		}
@@ -364,7 +382,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 registerThemingParticipant((theme, collector) => {
 	const border = theme.getColor(editorHoverBorder);
 	if (border) {
-		const borderWidth = theme.type === HIGH_CONTRAST ? 2 : 1;
+		const borderWidth = theme.type === ColorScheme.HIGH_CONTRAST ? 2 : 1;
 		collector.addRule(`.monaco-editor .parameter-hints-widget { border: ${borderWidth}px solid ${border}; }`);
 		collector.addRule(`.monaco-editor .parameter-hints-widget.multiple .body { border-left: 1px solid ${border.transparent(0.5)}; }`);
 		collector.addRule(`.monaco-editor .parameter-hints-widget .signature.has-docs { border-bottom: 1px solid ${border.transparent(0.5)}; }`);

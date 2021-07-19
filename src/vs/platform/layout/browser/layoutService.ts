@@ -32,7 +32,7 @@ export interface ILayoutService {
 	 * An event that is emitted when the container is layed out. The
 	 * event carries the dimensions of the container as part of it.
 	 */
-	readonly onLayout: Event<IDimension>;
+	readonly onDidLayout: Event<IDimension>;
 
 	/**
 	 * Focus the primary component of the container.

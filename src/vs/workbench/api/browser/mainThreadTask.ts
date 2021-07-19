@@ -53,7 +53,7 @@ namespace TaskProcessStartedDTO {
 }
 
 namespace TaskProcessEndedDTO {
-	export function from(value: TaskExecution, exitCode: number): TaskProcessEndedDTO {
+	export function from(value: TaskExecution, exitCode: number | undefined): TaskProcessEndedDTO {
 		return {
 			id: value.id,
 			exitCode
@@ -418,21 +418,22 @@ export class MainThreadTask implements MainThreadTaskShape {
 			const task = event.__task!;
 			if (event.kind === TaskEventKind.Start) {
 				const execution = TaskExecutionDTO.from(task.getTaskExecution());
-				let resolvedDefinition: TaskDefinitionDTO | undefined;
-				if (execution.task && execution.task.execution && CustomExecutionDTO.is(execution.task.execution)) {
-					resolvedDefinition = await this._configurationResolverService.resolveWithInteractionReplace(task.getWorkspaceFolder(),
-						execution.task.definition, 'tasks');
+				let resolvedDefinition: TaskDefinitionDTO = execution.task!.definition;
+				if (execution.task?.execution && CustomExecutionDTO.is(execution.task.execution) && event.resolvedVariables) {
+					const dictionary: IStringDictionary<string> = {};
+					Array.from(event.resolvedVariables.entries()).forEach(entry => dictionary[entry[0]] = entry[1]);
+					resolvedDefinition = await this._configurationResolverService.resolveAnyAsync(task.getWorkspaceFolder(),
+						execution.task.definition, dictionary);
 				}
 				this._proxy.$onDidStartTask(execution, event.terminalId!, resolvedDefinition);
 			} else if (event.kind === TaskEventKind.ProcessStarted) {
 				this._proxy.$onDidStartTaskProcess(TaskProcessStartedDTO.from(task.getTaskExecution(), event.processId!));
 			} else if (event.kind === TaskEventKind.ProcessEnded) {
-				this._proxy.$onDidEndTaskProcess(TaskProcessEndedDTO.from(task.getTaskExecution(), event.exitCode!));
+				this._proxy.$onDidEndTaskProcess(TaskProcessEndedDTO.from(task.getTaskExecution(), event.exitCode));
 			} else if (event.kind === TaskEventKind.End) {
 				this._proxy.$OnDidEndTask(TaskExecutionDTO.from(task.getTaskExecution()));
 			}
 		});
-		this._taskService.setJsonTasksSupported(Promise.resolve(this._proxy.$jsonTasksSupported()));
 	}
 
 	public dispose(): void {
@@ -566,13 +567,19 @@ export class MainThreadTask implements MainThreadTaskShape {
 						if (!task) {
 							reject(new Error('Task not found'));
 						} else {
-							this._taskService.run(task).then(undefined, reason => {
-								// eat the error, it has already been surfaced to the user and we don't care about it here
-							});
 							const result: TaskExecutionDTO = {
 								id: value.id,
 								task: TaskDTO.from(task)
 							};
+							this._taskService.run(task).then(summary => {
+								// Ensure that the task execution gets cleaned up if the exit code is undefined
+								// This can happen when the task has dependent tasks and one of them failed
+								if ((summary?.exitCode === undefined) || (summary.exitCode !== 0)) {
+									this._proxy.$OnDidEndTask(result);
+								}
+							}, reason => {
+								// eat the error, it has already been surfaced to the user and we don't care about it here
+							});
 							resolve(result);
 						}
 					}, (_error) => {
@@ -694,9 +701,6 @@ export class MainThreadTask implements MainThreadTaskShape {
 						});
 					});
 				});
-			},
-			getDefaultShellAndArgs: (): Promise<{ shell: string, args: string[] | string | undefined }> => {
-				return Promise.resolve(this._proxy.$getDefaultShellAndArgs());
 			},
 			findExecutable: (command: string, cwd?: string, paths?: string[]): Promise<string | undefined> => {
 				return this._proxy.$findExecutable(command, cwd, paths);

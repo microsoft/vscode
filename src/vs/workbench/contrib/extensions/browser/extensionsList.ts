@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/extension';
-import { append, $, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
+import { append, $, addDisposableListener } from 'vs/base/browser/dom';
 import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -12,11 +12,10 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { Event } from 'vs/base/common/event';
-import { domEvent } from 'vs/base/browser/event';
 import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, MaliciousStatusLabelAction, ExtensionActionViewItem, StatusLabelAction, RemoteInstallAction, SystemDisabledWarningAction, ExtensionToolTipAction, LocalInstallAction, SyncIgnoredIconAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { UpdateAction, ManageExtensionAction, ReloadAction, ExtensionStatusLabelAction, RemoteInstallAction, ExtensionStatusIconAction, ExtensionToolTipAction, LocalInstallAction, ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction, WebInstallAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { Label, RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, TooltipWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
+import { RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget, ExtensionHoverWidget, ExtensionActivationStatusWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -24,6 +23,10 @@ import { isLanguagePackExtension } from 'vs/platform/extensions/common/extension
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { foreground, listActiveSelectionForeground, listActiveSelectionBackground, listInactiveSelectionForeground, listInactiveSelectionBackground, listFocusForeground, listFocusBackground, listHoverForeground, listHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+
+export const EXTENSION_LIST_ELEMENT_HEIGHT = 62;
 
 export interface IExtensionsViewState {
 	onFocus: Event<IExtension>;
@@ -35,10 +38,10 @@ export interface ITemplateData {
 	element: HTMLElement;
 	icon: HTMLImageElement;
 	name: HTMLElement;
-	installCount: HTMLElement;
-	ratings: HTMLElement;
 	author: HTMLElement;
 	description: HTMLElement;
+	installCount: HTMLElement;
+	ratings: HTMLElement;
 	extension: IExtension | null;
 	disposables: IDisposable[];
 	extensionDisposables: IDisposable[];
@@ -46,21 +49,29 @@ export interface ITemplateData {
 }
 
 export class Delegate implements IListVirtualDelegate<IExtension> {
-	getHeight() { return 62; }
+	getHeight() { return EXTENSION_LIST_ELEMENT_HEIGHT; }
 	getTemplateId() { return 'extension'; }
 }
 
 const actionOptions = { icon: true, label: true, tabOnlyOnFocus: true };
 
+export type ExtensionListRendererOptions = {
+	hoverOptions: {
+		position: () => HoverPosition
+	}
+};
+
 export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	constructor(
 		private extensionViewState: IExtensionsViewState,
+		private readonly options: ExtensionListRendererOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) { }
 
 	get templateId() { return 'extension'; }
@@ -76,9 +87,10 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const headerContainer = append(details, $('.header-container'));
 		const header = append(headerContainer, $('.header'));
 		const name = append(header, $('span.name'));
-		const version = append(header, $('span.version'));
 		const installCount = append(header, $('span.install-count'));
 		const ratings = append(header, $('span.ratings'));
+		const syncIgnore = append(header, $('span.sync-ignored'));
+		const activationStatus = append(header, $('span.activation-status'));
 		const headerRemoteBadgeWidget = this.instantiationService.createInstance(RemoteBadgeWidget, header, false);
 		const description = append(details, $('.description.ellipsis'));
 		const footer = append(details, $('.footer'));
@@ -86,39 +98,46 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const actionbar = new ActionBar(footer, {
 			animated: false,
 			actionViewItemProvider: (action: IAction) => {
-				if (action.id === ManageExtensionAction.ID) {
-					return (<ManageExtensionAction>action).createActionViewItem();
+				if (action instanceof ActionWithDropDownAction) {
+					return new ExtensionActionWithDropdownActionViewItem(action, { icon: true, label: true, menuActionsOrProvider: { getActions: () => action.menuActions }, menuActionClassNames: (action.class || '').split(' ') }, this.contextMenuService);
 				}
-				return new ExtensionActionViewItem(null, action, actionOptions);
-			}
+				if (action instanceof ExtensionDropDownAction) {
+					return action.createActionViewItem();
+				}
+				return undefined;
+			},
+			focusOnlyEnabledItems: true
 		});
+		actionbar.setFocusable(false);
 		actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));
 
-		const systemDisabledWarningAction = this.instantiationService.createInstance(SystemDisabledWarningAction);
+		const extensionStatusIconAction = this.instantiationService.createInstance(ExtensionStatusIconAction);
 		const reloadAction = this.instantiationService.createInstance(ReloadAction);
 		const actions = [
-			this.instantiationService.createInstance(StatusLabelAction),
-			this.instantiationService.createInstance(SyncIgnoredIconAction),
+			this.instantiationService.createInstance(ExtensionStatusLabelAction),
 			this.instantiationService.createInstance(UpdateAction),
 			reloadAction,
-			this.instantiationService.createInstance(InstallAction),
+			this.instantiationService.createInstance(InstallDropdownAction),
+			this.instantiationService.createInstance(InstallingLabelAction),
 			this.instantiationService.createInstance(RemoteInstallAction, false),
 			this.instantiationService.createInstance(LocalInstallAction),
-			this.instantiationService.createInstance(MaliciousStatusLabelAction, false),
-			systemDisabledWarningAction,
+			this.instantiationService.createInstance(WebInstallAction),
+			extensionStatusIconAction,
 			this.instantiationService.createInstance(ManageExtensionAction)
 		];
-		const extensionTooltipAction = this.instantiationService.createInstance(ExtensionToolTipAction, systemDisabledWarningAction, reloadAction);
-		const tooltipWidget = this.instantiationService.createInstance(TooltipWidget, root, extensionTooltipAction, recommendationWidget);
+		const extensionTooltipAction = this.instantiationService.createInstance(ExtensionToolTipAction, extensionStatusIconAction, reloadAction);
+		const extensionHoverWidget = this.instantiationService.createInstance(ExtensionHoverWidget, { target: root, position: this.options.hoverOptions.position }, extensionStatusIconAction, extensionTooltipAction, recommendationWidget);
+
 		const widgets = [
 			recommendationWidget,
 			iconRemoteBadgeWidget,
 			extensionPackBadgeWidget,
 			headerRemoteBadgeWidget,
-			tooltipWidget,
-			this.instantiationService.createInstance(Label, version, (e: IExtension) => e.version),
+			extensionHoverWidget,
+			this.instantiationService.createInstance(SyncIgnoredWidget, syncIgnore),
+			this.instantiationService.createInstance(ExtensionActivationStatusWidget, activationStatus, true),
 			this.instantiationService.createInstance(InstallCountWidget, installCount, true),
-			this.instantiationService.createInstance(RatingsWidget, ratings, true)
+			this.instantiationService.createInstance(RatingsWidget, ratings, true),
 		];
 		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets, extensionTooltipAction]);
 
@@ -126,7 +145,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const disposable = combinedDisposable(...actions, ...widgets, actionbar, extensionContainers, extensionTooltipAction);
 
 		return {
-			root, element, icon, name, installCount, ratings, author, description, disposables: [disposable], actionbar,
+			root, element, icon, name, installCount, ratings, description, author, disposables: [disposable], actionbar,
 			extensionDisposables: [],
 			set extension(extension: IExtension) {
 				extensionContainers.extension = extension;
@@ -135,22 +154,22 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 	}
 
 	renderPlaceholder(index: number, data: ITemplateData): void {
-		addClass(data.element, 'loading');
+		data.element.classList.add('loading');
 
 		data.root.removeAttribute('aria-label');
 		data.root.removeAttribute('data-extension-id');
 		data.extensionDisposables = dispose(data.extensionDisposables);
 		data.icon.src = '';
 		data.name.textContent = '';
-		data.author.textContent = '';
 		data.description.textContent = '';
+		data.author.textContent = '';
 		data.installCount.style.display = 'none';
 		data.ratings.style.display = 'none';
 		data.extension = null;
 	}
 
 	renderElement(extension: IExtension, index: number, data: ITemplateData): void {
-		removeClass(data.element, 'loading');
+		data.element.classList.remove('loading');
 		data.root.setAttribute('data-extension-id', extension.identifier.id);
 
 		if (extension.state !== ExtensionState.Uninstalled && !extension.server) {
@@ -160,21 +179,21 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		data.extensionDisposables = dispose(data.extensionDisposables);
 
-		let isDisabled: boolean = false;
 		const updateEnablement = async () => {
-			const runningExtensions = await this.extensionService.getExtensions();
-			isDisabled = false;
-			if (extension.local && !isLanguagePackExtension(extension.local.manifest)) {
+			let isDisabled = false;
+			if (extension.state === ExtensionState.Uninstalled) {
+				isDisabled = !this.extensionsWorkbenchService.canInstall(extension);
+			} else if (extension.local && !isLanguagePackExtension(extension.local.manifest)) {
+				const runningExtensions = await this.extensionService.getExtensions();
 				const runningExtension = runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, extension.identifier))[0];
 				isDisabled = !(runningExtension && extension.server === this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension)));
 			}
-			toggleClass(data.root, 'disabled', isDisabled);
+			data.root.classList.toggle('disabled', isDisabled);
 		};
 		updateEnablement();
 		this.extensionService.onDidChangeExtensions(() => updateEnablement(), this, data.extensionDisposables);
 
-		const onError = Event.once(domEvent(data.icon, 'error'));
-		onError(() => data.icon.src = extension.iconUrlFallback, null, data.extensionDisposables);
+		data.extensionDisposables.push(addDisposableListener(data.icon, 'error', () => data.icon.src = extension.iconUrlFallback, { once: true }));
 		data.icon.src = extension.iconUrl;
 
 		if (!data.icon.complete) {
@@ -185,8 +204,9 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		}
 
 		data.name.textContent = extension.displayName;
-		data.author.textContent = extension.publisherDisplayName;
 		data.description.textContent = extension.description;
+		data.author.textContent = extension.publisherDisplayName;
+
 		data.installCount.style.display = '';
 		data.ratings.style.display = '';
 		data.extension = extension;
@@ -197,19 +217,23 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		this.extensionViewState.onFocus(e => {
 			if (areSameExtensions(extension.identifier, e.identifier)) {
-				data.actionbar.viewItems.forEach(item => (<ExtensionActionViewItem>item).setFocus(true));
+				data.actionbar.setFocusable(true);
 			}
 		}, this, data.extensionDisposables);
 
 		this.extensionViewState.onBlur(e => {
 			if (areSameExtensions(extension.identifier, e.identifier)) {
-				data.actionbar.viewItems.forEach(item => (<ExtensionActionViewItem>item).setFocus(false));
+				data.actionbar.setFocusable(false);
 			}
 		}, this, data.extensionDisposables);
+	}
 
+	disposeElement(extension: IExtension, index: number, data: ITemplateData): void {
+		data.extensionDisposables = dispose(data.extensionDisposables);
 	}
 
 	disposeTemplate(data: ITemplateData): void {
+		data.extensionDisposables = dispose(data.extensionDisposables);
 		data.disposables = dispose(data.disposables);
 	}
 }
@@ -224,38 +248,40 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	}
 
 	const listActiveSelectionForegroundColor = theme.getColor(listActiveSelectionForeground);
-	const listActiveSelectionBackgroundColor = theme.getColor(listActiveSelectionBackground);
-	if (listActiveSelectionForegroundColor && listActiveSelectionBackgroundColor) {
-		const authorForeground = listActiveSelectionForegroundColor.transparent(.9).makeOpaque(listActiveSelectionBackgroundColor);
+	if (listActiveSelectionForegroundColor) {
+		const backgroundColor = theme.getColor(listActiveSelectionBackground) || WORKBENCH_BACKGROUND(theme);
+		const authorForeground = listActiveSelectionForegroundColor.transparent(.9).makeOpaque(backgroundColor);
+		collector.addRule(`.extensions-list .monaco-list:focus .monaco-list-row:not(.disabled).focused.selected .author { color: ${authorForeground}; }`);
 		collector.addRule(`.extensions-list .monaco-list:focus .monaco-list-row:not(.disabled).selected .author { color: ${authorForeground}; }`);
-		const disabledExtensionForeground = listActiveSelectionForegroundColor.transparent(.5).makeOpaque(listActiveSelectionBackgroundColor);
+		const disabledExtensionForeground = listActiveSelectionForegroundColor.transparent(.5).makeOpaque(backgroundColor);
+		collector.addRule(`.extensions-list .monaco-list:focus .monaco-list-row.disabled.focused.selected { color: ${disabledExtensionForeground}; }`);
 		collector.addRule(`.extensions-list .monaco-list:focus .monaco-list-row.disabled.selected { color: ${disabledExtensionForeground}; }`);
 	}
 
 	const listInactiveSelectionForegroundColor = theme.getColor(listInactiveSelectionForeground);
-	const listInactiveSelectionBackgroundColor = theme.getColor(listInactiveSelectionBackground);
-	if (listInactiveSelectionForegroundColor && listInactiveSelectionBackgroundColor) {
-		const authorForeground = listInactiveSelectionForegroundColor.transparent(.9).makeOpaque(listInactiveSelectionBackgroundColor);
+	if (listInactiveSelectionForegroundColor) {
+		const backgroundColor = theme.getColor(listInactiveSelectionBackground) || WORKBENCH_BACKGROUND(theme);
+		const authorForeground = listInactiveSelectionForegroundColor.transparent(.9).makeOpaque(backgroundColor);
 		collector.addRule(`.extensions-list .monaco-list .monaco-list-row:not(.disabled).selected .author { color: ${authorForeground}; }`);
-		const disabledExtensionForeground = listInactiveSelectionForegroundColor.transparent(.5).makeOpaque(listInactiveSelectionBackgroundColor);
+		const disabledExtensionForeground = listInactiveSelectionForegroundColor.transparent(.5).makeOpaque(backgroundColor);
 		collector.addRule(`.extensions-list .monaco-list .monaco-list-row.disabled.selected { color: ${disabledExtensionForeground}; }`);
 	}
 
 	const listFocusForegroundColor = theme.getColor(listFocusForeground);
-	const listFocusBackgroundColor = theme.getColor(listFocusBackground);
-	if (listFocusForegroundColor && listFocusBackgroundColor) {
-		const authorForeground = listFocusForegroundColor.transparent(.9).makeOpaque(listFocusBackgroundColor);
+	if (listFocusForegroundColor) {
+		const backgroundColor = theme.getColor(listFocusBackground) || WORKBENCH_BACKGROUND(theme);
+		const authorForeground = listFocusForegroundColor.transparent(.9).makeOpaque(backgroundColor);
 		collector.addRule(`.extensions-list .monaco-list:focus .monaco-list-row:not(.disabled).focused .author { color: ${authorForeground}; }`);
-		const disabledExtensionForeground = listFocusForegroundColor.transparent(.5).makeOpaque(listFocusBackgroundColor);
+		const disabledExtensionForeground = listFocusForegroundColor.transparent(.5).makeOpaque(backgroundColor);
 		collector.addRule(`.extensions-list .monaco-list:focus .monaco-list-row.disabled.focused { color: ${disabledExtensionForeground}; }`);
 	}
 
 	const listHoverForegroundColor = theme.getColor(listHoverForeground);
-	const listHoverBackgroundColor = theme.getColor(listHoverBackground);
-	if (listHoverForegroundColor && listHoverBackgroundColor) {
-		const authorForeground = listHoverForegroundColor.transparent(.9).makeOpaque(listHoverBackgroundColor);
+	if (listHoverForegroundColor) {
+		const backgroundColor = theme.getColor(listHoverBackground) || WORKBENCH_BACKGROUND(theme);
+		const authorForeground = listHoverForegroundColor.transparent(.9).makeOpaque(backgroundColor);
 		collector.addRule(`.extensions-list .monaco-list .monaco-list-row:hover:not(.disabled):not(.selected):.not(.focused) .author { color: ${authorForeground}; }`);
-		const disabledExtensionForeground = listHoverForegroundColor.transparent(.5).makeOpaque(listHoverBackgroundColor);
+		const disabledExtensionForeground = listHoverForegroundColor.transparent(.5).makeOpaque(backgroundColor);
 		collector.addRule(`.extensions-list .monaco-list .monaco-list-row.disabled:hover:not(.selected):.not(.focused) { color: ${disabledExtensionForeground}; }`);
 	}
 });

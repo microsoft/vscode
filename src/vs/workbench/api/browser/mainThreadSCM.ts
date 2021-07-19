@@ -5,14 +5,15 @@
 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { assign } from 'vs/base/common/objects';
 import { IDisposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
-import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, IExtHostContext } from '../common/extHost.protocol';
 import { Command } from 'vs/editor/common/modes';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ISplice, Sequence } from 'vs/base/common/sequence';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { MarshalledId } from 'vs/base/common/marshalling';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 
@@ -37,7 +38,7 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 
 	toJSON(): any {
 		return {
-			$mid: 4,
+			$mid: MarshalledId.ScmResourceGroup,
 			sourceControlHandle: this.sourceControlHandle,
 			groupHandle: this.handle
 		};
@@ -49,7 +50,7 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 	}
 
 	$updateGroup(features: SCMGroupFeatures): void {
-		this.features = assign(this.features, features);
+		this.features = { ...this.features, ...features };
 		this._onDidChange.fire();
 	}
 
@@ -69,7 +70,8 @@ class MainThreadSCMResource implements ISCMResource {
 		readonly sourceUri: URI,
 		readonly resourceGroup: ISCMResourceGroup,
 		readonly decorations: ISCMResourceDecorations,
-		readonly contextValue: string | undefined
+		readonly contextValue: string | undefined,
+		readonly command: Command | undefined
 	) { }
 
 	open(preserveFocus: boolean): Promise<void> {
@@ -78,7 +80,7 @@ class MainThreadSCMResource implements ISCMResource {
 
 	toJSON(): any {
 		return {
-			$mid: 3,
+			$mid: MarshalledId.ScmResource,
 			sourceControlHandle: this.sourceControlHandle,
 			groupHandle: this.groupHandle,
 			handle: this.handle
@@ -134,12 +136,11 @@ class MainThreadSCMProvider implements ISCMProvider {
 		private readonly _handle: number,
 		private readonly _contextValue: string,
 		private readonly _label: string,
-		private readonly _rootUri: URI | undefined,
-		@ISCMService scmService: ISCMService
+		private readonly _rootUri: URI | undefined
 	) { }
 
 	$updateSourceControl(features: SCMProviderFeatures): void {
-		this.features = assign(this.features, features);
+		this.features = { ...this.features, ...features };
 		this._onDidChange.fire();
 
 		if (typeof features.commitTemplate !== 'undefined') {
@@ -203,12 +204,15 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 			for (const [start, deleteCount, rawResources] of groupSlices) {
 				const resources = rawResources.map(rawResource => {
-					const [handle, sourceUri, icons, tooltip, strikeThrough, faded, contextValue] = rawResource;
-					const icon = icons[0];
-					const iconDark = icons[1] || icon;
+					const [handle, sourceUri, icons, tooltip, strikeThrough, faded, contextValue, command] = rawResource;
+
+					const [light, dark] = icons;
+					const icon = ThemeIcon.isThemeIcon(light) ? light : URI.revive(light);
+					const iconDark = (ThemeIcon.isThemeIcon(dark) ? dark : URI.revive(dark)) || icon;
+
 					const decorations = {
-						icon: icon ? URI.revive(icon) : undefined,
-						iconDark: iconDark ? URI.revive(iconDark) : undefined,
+						icon: icon,
+						iconDark: iconDark,
 						tooltip,
 						strikeThrough,
 						faded
@@ -222,7 +226,8 @@ class MainThreadSCMProvider implements ISCMProvider {
 						URI.revive(sourceUri),
 						group,
 						decorations,
-						contextValue || undefined
+						contextValue || undefined,
+						command
 					);
 				});
 
@@ -242,6 +247,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 		delete this._groupsByHandle[handle];
 		this.groups.splice(this.groups.elements.indexOf(group), 1);
+		this._onDidChangeResources.fire();
 	}
 
 	async getOriginalResource(uri: URI): Promise<URI | null> {
@@ -255,7 +261,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 	toJSON(): any {
 		return {
-			$mid: 5,
+			$mid: MarshalledId.ScmProvider,
 			handle: this.handle
 		};
 	}
@@ -275,7 +281,8 @@ export class MainThreadSCM implements MainThreadSCMShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@ISCMService private readonly scmService: ISCMService
+		@ISCMService private readonly scmService: ISCMService,
+		@ISCMViewService private readonly scmViewService: ISCMViewService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSCM);
 	}
@@ -291,17 +298,21 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	}
 
 	$registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined): void {
-		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri ? URI.revive(rootUri) : undefined, this.scmService);
+		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri ? URI.revive(rootUri) : undefined);
 		const repository = this.scmService.registerSCMProvider(provider);
 		this._repositories.set(handle, repository);
 
 		const disposable = combinedDisposable(
-			Event.filter(repository.onDidChangeSelection, selected => selected)(_ => this._proxy.$setSelectedSourceControl(handle)),
-			repository.input.onDidChange(value => this._proxy.$onInputBoxValueChange(handle, value))
+			Event.filter(this.scmViewService.onDidFocusRepository, r => r === repository)(_ => this._proxy.$setSelectedSourceControl(handle)),
+			repository.input.onDidChange(({ value }) => this._proxy.$onInputBoxValueChange(handle, value))
 		);
 
-		if (repository.selected) {
+		if (this.scmViewService.focusedRepository === repository) {
 			setTimeout(() => this._proxy.$setSelectedSourceControl(handle), 0);
+		}
+
+		if (repository.input.value) {
+			setTimeout(() => this._proxy.$onInputBoxValueChange(handle, repository.input.value), 0);
 		}
 
 		this._repositoryDisposables.set(handle, disposable);
@@ -395,7 +406,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 			return;
 		}
 
-		repository.input.value = value;
+		repository.input.setValue(value, false);
 	}
 
 	$setInputBoxPlaceholder(sourceControlHandle: number, placeholder: string): void {
@@ -416,6 +427,24 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		}
 
 		repository.input.visible = visible;
+	}
+
+	$setInputBoxFocus(sourceControlHandle: number): void {
+		const repository = this._repositories.get(sourceControlHandle);
+		if (!repository) {
+			return;
+		}
+
+		repository.input.setFocus();
+	}
+
+	$showValidationMessage(sourceControlHandle: number, message: string, type: InputValidationType) {
+		const repository = this._repositories.get(sourceControlHandle);
+		if (!repository) {
+			return;
+		}
+
+		repository.input.showValidationMessage(message, type);
 	}
 
 	$setValidationProviderIsEnabled(sourceControlHandle: number, enabled: boolean): void {

@@ -6,27 +6,26 @@
 import 'mocha';
 import * as assert from 'assert';
 import { commands, Uri } from 'vscode';
-import { join, basename, normalize, dirname } from 'path';
+import { join, normalize } from 'path';
 import * as fs from 'fs';
 
-function assertUnchangedTokens(testFixurePath: string, done: any) {
-	let fileName = basename(testFixurePath);
+function assertUnchangedTokens(fixturesPath: string, resultsPath: string, fixture: string, done: any) {
+	const testFixurePath = join(fixturesPath, fixture);
 
 	return commands.executeCommand('_workbench.captureSyntaxTokens', Uri.file(testFixurePath)).then(data => {
 		try {
-			let resultsFolderPath = join(dirname(dirname(testFixurePath)), 'colorize-results');
-			if (!fs.existsSync(resultsFolderPath)) {
-				fs.mkdirSync(resultsFolderPath);
+			if (!fs.existsSync(resultsPath)) {
+				fs.mkdirSync(resultsPath);
 			}
-			let resultPath = join(resultsFolderPath, fileName.replace('.', '_') + '.json');
+			let resultPath = join(resultsPath, fixture.replace('.', '_') + '.json');
 			if (fs.existsSync(resultPath)) {
 				let previousData = JSON.parse(fs.readFileSync(resultPath).toString());
 				try {
-					assert.deepEqual(data, previousData);
+					assert.deepStrictEqual(data, previousData);
 				} catch (e) {
 					fs.writeFileSync(resultPath, JSON.stringify(data, null, '\t'), { flag: 'w' });
 					if (Array.isArray(data) && Array.isArray(previousData) && data.length === previousData.length) {
-						for (let i= 0; i < data.length; i++) {
+						for (let i = 0; i < data.length; i++) {
 							let d = data[i];
 							let p = previousData[i];
 							if (d.c !== p.c || hasThemeChange(d.r, p.r)) {
@@ -48,7 +47,7 @@ function assertUnchangedTokens(testFixurePath: string, done: any) {
 	}, done);
 }
 
-function hasThemeChange(d: any, p: any) : boolean {
+function hasThemeChange(d: any, p: any): boolean {
 	let keys = Object.keys(d);
 	for (let key of keys) {
 		if (d[key] !== p[key]) {
@@ -59,18 +58,15 @@ function hasThemeChange(d: any, p: any) : boolean {
 }
 
 suite('colorization', () => {
-	let extensionsFolder = normalize(join(__dirname, '../../'));
-	let extensions = fs.readdirSync(extensionsFolder);
-	extensions.forEach(extension => {
-		let extensionColorizeFixturePath = join(extensionsFolder, extension, 'test', 'colorize-fixtures');
-		if (fs.existsSync(extensionColorizeFixturePath)) {
-			let fixturesFiles = fs.readdirSync(extensionColorizeFixturePath);
-			fixturesFiles.forEach(fixturesFile => {
-				// define a test for each fixture
-				test(extension + '-' + fixturesFile, function (done) {
-					assertUnchangedTokens(join(extensionColorizeFixturePath, fixturesFile), done);
-				});
+	const testPath = normalize(join(__dirname, '../test'));
+	const fixturesPath = join(testPath, 'colorize-fixtures');
+	const resultsPath = join(testPath, 'colorize-results');
+
+	for (const fixture of fs.readdirSync(fixturesPath)) {
+		test(`colorize: ${fixture}`, function (done) {
+			commands.executeCommand('workbench.action.closeAllEditors').then(() => {
+				assertUnchangedTokens(fixturesPath, resultsPath, fixture, done);
 			});
-		}
-	});
+		});
+	}
 });

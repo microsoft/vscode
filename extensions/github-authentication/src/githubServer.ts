@@ -5,56 +5,27 @@
 
 import * as nls from 'vscode-nls';
 import * as vscode from 'vscode';
-import fetch from 'node-fetch';
+import fetch, { Response } from 'node-fetch';
 import { v4 as uuid } from 'uuid';
 import { PromiseAdapter, promiseFromEvent } from './common/utils';
 import Logger from './common/logger';
+import { ExperimentationTelemetry } from './experimentationService';
+import { AuthProviderType } from './github';
 
 const localize = nls.loadMessageBundle();
 
 export const NETWORK_ERROR = 'network error';
 const AUTH_RELAY_SERVER = 'vscode-auth.github.com';
+// const AUTH_RELAY_STAGING_SERVER = 'client-auth-staging-14a768b.herokuapp.com';
 
 class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {
 	public handleUri(uri: vscode.Uri) {
+		Logger.trace('Handling Uri...');
 		this.fire(uri);
 	}
 }
 
 export const uriHandler = new UriEventHandler;
-
-const onDidManuallyProvideToken = new vscode.EventEmitter<string>();
-
-const exchangeCodeForToken: (state: string) => PromiseAdapter<vscode.Uri, string> =
-	(state) => async (uri, resolve, reject) => {
-		Logger.info('Exchanging code for token...');
-		const query = parseQuery(uri);
-		const code = query.code;
-
-		if (query.state !== state) {
-			reject('Received mismatched state');
-			return;
-		}
-
-		try {
-			const result = await fetch(`https://${AUTH_RELAY_SERVER}/token?code=${code}&state=${state}`, {
-				method: 'POST',
-				headers: {
-					Accept: 'application/json'
-				}
-			});
-
-			if (result.ok) {
-				const json = await result.json();
-				Logger.info('Token exchange success!');
-				resolve(json.access_token);
-			} else {
-				reject(result.statusText);
-			}
-		} catch (ex) {
-			reject(ex);
-		}
-	};
 
 function parseQuery(uri: vscode.Uri) {
 	return uri.query.split('&').reduce((prev: any, current) => {
@@ -66,41 +37,162 @@ function parseQuery(uri: vscode.Uri) {
 
 export class GitHubServer {
 	private _statusBarItem: vscode.StatusBarItem | undefined;
+	private _onDidManuallyProvideToken = new vscode.EventEmitter<string | undefined>();
+
+	private _pendingStates = new Map<string, string[]>();
+	private _codeExchangePromises = new Map<string, { promise: Promise<string>, cancel: vscode.EventEmitter<void> }>();
+
+	constructor(private type: AuthProviderType, private readonly telemetryReporter: ExperimentationTelemetry) { }
 
 	private isTestEnvironment(url: vscode.Uri): boolean {
-		return url.authority === 'vscode-web-test-playground.azurewebsites.net' || url.authority.startsWith('localhost:');
+		return this.type === AuthProviderType['github-enterprise'] || /\.azurewebsites\.net$/.test(url.authority) || url.authority.startsWith('localhost:');
+	}
+
+	// TODO@joaomoreno TODO@RMacfarlane
+	private async isNoCorsEnvironment(): Promise<boolean> {
+		const uri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/dummy`));
+		return (uri.scheme === 'https' && /^(vscode|github)\./.test(uri.authority)) || (uri.scheme === 'http' && /^localhost/.test(uri.authority));
 	}
 
 	public async login(scopes: string): Promise<string> {
-		Logger.info('Logging in...');
+		Logger.info(`Logging in for the following scopes: ${scopes}`);
 		this.updateStatusBarItem(true);
 
 		const state = uuid();
-		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate`));
+
+		// TODO@joaomoreno TODO@RMacfarlane
+		const nocors = await this.isNoCorsEnvironment();
+		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate${nocors ? '?nocors=true' : ''}`));
 
 		if (this.isTestEnvironment(callbackUri)) {
 			const token = await vscode.window.showInputBox({ prompt: 'GitHub Personal Access Token', ignoreFocusOut: true });
 			if (!token) { throw new Error('Sign in failed: No token provided'); }
+
+			const tokenScopes = await this.getScopes(token); // Example: ['repo', 'user']
+			const scopesList = scopes.split(' '); // Example: 'read:user repo user:email'
+			if (!scopesList.every(scope => {
+				const included = tokenScopes.includes(scope);
+				if (included || !scope.includes(':')) {
+					return included;
+				}
+
+				return scope.split(':').some(splitScopes => {
+					return tokenScopes.includes(splitScopes);
+				});
+			})) {
+				throw new Error(`The provided token is does not match the requested scopes: ${scopes}`);
+			}
+
 			this.updateStatusBarItem(false);
 			return token;
 		} else {
-			const uri = vscode.Uri.parse(`https://${AUTH_RELAY_SERVER}/authorize/?callbackUri=${encodeURIComponent(callbackUri.toString())}&scope=${scopes}&state=${state}&responseType=code&authServer=https://github.com`);
+			const existingStates = this._pendingStates.get(scopes) || [];
+			this._pendingStates.set(scopes, [...existingStates, state]);
+
+			const uri = vscode.Uri.parse(`https://${AUTH_RELAY_SERVER}/authorize/?callbackUri=${encodeURIComponent(callbackUri.toString())}&scope=${scopes}&state=${state}&responseType=code&authServer=https://github.com${nocors ? '&nocors=true' : ''}`);
 			await vscode.env.openExternal(uri);
 		}
 
+		// Register a single listener for the URI callback, in case the user starts the login process multiple times
+		// before completing it.
+		let codeExchangePromise = this._codeExchangePromises.get(scopes);
+		if (!codeExchangePromise) {
+			codeExchangePromise = promiseFromEvent(uriHandler.event, this.exchangeCodeForToken(scopes));
+			this._codeExchangePromises.set(scopes, codeExchangePromise);
+		}
+
 		return Promise.race([
-			promiseFromEvent(uriHandler.event, exchangeCodeForToken(state)),
-			promiseFromEvent<string, string>(onDidManuallyProvideToken.event)
+			codeExchangePromise.promise,
+			promiseFromEvent<string | undefined, string>(this._onDidManuallyProvideToken.event, (token: string | undefined, resolve, reject): void => {
+				if (!token) {
+					reject('Cancelled');
+				} else {
+					resolve(token);
+				}
+			}).promise
 		]).finally(() => {
+			this._pendingStates.delete(scopes);
+			codeExchangePromise?.cancel.fire();
+			this._codeExchangePromises.delete(scopes);
 			this.updateStatusBarItem(false);
 		});
 	}
 
+	private exchangeCodeForToken: (scopes: string) => PromiseAdapter<vscode.Uri, string> =
+		(scopes) => async (uri, resolve, reject) => {
+			const query = parseQuery(uri);
+			const code = query.code;
+
+			const acceptedStates = this._pendingStates.get(scopes) || [];
+			if (!acceptedStates.includes(query.state)) {
+				// A common scenario of this happening is if you:
+				// 1. Trigger a sign in with one set of scopes
+				// 2. Before finishing 1, you trigger a sign in with a different set of scopes
+				// In this scenario we should just return and wait for the next UriHandler event
+				// to run as we are probably still waiting on the user to hit 'Continue'
+				Logger.info('State not found in accepted state. Skipping this execution...');
+				return;
+			}
+
+			const url = `https://${AUTH_RELAY_SERVER}/token?code=${code}&state=${query.state}`;
+			Logger.info('Exchanging code for token...');
+
+			// TODO@joao: remove
+			if (query.nocors) {
+				try {
+					const json: any = await vscode.commands.executeCommand('_workbench.fetchJSON', url, 'POST');
+					Logger.info('Token exchange success!');
+					resolve(json.access_token);
+				} catch (err) {
+					reject(err);
+				}
+			} else {
+				try {
+					const result = await fetch(url, {
+						method: 'POST',
+						headers: {
+							Accept: 'application/json'
+						}
+					});
+
+					if (result.ok) {
+						const json = await result.json();
+						Logger.info('Token exchange success!');
+						resolve(json.access_token);
+					} else {
+						reject(result.statusText);
+					}
+				} catch (ex) {
+					reject(ex);
+				}
+			}
+		};
+
+	private getServerUri(path?: string) {
+		const apiUri = this.type === AuthProviderType['github-enterprise']
+			? vscode.Uri.parse(vscode.workspace.getConfiguration('github-enterprise').get<string>('uri') || '', true)
+			: vscode.Uri.parse('https://api.github.com');
+
+		if (!path) {
+			path = '';
+		}
+		if (this.type === AuthProviderType['github-enterprise']) {
+			path = '/api/v3' + path;
+		}
+
+		return vscode.Uri.parse(`${apiUri.scheme}://${apiUri.authority}${path}`);
+	}
+
 	private updateStatusBarItem(isStart?: boolean) {
 		if (isStart && !this._statusBarItem) {
-			this._statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
-			this._statusBarItem.text = localize('signingIn', "$(mark-github) Signing in to github.com...");
-			this._statusBarItem.command = 'github.provide-token';
+			this._statusBarItem = vscode.window.createStatusBarItem('status.git.signIn', vscode.StatusBarAlignment.Left);
+			this._statusBarItem.name = localize('status.git.signIn.name', "GitHub Sign-in");
+			this._statusBarItem.text = this.type === AuthProviderType.github
+				? localize('signingIn', "$(mark-github) Signing in to github.com...")
+				: localize('signingInEnterprise', "$(mark-github) Signing in to {0}...", this.getServerUri().authority);
+			this._statusBarItem.command = this.type === AuthProviderType.github
+				? 'github.provide-token'
+				: 'github-enterprise.provide-token';
 			this._statusBarItem.show();
 		}
 
@@ -112,22 +204,26 @@ export class GitHubServer {
 
 	public async manuallyProvideToken() {
 		const uriOrToken = await vscode.window.showInputBox({ prompt: 'Token', ignoreFocusOut: true });
-		if (!uriOrToken) { return; }
+		if (!uriOrToken) {
+			this._onDidManuallyProvideToken.fire(undefined);
+			return;
+		}
+
 		try {
-			const uri = vscode.Uri.parse(uriOrToken);
+			const uri = vscode.Uri.parse(uriOrToken.trim());
 			if (!uri.scheme || uri.scheme === 'file') { throw new Error; }
 			uriHandler.handleUri(uri);
 		} catch (e) {
 			// If it doesn't look like a URI, treat it as a token.
 			Logger.info('Treating input as token');
-			onDidManuallyProvideToken.fire(uriOrToken);
+			this._onDidManuallyProvideToken.fire(uriOrToken);
 		}
 	}
 
-	public async getUserInfo(token: string): Promise<{ id: string, accountName: string }> {
+	private async getScopes(token: string): Promise<string[]> {
 		try {
-			Logger.info('Getting user info...');
-			const result = await fetch('https://api.github.com/user', {
+			Logger.info('Getting token scopes...');
+			const result = await fetch(this.getServerUri('/').toString(), {
 				headers: {
 					Authorization: `token ${token}`,
 					'User-Agent': 'Visual-Studio-Code'
@@ -135,16 +231,106 @@ export class GitHubServer {
 			});
 
 			if (result.ok) {
-				const json = await result.json();
-				Logger.info('Got account info!');
-				return { id: json.id, accountName: json.login };
+				const scopes = result.headers.get('X-OAuth-Scopes');
+				return scopes ? scopes.split(',').map(scope => scope.trim()) : [];
 			} else {
-				Logger.error(`Getting account info failed: ${result.statusText}`);
+				Logger.error(`Getting scopes failed: ${result.statusText}`);
 				throw new Error(result.statusText);
 			}
 		} catch (ex) {
 			Logger.error(ex.message);
 			throw new Error(NETWORK_ERROR);
+		}
+	}
+
+	public async getUserInfo(token: string): Promise<{ id: string, accountName: string }> {
+		let result: Response;
+		try {
+			Logger.info('Getting user info...');
+			result = await fetch(this.getServerUri('/user').toString(), {
+				headers: {
+					Authorization: `token ${token}`,
+					'User-Agent': 'Visual-Studio-Code'
+				}
+			});
+		} catch (ex) {
+			Logger.error(ex.message);
+			throw new Error(NETWORK_ERROR);
+		}
+
+		if (result.ok) {
+			const json = await result.json();
+			Logger.info('Got account info!');
+			return { id: json.id, accountName: json.login };
+		} else {
+			Logger.error(`Getting account info failed: ${result.statusText}`);
+			throw new Error(result.statusText);
+		}
+	}
+
+	public async checkIsEdu(token: string): Promise<void> {
+		const nocors = await this.isNoCorsEnvironment();
+
+		if (nocors) {
+			return;
+		}
+
+		try {
+			const result = await fetch('https://education.github.com/api/user', {
+				headers: {
+					Authorization: `token ${token}`,
+					'faculty-check-preview': 'true',
+					'User-Agent': 'Visual-Studio-Code'
+				}
+			});
+
+			if (result.ok) {
+				const json: { student: boolean, faculty: boolean } = await result.json();
+
+				/* __GDPR__
+					"session" : {
+						"isEdu": { "classification": "NonIdentifiableDemographicInfo", "purpose": "FeatureInsight" }
+					}
+				*/
+				this.telemetryReporter.sendTelemetryEvent('session', {
+					isEdu: json.student
+						? 'student'
+						: json.faculty
+							? 'faculty'
+							: 'none'
+				});
+			}
+		} catch (e) {
+			// No-op
+		}
+	}
+
+	public async checkEnterpriseVersion(token: string): Promise<void> {
+		try {
+
+			const result = await fetch(this.getServerUri('/meta').toString(), {
+				headers: {
+					Authorization: `token ${token}`,
+					'User-Agent': 'Visual-Studio-Code'
+				}
+			});
+
+			if (!result.ok) {
+				return;
+			}
+
+			const json: { verifiable_password_authentication: boolean, installed_version: string } = await result.json();
+
+			/* __GDPR__
+				"ghe-session" : {
+					"version": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
+			this.telemetryReporter.sendTelemetryEvent('ghe-session', {
+				version: json.installed_version
+			});
+		} catch {
+			// No-op
 		}
 	}
 }

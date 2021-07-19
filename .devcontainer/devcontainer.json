@@ -1,45 +1,40 @@
 {
 	"name": "Code - OSS",
-	"build": {
-		"dockerfile": "Dockerfile",
-		"args": {
-			"MAX_VNC_RESOLUTION": "1920x1080x16",
-			"TARGET_VNC_RESOLUTION": "1280x768",
-			"TARGET_VNC_PORT": "5901",
-			"TARGET_NOVNC_PORT": "6080",
-			"VNC_PASSWORD": "vscode",
-			"INSTALL_FIREFOX": "true"
-		}
-	},
+
+	// Image contents: https://github.com/microsoft/vscode-dev-containers/blob/master/repository-containers/images/github.com/microsoft/vscode/.devcontainer/base.Dockerfile
+	"image": "mcr.microsoft.com/vscode/devcontainers/repos/microsoft/vscode:branch-main",
 	"overrideCommand": false,
-	"runArgs": [
-		"--init",
-		// seccomp=unconfined is required for Chrome sandboxing
-		"--security-opt", "seccomp=unconfined"
-	],
+	"runArgs": [ "--init", "--security-opt", "seccomp=unconfined"],
 
 	"settings": {
-		// zsh is also available
-		"terminal.integrated.shell.linux": "/bin/bash",
 		"resmon.show.battery": false,
-		"resmon.show.cpufreq": false,
-		"remote.extensionKind": {
-			"ms-vscode.js-debug-nightly": "workspace",
-			"msjsdiag.debugger-for-chrome": "workspace"
-		},
-		"debug.chrome.useV3": true
+		"resmon.show.cpufreq": false
 	},
 
-	// noVNC, VNC ports
+	// noVNC, VNC
 	"forwardPorts": [6080, 5901],
+	"portsAttributes": {
+		"6080": {
+			"label": "VNC web client (noVNC)",
+			"onAutoForward": "silent"
+		},
+		"5901": {
+			"label": "VNC TCP port",
+			"onAutoForward": "silent"
+		}
+	},
 
 	"extensions": [
 		"dbaeumer.vscode-eslint",
-		"EditorConfig.EditorConfig",
-		"msjsdiag.debugger-for-chrome",
-		"mutantdino.resourcemonitor",
-		"GitHub.vscode-pull-request-github"
+		"mutantdino.resourcemonitor"
 	],
 
-	"remoteUser": "node"
+	// Optionally loads a cached yarn install for the repo
+	"postCreateCommand": ".devcontainer/cache/restore-diff.sh",
+
+	"remoteUser": "node",
+
+	"hostRequirements": {
+		"memory": "6gb"
+	}
 }

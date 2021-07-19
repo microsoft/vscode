@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -12,12 +12,16 @@ import { IPosition } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
-import { EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellEditState, CellFocusMode, CursorAtBoundary, CellViewModelStateChangeEvent, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, INotebookSearchOptions, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
+import { Mimes } from 'vs/base/common/mime';
 
 export abstract class BaseCellViewModel extends Disposable {
+
 	protected readonly _onDidChangeEditorAttachState = new Emitter<void>();
 	// Do not merge this event with `onDidChangeState` as we are using `Event.once(onDidChangeEditorAttachState)` elsewhere.
 	readonly onDidChangeEditorAttachState = this._onDidChangeEditorAttachState.event;
@@ -36,28 +40,59 @@ export abstract class BaseCellViewModel extends Disposable {
 	get metadata() {
 		return this.model.metadata;
 	}
+	get internalMetadata() {
+		return this.model.internalMetadata;
+	}
 	get language() {
 		return this.model.language;
+	}
+
+	get mime(): string {
+		if (typeof this.model.mime === 'string') {
+			return this.model.mime;
+		}
+
+		switch (this.language) {
+			case 'markdown':
+				return Mimes.markdown;
+
+			default:
+				return Mimes.text;
+		}
 	}
 
 	abstract cellKind: CellKind;
 
 	private _editState: CellEditState = CellEditState.Preview;
 
-	get editState(): CellEditState {
-		return this._editState;
+	// get editState(): CellEditState {
+	// 	return this._editState;
+	// }
+
+	// set editState(newState: CellEditState) {
+	// 	if (newState === this._editState) {
+	// 		return;
+	// 	}
+
+	// 	this._editState = newState;
+	// 	this._onDidChangeState.fire({ editStateChanged: true });
+	// 	if (this._editState === CellEditState.Preview) {
+	// 		this.focusMode = CellFocusMode.Container;
+	// 	}
+	// }
+
+	private _lineNumbers: 'on' | 'off' | 'inherit' = 'inherit';
+	get lineNumbers(): 'on' | 'off' | 'inherit' {
+		return this._lineNumbers;
 	}
 
-	set editState(newState: CellEditState) {
-		if (newState === this._editState) {
+	set lineNumbers(lineNumbers: 'on' | 'off' | 'inherit') {
+		if (lineNumbers === this._lineNumbers) {
 			return;
 		}
 
-		this._editState = newState;
-		this._onDidChangeState.fire({ editStateChanged: true });
-		if (this._editState === CellEditState.Preview) {
-			this.focusMode = CellFocusMode.Container;
-		}
+		this._lineNumbers = lineNumbers;
+		this._onDidChangeState.fire({ cellLineNumberChanged: true });
 	}
 
 	private _focusMode: CellFocusMode = CellFocusMode.Container;
@@ -84,17 +119,17 @@ export abstract class BaseCellViewModel extends Disposable {
 	}>();
 	private _lastDecorationId: number = 0;
 
-	private _textModel: model.ITextModel | undefined = undefined;
-	get textModel(): model.ITextModel | undefined {
-		return this._textModel;
-	}
+	private _cellStatusBarItems = new Map<string, INotebookCellStatusBarItem>();
+	private _onDidChangeCellStatusBarItems = new Emitter<void>();
+	readonly onDidChangeCellStatusBarItems: Event<void> = this._onDidChangeCellStatusBarItems.event;
+	private _lastStatusBarId: number = 0;
 
-	set textModel(m: model.ITextModel | undefined) {
-		this._textModel = m;
+	get textModel(): model.ITextModel | undefined {
+		return this.model.textModel;
 	}
 
 	hasModel(): this is IEditableCellViewModel {
-		return !!this._textModel;
+		return !!this.textModel;
 	}
 
 	private _dragging: boolean = false;
@@ -106,22 +141,43 @@ export abstract class BaseCellViewModel extends Disposable {
 		this._dragging = v;
 	}
 
-	constructor(readonly viewType: string, readonly model: NotebookCellTextModel, public id: string) {
-		super();
+	protected _textModelRef: IReference<IResolvedTextEditorModel> | undefined;
 
-		this._register(model.onDidChangeLanguage(() => {
-			this._onDidChangeState.fire({ languageChanged: true });
-		}));
+	constructor(
+		readonly viewType: string,
+		readonly model: NotebookCellTextModel,
+		public id: string,
+		private readonly _viewContext: ViewContext,
+		private readonly _configurationService: IConfigurationService,
+		private readonly _modelService: ITextModelService,
+	) {
+		super();
 
 		this._register(model.onDidChangeMetadata(() => {
 			this._onDidChangeState.fire({ metadataChanged: true });
 		}));
+
+		this._register(model.onDidChangeInternalMetadata(e => {
+			this._onDidChangeState.fire({ internalMetadataChanged: true, runStateChanged: e.runStateChanged });
+			if (e.runStateChanged || e.lastRunSuccessChanged) {
+				// Statusbar visibility may change
+				this.layoutChange({});
+			}
+		}));
+
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('notebook.lineNumbers')) {
+				this.lineNumbers = 'inherit';
+			}
+		}));
 	}
 
-	// abstract resolveTextModel(): Promise<model.ITextModel>;
+
+
 	abstract hasDynamicHeight(): boolean;
 	abstract getHeight(lineHeight: number): number;
 	abstract onDeselect(): void;
+	abstract layoutChange(change: any): void;
 
 	assertTextModelAttached(): boolean {
 		if (this.textModel && this._textEditor && this._textEditor.getModel() === this.textModel) {
@@ -145,7 +201,6 @@ export abstract class BaseCellViewModel extends Disposable {
 		}
 
 		this._textEditor = editor;
-		this.textModel = this._textEditor.getModel() || undefined;
 
 		if (this._editorViewStates) {
 			this._restoreViewState(this._editorViewStates);
@@ -180,10 +235,14 @@ export abstract class BaseCellViewModel extends Disposable {
 		});
 
 		this._textEditor = undefined;
-		this.textModel = undefined;
 		this._cursorChangeListener?.dispose();
 		this._cursorChangeListener = null;
 		this._onDidChangeEditorAttachState.fire();
+
+		if (this._textModelRef) {
+			this._textModelRef.dispose();
+			this._textModelRef = undefined;
+		}
 	}
 
 	getText(): string {
@@ -277,6 +336,15 @@ export abstract class BaseCellViewModel extends Disposable {
 		return [...this._resolvedCellDecorations.values()];
 	}
 
+	getCellDecorationRange(decorationId: string): Range | null {
+		if (this._textEditor) {
+			// (this._textEditor as CodeEditorWidget).decora
+			return this._textEditor.getModel()?.getDecorationRange(decorationId) ?? null;
+		}
+
+		return null;
+	}
+
 	deltaCellDecorations(oldDecorations: string[], newDecorations: INotebookCellDecorationOptions[]): string[] {
 		oldDecorations.forEach(id => {
 			this._removeCellDecoration(id);
@@ -287,6 +355,30 @@ export abstract class BaseCellViewModel extends Disposable {
 		});
 
 		return ret;
+	}
+
+	deltaCellStatusBarItems(oldItems: string[], newItems: INotebookCellStatusBarItem[]): string[] {
+		oldItems.forEach(id => {
+			const item = this._cellStatusBarItems.get(id);
+			if (item) {
+				this._cellStatusBarItems.delete(id);
+			}
+		});
+
+		const newIds = newItems.map(item => {
+			const id = ++this._lastStatusBarId;
+			const itemId = `_cell_${this.id};${id}`;
+			this._cellStatusBarItems.set(itemId, item);
+			return itemId;
+		});
+
+		this._onDidChangeCellStatusBarItems.fire();
+
+		return newIds;
+	}
+
+	getCellStatusBarItems(): INotebookCellStatusBarItem[] {
+		return Array.from(this._cellStatusBarItems.values());
 	}
 
 	revealRangeInCenter(range: Range) {
@@ -322,7 +414,8 @@ export abstract class BaseCellViewModel extends Disposable {
 			return 0;
 		}
 
-		return this._textEditor.getTopForLineNumber(line) + EDITOR_TOP_PADDING;
+		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding(this.internalMetadata);
+		return this._textEditor.getTopForLineNumber(line) + editorPadding.top;
 	}
 
 	getPositionScrollTopOffset(line: number, column: number): number {
@@ -330,7 +423,8 @@ export abstract class BaseCellViewModel extends Disposable {
 			return 0;
 		}
 
-		return this._textEditor.getTopForPosition(line, column) + EDITOR_TOP_PADDING;
+		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding(this.internalMetadata);
+		return this._textEditor.getTopForPosition(line, column) + editorPadding.top;
 	}
 
 	cursorAtBoundary(): CursorAtBoundary {
@@ -369,11 +463,50 @@ export abstract class BaseCellViewModel extends Disposable {
 		}
 	}
 
+	private _editStateSource: string = '';
+
+	get editStateSource(): string {
+		return this._editStateSource;
+	}
+
+	updateEditState(newState: CellEditState, source: string) {
+		this._editStateSource = source;
+		if (newState === this._editState) {
+			return;
+		}
+
+		this._editState = newState;
+		this._onDidChangeState.fire({ editStateChanged: true });
+		if (this._editState === CellEditState.Preview) {
+			this.focusMode = CellFocusMode.Container;
+		}
+	}
+
+	getEditState() {
+		return this._editState;
+	}
+
 	get textBuffer() {
 		return this.model.textBuffer;
 	}
 
-	abstract resolveTextModel(): Promise<model.ITextModel>;
+	/**
+	 * Text model is used for editing.
+	 */
+	async resolveTextModel(): Promise<model.ITextModel> {
+		if (!this._textModelRef || !this.textModel) {
+			this._textModelRef = await this._modelService.createModelReference(this.uri);
+			if (!this._textModelRef) {
+				throw new Error(`Cannot resolve text model for ${this.uri}`);
+			}
+
+			this._register(this.textModel!.onDidChangeContent(() => this.onDidChangeTextModelContent()));
+		}
+
+		return this.textModel!;
+	}
+
+	protected abstract onDidChangeTextModelContent(): void;
 
 	protected cellStartFind(value: string, options: INotebookSearchOptions): model.FindMatch[] | null {
 		let cellMatches: model.FindMatch[] = [];
@@ -402,28 +535,12 @@ export abstract class BaseCellViewModel extends Disposable {
 		return cellMatches;
 	}
 
-	getEvaluatedMetadata(documentMetadata: NotebookDocumentMetadata): NotebookCellMetadata {
-		const editable = this.metadata?.editable ??
-			documentMetadata.cellEditable;
-
-		const runnable = this.metadata?.runnable ??
-			documentMetadata.cellRunnable;
-
-		const hasExecutionOrder = this.metadata?.hasExecutionOrder ??
-			documentMetadata.cellHasExecutionOrder;
-
-		return {
-			...(this.metadata || {}),
-			...{
-				editable,
-				runnable,
-				hasExecutionOrder
-			}
-		};
-	}
-
-	dispose() {
+	override dispose() {
 		super.dispose();
+
+		if (this._textModelRef) {
+			this._textModelRef.dispose();
+		}
 	}
 
 	toJSON(): object {

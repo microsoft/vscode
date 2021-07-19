@@ -10,13 +10,13 @@ import { IExtensionHostProfile, ProfileSession, IExtensionService } from 'vs/wor
 import { Disposable, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
-import { IExtensionHostProfileService, ProfileSessionState } from 'vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsEditor';
+import { IExtensionHostProfileService, ProfileSessionState } from 'vs/workbench/contrib/extensions/electron-sandbox/runtimeExtensionsEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { randomPort } from 'vs/base/node/ports';
+import { randomPort } from 'vs/base/common/ports';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsInput';
+import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -46,7 +46,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IElectronService private readonly _electronService: IElectronService,
+		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
 		@IProductService private readonly _productService: IProductService
@@ -56,9 +56,9 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 		this._profileSession = null;
 		this._setState(ProfileSessionState.None);
 
-		CommandsRegistry.registerCommand('workbench.action.extensionHostProfilder.stop', () => {
+		CommandsRegistry.registerCommand('workbench.action.extensionHostProfiler.stop', () => {
 			this.stopProfiling();
-			this._editorService.openEditor(RuntimeExtensionsInput.instance, { revealIfOpened: true });
+			this._editorService.openEditor(RuntimeExtensionsInput.instance, { revealIfOpened: true, pinned: true });
 		});
 	}
 
@@ -82,22 +82,24 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 
 		if (visible) {
 			const indicator: IStatusbarEntry = {
-				text: '$(sync~spin) ' + nls.localize('profilingExtensionHost', "Profiling Extension Host"),
+				name: nls.localize('status.profiler', "Extension Profiler"),
+				text: nls.localize('profilingExtensionHost', "Profiling Extension Host"),
+				showProgress: true,
 				ariaLabel: nls.localize('profilingExtensionHost', "Profiling Extension Host"),
 				tooltip: nls.localize('selectAndStartDebug', "Click to stop profiling."),
-				command: 'workbench.action.extensionHostProfilder.stop'
+				command: 'workbench.action.extensionHostProfiler.stop'
 			};
 
 			const timeStarted = Date.now();
 			const handle = setInterval(() => {
 				if (this.profilingStatusBarIndicator) {
-					this.profilingStatusBarIndicator.update({ ...indicator, text: '$(sync~spin) ' + nls.localize('profilingExtensionHostTime', "Profiling Extension Host ({0} sec)", Math.round((new Date().getTime() - timeStarted) / 1000)), });
+					this.profilingStatusBarIndicator.update({ ...indicator, text: nls.localize('profilingExtensionHostTime', "Profiling Extension Host ({0} sec)", Math.round((new Date().getTime() - timeStarted) / 1000)), });
 				}
 			}, 1000);
 			this.profilingStatusBarIndicatorLabelUpdater.value = toDisposable(() => clearInterval(handle));
 
 			if (!this.profilingStatusBarIndicator) {
-				this.profilingStatusBarIndicator = this._statusbarService.addEntry(indicator, 'status.profiler', nls.localize('status.profiler', "Extension Profiler"), StatusbarAlignment.RIGHT);
+				this.profilingStatusBarIndicator = this._statusbarService.addEntry(indicator, 'status.profiler', StatusbarAlignment.RIGHT);
 			} else {
 				this.profilingStatusBarIndicator.update(indicator);
 			}
@@ -120,11 +122,11 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 				type: 'info',
 				message: nls.localize('restart1', "Profile Extensions"),
 				detail: nls.localize('restart2', "In order to profile extensions a restart is required. Do you want to restart '{0}' now?", this._productService.nameLong),
-				primaryButton: nls.localize('restart3', "Restart"),
-				secondaryButton: nls.localize('cancel', "Cancel")
+				primaryButton: nls.localize('restart3', "&&Restart"),
+				secondaryButton: nls.localize('cancel', "&&Cancel")
 			}).then(res => {
 				if (res.confirmed) {
-					this._electronService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });
+					this._nativeHostService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });
 				}
 			});
 		}

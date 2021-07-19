@@ -5,7 +5,7 @@
 
 /* --------------------------------------------------------------------------------------------
  * Includes code from typescript-sublime-plugin project, obtained from
- * https://github.com/Microsoft/TypeScript-Sublime-Plugin/blob/master/TypeScript%20Indent.tmPreferences
+ * https://github.com/microsoft/TypeScript-Sublime-Plugin/blob/master/TypeScript%20Indent.tmPreferences
  * ------------------------------------------------------------------------------------------ */
 
 import * as vscode from 'vscode';
@@ -29,12 +29,9 @@ import { PluginManager } from './utils/plugins';
 import * as typeConverters from './utils/typeConverters';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 import * as ProjectStatus from './utils/largeProjectStatus';
-
-namespace Experimental {
-	export interface Diagnostic extends Proto.Diagnostic {
-		readonly reportsDeprecated?: {}
-	}
-}
+import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
+import { LogLevelMonitor } from './utils/logLevelMonitor';
+import { ServiceConfigurationProvider } from './utils/configuration';
 
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = new Set([
@@ -63,7 +60,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 
 	constructor(
 		descriptions: LanguageDescription[],
-		workspaceState: vscode.Memento,
+		context: vscode.ExtensionContext,
 		onCaseInsenitiveFileSystem: boolean,
 		services: {
 			pluginManager: PluginManager,
@@ -72,6 +69,8 @@ export default class TypeScriptServiceClientHost extends Disposable {
 			cancellerFactory: OngoingRequestCancellerFactory,
 			versionProvider: ITypeScriptVersionProvider,
 			processFactory: TsServerProcessFactory,
+			activeJsTsEditorTracker: ActiveJsTsEditorTracker,
+			serviceConfigurationProvider: ServiceConfigurationProvider,
 		},
 		onCompletionAccepted: (item: vscode.CompletionItem) => void,
 	) {
@@ -81,7 +80,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 
 		const allModeIds = this.getAllModeIds(descriptions, services.pluginManager);
 		this.client = this._register(new TypeScriptServiceClient(
-			workspaceState,
+			context,
 			onCaseInsenitiveFileSystem,
 			services,
 			allModeIds));
@@ -93,7 +92,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		this.client.onConfigDiagnosticsReceived(diag => this.configFileDiagnosticsReceived(diag), null, this._disposables);
 		this.client.onResendModelsRequested(() => this.populateService(), null, this._disposables);
 
-		this._register(new VersionStatus(this.client, services.commandManager));
+		this._register(new VersionStatus(this.client, services.commandManager, services.activeJsTsEditorTracker));
 		this._register(new AtaProgressReporter(this.client));
 		this.typingsStatus = this._register(new TypingsStatus(this.client));
 		this._register(ProjectStatus.create(this.client));
@@ -151,6 +150,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 
 		vscode.workspace.onDidChangeConfiguration(this.configurationChanged, this, this._disposables);
 		this.configurationChanged();
+		this._register(new LogLevelMonitor(context));
 	}
 
 	private registerExtensionLanguageProvider(description: LanguageDescription, onCompletionAccepted: (item: vscode.CompletionItem) => void) {
@@ -229,7 +229,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 	}
 
 	private configFileDiagnosticsReceived(event: Proto.ConfigFileDiagnosticEvent): void {
-		// See https://github.com/Microsoft/TypeScript/issues/10384
+		// See https://github.com/microsoft/TypeScript/issues/10384
 		const body = event.body;
 		if (!body || !body.diagnostics || !body.configFile) {
 			return;
@@ -256,7 +256,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		return diagnostics.map(tsDiag => this.tsDiagnosticToVsDiagnostic(tsDiag, source));
 	}
 
-	private tsDiagnosticToVsDiagnostic(diagnostic: Experimental.Diagnostic, source: string): vscode.Diagnostic & { reportUnnecessary: any, reportDeprecated: any } {
+	private tsDiagnosticToVsDiagnostic(diagnostic: Proto.Diagnostic, source: string): vscode.Diagnostic & { reportUnnecessary: any, reportDeprecated: any } {
 		const { start, end, text } = diagnostic;
 		const range = new vscode.Range(typeConverters.Position.fromLocation(start), typeConverters.Position.fromLocation(end));
 		const converted = new vscode.Diagnostic(range, text, this.getDiagnosticSeverity(diagnostic));

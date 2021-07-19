@@ -8,20 +8,20 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultStyleController, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ITreeElement, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Iterable } from 'vs/base/common/iterator';
+import { localize } from 'vs/nls';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { editorBackground, transparent, foreground } from 'vs/platform/theme/common/colorRegistry';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IListService, IWorkbenchObjectTreeOptions, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
+import { editorBackground, focusBorder, foreground, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { SettingsTreeFilter } from 'vs/workbench/contrib/preferences/browser/settingsTree';
 import { ISettingsEditorViewState, SearchResultModel, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { settingsHeaderForeground } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
-import { localize } from 'vs/nls';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IListService, IWorkbenchObjectTreeOptions, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 const $ = DOM.$;
 
@@ -89,8 +89,12 @@ export class TOCTreeModel {
 			}
 
 			// Check everything that the SettingsFilter checks except whether it's filtered by a category
-			const isRemote = !!this.environmentService.configuration.remoteAuthority;
-			return child.matchesScope(this._viewState.settingsTarget, isRemote) && child.matchesAllTags(this._viewState.tagFilters) && child.matchesAnyExtension(this._viewState.extensionFilters);
+			const isRemote = !!this.environmentService.remoteAuthority;
+			return child.matchesScope(this._viewState.settingsTarget, isRemote) &&
+				child.matchesAllTags(this._viewState.tagFilters) &&
+				child.matchesAnyFeature(this._viewState.featureFilters) &&
+				child.matchesAnyExtension(this._viewState.extensionFilters) &&
+				child.matchesAnyId(this._viewState.idFilters);
 		}).length;
 	}
 }
@@ -216,7 +220,9 @@ export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
 			},
 			styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
 			accessibilityProvider: instantiationService.createInstance(SettingsAccessibilityProvider),
-			collapseByDefault: true
+			collapseByDefault: true,
+			horizontalScrolling: false,
+			hideTwistiesOfChildlessElements: true
 		};
 
 		super(
@@ -235,6 +241,7 @@ export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
 
 		this.disposables.add(attachStyler(themeService, {
 			listBackground: editorBackground,
+			listFocusOutline: focusBorder,
 			listActiveSelectionBackground: editorBackground,
 			listActiveSelectionForeground: settingsHeaderForeground,
 			listFocusAndSelectionBackground: editorBackground,

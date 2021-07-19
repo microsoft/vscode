@@ -9,10 +9,10 @@ import { ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/s
 import { ARROW_IMG_SIZE } from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
 import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
 import { INewScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import { Codicon, registerCodicon } from 'vs/base/common/codicons';
 
-const scrollbarButtonUpIcon = registerIcon('scrollbar-button-up', Codicon.triangleUp);
-const scrollbarButtonDownIcon = registerIcon('scrollbar-button-down', Codicon.triangleDown);
+const scrollbarButtonUpIcon = registerCodicon('scrollbar-button-up', Codicon.triangleUp);
+const scrollbarButtonDownIcon = registerCodicon('scrollbar-button-down', Codicon.triangleDown);
 
 export class VerticalScrollbar extends AbstractScrollbar {
 
@@ -33,12 +33,13 @@ export class VerticalScrollbar extends AbstractScrollbar {
 			),
 			visibility: options.vertical,
 			extraScrollbarClassName: 'vertical',
-			scrollable: scrollable
+			scrollable: scrollable,
+			scrollByPage: options.scrollByPage
 		});
 
 		if (options.verticalHasArrows) {
-			let arrowDelta = (options.arrowSize - ARROW_IMG_SIZE) / 2;
-			let scrollbarDelta = (options.verticalScrollbarSize - ARROW_IMG_SIZE) / 2;
+			const arrowDelta = (options.arrowSize - ARROW_IMG_SIZE) / 2;
+			const scrollbarDelta = (options.verticalScrollbarSize - ARROW_IMG_SIZE) / 2;
 
 			this._createArrow({
 				className: 'scra',
@@ -106,4 +107,13 @@ export class VerticalScrollbar extends AbstractScrollbar {
 	public writeScrollPosition(target: INewScrollPosition, scrollPosition: number): void {
 		target.scrollTop = scrollPosition;
 	}
+
+	public updateOptions(options: ScrollableElementResolvedOptions): void {
+		this.updateScrollbarSize(options.vertical === ScrollbarVisibility.Hidden ? 0 : options.verticalScrollbarSize);
+		// give priority to vertical scroll bar over horizontal and let it scroll all the way to the bottom
+		this._scrollbarState.setOppositeScrollbarSize(0);
+		this._visibilityController.setVisibility(options.vertical);
+		this._scrollByPage = options.scrollByPage;
+	}
+
 }

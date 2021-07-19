@@ -69,10 +69,15 @@ export abstract class BaseResolvedKeybinding<T extends Modifiers> extends Resolv
 		return this._parts.map((keybinding) => this._getDispatchPart(keybinding));
 	}
 
+	public getSingleModifierDispatchParts(): (string | null)[] {
+		return this._parts.map((keybinding) => this._getSingleModifierDispatchPart(keybinding));
+	}
+
 	protected abstract _getLabel(keybinding: T): string | null;
 	protected abstract _getAriaLabel(keybinding: T): string | null;
 	protected abstract _getElectronAccelerator(keybinding: T): string | null;
 	protected abstract _getUserSettingsLabel(keybinding: T): string | null;
 	protected abstract _isWYSIWYG(keybinding: T): boolean;
 	protected abstract _getDispatchPart(keybinding: T): string | null;
+	protected abstract _getSingleModifierDispatchPart(keybinding: T): string | null;
 }

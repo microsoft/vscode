@@ -6,95 +6,7 @@
 import * as minimist from 'minimist';
 import { localize } from 'vs/nls';
 import { isWindows } from 'vs/base/common/platform';
-
-export interface ParsedArgs {
-	_: string[];
-	'folder-uri'?: string[]; // undefined or array of 1 or more
-	'file-uri'?: string[]; // undefined or array of 1 or more
-	_urls?: string[];
-	help?: boolean;
-	version?: boolean;
-	telemetry?: boolean;
-	status?: boolean;
-	wait?: boolean;
-	waitMarkerFilePath?: string;
-	diff?: boolean;
-	add?: boolean;
-	goto?: boolean;
-	'new-window'?: boolean;
-	'unity-launch'?: boolean; // Always open a new window, except if opening the first window or opening a file or folder as part of the launch.
-	'reuse-window'?: boolean;
-	locale?: string;
-	'user-data-dir'?: string;
-	'prof-startup'?: boolean;
-	'prof-startup-prefix'?: string;
-	'prof-append-timers'?: string;
-	verbose?: boolean;
-	trace?: boolean;
-	'trace-category-filter'?: string;
-	'trace-options'?: string;
-	'open-devtools'?: boolean;
-	log?: string;
-	logExtensionHostCommunication?: boolean;
-	'extensions-dir'?: string;
-	'extensions-download-dir'?: string;
-	'builtin-extensions-dir'?: string;
-	extensionDevelopmentPath?: string[]; // // undefined or array of 1 or more local paths or URIs
-	extensionTestsPath?: string; // either a local path or a URI
-	'inspect-extensions'?: string;
-	'inspect-brk-extensions'?: string;
-	debugId?: string;
-	'inspect-search'?: string;
-	'inspect-brk-search'?: string;
-	'disable-extensions'?: boolean;
-	'disable-extension'?: string[]; // undefined or array of 1 or more
-	'list-extensions'?: boolean;
-	'show-versions'?: boolean;
-	'category'?: string;
-	'install-extension'?: string[]; // undefined or array of 1 or more
-	'uninstall-extension'?: string[]; // undefined or array of 1 or more
-	'locate-extension'?: string[]; // undefined or array of 1 or more
-	'enable-proposed-api'?: string[]; // undefined or array of 1 or more
-	'open-url'?: boolean;
-	'skip-release-notes'?: boolean;
-	'disable-restore-windows'?: boolean;
-	'disable-telemetry'?: boolean;
-	'export-default-configuration'?: string;
-	'install-source'?: string;
-	'disable-updates'?: boolean;
-	'disable-crash-reporter'?: boolean;
-	'crash-reporter-directory'?: string;
-	'crash-reporter-id'?: string;
-	'skip-add-to-recently-opened'?: boolean;
-	'max-memory'?: string;
-	'file-write'?: boolean;
-	'file-chmod'?: boolean;
-	'driver'?: string;
-	'driver-verbose'?: boolean;
-	'remote'?: string;
-	'disable-user-env-probe'?: boolean;
-	'force'?: boolean;
-	'do-not-sync'?: boolean;
-	'force-user-env'?: boolean;
-	'sync'?: 'on' | 'off';
-	'__sandbox'?: boolean;
-
-	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
-	'no-proxy-server'?: boolean;
-	'proxy-server'?: string;
-	'proxy-bypass-list'?: string;
-	'proxy-pac-url'?: string;
-	'inspect'?: string;
-	'inspect-brk'?: string;
-	'js-flags'?: string;
-	'disable-gpu'?: boolean;
-	'nolazy'?: boolean;
-	'force-device-scale-factor'?: string;
-	'force-renderer-accessibility'?: boolean;
-	'ignore-certificate-errors'?: boolean;
-	'allow-insecure-localhost'?: boolean;
-	'log-net-log'?: string;
-}
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 
 /**
  * This code is also used by standalone cli's. Avoid adding any other dependencies.
@@ -125,14 +37,12 @@ type OptionTypeName<T> =
 	T extends undefined ? 'undefined' :
 	'unknown';
 
-export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
+export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'diff': { type: 'boolean', cat: 'o', alias: 'd', args: ['file', 'file'], description: localize('diff', "Compare two files with each other.") },
 	'add': { type: 'boolean', cat: 'o', alias: 'a', args: 'folder', description: localize('add', "Add folder(s) to the last active window.") },
 	'goto': { type: 'boolean', cat: 'o', alias: 'g', args: 'file:line[:character]', description: localize('goto', "Open a file at the path on the specified line and character position.") },
 	'new-window': { type: 'boolean', cat: 'o', alias: 'n', description: localize('newWindow', "Force to open a new window.") },
 	'reuse-window': { type: 'boolean', cat: 'o', alias: 'r', description: localize('reuseWindow', "Force to open a file or folder in an already opened window.") },
-	'folder-uri': { type: 'string[]', cat: 'o', args: 'uri', description: localize('folderUri', "Opens a window with given folder uri(s)") },
-	'file-uri': { type: 'string[]', cat: 'o', args: 'uri', description: localize('fileUri', "Opens a window with given file uri(s)") },
 	'wait': { type: 'boolean', cat: 'o', alias: 'w', description: localize('wait', "Wait for the files to be closed before returning.") },
 	'waitMarkerFilePath': { type: 'string' },
 	'locale': { type: 'string', cat: 'o', args: 'locale', description: localize('locale', "The locale to use (e.g. en-US or zh-TW).") },
@@ -143,9 +53,9 @@ export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
 	'extensions-download-dir': { type: 'string' },
 	'builtin-extensions-dir': { type: 'string' },
 	'list-extensions': { type: 'boolean', cat: 'e', description: localize('listExtensions', "List the installed extensions.") },
-	'show-versions': { type: 'boolean', cat: 'e', description: localize('showVersions', "Show versions of installed extensions, when using --list-extension.") },
-	'category': { type: 'string', cat: 'e', description: localize('category', "Filters installed extensions by provided category, when using --list-extension.") },
-	'install-extension': { type: 'string[]', cat: 'e', args: 'extension-id[@version] | path-to-vsix', description: localize('installExtension', "Installs or updates the extension. Use `--force` argument to avoid prompts. The identifier of an extension is always `${publisher}.${name}`. To install a specific version provide `@${version}`. For example: 'vscode.csharp@1.2.3'.") },
+	'show-versions': { type: 'boolean', cat: 'e', description: localize('showVersions', "Show versions of installed extensions, when using --list-extensions.") },
+	'category': { type: 'string', cat: 'e', description: localize('category', "Filters installed extensions by provided category, when using --list-extensions."), args: 'category' },
+	'install-extension': { type: 'string[]', cat: 'e', args: 'extension-id[@version] | path-to-vsix', description: localize('installExtension', "Installs or updates the extension. The identifier of an extension is always `${publisher}.${name}`. Use `--force` argument to update to latest version. To install a specific version provide `@${version}`. For example: 'vscode.csharp@1.2.3'.") },
 	'uninstall-extension': { type: 'string[]', cat: 'e', args: 'extension-id', description: localize('uninstallExtension', "Uninstalls an extension.") },
 	'enable-proposed-api': { type: 'string[]', cat: 'e', args: 'extension-id', description: localize('experimentalApis', "Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually.") },
 
@@ -153,24 +63,31 @@ export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
 	'verbose': { type: 'boolean', cat: 't', description: localize('verbose', "Print verbose output (implies --wait).") },
 	'log': { type: 'string', cat: 't', args: 'level', description: localize('log', "Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.") },
 	'status': { type: 'boolean', alias: 's', cat: 't', description: localize('status', "Print process usage and diagnostics information.") },
-	'prof-startup': { type: 'boolean', cat: 't', description: localize('prof-startup', "Run CPU profiler during startup") },
+	'prof-startup': { type: 'boolean', cat: 't', description: localize('prof-startup', "Run CPU profiler during startup.") },
 	'prof-append-timers': { type: 'string' },
+	'no-cached-data': { type: 'boolean' },
 	'prof-startup-prefix': { type: 'string' },
+	'prof-v8-extensions': { type: 'boolean' },
 	'disable-extensions': { type: 'boolean', deprecates: 'disableExtensions', cat: 't', description: localize('disableExtensions', "Disable all installed extensions.") },
 	'disable-extension': { type: 'string[]', cat: 't', args: 'extension-id', description: localize('disableExtension', "Disable an extension.") },
-	'sync': { type: 'string', cat: 't', description: localize('turn sync', "Turn sync on or off"), args: ['on', 'off'] },
+	'sync': { type: 'string', cat: 't', description: localize('turn sync', "Turn sync on or off."), args: ['on', 'off'] },
 
 	'inspect-extensions': { type: 'string', deprecates: 'debugPluginHost', args: 'port', cat: 't', description: localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection URI.") },
 	'inspect-brk-extensions': { type: 'string', deprecates: 'debugBrkPluginHost', args: 'port', cat: 't', description: localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection URI.") },
 	'disable-gpu': { type: 'boolean', cat: 't', description: localize('disableGPU', "Disable GPU hardware acceleration.") },
-	'max-memory': { type: 'string', cat: 't', description: localize('maxMemory', "Max memory size for a window (in Mbytes).") },
+	'max-memory': { type: 'string', cat: 't', description: localize('maxMemory', "Max memory size for a window (in Mbytes)."), args: 'memory' },
 	'telemetry': { type: 'boolean', cat: 't', description: localize('telemetry', "Shows all telemetry events which VS code collects.") },
 
 	'remote': { type: 'string' },
+	'folder-uri': { type: 'string[]', cat: 'o', args: 'uri' },
+	'file-uri': { type: 'string[]', cat: 'o', args: 'uri' },
+
 	'locate-extension': { type: 'string[]' },
 	'extensionDevelopmentPath': { type: 'string[]' },
+	'extensionDevelopmentKind': { type: 'string[]' },
 	'extensionTestsPath': { type: 'string' },
 	'debugId': { type: 'string' },
+	'debugRenderer': { type: 'boolean' },
 	'inspect-search': { type: 'string', deprecates: 'debugSearch' },
 	'inspect-brk-search': { type: 'string', deprecates: 'debugBrkSearch' },
 	'export-default-configuration': { type: 'string' },
@@ -178,30 +95,40 @@ export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
 	'driver': { type: 'string' },
 	'logExtensionHostCommunication': { type: 'boolean' },
 	'skip-release-notes': { type: 'boolean' },
-	'disable-restore-windows': { type: 'boolean' },
+	'skip-welcome': { type: 'boolean' },
 	'disable-telemetry': { type: 'boolean' },
 	'disable-updates': { type: 'boolean' },
+	'disable-keytar': { type: 'boolean' },
+	'disable-workspace-trust': { type: 'boolean' },
 	'disable-crash-reporter': { type: 'boolean' },
 	'crash-reporter-directory': { type: 'string' },
 	'crash-reporter-id': { type: 'string' },
-	'disable-user-env-probe': { type: 'boolean' },
 	'skip-add-to-recently-opened': { type: 'boolean' },
 	'unity-launch': { type: 'boolean' },
 	'open-url': { type: 'boolean' },
 	'file-write': { type: 'boolean' },
 	'file-chmod': { type: 'boolean' },
 	'driver-verbose': { type: 'boolean' },
+	'install-builtin-extension': { type: 'string[]' },
 	'force': { type: 'boolean' },
 	'do-not-sync': { type: 'boolean' },
 	'trace': { type: 'boolean' },
 	'trace-category-filter': { type: 'string' },
 	'trace-options': { type: 'string' },
 	'force-user-env': { type: 'boolean' },
+	'force-disable-user-env': { type: 'boolean' },
 	'open-devtools': { type: 'boolean' },
 	'__sandbox': { type: 'boolean' },
+	'logsPath': { type: 'string' },
 
 	// chromium flags
 	'no-proxy-server': { type: 'boolean' },
+	// Minimist incorrectly parses keys that start with `--no`
+	// https://github.com/substack/minimist/blob/aeb3e27dae0412de5c0494e9563a5f10c82cc7a9/index.js#L118-L121
+	// If --no-sandbox is passed via cli wrapper it will be treated as --sandbox which is incorrect, we use
+	// the alias here to make sure --no-sandbox is always respected.
+	// For https://github.com/microsoft/vscode/issues/128279
+	'no-sandbox': { type: 'boolean', alias: 'sandbox' },
 	'proxy-server': { type: 'string' },
 	'proxy-bypass-list': { type: 'string' },
 	'proxy-pac-url': { type: 'string' },
@@ -214,6 +141,7 @@ export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
 	'ignore-certificate-errors': { type: 'boolean' },
 	'allow-insecure-localhost': { type: 'boolean' },
 	'log-net-log': { type: 'string' },
+	'vmodule': { type: 'string' },
 	'_urls': { type: 'string[]' },
 
 	_: { type: 'string[]' } // main arguments
@@ -234,10 +162,6 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 	const string: string[] = [];
 	const boolean: string[] = [];
 	for (let optionId in options) {
-		if (optionId[0] === '_') {
-			continue;
-		}
-
 		const o = options[optionId];
 		if (o.alias) {
 			alias[optionId] = o.alias;
@@ -261,8 +185,8 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 	const cleanedArgs: any = {};
 	const remainingArgs: any = parsedArgs;
 
-	// https://github.com/microsoft/vscode/issues/58177
-	cleanedArgs._ = parsedArgs._.filter(arg => String(arg).length > 0);
+	// https://github.com/microsoft/vscode/issues/58177, https://github.com/microsoft/vscode/issues/106617
+	cleanedArgs._ = parsedArgs._.map(arg => String(arg)).filter(arg => arg.length > 0);
 
 	delete remainingArgs._;
 
@@ -348,7 +272,7 @@ export function formatOptions(options: OptionDescriptions<any>, columns: number)
 }
 
 function indent(count: number): string {
-	return (<any>' ').repeat(count);
+	return ' '.repeat(count);
 }
 
 function wrapText(text: string, columns: number): string[] {
@@ -405,4 +329,3 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 export function buildVersionMessage(version: string | undefined, commit: string | undefined): string {
 	return `${version || localize('unknownVersion', "Unknown version")}\n${commit || localize('unknownCommit', "Unknown commit")}\n${process.arch}`;
 }
-

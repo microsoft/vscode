@@ -18,14 +18,22 @@
     "watch": "gulp watch-extension:npm"
   },
   "dependencies": {
+    "find-up": "^4.1.0",
+    "find-yarn-workspace-root": "^2.0.0",
     "jsonc-parser": "^2.2.1",
     "minimatch": "^3.0.4",
-    "request-light": "^0.4.0",
-    "vscode-nls": "^4.1.1"
+    "request-light": "^0.5.3",
+    "vscode-nls": "^5.0.0",
+    "which": "^2.0.2",
+    "which-pm": "^2.0.0"
   },
   "devDependencies": {
     "@types/minimatch": "^3.0.3",
-    "@types/node": "^12.11.7"
+    "@types/node": "14.x",
+    "@types/which": "^2.0.0"
+  },
+  "resolutions": {
+    "which-pm/load-yaml-file/**/argparse": "1.0.9"
   },
   "main": "./out/npmMain",
   "browser": "./dist/browser/npmBrowserMain",
@@ -36,6 +44,13 @@
     "workspaceContains:package.json",
     "onView:npm"
   ],
+  "capabilities": {
+    "virtualWorkspaces": false,
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "%workspaceTrust%"
+    }
+  },
   "contributes": {
     "languages": [
       {
@@ -56,7 +71,8 @@
         {
           "id": "npm",
           "name": "%view.name%",
-          "icon": "images/code.svg",
+          "when": "npm:showScriptExplorer",
+          "icon": "$(json)",
           "visibility": "hidden"
         }
       ]
@@ -92,6 +108,10 @@
       {
         "command": "npm.runScriptFromFolder",
         "title": "%command.runScriptFromFolder%"
+      },
+      {
+        "command": "npm.packageManager",
+        "title": "%command.packageManager"
       }
     ],
     "menus": {
@@ -122,6 +142,10 @@
         },
         {
           "command": "npm.runScriptFromFolder",
+          "when": "false"
+        },
+        {
+          "command": "npm.packageManager",
           "when": "false"
         }
       ],
@@ -209,11 +233,18 @@
           "scope": "resource",
           "type": "string",
           "enum": [
+            "auto",
             "npm",
             "yarn",
             "pnpm"
           ],
-          "default": "npm",
+          "enumDescriptions": [
+            "%config.npm.packageManager.auto%",
+            "%config.npm.packageManager.npm%",
+            "%config.npm.packageManager.yarn%",
+            "%config.npm.packageManager.pnpm%"
+          ],
+          "default": "auto",
           "description": "%config.npm.packageManager%"
         },
         "npm.exclude": {
@@ -290,5 +321,9 @@
         "when": "shellExecutionSupported"
       }
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

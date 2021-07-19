@@ -22,8 +22,8 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { ExtHostTaskBase, TaskHandleDTO, TaskDTO, CustomExecutionDTO, HandlerData } from 'vs/workbench/api/common/extHostTask';
 import { Schemas } from 'vs/base/common/network';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProcessEnvironment } from 'vs/base/common/platform';
 import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
+import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
 
 export class ExtHostTask extends ExtHostTaskBase {
 	private _variableResolver: ExtHostVariableResolverService | undefined;
@@ -36,7 +36,8 @@ export class ExtHostTask extends ExtHostTaskBase {
 		@IExtHostConfiguration configurationService: IExtHostConfiguration,
 		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService,
 		@ILogService logService: ILogService,
-		@IExtHostApiDeprecationService deprecationService: IExtHostApiDeprecationService
+		@IExtHostApiDeprecationService deprecationService: IExtHostApiDeprecationService,
+		@IExtHostEditorTabs private readonly editorTabs: IExtHostEditorTabs
 	) {
 		super(extHostRpc, initData, workspaceService, editorService, configurationService, extHostTerminalService, logService, deprecationService);
 		if (initData.remote.isRemote && initData.remote.authority) {
@@ -45,12 +46,23 @@ export class ExtHostTask extends ExtHostTaskBase {
 				authority: initData.remote.authority,
 				platform: process.platform
 			});
+		} else {
+			this.registerTaskSystem(Schemas.file, {
+				scheme: Schemas.file,
+				authority: '',
+				platform: process.platform
+			});
 		}
 		this._proxy.$registerSupportedExecutions(true, true, true);
 	}
 
 	public async executeTask(extension: IExtensionDescription, task: vscode.Task): Promise<vscode.TaskExecution> {
 		const tTask = (task as types.Task);
+
+		if (!task.execution && (tTask._id === undefined)) {
+			throw new Error('Tasks to execute must include an execution');
+		}
+
 		// We have a preserved ID. So the task didn't change.
 		if (tTask._id !== undefined) {
 			// Always get the task execution first to prevent timing issues when retrieving it later
@@ -99,7 +111,7 @@ export class ExtHostTask extends ExtHostTaskBase {
 						// The ID is calculated on the main thread task side, so, let's call into it here.
 						// We need the task id's pre-computed for custom task executions because when OnDidStartTask
 						// is invoked, we have to be able to map it back to our data.
-						taskIdPromises.push(this.addCustomExecution(taskDTO, <vscode.Task2>task, true));
+						taskIdPromises.push(this.addCustomExecution(taskDTO, task, true));
 					}
 				}
 			}
@@ -117,7 +129,7 @@ export class ExtHostTask extends ExtHostTaskBase {
 	private async getVariableResolver(workspaceFolders: vscode.WorkspaceFolder[]): Promise<ExtHostVariableResolverService> {
 		if (this._variableResolver === undefined) {
 			const configProvider = await this._configurationService.getConfigProvider();
-			this._variableResolver = new ExtHostVariableResolverService(workspaceFolders, this._editorService, configProvider, process.env as IProcessEnvironment);
+			this._variableResolver = new ExtHostVariableResolverService(workspaceFolders, this._editorService, configProvider, this.editorTabs, this.workspaceService);
 		}
 		return this._variableResolver;
 	}
@@ -143,27 +155,23 @@ export class ExtHostTask extends ExtHostTaskBase {
 			}
 		};
 		for (let variable of toResolve.variables) {
-			result.variables[variable] = resolver.resolve(ws, variable);
+			result.variables[variable] = await resolver.resolveAsync(ws, variable);
 		}
 		if (toResolve.process !== undefined) {
 			let paths: string[] | undefined = undefined;
 			if (toResolve.process.path !== undefined) {
 				paths = toResolve.process.path.split(path.delimiter);
 				for (let i = 0; i < paths.length; i++) {
-					paths[i] = resolver.resolve(ws, paths[i]);
+					paths[i] = await resolver.resolveAsync(ws, paths[i]);
 				}
 			}
 			result.process = await win32.findExecutable(
-				resolver.resolve(ws, toResolve.process.name),
-				toResolve.process.cwd !== undefined ? resolver.resolve(ws, toResolve.process.cwd) : undefined,
+				await resolver.resolveAsync(ws, toResolve.process.name),
+				toResolve.process.cwd !== undefined ? await resolver.resolveAsync(ws, toResolve.process.cwd) : undefined,
 				paths
 			);
 		}
 		return result;
-	}
-
-	public $getDefaultShellAndArgs(): Promise<{ shell: string, args: string[] | string | undefined }> {
-		return this._terminalService.$getDefaultShellAndArgs(true);
 	}
 
 	public async $jsonTasksSupported(): Promise<boolean> {

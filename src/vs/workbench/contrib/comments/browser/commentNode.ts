@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
@@ -34,6 +34,8 @@ import { CommentFormActions } from 'vs/workbench/contrib/comments/browser/commen
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
+import { Codicon } from 'vs/base/common/codicons';
+import { MarshalledId } from 'vs/base/common/marshalling';
 
 export class CommentNode extends Disposable {
 	private _domNode: HTMLElement;
@@ -156,7 +158,7 @@ export class CommentNode extends Disposable {
 						{
 							actionViewItemProvider: action => this.actionViewItemProvider(action as Action),
 							actionRunner: this.actionRunner,
-							classNames: ['toolbar-toggle-pickReactions', 'codicon', 'codicon-reactions'],
+							classNames: ['toolbar-toggle-pickReactions', ...Codicon.reactions.classNamesArray],
 							anchorAlignmentProvider: () => AnchorAlignment.RIGHT
 						}
 					);
@@ -169,7 +171,7 @@ export class CommentNode extends Disposable {
 		this.toolbar.context = {
 			thread: this.commentThread,
 			commentUniqueId: this.comment.uniqueIdInThread,
-			$mid: 9
+			$mid: MarshalledId.CommentNode
 		};
 
 		this.registerActionBarListeners(this._actionsToolbarContainer);
@@ -219,7 +221,7 @@ export class CommentNode extends Disposable {
 			let item = new ReactionActionViewItem(action);
 			return item;
 		} else if (action instanceof MenuItemAction) {
-			return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
+			return this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined);
 		} else if (action instanceof SubmenuItemAction) {
 			return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action);
 		} else {
@@ -432,7 +434,7 @@ export class CommentNode extends Disposable {
 				thread: this.commentThread,
 				commentUniqueId: this.comment.uniqueIdInThread,
 				text: text,
-				$mid: 10
+				$mid: MarshalledId.CommentThreadNode
 			});
 
 			this.removeCommentEditor();
@@ -519,9 +521,9 @@ export class CommentNode extends Disposable {
 	focus() {
 		this.domNode.focus();
 		if (!this._clearTimeout) {
-			dom.addClass(this.domNode, 'focus');
+			this.domNode.classList.add('focus');
 			this._clearTimeout = setTimeout(() => {
-				dom.removeClass(this.domNode, 'focus');
+				this.domNode.classList.remove('focus');
 			}, 3000);
 		}
 	}
@@ -535,11 +537,11 @@ function fillInActions(groups: [string, Array<MenuItemAction | SubmenuItemAction
 		}
 
 		if (isPrimaryGroup(group)) {
-			const to = Array.isArray<IAction>(target) ? target : target.primary;
+			const to = Array.isArray(target) ? target : target.primary;
 
 			to.unshift(...actions);
 		} else {
-			const to = Array.isArray<IAction>(target) ? target : target.secondary;
+			const to = Array.isArray(target) ? target : target.secondary;
 
 			if (to.length > 0) {
 				to.push(new Separator());

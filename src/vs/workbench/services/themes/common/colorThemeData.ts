@@ -10,11 +10,9 @@ import { ExtensionData, ITokenColorCustomizations, ITextMateThemingRule, IWorkbe
 import { convertSettings } from 'vs/workbench/services/themes/common/themeCompatibility';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
-import * as objects from 'vs/base/common/objects';
-import * as arrays from 'vs/base/common/arrays';
 import * as resources from 'vs/base/common/resources';
 import { Extensions as ColorRegistryExtensions, IColorRegistry, ColorIdentifier, editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ThemeType, ITokenStyle, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
+import { ITokenStyle, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { URI } from 'vs/base/common/uri';
@@ -23,8 +21,9 @@ import { TokenStyle, SemanticTokenRule, ProbeScope, getTokenClassificationRegist
 import { MatcherWithPriority, Matcher, createMatchers } from 'vs/workbench/services/themes/common/textMateScopeMatcher';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 import { CharCode } from 'vs/base/common/charCode';
-import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
+import { StorageScope, IStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ThemeConfiguration } from 'vs/workbench/services/themes/common/themeConfiguration';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 let colorRegistry = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution);
 
@@ -46,16 +45,16 @@ export type TokenStyleDefinitions = { [P in keyof TokenStyleData]?: TokenStyleDe
 
 export type TextMateThemingRuleDefinitions = { [P in keyof TokenStyleData]?: ITextMateThemingRule | undefined; } & { scope?: ProbeScope; };
 
-const PERSISTED_THEME_STORAGE_KEY = 'colorThemeData';
-
 export class ColorThemeData implements IWorkbenchColorTheme {
+
+	static readonly STORAGE_KEY = 'colorThemeData';
 
 	id: string;
 	label: string;
 	settingsId: string;
 	description?: string;
 	isLoaded: boolean;
-	location?: URI;
+	location?: URI; // only set for extension from the registry, not for themes restored from the storage
 	watch?: boolean;
 	extensionData?: ExtensionData;
 
@@ -559,48 +558,50 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			id: this.id,
 			label: this.label,
 			settingsId: this.settingsId,
-			selector: this.id.split(' ').join('.'), // to not break old clients
-			themeTokenColors: this.themeTokenColors,
+			themeTokenColors: this.themeTokenColors.map(tc => ({ settings: tc.settings, scope: tc.scope })), // don't persist names
 			semanticTokenRules: this.semanticTokenRules.map(SemanticTokenRule.toJSONObject),
 			extensionData: ExtensionData.toJSONObject(this.extensionData),
-			location: this.location?.toJSON(),
 			themeSemanticHighlighting: this.themeSemanticHighlighting,
 			colorMap: colorMapData,
 			watch: this.watch
 		});
-		storageService.store(PERSISTED_THEME_STORAGE_KEY, value, StorageScope.GLOBAL);
-	}
 
-	hasEqualData(other: ColorThemeData) {
-		return objects.equals(this.colorMap, other.colorMap)
-			&& objects.equals(this.themeTokenColors, other.themeTokenColors)
-			&& arrays.equals(this.semanticTokenRules, other.semanticTokenRules, SemanticTokenRule.equals)
-			&& this.themeSemanticHighlighting === other.themeSemanticHighlighting;
+		// roam persisted color theme colors. Don't enable for icons as they contain references to fonts and images.
+		storageService.store(ColorThemeData.STORAGE_KEY, value, StorageScope.GLOBAL, StorageTarget.USER);
 	}
 
 	get baseTheme(): string {
-		return this.id.split(' ')[0];
+		return this.classNames[0];
 	}
 
-	get type(): ThemeType {
+	get classNames(): string[] {
+		return this.id.split(' ');
+	}
+
+	get type(): ColorScheme {
 		switch (this.baseTheme) {
-			case VS_LIGHT_THEME: return 'light';
-			case VS_HC_THEME: return 'hc';
-			default: return 'dark';
+			case VS_LIGHT_THEME: return ColorScheme.LIGHT;
+			case VS_HC_THEME: return ColorScheme.HIGH_CONTRAST;
+			default: return ColorScheme.DARK;
 		}
 	}
 
 	// constructors
 
-	static createUnloadedThemeForThemeType(themeType: ThemeType): ColorThemeData {
-		return ColorThemeData.createUnloadedTheme(getThemeTypeSelector(themeType));
+	static createUnloadedThemeForThemeType(themeType: ColorScheme, colorMap?: { [id: string]: string }): ColorThemeData {
+		return ColorThemeData.createUnloadedTheme(getThemeTypeSelector(themeType), colorMap);
 	}
 
-	static createUnloadedTheme(id: string): ColorThemeData {
+	static createUnloadedTheme(id: string, colorMap?: { [id: string]: string }): ColorThemeData {
 		let themeData = new ColorThemeData(id, '', '__' + id);
 		themeData.isLoaded = false;
 		themeData.themeTokenColors = [];
 		themeData.watch = false;
+		if (colorMap) {
+			for (let id in colorMap) {
+				themeData.colorMap[id] = Color.fromHex(colorMap[id]);
+			}
+		}
 		return themeData;
 	}
 
@@ -613,7 +614,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	static fromStorageData(storageService: IStorageService): ColorThemeData | undefined {
-		const input = storageService.get(PERSISTED_THEME_STORAGE_KEY, StorageScope.GLOBAL);
+		const input = storageService.get(ColorThemeData.STORAGE_KEY, StorageScope.GLOBAL);
 		if (!input) {
 			return undefined;
 		}
@@ -644,7 +645,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 						}
 						break;
 					case 'location':
-						theme.location = URI.revive(data.location);
+						// ignore, no longer restore
 						break;
 					case 'extensionData':
 						theme.extensionData = ExtensionData.fromJSONObject(data.extensionData);
@@ -740,7 +741,7 @@ async function _loadColorTheme(extensionResourceLoaderService: IExtensionResourc
 						result.semanticTokenRules.push(rule);
 					}
 				} catch (e) {
-					return Promise.reject(new Error(nls.localize({ key: 'error.invalidformat.semanticTokenColors', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'semanticTokenColors' conatains a invalid selector", themeLocation.toString())));
+					return Promise.reject(new Error(nls.localize({ key: 'error.invalidformat.semanticTokenColors', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'semanticTokenColors' contains a invalid selector", themeLocation.toString())));
 				}
 			}
 		}

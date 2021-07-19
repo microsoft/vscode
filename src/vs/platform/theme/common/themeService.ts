@@ -10,11 +10,19 @@ import * as platform from 'vs/platform/registry/common/platform';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 
 export const IThemeService = createDecorator<IThemeService>('themeService');
 
 export interface ThemeColor {
 	id: string;
+}
+
+export namespace ThemeColor {
+	export function isThemeColor(obj: any): obj is ThemeColor {
+		return obj && typeof obj === 'object' && typeof (<ThemeColor>obj).id === 'string';
+	}
 }
 
 export function themeColorFromId(id: ColorIdentifier) {
@@ -24,57 +32,57 @@ export function themeColorFromId(id: ColorIdentifier) {
 // theme icon
 export interface ThemeIcon {
 	readonly id: string;
+	readonly color?: ThemeColor;
 }
 
 export namespace ThemeIcon {
 	export function isThemeIcon(obj: any): obj is ThemeIcon {
-		return obj && typeof obj === 'object' && typeof (<ThemeIcon>obj).id === 'string';
+		return obj && typeof obj === 'object' && typeof (<ThemeIcon>obj).id === 'string' && (typeof (<ThemeIcon>obj).color === 'undefined' || ThemeColor.isThemeColor((<ThemeIcon>obj).color));
 	}
 
-	const _regexFromString = /^\$\(([a-z.]+\/)?([a-z-~]+)\)$/i;
+	const _regexFromString = new RegExp(`^\\$\\((${CSSIcon.iconNameExpression}(?:${CSSIcon.iconModifierExpression})?)\\)$`);
 
 	export function fromString(str: string): ThemeIcon | undefined {
 		const match = _regexFromString.exec(str);
 		if (!match) {
 			return undefined;
 		}
-		let [, owner, name] = match;
-		if (!owner) {
-			owner = `codicon/`;
-		}
-		return { id: owner + name };
+		let [, name] = match;
+		return { id: name };
 	}
 
-	const _regexAsClassName = /^(codicon\/)?([a-z-]+)(~[a-z]+)?$/i;
-
-	export function asClassName(icon: ThemeIcon): string | undefined {
-		// todo@martin,joh -> this should go into the ThemeService
-		const match = _regexAsClassName.exec(icon.id);
-		if (!match) {
-			return undefined;
+	export function modify(icon: ThemeIcon, modifier: 'disabled' | 'spin' | undefined): ThemeIcon {
+		let id = icon.id;
+		const tildeIndex = id.lastIndexOf('~');
+		if (tildeIndex !== -1) {
+			id = id.substring(0, tildeIndex);
 		}
-		let [, , name, modifier] = match;
-		let className = `codicon codicon-${name}`;
 		if (modifier) {
-			className += ` ${modifier.substr(1)}`;
+			id = `${id}~${modifier}`;
 		}
-		return className;
+		return { id };
 	}
+
+	export function isEqual(ti1: ThemeIcon, ti2: ThemeIcon): boolean {
+		return ti1.id === ti2.id && ti1.color?.id === ti2.color?.id;
+	}
+
+	export function asThemeIcon(codicon: Codicon, color?: string): ThemeIcon {
+		return { id: codicon.id, color: color ? themeColorFromId(color) : undefined };
+	}
+
+	export const asClassNameArray: (icon: ThemeIcon) => string[] = CSSIcon.asClassNameArray;
+	export const asClassName: (icon: ThemeIcon) => string = CSSIcon.asClassName;
+	export const asCSSSelector: (icon: ThemeIcon) => string = CSSIcon.asCSSSelector;
 }
 
-export const FileThemeIcon = { id: 'file' };
-export const FolderThemeIcon = { id: 'folder' };
+export const FileThemeIcon = Codicon.file;
+export const FolderThemeIcon = Codicon.folder;
 
-// base themes
-export const DARK: ThemeType = 'dark';
-export const LIGHT: ThemeType = 'light';
-export const HIGH_CONTRAST: ThemeType = 'hc';
-export type ThemeType = 'light' | 'dark' | 'hc';
-
-export function getThemeTypeSelector(type: ThemeType): string {
+export function getThemeTypeSelector(type: ColorScheme): string {
 	switch (type) {
-		case DARK: return 'vs-dark';
-		case HIGH_CONTRAST: return 'hc-black';
+		case ColorScheme.DARK: return 'vs-dark';
+		case ColorScheme.HIGH_CONTRAST: return 'hc-black';
 		default: return 'vs';
 	}
 }
@@ -88,7 +96,7 @@ export interface ITokenStyle {
 
 export interface IColorTheme {
 
-	readonly type: ThemeType;
+	readonly type: ColorScheme;
 
 	readonly label: string;
 

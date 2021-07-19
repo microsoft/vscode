@@ -12,8 +12,7 @@ import { join } from 'vs/base/common/path';
 import { Limiter } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { rimraf } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export class ExtensionsLifecycle extends Disposable {
@@ -21,7 +20,7 @@ export class ExtensionsLifecycle extends Disposable {
 	private processesLimiter: Limiter<void> = new Limiter(5); // Run max 5 processes in parallel
 
 	constructor(
-		@IEnvironmentService private environmentService: INativeEnvironmentService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -35,7 +34,7 @@ export class ExtensionsLifecycle extends Disposable {
 				this.runLifecycleHook(script.script, 'uninstall', script.args, true, extension)
 					.then(() => this.logService.info(extension.identifier.id, extension.manifest.version, `Finished running post uninstall script`), err => this.logService.error(extension.identifier.id, extension.manifest.version, `Failed to run post uninstall script: ${err}`)));
 		}
-		return rimraf(this.getExtensionStoragePath(extension)).then(undefined, e => this.logService.error('Error while removing extension storage path', e));
+		return Promises.rm(this.getExtensionStoragePath(extension)).then(undefined, e => this.logService.error('Error while removing extension storage path', e));
 	}
 
 	private parseScript(extension: ILocalExtension, type: string): { script: string, args: string[] } | null {

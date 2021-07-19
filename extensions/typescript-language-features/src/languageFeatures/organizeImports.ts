@@ -13,7 +13,7 @@ import { Command, CommandManager } from '../commands/commandManager';
 import { conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
 import { DocumentSelector } from '../utils/documentSelector';
 import { TelemetryReporter } from '../utils/telemetry';
-import * as typeconverts from '../utils/typeConverters';
+import * as typeConverters from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
 
 const localize = nls.loadMessageBundle();
@@ -29,7 +29,7 @@ class OrganizeImportsCommand implements Command {
 		private readonly telemetryReporter: TelemetryReporter,
 	) { }
 
-	public async execute(file: string): Promise<boolean> {
+	public async execute(file: string, sortOnly = false): Promise<boolean> {
 		/* __GDPR__
 			"organizeImports.execute" : {
 				"${include}": [
@@ -45,34 +45,54 @@ class OrganizeImportsCommand implements Command {
 				args: {
 					file
 				}
-			}
+			},
+			skipDestructiveCodeActions: sortOnly,
 		};
 		const response = await this.client.interruptGetErr(() => this.client.execute('organizeImports', args, nulToken));
 		if (response.type !== 'response' || !response.body) {
 			return false;
 		}
 
-		const edits = typeconverts.WorkspaceEdit.fromFileCodeEdits(this.client, response.body);
+		const edits = typeConverters.WorkspaceEdit.fromFileCodeEdits(this.client, response.body);
 		return vscode.workspace.applyEdit(edits);
 	}
 }
 
-export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvider {
-	public static readonly minVersion = API.v280;
+class ImportsCodeActionProvider implements vscode.CodeActionProvider {
+
+	static register(
+		client: ITypeScriptServiceClient,
+		minVersion: API,
+		kind: vscode.CodeActionKind,
+		title: string,
+		sortOnly: boolean,
+		commandManager: CommandManager,
+		fileConfigurationManager: FileConfigurationManager,
+		telemetryReporter: TelemetryReporter,
+		selector: DocumentSelector
+	): vscode.Disposable {
+		return conditionalRegistration([
+			requireMinVersion(client, minVersion),
+			requireSomeCapability(client, ClientCapability.Semantic),
+		], () => {
+			const provider = new ImportsCodeActionProvider(client, kind, title, sortOnly, commandManager, fileConfigurationManager, telemetryReporter);
+			return vscode.languages.registerCodeActionsProvider(selector.semantic, provider, {
+				providedCodeActionKinds: [kind]
+			});
+		});
+	}
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
+		private readonly kind: vscode.CodeActionKind,
+		private readonly title: string,
+		private readonly sortOnly: boolean,
 		commandManager: CommandManager,
 		private readonly fileConfigManager: FileConfigurationManager,
 		telemetryReporter: TelemetryReporter,
-
 	) {
 		commandManager.register(new OrganizeImportsCommand(client, telemetryReporter));
 	}
-
-	public readonly metadata: vscode.CodeActionProviderMetadata = {
-		providedCodeActionKinds: [vscode.CodeActionKind.SourceOrganizeImports]
-	};
 
 	public provideCodeActions(
 		document: vscode.TextDocument,
@@ -85,16 +105,14 @@ export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvi
 			return [];
 		}
 
-		if (!context.only || !context.only.contains(vscode.CodeActionKind.SourceOrganizeImports)) {
+		if (!context.only || !context.only.contains(this.kind)) {
 			return [];
 		}
 
 		this.fileConfigManager.ensureConfigurationForDocument(document, token);
 
-		const action = new vscode.CodeAction(
-			localize('organizeImportsAction.title', "Organize Imports"),
-			vscode.CodeActionKind.SourceOrganizeImports);
-		action.command = { title: '', command: OrganizeImportsCommand.Id, arguments: [file] };
+		const action = new vscode.CodeAction(this.title, this.kind);
+		action.command = { title: '', command: OrganizeImportsCommand.Id, arguments: [file, this.sortOnly] };
 		return [action];
 	}
 }
@@ -106,13 +124,28 @@ export function register(
 	fileConfigurationManager: FileConfigurationManager,
 	telemetryReporter: TelemetryReporter,
 ) {
-	return conditionalRegistration([
-		requireMinVersion(client, OrganizeImportsCodeActionProvider.minVersion),
-		requireSomeCapability(client, ClientCapability.Semantic),
-	], () => {
-		const organizeImportsProvider = new OrganizeImportsCodeActionProvider(client, commandManager, fileConfigurationManager, telemetryReporter);
-		return vscode.languages.registerCodeActionsProvider(selector.semantic,
-			organizeImportsProvider,
-			organizeImportsProvider.metadata);
-	});
+	return vscode.Disposable.from(
+		ImportsCodeActionProvider.register(
+			client,
+			API.v280,
+			vscode.CodeActionKind.SourceOrganizeImports,
+			localize('organizeImportsAction.title', "Organize Imports"),
+			false,
+			commandManager,
+			fileConfigurationManager,
+			telemetryReporter,
+			selector
+		),
+		ImportsCodeActionProvider.register(
+			client,
+			API.v430,
+			vscode.CodeActionKind.Source.append('sortImports'),
+			localize('sortImportsAction.title', "Sort Imports"),
+			true,
+			commandManager,
+			fileConfigurationManager,
+			telemetryReporter,
+			selector
+		),
+	);
 }

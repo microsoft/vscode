@@ -187,7 +187,7 @@ export abstract class AbstractScrollableElement extends Widget {
 			this._onScroll.fire(e);
 		}));
 
-		let scrollbarHost: ScrollbarHost = {
+		const scrollbarHost: ScrollbarHost = {
 			onMouseWheel: (mouseWheelEvent: StandardWheelEvent) => this._onMouseWheel(mouseWheelEvent),
 			onDragStart: () => this._onDragStart(),
 			onDragEnd: () => this._onDragEnd(),
@@ -214,7 +214,7 @@ export abstract class AbstractScrollableElement extends Widget {
 			this._domNode.appendChild(this._topShadowDomNode.domNode);
 
 			this._topLeftShadowDomNode = createFastDomNode(document.createElement('div'));
-			this._topLeftShadowDomNode.setClassName('shadow top-left-corner');
+			this._topLeftShadowDomNode.setClassName('shadow');
 			this._domNode.appendChild(this._topLeftShadowDomNode.domNode);
 		} else {
 			this._leftShadowDomNode = null;
@@ -239,7 +239,7 @@ export abstract class AbstractScrollableElement extends Widget {
 		this._revealOnScroll = true;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._mouseWheelToDispose = dispose(this._mouseWheelToDispose);
 		super.dispose();
 	}
@@ -288,8 +288,6 @@ export abstract class AbstractScrollableElement extends Widget {
 
 	/**
 	 * Update configuration options for the scrollbar.
-	 * Really this is Editor.IEditorScrollbarOptions, but base shouldn't
-	 * depend on Editor.
 	 */
 	public updateOptions(newOptions: ScrollableElementChangeOptions): void {
 		if (typeof newOptions.handleMouseWheel !== 'undefined') {
@@ -305,9 +303,23 @@ export abstract class AbstractScrollableElement extends Widget {
 		if (typeof newOptions.scrollPredominantAxis !== 'undefined') {
 			this._options.scrollPredominantAxis = newOptions.scrollPredominantAxis;
 		}
-		if (typeof newOptions.horizontalScrollbarSize !== 'undefined') {
-			this._horizontalScrollbar.updateScrollbarSize(newOptions.horizontalScrollbarSize);
+		if (typeof newOptions.horizontal !== 'undefined') {
+			this._options.horizontal = newOptions.horizontal;
 		}
+		if (typeof newOptions.vertical !== 'undefined') {
+			this._options.vertical = newOptions.vertical;
+		}
+		if (typeof newOptions.horizontalScrollbarSize !== 'undefined') {
+			this._options.horizontalScrollbarSize = newOptions.horizontalScrollbarSize;
+		}
+		if (typeof newOptions.verticalScrollbarSize !== 'undefined') {
+			this._options.verticalScrollbarSize = newOptions.verticalScrollbarSize;
+		}
+		if (typeof newOptions.scrollByPage !== 'undefined') {
+			this._options.scrollByPage = newOptions.scrollByPage;
+		}
+		this._horizontalScrollbar.updateOptions(this._options);
+		this._verticalScrollbar.updateOptions(this._options);
 
 		if (!this._options.lazyRender) {
 			this._render();
@@ -325,7 +337,7 @@ export abstract class AbstractScrollableElement extends Widget {
 	// -------------------- mouse wheel scrolling --------------------
 
 	private _setListeningToMouseWheel(shouldListen: boolean): void {
-		let isListening = (this._mouseWheelToDispose.length > 0);
+		const isListening = (this._mouseWheelToDispose.length > 0);
 
 		if (isListening === shouldListen) {
 			// No change
@@ -337,7 +349,7 @@ export abstract class AbstractScrollableElement extends Widget {
 
 		// Start listening (if necessary)
 		if (shouldListen) {
-			let onMouseWheel = (browserEvent: IMouseWheelEvent) => {
+			const onMouseWheel = (browserEvent: IMouseWheelEvent) => {
 				this._onMouseWheel(new StandardWheelEvent(browserEvent));
 			};
 
@@ -360,6 +372,8 @@ export abstract class AbstractScrollableElement extends Widget {
 		}
 
 		// console.log(`${Date.now()}, ${e.deltaY}, ${e.deltaX}`);
+
+		let didScroll = false;
 
 		if (e.deltaY || e.deltaX) {
 			let deltaY = e.deltaY * this._options.mouseWheelScrollSensitivity;
@@ -419,11 +433,20 @@ export abstract class AbstractScrollableElement extends Widget {
 				} else {
 					this._scrollable.setScrollPositionNow(desiredScrollPosition);
 				}
-				this._shouldRender = true;
+
+				didScroll = true;
 			}
 		}
 
-		if (this._options.alwaysConsumeMouseWheel || this._shouldRender) {
+		let consumeMouseWheel = didScroll;
+		if (!consumeMouseWheel && this._options.alwaysConsumeMouseWheel) {
+			consumeMouseWheel = true;
+		}
+		if (!consumeMouseWheel && this._options.consumeMouseWheelIfScrollbarIsNeeded && (this._verticalScrollbar.isNeeded() || this._horizontalScrollbar.isNeeded())) {
+			consumeMouseWheel = true;
+		}
+
+		if (consumeMouseWheel) {
 			e.preventDefault();
 			e.stopPropagation();
 		}
@@ -470,12 +493,15 @@ export abstract class AbstractScrollableElement extends Widget {
 
 		if (this._options.useShadows) {
 			const scrollState = this._scrollable.getCurrentScrollPosition();
-			let enableTop = scrollState.scrollTop > 0;
-			let enableLeft = scrollState.scrollLeft > 0;
+			const enableTop = scrollState.scrollTop > 0;
+			const enableLeft = scrollState.scrollLeft > 0;
 
-			this._leftShadowDomNode!.setClassName('shadow' + (enableLeft ? ' left' : ''));
-			this._topShadowDomNode!.setClassName('shadow' + (enableTop ? ' top' : ''));
-			this._topLeftShadowDomNode!.setClassName('shadow top-left-corner' + (enableTop ? ' top' : '') + (enableLeft ? ' left' : ''));
+			const leftClassName = (enableLeft ? ' left' : '');
+			const topClassName = (enableTop ? ' top' : '');
+			const topLeftClassName = (enableLeft || enableTop ? ' top-left-corner' : '');
+			this._leftShadowDomNode!.setClassName(`shadow${leftClassName}`);
+			this._topShadowDomNode!.setClassName(`shadow${topClassName}`);
+			this._topLeftShadowDomNode!.setClassName(`shadow${topLeftClassName}${topClassName}${leftClassName}`);
 		}
 	}
 
@@ -546,8 +572,12 @@ export class SmoothScrollableElement extends AbstractScrollableElement {
 		super(element, options, scrollable);
 	}
 
-	public setScrollPosition(update: INewScrollPosition): void {
-		this._scrollable.setScrollPositionNow(update);
+	public setScrollPosition(update: INewScrollPosition & { reuseAnimation?: boolean }): void {
+		if (update.reuseAnimation) {
+			this._scrollable.setScrollPositionSmooth(update, update.reuseAnimation);
+		} else {
+			this._scrollable.setScrollPositionNow(update);
+		}
 	}
 
 	public getScrollPosition(): IScrollPosition {
@@ -590,12 +620,13 @@ export class DomScrollableElement extends ScrollableElement {
 }
 
 function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableElementResolvedOptions {
-	let result: ScrollableElementResolvedOptions = {
+	const result: ScrollableElementResolvedOptions = {
 		lazyRender: (typeof opts.lazyRender !== 'undefined' ? opts.lazyRender : false),
 		className: (typeof opts.className !== 'undefined' ? opts.className : ''),
 		useShadows: (typeof opts.useShadows !== 'undefined' ? opts.useShadows : true),
 		handleMouseWheel: (typeof opts.handleMouseWheel !== 'undefined' ? opts.handleMouseWheel : true),
 		flipAxes: (typeof opts.flipAxes !== 'undefined' ? opts.flipAxes : false),
+		consumeMouseWheelIfScrollbarIsNeeded: (typeof opts.consumeMouseWheelIfScrollbarIsNeeded !== 'undefined' ? opts.consumeMouseWheelIfScrollbarIsNeeded : false),
 		alwaysConsumeMouseWheel: (typeof opts.alwaysConsumeMouseWheel !== 'undefined' ? opts.alwaysConsumeMouseWheel : false),
 		scrollYToX: (typeof opts.scrollYToX !== 'undefined' ? opts.scrollYToX : false),
 		mouseWheelScrollSensitivity: (typeof opts.mouseWheelScrollSensitivity !== 'undefined' ? opts.mouseWheelScrollSensitivity : 1),
@@ -614,7 +645,9 @@ function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableEleme
 		vertical: (typeof opts.vertical !== 'undefined' ? opts.vertical : ScrollbarVisibility.Auto),
 		verticalScrollbarSize: (typeof opts.verticalScrollbarSize !== 'undefined' ? opts.verticalScrollbarSize : 10),
 		verticalHasArrows: (typeof opts.verticalHasArrows !== 'undefined' ? opts.verticalHasArrows : false),
-		verticalSliderSize: (typeof opts.verticalSliderSize !== 'undefined' ? opts.verticalSliderSize : 0)
+		verticalSliderSize: (typeof opts.verticalSliderSize !== 'undefined' ? opts.verticalSliderSize : 0),
+
+		scrollByPage: (typeof opts.scrollByPage !== 'undefined' ? opts.scrollByPage : false)
 	};
 
 	result.horizontalSliderSize = (typeof opts.horizontalSliderSize !== 'undefined' ? opts.horizontalSliderSize : result.horizontalScrollbarSize);

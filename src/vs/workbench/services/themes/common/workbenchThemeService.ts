@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { Color } from 'vs/base/common/color';
 import { IColorTheme, IThemeService, IFileIconTheme } from 'vs/platform/theme/common/themeService';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { URI } from 'vs/base/common/uri';
 import { isBoolean, isString } from 'vs/base/common/types';
 
-export const IWorkbenchThemeService = createDecorator<IWorkbenchThemeService>('themeService');
+export const IWorkbenchThemeService = refineServiceDecorator<IThemeService, IWorkbenchThemeService>(IThemeService);
 
 export const VS_LIGHT_THEME = 'vs';
 export const VS_DARK_THEME = 'vs-dark';
@@ -65,25 +64,26 @@ export interface IWorkbenchProductIconTheme extends IWorkbenchTheme {
 	readonly settingsId: string;
 }
 
+export type ThemeSettingTarget = ConfigurationTarget | undefined | 'auto';
+
 
 export interface IWorkbenchThemeService extends IThemeService {
 	readonly _serviceBrand: undefined;
-	setColorTheme(themeId: string | undefined, settingsTarget: ConfigurationTarget | undefined | 'auto'): Promise<IWorkbenchColorTheme | null>;
+	setColorTheme(themeId: string | undefined, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchColorTheme | null>;
 	getColorTheme(): IWorkbenchColorTheme;
 	getColorThemes(): Promise<IWorkbenchColorTheme[]>;
 	onDidColorThemeChange: Event<IWorkbenchColorTheme>;
 	restoreColorTheme(): void;
 
-	setFileIconTheme(iconThemeId: string | undefined, settingsTarget: ConfigurationTarget | undefined | 'auto'): Promise<IWorkbenchFileIconTheme>;
+	setFileIconTheme(iconThemeId: string | undefined, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchFileIconTheme>;
 	getFileIconTheme(): IWorkbenchFileIconTheme;
 	getFileIconThemes(): Promise<IWorkbenchFileIconTheme[]>;
 	onDidFileIconThemeChange: Event<IWorkbenchFileIconTheme>;
 
-	setProductIconTheme(iconThemeId: string | undefined, settingsTarget: ConfigurationTarget | undefined | 'auto'): Promise<IWorkbenchProductIconTheme>;
+	setProductIconTheme(iconThemeId: string | undefined, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchProductIconTheme>;
 	getProductIconTheme(): IWorkbenchProductIconTheme;
 	getProductIconThemes(): Promise<IWorkbenchProductIconTheme[]>;
 	onDidProductIconThemeChange: Event<IWorkbenchProductIconTheme>;
-
 }
 
 export interface IThemeScopedColorCustomizations {
@@ -181,16 +181,15 @@ export interface ExtensionData {
 	extensionPublisher: string;
 	extensionName: string;
 	extensionIsBuiltin: boolean;
-	extensionLocation: URI;
 }
 
 export namespace ExtensionData {
 	export function toJSONObject(d: ExtensionData | undefined): any {
-		return d && { _extensionId: d.extensionId, _extensionIsBuiltin: d.extensionIsBuiltin, _extensionLocation: d.extensionLocation.toJSON(), _extensionName: d.extensionName, _extensionPublisher: d.extensionPublisher };
+		return d && { _extensionId: d.extensionId, _extensionIsBuiltin: d.extensionIsBuiltin, _extensionName: d.extensionName, _extensionPublisher: d.extensionPublisher };
 	}
 	export function fromJSONObject(o: any): ExtensionData | undefined {
-		if (o && isString(o._extensionId) && isBoolean(o._extensionIsBuiltin) && isString(o._extensionLocation) && isString(o._extensionName) && isString(o._extensionPublisher)) {
-			return { extensionId: o._extensionId, extensionIsBuiltin: o._extensionIsBuiltin, extensionLocation: URI.revive(o._extensionLocation), extensionName: o._extensionName, extensionPublisher: o._extensionPublisher };
+		if (o && isString(o._extensionId) && isBoolean(o._extensionIsBuiltin) && isString(o._extensionName) && isString(o._extensionPublisher)) {
+			return { extensionId: o._extensionId, extensionIsBuiltin: o._extensionIsBuiltin, extensionName: o._extensionName, extensionPublisher: o._extensionPublisher };
 		}
 		return undefined;
 	}

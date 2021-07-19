@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./suggestEnabledInput';
-import { $, Dimension, addClass, append, removeClass } from 'vs/base/browser/dom';
+import { $, Dimension, append } from 'vs/base/browser/dom';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -88,10 +88,10 @@ type ISuggestEnabledInputStyles = {
 
 export function attachSuggestEnabledInputBoxStyler(widget: IThemable, themeService: IThemeService, style?: ISuggestEnabledInputStyleOverrides): IDisposable {
 	return attachStyler(themeService, {
-		inputBackground: (style && style.inputBackground) || inputBackground,
-		inputForeground: (style && style.inputForeground) || inputForeground,
-		inputBorder: (style && style.inputBorder) || inputBorder,
-		inputPlaceholderForeground: (style && style.inputPlaceholderForeground) || inputPlaceholderForeground,
+		inputBackground: style?.inputBackground || inputBackground,
+		inputForeground: style?.inputForeground || inputForeground,
+		inputBorder: style?.inputBorder || inputBorder,
+		inputPlaceholderForeground: style?.inputPlaceholderForeground || inputPlaceholderForeground,
 	} as ISuggestEnabledInputStyleOverrides, widget);
 }
 
@@ -152,11 +152,11 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 		this._register((this.inputWidget.onDidFocusEditorText(() => {
 			if (options.focusContextKey) { options.focusContextKey.set(true); }
-			addClass(this.stylingContainer, 'synthetic-focus');
+			this.stylingContainer.classList.add('synthetic-focus');
 		})));
 		this._register((this.inputWidget.onDidBlurEditorText(() => {
 			if (options.focusContextKey) { options.focusContextKey.set(false); }
-			removeClass(this.stylingContainer, 'synthetic-focus');
+			this.stylingContainer.classList.remove('synthetic-focus');
 		})));
 
 		const onKeyDownMonaco = Event.chain(this.inputWidget.onKeyDown);

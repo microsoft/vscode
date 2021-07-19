@@ -11,22 +11,20 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ConfigureLocaleAction } from 'vs/workbench/contrib/localizations/browser/localizationsActions';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import { IExtensionManagementService, DidInstallExtensionEvent, IExtensionGalleryService, IGalleryExtension, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, IGalleryExtension, InstallOperation, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import Severity from 'vs/base/common/severity';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
 import { minimumTranslatedStrings } from 'vs/workbench/contrib/localizations/browser/minimalTranslations';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 // Register action to configure locale and related settings
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
@@ -45,37 +43,36 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IViewletService private readonly viewletService: IViewletService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		super();
 
-		storageKeysSyncRegistryService.registerStorageKey({ key: LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY, version: 1 });
-		storageKeysSyncRegistryService.registerStorageKey({ key: 'langugage.update.donotask', version: 1 });
 		this.checkAndInstall();
-		this._register(this.extensionManagementService.onDidInstallExtension(e => this.onDidInstallExtension(e)));
+		this._register(this.extensionManagementService.onDidInstallExtensions(e => this.onDidInstallExtensions(e)));
 	}
 
-	private onDidInstallExtension(e: DidInstallExtensionEvent): void {
-		if (e.local && e.operation === InstallOperation.Install && e.local.manifest.contributes && e.local.manifest.contributes.localizations && e.local.manifest.contributes.localizations.length) {
-			const locale = e.local.manifest.contributes.localizations[0].languageId;
-			if (platform.language !== locale) {
-				const updateAndRestart = platform.locale !== locale;
-				this.notificationService.prompt(
-					Severity.Info,
-					updateAndRestart ? localize('updateLocale', "Would you like to change VS Code's UI language to {0} and restart?", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId)
-						: localize('activateLanguagePack', "In order to use VS Code in {0}, VS Code needs to restart.", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId),
-					[{
-						label: updateAndRestart ? localize('yes', "Yes") : localize('restart now', "Restart Now"),
-						run: () => {
-							const updatePromise = updateAndRestart ? this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['locale'], value: locale }], true) : Promise.resolve(undefined);
-							updatePromise.then(() => this.hostService.restart(), e => this.notificationService.error(e));
+	private onDidInstallExtensions(results: readonly InstallExtensionResult[]): void {
+		for (const e of results) {
+			if (e.local && e.operation === InstallOperation.Install && e.local.manifest.contributes && e.local.manifest.contributes.localizations && e.local.manifest.contributes.localizations.length) {
+				const locale = e.local.manifest.contributes.localizations[0].languageId;
+				if (platform.language !== locale) {
+					const updateAndRestart = platform.locale !== locale;
+					this.notificationService.prompt(
+						Severity.Info,
+						updateAndRestart ? localize('updateLocale', "Would you like to change VS Code's UI language to {0} and restart?", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId)
+							: localize('activateLanguagePack', "In order to use VS Code in {0}, VS Code needs to restart.", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId),
+						[{
+							label: updateAndRestart ? localize('changeAndRestart', "Change Language and Restart") : localize('restart', "Restart"),
+							run: () => {
+								const updatePromise = updateAndRestart ? this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['locale'], value: locale }], true) : Promise.resolve(undefined);
+								updatePromise.then(() => this.hostService.restart(), e => this.notificationService.error(e));
+							}
+						}],
+						{
+							sticky: true,
+							neverShowAgain: { id: 'langugage.update.donotask', isSecondary: true }
 						}
-					}],
-					{
-						sticky: true,
-						neverShowAgain: { id: 'langugage.update.donotask', isSecondary: true }
-					}
-				);
+					);
+				}
 			}
 		}
 	}
@@ -88,7 +85,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		if (!this.galleryService.isEnabled()) {
 			return;
 		}
-		if (!language || !locale || language === 'en' || language.indexOf('en-') === 0) {
+		if (!language || !locale || locale === 'en' || locale.indexOf('en-') === 0) {
 			return;
 		}
 		if (language === locale || languagePackSuggestionIgnoreList.indexOf(language) > -1) {
@@ -176,7 +173,8 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 										this.storageService.store(
 											LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY,
 											JSON.stringify(languagePackSuggestionIgnoreList),
-											StorageScope.GLOBAL
+											StorageScope.GLOBAL,
+											StorageTarget.USER
 										);
 										logUserReaction('neverShowAgain');
 									}
@@ -195,7 +193,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private isLanguageInstalled(language: string | undefined): Promise<boolean> {
-		return this.extensionManagementService.getInstalled(ExtensionType.User)
+		return this.extensionManagementService.getInstalled()
 			.then(installed => installed.some(i =>
 				!!(i.manifest
 					&& i.manifest.contributes
@@ -218,6 +216,7 @@ workbenchRegistry.registerWorkbenchContribution(LocalizationWorkbenchContributio
 
 ExtensionsRegistry.registerExtensionPoint({
 	extensionPoint: 'localizations',
+	defaultExtensionKind: ['ui', 'workspace'],
 	jsonSchema: {
 		description: localize('vscode.extension.contributes.localizations', "Contributes localizations to the editor"),
 		type: 'array',

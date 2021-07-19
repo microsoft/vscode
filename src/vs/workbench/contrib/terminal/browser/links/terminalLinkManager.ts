@@ -13,11 +13,11 @@ import { ITerminalProcessManager, ITerminalConfiguration, TERMINAL_CONFIG_SECTIO
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { Terminal, IViewportRange, ILinkProvider } from 'xterm';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import type { Terminal, IViewportRange, ILinkProvider } from 'xterm';
+import { Schemas } from 'vs/base/common/network';
 import { posix, win32 } from 'vs/base/common/path';
 import { ITerminalExternalLinkProvider, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { OperatingSystem, isMacintosh, OS } from 'vs/base/common/platform';
+import { OperatingSystem, isMacintosh, OS, isWindows } from 'vs/base/common/platform';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { TerminalProtocolLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalProtocolLinkProvider';
 import { TerminalValidatedLocalLinkProvider, lineAndColumnClause, unixLocalLinkClause, winLocalLinkClause, winDrivePrefix, winLineAndColumnMatchIndex, unixLineAndColumnMatchIndex, lineAndColumnClauseGroupCount } from 'vs/workbench/contrib/terminal/browser/links/terminalValidatedLocalLinkProvider';
@@ -27,6 +27,7 @@ import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { TerminalHover, ILinkHoverTargetOptions } from 'vs/workbench/contrib/terminal/browser/widgets/terminalHoverWidget';
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { TerminalExternalLinkProviderAdapter } from 'vs/workbench/contrib/terminal/browser/links/terminalExternalLinkProviderAdapter';
+import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 
 export type XtermLinkMatcherHandler = (event: MouseEvent | undefined, link: string) => Promise<void>;
 export type XtermLinkMatcherValidationCallback = (uri: string, callback: (isValid: boolean) => void) => void;
@@ -34,6 +35,7 @@ export type XtermLinkMatcherValidationCallback = (uri: string, callback: (isVali
 interface IPath {
 	join(...paths: string[]): string;
 	normalize(path: string): string;
+	sep: '\\' | '/';
 }
 
 /**
@@ -52,7 +54,8 @@ export class TerminalLinkManager extends DisposableStore {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITunnelService private readonly _tunnelService: ITunnelService
 	) {
 		super();
 
@@ -116,16 +119,16 @@ export class TerminalLinkManager extends DisposableStore {
 			const widget = this._instantiationService.createInstance(TerminalHover, targetOptions, text, linkHandler);
 			const attached = this._widgetManager.attachWidget(widget);
 			if (attached) {
-				link?.onLeave(() => attached.dispose());
+				link?.onInvalidated(() => attached.dispose());
 			}
 		}
 	}
 
-	public setWidgetManager(widgetManager: TerminalWidgetManager): void {
+	setWidgetManager(widgetManager: TerminalWidgetManager): void {
 		this._widgetManager = widgetManager;
 	}
 
-	public set processCwd(processCwd: string) {
+	set processCwd(processCwd: string) {
 		this._processCwd = processCwd;
 	}
 
@@ -137,7 +140,7 @@ export class TerminalLinkManager extends DisposableStore {
 		}
 	}
 
-	public registerExternalLinkProvider(instance: ITerminalInstance, linkProvider: ITerminalExternalLinkProvider): IDisposable {
+	registerExternalLinkProvider(instance: ITerminalInstance, linkProvider: ITerminalExternalLinkProvider): IDisposable {
 		const wrappedLinkProvider = this._instantiationService.createInstance(TerminalExternalLinkProviderAdapter, this._xterm, instance, linkProvider, this._wrapLinkHandler.bind(this), this._tooltipCallback.bind(this));
 		const newLinkProvider = this._xterm.registerLinkProvider(wrappedLinkProvider);
 		// Re-register the standard link providers so they are a lower priority that the new one
@@ -184,15 +187,20 @@ export class TerminalLinkManager extends DisposableStore {
 	}
 
 	private _handleHypertextLink(url: string): void {
-		this._openerService.open(url, { allowTunneling: !!(this._processManager && this._processManager.remoteAuthority) });
+		this._openerService.open(url, {
+			allowTunneling: !!(this._processManager && this._processManager.remoteAuthority),
+			allowContributedOpeners: true,
+		});
 	}
 
 	private async _handleProtocolLink(link: string): Promise<void> {
 		// Check if it's a file:/// link, hand off to local link handler so to open an editor and
 		// respect line/col attachment
 		const uri = URI.parse(link);
-		if (uri.scheme === 'file') {
-			this._handleLocalLink(uri.fsPath);
+		if (uri.scheme === Schemas.file) {
+			// Just using fsPath here is unsafe: https://github.com/microsoft/vscode/issues/109076
+			const fsPath = uri.fsPath;
+			this._handleLocalLink(((this._osPath.sep === posix.sep) && isWindows) ? fsPath.replace(/\\/g, posix.sep) : fsPath);
 			return;
 		}
 
@@ -226,11 +234,36 @@ export class TerminalLinkManager extends DisposableStore {
 			}
 		}
 
-		// Use 'undefined' when uri is '' so the link displays correctly
-		return new MarkdownString(`[${label || nls.localize('followLink', "Follow Link")}](${uri || 'undefined'}) (${clickLabel})`, true);
+		let fallbackLabel: string;
+		if (this._tunnelService.canTunnel(URI.parse(uri))) {
+			fallbackLabel = nls.localize('followForwardedLink', "Follow link using forwarded port");
+		} else {
+			fallbackLabel = nls.localize('followLink', "Follow link");
+		}
+
+		const markdown = new MarkdownString('', true);
+		// Escapes markdown in label & uri
+		if (label) {
+			label = markdown.appendText(label).value;
+			markdown.value = '';
+		}
+		if (uri) {
+			uri = markdown.appendText(uri).value;
+			markdown.value = '';
+		}
+
+		label = label || fallbackLabel;
+		// Use the label when uri is '' so the link displays correctly
+		uri = uri || label;
+		// Although if there is a space in the uri, just replace it completely
+		if (/(\s|&nbsp;)/.test(uri)) {
+			uri = nls.localize('followLinkUrl', 'Link');
+		}
+
+		return markdown.appendMarkdown(`[${label}](${uri}) (${clickLabel})`);
 	}
 
-	private get osPath(): IPath {
+	private get _osPath(): IPath {
 		if (!this._processManager) {
 			throw new Error('Process manager is required');
 		}
@@ -249,7 +282,7 @@ export class TerminalLinkManager extends DisposableStore {
 			if (!this._processManager.userHome) {
 				return null;
 			}
-			link = this.osPath.join(this._processManager.userHome, link.substring(1));
+			link = this._osPath.join(this._processManager.userHome, link.substring(1));
 		} else if (link.charAt(0) !== '/' && link.charAt(0) !== '~') {
 			// Resolve workspace path . | .. | <relative_path> -> <path>/. | <path>/.. | <path>/<relative_path>
 			if (this._processManager.os === OperatingSystem.Windows) {
@@ -258,7 +291,7 @@ export class TerminalLinkManager extends DisposableStore {
 						// Abort if no workspace is open
 						return null;
 					}
-					link = this.osPath.join(this._processCwd, link);
+					link = this._osPath.join(this._processCwd, link);
 				} else {
 					// Remove \\?\ from paths so that they share the same underlying
 					// uri and don't open multiple tabs for the same file
@@ -269,10 +302,10 @@ export class TerminalLinkManager extends DisposableStore {
 					// Abort if no workspace is open
 					return null;
 				}
-				link = this.osPath.join(this._processCwd, link);
+				link = this._osPath.join(this._processCwd, link);
 			}
 		}
-		link = this.osPath.normalize(link);
+		link = this._osPath.normalize(link);
 
 		return link;
 	}
@@ -296,7 +329,7 @@ export class TerminalLinkManager extends DisposableStore {
 			let uri: URI;
 			if (this._processManager.remoteAuthority) {
 				uri = URI.from({
-					scheme: REMOTE_HOST_SCHEME,
+					scheme: Schemas.vscodeRemote,
 					authority: this._processManager.remoteAuthority,
 					path: linkUrl
 				});
@@ -323,7 +356,7 @@ export class TerminalLinkManager extends DisposableStore {
 	 *
 	 * @param link Url link which may contain line and column number.
 	 */
-	public extractLineColumnInfo(link: string): LineColumnInfo {
+	extractLineColumnInfo(link: string): LineColumnInfo {
 		const matches: string[] | null = this._localLinkRegex.exec(link);
 		const lineColumnInfo: LineColumnInfo = {
 			lineNumber: 1,
@@ -357,7 +390,7 @@ export class TerminalLinkManager extends DisposableStore {
 	 *
 	 * @param link url link which may contain line and column number.
 	 */
-	public extractLinkUrl(link: string): string | null {
+	extractLinkUrl(link: string): string | null {
 		const matches: string[] | null = this._localLinkRegex.exec(link);
 		if (!matches) {
 			return null;

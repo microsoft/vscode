@@ -22,7 +22,7 @@ export const nodeSocketFactory = new class implements ISocketFactory {
 			const nonce = buffer.toString('base64');
 
 			let headers = [
-				`GET ws://${host}:${port}/?${query}&skipWebSocketFrames=true HTTP/1.1`,
+				`GET ws://${/:/.test(host) ? `[${host}]` : host}:${port}/?${query}&skipWebSocketFrames=true HTTP/1.1`,
 				`Connection: Upgrade`,
 				`Upgrade: websocket`,
 				`Sec-WebSocket-Key: ${nonce}`

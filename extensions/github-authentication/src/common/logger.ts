@@ -24,6 +24,10 @@ class Log {
 		return data.toString();
 	}
 
+	public trace(message: string, data?: any): void {
+		this.logLevel('Trace', message, data);
+	}
+
 	public info(message: string, data?: any): void {
 		this.logLevel('Info', message, data);
 	}

@@ -7,59 +7,180 @@ import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { parseSavedSearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { parseSavedSearchEditor, parseSerializedSearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
+import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { SearchConfiguration } from './searchEditorInput';
 import { assertIsDefined } from 'vs/base/common/types';
+import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
+import { SearchEditorScheme, SearchEditorWorkingCopyTypeId } from 'vs/workbench/contrib/searchEditor/browser/constants';
+import { Emitter } from 'vs/base/common/event';
+import { ResourceMap } from 'vs/base/common/map';
 
+export type SearchEditorData = { resultsModel: ITextModel, configurationModel: SearchConfigurationModel };
+
+export class SearchConfigurationModel {
+	private _onConfigDidUpdate = new Emitter<SearchConfiguration>();
+	public readonly onConfigDidUpdate = this._onConfigDidUpdate.event;
+
+	constructor(public config: Readonly<SearchConfiguration>) { }
+	updateConfig(config: SearchConfiguration) { this.config = config; this._onConfigDidUpdate.fire(config); }
+}
 
 export class SearchEditorModel {
-	private cachedContentsModel: ITextModel | undefined = undefined;
-	private resolveContents!: (model: ITextModel) => void;
-	public onModelResolved: Promise<ITextModel>;
-
-	private ongoingResolve = Promise.resolve<any>(undefined);
-
 	constructor(
-		private modelUri: URI,
-		public config: SearchConfiguration,
-		private existingData: ({ config: Partial<SearchConfiguration>; backingUri?: URI; } &
-			({ modelUri: URI; text?: never; } |
-			{ text: string; modelUri?: never; } |
-			{ backingUri: URI; text?: never; modelUri?: never; })),
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IBackupFileService readonly backupService: IBackupFileService,
-		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService) {
-		this.onModelResolved = new Promise<ITextModel>(resolve => this.resolveContents = resolve);
-		this.onModelResolved.then(model => this.cachedContentsModel = model);
-		this.ongoingResolve = backupService.resolve(modelUri)
-			.then(backup => modelService.getModel(modelUri) ?? (backup ? modelService.createModel(backup.value, modeService.create('search-result'), modelUri) : undefined))
-			.then(model => { if (model) { this.resolveContents(model); } });
+		private resource: URI,
+		@IWorkingCopyBackupService readonly workingCopyBackupService: IWorkingCopyBackupService,
+	) {
 	}
 
-	async resolve(): Promise<ITextModel> {
-		await (this.ongoingResolve = this.ongoingResolve.then(() => this.cachedContentsModel || this.createModel()));
-		return assertIsDefined(this.cachedContentsModel);
-	}
-
-	private async createModel() {
-		const getContents = async () => {
-			if (this.existingData.text !== undefined) {
-				return this.existingData.text;
-			}
-			else if (this.existingData.backingUri !== undefined) {
-				return (await this.instantiationService.invokeFunction(parseSavedSearchEditor, this.existingData.backingUri)).text;
-			}
-			else {
-				return '';
-			}
-		};
-
-		const contents = await getContents();
-		const model = this.modelService.getModel(this.modelUri) ?? this.modelService.createModel(contents, this.modeService.create('search-result'), this.modelUri);
-		this.resolveContents(model);
-		return model;
+	async resolve(): Promise<SearchEditorData> {
+		return assertIsDefined(searchEditorModelFactory.models.get(this.resource)).resolve();
 	}
 }
+
+class SearchEditorModelFactory {
+	models = new ResourceMap<{ resolve: () => Promise<SearchEditorData> }>();
+
+	constructor() { }
+
+	initializeModelFromExistingModel(accessor: ServicesAccessor, resource: URI, config: SearchConfiguration) {
+		if (this.models.has(resource)) {
+			throw Error('Unable to contruct model for resource that already exists');
+		}
+
+		const modeService = accessor.get(IModeService);
+		const modelService = accessor.get(IModelService);
+		const instantiationService = accessor.get(IInstantiationService);
+		const workingCopyBackupService = accessor.get(IWorkingCopyBackupService);
+
+		let ongoingResolve: Promise<SearchEditorData> | undefined;
+
+		this.models.set(resource, {
+			resolve: () => {
+				if (!ongoingResolve) {
+					ongoingResolve = (async () => {
+
+						const backup = await this.tryFetchModelFromBackupService(resource, modeService, modelService, workingCopyBackupService, instantiationService);
+						if (backup) {
+							return backup;
+						}
+
+						return Promise.resolve({
+							resultsModel: modelService.getModel(resource) ?? modelService.createModel('', modeService.create('search-result'), resource),
+							configurationModel: new SearchConfigurationModel(config)
+						});
+					})();
+				}
+				return ongoingResolve;
+			}
+		});
+	}
+
+	initializeModelFromRawData(accessor: ServicesAccessor, resource: URI, config: SearchConfiguration, contents: string | undefined) {
+		if (this.models.has(resource)) {
+			throw Error('Unable to contruct model for resource that already exists');
+		}
+
+		const modeService = accessor.get(IModeService);
+		const modelService = accessor.get(IModelService);
+		const instantiationService = accessor.get(IInstantiationService);
+		const workingCopyBackupService = accessor.get(IWorkingCopyBackupService);
+
+		let ongoingResolve: Promise<SearchEditorData> | undefined;
+
+		this.models.set(resource, {
+			resolve: () => {
+				if (!ongoingResolve) {
+					ongoingResolve = (async () => {
+
+						const backup = await this.tryFetchModelFromBackupService(resource, modeService, modelService, workingCopyBackupService, instantiationService);
+						if (backup) {
+							return backup;
+						}
+
+						return Promise.resolve({
+							resultsModel: modelService.createModel(contents ?? '', modeService.create('search-result'), resource),
+							configurationModel: new SearchConfigurationModel(config)
+						});
+					})();
+				}
+				return ongoingResolve;
+			}
+		});
+	}
+
+	initializeModelFromExistingFile(accessor: ServicesAccessor, resource: URI, existingFile: URI) {
+		if (this.models.has(resource)) {
+			throw Error('Unable to contruct model for resource that already exists');
+		}
+
+		const modeService = accessor.get(IModeService);
+		const modelService = accessor.get(IModelService);
+		const instantiationService = accessor.get(IInstantiationService);
+		const workingCopyBackupService = accessor.get(IWorkingCopyBackupService);
+
+		let ongoingResolve: Promise<SearchEditorData> | undefined;
+
+		this.models.set(resource, {
+			resolve: async () => {
+				if (!ongoingResolve) {
+					ongoingResolve = (async () => {
+
+						const backup = await this.tryFetchModelFromBackupService(resource, modeService, modelService, workingCopyBackupService, instantiationService);
+						if (backup) {
+							return backup;
+						}
+
+						const { text, config } = await instantiationService.invokeFunction(parseSavedSearchEditor, existingFile);
+						return ({
+							resultsModel: modelService.createModel(text ?? '', modeService.create('search-result'), resource),
+							configurationModel: new SearchConfigurationModel(config)
+						});
+					})();
+				}
+				return ongoingResolve;
+			}
+		});
+	}
+
+	private async tryFetchModelFromBackupService(resource: URI, modeService: IModeService, modelService: IModelService, workingCopyBackupService: IWorkingCopyBackupService, instantiationService: IInstantiationService): Promise<SearchEditorData | undefined> {
+		let discardLegacyBackup = false;
+		let backup = await workingCopyBackupService.resolve({ resource, typeId: SearchEditorWorkingCopyTypeId });
+		if (!backup) {
+			// TODO@bpasero remove this fallback after some releases
+			backup = await workingCopyBackupService.resolve({ resource, typeId: NO_TYPE_ID });
+
+			if (backup && resource.scheme === SearchEditorScheme) {
+				discardLegacyBackup = true;
+			}
+		}
+
+		let model = modelService.getModel(resource);
+		if (!model && backup) {
+			const factory = await createTextBufferFactoryFromStream(backup.value);
+
+			if (discardLegacyBackup) {
+				await workingCopyBackupService.discardBackup({ resource, typeId: NO_TYPE_ID });
+			}
+
+			model = modelService.createModel(factory, modeService.create('search-result'), resource);
+		}
+
+		if (model) {
+			const existingFile = model.getValue();
+			const { text, config } = parseSerializedSearchEditor(existingFile);
+			modelService.destroyModel(resource);
+			return ({
+				resultsModel: modelService.createModel(text ?? '', modeService.create('search-result'), resource),
+				configurationModel: new SearchConfigurationModel(config)
+			});
+		}
+		else {
+			return undefined;
+		}
+	}
+}
+
+export const searchEditorModelFactory = new SearchEditorModelFactory();

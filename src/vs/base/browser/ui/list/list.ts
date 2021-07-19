@@ -15,7 +15,7 @@ export interface IListVirtualDelegate<T> {
 }
 
 export interface IListRenderer<T, TTemplateData> {
-	templateId: string;
+	readonly templateId: string;
 	renderTemplate(container: HTMLElement): TTemplateData;
 	renderElement(element: T, index: number, templateData: TTemplateData, height: number | undefined): void;
 	disposeElement?(element: T, index: number, templateData: TTemplateData, height: number | undefined): void;
@@ -66,11 +66,11 @@ export interface IIdentityProvider<T> {
 export interface IKeyboardNavigationLabelProvider<T> {
 
 	/**
-	 * Return a keyboard navigation label which will be used by the
-	 * list for filtering/navigating. Return `undefined` to make an
-	 * element always match.
+	 * Return a keyboard navigation label(s) which will be used by
+	 * the list for filtering/navigating. Return `undefined` to make
+	 * an element always match.
 	 */
-	getKeyboardNavigationLabel(element: T): { toString(): string | undefined; } | undefined;
+	getKeyboardNavigationLabel(element: T): { toString(): string | undefined; } | { toString(): string | undefined; }[] | undefined;
 }
 
 export interface IKeyboardNavigationDelegate {
@@ -98,6 +98,7 @@ export interface IListDragAndDrop<T> {
 	getDragLabel?(elements: T[], originalEvent: DragEvent): string | undefined;
 	onDragStart?(data: IDragAndDropData, originalEvent: DragEvent): void;
 	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | IListDragOverReaction;
+	onDragLeave?(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): void;
 	drop(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): void;
 	onDragEnd?(originalEvent: DragEvent): void;
 }

@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import product from 'vs/platform/product/common/product';
 import { localize } from 'vs/nls';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { cloneAndChange, mixin } from 'vs/base/common/objects';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -89,7 +90,7 @@ export class TelemetryService implements ITelemetryService {
 	}
 
 	private _updateUserOptIn(): void {
-		const config = this._configurationService.getValue<any>(TELEMETRY_SECTION_ID);
+		const config = this._configurationService?.getValue<any>(TELEMETRY_SECTION_ID);
 		this._userOptIn = config ? config.enableTelemetry : this._userOptIn;
 	}
 
@@ -104,9 +105,10 @@ export class TelemetryService implements ITelemetryService {
 		let sessionId = values['sessionID'];
 		let instanceId = values['common.instanceId'];
 		let machineId = values['common.machineId'];
+		let firstSessionDate = values['common.firstSessionDate'];
 		let msftInternal = values['common.msftInternal'];
 
-		return { sessionId, instanceId, machineId, msftInternal };
+		return { sessionId, instanceId, machineId, firstSessionDate, msftInternal };
 	}
 
 	dispose(): void {
@@ -207,6 +209,7 @@ export class TelemetryService implements ITelemetryService {
 
 const TELEMETRY_SECTION_ID = 'telemetry';
 
+
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	'id': TELEMETRY_SECTION_ID,
 	'order': 110,
@@ -215,9 +218,14 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	'properties': {
 		'telemetry.enableTelemetry': {
 			'type': 'boolean',
-			'description': localize('telemetry.enableTelemetry', "Enable usage data and errors to be sent to a Microsoft online service."),
+			'markdownDescription':
+				!product.privacyStatementUrl ?
+					localize('telemetry.enableTelemetry', "Enable usage data and errors to be sent to a Microsoft online service.") :
+					localize('telemetry.enableTelemetryMd', "Enable usage data and errors to be sent to a Microsoft online service. Read our privacy statement [here]({0}).", product.privacyStatementUrl),
 			'default': true,
-			'tags': ['usesOnlineServices']
+			'restricted': true,
+			'scope': ConfigurationScope.APPLICATION,
+			'tags': ['usesOnlineServices', 'telemetry']
 		}
 	}
 });

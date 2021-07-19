@@ -10,6 +10,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IMatch } from 'vs/base/common/filters';
 import { IItemAccessor } from 'vs/base/common/fuzzyScorer';
 import { Schemas } from 'vs/base/common/network';
+import Severity from 'vs/base/common/severity';
 
 export interface IQuickPickItemHighlights {
 	label?: IMatch[];
@@ -21,6 +22,7 @@ export interface IQuickPickItem {
 	type?: 'item';
 	id?: string;
 	label: string;
+	meta?: string;
 	ariaLabel?: string;
 	description?: string;
 	detail?: string;
@@ -56,6 +58,11 @@ export interface IQuickNavigateConfiguration {
 }
 
 export interface IPickOptions<T extends IQuickPickItem> {
+
+	/**
+	 * an optional string to show as the title of the quick input
+	 */
+	title?: string;
 
 	/**
 	 * an optional string to show as placeholder in the input box to guide the user what she picks on
@@ -115,6 +122,11 @@ export interface IPickOptions<T extends IQuickPickItem> {
 export interface IInputOptions {
 
 	/**
+	 * an optional string to show as the title of the quick input
+	 */
+	title?: string;
+
+	/**
 	 * the value to prefill in the input box
 	 */
 	value?: string;
@@ -144,12 +156,34 @@ export interface IInputOptions {
 	/**
 	 * an optional function that is used to validate user input.
 	 */
-	validateInput?: (input: string) => Promise<string | null | undefined>;
+	validateInput?: (input: string) => Promise<string | null | undefined | { content: string, severity: Severity }>;
+}
+
+export enum QuickInputHideReason {
+
+	/**
+	 * Focus moved away from the quick input.
+	 */
+	Blur = 1,
+
+	/**
+	 * An explicit user gesture, e.g. pressing Escape key.
+	 */
+	Gesture,
+
+	/**
+	 * Anything else.
+	 */
+	Other
+}
+
+export interface IQuickInputHideEvent {
+	reason: QuickInputHideReason;
 }
 
 export interface IQuickInput extends IDisposable {
 
-	readonly onDidHide: Event<void>;
+	readonly onDidHide: Event<IQuickInputHideEvent>;
 	readonly onDispose: Event<void>;
 
 	title: string | undefined;
@@ -173,7 +207,17 @@ export interface IQuickInput extends IDisposable {
 	hide(): void;
 }
 
-export interface IQuickPickAcceptEvent {
+export interface IQuickPickWillAcceptEvent {
+
+	/**
+	 * Allows to disable the default accept handling
+	 * of the picker. If `veto` is called, the picker
+	 * will not trigger the `onDidAccept` event.
+	 */
+	veto(): void;
+}
+
+export interface IQuickPickDidAcceptEvent {
 
 	/**
 	 * Signals if the picker item is to be accepted
@@ -199,13 +243,14 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	 */
 	filterValue: (value: string) => string;
 
-	ariaLabel: string;
+	ariaLabel: string | undefined;
 
 	placeholder: string | undefined;
 
 	readonly onDidChangeValue: Event<string>;
 
-	readonly onDidAccept: Event<IQuickPickAcceptEvent>;
+	readonly onWillAccept: Event<IQuickPickWillAcceptEvent>;
+	readonly onDidAccept: Event<IQuickPickDidAcceptEvent>;
 
 	/**
 	 * If enabled, will fire the `onDidAccept` event when
@@ -275,6 +320,8 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	 * be presented.
 	 */
 	hideInput: boolean;
+
+	hideCheckAll: boolean;
 }
 
 export interface IInputBox extends IQuickInput {
@@ -298,6 +345,8 @@ export interface IInputBox extends IQuickInput {
 	prompt: string | undefined;
 
 	validationMessage: string | undefined;
+
+	severity: Severity;
 }
 
 export interface IQuickInputButton {
@@ -325,7 +374,7 @@ export interface IQuickPickItemButtonContext<T extends IQuickPickItem> extends I
 export type QuickPickInput<T = IQuickPickItem> = T | IQuickPickSeparator;
 
 
-//region Fuzzy Scorer Support
+//#region Fuzzy Scorer Support
 
 export type IQuickPickItemWithResource = IQuickPickItem & { resource?: URI };
 

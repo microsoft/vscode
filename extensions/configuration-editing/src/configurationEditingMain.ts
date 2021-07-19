@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getLocation, parse, visit } from 'jsonc-parser';
+import { getLocation, JSONPath, parse, visit } from 'jsonc-parser';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { SettingsDocument } from './settingsDocumentHelper';
@@ -22,6 +22,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
 	// task.json variable suggestions
 	context.subscriptions.push(registerVariableCompletions('**/tasks.json'));
+
+	// keybindings.json/package.json context key suggestions
+	context.subscriptions.push(registerContextKeyCompletions());
 }
 
 function registerSettingsCompletions(): vscode.Disposable {
@@ -54,6 +57,7 @@ function registerVariableCompletions(pattern: string): vscode.Disposable {
 					{ label: 'fileBasename', detail: localize('fileBasename', "The current opened file's basename") },
 					{ label: 'fileBasenameNoExtension', detail: localize('fileBasenameNoExtension', "The current opened file's basename with no file extension") },
 					{ label: 'defaultBuildTask', detail: localize('defaultBuildTask', "The name of the default build task. If there is not a single default build task then a quick pick is shown to choose the build task.") },
+					{ label: 'pathSeparator', detail: localize('pathSeparator', "The character used by the operating system to separate components in file paths") },
 				].map(variable => ({
 					label: '${' + variable.label + '}',
 					range: new vscode.Range(startPosition, position),
@@ -81,7 +85,7 @@ function registerExtensionsCompletionsInExtensionsDocument(): vscode.Disposable 
 			const range = document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
 			if (location.path[0] === 'recommendations') {
 				const extensionsContent = <IExtensionsContent>parse(document.getText());
-				return provideInstalledExtensionProposals(extensionsContent && extensionsContent.recommendations || [], range, false);
+				return provideInstalledExtensionProposals(extensionsContent && extensionsContent.recommendations || [], '', range, false);
 			}
 			return [];
 		}
@@ -95,7 +99,7 @@ function registerExtensionsCompletionsInWorkspaceConfigurationDocument(): vscode
 			const range = document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
 			if (location.path[0] === 'extensions' && location.path[1] === 'recommendations') {
 				const extensionsContent = <IExtensionsContent>parse(document.getText())['extensions'];
-				return provideInstalledExtensionProposals(extensionsContent && extensionsContent.recommendations || [], range, false);
+				return provideInstalledExtensionProposals(extensionsContent && extensionsContent.recommendations || [], '', range, false);
 			}
 			return [];
 		}
@@ -136,3 +140,83 @@ vscode.languages.registerDocumentSymbolProvider({ pattern: '**/launch.json', lan
 		return result;
 	}
 }, { label: 'Launch Targets' });
+
+function registerContextKeyCompletions(): vscode.Disposable {
+	type ContextKeyInfo = { key: string, type?: string, description?: string };
+
+	const paths = new Map<vscode.DocumentFilter, JSONPath[]>([
+		[{ language: 'jsonc', pattern: '**/keybindings.json' }, [
+			['*', 'when']
+		]],
+		[{ language: 'json', pattern: '**/package.json' }, [
+			['contributes', 'menus', '*', '*', 'when'],
+			['contributes', 'views', '*', '*', 'when'],
+			['contributes', 'viewsWelcome', '*', 'when'],
+			['contributes', 'keybindings', '*', 'when'],
+			['contributes', 'keybindings', 'when'],
+		]]
+	]);
+
+	return vscode.languages.registerCompletionItemProvider(
+		[...paths.keys()],
+		{
+			async provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken) {
+
+				const location = getLocation(document.getText(), document.offsetAt(position));
+
+				if (location.isAtPropertyKey) {
+					return;
+				}
+
+				let isValidLocation = false;
+				for (const [key, value] of paths) {
+					if (vscode.languages.match(key, document)) {
+						if (value.some(location.matches.bind(location))) {
+							isValidLocation = true;
+							break;
+						}
+					}
+				}
+
+				if (!isValidLocation) {
+					return;
+				}
+
+				// for JSON everything with quotes is a word
+				const jsonWord = document.getWordRangeAtPosition(position);
+				if (!jsonWord || jsonWord.start.isEqual(position) || jsonWord.end.isEqual(position)) {
+					// we aren't inside a "JSON word" or on its quotes
+					return;
+				}
+
+				let replacing: vscode.Range | undefined;
+				if (jsonWord.end.character - jsonWord.start.character === 2 || document.getWordRangeAtPosition(position, /\s+/)) {
+					// empty json word or on whitespace
+					replacing = new vscode.Range(position, position);
+				} else {
+					replacing = document.getWordRangeAtPosition(position, /[a-zA-Z.]+/);
+				}
+
+				if (!replacing) {
+					return;
+				}
+				const inserting = replacing.with(undefined, position);
+
+				const data = await vscode.commands.executeCommand<ContextKeyInfo[]>('getContextKeyInfo');
+				if (token.isCancellationRequested || !data) {
+					return;
+				}
+
+				const result = new vscode.CompletionList();
+				for (const item of data) {
+					const completion = new vscode.CompletionItem(item.key, vscode.CompletionItemKind.Constant);
+					completion.detail = item.type;
+					completion.range = { replacing, inserting };
+					completion.documentation = item.description;
+					result.items.push(completion);
+				}
+				return result;
+			}
+		}
+	);
+}
