@@ -1838,7 +1838,8 @@ export class ExtensionStatusLabelAction extends Action implements IExtensionCont
 
 	constructor(
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService
 	) {
 		super('extensions.action.statusLabel', '', ExtensionStatusLabelAction.DISABLED_CLASS, false);
 	}
@@ -1896,8 +1897,8 @@ export class ExtensionStatusLabelAction extends Action implements IExtensionCont
 		}
 
 		if (currentEnablementState !== null) {
-			const currentlyEnabled = currentEnablementState === EnablementState.EnabledGlobally || currentEnablementState === EnablementState.EnabledWorkspace;
-			const enabled = this.enablementState === EnablementState.EnabledGlobally || this.enablementState === EnablementState.EnabledWorkspace;
+			const currentlyEnabled = this.extensionEnablementService.isEnabledEnablementState(currentEnablementState);
+			const enabled = this.extensionEnablementService.isEnabledEnablementState(this.enablementState);
 			if (!currentlyEnabled && enabled) {
 				return canAddExtension() ? localize('enabled', "Enabled") : null;
 			}
@@ -2105,6 +2106,18 @@ export class ExtensionStatusIconAction extends ExtensionAction {
 			!this._runningExtensions ||
 			this.extension.state !== ExtensionState.Installed
 		) {
+			return;
+		}
+
+		// Extension is disabled by environment
+		if (this.extension.enablementState === EnablementState.DisabledByEnvironment) {
+			this.updateStatusMessage(localize('disabled by environment', "This extension is disabled by the environment."));
+			return;
+		}
+
+		// Extension is enabled by environment
+		if (this.extension.enablementState === EnablementState.EnabledByEnvironment) {
+			this.updateStatusMessage(localize('enabled by environment', "This extension is enabled because it is required in the current environment."));
 			return;
 		}
 

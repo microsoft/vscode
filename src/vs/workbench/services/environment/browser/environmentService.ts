@@ -226,6 +226,8 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	get disableExtensions() { return this.payload?.get('disableExtensions') === 'true'; }
 
+	get enableExtensions() { return this.options.enableExtensions; }
+
 	@memoize
 	get webviewExternalEndpoint(): string {
 		const endpoint = this.options.webviewEndpoint

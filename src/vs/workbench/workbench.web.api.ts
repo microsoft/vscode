@@ -344,6 +344,11 @@ interface IWorkbenchConstructionOptions {
 	readonly additionalBuiltinExtensions?: readonly (ExtensionId | UriComponents)[];
 
 	/**
+	 * List of extensions to be enabled.
+	 */
+	readonly enableExtensions?: readonly ExtensionId[];
+
+	/**
 	 * [TEMPORARY]: This will be removed soon.
 	 * Enable inlined extensions.
 	 * Defaults to true.

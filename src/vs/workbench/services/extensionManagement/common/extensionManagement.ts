@@ -48,6 +48,7 @@ export const enum EnablementState {
 	DisabledByTrustRequirement,
 	DisabledByExtensionKind,
 	DisabledByEnvironment,
+	EnabledByEnvironment,
 	DisabledByVirtualWorkspace,
 	DisabledByExtensionDependency,
 	DisabledGlobally,
