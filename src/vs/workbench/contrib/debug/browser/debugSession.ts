@@ -140,7 +140,7 @@ export class DebugSession implements IDebugSession {
 	}
 
 	get isSimpleUI(): boolean {
-		return this._options.simpleUI ?? false;
+		return this._options.debugUI?.simple ?? false;
 	}
 
 	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig | undefined }) {
