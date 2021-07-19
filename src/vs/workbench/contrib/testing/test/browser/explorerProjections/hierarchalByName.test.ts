@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { Emitter } from 'vs/base/common/event';
 import { HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
 import { TestDiffOpType, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestResultItemChange } from 'vs/workbench/contrib/testing/common/testResult';
 import { Convert, TestItemImpl } from 'vs/workbench/contrib/testing/common/testStubs';
 import { TestTreeTestHarness } from 'vs/workbench/contrib/testing/test/browser/testObjectTree';
@@ -42,10 +43,10 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 		harness.flush();
 		harness.pushDiff([
 			TestDiffOpType.Add,
-			{ controllerId: 'ctrl2', parent: null, expand: TestItemExpandState.Expanded, item: Convert.TestItem.from(new TestItemImpl('c', 'root2', undefined)) },
+			{ controllerId: 'ctrl2', parent: null, expand: TestItemExpandState.Expanded, item: Convert.TestItem.from(new TestItemImpl('c', 'root2', undefined), 'ctrl2') },
 		], [
 			TestDiffOpType.Add,
-			{ controllerId: 'ctrl2', parent: 'c', expand: TestItemExpandState.NotExpandable, item: Convert.TestItem.from(new TestItemImpl('c-a', 'c', undefined)) },
+			{ controllerId: 'ctrl2', parent: new TestId(['ctrl2', 'c']).toString(), expand: TestItemExpandState.NotExpandable, item: Convert.TestItem.from(new TestItemImpl('c-a', 'c', undefined), 'ctrl2') },
 		]);
 
 		assert.deepStrictEqual(harness.flush(), [
@@ -69,7 +70,7 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 
 	test('updates nodes if they remove children', async () => {
 		harness.flush();
-		harness.c.root.children.get('id-a')!.children.remove('id-ab');
+		harness.c.root.children.get('id-a')!.children.delete('id-ab');
 
 		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'aa' },

@@ -878,6 +878,22 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region Terminal color support https://github.com/microsoft/vscode/issues/128228
+	export interface TerminalOptions {
+		/**
+		 * Supports all ThemeColor keys, terminal.ansi* is recommended for contrast/consistency
+		 */
+		color?: ThemeColor;
+	}
+	export interface ExtensionTerminalOptions {
+		/**
+		 * Supports all ThemeColor keys, terminal.ansi* is recommended for contrast/consistency
+		 */
+		color?: ThemeColor;
+	}
+
+	//#endregion
+
 	// eslint-disable-next-line vscode-dts-region-comments
 	//#region @jrieken -> exclusive document filters
 
@@ -1876,7 +1892,10 @@ declare module 'vscode' {
 	// Todo@api: this is basically the same as the TaskGroup, which is a class that
 	// allows custom groups to be created. However I don't anticipate having any
 	// UI for that, so enum for now?
-	export enum TestRunConfigurationGroup {
+	/**
+	 *
+	 */
+	export enum TestRunProfileGroup {
 		Run = 1,
 		Debug = 2,
 		Coverage = 3,
@@ -1898,7 +1917,10 @@ declare module 'vscode' {
 	// At least with that we can still do it later
 	export type TestRunHandler = (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void;
 
-	export interface TestRunConfiguration {
+	/**
+	 * A TestRunProfile describes one way to execute tests in a {@link TestController}.
+	 */
+	export interface TestRunProfile {
 		/**
 		 * Label shown to the user in the UI.
 		 *
@@ -1911,21 +1933,21 @@ declare module 'vscode' {
 		label: string;
 
 		/**
-		 * Configures where this configuration is grouped in the UI. If there
-		 * are no configurations for a group, it will not be available in the UI.
+		 * Configures where this profile is grouped in the UI. If there
+		 * are no profiles for a group, it will not be available in the UI.
 		 */
-		readonly group: TestRunConfigurationGroup;
+		readonly group: TestRunProfileGroup;
 
 		/**
-		 * Controls whether this configuration is the default action that will
+		 * Controls whether this profile is the default action that will
 		 * be taken when its group is actions. For example, if the user clicks
-		 * the generic "run all" button, then the default configuration for
-		 * {@link TestRunConfigurationGroup.Run} will be executed.
+		 * the generic "run all" button, then the default profile for
+		 * {@link TestRunProfileGroup.Run} will be executed.
 		 */
 		isDefault: boolean;
 
 		/**
-		 * If this method is present a configuration gear will be present in the
+		 * If this method is present, a configuration gear will be present in the
 		 * UI, and this method will be invoked when it's clicked. When called,
 		 * you can take other editor actions, such as showing a quick pick or
 		 * opening a configuration file.
@@ -1933,7 +1955,7 @@ declare module 'vscode' {
 		configureHandler?: () => void;
 
 		/**
-		 * Starts a test run. When called, the controller should call
+		 * Starts a test run. When called, the profile should call
 		 * {@link TestController.createTestRun}. All tasks associated with the
 		 * run should be created before the function returns or the reutrned
 		 * promise is resolved.
@@ -1947,15 +1969,17 @@ declare module 'vscode' {
 		runHandler: TestRunHandler;
 
 		/**
-		 * Deletes the run configuration.
+		 * Deletes the run profile.
 		 */
 		dispose(): void;
 	}
 
 	/**
-	 * Interface to discover and execute tests.
+	 * Entry point to discover and execute tests. It contains {@link items} which
+	 * are used to populate the editor UI, and is associated with
+	 * {@link createRunProfile | run profiles} to allow
+	 * for tests to be executed.
 	 */
-	// todo@api maybe some words on this being the "entry point"
 	export interface TestController {
 		/**
 		 * The ID of the controller, passed in {@link vscode.test.createTestController}
@@ -1983,32 +2007,31 @@ declare module 'vscode' {
 		readonly items: TestItemCollection;
 
 		/**
-		 * Creates a configuration used for running tests. Extensions must create
-		 * at least one configuration in order for tests to be run.
-		 * @param label Human-readable label for this configuration
-		 * @param group Configures where this configuration is grouped in the UI.
+		 * Creates a profile used for running tests. Extensions must create
+		 * at least one profile in order for tests to be run.
+		 * @param label Human-readable label for this profile
+		 * @param group Configures where this profile is grouped in the UI.
 		 * @param runHandler Function called to start a test run
 		 * @param isDefault Whether this is the default action for the group
 		 */
-		createRunConfiguration(label: string, group: TestRunConfigurationGroup, runHandler: TestRunHandler, isDefault?: boolean): TestRunConfiguration;
+		createRunProfile(label: string, group: TestRunProfileGroup, runHandler: TestRunHandler, isDefault?: boolean): TestRunProfile;
 
 		/**
 		 * A function provided by the extension that the editor may call to request
-		 * children of a test item, if the {@link TestItem.canExpand} is `true`.
-		 * When called, the item should discover children and call
+		 * children of a test item, if the {@link TestItem.canResolveChildren} is
+		 * `true`. When called, the item should discover children and call
 		 * {@link vscode.test.createTestItem} as children are discovered.
 		 *
 		 * The item in the explorer will automatically be marked as "busy" until
 		 * the function returns or the returned thenable resolves.
 		 *
-		 * The controller may wish to set up listeners or watchers to update the
-		 * children as files and documents change.
+		 * The handler will be called `undefined` to resolve the controller's
+		 * initial children.
 		 *
 		 * @param item An unresolved test item for which
 		 * children are being requested
 		 */
-		// todo@API maybe just `resolveHandler` so that we could extends its usage in the future?
-		resolveChildrenHandler?: (item: TestItem) => Thenable<void> | void;
+		resolveChildrenHandler?: (item: TestItem | undefined) => Thenable<void> | void;
 
 		/**
 		 * Creates a {@link TestRun<T>}. This should be called by the
@@ -2059,18 +2082,18 @@ declare module 'vscode' {
 		exclude?: TestItem[];
 
 		/**
-		 * The configuration used for this request. This will always be defined
+		 * The profile used for this request. This will always be defined
 		 * for requests issued from the editor UI, though extensions may
-		 * programmatically create requests not associated with any configuration.
+		 * programmatically create requests not associated with any profile.
 		 */
-		configuration?: TestRunConfiguration;
+		profile?: TestRunProfile;
 
 		/**
 		 * @param tests Array of specific tests to run, or undefined to run all tests
 		 * @param exclude Tests to exclude from the run
-		 * @param configuration The run configuration used for this request.
+		 * @param profile The run profile used for this request.
 		 */
-		constructor(include?: readonly TestItem[], exclude?: readonly TestItem[], configuration?: TestRunConfiguration);
+		constructor(include?: readonly TestItem[], exclude?: readonly TestItem[], profile?: TestRunProfile);
 	}
 
 	/**
@@ -2092,14 +2115,14 @@ declare module 'vscode' {
 
 		/**
 		 * Updates the state of the test in the run. Calling with method with nodes
-		 * outside the {@link TestRunRequest.tests} or in the
-		 * {@link TestRunRequest.exclude} array will no-op.
+		 * outside the {@link TestRunRequest.tests} or in the {@link TestRunRequest.exclude}
+		 * array will no-op. This will usually be called multiple times for a test
+		 * as it is queued, enters the running state, and then passes or fails.
 		 *
 		 * @param test The test to update
 		 * @param state The state to assign to the test
 		 * @param duration Optionally sets how long the test took to run, in milliseconds
 		 */
-		//todo@API is this "update" state or set final state? should this be called setTestResult?
 		setState(test: TestItem, state: TestResultState, duration?: number): void;
 
 		/**
@@ -2124,10 +2147,10 @@ declare module 'vscode' {
 		appendOutput(output: string): void;
 
 		/**
-		 * Signals that the end of the test run. Any tests whose states have not
-		 * been updated will be moved into the {@link TestResultState.Unset} state.
+		 * Signals that the end of the test run. Any tests included in the run whose
+		 * states have not been updated will be moved into
+		 * the {@link TestResultState.Unset} state.
 		 */
-		// todo@api is the Unset logic smart and only considering those tests that are included?
 		end(): void;
 	}
 
@@ -2135,28 +2158,37 @@ declare module 'vscode' {
 	 * Collection of test items, found in {@link TestItem.children} and
 	 * {@link TestController.items}.
 	 */
-	export interface TestItemCollection {
+	export interface TestItemCollection extends Iterable<TestItem> {
 		/**
-		 * A read-only array of all the test items children. Can be retrieved, or
-		 * set in order to replace children in the collection.
+		 * Updates the items stored by the collection.
+		 * @param items Items to store, can be an array or other iterable.
 		 */
-		// todo@API unsure if this should readonly and have a separate replaceAll-like function
-		all: readonly TestItem[];
+		set(items: Iterable<TestItem>): void;
+
+		/**
+		 * Iterate over each entry in this collection.
+		 *
+		 * @param callback Function to execute for each entry.
+		 * @param thisArg The `this` context used when invoking the handler function.
+		 */
+		forEach(callback: (item: TestItem, collection: TestItemCollection) => unknown, thisArg?: unknown): void;
 
 		/**
 		 * Adds the test item to the children. If an item with the same ID already
 		 * exists, it'll be replaced.
+		 * @param items Item to add.
 		 */
 		add(item: TestItem): void;
 
 		/**
 		 * Removes the a single test item from the collection.
+		 * @param itemId Item ID to delete.
 		 */
-		//todo@API `delete` as Map, EnvironmentVariableCollection, DiagnosticCollection
-		remove(itemId: string): void;
+		delete(itemId: string): void;
 
 		/**
 		 * Efficiently gets a test item by ID, if it exists, in the children.
+		 * @param itemId Item ID to get.
 		 */
 		get(itemId: string): TestItem | undefined;
 	}
@@ -2167,11 +2199,11 @@ declare module 'vscode' {
 	 */
 	export interface TestItem {
 		/**
-		 * Unique identifier for the TestItem. This is used to correlate
+		 * Identifier for the TestItem. This is used to correlate
 		 * test results and tests in the document with those in the workspace
-		 * (test explorer). This must not change for the lifetime of the TestItem.
+		 * (test explorer). This cannot change for the lifetime of the TestItem,
+		 * and must be unique among its parent's direct children.
 		 */
-		// todo@API globally vs extension vs controller unique. I would strongly recommend non-global
 		readonly id: string;
 
 		/**
@@ -2186,10 +2218,9 @@ declare module 'vscode' {
 
 		/**
 		 * The parent of this item, given in {@link vscode.test.createTestItem}.
-		 * This is undefined top-level items in the `TestController`, and for
-		 * items that aren't yet assigned to a parent.
+		 * This is undefined top-level items in the `TestController` and for
+		 * items that aren't yet included in another item's {@link children}.
 		 */
-		// todo@api obsolete? doc is outdated at least
 		readonly parent?: TestItem;
 
 		/**
@@ -2261,7 +2292,6 @@ declare module 'vscode' {
 		// Test run has been skipped
 		Skipped = 5,
 		// Test run failed for some other reason (compilation error, timeout, etc)
-		// todo@api could I just use `Skipped` and TestItem#error?
 		Errored = 6
 	}
 
@@ -2328,8 +2358,6 @@ declare module 'vscode' {
 	 * run is complete. Therefore, information such as its {@link Range} may be
 	 * out of date. If the test still exists in the workspace, consumers can use
 	 * its `id` to correlate the result instance with the living test.
-	 *
-	 * @todo coverage and other info may eventually be provided here
 	 */
 	export interface TestRunResult {
 		/**
@@ -2360,6 +2388,11 @@ declare module 'vscode' {
 		 * those in the workspace (test explorer).
 		 */
 		readonly id: string;
+
+		/**
+		 * Parent of this item.
+		 */
+		readonly parent?: TestResultSnapshot;
 
 		/**
 		 * URI this TestItem is associated with. May be a file or file.

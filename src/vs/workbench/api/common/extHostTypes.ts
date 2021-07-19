@@ -3302,7 +3302,7 @@ export enum TestMessageSeverity {
 	Hint = 3
 }
 
-export enum TestRunConfigurationGroup {
+export enum TestRunProfileGroup {
 	Run = 1,
 	Debug = 2,
 	Coverage = 3,
@@ -3313,7 +3313,7 @@ export class TestRunRequest implements vscode.TestRunRequest {
 	constructor(
 		public readonly include?: vscode.TestItem[],
 		public readonly exclude?: vscode.TestItem[] | undefined,
-		public readonly configuration?: vscode.TestRunConfiguration,
+		public readonly profile?: vscode.TestRunProfile,
 	) { }
 }
 

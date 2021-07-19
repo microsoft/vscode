@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
-import { TestRunConfigurationBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export const enum Testing {
 	// marked as "extension" so that any existing test extensions are assigned to it.
@@ -47,8 +47,8 @@ export const labelForTestInState = (label: string, state: TestResultState) => lo
 	comment: ['label then the unit tests state, for example "Addition Tests (Running)"'],
 }, '{0} ({1})', label, testStateNames[state]);
 
-export const testConfigurationGroupNames: { [K in TestRunConfigurationBitset]: string } = {
-	[TestRunConfigurationBitset.Debug]: localize('testGroup.debug', 'Debug'),
-	[TestRunConfigurationBitset.Run]: localize('testGroup.run', 'Run'),
-	[TestRunConfigurationBitset.Coverage]: localize('testGroup.coverage', 'Coverage'),
+export const testConfigurationGroupNames: { [K in TestRunProfileBitset]: string } = {
+	[TestRunProfileBitset.Debug]: localize('testGroup.debug', 'Debug'),
+	[TestRunProfileBitset.Run]: localize('testGroup.run', 'Run'),
+	[TestRunProfileBitset.Coverage]: localize('testGroup.coverage', 'Coverage'),
 };

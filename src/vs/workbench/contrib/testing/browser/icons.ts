@@ -24,7 +24,7 @@ export const testingHiddenIcon = registerIcon('testing-hidden', Codicon.eyeClose
 export const testingShowAsList = registerIcon('testing-show-as-list-icon', Codicon.listTree, localize('testingShowAsList', 'Icon shown when the test explorer is disabled as a tree.'));
 export const testingShowAsTree = registerIcon('testing-show-as-list-icon', Codicon.listFlat, localize('testingShowAsTree', 'Icon shown when the test explorer is disabled as a list.'));
 
-export const testingUpdateConfiguration = registerIcon('testing-update-configuration', Codicon.gear, localize('testingUpdateConfiguration', 'Icon shown to update test configurations.'));
+export const testingUpdateProfiles = registerIcon('testing-update-profiles', Codicon.gear, localize('testingUpdateProfiles', 'Icon shown to update test profiles.'));
 
 export const testingStatesToIcons = new Map<TestResultState, ThemeIcon>([
 	[TestResultState.Errored, registerIcon('testing-error-icon', Codicon.issues, localize('testingErrorIcon', 'Icon shown for tests that have an error.'))],

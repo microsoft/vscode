@@ -75,12 +75,8 @@
 	white-space: nowrap;
 }
 
-.extension-editor > .header > .details > .title > .identifier {
+.extension-editor > .header > .details > .title > .version {
 	margin-left: 10px;
-	font-size: 14px;
-	background: rgba(173, 173, 173, 0.31);
-	padding: 0px 4px;
-	border-radius: 4px;
 	user-select: text;
 	-webkit-user-select: text;
 	white-space: nowrap;
@@ -365,12 +361,16 @@
 	display: flex;
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info  > .more-info-entry span:first-child {
+.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info  > .more-info-entry :first-child {
 	flex: 0.4
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info  > .more-info-entry span:last-child {
+.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info  > .more-info-entry :last-child {
 	flex: 0.6
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info  > .more-info-entry code {
+	background-color: transparent;
 }
 
 .extension-editor > .body > .content  > .details > .readme-container > .extension-pack-readme {
@@ -495,7 +495,7 @@
 	margin: 0px;
 }
 
-.extension-editor > .body > .content code:not(:empty) {
+.extension-editor code:not(:empty) {
 	font-family: var(--monaco-monospace-font);
 	font-size: 90%;
 	background-color: rgba(128, 128, 128, 0.17);
@@ -632,6 +632,6 @@
 	margin: 5px;
 }
 
-.extension-editor > .body > .content .runtime-status .message-entry .codicon{
+.extension-editor > .body > .content .runtime-status .message-entry .codicon {
 	padding-right: 2px;
 }

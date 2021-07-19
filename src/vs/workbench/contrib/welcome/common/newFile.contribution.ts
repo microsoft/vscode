@@ -7,17 +7,15 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
-import { Action2, IMenuService, MenuId, registerAction2, IMenu, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { Action2, IMenuService, MenuId, registerAction2, IMenu, MenuRegistry, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 
@@ -56,14 +54,11 @@ class NewFileTemplatesManager extends Disposable {
 
 	private menu: IMenu;
 
-	private registry = new Map<string, NewFileItem>();
-
 	constructor(
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IExtensionService private readonly extensionService: IExtensionService,
 		@IMenuService menuService: IMenuService,
 	) {
 		super();
@@ -71,41 +66,18 @@ class NewFileTemplatesManager extends Disposable {
 		NewFileTemplatesManager.Instance = this;
 
 		this._register({ dispose() { if (NewFileTemplatesManager.Instance === this) { NewFileTemplatesManager.Instance = undefined; } } });
-		this._register(this.extensionService.onDidChangeExtensions(() => this.cacheRawContributionData()));
-		this.cacheRawContributionData();
 
 		this.menu = menuService.createMenu(MenuId.NewFile, contextKeyService);
 		this.updateContextKeys();
 		this._register(this.menu.onDidChange(() => { this.updateContextKeys(); }));
 	}
 
-	private async cacheRawContributionData() {
-		const allExts = await this.extensionService.getExtensions();
-		for (const ext of allExts) {
-			const contribution = ext.contributes?.menus?.['file/newFile'];
-			if (contribution?.length) {
-				contribution.forEach(menu => this.registry.set(menu.command, {
-					commandID: menu.command,
-					from: ext.displayName ?? ext.name,
-					title: (menu as any).title,
-					group: menu.group?.toLowerCase() ?? '',
-				}));
-			}
-		}
-	}
-
-
 	private allEntries(): NewFileItem[] {
 		const items: NewFileItem[] = [];
-		for (const [group, actions] of this.menu.getActions()) {
-			for (const action of actions) {
-				const registered = this.registry.get(action.id);
-				if (registered) {
-					if (!registered.title) { registered.title = action.label; }
-					items.push(registered);
-				}
-				else {
-					items.push({ commandID: action.id, from: localize('Built-In', "Built-In"), title: action.label, group: group });
+		for (const [groupName, group] of this.menu.getActions({ renderShortTitle: true })) {
+			for (const action of group) {
+				if (action instanceof MenuItemAction) {
+					items.push({ commandID: action.item.id, from: '', title: action.label, group: groupName });
 				}
 			}
 		}

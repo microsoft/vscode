@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.59.0",
-  "distro": "6e2ac62842cdc92a69f4234dfe1c60d06a0c39aa",
+  "distro": "bf8855170185a25c3a26903929f315100ff73e7b",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -57,6 +57,7 @@
     "extensions-ci": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js extensions-ci"
   },
   "dependencies": {
+    "@vscode/vscode-languagedetection": "1.0.12",
     "applicationinsights": "1.0.8",
     "chokidar": "3.5.1",
     "eslint-plugin-header": "3.1.1",
@@ -82,10 +83,10 @@
     "vscode-ripgrep": "^1.12.0",
     "vscode-sqlite3": "4.0.11",
     "vscode-textmate": "5.4.0",
-    "xterm": "4.14.0-beta.5",
+    "xterm": "4.14.0-beta.6",
     "xterm-addon-search": "0.9.0-beta.3",
     "xterm-addon-unicode11": "0.3.0-beta.5",
-    "xterm-addon-webgl": "0.12.0-beta.4",
+    "xterm-addon-webgl": "0.12.0-beta.5",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },
@@ -193,10 +194,10 @@
     "style-loader": "^1.0.0",
     "ts-loader": "^9.2.3",
     "tsec": "0.1.4",
-    "util": "^0.12.4",
     "typescript": "^4.4.0-dev.20210713",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.12.1",
+    "util": "^0.12.4",
     "vinyl": "^2.0.0",
     "vinyl-fs": "^3.0.0",
     "vscode-debugprotocol": "1.48.0-pre.0",

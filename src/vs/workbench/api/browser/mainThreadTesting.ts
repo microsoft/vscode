@@ -12,8 +12,8 @@ import { Range } from 'vs/editor/common/core/range';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { ExtensionRunTestsRequest, ITestItem, ITestMessage, ITestRunConfiguration, ITestRunTask, ResolvedTestRunRequest, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestConfigurationService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
+import { ExtensionRunTestsRequest, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
@@ -47,7 +47,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	constructor(
 		extHostContext: IExtHostContext,
 		@ITestService private readonly testService: ITestService,
-		@ITestConfigurationService private readonly testConfiguration: ITestConfigurationService,
+		@ITestProfileService private readonly testProfiles: ITestProfileService,
 		@ITestResultService private readonly resultService: ITestResultService,
 	) {
 		super();
@@ -74,25 +74,25 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	/**
 	 * @inheritdoc
 	 */
-	$publishTestRunConfig(config: ITestRunConfiguration): void {
-		const controller = this.testProviderRegistrations.get(config.controllerId);
+	$publishTestRunProfile(profile: ITestRunProfile): void {
+		const controller = this.testProviderRegistrations.get(profile.controllerId);
 		if (controller) {
-			this.testConfiguration.addConfiguration(controller.instance, config);
+			this.testProfiles.addProfile(controller.instance, profile);
 		}
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	$updateTestRunConfig(controllerId: string, configId: number, update: Partial<ITestRunConfiguration>): void {
-		this.testConfiguration.updateConfiguration(controllerId, configId, update);
+	$updateTestRunConfig(controllerId: string, profileId: number, update: Partial<ITestRunProfile>): void {
+		this.testProfiles.updateProfile(controllerId, profileId, update);
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	$removeTestRunConfig(controllerId: string, configId: number): void {
-		this.testConfiguration.removeConfiguration(controllerId, configId);
+	$removeTestProfile(controllerId: string, profileId: number): void {
+		this.testProfiles.removeProfile(controllerId, profileId);
 	}
 
 	/**
@@ -193,13 +193,13 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		const controller: IMainThreadTestController = {
 			id: controllerId,
 			label,
-			configureRunConfig: id => this.proxy.$configureRunConfig(controllerId, id),
+			configureRunProfile: id => this.proxy.$configureRunProfile(controllerId, id),
 			runTests: (req, token) => this.proxy.$runControllerTests(req, token),
 			expandTest: (src, levels) => this.proxy.$expandTest(src, isFinite(levels) ? levels : -1),
 		};
 
 
-		disposable.add(toDisposable(() => this.testConfiguration.removeConfiguration(controllerId)));
+		disposable.add(toDisposable(() => this.testProfiles.removeProfile(controllerId)));
 		disposable.add(this.testService.registerTestController(controllerId, controller));
 
 		this.testProviderRegistrations.set(controllerId, {

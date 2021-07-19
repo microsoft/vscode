@@ -20,41 +20,35 @@ export interface ITestIdWithSrc {
 export const identifyTest = (test: { controllerId: string, item: { extId: string } }): ITestIdWithSrc =>
 	({ testId: test.item.extId, controllerId: test.controllerId });
 
-export const enum TestRunConfigurationBitset {
+export const enum TestRunProfileBitset {
 	Run = 1 << 1,
 	Debug = 1 << 2,
 	Coverage = 1 << 3,
-	HasNonDefaultConfig = 1 << 4,
+	HasNonDefaultProfile = 1 << 4,
 	HasConfigurable = 1 << 5,
 }
 
 /**
- * List of all test run configuration bitset values.
+ * List of all test run profile bitset values.
  */
-export const testRunConfigurationBitsetList = [
-	TestRunConfigurationBitset.Run,
-	TestRunConfigurationBitset.Debug,
-	TestRunConfigurationBitset.Coverage,
-	TestRunConfigurationBitset.HasNonDefaultConfig,
+export const testRunProfileBitsetList = [
+	TestRunProfileBitset.Run,
+	TestRunProfileBitset.Debug,
+	TestRunProfileBitset.Coverage,
+	TestRunProfileBitset.HasNonDefaultProfile,
 ];
 
 /**
- * DTO for a controller's run configurations.
+ * DTO for a controller's run profiles.
  */
-export interface ITestRunConfiguration {
+export interface ITestRunProfile {
 	controllerId: string;
 	profileId: number;
 	label: string;
-	group: TestRunConfigurationBitset;
+	group: TestRunProfileBitset;
 	isDefault: boolean;
 	hasConfigurationHandler: boolean;
 }
-
-/**
- * Defines the path to a test, as a list of test IDs. The last element of the
- * array is the test ID, and the predecessors are its parents, in order.
- */
-export type TestIdPath = string[];
 
 /**
  * A fully-resolved request to run tests, passsed between the main thread
@@ -64,7 +58,7 @@ export interface ResolvedTestRunRequest {
 	targets: {
 		testIds: string[];
 		controllerId: string;
-		profileGroup: TestRunConfigurationBitset;
+		profileGroup: TestRunProfileBitset;
 		profileId: number;
 	}[]
 	exclude?: ITestIdWithSrc[];
@@ -79,7 +73,7 @@ export interface ExtensionRunTestsRequest {
 	include: string[];
 	exclude: string[];
 	controllerId: string;
-	config?: { group: TestRunConfigurationBitset, id: number };
+	profile?: { group: TestRunProfileBitset, id: number };
 	persist: boolean;
 }
 
@@ -89,7 +83,7 @@ export interface ExtensionRunTestsRequest {
 export interface RunTestForControllerRequest {
 	runId: string;
 	controllerId: string;
-	configId: number;
+	profileId: number;
 	excludeExtIds: string[];
 	testIds: string[];
 }

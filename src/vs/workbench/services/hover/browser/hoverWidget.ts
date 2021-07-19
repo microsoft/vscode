@@ -267,7 +267,7 @@ export class HoverWidget extends Widget {
 		}
 
 		else if (this._hoverPosition === HoverPosition.LEFT) {
-			this._x = target.left;
+			this._x = target.left - hoverWidth;
 		}
 
 		else {
