@@ -484,7 +484,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			return false;
 		}
 
-		if (workspaceIdentifier.uri.scheme !== Schemas.file) {
+		if (workspaceIdentifier.uri.scheme !== Schemas.file && workspaceIdentifier.uri.scheme !== Schemas.vscodeRemote) {
 			return false;
 		}
 
