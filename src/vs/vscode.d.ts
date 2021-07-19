@@ -11550,6 +11550,47 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents a notebook editor that is attached to a {@link NotebookDocument notebook}.
+	 */
+	export interface NotebookEditor {
+
+	}
+
+
+	/**
+	 * Message received from {@link NotebookRendererMessaging.onDidReceiveMessage}
+	 */
+	export interface NotebookRendererMessage {
+		/**
+		 * Editor that sent the message.
+		 */
+		editor: NotebookEditor;
+
+		/**
+		 * Message sent from the webview.
+		 */
+		message: any;
+	}
+
+	/**
+	 * Renderer messaging is used to communicate with a single renderer. It's
+	 * returned from {@link notebooks.createRendererMessaging}.
+	 */
+	export interface NotebookRendererMessaging {
+		/**
+		 * Events that fires when a message is received from a renderer.
+		 */
+		onDidReceiveMessage: Event<NotebookRendererMessage>;
+
+		/**
+		 * Sends a message to the renderer.
+		 * @param editor Editor to target with the message
+		 * @param message Message to send
+		 */
+		postMessage(editor: NotebookEditor, message: unknown): void;
+	}
+
+	/**
 	 * Represents a notebook which itself is a sequence of {@link NotebookCell code or markup cells}. Notebook documents are
 	 * created from {@link NotebookData notebook data}.
 	 */
@@ -12283,6 +12324,16 @@ declare module 'vscode' {
 		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
 		export function registerNotebookCellStatusBarItemProvider(notebookType: string, provider: NotebookCellStatusBarItemProvider): Disposable;
+
+		/**
+		 * Creates a new messaging instance used to communicate with a specific
+		 * renderer. The renderer only has access to messaging if `requiresMessaging`
+		 * is set to `always` or `optional` in its `notebookRenderer ` contribution.
+		 *
+		 * @see https://github.com/microsoft/vscode/issues/123601
+		 * @param rendererId The renderer ID to communicate with
+		*/
+		export function createRendererMessaging(rendererId: string): NotebookRendererMessaging;
 	}
 
 	/**

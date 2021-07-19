@@ -1086,8 +1086,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostNotebookEditors.createNotebookEditorDecorationType(options);
 			},
 			createRendererMessaging(rendererId) {
-				checkProposedApiEnabled(extension);
-				return extHostNotebookRenderers.createRendererMessaging(rendererId);
+				return extHostNotebookRenderers.createRendererMessaging(!!extension.enableProposedApi, rendererId);
 			},
 			onDidChangeNotebookDocumentMetadata(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension);
