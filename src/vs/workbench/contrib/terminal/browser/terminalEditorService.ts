@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -171,13 +170,11 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			instance = this._terminalInstanceService.createInstance({ attachPersistentProcess: instance }, TerminalLocation.Editor);
 		}
 
+		// Terminal from a different window
 		if (URI.isUri(instance)) {
-			console.log('here');
 			const [, workspaceId, instanceId] = instance.path.split('/');
 
-			// Terminal from a different window
 			this._onDidRequestDetachInstance.fire({ workspaceId, instanceId: Number.parseInt(instanceId) });
-			timeout(300);
 			if (this.activeInstance) {
 				instance = this.activeInstance;
 			} else {

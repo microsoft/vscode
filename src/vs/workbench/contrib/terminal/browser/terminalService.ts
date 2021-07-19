@@ -274,7 +274,6 @@ export class TerminalService implements ITerminalService {
 		});
 		this._terminalEditorService.onDidRequestDetachInstance(async (e) => {
 			const attachPersistentProcess = await this._primaryOffProcessTerminalService?.requestDetachInstance(e.workspaceId, e.instanceId);
-			console.log(attachPersistentProcess);
 			this.createTerminal({
 				target: TerminalLocation.Editor,
 				config: { attachPersistentProcess }
