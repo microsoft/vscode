@@ -458,8 +458,9 @@ export function getJumpToPreviousFoldLine(lineNumber: number, foldingModel: Fold
 		} else {
 			// Find min line number to stay within parent.
 			let expectedParentIndex = foldingRegion.parentIndex;
-			if (expectedParentIndex === -1)
+			if (expectedParentIndex === -1) {
 				return null;
+			}
 			let minLineNumber = foldingModel.regions.getStartLineNumber(foldingRegion.parentIndex);
 
 			// Find fold at same level.
@@ -468,10 +469,11 @@ export function getJumpToPreviousFoldLine(lineNumber: number, foldingModel: Fold
 					foldingRegion = foldingModel.regions.toRegion(foldingRegion.regionIndex - 1);
 
 					// Keep at same level.
-					if (foldingRegion.startLineNumber <= minLineNumber)
+					if (foldingRegion.startLineNumber <= minLineNumber) {
 						return null;
-					else if (foldingRegion.parentIndex === expectedParentIndex)
+					} else if (foldingRegion.parentIndex === expectedParentIndex) {
 						return foldingRegion.startLineNumber;
+					}
 				} else {
 					return null;
 				}
@@ -493,8 +495,9 @@ export function getJumpToNextFoldLine(lineNumber: number, foldingModel: FoldingM
 	if (foldingRegion !== null) {
 		// Find max line number to stay within parent.
 		let expectedParentIndex = foldingRegion.parentIndex;
-		if (expectedParentIndex === -1)
+		if (expectedParentIndex === -1) {
 			return null;
+		}
 		let maxLineNumber = foldingModel.regions.getEndLineNumber(foldingRegion.parentIndex);
 
 		// Find fold at same level.
@@ -503,10 +506,11 @@ export function getJumpToNextFoldLine(lineNumber: number, foldingModel: FoldingM
 				foldingRegion = foldingModel.regions.toRegion(foldingRegion.regionIndex + 1);
 
 				// Keep at same level.
-				if (foldingRegion.startLineNumber >= maxLineNumber)
+				if (foldingRegion.startLineNumber >= maxLineNumber) {
 					return null;
-				else if (foldingRegion.parentIndex === expectedParentIndex)
+				} else if (foldingRegion.parentIndex === expectedParentIndex) {
 					return foldingRegion.startLineNumber;
+				}
 			} else {
 				return null;
 			}
