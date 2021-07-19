@@ -37,6 +37,7 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { configureTerminalProfileIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
+import { parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUriParser';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
 import { ILocalTerminalService, IOffProcessTerminalService, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, ITerminalProfileContribution, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
@@ -626,7 +627,7 @@ export class TerminalService implements ITerminalService {
 		if (resource.scheme !== Schemas.vscodeTerminal) {
 			return undefined;
 		}
-		const terminalIdentifier = this._terminalEditorService.parseTerminalUri(resource);
+		const terminalIdentifier = parseTerminalUri(resource);
 		if (this._workspaceContextService.getWorkspace().id !== terminalIdentifier.workspaceId) {
 			return undefined;
 		}
@@ -763,12 +764,14 @@ export class TerminalService implements ITerminalService {
 		}));
 		instance.addDisposable(instance.onMaximumDimensionsChanged(() => this._onDidMaxiumumDimensionsChange.fire(instance)));
 		instance.addDisposable(instance.onDidFocus(this._onDidChangeActiveInstance.fire, this._onDidChangeActiveInstance));
-		instance.addDisposable(instance.onRequestAddInstanceToGroup(async e => await this._addInstanceToGroup(instance, e)));
+		instance.addDisposable(instance.onRequestAddInstanceToGroup(async e => {
+			await this._addInstanceToGroup(instance, e);
+		}));
 	}
 
-
+	@debounce(300)
 	private async _addInstanceToGroup(instance: ITerminalInstance, e: IRequestAddInstanceToGroupEvent): Promise<void> {
-		const terminalIdentifier = this._terminalEditorService.parseTerminalUri(e.uri);
+		const terminalIdentifier = parseTerminalUri(e.uri);
 		if (terminalIdentifier.instanceId === undefined) {
 			return;
 		}
@@ -778,10 +781,9 @@ export class TerminalService implements ITerminalService {
 		// Terminal from a different window
 		if (terminalIdentifier.workspaceId !== this._workspaceContextService.getWorkspace().id) {
 			const attachPersistentProcess = await this._primaryOffProcessTerminalService?.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId);
-			if (attachPersistentProcess && !this._terminalGroupService.instances.find(i => i.processId === attachPersistentProcess.pid)) {
+			if (attachPersistentProcess) {
 				sourceInstance = this.createTerminal({ config: { attachPersistentProcess } });
 				this._terminalGroupService.moveInstance(sourceInstance, instance, e.side);
-				this.setActiveInstance(sourceInstance);
 				return;
 			}
 		}

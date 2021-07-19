@@ -12,10 +12,11 @@ import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IShellLaunchConfig, TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
-import { ITerminalEditorService, ITerminalIdentifier, ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalEditorService, ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { SerializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
+import { parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUriParser';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
@@ -173,7 +174,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 
 		// Terminal from a different window
 		if (URI.isUri(instance)) {
-			const terminalIdentifier = this.parseTerminalUri(instance);
+			const terminalIdentifier = parseTerminalUri(instance);
 			if (!terminalIdentifier?.instanceId) {
 				instance = this._terminalInstanceService.createInstance({});
 			} else {
@@ -206,11 +207,6 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		input.setCopyInstance(instance);
 		this._commandService.executeCommand('workbench.action.splitEditor');
 		return instance;
-	}
-
-	parseTerminalUri(resource: URI): ITerminalIdentifier {
-		const [, workspaceId, instanceId] = resource.path.split('/');
-		return { workspaceId, instanceId: Number.parseInt(instanceId) };
 	}
 
 	detachActiveEditorInstance(): ITerminalInstance {
