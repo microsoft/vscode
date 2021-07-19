@@ -768,16 +768,16 @@ export class TerminalService implements ITerminalService {
 
 
 	private async _addInstanceToGroup(instance: ITerminalInstance, e: IRequestAddInstanceToGroupEvent): Promise<void> {
-		const [, workspaceId, instanceId] = e.uri.path.split('/');
-		if (instanceId === undefined) {
+		const terminalIdentifier = this._terminalEditorService.parseTerminalUri(e.uri);
+		if (terminalIdentifier.instanceId === undefined) {
 			return;
 		}
 
 		let sourceInstance: ITerminalInstance | undefined = undefined;
 
 		// Terminal from a different window
-		if (workspaceId !== this._workspaceContextService.getWorkspace().id) {
-			const attachPersistentProcess = await this._primaryOffProcessTerminalService?.requestDetachInstance(workspaceId, Number.parseInt(instanceId));
+		if (terminalIdentifier.workspaceId !== this._workspaceContextService.getWorkspace().id) {
+			const attachPersistentProcess = await this._primaryOffProcessTerminalService?.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId);
 			if (attachPersistentProcess && !this._terminalGroupService.instances.find(i => i.processId === attachPersistentProcess.pid)) {
 				sourceInstance = this.createTerminal({ config: { attachPersistentProcess } });
 				this._terminalGroupService.moveInstance(sourceInstance, instance, e.side);
@@ -787,14 +787,14 @@ export class TerminalService implements ITerminalService {
 		}
 
 		// View terminals
-		sourceInstance = this._terminalGroupService.instances.find(e => e.instanceId === Number.parseInt(instanceId));
+		sourceInstance = this._terminalGroupService.instances.find(e => e.instanceId === terminalIdentifier.instanceId);
 		if (sourceInstance) {
 			this._terminalGroupService.moveInstance(sourceInstance, instance, e.side);
 			return;
 		}
 
 		// Terminal editors
-		sourceInstance = this._terminalEditorService.instances.find(e => e.instanceId === Number.parseInt(instanceId));
+		sourceInstance = this._terminalEditorService.instances.find(e => e.instanceId === terminalIdentifier.instanceId);
 		if (sourceInstance) {
 			this.moveToTerminalView(sourceInstance, instance, e.side);
 			return;
