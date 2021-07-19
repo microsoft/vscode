@@ -160,7 +160,12 @@ CommandsRegistry.registerCommand({
 CommandsRegistry.registerCommand({
 	id: STEP_BACK_ID,
 	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
-		getThreadAndRun(accessor, context, thread => thread.stepBack());
+		const contextKeyService = accessor.get(IContextKeyService);
+		if (CONTEXT_DISASSEMBLY_VIEW_FOCUS.getValue(contextKeyService)) {
+			getThreadAndRun(accessor, context, (thread: IThread) => thread.stepBack('instruction'));
+		} else {
+			getThreadAndRun(accessor, context, (thread: IThread) => thread.stepBack());
+		}
 	}
 });
 
