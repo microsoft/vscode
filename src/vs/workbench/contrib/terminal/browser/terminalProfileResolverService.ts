@@ -124,7 +124,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		}
 
 		// Apply the color
-		shellLaunchConfig.color = resolvedProfile.color;
+		shellLaunchConfig.color = shellLaunchConfig.color || resolvedProfile.color;
 
 		// Resolve useShellEnvironment based on the setting if it's not set
 		if (shellLaunchConfig.useShellEnvironment === undefined) {

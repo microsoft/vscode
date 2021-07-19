@@ -16,7 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IS_SPLIT_TERMINAL_CONTEXT_KEY, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IOffProcessTerminalService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
@@ -44,6 +44,9 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { containsDragType } from 'vs/workbench/browser/dnd';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
+import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 
 const $ = DOM.$;
 
@@ -163,8 +166,8 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			}
 		});
 
-		this._terminalTabsSingleSelectedContextKey = KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION.bindTo(contextKeyService);
-		this._isSplitContextKey = IS_SPLIT_TERMINAL_CONTEXT_KEY.bindTo(contextKeyService);
+		this._terminalTabsSingleSelectedContextKey = TerminalContextKeys.tabsSingularSelection.bindTo(contextKeyService);
+		this._isSplitContextKey = TerminalContextKeys.splitTerminal.bindTo(contextKeyService);
 
 		this.onDidChangeSelection(e => this._updateContextKey());
 		this.onDidChangeFocus(() => this._updateContextKey());
@@ -536,17 +539,20 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<IT
 class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 	private _autoFocusInstance: ITerminalInstance | undefined;
 	private _autoFocusDisposable: IDisposable = Disposable.None;
-
+	private _offProcessTerminalService: IOffProcessTerminalService | undefined;
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
-		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService
-	) { }
+		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
+	) {
+		this._offProcessTerminalService = _terminalService.getOffProcessTerminalService();
+	}
 
 	getDragURI(instance: ITerminalInstance): string | null {
 		return URI.from({
 			scheme: Schemas.vscodeTerminal,
-			path: `/${instance.instanceId.toString()}`
+			path: `/${this._workspaceContextService.getWorkspace().id}/${instance.instanceId.toString()}`
 		}).toString();
 	}
 
@@ -607,22 +613,36 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		};
 	}
 
-	drop(data: IDragAndDropData, targetInstance: ITerminalInstance | undefined, targetIndex: number | undefined, originalEvent: DragEvent): void {
+	async drop(data: IDragAndDropData, targetInstance: ITerminalInstance | undefined, targetIndex: number | undefined, originalEvent: DragEvent): Promise<void> {
 		this._autoFocusDisposable.dispose();
 		this._autoFocusInstance = undefined;
 
 		let sourceInstances: ITerminalInstance[] | undefined;
-		const terminalResources = originalEvent.dataTransfer?.getData(DataTransfers.TERMINALS);
-		if (terminalResources) {
+		const terminalResources = originalEvent.dataTransfer?.getData(DataTransfers.RESOURCES);
+		const terminals = originalEvent.dataTransfer?.getData(DataTransfers.TERMINALS);
+		let promises: Promise<IProcessDetails | undefined>[] = [];
+		if (terminals && terminalResources) {
 			const json = JSON.parse(terminalResources);
 			for (const entry of json) {
 				const uri = URI.parse(entry);
-				const instance = this._terminalService.instances.find(e => e.resource.path === uri.path);
-				if (instance) {
-					sourceInstances = [instance];
-					this._terminalService.moveToTerminalView(instance);
+				const [, workspaceId, instanceId] = uri.path.split('/');
+				if (workspaceId && instanceId) {
+					const instance = this._terminalService.instances.find(e => e.resource.path === instanceId);
+					if (instance) {
+						sourceInstances = [instance];
+						this._terminalService.moveToTerminalView(instance);
+					} else if (this._offProcessTerminalService && workspaceId !== this._workspaceContextService.getWorkspace().id) {
+						promises.push(this._offProcessTerminalService.requestDetachInstance(workspaceId, Number.parseInt(instanceId)));
+					}
 				}
 			}
+			let processes = await Promise.all(promises);
+			processes = processes.filter(p => p !== undefined);
+			for (const attachPersistentProcess of processes) {
+				const instance = this._terminalService.createTerminal({ config: { attachPersistentProcess } });
+				this._terminalService.setActiveInstance(instance);
+			}
+			return;
 		}
 
 		if (sourceInstances === undefined) {

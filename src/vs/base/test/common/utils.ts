@@ -96,7 +96,17 @@ class DisposableTracker implements IDisposableTracker {
 			.filter(v => v.source !== null && !this.getRootParent(v, rootParentCache).isSingleton);
 
 		if (leaking.length > 0) {
-			throw new Error(`These disposables were not disposed:\n${leaking.map(l => l.source).join('--------------------\n')}`);
+			const count = 10;
+			const firstLeaking = leaking.slice(0, count);
+			const remainingCount = leaking.length - count;
+
+			const separator = '--------------------\n\n';
+			let s = firstLeaking.map(l => l.source).join(separator);
+			if (remainingCount > 0) {
+				s += `${separator}+ ${remainingCount} more`;
+			}
+
+			throw new Error(`These disposables were not disposed:\n${s}`);
 		}
 	}
 }

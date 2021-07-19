@@ -9,8 +9,9 @@ import { DocumentSelector } from '../utils/documentSelector';
 import { ClientCapability, ITypeScriptServiceClient, ServerResponse, ExecConfig } from '../typescriptService';
 import { Condition, conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
 import { Position } from '../utils/typeConverters';
-import FileConfigurationManager, { getInlayHintsPreferences } from './fileConfigurationManager';
+import FileConfigurationManager, { getInlayHintsPreferences, InlayHintSettingNames } from './fileConfigurationManager';
 import API from '../utils/api';
+import { Disposable } from '../utils/dispose';
 
 namespace ExperimentalProto {
 	export const enum CommandTypes {
@@ -80,13 +81,35 @@ namespace ExperimentalProto {
 	}
 }
 
-class TypeScriptInlayHintsProvider implements vscode.InlayHintsProvider {
+const inlayHintSettingNames = [
+	InlayHintSettingNames.parameterNamesSuppressWhenArgumentMatchesName,
+	InlayHintSettingNames.parameterNamesEnabled,
+	InlayHintSettingNames.variableTypesEnabled,
+	InlayHintSettingNames.propertyDeclarationTypesEnabled,
+	InlayHintSettingNames.functionLikeReturnTypesEnabled,
+	InlayHintSettingNames.enumMemberValuesEnabled,
+];
+
+class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHintsProvider {
+
 	public static readonly minVersion = API.v440;
 
+	private readonly _onDidChangeInlayHints = new vscode.EventEmitter<void>();
+	public readonly onDidChangeInlayHints = this._onDidChangeInlayHints.event;
+
 	constructor(
+		modeId: string,
 		private readonly client: ITypeScriptServiceClient,
 		private readonly fileConfigurationManager: FileConfigurationManager
-	) { }
+	) {
+		super();
+
+		this._register(vscode.workspace.onDidChangeConfiguration(e => {
+			if (inlayHintSettingNames.some(settingName => e.affectsConfiguration(modeId + '.' + settingName))) {
+				this._onDidChangeInlayHints.fire();
+			}
+		}));
+	}
 
 	async provideInlayHints(model: vscode.TextDocument, range: vscode.Range, token: vscode.CancellationToken): Promise<vscode.InlayHint[]> {
 		const filepath = this.client.toOpenedFilePath(model);
@@ -148,7 +171,7 @@ export function register(
 		requireMinVersion(client, TypeScriptInlayHintsProvider.minVersion),
 		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
-		return vscode.languages.registerInlayHintsProvider(selector.semantic,
-			new TypeScriptInlayHintsProvider(client, fileConfigurationManager));
+		const provider = new TypeScriptInlayHintsProvider(modeId, client, fileConfigurationManager);
+		return vscode.languages.registerInlayHintsProvider(selector.semantic, provider);
 	});
 }

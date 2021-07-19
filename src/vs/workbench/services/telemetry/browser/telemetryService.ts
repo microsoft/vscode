@@ -20,14 +20,14 @@ import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogA
 
 class WebTelemetryAppender implements ITelemetryAppender {
 
-	constructor(private _appender: IRemoteAgentService) { }
+	constructor(private _appender: ITelemetryAppender) { }
 
 	log(eventName: string, data: any): void {
-		this._appender.logTelemetry(eventName, data);
+		this._appender.log(eventName, data);
 	}
 
 	flush(): Promise<void> {
-		return this._appender.flushTelemetry();
+		return this._appender.flush();
 	}
 }
 
@@ -49,9 +49,10 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		super();
 
 		if (!!productService.enableTelemetry) {
+			const telemetryProvider: ITelemetryAppender = environmentService.options && environmentService.options.telemetryAppender || { log: remoteAgentService.logTelemetry, flush: remoteAgentService.flushTelemetry };
 			const config: ITelemetryServiceConfig = {
-				appender: combinedAppender(new WebTelemetryAppender(remoteAgentService), new TelemetryLogAppender(loggerService, environmentService)),
-				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, environmentService.remoteAuthority, environmentService.options && environmentService.options.resolveCommonTelemetryProperties),
+				appender: combinedAppender(new WebTelemetryAppender(telemetryProvider), new TelemetryLogAppender(loggerService, environmentService)),
+				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, environmentService.remoteAuthority, telemetryProvider.productIdentifier, environmentService.options && environmentService.options.resolveCommonTelemetryProperties),
 				sendErrorTelemetry: false,
 			};
 

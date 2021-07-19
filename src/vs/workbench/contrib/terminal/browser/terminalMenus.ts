@@ -10,8 +10,8 @@ import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { IS_SPLIT_TERMINAL_CONTEXT_KEY, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TerminalCommandId, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalContextKey } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { TerminalCommandId, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalContextKeys, TerminalContextKeyStrings } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 
 const enum ContextMenuGroup {
@@ -56,10 +56,10 @@ export function setupTerminalMenus(): void {
 					command: {
 						id: TerminalCommandId.Split,
 						title: localize({ key: 'miSplitTerminal', comment: ['&& denotes a mnemonic'] }, "&&Split Terminal"),
-						precondition: ContextKeyExpr.has(TerminalContextKey.IsOpen)
+						precondition: ContextKeyExpr.has(TerminalContextKeyStrings.IsOpen)
 					},
 					order: 2,
-					when: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+					when: TerminalContextKeys.processSupported
 				}
 			},
 			{
@@ -71,7 +71,7 @@ export function setupTerminalMenus(): void {
 						title: localize({ key: 'miRunActiveFile', comment: ['&& denotes a mnemonic'] }, "Run &&Active File")
 					},
 					order: 3,
-					when: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+					when: TerminalContextKeys.processSupported
 				}
 			},
 			{
@@ -83,7 +83,7 @@ export function setupTerminalMenus(): void {
 						title: localize({ key: 'miRunSelectedText', comment: ['&& denotes a mnemonic'] }, "Run &&Selected Text")
 					},
 					order: 4,
-					when: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+					when: TerminalContextKeys.processSupported
 				}
 			}
 		]
@@ -261,18 +261,18 @@ export function setupTerminalMenus(): void {
 						ContextKeyExpr.or(
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'singleTerminal'),
-								ContextKeyExpr.equals(TerminalContextKey.Count, 1)
+								ContextKeyExpr.equals(TerminalContextKeyStrings.Count, 1)
 							),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'singleTerminalOrNarrow'),
 								ContextKeyExpr.or(
-									ContextKeyExpr.equals(TerminalContextKey.Count, 1),
-									ContextKeyExpr.has(TerminalContextKey.TabsNarrow)
+									ContextKeyExpr.equals(TerminalContextKeyStrings.Count, 1),
+									ContextKeyExpr.has(TerminalContextKeyStrings.TabsNarrow)
 								)
 							),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'singleGroup'),
-								ContextKeyExpr.equals(TerminalContextKey.GroupCount, 1)
+								ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1)
 							),
 							ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'always')
 						)
@@ -295,18 +295,18 @@ export function setupTerminalMenus(): void {
 							ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminal'),
-								ContextKeyExpr.equals(TerminalContextKey.Count, 1)
+								ContextKeyExpr.equals(TerminalContextKeyStrings.Count, 1)
 							),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminalOrNarrow'),
 								ContextKeyExpr.or(
-									ContextKeyExpr.equals(TerminalContextKey.Count, 1),
-									ContextKeyExpr.has(TerminalContextKey.TabsNarrow)
+									ContextKeyExpr.equals(TerminalContextKeyStrings.Count, 1),
+									ContextKeyExpr.has(TerminalContextKeyStrings.TabsNarrow)
 								)
 							),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleGroup'),
-								ContextKeyExpr.equals(TerminalContextKey.GroupCount, 1)
+								ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1)
 							),
 							ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'always')
 						)
@@ -329,18 +329,18 @@ export function setupTerminalMenus(): void {
 							ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminal'),
-								ContextKeyExpr.equals(TerminalContextKey.Count, 1)
+								ContextKeyExpr.equals(TerminalContextKeyStrings.Count, 1)
 							),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminalOrNarrow'),
 								ContextKeyExpr.or(
-									ContextKeyExpr.equals(TerminalContextKey.Count, 1),
-									ContextKeyExpr.has(TerminalContextKey.TabsNarrow)
+									ContextKeyExpr.equals(TerminalContextKeyStrings.Count, 1),
+									ContextKeyExpr.has(TerminalContextKeyStrings.TabsNarrow)
 								)
 							),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleGroup'),
-								ContextKeyExpr.equals(TerminalContextKey.GroupCount, 1)
+								ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1)
 							),
 							ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'always')
 						)
@@ -493,7 +493,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.JoinInstance,
 						title: localize('workbench.action.terminal.joinInstance', "Join Terminals")
 					},
-					when: KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION.toNegated()
+					when: TerminalContextKeys.tabsSingularSelection.toNegated()
 				}
 			},
 			{
@@ -504,7 +504,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.UnsplitInstance,
 						title: terminalStrings.unsplit.value
 					},
-					when: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, IS_SPLIT_TERMINAL_CONTEXT_KEY)
+					when: ContextKeyExpr.and(TerminalContextKeys.tabsSingularSelection, TerminalContextKeys.splitTerminal)
 				}
 			},
 			{

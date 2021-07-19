@@ -7,8 +7,10 @@ import * as assert from 'assert';
 import { Emitter } from 'vs/base/common/event';
 import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
 import { TestDiffOpType, TestItemExpandState, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestId } from 'vs/workbench/contrib/testing/common/testId';
+import { TestResultState } from 'vs/workbench/contrib/testing/common/testingStates';
 import { TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
-import { Convert, TestItemImpl, TestResultState } from 'vs/workbench/contrib/testing/common/testStubs';
+import { Convert, TestItemImpl } from 'vs/workbench/contrib/testing/common/testStubs';
 import { TestTreeTestHarness } from 'vs/workbench/contrib/testing/test/browser/testObjectTree';
 
 class TestHierarchicalByLocationProjection extends HierarchicalByLocationProjection {
@@ -43,7 +45,7 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 
 	test('expands children', async () => {
 		harness.flush();
-		harness.tree.expand(harness.projection.getElementByTestId('id-a')!);
+		harness.tree.expand(harness.projection.getElementByTestId(new TestId(['ctrlId', 'id-a']).toString())!);
 		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'a', children: [{ e: 'aa' }, { e: 'ab' }] }, { e: 'b' }
 		]);
@@ -53,10 +55,10 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		harness.flush();
 		harness.pushDiff([
 			TestDiffOpType.Add,
-			{ controllerId: 'ctrl2', parent: null, expand: TestItemExpandState.Expanded, item: Convert.TestItem.from(new TestItemImpl('c', 'c', undefined, undefined, undefined)) },
+			{ controllerId: 'ctrl2', parent: null, expand: TestItemExpandState.Expanded, item: Convert.TestItem.from(new TestItemImpl('c', 'c', undefined), 'ctrl2') },
 		], [
 			TestDiffOpType.Add,
-			{ controllerId: 'ctrl2', parent: 'c', expand: TestItemExpandState.NotExpandable, item: Convert.TestItem.from(new TestItemImpl('c-a', 'ca', undefined, undefined, undefined)) },
+			{ controllerId: 'ctrl2', parent: new TestId(['ctrl2', 'c']).toString(), expand: TestItemExpandState.NotExpandable, item: Convert.TestItem.from(new TestItemImpl('c-a', 'ca', undefined), 'ctrl2') },
 		]);
 
 		assert.deepStrictEqual(harness.flush(), [
@@ -67,14 +69,14 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 
 	test('updates nodes if they add children', async () => {
 		harness.flush();
-		harness.tree.expand(harness.projection.getElementByTestId('id-a')!);
+		harness.tree.expand(harness.projection.getElementByTestId(new TestId(['ctrlId', 'id-a']).toString())!);
 
 		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'a', children: [{ e: 'aa' }, { e: 'ab' }] },
 			{ e: 'b' }
 		]);
 
-		new TestItemImpl('ac', 'ac', undefined, undefined, harness.c.root.children.get('id-a')!);
+		harness.c.root.children.get('id-a')!.children.add(new TestItemImpl('ac', 'ac', undefined));
 
 		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'a', children: [{ e: 'aa' }, { e: 'ab' }, { e: 'ac' }] },
@@ -84,14 +86,14 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 
 	test('updates nodes if they remove children', async () => {
 		harness.flush();
-		harness.tree.expand(harness.projection.getElementByTestId('id-a')!);
+		harness.tree.expand(harness.projection.getElementByTestId(new TestId(['ctrlId', 'id-a']).toString())!);
 
 		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'a', children: [{ e: 'aa' }, { e: 'ab' }] },
 			{ e: 'b' }
 		]);
 
-		harness.c.root.children.get('id-a')!.children.get('id-ab')!.dispose();
+		harness.c.root.children.get('id-a')!.children.delete('id-ab');
 
 		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'a', children: [{ e: 'aa' }] },
@@ -104,7 +106,7 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		resultsService.getStateById = () => [undefined, resultInState(TestResultState.Failed)];
 
 		const resultInState = (state: TestResultState): TestResultItem => ({
-			item: harness.c.itemToInternal.get(harness.c.root.children.get('id-a')!)!.item,
+			item: Convert.TestItem.from(harness.c.tree.get(new TestId(['ctrlId', 'id-a']).toString())!.actual, 'ctrlId'),
 			parent: 'id-root',
 			tasks: [],
 			retired: false,

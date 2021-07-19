@@ -217,15 +217,24 @@ export default class FileConfigurationManager extends Disposable {
 	}
 }
 
+export class InlayHintSettingNames {
+	static readonly parameterNamesSuppressWhenArgumentMatchesName = 'inlayHints.parameterNames.suppressWhenArgumentMatchesName';
+	static readonly parameterNamesEnabled = 'inlayHints.parameterTypes.enabled';
+	static readonly variableTypesEnabled = 'inlayHints.variableTypes.enabled';
+	static readonly propertyDeclarationTypesEnabled = 'inlayHints.propertyDeclarationTypes.enabled';
+	static readonly functionLikeReturnTypesEnabled = 'inlayHints.functionLikeReturnTypes.enabled';
+	static readonly enumMemberValuesEnabled = 'inlayHints.enumMemberValues.enabled';
+}
+
 export function getInlayHintsPreferences(config: vscode.WorkspaceConfiguration) {
 	return {
 		includeInlayParameterNameHints: getInlayParameterNameHintsPreference(config),
-		includeInlayParameterNameHintsWhenArgumentMatchesName: !config.get<boolean>('inlayHints.parameterNames.suppressWhenArgumentMatchesName', true),
-		includeInlayFunctionParameterTypeHints: config.get<boolean>('inlayHints.parameterTypes.enabled', false),
-		includeInlayVariableTypeHints: config.get<boolean>('inlayHints.variableTypes.enabled', false),
-		includeInlayPropertyDeclarationTypeHints: config.get<boolean>('inlayHints.propertyDeclarationTypes.enabled', false),
-		includeInlayFunctionLikeReturnTypeHints: config.get<boolean>('inlayHints.functionLikeReturnTypes.enabled', false),
-		includeInlayEnumMemberValueHints: config.get<boolean>('inlayHints.enumMemberValues.enabled', false),
+		includeInlayParameterNameHintsWhenArgumentMatchesName: !config.get<boolean>(InlayHintSettingNames.parameterNamesSuppressWhenArgumentMatchesName, true),
+		includeInlayFunctionParameterTypeHints: config.get<boolean>(InlayHintSettingNames.parameterNamesEnabled, false),
+		includeInlayVariableTypeHints: config.get<boolean>(InlayHintSettingNames.variableTypesEnabled, false),
+		includeInlayPropertyDeclarationTypeHints: config.get<boolean>(InlayHintSettingNames.propertyDeclarationTypesEnabled, false),
+		includeInlayFunctionLikeReturnTypeHints: config.get<boolean>(InlayHintSettingNames.functionLikeReturnTypesEnabled, false),
+		includeInlayEnumMemberValueHints: config.get<boolean>(InlayHintSettingNames.enumMemberValuesEnabled, false),
 	} as const;
 }
 

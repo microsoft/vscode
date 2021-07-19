@@ -444,24 +444,6 @@ export const enum EditorInputCapabilities {
 	RequiresTrust = 1 << 4,
 }
 
-export const enum UntypedEditorContext {
-
-	/**
-	 * The untyped editor should preserve minimal state of the
-	 * typed editor to restore properly.
-	 */
-	Default = 0,
-
-	/**
-	 * The untyped editor should try to preserve as much of the
-	 * state of the typed editor as possible.
-	 *
-	 * For example: the untyped editor may be dragged to another
-	 * window to fully restore there, including contents.
-	 */
-	Full = 1
-}
-
 export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput;
 
 export interface IEditorInput extends IDisposable {
@@ -617,8 +599,13 @@ export interface IEditorInput extends IDisposable {
 	 * editor input into a form that it can be restored.
 	 *
 	 * May return `undefined` if a untyped representatin is not supported.
+	 *
+	 * @param options additional configuration for the expected return type.
+	 * When `preserveViewState` is provided, implementations should try to
+	 * preserve as much view state as possible from the typed input based on
+	 * the group the editor is opened.
 	 */
-	toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IUntypedEditorInput | undefined;
+	toUntyped(options?: { preserveViewState: GroupIdentifier }): IUntypedEditorInput | undefined;
 
 	/**
 	 * Returns if the other object matches this input.
@@ -631,12 +618,12 @@ export interface IEditorInput extends IDisposable {
 	isDisposed(): boolean;
 }
 
-export abstract class BaseEditorInput extends Disposable {
+export abstract class AbstractEditorInput extends Disposable {
 	// Marker class for implementing `isEditorInput`
 }
 
 export function isEditorInput(editor: unknown): editor is IEditorInput {
-	return editor instanceof BaseEditorInput;
+	return editor instanceof AbstractEditorInput;
 }
 
 export interface IEditorInputWithPreferredResource {
@@ -1106,7 +1093,14 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 
 	const editors = await Promise.all(paths.map(async path => {
 		const resource = URI.revive(path.fileUri);
-		if (!resource || !fileService.canHandleResource(resource)) {
+
+		if (!resource) {
+			return;
+		}
+
+		await fileService.activateProvider(resource.scheme);
+
+		if (!fileService.canHandleResource(resource)) {
 			return;
 		}
 

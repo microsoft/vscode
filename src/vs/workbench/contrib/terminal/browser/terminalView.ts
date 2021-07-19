@@ -360,6 +360,7 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		this._register(_terminalGroupService.onDidChangeGroups(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeConnectionState(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeAvailableProfiles(() => this._updateItems(), this));
+		this._register(_terminalService.onDidChangeInstancePrimaryStatus(() => this._updateItems(), this));
 		this._register(attachSelectBoxStyler(this.selectBox, this._themeService));
 	}
 
@@ -468,7 +469,10 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			// Middle click kills
 			this._elementDisposables.push(dom.addDisposableListener(this.element, dom.EventType.AUXCLICK, e => {
 				if (e.button === 1) {
-					this._terminalGroupService.activeInstance?.dispose();
+					const instance = this._terminalGroupService.activeInstance;
+					if (instance) {
+						this._terminalService.safeDisposeTerminal(instance);
+					}
 					e.preventDefault();
 				}
 			}));

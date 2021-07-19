@@ -34,8 +34,30 @@ export async function deactivate(): Promise<any> {
 }
 
 async function createModel(context: ExtensionContext, outputChannel: OutputChannel, telemetryReporter: TelemetryReporter, disposables: Disposable[]): Promise<Model> {
-	const pathHint = workspace.getConfiguration('git').get<string | string[]>('path');
-	const info = await findGit(pathHint, path => outputChannel.appendLine(localize('looking', "Looking for git in: {0}", path)));
+	const pathValue = workspace.getConfiguration('git').get<string | string[]>('path');
+	let pathHints = Array.isArray(pathValue) ? pathValue : pathValue ? [pathValue] : [];
+
+	const { isTrusted, workspaceFolders = [] } = workspace;
+	const excludes = isTrusted ? [] : workspaceFolders.map(f => path.normalize(f.uri.fsPath).replace(/[\r\n]+$/, ''));
+
+	if (!isTrusted && pathHints.length !== 0) {
+		// Filter out any non-absolute paths
+		pathHints = pathHints.filter(p => path.isAbsolute(p));
+	}
+
+	const info = await findGit(pathHints, gitPath => {
+		outputChannel.appendLine(localize('validating', "Validating found git in: {0}", gitPath));
+		if (excludes.length === 0) {
+			return true;
+		}
+
+		const normalized = path.normalize(gitPath).replace(/[\r\n]+$/, '');
+		const skip = excludes.some(e => normalized.startsWith(e));
+		if (skip) {
+			outputChannel.appendLine(localize('skipped', "Skipped found git in: {0}", gitPath));
+		}
+		return !skip;
+	});
 
 	const askpass = await Askpass.create(outputChannel, context.storagePath);
 	disposables.push(askpass);

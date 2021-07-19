@@ -1240,6 +1240,9 @@ export class SearchView extends ViewPane {
 		if (typeof args.useExcludeSettingsAndIgnoreFiles === 'boolean') {
 			this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(args.useExcludeSettingsAndIgnoreFiles);
 		}
+		if (typeof args.onlyOpenEditors === 'boolean') {
+			this.searchIncludePattern.setOnlySearchInOpenEditors(args.onlyOpenEditors);
+		}
 	}
 
 	toggleQueryDetails(moveFocus = true, show?: boolean, skipLayout?: boolean, reverse?: boolean): void {

@@ -1292,7 +1292,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.ok(value[0].parent);
 	});
 
-	// --- call hierarcht
+	// --- call hierarchy
 
 	test('CallHierarchy, back and forth', async function () {
 
@@ -1333,6 +1333,40 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		const outgoing = await commands.executeCommand<vscode.CallHierarchyOutgoingCall[]>('vscode.provideOutgoingCalls', root[0]);
 		assert.strictEqual(outgoing.length, 1);
 		assert.strictEqual(outgoing[0].to.name, 'OUTGOING');
+	});
+
+	// --- type hierarchy
+
+	test('TypeHierarchy, back and forth', async function () {
+
+
+		disposables.push(extHost.registerTypeHierarchyProvider(nullExtensionDescription, defaultSelector, new class implements vscode.TypeHierarchyProvider {
+			prepareTypeHierarchy(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): vscode.ProviderResult<vscode.TypeHierarchyItem[]> {
+				return [new types.TypeHierarchyItem(types.SymbolKind.Constant, 'ROOT', 'ROOT', document.uri, new types.Range(0, 0, 0, 0), new types.Range(0, 0, 0, 0))];
+			}
+			provideTypeHierarchySupertypes(item: vscode.TypeHierarchyItem, token: vscode.CancellationToken): vscode.ProviderResult<vscode.TypeHierarchyItem[]> {
+				return [new types.TypeHierarchyItem(types.SymbolKind.Constant, 'SUPER', 'SUPER', item.uri, new types.Range(0, 0, 0, 0), new types.Range(0, 0, 0, 0))];
+			}
+			provideTypeHierarchySubtypes(item: vscode.TypeHierarchyItem, token: vscode.CancellationToken): vscode.ProviderResult<vscode.TypeHierarchyItem[]> {
+				return [new types.TypeHierarchyItem(types.SymbolKind.Constant, 'SUB', 'SUB', item.uri, new types.Range(0, 0, 0, 0), new types.Range(0, 0, 0, 0))];
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		const root = await commands.executeCommand<vscode.TypeHierarchyItem[]>('vscode.prepareTypeHierarchy', model.uri, new types.Position(0, 0));
+
+		assert.ok(Array.isArray(root));
+		assert.strictEqual(root.length, 1);
+		assert.strictEqual(root[0].name, 'ROOT');
+
+		const incoming = await commands.executeCommand<vscode.TypeHierarchyItem[]>('vscode.provideSupertypes', root[0]);
+		assert.strictEqual(incoming.length, 1);
+		assert.strictEqual(incoming[0].name, 'SUPER');
+
+		const outgoing = await commands.executeCommand<vscode.TypeHierarchyItem[]>('vscode.provideSubtypes', root[0]);
+		assert.strictEqual(outgoing.length, 1);
+		assert.strictEqual(outgoing[0].name, 'SUB');
 	});
 
 	test('selectionRangeProvider on inner array always returns outer array #91852', async function () {

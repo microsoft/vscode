@@ -59,7 +59,6 @@ export interface NotebookLayoutConfiguration {
 	fontSize: number;
 	focusIndicatorLeftMargin: number;
 	editorOptionsCustomizations: any | undefined;
-	cellBreakpointMarginActive: boolean;
 }
 
 interface NotebookOptionsChangeEvent {
@@ -139,7 +138,7 @@ export class NotebookOptions {
 			editorTopPadding: EDITOR_TOP_PADDING,
 			editorBottomPadding: 4,
 			editorBottomPaddingWithoutStatusBar: 12,
-			collapsedIndicatorHeight: 24,
+			collapsedIndicatorHeight: 28,
 			showCellStatusBar,
 			globalToolbar,
 			consolidatedOutputButton,
@@ -154,7 +153,6 @@ export class NotebookOptions {
 			showFoldingControls,
 			fontSize,
 			editorOptionsCustomizations,
-			cellBreakpointMarginActive: false
 		};
 
 		this._disposables.push(this.configurationService.onDidChangeConfiguration(e => {

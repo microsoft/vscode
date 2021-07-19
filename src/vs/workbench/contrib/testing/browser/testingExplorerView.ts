@@ -15,9 +15,9 @@ import { Action, ActionRunner, IAction, Separator } from 'vs/base/common/actions
 import { disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
 import { Color, RGBA } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
+import * as extpath from 'vs/base/common/extpath';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { splitGlobAware } from 'vs/base/common/glob';
-import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isDefined } from 'vs/base/common/types';
@@ -25,8 +25,10 @@ import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/testing';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { localize } from 'vs/nls';
+import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -49,19 +51,22 @@ import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/comm
 import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
 import { HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
 import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
-import { testingHiddenIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
+import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestExplorerFilterState, TestExplorerFilterState, TestingExplorerFilter } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { ITestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { labelForTestInState, TestExplorerStateFilter, TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
-import { identifyTest, TestIdPath, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
+import { identifyTest, ITestRunProfile, TestItemExpandState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { capabilityContextKeys, ITestProfileService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
+import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { cmpPriority, isFailedState, isStateWithResult } from 'vs/workbench/contrib/testing/common/testingStates';
-import { getPathForTestInResult, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
+import { TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { ITestService, testCollectionIsEmpty } from 'vs/workbench/contrib/testing/common/testService';
-import { GoToTest } from './testExplorerActions';
+import { IMainThreadTestCollection, ITestService, testCollectionIsEmpty } from 'vs/workbench/contrib/testing/common/testService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ConfigureTestProfilesAction, DebugAllAction, GoToTest, RunAllAction, SelectDefaultTestProfiles } from './testExplorerActions';
 
 export class TestingExplorerView extends ViewPane {
 	public viewModel!: TestingExplorerViewModel;
@@ -82,9 +87,11 @@ export class TestingExplorerView extends ViewPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITestService testService: ITestService,
+		@ITestService private readonly testService: ITestService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ITestingProgressUiService private readonly testProgressService: ITestingProgressUiService,
+		@ITestProfileService private readonly testProfileService: ITestProfileService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.location.set(viewDescriptorService.getViewLocationById(Testing.ExplorerViewId) ?? ViewContainerLocation.Sidebar);
@@ -99,6 +106,8 @@ export class TestingExplorerView extends ViewPane {
 		this._register(testService.collection.onBusyProvidersChange(busy => {
 			this.updateDiscoveryProgress(busy);
 		}));
+
+		this._register(testProfileService.onDidChange(() => this.updateActions()));
 	}
 
 	/**
@@ -153,15 +162,88 @@ export class TestingExplorerView extends ViewPane {
 		}
 	}
 
-	/**
-	 * @override
-	 */
+	/** @override  */
 	public override getActionViewItem(action: IAction): IActionViewItem | undefined {
-		if (action.id === Testing.FilterActionId) {
-			return this.instantiationService.createInstance(TestingExplorerFilter, action);
+		switch (action.id) {
+			case Testing.FilterActionId:
+				return this.instantiationService.createInstance(TestingExplorerFilter, action);
+			case RunAllAction.ID:
+				return this.getRunGroupDropdown(TestRunProfileBitset.Run, action);
+			case DebugAllAction.ID:
+				return this.getRunGroupDropdown(TestRunProfileBitset.Debug, action);
+			default:
+				return super.getActionViewItem(action);
+		}
+	}
+
+	/** @inheritdoc */
+	private getTestConfigGroupActions(group: TestRunProfileBitset) {
+		const profileActions: IAction[] = [];
+
+		let participatingGroups = 0;
+		let hasConfigurable = false;
+		const defaults = this.testProfileService.getGroupDefaultProfiles(group);
+		for (const { profiles, controller } of this.testProfileService.all()) {
+			let hasAdded = false;
+
+			for (const profile of profiles) {
+				if (profile.group !== group) {
+					continue;
+				}
+
+				if (!hasAdded) {
+					hasAdded = true;
+					participatingGroups++;
+					profileActions.push(new Action(`${controller.id}.$root`, controller.label.value, undefined, false));
+				}
+
+				hasConfigurable = hasConfigurable || profile.hasConfigurationHandler;
+				profileActions.push(new Action(
+					`${controller.id}.${profile.profileId}`,
+					defaults.includes(profile) ? localize('defaultTestProfile', '{0} (Default)', profile.label) : profile.label,
+					undefined,
+					undefined,
+					() => this.testService.runResolvedTests({
+						targets: [{
+							profileGroup: profile.group,
+							profileId: profile.profileId,
+							controllerId: profile.controllerId,
+							testIds: this.getSelectedOrVisibleItems()
+								.filter(i => i.controllerId === profile.controllerId)
+								.map(i => i.item.extId),
+						}]
+					}),
+				));
+			}
 		}
 
-		return super.getActionViewItem(action);
+		// If there's only one group, don't add a heading for it in the dropdown.
+		if (participatingGroups === 1) {
+			profileActions.shift();
+		}
+
+		let postActions: IAction[] = [];
+		if (profileActions.length > 1) {
+			postActions.push(new Action(
+				'selectDefaultTestConfigurations',
+				localize('selectDefaultConfigs', 'Select Default Profile'),
+				undefined,
+				undefined,
+				() => this.commandService.executeCommand<ITestRunProfile>(SelectDefaultTestProfiles.ID, group),
+			));
+		}
+
+		if (hasConfigurable) {
+			postActions.push(new Action(
+				'configureTestProfiles',
+				localize('configureTestProfiles', 'Configure Test Profiles'),
+				undefined,
+				undefined,
+				() => this.commandService.executeCommand<ITestRunProfile>(ConfigureTestProfilesAction.ID, group),
+			));
+		}
+
+		return Separator.join(profileActions, postActions);
 	}
 
 	/**
@@ -169,6 +251,38 @@ export class TestingExplorerView extends ViewPane {
 	 */
 	public override saveState() {
 		super.saveState();
+	}
+
+	/**
+	 * If items in the tree are selected, returns them. Otherwise, returns
+	 * visible tests.
+	 */
+	private getSelectedOrVisibleItems() {
+		return [...this.testService.collection.rootItems]; // todo
+	}
+
+	private getRunGroupDropdown(group: TestRunProfileBitset, defaultAction: IAction) {
+		const dropdownActions = this.getTestConfigGroupActions(group);
+		if (dropdownActions.length < 2) {
+			return super.getActionViewItem(defaultAction);
+		}
+
+		const primaryAction = this.instantiationService.createInstance(MenuItemAction, {
+			id: defaultAction.id,
+			title: defaultAction.label,
+			icon: group === TestRunProfileBitset.Run
+				? icons.testingRunAllIcon
+				: icons.testingDebugAllIcon,
+		}, undefined, undefined);
+
+		const dropdownAction = new Action('selectRunConfig', 'Select Configuration...', 'codicon-chevron-down', true);
+
+		return this.instantiationService.createInstance(
+			DropdownWithPrimaryActionViewItem,
+			primaryAction, dropdownAction, dropdownActions,
+			'',
+			this.contextMenuService,
+		);
 	}
 
 	private createFilterActionBar() {
@@ -269,6 +383,7 @@ export class TestingExplorerViewModel extends Disposable {
 		listContainer: HTMLElement,
 		onDidChangeVisibility: Event<boolean>,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IEditorService editorService: IEditorService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ITestService private readonly testService: ITestService,
@@ -278,6 +393,7 @@ export class TestingExplorerViewModel extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ITestResultService private readonly testResults: ITestResultService,
 		@ITestingPeekOpener private readonly peekOpener: ITestingPeekOpener,
+		@ITestProfileService private readonly testProfileService: ITestProfileService,
 	) {
 		super();
 
@@ -289,7 +405,7 @@ export class TestingExplorerViewModel extends Disposable {
 		const labels = this._register(instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: onDidChangeVisibility }));
 
 		this.reevaluateWelcomeState();
-		this.filter = this.instantiationService.createInstance(TestsFilter);
+		this.filter = this.instantiationService.createInstance(TestsFilter, testService.collection);
 		this.tree = instantiationService.createInstance(
 			WorkbenchObjectTree,
 			'Test Explorer List',
@@ -315,13 +431,20 @@ export class TestingExplorerViewModel extends Disposable {
 			}
 		}));
 
+		this._register(onDidChangeVisibility(visible => {
+			if (visible) {
+				this.ensureProjection();
+			}
+		}));
+
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
 		this._register(Event.any(
 			filterState.text.onDidChange,
 			filterState.stateFilter.onDidChange,
 			filterState.showExcludedTests.onDidChange,
-			testService.excludeTests.onDidChange,
+			filterState.currentDocumentOnly.onDidChange,
+			testService.excluded.onTestExclusionsChanged,
 		)(this.tree.refilter, this.tree));
 
 		this._register(this.tree);
@@ -339,15 +462,13 @@ export class TestingExplorerViewModel extends Disposable {
 			}
 		}));
 
-		this._register(filterState.reveal.onDidChange(this.revealByIdPath, this));
+		this._register(filterState.reveal.onDidChange(this.revealById, this));
 
 		this._register(onDidChangeVisibility(visible => {
 			if (visible) {
 				filterState.focusInput();
 			}
 		}));
-
-		this.updatePreferredProjection();
 
 		this._register(this.tree.onDidChangeSelection(async evt => {
 			if (evt.browserEvent instanceof MouseEvent && evt.browserEvent.altKey) {
@@ -383,7 +504,7 @@ export class TestingExplorerViewModel extends Disposable {
 				return;
 			}
 
-			this.revealByIdPath(getPathForTestInResult(evt.item, evt.result), false, false);
+			this.revealById(evt.item.item.extId, false, false);
 		}));
 
 		this._register(testResults.onResultsChanged(evt => {
@@ -396,6 +517,31 @@ export class TestingExplorerViewModel extends Disposable {
 				}
 			}
 		}));
+
+		this._register(this.testProfileService.onDidChange(() => {
+			this.tree.rerender();
+		}));
+
+		this._register(filterState.currentDocumentOnly.onDidChange(() => {
+			if (!filterState.currentDocumentOnly.value) {
+				this.filter.filterToDocumentUri(undefined);
+			} else if (editorService.activeEditor?.resource) {
+				this.filter.filterToDocumentUri(editorService.activeEditor.resource);
+			}
+
+			this.tree.refilter();
+		}));
+
+		const onEditorChange = () => {
+			if (filterState.currentDocumentOnly.value && editorService.activeEditor?.resource) {
+				this.filter.filterToDocumentUri(editorService.activeEditor.resource);
+				this.tree.refilter();
+			}
+		};
+
+		this._register(editorService.onDidActiveEditorChange(onEditorChange));
+
+		onEditorChange();
 	}
 
 	/**
@@ -409,21 +555,20 @@ export class TestingExplorerViewModel extends Disposable {
 	 * Tries to reveal by extension ID. Queues the request if the extension
 	 * ID is not currently available.
 	 */
-	private revealByIdPath(idPath: TestIdPath | undefined, expand = true, focus = true) {
-		if (!idPath) {
+	private revealById(id: string | undefined, expand = true, focus = true) {
+		if (!id) {
 			this.hasPendingReveal = false;
 			return;
 		}
 
-		if (!this.projection.value) {
-			return;
-		}
+		const projection = this.ensureProjection();
 
 		// If the item itself is visible in the tree, show it. Otherwise, expand
 		// its closest parent.
 		let expandToLevel = 0;
+		const idPath = [...TestId.fromString(id).idsFromRoot()];
 		for (let i = idPath.length - 1; i >= expandToLevel; i--) {
-			const element = this.projection.value.getElementByTestId(idPath[i]);
+			const element = projection.getElementByTestId(idPath[i]);
 			// Skip all elements that aren't in the tree.
 			if (!element || !this.tree.hasElement(element)) {
 				continue;
@@ -446,7 +591,7 @@ export class TestingExplorerViewModel extends Disposable {
 			// If the node or any of its children are excluded, flip on the 'show
 			// excluded tests' checkbox automatically.
 			for (let n: TestItemTreeElement | null = element; n instanceof TestItemTreeElement; n = n.parent) {
-				if (n.test && this.testService.excludeTests.value.has(n.test.item.extId)) {
+				if (n.test && this.testService.excluded.contains(identifyTest(n.test))) {
 					this.filterState.showExcludedTests.value = true;
 					break;
 				}
@@ -499,7 +644,7 @@ export class TestingExplorerViewModel extends Disposable {
 			return;
 		}
 
-		const actions = getActionableElementActions(this.contextKeyService, this.menuService, this.testService, element);
+		const actions = getActionableElementActions(this.contextKeyService, this.menuService, this.testService, this.testProfileService, element);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => evt.anchor,
 			getActions: () => [
@@ -525,12 +670,11 @@ export class TestingExplorerViewModel extends Disposable {
 		}
 
 		const toRun = targeted
-			.filter((e): e is TestItemTreeElement => e instanceof TestItemTreeElement)
-			.filter(e => e.test.item.runnable);
+			.filter((e): e is TestItemTreeElement => e instanceof TestItemTreeElement);
 
 		if (toRun.length) {
 			this.testService.runTests({
-				debug: false,
+				group: TestRunProfileBitset.Run,
 				tests: toRun.map(t => identifyTest(t.test)),
 			});
 		}
@@ -546,6 +690,10 @@ export class TestingExplorerViewModel extends Disposable {
 			this.welcomeExperience = welcomeExperience;
 			this.welcomeVisibilityEmitter.fire(welcomeExperience);
 		}
+	}
+
+	private ensureProjection() {
+		return this.projection.value ?? this.updatePreferredProjection();
 	}
 
 	private updatePreferredProjection() {
@@ -565,6 +713,7 @@ export class TestingExplorerViewModel extends Disposable {
 		});
 
 		this.applyProjectionChanges();
+		return this.projection.value;
 	}
 
 	private applyProjectionChanges() {
@@ -572,7 +721,7 @@ export class TestingExplorerViewModel extends Disposable {
 		this.projection.value?.applyTo(this.tree);
 
 		if (this.hasPendingReveal) {
-			this.revealByIdPath(this.filterState.reveal.value);
+			this.revealById(this.filterState.reveal.value);
 		}
 	}
 
@@ -590,12 +739,38 @@ const enum FilterResult {
 	Include,
 }
 
+const hasNodeInOrParentOfUri = (collection: IMainThreadTestCollection, testUri: URI | string, fromNode?: string) => {
+	testUri = testUri.toString();
+
+	const queue: Iterable<string>[] = [fromNode ? [fromNode] : collection.rootIds];
+	while (queue.length) {
+		for (const id of queue.pop()!) {
+			const node = collection.getNodeById(id);
+			if (!node) {
+				continue;
+			}
+
+			if (!node.item.uri) {
+				queue.push(node.children);
+				continue;
+			}
+
+			if (extpath.isEqualOrParent(testUri, node.item.uri.toString())) {
+				return true;
+			}
+		}
+	}
+
+	return false;
+};
+
 class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 	private lastText?: string;
 	private filters: [include: boolean, value: string][] | undefined;
-	private _filterToUri: string | undefined;
+	private documentUri: string | undefined;
 
 	constructor(
+		private readonly collection: IMainThreadTestCollection,
 		@ITestExplorerFilterState private readonly state: ITestExplorerFilterState,
 		@ITestService private readonly testService: ITestService,
 	) { }
@@ -622,10 +797,6 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 		}
 	}
 
-	public filterToUri(uri: URI | undefined) {
-		this._filterToUri = uri?.toString();
-	}
-
 	/**
 	 * @inheritdoc
 	 */
@@ -641,7 +812,7 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 		if (
 			element.test
 			&& !this.state.showExcludedTests.value
-			&& this.testService.excludeTests.value.has(element.test.item.extId)
+			&& this.testService.excluded.contains(identifyTest(element.test))
 		) {
 			return TreeVisibility.Hidden;
 		}
@@ -656,6 +827,10 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 		}
 	}
 
+	public filterToDocumentUri(uri: URI | undefined) {
+		this.documentUri = uri?.toString();
+	}
+
 	private testState(element: TestItemTreeElement): FilterResult {
 		switch (this.state.stateFilter.value) {
 			case TestExplorerStateFilter.All:
@@ -668,17 +843,16 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 	}
 
 	private testLocation(element: TestItemTreeElement): FilterResult {
-		if (!this._filterToUri || !this.state.currentDocumentOnly.value) {
+		if (!this.documentUri) {
 			return FilterResult.Include;
 		}
 
-		for (let e: TestItemTreeElement | null = element; e instanceof TestItemTreeElement; e = e!.parent) {
-			return e.test.item.uri?.toString() === this._filterToUri
-				? FilterResult.Include
-				: FilterResult.Exclude;
+		if (!this.state.currentDocumentOnly.value || !(element instanceof TestItemTreeElement)) {
+			return FilterResult.Include;
 		}
 
-		return FilterResult.Inherit;
+		return hasNodeInOrParentOfUri(this.collection, this.documentUri, element.test.item.extId)
+			? FilterResult.Include : FilterResult.Exclude;
 	}
 
 	private testFilterText(element: TestItemTreeElement) {
@@ -883,10 +1057,11 @@ abstract class ActionableItemTemplateData<T extends TestItemTreeElement> extends
 	constructor(
 		protected readonly labels: ResourceLabels,
 		private readonly actionRunner: TestExplorerActionRunner,
-		private readonly menuService: IMenuService,
-		protected readonly testService: ITestService,
-		private readonly contextKeyService: IContextKeyService,
-		private readonly instantiationService: IInstantiationService,
+		@IMenuService private readonly menuService: IMenuService,
+		@ITestService protected readonly testService: ITestService,
+		@ITestProfileService protected readonly profiles: ITestProfileService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 	}
@@ -906,7 +1081,7 @@ abstract class ActionableItemTemplateData<T extends TestItemTreeElement> extends
 		const name = dom.append(wrapper, dom.$('.name'));
 		const label = this.labels.create(name, { supportHighlights: true });
 
-		dom.append(wrapper, dom.$(ThemeIcon.asCSSSelector(testingHiddenIcon)));
+		dom.append(wrapper, dom.$(ThemeIcon.asCSSSelector(icons.testingHiddenIcon)));
 		const actionBar = new ActionBar(wrapper, {
 			actionRunner: this.actionRunner,
 			actionViewItemProvider: action =>
@@ -942,7 +1117,7 @@ abstract class ActionableItemTemplateData<T extends TestItemTreeElement> extends
 	}
 
 	private fillActionBar(element: T, data: IActionableElementTemplateData) {
-		const actions = getActionableElementActions(this.contextKeyService, this.menuService, this.testService, element);
+		const actions = getActionableElementActions(this.contextKeyService, this.menuService, this.testService, this.profiles, element);
 		data.elementDisposable.push(actions);
 		data.actionBar.clear();
 		data.actionBar.context = element;
@@ -952,17 +1127,6 @@ abstract class ActionableItemTemplateData<T extends TestItemTreeElement> extends
 
 class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
 	public static readonly ID = 'testItem';
-
-	constructor(
-		labels: ResourceLabels,
-		actionRunner: TestExplorerActionRunner,
-		@IMenuService menuService: IMenuService,
-		@ITestService testService: ITestService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IInstantiationService instantiationService: IInstantiationService,
-	) {
-		super(labels, actionRunner, menuService, testService, contextKeyService, instantiationService);
-	}
 
 	/**
 	 * @inheritdoc
@@ -981,10 +1145,10 @@ class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
 		const options: IResourceLabelOptions = {};
 		data.label.setResource(label, options);
 
-		const testHidden = this.testService.excludeTests.value.has(node.element.test.item.extId);
+		const testHidden = this.testService.excluded.contains(identifyTest(node.element.test));
 		data.wrapper.classList.toggle('test-is-hidden', testHidden);
 
-		const icon = testingStatesToIcons.get(
+		const icon = icons.testingStatesToIcons.get(
 			node.element.test.expand === TestItemExpandState.BusyExpanding || node.element.test.item.busy
 				? TestResultState.Running
 				: node.element.state);
@@ -1025,6 +1189,7 @@ const getActionableElementActions = (
 	contextKeyService: IContextKeyService,
 	menuService: IMenuService,
 	testService: ITestService,
+	profiles: ITestProfileService,
 	element: TestItemTreeElement,
 ) => {
 	const test = element instanceof TestItemTreeElement ? element.test : undefined;
@@ -1032,9 +1197,8 @@ const getActionableElementActions = (
 		['view', Testing.ExplorerViewId],
 		[TestingContextKeys.testItemExtId.key, test?.item.extId],
 		[TestingContextKeys.testItemHasUri.key, !!test?.item.uri],
-		[TestingContextKeys.testItemIsHidden.key, !!test && testService.excludeTests.value.has(test.item.extId)],
-		[TestingContextKeys.hasDebuggableTests.key, !Iterable.isEmpty(element.debuggable)],
-		[TestingContextKeys.hasRunnableTests.key, !Iterable.isEmpty(element.runnable)],
+		[TestingContextKeys.testItemIsHidden.key, !!test && testService.excluded.contains(identifyTest(test))],
+		...(test ? capabilityContextKeys(profiles.controllerCapabilities(test.controllerId)) : []),
 	]);
 	const menu = menuService.createMenu(MenuId.TestItem, contextOverlay);
 

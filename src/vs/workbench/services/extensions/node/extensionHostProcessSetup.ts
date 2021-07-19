@@ -22,12 +22,14 @@ import { Promises } from 'vs/base/node/pfs';
 import { realpath } from 'vs/base/node/extpath';
 import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { boolean } from 'vs/editor/common/config/editorOptions';
 
 import 'vs/workbench/api/common/extHost.common.services';
 import 'vs/workbench/api/node/extHost.node.services';
 
 interface ParsedExtHostArgs {
 	uriTransformerPath?: string;
+	skipWorkspaceStorageLock?: boolean;
 	useHostProxy?: string;
 }
 
@@ -46,6 +48,9 @@ const args = minimist(process.argv.slice(2), {
 	string: [
 		'uriTransformerPath',
 		'useHostProxy'
+	],
+	boolean: [
+		'skipWorkspaceStorageLock'
 	]
 }) as ParsedExtHostArgs;
 
@@ -323,6 +328,7 @@ export async function startExtensionHostProcess(): Promise<void> {
 	// setup things
 	patchProcess(!!initData.environment.extensionTestsLocationURI); // to support other test frameworks like Jasmin that use process.exit (https://github.com/microsoft/vscode/issues/37708)
 	initData.environment.useHostProxy = args.useHostProxy !== undefined ? args.useHostProxy !== 'false' : undefined;
+	initData.environment.skipWorkspaceStorageLock = boolean(args.skipWorkspaceStorageLock, false);
 
 	// host abstraction
 	const hostUtils = new class NodeHost implements IHostUtils {

@@ -132,7 +132,7 @@ export class ExtHostTimeline implements IExtHostTimeline {
 				let themeIcon;
 				if (item.iconPath) {
 					if (iconPath instanceof ThemeIcon) {
-						themeIcon = { id: iconPath.id };
+						themeIcon = { id: iconPath.id, color: iconPath.color };
 					}
 					else if (URI.isUri(iconPath)) {
 						icon = iconPath;

@@ -43,7 +43,7 @@ export function setup(opts: minimist.ParsedArgs) {
 			return { ...opts, workspacePath };
 		});
 
-		afterSuite();
+		afterSuite(opts);
 
 		it('shows results from all folders', async function () {
 			const app = this.app as Application;

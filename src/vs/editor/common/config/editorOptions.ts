@@ -549,6 +549,11 @@ export interface IEditorOptions {
 	 */
 	foldingHighlight?: boolean;
 	/**
+	 * Auto fold imports folding regions.
+	 * Defaults to true.
+	 */
+	foldingImportsByDefault?: boolean;
+	/**
 	 * Controls whether the fold actions in the gutter stay always visible or hide unless the mouse is over the gutter.
 	 * Defaults to 'mouseover'.
 	 */
@@ -3205,10 +3210,11 @@ export interface IInlineSuggestOptions {
 	/**
 	 * Configures the mode.
 	 * Use `prefix` to only show ghost text if the text to replace is a prefix of the suggestion text.
-	 * Use `subwordDiff` to only show ghost text if the replace text is a subword of the suggestion text and diffing should be used to compute the ghost text.
+	 * Use `subword` to only show ghost text if the replace text is a subword of the suggestion text.
+	 * Use `subwordSmart` to only show ghost text if the replace text is a subword of the suggestion text, but the subword must start after the cursor position.
 	 * Defaults to `prefix`.
 	*/
-	mode?: 'prefix' | 'subwordDiff';
+	mode?: 'prefix' | 'subword' | 'subwordSmart';
 }
 
 export type InternalInlineSuggestOptions = Readonly<Required<IInlineSuggestOptions>>;
@@ -3220,7 +3226,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 	constructor() {
 		const defaults: InternalInlineSuggestOptions = {
 			enabled: false,
-			mode: 'subwordDiff'
+			mode: 'subwordSmart'
 		};
 
 		super(
@@ -3233,10 +3239,11 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				},
 				'editor.inlineSuggest.mode': {
 					type: 'string',
-					enum: ['prefix', 'subwordDiff'],
+					enum: ['prefix', 'subword', 'subwordSmart'],
 					enumDescriptions: [
 						nls.localize('inlineSuggest.mode.prefix', "Only render an inline suggestion if the replace text is a prefix of the insert text."),
-						nls.localize('inlineSuggest.mode.subwordDiff', "Only render an inline suggestion if the replace text is a subword of the insert text."),
+						nls.localize('inlineSuggest.mode.subword', "Only render an inline suggestion if the replace text is a subword of the insert text."),
+						nls.localize('inlineSuggest.mode.subwordSmart', "Only render an inline suggestion if the replace text is a subword of the insert text, but the subword must start after the cursor."),
 					],
 					default: defaults.mode,
 					description: nls.localize('inlineSuggest.mode', "Controls which mode to use for rendering inline suggestions.")
@@ -3252,7 +3259,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 		const input = _input as IInlineSuggestOptions;
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
-			mode: stringSet(input.mode, this.defaultValue.mode, ['prefix', 'subwordDiff']),
+			mode: stringSet(input.mode, this.defaultValue.mode, ['prefix', 'subword', 'subwordSmart']),
 		};
 	}
 }
@@ -3298,9 +3305,9 @@ export interface ISuggestOptions {
 	 */
 	preview?: boolean;
 	/**
-	 * Configures the mode of the preview. Defaults to `subwordDiff`.
+	 * Configures the mode of the preview.
 	*/
-	previewMode?: 'prefix' | 'subwordDiff';
+	previewMode?: 'prefix' | 'subword' | 'subwordSmart';
 	/**
 	 * Show details inline with the label. Defaults to true.
 	 */
@@ -3433,7 +3440,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			showIcons: true,
 			showStatusBar: false,
 			preview: false,
-			previewMode: 'prefix',
+			previewMode: 'subwordSmart',
 			showInlineDetails: true,
 			showMethods: true,
 			showFunctions: true,
@@ -3514,10 +3521,11 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 				},
 				'editor.suggest.previewMode': {
 					type: 'string',
-					enum: ['prefix', 'subwordDiff'],
+					enum: ['prefix', 'subword', 'subwordSmart'],
 					enumDescriptions: [
 						nls.localize('suggest.previewMode.prefix', "Only render a preview if the replace text is a prefix of the insert text."),
-						nls.localize('suggest.previewMode.subwordDiff', "Only render a preview if the replace text is a subword of the insert text."),
+						nls.localize('suggest.previewMode.subword', "Only render a preview if the replace text is a subword of the insert text."),
+						nls.localize('suggest.previewMode.subwordSmart', "Render a preview if the replace text is a subword of the insert text, or if it is a prefix of the insert text."),
 					],
 					default: defaults.previewMode,
 					description: nls.localize('suggest.previewMode', "Controls which mode to use for rendering the suggest preview.")
@@ -3698,7 +3706,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			showIcons: boolean(input.showIcons, this.defaultValue.showIcons),
 			showStatusBar: boolean(input.showStatusBar, this.defaultValue.showStatusBar),
 			preview: boolean(input.preview, this.defaultValue.preview),
-			previewMode: stringSet(input.previewMode, this.defaultValue.previewMode, ['prefix', 'subwordDiff']),
+			previewMode: stringSet(input.previewMode, this.defaultValue.previewMode, ['prefix', 'subword', 'subwordSmart']),
 			showInlineDetails: boolean(input.showInlineDetails, this.defaultValue.showInlineDetails),
 			showMethods: boolean(input.showMethods, this.defaultValue.showMethods),
 			showFunctions: boolean(input.showFunctions, this.defaultValue.showFunctions),
@@ -3932,6 +3940,7 @@ export const enum EditorOption {
 	folding,
 	foldingStrategy,
 	foldingHighlight,
+	foldingImportsByDefault,
 	unfoldOnClickAfterEndOfLine,
 	fontFamily,
 	fontInfo,
@@ -4275,6 +4284,10 @@ export const EditorOptions = {
 	foldingHighlight: register(new EditorBooleanOption(
 		EditorOption.foldingHighlight, 'foldingHighlight', true,
 		{ description: nls.localize('foldingHighlight', "Controls whether the editor should highlight folded ranges.") }
+	)),
+	foldingImportsByDefault: register(new EditorBooleanOption(
+		EditorOption.foldingImportsByDefault, 'foldingImportsByDefault', false,
+		{ description: nls.localize('foldingImportsByDefault', "Controls whether the editor should auto collapse folded ranges or not.") }
 	)),
 	unfoldOnClickAfterEndOfLine: register(new EditorBooleanOption(
 		EditorOption.unfoldOnClickAfterEndOfLine, 'unfoldOnClickAfterEndOfLine', false,

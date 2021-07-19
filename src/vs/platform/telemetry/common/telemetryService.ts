@@ -225,7 +225,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			'default': true,
 			'restricted': true,
 			'scope': ConfigurationScope.APPLICATION,
-			'tags': ['usesOnlineServices']
+			'tags': ['usesOnlineServices', 'telemetry']
 		}
 	}
 });

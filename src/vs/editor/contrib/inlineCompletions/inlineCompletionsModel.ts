@@ -19,7 +19,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
-import { IDiffChange, stringDiff } from 'vs/base/common/diff/diff';
+import { IDiffChange, LcsDiff } from 'vs/base/common/diff/diff';
 import { GhostTextWidgetModel, GhostText, BaseGhostTextWidgetModel, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/ghostText';
 
 export class InlineCompletionsModel extends Disposable implements GhostTextWidgetModel {
@@ -292,7 +292,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	public get ghostText(): GhostText | undefined {
 		const currentCompletion = this.currentCompletion;
 		const mode = this.editor.getOptions().get(EditorOption.inlineSuggest).mode;
-		return currentCompletion ? inlineCompletionToGhostText(currentCompletion, this.editor.getModel(), mode, this.editor.getSelection().getEndPosition()) : undefined;
+		return currentCompletion ? inlineCompletionToGhostText(currentCompletion, this.editor.getModel(), mode, this.editor.getPosition()) : undefined;
 	}
 
 	get currentCompletion(): LiveInlineCompletion | undefined {
@@ -489,7 +489,7 @@ export interface NormalizedInlineCompletion extends InlineCompletion {
 	range: Range;
 }
 
-export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCompletion, textModel: ITextModel, mode: 'prefix' | 'subwordDiff', cursorPosition?: Position): GhostText | undefined {
+export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCompletion, textModel: ITextModel, mode: 'prefix' | 'subword' | 'subwordSmart', cursorPosition?: Position): GhostText | undefined {
 	if (inlineCompletion.range.startLineNumber !== inlineCompletion.range.endLineNumber) {
 		// Only single line replacements are supported.
 		return undefined;
@@ -511,10 +511,11 @@ export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCo
 			return undefined;
 		}
 	}
+
 	for (const c of changes) {
 		const insertColumn = inlineCompletion.range.startColumn + c.originalStart + c.originalLength;
 
-		if (cursorPosition && cursorPosition.lineNumber === inlineCompletion.range.startLineNumber && insertColumn < cursorPosition.column) {
+		if (mode === 'subwordSmart' && cursorPosition && cursorPosition.lineNumber === inlineCompletion.range.startLineNumber && insertColumn < cursorPosition.column) {
 			// No ghost text before cursor
 			return undefined;
 		}
@@ -533,18 +534,18 @@ export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCo
 
 		const text = inlineCompletion.text.substr(c.modifiedStart, c.modifiedLength);
 		const lines = strings.splitLines(text);
-		parts.push({ column: insertColumn, lines });
+		parts.push(new GhostTextPart(insertColumn, lines));
 	}
 
 	return new GhostText(lineNumber, parts, 0);
 }
 
-let lastRequest: { originalValue: string, newValue: string, changes: IDiffChange[] } | undefined = undefined;
+let lastRequest: { originalValue: string, newValue: string, changes: readonly IDiffChange[] } | undefined = undefined;
 function cachingDiff(originalValue: string, newValue: string): readonly IDiffChange[] {
 	if (lastRequest?.originalValue === originalValue && lastRequest?.newValue === newValue) {
 		return lastRequest?.changes;
 	} else {
-		const changes = stringDiff(originalValue, newValue, false);
+		const changes = smartDiff(originalValue, newValue);
 		lastRequest = {
 			originalValue,
 			newValue,
@@ -552,6 +553,63 @@ function cachingDiff(originalValue: string, newValue: string): readonly IDiffCha
 		};
 		return changes;
 	}
+}
+
+/**
+ * When matching `if ()` with `if (f() = 1) { g(); }`,
+ * align it like this:        `if (       )`
+ * Not like this:			  `if (  )`
+ * Also not like this:		  `if (             )`.
+ *
+ * The parenthesis are preprocessed to ensure that they match correctly.
+ */
+function smartDiff(originalValue: string, newValue: string): readonly IDiffChange[] {
+	function getMaxCharCode(val: string): number {
+		let maxCharCode = 0;
+		for (let i = 0, len = val.length; i < len; i++) {
+			const charCode = val.charCodeAt(i);
+			if (charCode > maxCharCode) {
+				maxCharCode = charCode;
+			}
+		}
+		return maxCharCode;
+	}
+	const maxCharCode = Math.max(getMaxCharCode(originalValue), getMaxCharCode(newValue));
+	function getUniqueCharCode(id: number): number {
+		if (id < 0) {
+			throw new Error('unexpected');
+		}
+		return maxCharCode + id + 1;
+	}
+
+	function getElements(source: string): Int32Array {
+		let level = 0;
+		let group = 0;
+		const characters = new Int32Array(source.length);
+		for (let i = 0, len = source.length; i < len; i++) {
+			const id = group * 100 + level;
+
+			// TODO support more brackets
+			if (source[i] === '(') {
+				characters[i] = getUniqueCharCode(2 * id);
+				level++;
+			} else if (source[i] === ')') {
+				characters[i] = getUniqueCharCode(2 * id + 1);
+				if (level === 1) {
+					group++;
+				}
+				level = Math.max(level - 1, 0);
+			} else {
+				characters[i] = source.charCodeAt(i);
+			}
+		}
+		return characters;
+	}
+
+	const elements1 = getElements(originalValue);
+	const elements2 = getElements(newValue);
+
+	return new LcsDiff({ getElements: () => elements1 }, { getElements: () => elements2 }).ComputeDiff(false).changes;
 }
 
 export interface LiveInlineCompletion extends NormalizedInlineCompletion {

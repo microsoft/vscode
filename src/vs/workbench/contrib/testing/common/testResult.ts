@@ -13,7 +13,7 @@ import { localize } from 'vs/nls';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
 import { IObservableValue, MutableObservableValue, staticObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { ExtensionRunTestsRequest, ISerializedTestResults, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, RunTestsRequest, TestIdPath, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ISerializedTestResults, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, ResolvedTestRunRequest, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { maxPriority, statesInOrder } from 'vs/workbench/contrib/testing/common/testingStates';
 
@@ -44,7 +44,7 @@ export interface ITestResult {
 	/**
 	 * Whether this test result is triggered from an auto run.
 	 */
-	readonly isAutoRun?: boolean;
+	readonly request: ResolvedTestRunRequest;
 
 	/**
 	 * Human-readable name of the test result.
@@ -84,15 +84,6 @@ export const resultItemParents = function* (results: ITestResult, item: TestResu
 		yield i;
 		i = i.parent ? results.getStateById(i.parent) : undefined;
 	}
-};
-
-export const getPathForTestInResult = (test: TestResultItem, results: ITestResult): TestIdPath => {
-	const path: TestIdPath = [];
-	for (const node of resultItemParents(results, test)) {
-		path.unshift(node.item.extId);
-	}
-
-	return path;
 };
 
 /**
@@ -256,21 +247,6 @@ export class LiveTestResult implements ITestResult {
 	public readonly name = localize('runFinished', 'Test run at {0}', new Date().toLocaleString());
 
 	/**
-	 * Test IDs directly included in this run.
-	 */
-	public readonly includedIds: ReadonlySet<string>;
-
-	/**
-	 * Test IDs excluded from this run.
-	 */
-	public readonly excludedIds: ReadonlySet<string>;
-
-	/**
-	 * Gets whether this test is from an auto-run.
-	 */
-	public readonly isAutoRun: boolean;
-
-	/**
 	 * @inheritdoc
 	 */
 	public get completedAt() {
@@ -313,11 +289,9 @@ export class LiveTestResult implements ITestResult {
 	constructor(
 		public readonly id: string,
 		public readonly output: LiveOutputController,
-		private readonly req: ExtensionRunTestsRequest | RunTestsRequest,
+		public readonly persist: boolean,
+		public readonly request: ResolvedTestRunRequest,
 	) {
-		this.isAutoRun = 'isAutoRun' in this.req && !!this.req.isAutoRun;
-		this.includedIds = new Set(req.tests.map(t => typeof t === 'string' ? t : t.testId));
-		this.excludedIds = new Set(req.exclude);
 	}
 
 	/**
@@ -465,9 +439,7 @@ export class LiveTestResult implements ITestResult {
 	 * @inheritdoc
 	 */
 	public toJSON(): ISerializedTestResults | undefined {
-		return this.completedAt && !('persist' in this.req && this.req.persist === false)
-			? this.doSerialize.getValue()
-			: undefined;
+		return this.completedAt && this.persist ? this.doSerialize.getValue() : undefined;
 	}
 
 	/**
@@ -504,7 +476,6 @@ export class LiveTestResult implements ITestResult {
 
 	private addTestToRun(controllerId: string, item: ITestItem, parent: string | null) {
 		const node = itemToNode(controllerId, item, parent);
-		node.direct = this.includedIds.has(item.extId);
 		this.testById.set(item.extId, node);
 		this.counts[TestResultState.Unset]++;
 
@@ -535,6 +506,7 @@ export class LiveTestResult implements ITestResult {
 		completedAt: this.completedAt!,
 		tasks: this.tasks,
 		name: this.name,
+		request: this.request,
 		items: [...this.testById.values()].map(entry => ({
 			...entry,
 			retired: undefined,
@@ -580,6 +552,11 @@ export class HydratedTestResult implements ITestResult {
 	 */
 	public readonly name: string;
 
+	/**
+	 * @inheritdoc
+	 */
+	public readonly request: ResolvedTestRunRequest;
+
 	private readonly testById = new Map<string, TestResultItem>();
 
 	constructor(
@@ -591,6 +568,7 @@ export class HydratedTestResult implements ITestResult {
 		this.completedAt = serialized.completedAt;
 		this.tasks = serialized.tasks.map(task => ({ ...task, coverage: staticObservableValue(undefined) }));
 		this.name = serialized.name;
+		this.request = serialized.request;
 
 		for (const item of serialized.items) {
 			const cast: TestResultItem = { ...item, retired: true };
