@@ -175,10 +175,6 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		return this._remoteTerminalChannel.acceptDetachInstanceReply(requestId, persistentProcessId);
 	}
 
-	fireAcceptDetachInstanceReply(processDetails: IProcessDetails): void {
-		this._onDidAcceptAttachInstanceReply.fire(processDetails);
-	}
-
 	async createProcess(shellLaunchConfig: IShellLaunchConfig, configuration: ICompleteTerminalConfiguration, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper): Promise<ITerminalChildProcess> {
 		if (!this._remoteTerminalChannel) {
 			throw new Error(`Cannot create remote terminal when there is no remote!`);

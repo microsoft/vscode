@@ -128,10 +128,6 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		}
 	}
 
-	fireAcceptDetachInstanceReply(processDetails: IProcessDetails): void {
-		this._onDidAcceptAttachInstanceReply.fire(processDetails);
-	}
-
 	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
 		return this._localPtyService.requestDetachInstance(workspaceId, instanceId);
 	}

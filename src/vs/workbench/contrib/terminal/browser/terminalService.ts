@@ -180,8 +180,6 @@ export class TerminalService implements ITerminalService {
 			},
 			({ resource, options }) => {
 				let instance = this.getInstanceFromResource(resource);
-				console.log('here', instance);
-				console.log(resource);
 				if (instance) {
 					const sourceGroup = this._terminalGroupService.getGroupForInstance(instance);
 					if (sourceGroup) {
@@ -275,13 +273,6 @@ export class TerminalService implements ITerminalService {
 					// will get rejected without a persistentProcessId to attach to
 					await this._primaryOffProcessTerminalService?.acceptDetachInstanceReply(e.requestId, undefined);
 				}
-			}
-		});
-
-		this._terminalEditorService.onDidRequestDetachInstance(async (e) => {
-			const attachPersistentProcess = await this._primaryOffProcessTerminalService?.requestDetachInstance(e.workspaceId, e.instanceId);
-			if (attachPersistentProcess) {
-				this._primaryOffProcessTerminalService?.fireAcceptDetachInstanceReply(attachPersistentProcess);
 			}
 		});
 

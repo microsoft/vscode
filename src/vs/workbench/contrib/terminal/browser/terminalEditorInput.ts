@@ -19,8 +19,12 @@ import { ConfirmOnKill } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { Emitter } from 'vs/base/common/event';
 
 export class TerminalEditorInput extends EditorInput {
+
+	protected readonly _onDidRequestAttach = this._register(new Emitter<ITerminalInstance>());
+	readonly onDidRequestAttach = this._onDidRequestAttach.event;
 
 	static readonly ID = 'workbench.editors.terminal';
 
@@ -122,6 +126,7 @@ export class TerminalEditorInput extends EditorInput {
 		if (!this._terminalInstance) {
 			return;
 		}
+
 		this._register(toDisposable(() => {
 			if (!this._isDetached && !this._isShuttingDown) {
 				this._terminalInstance?.dispose();

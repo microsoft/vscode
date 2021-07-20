@@ -59,7 +59,6 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		this._primaryOffProcessTerminalService = !!environmentService.remoteAuthority ? this._remoteTerminalService : (this._localTerminalService || this._remoteTerminalService);
 		this._register(toDisposable(() => {
 			for (const d of this._instanceDisposables.values()) {
-				console.log('disposing');
 				dispose(d);
 			}
 		}));
@@ -82,10 +81,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 				this.instances.push(unknownEditor.terminalInstance);
 			}
 		}));
-		this._register(this.onDidDisposeInstance(instance => {
-			this.detachInstance(instance);
-			console.log('disposing of instance');
-		}));
+		this._register(this.onDidDisposeInstance(instance => this.detachInstance(instance)));
 
 		// Remove the terminal from the managed instances when the editor closes. This fires when
 		// dragging and dropping to another editor or closing the editor via cmd/ctrl+w.
@@ -203,7 +199,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 					},
 						input.group
 					);
-					this._setupInstance(inputKey, input, instance);
+					this._registerInstance(inputKey, input, instance);
 				});
 			}
 		}
@@ -212,16 +208,19 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		if ('instanceId' in instanceOrUri) {
 			instanceOrUri.target = TerminalLocation.Editor;
 			input = this._instantiationService.createInstance(TerminalEditorInput, resource, instanceOrUri);
-			this._setupInstance(inputKey, input, instanceOrUri);
+			this._registerInstance(inputKey, input, instanceOrUri);
 		} else {
 			input = this._instantiationService.createInstance(TerminalEditorInput, instanceOrUri, undefined);
-			this._editorInputs.set(inputKey, input);
+			this._registerInstance(inputKey, input);
 		}
 		return input;
 	}
 
-	private _setupInstance(inputKey: string, input: TerminalEditorInput, instance: ITerminalInstance): void {
+	private _registerInstance(inputKey: string, input: TerminalEditorInput, instance?: ITerminalInstance): void {
 		this._editorInputs.set(inputKey, input);
+		if (!instance) {
+			return;
+		}
 		this._instanceDisposables.set(inputKey, [
 			instance.onDidFocus(this._onDidFocusInstance.fire, this._onDidFocusInstance),
 			// TODO: why don't these do anything

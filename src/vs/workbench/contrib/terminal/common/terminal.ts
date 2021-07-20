@@ -83,7 +83,6 @@ export interface IOffProcessTerminalService {
 
 	onDidRequestDetach: Event<{ requestId: number, workspaceId: string, instanceId: number }>;
 	onDidAcceptAttachInstanceReply: Event<IProcessDetails>;
-	fireAcceptDetachInstanceReply(processDetails: IProcessDetails): void;
 
 	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
 	listProcesses(): Promise<IProcessDetails[]>;
