@@ -142,6 +142,10 @@ export interface IStartEntry {
 	readonly category: 'file' | 'folder' | 'notebook';
 }
 
+export interface INotebookRendererContribution {
+	readonly id: string;
+}
+
 export interface IExtensionContributions {
 	commands?: ICommand[];
 	configuration?: IConfiguration | IConfiguration[];
@@ -164,6 +168,7 @@ export interface IExtensionContributions {
 	authentication?: IAuthenticationContribution[];
 	walkthroughs?: IWalkthrough[];
 	startEntries?: IStartEntry[];
+	readonly notebookRenderer?: INotebookRendererContribution[];
 }
 
 export interface IExtensionCapabilities {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
+import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { ExtHostNotebookRenderersShape, IMainContext, MainContext, MainThreadNotebookRenderersShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { ExtHostNotebookEditor } from 'vs/workbench/api/common/extHostNotebookEditor';
@@ -23,9 +24,14 @@ export class ExtHostNotebookRenderers implements ExtHostNotebookRenderersShape {
 		this._rendererMessageEmitters.get(rendererId)?.fire({ editor: editor.apiEditor, message });
 	}
 
-	public createRendererMessaging(notebookEditorVisible: boolean, rendererId: string): vscode.NotebookRendererMessaging {
+	public createRendererMessaging(manifest: IExtensionManifest, rendererId: string): vscode.NotebookRendererMessaging {
+		if (!manifest.contributes?.notebookRenderer?.some(r => r.id === rendererId)) {
+			throw new Error(`Extensions may only call createRendererMessaging() for renderers they contribute (got ${rendererId})`);
+		}
+
 		// In the stable API, the editor is given as an empty object, and this map
 		// is used to maintain references. This can be removed after editor finalization.
+		const notebookEditorVisible = !!manifest.enableProposedApi;
 		const notebookEditorAliases = new WeakMap<{}, vscode.NotebookEditor>();
 
 		const messaging: vscode.NotebookRendererMessaging = {
@@ -45,7 +51,7 @@ export class ExtHostNotebookRenderers implements ExtHostNotebookRenderersShape {
 					throw new Error(`The first argument to postMessage() must be a NotebookEditor`);
 				}
 
-				this.proxy.$postMessage(extHostEditor.id, rendererId, message);
+				return this.proxy.$postMessage(extHostEditor.id, rendererId, message);
 			},
 		};
 

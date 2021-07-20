@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { INotebookRendererMessagingService, IScopedRendererMessaging } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -16,16 +16,15 @@ export class NotebookRendererMessagingService implements INotebookRendererMessag
 	 * be sent once activation finishes, or undefined if activation is complete.
 	 */
 	private readonly activations = new Map<string /* rendererId */, undefined | MessageToSend[]>();
-	private readonly receiveMessageEmitter = new Emitter<{ editorId: string; rendererId: string, message: unknown }>();
-	public readonly onDidReceiveMessage = this.receiveMessageEmitter.event;
+	private readonly scopedMessaging = new Map</* editorId */ string, IScopedRendererMessaging>();
 	private readonly postMessageEmitter = new Emitter<MessageToSend>();
 	public readonly onShouldPostMessage = this.postMessageEmitter.event;
 
 	constructor(@IExtensionService private readonly extensionService: IExtensionService) { }
 
 	/** @inheritdoc */
-	public fireDidReceiveMessage(editorId: string, rendererId: string, message: unknown): void {
-		this.receiveMessageEmitter.fire({ editorId, rendererId, message });
+	public receiveMessage(editorId: string, rendererId: string, message: unknown): Promise<boolean> {
+		return this.scopedMessaging.get(editorId)?.receiveMessageHandler?.(rendererId, message) ?? Promise.resolve(false);
 	}
 
 	/** @inheritdoc */
@@ -48,10 +47,18 @@ export class NotebookRendererMessagingService implements INotebookRendererMessag
 
 	/** @inheritdoc */
 	public getScoped(editorId: string): IScopedRendererMessaging {
-		return {
-			onDidReceiveMessage: Event.filter(this.onDidReceiveMessage, e => e.editorId === editorId),
+		const existing = this.scopedMessaging.get(editorId);
+		if (existing) {
+			return existing;
+		}
+
+		const messaging: IScopedRendererMessaging = {
 			postMessage: (rendererId, message) => this.postMessage(editorId, rendererId, message),
+			dispose: () => this.scopedMessaging.delete(editorId),
 		};
+
+		this.scopedMessaging.set(editorId, messaging);
+		return messaging;
 	}
 
 	private postMessage(editorId: string, rendererId: string, message: unknown): void {

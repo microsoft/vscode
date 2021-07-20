@@ -111,14 +111,21 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		this.element.style.position = 'absolute';
 
 		if (rendererMessaging) {
-			this._register(rendererMessaging.onDidReceiveMessage(evt => {
+			this._register(rendererMessaging);
+			rendererMessaging.receiveMessageHandler = (rendererId, message) => {
+				if (!this.webview || this._disposed) {
+					return Promise.resolve(false);
+				}
+
 				this._sendMessageToWebview({
 					__vscode_notebook_message: true,
 					type: 'customRendererMessage',
-					rendererId: evt.rendererId,
-					message: evt.message
+					rendererId: rendererId,
+					message: message
 				});
-			}));
+
+				return Promise.resolve(true);
+			};
 		}
 	}
 

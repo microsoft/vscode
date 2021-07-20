@@ -11553,6 +11553,8 @@ declare module 'vscode' {
 
 	/**
 	 * Represents a notebook editor that is attached to a {@link NotebookDocument notebook}.
+	 * Additional properties of the NotebookEditor are available in the proposed
+	 * API, which will be finalized later.
 	 */
 	export interface NotebookEditor {
 
@@ -11566,12 +11568,12 @@ declare module 'vscode' {
 		/**
 		 * Editor that sent the message.
 		 */
-		editor: NotebookEditor;
+		readonly editor: NotebookEditor;
 
 		/**
 		 * Message sent from the webview.
 		 */
-		message: any;
+		readonly message: any;
 	}
 
 	/**
@@ -11582,14 +11584,15 @@ declare module 'vscode' {
 		/**
 		 * Events that fires when a message is received from a renderer.
 		 */
-		onDidReceiveMessage: Event<NotebookRendererMessage>;
+		readonly onDidReceiveMessage: Event<NotebookRendererMessage>;
 
 		/**
 		 * Sends a message to the renderer.
 		 * @param editor Editor to target with the message
 		 * @param message Message to send
+		 * @returns a boolean indicating whether the message was successfully delivered
 		 */
-		postMessage(editor: NotebookEditor, message: unknown): void;
+		postMessage(editor: NotebookEditor, message: any): Thenable<boolean>;
 	}
 
 	/**
@@ -12329,8 +12332,9 @@ declare module 'vscode' {
 
 		/**
 		 * Creates a new messaging instance used to communicate with a specific
-		 * renderer. The renderer only has access to messaging if `requiresMessaging`
-		 * is set to `always` or `optional` in its `notebookRenderer ` contribution.
+		 * renderer defined in this extension's package.json. The renderer only
+		 * has access to messaging if `requiresMessaging` is set to `always` or
+		 * `optional` in its `notebookRenderer ` contribution.
 		 *
 		 * @see https://github.com/microsoft/vscode/issues/123601
 		 * @param rendererId The renderer ID to communicate with
