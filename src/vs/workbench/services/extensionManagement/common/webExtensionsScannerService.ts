@@ -13,7 +13,6 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { Queue } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { asText, isSuccess, IRequestService } from 'vs/platform/request/common/request';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -30,6 +29,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { format2 } from 'vs/base/common/strings';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 
 interface IStoredWebExtension {
 	readonly identifier: IExtensionIdentifier;
@@ -68,11 +68,11 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IBuiltinExtensionsScannerService private readonly builtinExtensionsScannerService: IBuiltinExtensionsScannerService,
 		@IFileService private readonly fileService: IFileService,
-		@IRequestService private readonly requestService: IRequestService,
 		@ILogService private readonly logService: ILogService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IProductService private readonly productService: IProductService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+		@IExtensionResourceLoaderService private readonly extensionResourceLoaderService: IExtensionResourceLoaderService,
 	) {
 		super();
 		this.cutomBuiltinExtensions = this.environmentService.options && Array.isArray(this.environmentService.options.additionalBuiltinExtensions) ? this.environmentService.options.additionalBuiltinExtensions : [];
@@ -286,12 +286,13 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 	async scanExtensionManifest(extensionLocation: URI): Promise<IExtensionManifest | null> {
 		const packageJSONUri = joinPath(extensionLocation, 'package.json');
-		const context = await this.requestService.request({ type: 'GET', url: this.toRequestUrl(packageJSONUri) }, CancellationToken.None);
-		if (isSuccess(context)) {
-			const content = await asText(context);
+		try {
+			const content = await this.extensionResourceLoaderService.readExtensionResource(packageJSONUri);
 			if (content) {
 				return JSON.parse(content);
 			}
+		} catch (error) {
+			this.logService.warn(`Error while fetching package.json from ${packageJSONUri.toString()}`, getErrorMessage(error));
 		}
 		return null;
 	}
@@ -375,15 +376,15 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		const packageNLSUri: URI = joinPath(extensionLocation, 'package.nls.json');
 
 		const [packageJSONResult, packageNLSResult] = await Promise.allSettled([
-			this.requestService.request({ type: 'GET', url: this.toRequestUrl(packageJSONUri) }, CancellationToken.None),
-			this.requestService.request({ type: 'GET', url: this.toRequestUrl(packageNLSUri) }, CancellationToken.None),
+			this.extensionResourceLoaderService.readExtensionResource(packageJSONUri),
+			this.extensionResourceLoaderService.readExtensionResource(packageNLSUri),
 		]);
 
-		if (packageJSONResult.status === 'rejected' || !isSuccess(packageJSONResult.value)) {
+		if (packageJSONResult.status === 'rejected') {
 			throw new Error(`Cannot find the package.json from the location '${extensionLocation.toString()}'`);
 		}
 
-		const content = await asText(packageJSONResult.value);
+		const content = packageJSONResult.value;
 		if (!content) {
 			throw new Error(`Error while fetching package.json for extension '${extensionLocation.toString()}'. Server returned no content`);
 		}
@@ -399,18 +400,21 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			location: extensionLocation,
 			readmeUri,
 			changelogUri,
-			packageNLSUri: packageNLSResult.status === 'fulfilled' && isSuccess(packageNLSResult.value) ? packageNLSUri : undefined,
+			packageNLSUri: packageNLSResult.status === 'fulfilled' ? packageNLSUri : undefined,
 			metadata,
 		};
 	}
 
 	private async toScannedExtension(webExtension: IWebExtension, isBuiltin: boolean): Promise<IScannedExtension> {
-		const url = this.toRequestUrl(joinPath(webExtension.location, 'package.json'));
-		const context = await this.requestService.request({ type: 'GET', url: url }, CancellationToken.None);
-		if (!isSuccess(context)) {
-			throw new Error(`Error while fetching package.json for the extension '${webExtension.identifier.id}'. Server returned '${context.res.statusCode}' for the request '${url}'`);
+		const url = joinPath(webExtension.location, 'package.json');
+
+		let content;
+		try {
+			content = await this.extensionResourceLoaderService.readExtensionResource(url);
+		} catch (error) {
+			throw new Error(`Error while fetching package.json for extension '${webExtension.identifier.id}' from the location '${url}'. ${getErrorMessage(error)}`);
 		}
-		const content = await asText(context);
+
 		if (!content) {
 			throw new Error(`Error while fetching package.json for extension '${webExtension.identifier.id}'. Server returned no content for the request '${url}'`);
 		}
@@ -434,12 +438,9 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 	private async translateManifest(manifest: IExtensionManifest, nlsURL: URI): Promise<IExtensionManifest> {
 		try {
-			const context = await this.requestService.request({ type: 'GET', url: this.toRequestUrl(nlsURL) }, CancellationToken.None);
-			if (isSuccess(context)) {
-				const content = await asText(context);
-				if (content) {
-					manifest = localizeManifest(manifest, JSON.parse(content));
-				}
+			const content = await this.extensionResourceLoaderService.readExtensionResource(nlsURL);
+			if (content) {
+				manifest = localizeManifest(manifest, JSON.parse(content));
 			}
 		} catch (error) { /* ignore */ }
 		return manifest;
@@ -520,10 +521,6 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			this.resourcesAccessQueueMap.set(file, resourceQueue);
 		}
 		return resourceQueue;
-	}
-
-	private toRequestUrl(uri: URI): string {
-		return uri.toString(true /* skip encoding the uri */);
 	}
 
 }
