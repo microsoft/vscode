@@ -949,6 +949,8 @@ declare module 'vscode' {
 		 * JSON.parse(await (items.get('text/treeitems')!.asString()))
 		 * ```
 		 */
+		// todo@API no Map
+		// @ts-ignore
 		items: Map<string, TreeDataTransferItem>;
 	}
 
@@ -2117,8 +2119,9 @@ declare module 'vscode' {
 		 * Updates the items stored by the collection.
 		 * @param items Items to store, can be an array or other iterable.
 		 */
-		// todo@API no Iterable
 		// todo@API better names: reset, update...
+		// todo@API no Iterable
+		// @ts-ignore
 		set(items: Iterable<TestItem>): void;
 
 		/**
