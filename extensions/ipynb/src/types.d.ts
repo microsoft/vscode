@@ -3,11 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { registerNotebookSerializer } from './serializer';
 
-export function activate(context: vscode.ExtensionContext) {
-	registerNotebookSerializer(context);
-}
-
-export function deactivate() {}
+/// <reference path='../../../src/vs/vscode.d.ts'/>
+/// <reference path='../../../src/vs/vscode.proposed.d.ts'/>
