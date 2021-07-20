@@ -177,6 +177,7 @@ export type IDebugSessionReplMode = 'separate' | 'mergeWithParent';
 export interface IDebugSessionOptions {
 	noDebug?: boolean;
 	parentSession?: IDebugSession;
+	lifecycleManagedByParent?: boolean;
 	repl?: IDebugSessionReplMode;
 	compoundRoot?: DebugCompoundRoot;
 	compact?: boolean;

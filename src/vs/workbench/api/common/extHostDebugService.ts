@@ -289,6 +289,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 	public startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration, options: vscode.DebugSessionOptions): Promise<boolean> {
 		return this._debugServiceProxy.$startDebugging(folder ? folder.uri : undefined, nameOrConfig, {
 			parentSessionID: options.parentSession ? options.parentSession.id : undefined,
+			lifecycleManagedByParent: options.lifecycleManagedByParent,
 			repl: options.consoleMode === DebugConsoleMode.MergeWithParent ? 'mergeWithParent' : 'separate',
 			noDebug: options.noDebug,
 			compact: options.compact,

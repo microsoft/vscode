@@ -226,6 +226,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		const debugOptions: IDebugSessionOptions = {
 			noDebug: options.noDebug,
 			parentSession,
+			lifecycleManagedByParent: options.lifecycleManagedByParent,
 			repl: options.repl,
 			compact: options.compact,
 			debugUI: options.debugUI,

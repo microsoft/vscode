@@ -13067,6 +13067,13 @@ declare module 'vscode' {
 		parentSession?: DebugSession;
 
 		/**
+		 * Controls whether lifecycle requests like 'restart' are sent to the newly created session or its parent session.
+		 * By default (if the property is false or missing), lifecycle requests are sent to the new session.
+		 * This property is ignored if the session has no parent session.
+		 */
+		lifecycleManagedByParent?: boolean;
+
+		/**
 		 * Controls whether this session should have a separate debug console or share it
 		 * with the parent session. Has no effect for sessions which do not have a parent session.
 		 * Defaults to Separate.
