@@ -107,6 +107,9 @@ export class TerminalEditorInput extends EditorInput {
 		});
 		if (_terminalInstance) {
 			this._setupInstanceListeners();
+		} else {
+			this.dispose();
+			this.detachInstance();
 		}
 	}
 

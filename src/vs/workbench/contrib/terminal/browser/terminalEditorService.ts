@@ -58,19 +58,11 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		super();
 		this._primaryOffProcessTerminalService = !!environmentService.remoteAuthority ? this._remoteTerminalService : (this._localTerminalService || this._remoteTerminalService);
 		this._primaryOffProcessTerminalService.onDidAcceptAttachInstanceReply(attachPersistentProcess => {
-			console.log('on did accept attach instance reply');
 			const input = this._editorInputs.get(-1);
 			if (input) {
 				this._editorInputs.delete(-1);
 				const instance = this._terminalInstanceService.createInstance({ attachPersistentProcess }, TerminalLocation.Editor);
-				input.setTerminalInstance(instance);
-				this._editorInputs.set(instance.instanceId, input);
-				this._instanceDisposables.set(instance.instanceId, [
-					instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance),
-					instance.onDidFocus(this._onDidFocusInstance.fire, this._onDidFocusInstance)
-				]);
-				this.instances.push(instance);
-				this._onDidChangeInstances.fire();
+				this.openEditor(instance);
 			}
 		});
 		this._register(toDisposable(() => {
@@ -204,7 +196,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			}
 		}
 
-		let input: TerminalEditorInput | undefined = undefined;
+		let input: TerminalEditorInput;
 		if ('instanceId' in instance) {
 			instance.target = TerminalLocation.Editor;
 			input = this._instantiationService.createInstance(TerminalEditorInput, instance.resource, instance);
