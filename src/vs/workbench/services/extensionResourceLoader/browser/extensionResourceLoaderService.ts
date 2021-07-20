@@ -45,7 +45,7 @@ class ExtensionResourceLoaderService implements IExtensionResourceLoaderService 
 			headers['X-Machine-Id'] = machineId;
 		}
 
-		const response = await fetch(uri.toString(true), { headers });
+		const response = await fetch(uri.toString(true) /* not adding machineid header due to CORS error */);
 		if (response.status !== 200) {
 			throw new Error(response.statusText);
 		}
