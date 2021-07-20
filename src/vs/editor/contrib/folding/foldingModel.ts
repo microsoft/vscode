@@ -418,13 +418,13 @@ export function setCollapseStateForType(foldingModel: FoldingModel, type: string
 }
 
 /**
- * Get line to jump to for parent fold of current line
+ * Get line to go to for parent fold of current line
  * @param lineNumber the current line number
  * @param foldingModel the folding model
  *
  * @return Parent fold start line
  */
-export function getJumpToParentFoldLine(lineNumber: number, foldingModel: FoldingModel): number | null {
+export function getParentFoldLine(lineNumber: number, foldingModel: FoldingModel): number | null {
 	let startLineNumber: number | null = null;
 	let foldingRegion = foldingModel.getRegionAtLine(lineNumber);
 	if (foldingRegion !== null) {
@@ -443,13 +443,13 @@ export function getJumpToParentFoldLine(lineNumber: number, foldingModel: Foldin
 }
 
 /**
- * Get line to jump to for previous fold at the same level of current line
+ * Get line to go to for previous fold at the same level of current line
  * @param lineNumber the current line number
  * @param foldingModel the folding model
  *
  * @return Previous fold start line
  */
-export function getJumpToPreviousFoldLine(lineNumber: number, foldingModel: FoldingModel): number | null {
+export function getPreviousFoldLine(lineNumber: number, foldingModel: FoldingModel): number | null {
 	let foldingRegion = foldingModel.getRegionAtLine(lineNumber);
 	if (foldingRegion !== null) {
 		// If current line is not the start of the current fold, go to top line of current fold. If not, go to previous fold.
@@ -484,13 +484,13 @@ export function getJumpToPreviousFoldLine(lineNumber: number, foldingModel: Fold
 }
 
 /**
- * Get line to jump to for next fold at the same level of current line
+ * Get line to go to next fold at the same level of current line
  * @param lineNumber the current line number
  * @param foldingModel the folding model
  *
  * @return Next fold start line
  */
-export function getJumpToNextFoldLine(lineNumber: number, foldingModel: FoldingModel): number | null {
+export function getNextFoldLine(lineNumber: number, foldingModel: FoldingModel): number | null {
 	let foldingRegion = foldingModel.getRegionAtLine(lineNumber);
 	if (foldingRegion !== null) {
 		// Find max line number to stay within parent.

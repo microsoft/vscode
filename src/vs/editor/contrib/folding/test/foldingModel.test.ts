@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { FoldingModel, setCollapseStateAtLevel, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateForMatchingLines, setCollapseStateUp, setCollapseStateForRest, getJumpToParentFoldLine, getJumpToPreviousFoldLine, getJumpToNextFoldLine } from 'vs/editor/contrib/folding/foldingModel';
+import { FoldingModel, setCollapseStateAtLevel, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateForMatchingLines, setCollapseStateUp, setCollapseStateForRest, getParentFoldLine, getPreviousFoldLine, getNextFoldLine } from 'vs/editor/contrib/folding/foldingModel';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { computeRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
@@ -864,23 +864,23 @@ suite('Folding Model', () => {
 			assertRanges(foldingModel, [r1, r2, r3, r4, r5, r6]);
 
 			// Test jump to parent.
-			assert.strictEqual(getJumpToParentFoldLine(7, foldingModel), 6);
-			assert.strictEqual(getJumpToParentFoldLine(6, foldingModel), 5);
-			assert.strictEqual(getJumpToParentFoldLine(5, foldingModel), 2);
-			assert.strictEqual(getJumpToParentFoldLine(2, foldingModel), 1);
-			assert.strictEqual(getJumpToParentFoldLine(1, foldingModel), null);
+			assert.strictEqual(getParentFoldLine(7, foldingModel), 6);
+			assert.strictEqual(getParentFoldLine(6, foldingModel), 5);
+			assert.strictEqual(getParentFoldLine(5, foldingModel), 2);
+			assert.strictEqual(getParentFoldLine(2, foldingModel), 1);
+			assert.strictEqual(getParentFoldLine(1, foldingModel), null);
 
 			// Test jump to previous.
-			assert.strictEqual(getJumpToPreviousFoldLine(10, foldingModel), 9);
-			assert.strictEqual(getJumpToPreviousFoldLine(9, foldingModel), 5);
-			assert.strictEqual(getJumpToPreviousFoldLine(5, foldingModel), 3);
-			assert.strictEqual(getJumpToPreviousFoldLine(3, foldingModel), null);
+			assert.strictEqual(getPreviousFoldLine(10, foldingModel), 9);
+			assert.strictEqual(getPreviousFoldLine(9, foldingModel), 5);
+			assert.strictEqual(getPreviousFoldLine(5, foldingModel), 3);
+			assert.strictEqual(getPreviousFoldLine(3, foldingModel), null);
 
 			// Test jump to next.
-			assert.strictEqual(getJumpToNextFoldLine(3, foldingModel), 5);
-			assert.strictEqual(getJumpToNextFoldLine(4, foldingModel), 5);
-			assert.strictEqual(getJumpToNextFoldLine(5, foldingModel), 9);
-			assert.strictEqual(getJumpToNextFoldLine(9, foldingModel), null);
+			assert.strictEqual(getNextFoldLine(3, foldingModel), 5);
+			assert.strictEqual(getNextFoldLine(4, foldingModel), 5);
+			assert.strictEqual(getNextFoldLine(5, foldingModel), 9);
+			assert.strictEqual(getNextFoldLine(9, foldingModel), null);
 
 		} finally {
 			textModel.dispose();

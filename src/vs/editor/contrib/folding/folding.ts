@@ -14,7 +14,7 @@ import { ScrollType, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, registerInstantiatedEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { FoldingModel, setCollapseStateAtLevel, CollapseMemento, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateForMatchingLines, setCollapseStateForType, setCollapseStateForRest, toggleCollapseState, setCollapseStateUp, getJumpToParentFoldLine, getJumpToPreviousFoldLine, getJumpToNextFoldLine } from 'vs/editor/contrib/folding/foldingModel';
+import { FoldingModel, setCollapseStateAtLevel, CollapseMemento, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateForMatchingLines, setCollapseStateForType, setCollapseStateForRest, toggleCollapseState, setCollapseStateUp, getParentFoldLine as getParentFoldLine, getPreviousFoldLine, getNextFoldLine } from 'vs/editor/contrib/folding/foldingModel';
 import { FoldingDecorationProvider, foldingCollapsedIcon, foldingExpandedIcon } from './foldingDecorations';
 import { FoldingRegions, FoldingRegion } from './foldingRanges';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -955,13 +955,13 @@ class FoldLevelAction extends FoldingAction<void> {
 	}
 }
 
-/** Action to jump to the parent fold of current line */
-class JumpToParentFoldAction extends FoldingAction<void> {
+/** Action to go to the parent fold of current line */
+class GotoParentFoldAction extends FoldingAction<void> {
 	constructor() {
 		super({
-			id: 'editor.jumpToParentFold',
-			label: nls.localize('jumpToParentFold.label', "Jump to Parent Fold"),
-			alias: 'Jump to Parent Fold',
+			id: 'editor.gotoParentFold',
+			label: nls.localize('gotoParentFold.label', "Go to Parent Fold"),
+			alias: 'Go to Parent Fold',
 			precondition: CONTEXT_FOLDING_ENABLED,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -973,7 +973,7 @@ class JumpToParentFoldAction extends FoldingAction<void> {
 	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
 		let selectedLines = this.getSelectedLines(editor);
 		if (selectedLines.length > 0) {
-			let startLineNumber = getJumpToParentFoldLine(selectedLines[0], foldingModel);
+			let startLineNumber = getParentFoldLine(selectedLines[0], foldingModel);
 			if (startLineNumber !== null) {
 				editor.setSelection({
 					startLineNumber: startLineNumber,
@@ -986,13 +986,13 @@ class JumpToParentFoldAction extends FoldingAction<void> {
 	}
 }
 
-/** Action to jump to the previous fold of current line */
-class JumpToPreviousFoldAction extends FoldingAction<void> {
+/** Action to go to the previous fold of current line */
+class GotoPreviousFoldAction extends FoldingAction<void> {
 	constructor() {
 		super({
-			id: 'editor.jumpToPreviousFold',
-			label: nls.localize('jumpToPreviousFold.label', "Jump to Previous Fold"),
-			alias: 'Jump to Previous Fold',
+			id: 'editor.gotoPreviousFold',
+			label: nls.localize('gotoPreviousFold.label', "Go to Previous Fold"),
+			alias: 'Go to Previous Fold',
 			precondition: CONTEXT_FOLDING_ENABLED,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -1004,7 +1004,7 @@ class JumpToPreviousFoldAction extends FoldingAction<void> {
 	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
 		let selectedLines = this.getSelectedLines(editor);
 		if (selectedLines.length > 0) {
-			let startLineNumber = getJumpToPreviousFoldLine(selectedLines[0], foldingModel);
+			let startLineNumber = getPreviousFoldLine(selectedLines[0], foldingModel);
 			if (startLineNumber !== null) {
 				editor.setSelection({
 					startLineNumber: startLineNumber,
@@ -1017,13 +1017,13 @@ class JumpToPreviousFoldAction extends FoldingAction<void> {
 	}
 }
 
-/** Action to jump to the next fold of current line */
-class JumpToNextFoldAction extends FoldingAction<void> {
+/** Action to go to the next fold of current line */
+class GotoNextFoldAction extends FoldingAction<void> {
 	constructor() {
 		super({
-			id: 'editor.jumpToNextFold',
-			label: nls.localize('jumpToNextFold.label', "Jump to Next Fold"),
-			alias: 'Jump to Next Fold',
+			id: 'editor.gotoNextFold',
+			label: nls.localize('gotoNextFold.label', "Go to Next Fold"),
+			alias: 'Go to Next Fold',
 			precondition: CONTEXT_FOLDING_ENABLED,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -1035,7 +1035,7 @@ class JumpToNextFoldAction extends FoldingAction<void> {
 	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
 		let selectedLines = this.getSelectedLines(editor);
 		if (selectedLines.length > 0) {
-			let startLineNumber = getJumpToNextFoldLine(selectedLines[0], foldingModel);
+			let startLineNumber = getNextFoldLine(selectedLines[0], foldingModel);
 			if (startLineNumber !== null) {
 				editor.setSelection({
 					startLineNumber: startLineNumber,
@@ -1061,9 +1061,9 @@ registerEditorAction(UnfoldAllRegionsAction);
 registerEditorAction(FoldAllRegionsExceptAction);
 registerEditorAction(UnfoldAllRegionsExceptAction);
 registerEditorAction(ToggleFoldAction);
-registerEditorAction(JumpToParentFoldAction);
-registerEditorAction(JumpToPreviousFoldAction);
-registerEditorAction(JumpToNextFoldAction);
+registerEditorAction(GotoParentFoldAction);
+registerEditorAction(GotoPreviousFoldAction);
+registerEditorAction(GotoNextFoldAction);
 
 for (let i = 1; i <= 7; i++) {
 	registerInstantiatedEditorAction(
