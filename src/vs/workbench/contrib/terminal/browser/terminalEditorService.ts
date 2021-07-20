@@ -203,16 +203,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 					},
 						input.group
 					);
-					this._editorInputs.set(inputKey, input);
-					this._instanceDisposables.set(inputKey, [
-						toDisposable(() => {
-							this._editorInputs.delete(inputKey);
-						}),
-						instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance),
-						instance.onDidFocus(this._onDidFocusInstance.fire, this._onDidFocusInstance)
-					]);
-					this.instances.push(instance);
-					this._onDidChangeInstances.fire();
+					this._setupInstance(inputKey, input, instance);
 				});
 			}
 		}
@@ -221,21 +212,25 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		if ('instanceId' in instanceOrUri) {
 			instanceOrUri.target = TerminalLocation.Editor;
 			input = this._instantiationService.createInstance(TerminalEditorInput, resource, instanceOrUri);
-			this._editorInputs.set(inputKey, input);
-			// TODO: pull into helper setup instance function
-			// TODO: why doesn't this do anything?
-			this._instanceDisposables.set(inputKey, [
-				toDisposable(() => this._editorInputs.delete(inputKey)),
-				instanceOrUri.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance),
-				instanceOrUri.onDidFocus(this._onDidFocusInstance.fire, this._onDidFocusInstance)
-			]);
-			this.instances.push(instanceOrUri);
-			this._onDidChangeInstances.fire();
+			this._setupInstance(inputKey, input, instanceOrUri);
 		} else {
 			input = this._instantiationService.createInstance(TerminalEditorInput, instanceOrUri, undefined);
 			this._editorInputs.set(inputKey, input);
 		}
 		return input;
+	}
+
+	private _setupInstance(inputKey: string, input: TerminalEditorInput, instance: ITerminalInstance): void {
+		this._editorInputs.set(inputKey, input);
+		this._instanceDisposables.set(inputKey, [
+			instance.onDidFocus(this._onDidFocusInstance.fire, this._onDidFocusInstance),
+			// TODO: why don't these do anything
+			toDisposable(() => this._editorInputs.delete(inputKey)),
+			instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance)
+		]);
+		this.instances.push(instance);
+		this._onDidChangeInstances.fire();
+
 	}
 
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig: IShellLaunchConfig = {}): ITerminalInstance {
