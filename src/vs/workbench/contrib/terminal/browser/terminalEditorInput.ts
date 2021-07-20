@@ -19,8 +19,12 @@ import { ConfirmOnKill } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { Emitter } from 'vs/base/common/event';
 
 export class TerminalEditorInput extends EditorInput {
+
+	protected readonly _onDidRequestAttach = this._register(new Emitter<ITerminalInstance>());
+	readonly onDidRequestAttach = this._onDidRequestAttach.event;
 
 	static readonly ID = 'workbench.editors.terminal';
 
@@ -47,11 +51,26 @@ export class TerminalEditorInput extends EditorInput {
 		return TerminalEditor.ID;
 	}
 
+	setTerminalInstance(instance: ITerminalInstance): void {
+		if (this._terminalInstance) {
+			throw new Error('cannot set instance that has already been set');
+		}
+		this._terminalInstance = instance;
+		this._setupInstanceListeners();
+
+		// Refresh dirty state when the confirm on kill setting is changed
+		this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TerminalSettingId.ConfirmOnKill)) {
+				this._onDidChangeDirty.fire();
+			}
+		});
+	}
+
 	override copy(): IEditorInput {
 		const instance = this._copyInstance || this._terminalInstanceService.createInstance({}, TerminalLocation.Editor);
 		instance.focusWhenReady();
 		this._copyInstance = undefined;
-		return this._instantiationService.createInstance(TerminalEditorInput, instance);
+		return this._instantiationService.createInstance(TerminalEditorInput, instance.resource, instance);
 	}
 
 	/**
@@ -69,47 +88,27 @@ export class TerminalEditorInput extends EditorInput {
 		return this._isDetached ? undefined : this._terminalInstance;
 	}
 
-	get resource(): URI {
-		return this._terminalInstance.resource;
-	}
-
 	override isDirty(): boolean {
 		const confirmOnKill = this._configurationService.getValue<ConfirmOnKill>(TerminalSettingId.ConfirmOnKill);
 		if (confirmOnKill === 'editor' || confirmOnKill === 'always') {
-			return this._terminalInstance.hasChildProcesses;
+			return this._terminalInstance?.hasChildProcesses || false;
 		}
 		return false;
 	}
 
 	constructor(
-		private readonly _terminalInstance: ITerminalInstance,
+		public readonly resource: URI,
+		private _terminalInstance: ITerminalInstance | undefined,
 		@IThemeService private readonly _themeService: IThemeService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ILifecycleService lifecycleService: ILifecycleService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
+		@IContextKeyService _contextKeyService: IContextKeyService
 	) {
 		super();
 
-		this._terminalEditorFocusContextKey = TerminalContextKeys.editorFocus.bindTo(contextKeyService);
-
-		this._register(toDisposable(() => {
-			if (!this._isDetached && !this._isShuttingDown) {
-				this._terminalInstance.dispose();
-			}
-		}));
-
-		const disposeListeners = [
-			this._terminalInstance.onExit(() => this.dispose()),
-			this._terminalInstance.onDisposed(() => this.dispose()),
-			this._terminalInstance.onTitleChanged(() => this._onDidChangeLabel.fire()),
-			this._terminalInstance.onIconChanged(() => this._onDidChangeLabel.fire()),
-			this._terminalInstance.onDidFocus(() => this._terminalEditorFocusContextKey.set(true)),
-			this._terminalInstance.onDidBlur(() => this._terminalEditorFocusContextKey.reset()),
-			this._terminalInstance.onDidChangeHasChildProcesses(() => this._onDidChangeDirty.fire()),
-			this._terminalInstance.statusList.onDidChangePrimaryStatus(() => this._onDidChangeLabel.fire())
-		];
+		this._terminalEditorFocusContextKey = TerminalContextKeys.editorFocus.bindTo(_contextKeyService);
 
 		// Refresh dirty state when the confirm on kill setting is changed
 		this._configurationService.onDidChangeConfiguration(e => {
@@ -117,20 +116,50 @@ export class TerminalEditorInput extends EditorInput {
 				this._onDidChangeDirty.fire();
 			}
 		});
+		if (_terminalInstance) {
+			this._setupInstanceListeners();
+		}
+	}
+
+	private _setupInstanceListeners(): void {
+		const instance = this._terminalInstance;
+		if (!instance) {
+			return;
+		}
+
+		this._register(toDisposable(() => {
+			if (!this._isDetached && !this._isShuttingDown) {
+				instance.dispose();
+			}
+		}));
+
+		const disposeListeners = [
+			instance.onExit(() => this.dispose()),
+			instance.onDisposed(() => this.dispose()),
+			instance.onTitleChanged(() => this._onDidChangeLabel.fire()),
+			instance.onIconChanged(() => this._onDidChangeLabel.fire()),
+			instance.onDidFocus(() => this._terminalEditorFocusContextKey.set(true)),
+			instance.onDidBlur(() => this._terminalEditorFocusContextKey.reset()),
+			instance.onDidChangeHasChildProcesses(() => this._onDidChangeDirty.fire()),
+			instance.statusList.onDidChangePrimaryStatus(() => this._onDidChangeLabel.fire())
+		];
 
 		// Don't dispose editor when instance is torn down on shutdown to avoid extra work and so
 		// the editor/tabs don't disappear
-		lifecycleService.onWillShutdown(() => {
+		this._lifecycleService.onWillShutdown(() => {
 			this._isShuttingDown = true;
 			dispose(disposeListeners);
 		});
 	}
 
 	override getName() {
-		return this._terminalInstance.title;
+		return this._terminalInstance?.title || this.resource.fragment;
 	}
 
 	override getLabelExtraClasses(): string[] {
+		if (!this._terminalInstance) {
+			return [];
+		}
 		const extraClasses: string[] = ['terminal-tab'];
 		const colorClass = getColorClass(this._terminalInstance);
 		if (colorClass) {
@@ -152,7 +181,7 @@ export class TerminalEditorInput extends EditorInput {
 	 */
 	detachInstance() {
 		if (!this._isShuttingDown) {
-			this._terminalInstance.detachFromElement();
+			this._terminalInstance?.detachFromElement();
 			this._isDetached = true;
 		}
 	}

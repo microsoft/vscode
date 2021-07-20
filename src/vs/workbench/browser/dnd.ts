@@ -113,8 +113,20 @@ export function extractEditorsDropData(e: DragEvent, externalOnly?: boolean): Ar
 				// Invalid transfer
 			}
 		}
-	}
 
+		// Check for terminals transfer
+		const terminals = e.dataTransfer.getData(DataTransfers.TERMINALS);
+		if (terminals) {
+			try {
+				const terminalEditors: string[] = JSON.parse(terminals);
+				for (const terminalEditor of terminalEditors) {
+					editors.push({ resource: URI.parse(terminalEditor), isExternal: true });
+				}
+			} catch (error) {
+				// Invalid transfer
+			}
+		}
+	}
 	return editors;
 }
 

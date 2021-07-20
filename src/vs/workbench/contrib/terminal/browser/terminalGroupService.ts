@@ -7,6 +7,7 @@ import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { timeout } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -173,6 +174,19 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 				await instance.focusWhenReady(true);
 			}
 		}
+	}
+
+	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined {
+		if (URI.isUri(resource)) {
+			// note that the uri and and instance id might
+			// not match this window
+			for (const instance of this.instances) {
+				if (instance.resource.path === resource.path) {
+					return instance;
+				}
+			}
+		}
+		return undefined;
 	}
 
 	findNext(): void {

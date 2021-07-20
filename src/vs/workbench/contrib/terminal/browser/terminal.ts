@@ -19,7 +19,7 @@ import { ICompleteTerminalConfiguration } from 'vs/workbench/contrib/terminal/co
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { IEditableData } from 'vs/workbench/common/views';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
-import { SerializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
+import { DeserializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
@@ -54,7 +54,7 @@ export interface ITerminalInstanceService {
 	 */
 	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType, isRemote: boolean): Promise<string>;
 
-	createInstance(launchConfig: IShellLaunchConfig, target?: TerminalLocation): ITerminalInstance;
+	createInstance(launchConfig: IShellLaunchConfig, target?: TerminalLocation, resource?: URI): ITerminalInstance;
 }
 
 export interface IBrowserTerminalConfigHelper extends ITerminalConfigHelper {
@@ -140,7 +140,8 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 */
 	getInstanceFromId(terminalId: number): ITerminalInstance | undefined;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
-	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined;
+
+
 	getActiveOrCreateInstance(): ITerminalInstance;
 	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig, cwd?: string | URI): ITerminalInstance | null;
 	splitInstance(instance: ITerminalInstance, profile: ITerminalProfile): ITerminalInstance | null;
@@ -198,7 +199,7 @@ export interface ITerminalEditorService extends ITerminalInstanceHost, ITerminal
 	readonly instances: readonly ITerminalInstance[];
 
 	openEditor(instance: ITerminalInstance): Promise<void>;
-	getOrCreateEditorInput(instance: ITerminalInstance | SerializedTerminalEditorInput): TerminalEditorInput;
+	getOrCreateEditorInput(instance: ITerminalInstance | DeserializedTerminalEditorInput | URI): TerminalEditorInput;
 	detachActiveEditorInstance(): ITerminalInstance;
 	detachInstance(instance: ITerminalInstance): void;
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
@@ -271,6 +272,11 @@ export interface ITerminalInstanceHost {
 	readonly onDidChangeInstances: Event<void>;
 
 	setActiveInstance(instance: ITerminalInstance): void;
+	/**
+	 * Gets an instance from a resource if it exists. This MUST be used instead of getInstanceFromId
+	 * when you only know about a terminal's URI. (a URI's instance ID may not be this window's instance ID)
+	 */
+	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined;
 }
 
 export interface ITerminalFindHost {
@@ -341,6 +347,8 @@ export interface ITerminalInstance {
 	 * A unique URI for this terminal instance with the following encoding:
 	 * path: /<workspace ID>/<instance ID>
 	 * fragment: Title
+	 * Note that when dragging terminals across windows, this will retain the original workspace ID /instance ID
+	 * from the other window.
 	 */
 	readonly resource: URI;
 

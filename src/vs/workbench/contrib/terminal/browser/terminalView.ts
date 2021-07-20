@@ -481,7 +481,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				const instance = this._terminalGroupService.activeInstance;
 				if (e.dataTransfer && instance) {
 					e.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify([instance.resource.toString()]));
-					e.dataTransfer.setData(DataTransfers.TERMINALS, JSON.stringify([instance.instanceId]));
+					e.dataTransfer.setData(DataTransfers.TERMINALS, JSON.stringify([instance.resource.toString()]));
 				}
 			}));
 		}
