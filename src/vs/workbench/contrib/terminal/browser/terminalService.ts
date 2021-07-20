@@ -36,7 +36,7 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { configureTerminalProfileIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
-import { getTerminalUri, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUriParser';
+import { getTerminalUri, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
 import { ILocalTerminalService, IOffProcessTerminalService, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, ITerminalProfileContribution, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
@@ -764,14 +764,14 @@ export class TerminalService implements ITerminalService {
 		}
 
 		// View terminals
-		sourceInstance = this._terminalGroupService.instances.find(e => e.instanceId === terminalIdentifier.instanceId);
+		sourceInstance = this._terminalGroupService.getInstanceFromResource(e.uri);
 		if (sourceInstance) {
 			this._terminalGroupService.moveInstance(sourceInstance, instance, e.side);
 			return;
 		}
 
 		// Terminal editors
-		sourceInstance = this._terminalEditorService.instances.find(e => e.instanceId === terminalIdentifier.instanceId);
+		sourceInstance = this._terminalEditorService.getInstanceFromResource(e.uri);
 		if (sourceInstance) {
 			this.moveToTerminalView(sourceInstance, instance, e.side);
 			return;

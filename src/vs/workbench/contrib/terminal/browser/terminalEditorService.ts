@@ -15,8 +15,8 @@ import { IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
 import { IRemoteTerminalService, ITerminalEditorService, ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
-import { SerializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
-import { parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUriParser';
+import { DeserializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
+import { parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { ILocalTerminalService, IOffProcessTerminalService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -42,8 +42,6 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	readonly onDidChangeActiveInstance = this._onDidChangeActiveInstance.event;
 	private readonly _onDidChangeInstances = new Emitter<void>();
 	readonly onDidChangeInstances = this._onDidChangeInstances.event;
-	private readonly _onDidRequestDetachInstance = new Emitter<{ workspaceId: string, instanceId: number }>();
-	readonly onDidRequestDetachInstance = this._onDidRequestDetachInstance.event;
 
 	constructor(
 		@ICommandService private readonly _commandService: ICommandService,
@@ -165,15 +163,8 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		input.setGroup(editorPane?.group);
 	}
 
-	getOrCreateEditorInput(instanceOrUri: ITerminalInstance | SerializedTerminalEditorInput | URI, isFutureSplit: boolean = false): TerminalEditorInput {
-		let resource: URI;
-		if (URI.isUri(instanceOrUri)) {
-			resource = instanceOrUri;
-		} else if ('instanceId' in instanceOrUri) {
-			resource = instanceOrUri.resource;
-		} else {
-			resource = URI.parse(instanceOrUri.resource);
-		}
+	getOrCreateEditorInput(instanceOrUri: ITerminalInstance | DeserializedTerminalEditorInput | URI, isFutureSplit: boolean = false): TerminalEditorInput {
+		const resource: URI = URI.isUri(instanceOrUri) ? instanceOrUri : instanceOrUri.resource;
 		const inputKey = resource.path;
 		const cachedEditor = this._editorInputs.get(inputKey);
 		if (cachedEditor) {
@@ -191,8 +182,8 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 				this._primaryOffProcessTerminalService.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId).then(attachPersistentProcess => {
 					const instance = this._terminalInstanceService.createInstance({ attachPersistentProcess }, TerminalLocation.Editor, resource);
 					input.setTerminalInstance(instance);
-					// TODO: fix and use an event instead, for now is used to trigger TerminalEditor's setInput,
-					// which attaches to the element
+					// trigger setInput on TerminalEditor setInput
+					// which attaches to the element and updates the input
 					this._editorService.openEditor(input, {
 						pinned: true,
 						forceReload: true
@@ -211,25 +202,33 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			this._registerInstance(inputKey, input, instanceOrUri);
 		} else {
 			input = this._instantiationService.createInstance(TerminalEditorInput, instanceOrUri, undefined);
-			this._registerInstance(inputKey, input);
+			this._editorInputs.set(inputKey, input);
 		}
 		return input;
 	}
 
-	private _registerInstance(inputKey: string, input: TerminalEditorInput, instance?: ITerminalInstance): void {
+	private _registerInstance(inputKey: string, input: TerminalEditorInput, instance: ITerminalInstance): void {
 		this._editorInputs.set(inputKey, input);
-		if (!instance) {
-			return;
-		}
 		this._instanceDisposables.set(inputKey, [
 			instance.onDidFocus(this._onDidFocusInstance.fire, this._onDidFocusInstance),
-			// TODO: why don't these do anything
 			toDisposable(() => this._editorInputs.delete(inputKey)),
 			instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance)
 		]);
 		this.instances.push(instance);
 		this._onDidChangeInstances.fire();
+	}
 
+	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined {
+		if (URI.isUri(resource)) {
+			// note that the uri and and instance id might
+			// not match this window
+			for (const instance of this.instances) {
+				if (instance.resource.path === resource.path) {
+					return instance;
+				}
+			}
+		}
+		return undefined;
 	}
 
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig: IShellLaunchConfig = {}): ITerminalInstance {

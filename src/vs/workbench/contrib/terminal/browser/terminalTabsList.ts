@@ -47,7 +47,7 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUriParser';
+import { parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 
 const $ = DOM.$;
 
@@ -620,7 +620,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 
 		let sourceInstances: ITerminalInstance[] | undefined;
 		let promises: Promise<IProcessDetails | undefined>[] = [];
-		const resources = originalEvent.dataTransfer?.getData(DataTransfers.TERMINALS) || originalEvent.dataTransfer?.getData(DataTransfers.RESOURCES);
+		const resources = originalEvent.dataTransfer?.getData(DataTransfers.TERMINALS);
 		if (resources) {
 			const json = JSON.parse(resources);
 			for (const entry of json) {

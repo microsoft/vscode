@@ -66,7 +66,7 @@ import { Color } from 'vs/base/common/color';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { getTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUriParser';
+import { getTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer

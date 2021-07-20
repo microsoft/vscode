@@ -8,6 +8,9 @@ import { URI } from 'vs/base/common/uri';
 
 export function parseTerminalUri(resource: URI): ITerminalIdentifier {
 	const [, workspaceId, instanceId] = resource.path.split('/');
+	if (!workspaceId || !Number.parseInt(instanceId)) {
+		throw new Error(`Could not parse terminal uri for resource ${resource}`);
+	}
 	return { workspaceId, instanceId: Number.parseInt(instanceId) };
 }
 

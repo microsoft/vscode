@@ -19,7 +19,7 @@ import { ICompleteTerminalConfiguration } from 'vs/workbench/contrib/terminal/co
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { IEditableData } from 'vs/workbench/common/views';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
-import { SerializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
+import { DeserializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
@@ -141,11 +141,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	getInstanceFromId(terminalId: number): ITerminalInstance | undefined;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
 
-	/**
-	 * Gets an instance from a resource if it exists. This MUST be used instead of getInstanceFromId
-	 * when you only know about a terminal's URI. (a URI's instance ID may not be this window's instance ID)
-	 */
-	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined;
+
 	getActiveOrCreateInstance(): ITerminalInstance;
 	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig, cwd?: string | URI): ITerminalInstance | null;
 	splitInstance(instance: ITerminalInstance, profile: ITerminalProfile): ITerminalInstance | null;
@@ -203,7 +199,7 @@ export interface ITerminalEditorService extends ITerminalInstanceHost, ITerminal
 	readonly instances: readonly ITerminalInstance[];
 
 	openEditor(instance: ITerminalInstance): Promise<void>;
-	getOrCreateEditorInput(instance: ITerminalInstance | SerializedTerminalEditorInput | URI): TerminalEditorInput;
+	getOrCreateEditorInput(instance: ITerminalInstance | DeserializedTerminalEditorInput | URI): TerminalEditorInput;
 	detachActiveEditorInstance(): ITerminalInstance;
 	detachInstance(instance: ITerminalInstance): void;
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
@@ -276,6 +272,11 @@ export interface ITerminalInstanceHost {
 	readonly onDidChangeInstances: Event<void>;
 
 	setActiveInstance(instance: ITerminalInstance): void;
+	/**
+	 * Gets an instance from a resource if it exists. This MUST be used instead of getInstanceFromId
+	 * when you only know about a terminal's URI. (a URI's instance ID may not be this window's instance ID)
+	 */
+	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined;
 }
 
 export interface ITerminalFindHost {
