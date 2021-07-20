@@ -50,6 +50,7 @@ class ExtensionResourceLoaderService implements IExtensionResourceLoaderService 
 			if (this._productService.commit) {
 				requestInit.headers['X-Client-Commit'] = this._productService.commit;
 			}
+			requestInit.mode = 'cors'; /* set mode to cors so that above headers are always passed */
 		}
 
 		const response = await fetch(uri.toString(true), requestInit);
