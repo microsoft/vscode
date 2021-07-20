@@ -1795,6 +1795,7 @@ declare module 'vscode' {
 		 * @param label Human-readable label of the test item.
 		 * @param uri URI this TestItem is associated with. May be a file or directory.
 		 */
+		// todo@API move into TestController
 		export function createTestItem(id: string, label: string, uri?: Uri): TestItem;
 
 		/**
@@ -1926,7 +1927,7 @@ declare module 'vscode' {
 	/**
 	 * Entry point to discover and execute tests. It contains {@link items} which
 	 * are used to populate the editor UI, and is associated with
-	 * {@link createRunProfile | run profiles} to allow
+	 * {@link createRunProfile run profiles} to allow
 	 * for tests to be executed.
 	 */
 	export interface TestController {
@@ -1987,7 +1988,7 @@ declare module 'vscode' {
 		 * {@link TestRunner} when a request is made to execute tests, and may also
 		 * be called if a test run is detected externally. Once created, tests
 		 * that are included in the results will be moved into the
-		 * {@link TestResultState.Pending} state.
+		 * {@link TestResultState.Pending} state. todo@API there is no Pending
 		 *
 		 * All runs created using the same `request` instance will be grouped
 		 * together. This is useful if, for example, a single suite of tests is
@@ -2021,6 +2022,7 @@ declare module 'vscode' {
 		 * any tests that appear in {@link TestRunRequest.exclude}. If this is
 		 * not given, then the extension should simply run all tests.
 		 */
+		// todo@API "...run all tests." which can mean resolve all tests first
 		include?: TestItem[];
 
 		/**
@@ -2028,6 +2030,7 @@ declare module 'vscode' {
 		 * omitted if no exclusions were requested. Test controllers should not run
 		 * excluded tests or any children of excluded tests.
 		 */
+		// @todo@API say that exclude is more important than include!
 		exclude?: TestItem[];
 
 		/**
@@ -2048,6 +2051,7 @@ declare module 'vscode' {
 	/**
 	 * Options given to {@link TestController.runTests}
 	 */
+	// todo@API add readonly or rw `isPersisted: boolean`
 	export interface TestRun {
 		/**
 		 * The human-readable name of the run. This can be used to
@@ -2072,6 +2076,7 @@ declare module 'vscode' {
 		 * @param state The state to assign to the test
 		 * @param duration Optionally sets how long the test took to run, in milliseconds
 		 */
+		// todo@API clarify duration, either add doc or new composite type
 		setState(test: TestItem, state: TestResultState, duration?: number): void;
 
 		/**
@@ -2083,6 +2088,7 @@ declare module 'vscode' {
 		 * @param test The test to update
 		 * @param message The message to add
 		 */
+		// todo@API can this called many times, should this be part of setState?
 		appendMessage(test: TestItem, message: TestMessage): void;
 
 		/**
@@ -2091,7 +2097,6 @@ declare module 'vscode' {
 		 * such as colors and text styles, are supported.
 		 *
 		 * @param output Output text to append
-		 * @param associateTo Optionally, associate the given segment of output
 		 */
 		appendOutput(output: string): void;
 
@@ -2112,6 +2117,8 @@ declare module 'vscode' {
 		 * Updates the items stored by the collection.
 		 * @param items Items to store, can be an array or other iterable.
 		 */
+		// todo@API no Iterable
+		// todo@API better names: reset, update...
 		set(items: Iterable<TestItem>): void;
 
 		/**
@@ -2174,12 +2181,13 @@ declare module 'vscode' {
 
 		/**
 		 * Indicates whether this test item may have children discovered by resolving.
-		 * If so, it will be shown as expandable in the Test Explorer  view, and
+		 * If so, it will be shown as expandable in the Test Explorer view, and
 		 * expanding the item will cause {@link TestController.resolveChildrenHandler}
 		 * to be invoked with the item.
 		 *
 		 * Default to false.
 		 */
+		// todo@API better names: isLeaf, isLeaf{Type|Node}, canHaveChildren
 		canResolveChildren: boolean;
 
 		/**
@@ -2229,6 +2237,7 @@ declare module 'vscode' {
 	 */
 	export enum TestResultState {
 		// Initial state
+		// todo@API what is this state for? not needed, has no references
 		Unset = 0,
 		// Test will be run, but is not currently running.
 		Queued = 1,
@@ -2267,6 +2276,7 @@ declare module 'vscode' {
 		/**
 		 * Message severity. Defaults to "Error".
 		 */
+		// todo@API maybe not needed? what does it change?
 		severity: TestMessageSeverity;
 
 		/**
