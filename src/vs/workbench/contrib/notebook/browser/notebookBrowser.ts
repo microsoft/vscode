@@ -356,6 +356,7 @@ export interface INotebookEditorCreationOptions {
 		cellTopInsertToolbar: MenuId;
 		cellExecuteToolbar: MenuId;
 	};
+	readonly options?: NotebookOptions;
 }
 
 export interface IActiveNotebookEditor extends INotebookEditor {
