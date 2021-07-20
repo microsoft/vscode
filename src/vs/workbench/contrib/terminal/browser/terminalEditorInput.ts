@@ -53,6 +53,14 @@ export class TerminalEditorInput extends EditorInput {
 		}
 		this._terminalInstance = instance;
 		this._setupInstanceListeners();
+		this._terminalEditorFocusContextKey = TerminalContextKeys.editorFocus.bindTo(this._contextKeyService);
+
+		// Refresh dirty state when the confirm on kill setting is changed
+		this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TerminalSettingId.ConfirmOnKill)) {
+				this._onDidChangeDirty.fire();
+			}
+		});
 	}
 
 	override copy(): IEditorInput {
@@ -86,18 +94,18 @@ export class TerminalEditorInput extends EditorInput {
 	}
 
 	constructor(
-		public readonly resource: URI | undefined,
+		public readonly resource: URI,
 		private _terminalInstance: ITerminalInstance | undefined,
 		@IThemeService private readonly _themeService: IThemeService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
 
-		this._terminalEditorFocusContextKey = TerminalContextKeys.editorFocus.bindTo(contextKeyService);
+		this._terminalEditorFocusContextKey = TerminalContextKeys.editorFocus.bindTo(_contextKeyService);
 
 		// Refresh dirty state when the confirm on kill setting is changed
 		this._configurationService.onDidChangeConfiguration(e => {
@@ -107,9 +115,6 @@ export class TerminalEditorInput extends EditorInput {
 		});
 		if (_terminalInstance) {
 			this._setupInstanceListeners();
-		} else {
-			this.dispose();
-			this.detachInstance();
 		}
 	}
 

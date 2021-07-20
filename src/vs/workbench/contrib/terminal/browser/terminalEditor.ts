@@ -44,6 +44,8 @@ export class TerminalEditor extends EditorPane {
 	private _editorInstanceElement: HTMLElement | undefined;
 	private _overflowGuardElement: HTMLElement | undefined;
 
+	get element(): HTMLElement | undefined { return this._overflowGuardElement; }
+
 	private _editorInput?: TerminalEditorInput = undefined;
 
 	private _lastDimension?: dom.Dimension;

@@ -401,6 +401,11 @@ export interface ICreateTerminalOptions {
 	 * Where to create the terminal, when not specified the default target will be used.
 	 */
 	target?: TerminalLocation;
+
+	/**
+	 * The terminal's resource, passed when the terminal has moved windows.
+	 */
+	resource?: URI;
 }
 
 export interface ICreateContributedTerminalProfileOptions {

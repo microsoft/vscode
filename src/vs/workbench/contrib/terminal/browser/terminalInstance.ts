@@ -152,6 +152,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _navigationModeAddon: INavigationMode & ITerminalAddon | undefined;
 	private _dndObserver: IDisposable | undefined;
 
+	private readonly _resource: URI;
+
 	private _lastLayoutDimensions: dom.Dimension | undefined;
 
 	private _hasHadInput: boolean;
@@ -160,13 +162,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	disableLayout: boolean = false;
 	target?: TerminalLocation;
 	get instanceId(): number { return this._instanceId; }
-	get resource(): URI {
-		return URI.from({
-			scheme: Schemas.vscodeTerminal,
-			path: `/${this._workspaceContextService.getWorkspace().id}/${this.instanceId}`,
-			fragment: this.title,
-		});
-	}
+	get resource(): URI { return this._resource; }
 	get cols(): number {
 		if (this._dimensionsOverride && this._dimensionsOverride.cols) {
 			if (this._dimensionsOverride.forceExactSize) {
@@ -253,6 +249,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		private readonly _terminalAltBufferActiveContextKey: IContextKey<boolean>,
 		private readonly _configHelper: TerminalConfigHelper,
 		private _shellLaunchConfig: IShellLaunchConfig,
+		resource: URI | undefined,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -285,6 +282,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._hasHadInput = false;
 		this._titleReadyPromise = new Promise<string>(c => {
 			this._titleReadyComplete = c;
+		});
+
+		// the resource is already set when it's been moved from another window
+		this._resource = resource || URI.from({
+			scheme: Schemas.vscodeTerminal,
+			path: `/${this._workspaceContextService.getWorkspace().id}/${this.instanceId}`,
+			fragment: this.title,
 		});
 
 		this._terminalHasTextContextKey = TerminalContextKeys.textSelected.bindTo(this._contextKeyService);

@@ -114,20 +114,20 @@ export function extractEditorsDropData(e: DragEvent, externalOnly?: boolean): Ar
 			}
 		}
 
-		// 	// Check for terminals transfer
-		// 	const terminals = e.dataTransfer.getData(DataTransfers.TERMINALS);
-		// 	if (terminals) {
-		// 		try {
-		// 			const terminalEditors: string[] = JSON.parse(terminals);
-		// 			editors.push(...terminalEditors.map(e => {
-		// 				return {
-		// 					resource: URI.parse(e), isExternal: true
-		// 				};
-		// 			}));
-		// 		} catch (error) {
-		// 			// Invalid transfer
-		// 		}
-		// 	}
+		// Check for terminals transfer
+		const terminals = e.dataTransfer.getData(DataTransfers.TERMINALS);
+		if (terminals) {
+			try {
+				const terminalEditors: string[] = JSON.parse(terminals);
+				editors.push(...terminalEditors.map(e => {
+					return {
+						resource: URI.parse(e), isExternal: true
+					};
+				}));
+			} catch (error) {
+				// Invalid transfer
+			}
+		}
 	}
 	return editors;
 }

@@ -29,10 +29,10 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	private _activeInstanceIndex: number = -1;
 	private _isShuttingDown = false;
 
-	private _editorInputs: Map</*instanceId*/number, TerminalEditorInput> = new Map();
-	private _instanceDisposables: Map</*instanceId*/number, IDisposable[]> = new Map();
+	private _editorInputs: Map</*resource*/string, TerminalEditorInput> = new Map();
+	private _instanceDisposables: Map</*resource*/string, IDisposable[]> = new Map();
 
-	private readonly _primaryOffProcessTerminalService?: IOffProcessTerminalService;
+	private readonly _primaryOffProcessTerminalService: IOffProcessTerminalService;
 
 	private readonly _onDidDisposeInstance = new Emitter<ITerminalInstance>();
 	readonly onDidDisposeInstance = this._onDidDisposeInstance.event;
@@ -57,14 +57,6 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	) {
 		super();
 		this._primaryOffProcessTerminalService = !!environmentService.remoteAuthority ? this._remoteTerminalService : (this._localTerminalService || this._remoteTerminalService);
-		this._primaryOffProcessTerminalService.onDidAcceptAttachInstanceReply(attachPersistentProcess => {
-			const input = this._editorInputs.get(-1);
-			if (input) {
-				this._editorInputs.delete(-1);
-				const instance = this._terminalInstanceService.createInstance({ attachPersistentProcess }, TerminalLocation.Editor);
-				this.openEditor(instance);
-			}
-		});
 		this._register(toDisposable(() => {
 			for (const d of this._instanceDisposables.values()) {
 				dispose(d);
@@ -85,11 +77,14 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			const terminalEditors = this._getActiveTerminalEditors();
 			const unknownEditor = terminalEditors.find(input => !knownIds.includes((input as any).terminalInstance.instanceId));
 			if (unknownEditor instanceof TerminalEditorInput && unknownEditor.terminalInstance) {
-				this._editorInputs.set(unknownEditor.terminalInstance.instanceId, unknownEditor);
+				this._editorInputs.set(unknownEditor.terminalInstance.resource.path, unknownEditor);
 				this.instances.push(unknownEditor.terminalInstance);
 			}
 		}));
-		this._register(this.onDidDisposeInstance(instance => this.detachInstance(instance)));
+		this._register(this.onDidDisposeInstance(instance => {
+			this.detachInstance(instance);
+			console.log('disposing of instance');
+		}));
 
 		// Remove the terminal from the managed instances when the editor closes. This fires when
 		// dragging and dropping to another editor or closing the editor via cmd/ctrl+w.
@@ -173,45 +168,77 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		input.setGroup(editorPane?.group);
 	}
 
-	getOrCreateEditorInput(instance: ITerminalInstance | SerializedTerminalEditorInput | URI, isFutureSplit: boolean = false): TerminalEditorInput {
-		let cachedEditor;
-		if ('id' in instance) {
-			cachedEditor = this._editorInputs.get(instance.id);
-		} else if ('instanceId' in instance) {
-			cachedEditor = this._editorInputs.get(instance.instanceId);
+	getOrCreateEditorInput(instanceOrUri: ITerminalInstance | SerializedTerminalEditorInput | URI, isFutureSplit: boolean = false): TerminalEditorInput {
+		let resource: URI;
+		if (URI.isUri(instanceOrUri)) {
+			resource = instanceOrUri;
+		} else if ('instanceId' in instanceOrUri) {
+			resource = instanceOrUri.resource;
+		} else {
+			resource = URI.parse(instanceOrUri.resource);
 		}
+		const inputKey = resource.path;
+		const cachedEditor = this._editorInputs.get(inputKey);
 		if (cachedEditor) {
+			console.log('cachedEditor', cachedEditor);
 			return cachedEditor;
 		}
 
-		if ('pid' in instance) {
-			instance = this._terminalInstanceService.createInstance({ attachPersistentProcess: instance }, TerminalLocation.Editor);
+		if ('pid' in instanceOrUri) {
+			instanceOrUri = this._terminalInstanceService.createInstance({ attachPersistentProcess: instanceOrUri }, TerminalLocation.Editor);
 		}
 
 		// Terminal from a different window
-		if (URI.isUri(instance)) {
-			const terminalIdentifier = parseTerminalUri(instance);
+		if (URI.isUri(instanceOrUri)) {
+			const terminalIdentifier = parseTerminalUri(instanceOrUri);
 			if (terminalIdentifier.instanceId) {
-				this._onDidRequestDetachInstance.fire({ workspaceId: terminalIdentifier.workspaceId, instanceId: terminalIdentifier.instanceId });
+				this._primaryOffProcessTerminalService.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId).then(attachPersistentProcess => {
+					const instance = this._terminalInstanceService.createInstance({ attachPersistentProcess }, TerminalLocation.Editor, resource);
+					input.setTerminalInstance(instance);
+					// TODO: fix and use an event instead, for now is used to trigger TerminalEditor's setInput,
+					// which attaches to the element
+					this._editorService.openEditor(input, {
+						pinned: true,
+						forceReload: true
+					},
+						input.group
+					);
+					this._editorInputs.set(inputKey, input);
+					this._instanceDisposables.set(inputKey, [
+						toDisposable(() => {
+							this._editorInputs.delete(inputKey);
+							console.log('deleted', inputKey);
+						}),
+						instance.onDisposed(() => console.log('received')),
+						instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance),
+						instance.onDidFocus(this._onDidFocusInstance.fire, this._onDidFocusInstance)
+					]);
+					this.instances.push(instance);
+					this._onDidChangeInstances.fire();
+				});
 			}
 		}
 
 		let input: TerminalEditorInput;
-		if ('instanceId' in instance) {
-			instance.target = TerminalLocation.Editor;
-			input = this._instantiationService.createInstance(TerminalEditorInput, instance.resource, instance);
-			this._editorInputs.set(instance.instanceId, input);
-			this._instanceDisposables.set(instance.instanceId, [
-				instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance),
-				instance.onDidFocus(this._onDidFocusInstance.fire, this._onDidFocusInstance)
+		if ('instanceId' in instanceOrUri) {
+			instanceOrUri.target = TerminalLocation.Editor;
+			input = this._instantiationService.createInstance(TerminalEditorInput, resource, instanceOrUri);
+			this._editorInputs.set(inputKey, input);
+			// TODO: pull into helper setup instance function
+			this._instanceDisposables.set(inputKey, [
+				toDisposable(() => {
+					this._editorInputs.delete(inputKey);
+					console.log('deleted', inputKey);
+				}),
+				instanceOrUri.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance),
+				instanceOrUri.onDidFocus(this._onDidFocusInstance.fire, this._onDidFocusInstance)
 			]);
-			this.instances.push(instance);
+			this.instances.push(instanceOrUri);
 			this._onDidChangeInstances.fire();
 		} else {
-			input = this._instantiationService.createInstance(TerminalEditorInput, undefined, undefined);
-			this._editorInputs.set(-1, input);
+			input = this._instantiationService.createInstance(TerminalEditorInput, instanceOrUri, undefined);
+			this._editorInputs.set(inputKey, input);
 		}
-
 		return input;
 	}
 
@@ -236,10 +263,11 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		return instance;
 	}
 
+	// todo input key helper
 	detachInstance(instance: ITerminalInstance) {
-		const editorInput = this._editorInputs.get(instance.instanceId);
+		const editorInput = this._editorInputs.get(instance.resource.path);
 		editorInput?.detachInstance();
-		this._editorInputs.delete(instance.instanceId);
+		this._editorInputs.delete(instance.resource.path);
 		const instanceIndex = this.instances.findIndex(e => e === instance);
 		if (instanceIndex !== -1) {
 			this.instances.splice(instanceIndex, 1);
@@ -248,8 +276,8 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		if (!this._isShuttingDown) {
 			editorInput?.dispose();
 		}
-		const disposables = this._instanceDisposables.get(instance.instanceId);
-		this._instanceDisposables.delete(instance.instanceId);
+		const disposables = this._instanceDisposables.get(instance.resource.path);
+		this._instanceDisposables.delete(instance.resource.path);
 		if (disposables) {
 			dispose(disposables);
 		}
@@ -262,7 +290,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			return;
 		}
 
-		const editorInput = this._editorInputs.get(instance.instanceId)!;
+		const editorInput = this._editorInputs.get(instance.resource.path)!;
 		this._editorService.openEditor(
 			editorInput,
 			{

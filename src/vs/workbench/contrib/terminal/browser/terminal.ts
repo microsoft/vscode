@@ -54,7 +54,7 @@ export interface ITerminalInstanceService {
 	 */
 	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType, isRemote: boolean): Promise<string>;
 
-	createInstance(launchConfig: IShellLaunchConfig, target?: TerminalLocation): ITerminalInstance;
+	createInstance(launchConfig: IShellLaunchConfig, target?: TerminalLocation, resource?: URI): ITerminalInstance;
 }
 
 export interface IBrowserTerminalConfigHelper extends ITerminalConfigHelper {
@@ -140,6 +140,11 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 */
 	getInstanceFromId(terminalId: number): ITerminalInstance | undefined;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
+
+	/**
+	 * Gets an instance from a resource if it exists. This MUST be used instead of getInstanceFromId
+	 * when you only know about a terminal's URI. (a URI's instance ID may not be this window's instance ID)
+	 */
 	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined;
 	getActiveOrCreateInstance(): ITerminalInstance;
 	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig, cwd?: string | URI): ITerminalInstance | null;
@@ -348,6 +353,8 @@ export interface ITerminalInstance {
 	 * A unique URI for this terminal instance with the following encoding:
 	 * path: /<workspace ID>/<instance ID>
 	 * fragment: Title
+	 * Note that when dragging terminals across windows, this will retain the original workspace ID /instance ID
+	 * from the other window.
 	 */
 	readonly resource: URI;
 

@@ -29,7 +29,6 @@ import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IconDefinition } from 'vs/platform/theme/common/iconRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
 import { IEditableData, IViewsService } from 'vs/workbench/common/views';
 import { IRemoteTerminalService, IRequestAddInstanceToGroupEvent, ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalFindHost, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalProfileProvider, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -160,7 +159,6 @@ export class TerminalService implements ITerminalService {
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
 	) {
 		this._localTerminalService = localTerminalService;
@@ -262,10 +260,15 @@ export class TerminalService implements ITerminalService {
 				: Promise.resolve();
 		this._primaryOffProcessTerminalService = !!this._environmentService.remoteAuthority ? this._remoteTerminalService : (this._localTerminalService || this._remoteTerminalService);
 		this._primaryOffProcessTerminalService.onDidRequestDetach(async (e) => {
-			if (e.workspaceId && this._workspaceContextService.getWorkspace().id === e.workspaceId) {
-				const instanceToDetach = this.getInstanceFromId(e.instanceId);
+			//TODO: make URI helper
+			const instanceToDetach = this.getInstanceFromResource(URI.from({
+				scheme: Schemas.vscodeTerminal,
+				path: `/${e.workspaceId}/${e.instanceId}`
+			}));
+			if (instanceToDetach) {
 				const persistentProcessId = instanceToDetach?.persistentProcessId;
 				if (persistentProcessId && !instanceToDetach.shellLaunchConfig.isFeatureTerminal && !instanceToDetach.shellLaunchConfig.customPtyImplementation) {
+					// this._terminalEditorService.detachInstance(instanceToDetach);
 					await instanceToDetach.detachFromProcess();
 					await this._primaryOffProcessTerminalService?.acceptDetachInstanceReply(e.requestId, persistentProcessId);
 				} else {
@@ -617,23 +620,15 @@ export class TerminalService implements ITerminalService {
 
 	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined {
 		if (URI.isUri(resource)) {
-			const instanceId = this._getInstanceIdFromUri(resource);
-			if (instanceId) {
-				return this.getInstanceFromId(instanceId);
+			// note that the uri and and instance id might
+			// not match this window
+			for (const instance of this.instances) {
+				if (instance.resource.path === resource.path) {
+					return instance;
+				}
 			}
 		}
 		return undefined;
-	}
-
-	private _getInstanceIdFromUri(resource: URI): number | undefined {
-		if (resource.scheme !== Schemas.vscodeTerminal) {
-			return undefined;
-		}
-		const terminalIdentifier = parseTerminalUri(resource);
-		if (this._workspaceContextService.getWorkspace().id !== terminalIdentifier.workspaceId) {
-			return undefined;
-		}
-		return terminalIdentifier.instanceId;
 	}
 
 	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean {
@@ -702,11 +697,6 @@ export class TerminalService implements ITerminalService {
 
 	async moveToTerminalView(source?: ITerminalInstance, target?: ITerminalInstance, side?: 'before' | 'after'): Promise<void> {
 		if (URI.isUri(source)) {
-			const [, workspaceId,] = source.path.split('/');
-			// Terminal from a different window
-			if (workspaceId !== this._workspaceContextService.getWorkspace().id) {
-				return;
-			}
 			source = this.getInstanceFromResource(source);
 		}
 
@@ -774,13 +764,13 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 
-		let sourceInstance: ITerminalInstance | undefined = undefined;
+		let sourceInstance: ITerminalInstance | undefined = this.getInstanceFromResource(e.uri);
 
 		// Terminal from a different window
-		if (terminalIdentifier.workspaceId !== this._workspaceContextService.getWorkspace().id) {
+		if (!sourceInstance) {
 			const attachPersistentProcess = await this._primaryOffProcessTerminalService?.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId);
 			if (attachPersistentProcess) {
-				sourceInstance = this.createTerminal({ config: { attachPersistentProcess } });
+				sourceInstance = this.createTerminal({ config: { attachPersistentProcess }, resource: e.uri });
 				this._terminalGroupService.moveInstance(sourceInstance, instance, e.side);
 				return;
 			}
@@ -1101,7 +1091,7 @@ export class TerminalService implements ITerminalService {
 			throw new Error('Could not create terminal when process support is not registered');
 		}
 		if (shellLaunchConfig.hideFromUser) {
-			const instance = this._terminalInstanceService.createInstance(shellLaunchConfig);
+			const instance = this._terminalInstanceService.createInstance(shellLaunchConfig, undefined, options?.resource);
 			this._backgroundedTerminalInstances.push(instance);
 			this._backgroundedTerminalDisposables.set(instance.instanceId, [
 				instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance)
@@ -1114,10 +1104,11 @@ export class TerminalService implements ITerminalService {
 		let instance: ITerminalInstance;
 		const target = options?.target || this.configHelper.config.defaultLocation;
 		if (target === TerminalLocation.Editor) {
-			instance = this._terminalInstanceService.createInstance(shellLaunchConfig);
+			instance = this._terminalInstanceService.createInstance(shellLaunchConfig, undefined, options?.resource);
 			instance.target = TerminalLocation.Editor;
 			this._terminalEditorService.openEditor(instance);
 		} else {
+			// TODO: pass resource?
 			const group = this._terminalGroupService.createGroup(shellLaunchConfig);
 			instance = group.terminalInstances[0];
 		}

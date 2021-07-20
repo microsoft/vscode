@@ -47,6 +47,7 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUriParser';
 
 const $ = DOM.$;
 
@@ -624,14 +625,16 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 			const json = JSON.parse(resources);
 			for (const entry of json) {
 				const uri = URI.parse(entry);
-				const [, workspaceId, instanceId] = uri.path.split('/');
-				if (workspaceId && instanceId) {
-					const instance = this._terminalService.instances.find(e => e.instanceId === Number.parseInt(instanceId));
-					if (instance && workspaceId === this._workspaceContextService.getWorkspace().id) {
-						sourceInstances = [instance];
-						this._terminalService.moveToTerminalView(instance);
-					} else if (this._offProcessTerminalService) {
-						promises.push(this._offProcessTerminalService.requestDetachInstance(workspaceId, Number.parseInt(instanceId)));
+
+				const instance = this._terminalService.getInstanceFromResource(uri);
+				if (instance) {
+					sourceInstances = [instance];
+					this._terminalService.moveToTerminalView(instance);
+				} else if (this._offProcessTerminalService) {
+					// why is this undefined
+					const terminalIdentifier = parseTerminalUri(uri);
+					if (terminalIdentifier.instanceId) {
+						promises.push(this._offProcessTerminalService.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId));
 					}
 				}
 			}
