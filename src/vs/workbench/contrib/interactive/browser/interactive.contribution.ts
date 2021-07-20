@@ -13,7 +13,7 @@ import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -49,6 +49,7 @@ import { contrastBorder, listInactiveSelectionBackground, registerColor, transpa
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { peekViewBorder /*, peekViewEditorBackground, peekViewResultsBackground */ } from 'vs/editor/contrib/peekView/peekView';
+import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -371,6 +372,12 @@ registerAction2(class extends Action2 {
 				},
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
 			},
+			menu: [
+				{
+					id: MenuId.InteractiveInputExecute
+				}
+			],
+			icon: icons.executeIcon,
 			f1: false
 		});
 	}

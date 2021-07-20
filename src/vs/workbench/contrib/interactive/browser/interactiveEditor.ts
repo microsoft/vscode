@@ -31,7 +31,7 @@ import { ExecutionStateCellStatusBarContrib, TimerCellStatusBarContrib } from 'v
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { MenuId } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
 import { IInteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
@@ -39,6 +39,10 @@ import { ComplexNotebookEditorModel } from 'vs/workbench/contrib/notebook/common
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IAction } from 'vs/base/common/actions';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 
@@ -60,6 +64,7 @@ export class InteractiveEditor extends EditorPane {
 	#notebookWidget: IBorrowValue<NotebookEditorWidget> = { value: undefined };
 	#inputCellContainer!: HTMLElement;
 	#inputFocusIndicator!: HTMLElement;
+	#inputRunButtonContainer!: HTMLElement;
 	#inputEditorContainer!: HTMLElement;
 	#codeEditorWidget!: CodeEditorWidget;
 	// #inputLineCount = 1;
@@ -70,6 +75,8 @@ export class InteractiveEditor extends EditorPane {
 	#notebookKernelService: INotebookKernelService;
 	#keybindingService: IKeybindingService;
 	#historyService: IInteractiveHistoryService;
+	#menuService: IMenuService;
+	#contextMenuService: IContextMenuService;
 	#widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
 	#dimension?: DOM.Dimension;
 	#notebookOptions: NotebookOptions;
@@ -89,7 +96,9 @@ export class InteractiveEditor extends EditorPane {
 		@IModeService modeService: IModeService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInteractiveHistoryService historyService: IInteractiveHistoryService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IMenuService menuService: IMenuService,
+		@IContextMenuService contextMenuService: IContextMenuService
 	) {
 		super(
 			InteractiveEditor.ID,
@@ -104,6 +113,8 @@ export class InteractiveEditor extends EditorPane {
 		this.#modeService = modeService;
 		this.#keybindingService = keybindingService;
 		this.#historyService = historyService;
+		this.#menuService = menuService;
+		this.#contextMenuService = contextMenuService;
 
 		this.#notebookOptions = new NotebookOptions(configurationService);
 
@@ -127,8 +138,28 @@ export class InteractiveEditor extends EditorPane {
 		this.#inputCellContainer.style.position = 'absolute';
 		this.#inputCellContainer.style.height = `${this._inputCellContainerHeight}px`;
 		this.#inputFocusIndicator = DOM.append(this.#inputCellContainer, DOM.$('.input-focus-indicator'));
+		this.#inputRunButtonContainer = DOM.append(this.#inputCellContainer, DOM.$('.run-button-container'));
+		this.#setupRunButtonToolbar(this.#inputRunButtonContainer);
 		this.#inputEditorContainer = DOM.append(this.#inputCellContainer, DOM.$('.input-editor-container'));
 		this.#createLayoutStyles();
+	}
+
+	#setupRunButtonToolbar(runButtonContainer: HTMLElement) {
+		const menu = this._register(this.#menuService.createMenu(MenuId.InteractiveInputExecute, this.#contextKeyService));
+		const toolbar = this._register(new ToolBar(runButtonContainer, this.#contextMenuService, {
+			getKeyBinding: action => this.#keybindingService.lookupKeybinding(action.id),
+			actionViewItemProvider: action => {
+				return createActionViewItem(this.#instantiationService, action);
+			},
+			renderDropdownAsChildElement: true
+		}));
+
+		const primary: IAction[] = [];
+		const secondary: IAction[] = [];
+		const result = { primary, secondary };
+
+		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result);
+		toolbar.setActions([...primary, ...secondary]);
 	}
 
 	#createLayoutStyles(): void {
@@ -159,6 +190,9 @@ export class InteractiveEditor extends EditorPane {
 					display: block;
 					top: ${INPUT_CELL_VERTICAL_PADDING}px;
 				}
+				.interactive-editor .input-cell-container {
+					border-top: 1px solid var(--notebook-inactive-focused-cell-border-color);
+				}
 			`);
 		} else {
 			// border
@@ -171,6 +205,14 @@ export class InteractiveEditor extends EditorPane {
 				}
 			`);
 		}
+
+		styleSheets.push(`
+			.interactive-editor .input-cell-container .run-button-container {
+				width: ${cellRunGutter}px;
+				left: ${codeCellLeftMargin}px;
+				margin-top: ${INPUT_EDITOR_PADDING - 2}px;
+			}
+		`);
 
 		this.#styleElement.textContent = styleSheets.join('\n');
 	}
