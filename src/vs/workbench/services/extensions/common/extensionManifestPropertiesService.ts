@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IExtensionManifest, ExtensionKind, ExtensionIdentifier, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManifest, ExtensionKind, ExtensionIdentifier, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionIdentifier, ALL_EXTENSION_KINDS } from 'vs/platform/extensions/common/extensions';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
@@ -110,11 +110,25 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 		const configuredExtensionKind = this.getConfiguredExtensionKind(manifest);
 
 		if (configuredExtensionKind) {
-			// Add web kind if the extension can run as web extension
-			if (deducedExtensionKind.includes('web') && !configuredExtensionKind.includes('web')) {
-				configuredExtensionKind.push('web');
+			const result: ExtensionKind[] = [];
+			for (const extensionKind of configuredExtensionKind) {
+				if (extensionKind !== '-web') {
+					result.push(extensionKind);
+				}
 			}
-			return configuredExtensionKind;
+
+			// If opted out from web without specifying other extension kinds then default to ui, workspace
+			if (configuredExtensionKind.includes('-web') && !result.length) {
+				result.push('ui');
+				result.push('workspace');
+			}
+
+			// Add web kind if not opted out from web and can run in web
+			if (!configuredExtensionKind.includes('-web') && !configuredExtensionKind.includes('web') && deducedExtensionKind.includes('web')) {
+				result.push('web');
+			}
+
+			return result;
 		}
 
 		return deducedExtensionKind;
@@ -216,7 +230,7 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 			return ['web'];
 		}
 
-		let result: ExtensionKind[] = ['ui', 'workspace', 'web'];
+		let result = [...ALL_EXTENSION_KINDS];
 
 		// Extension pack defaults to workspace extensionKind
 		if (isNonEmptyArray(manifest.extensionPack) || isNonEmptyArray(manifest.extensionDependencies)) {
@@ -259,7 +273,7 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 		return ['workspace', 'web'] /* Unknown extension point => workspace, web */;
 	}
 
-	private getConfiguredExtensionKind(manifest: IExtensionManifest): ExtensionKind[] | null {
+	private getConfiguredExtensionKind(manifest: IExtensionManifest): (ExtensionKind | '-web')[] | null {
 		const extensionIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
 
 		// check in config
@@ -278,7 +292,7 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 		result = manifest.extensionKind;
 		if (typeof result !== 'undefined') {
 			result = this.toArray(result);
-			return result;
+			return result.filter(r => ALL_EXTENSION_KINDS.includes(r));
 		}
 
 		return null;

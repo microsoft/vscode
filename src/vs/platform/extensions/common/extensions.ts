@@ -172,7 +172,7 @@ export interface IExtensionCapabilities {
 }
 
 
-
+export const ALL_EXTENSION_KINDS: readonly ExtensionKind[] = ['ui', 'workspace', 'web'];
 export type ExtensionKind = 'ui' | 'workspace' | 'web';
 
 export type LimitedWorkspaceSupportType = 'limited';
