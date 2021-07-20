@@ -1348,7 +1348,7 @@ registerAction2(class QuitEditCellAction extends NotebookCellAction {
 						win: {
 							primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter
 						},
-						weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
+						weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT - 5
 					},
 				]
 			});
