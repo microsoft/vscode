@@ -499,7 +499,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		if (this.canSetParentFolderTrust()) {
 			const { parentPath } = splitName((toWorkspaceIdentifier(this._canonicalWorkspace) as ISingleFolderWorkspaceIdentifier).uri.fsPath);
 
-			await this.setUrisTrust([URI.file(parentPath)], trusted);
+			await this.setUrisTrust([URI.parse(parentPath)], trusted);
 		}
 	}
 
