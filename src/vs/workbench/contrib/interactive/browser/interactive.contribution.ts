@@ -45,10 +45,10 @@ import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/s
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { contrastBorder, listInactiveSelectionBackground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
-import { Color } from 'vs/base/common/color';
+// import { Color } from 'vs/base/common/color';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { peekViewBorder, peekViewEditorBackground, peekViewResultsBackground } from 'vs/editor/contrib/peekView/peekView';
+import { peekViewBorder /*, peekViewEditorBackground, peekViewResultsBackground */ } from 'vs/editor/contrib/peekView/peekView';
 
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -504,11 +504,11 @@ registerThemingParticipant((theme) => {
 		hc: contrastBorder
 	}, localize('interactive.activeCodeBorder', 'The border color for the current interactive code cell when the editor has focus.'));
 
-	registerColor('interactive.activeCodeBackground', {
-		dark: (theme.getColor(peekViewEditorBackground) ?? Color.fromHex('#001F33')).transparent(0.25),
-		light: (theme.getColor(peekViewEditorBackground) ?? Color.fromHex('#F2F8FC')).transparent(0.25),
-		hc: Color.black
-	}, localize('interactive.activeCodeBackground', 'The background color for the current interactive code cell when the editor has focus.'));
+	// registerColor('interactive.activeCodeBackground', {
+	// 	dark: (theme.getColor(peekViewEditorBackground) ?? Color.fromHex('#001F33')).transparent(0.25),
+	// 	light: (theme.getColor(peekViewEditorBackground) ?? Color.fromHex('#F2F8FC')).transparent(0.25),
+	// 	hc: Color.black
+	// }, localize('interactive.activeCodeBackground', 'The background color for the current interactive code cell when the editor has focus.'));
 
 	registerColor('interactive.inactiveCodeBorder', {
 		dark: theme.getColor(listInactiveSelectionBackground) ?? transparent(listInactiveSelectionBackground, 1),
@@ -516,9 +516,9 @@ registerThemingParticipant((theme) => {
 		hc: PANEL_BORDER
 	}, localize('interactive.inactiveCodeBorder', 'The border color for the current interactive code cell when the editor does not have focus.'));
 
-	registerColor('interactive.inactiveCodeBackground', {
-		dark: (theme.getColor(peekViewResultsBackground) ?? Color.fromHex('#252526')).transparent(0.25),
-		light: (theme.getColor(peekViewResultsBackground) ?? Color.fromHex('#F3F3F3')).transparent(0.25),
-		hc: Color.black
-	}, localize('interactive.inactiveCodeBackground', 'The backgorund color for the current interactive code cell when the editor does not have focus.'));
+	// registerColor('interactive.inactiveCodeBackground', {
+	// 	dark: (theme.getColor(peekViewResultsBackground) ?? Color.fromHex('#252526')).transparent(0.25),
+	// 	light: (theme.getColor(peekViewResultsBackground) ?? Color.fromHex('#F3F3F3')).transparent(0.25),
+	// 	hc: Color.black
+	// }, localize('interactive.inactiveCodeBackground', 'The backgorund color for the current interactive code cell when the editor does not have focus.'));
 });
