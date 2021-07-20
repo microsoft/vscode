@@ -1791,46 +1791,31 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region https://github.com/microsoft/vscode/issues/107467
-	// todo@API test or tests?
+	//#region proposed test APIs https://github.com/microsoft/vscode/issues/107467
 	export namespace tests {
-		/**
-		 * Creates a new test controller.
-		 *
-		 * @param id Identifier for the controller, must be globally unique.
-		*/
-		export function createTestController(id: string, label: string): TestController;
-
 		/**
 		 * Requests that tests be run by their controller.
 		 * @param run Run options to use.
 		 * @param token Cancellation token for the test run
-		 * @stability experimental
 		 */
 		export function runTests(run: TestRunRequest, token?: CancellationToken): Thenable<void>;
 
 		/**
 		 * Returns an observer that watches and can request tests.
-		 * @stability experimental
 		 */
 		export function createTestObserver(): TestObserver;
 		/**
 		 * List of test results stored by the editor, sorted in descending
 		 * order by their `completedAt` time.
-		 * @stability experimental
 		 */
 		export const testResults: ReadonlyArray<TestRunResult>;
 
 		/**
 		 * Event that fires when the {@link testResults} array is updated.
-		 * @stability experimental
 		 */
 		export const onDidChangeTestResults: Event<void>;
 	}
 
-	/**
-	 * @stability experimental
-	 */
 	export interface TestObserver {
 		/**
 		 * List of tests returned by test provider for files in the workspace.
@@ -1851,9 +1836,6 @@ declare module 'vscode' {
 		dispose(): void;
 	}
 
-	/**
-	 * @stability experimental
-	 */
 	export interface TestsChangeEvent {
 		/**
 		 * List of all tests that are newly added.
@@ -1869,6 +1851,133 @@ declare module 'vscode' {
 		 * List of existing tests that have been removed.
 		 */
 		readonly removed: ReadonlyArray<TestItem>;
+	}
+
+	/**
+	 * A test item is an item shown in the "test explorer" view. It encompasses
+	 * both a suite and a test, since they have almost or identical capabilities.
+	 */
+	export interface TestItem {
+		/**
+		 * Marks the test as outdated. This can happen as a result of file changes,
+		 * for example. In "auto run" mode, tests that are outdated will be
+		 * automatically rerun after a short delay. Invoking this on a
+		 * test with children will mark the entire subtree as outdated.
+		 *
+		 * Extensions should generally not override this method.
+		 */
+		// todo@api still unsure about this
+		invalidateResults(): void;
+	}
+
+
+	/**
+	 * TestResults can be provided to the editor in {@link tests.publishTestResult},
+	 * or read from it in {@link tests.testResults}.
+	 *
+	 * The results contain a 'snapshot' of the tests at the point when the test
+	 * run is complete. Therefore, information such as its {@link Range} may be
+	 * out of date. If the test still exists in the workspace, consumers can use
+	 * its `id` to correlate the result instance with the living test.
+	 */
+	export interface TestRunResult {
+		/**
+		 * Unix milliseconds timestamp at which the test run was completed.
+		 */
+		completedAt: number;
+
+		/**
+		 * Optional raw output from the test run.
+		 */
+		output?: string;
+
+		/**
+		 * List of test results. The items in this array are the items that
+		 * were passed in the {@link tests.runTests} method.
+		 */
+		results: ReadonlyArray<Readonly<TestResultSnapshot>>;
+	}
+
+	/**
+	 * A {@link TestItem}-like interface with an associated result, which appear
+	 * or can be provided in {@link TestResult} interfaces.
+	 */
+	export interface TestResultSnapshot {
+		/**
+		 * Unique identifier that matches that of the associated TestItem.
+		 * This is used to correlate test results and tests in the document with
+		 * those in the workspace (test explorer).
+		 */
+		readonly id: string;
+
+		/**
+		 * Parent of this item.
+		 */
+		readonly parent?: TestResultSnapshot;
+
+		/**
+		 * URI this TestItem is associated with. May be a file or file.
+		 */
+		readonly uri?: Uri;
+
+		/**
+		 * Display name describing the test case.
+		 */
+		readonly label: string;
+
+		/**
+		 * Optional description that appears next to the label.
+		 */
+		readonly description?: string;
+
+		/**
+		 * Location of the test item in its `uri`. This is only meaningful if the
+		 * `uri` points to a file.
+		 */
+		readonly range?: Range;
+
+		/**
+		 * State of the test in each task. In the common case, a test will only
+		 * be executed in a single task and the length of this array will be 1.
+		 */
+		readonly taskStates: ReadonlyArray<TestSnapshoptTaskState>;
+
+		/**
+		 * Optional list of nested tests for this item.
+		 */
+		readonly children: Readonly<TestResultSnapshot>[];
+	}
+
+	export interface TestSnapshoptTaskState {
+		/**
+		 * Current result of the test.
+		 */
+		readonly state: TestResultState;
+
+		/**
+		 * The number of milliseconds the test took to run. This is set once the
+		 * `state` is `Passed`, `Failed`, or `Errored`.
+		 */
+		readonly duration?: number;
+
+		/**
+		 * Associated test run message. Can, for example, contain assertion
+		 * failure information if the test fails.
+		 */
+		readonly messages: ReadonlyArray<TestMessage>;
+	}
+
+	//#endregion
+
+	//#region test APIs to finalize https://github.com/microsoft/vscode/issues/122208
+
+	export namespace tests {
+		/**
+		 * Creates a new test controller.
+		 *
+		 * @param id Identifier for the controller, must be globally unique.
+		*/
+		export function createTestController(id: string, label: string): TestController;
 	}
 
 	/**
@@ -2210,9 +2319,9 @@ declare module 'vscode' {
 		readonly children: TestItemCollection;
 
 		/**
-		 * The parent of this item, given in {@link vscode.tests.createTestItem}.
-		 * This is undefined top-level items in the `TestController` and for
-		 * items that aren't yet included in another item's {@link children}.
+		 * The parent of this item. It's is undefined top-level items in the
+		 * {@link TestController.items} and for items that aren't yet included in
+		 * another item's {@link children}.
 		 */
 		readonly parent?: TestItem;
 
@@ -2256,17 +2365,6 @@ declare module 'vscode' {
 		 * discovery, such as syntax errors.
 		 */
 		error?: string | MarkdownString;
-
-		/**
-		 * Marks the test as outdated. This can happen as a result of file changes,
-		 * for example. In "auto run" mode, tests that are outdated will be
-		 * automatically rerun after a short delay. Invoking this on a
-		 * test with children will mark the entire subtree as outdated.
-		 *
-		 * Extensions should generally not override this method.
-		 */
-		// todo@api still unsure about this
-		invalidateResults(): void;
 	}
 
 	/**
@@ -2286,6 +2384,7 @@ declare module 'vscode' {
 		// Test run failed for some other reason (compilation error, timeout, etc)
 		Errored = 6
 	}
+
 	/**
 	 * Message associated with the test state. Can be linked to a specific
 	 * source range -- useful for assertion failures, for example.
@@ -2325,103 +2424,6 @@ declare module 'vscode' {
 		 */
 		constructor(message: string | MarkdownString);
 	}
-
-	/**
-	 * TestResults can be provided to the editor in {@link tests.publishTestResult},
-	 * or read from it in {@link tests.testResults}.
-	 *
-	 * The results contain a 'snapshot' of the tests at the point when the test
-	 * run is complete. Therefore, information such as its {@link Range} may be
-	 * out of date. If the test still exists in the workspace, consumers can use
-	 * its `id` to correlate the result instance with the living test.
-	 */
-	export interface TestRunResult {
-		/**
-		 * Unix milliseconds timestamp at which the test run was completed.
-		 */
-		completedAt: number;
-
-		/**
-		 * Optional raw output from the test run.
-		 */
-		output?: string;
-
-		/**
-		 * List of test results. The items in this array are the items that
-		 * were passed in the {@link tests.runTests} method.
-		 */
-		results: ReadonlyArray<Readonly<TestResultSnapshot>>;
-	}
-
-	/**
-	 * A {@link TestItem}-like interface with an associated result, which appear
-	 * or can be provided in {@link TestResult} interfaces.
-	 */
-	export interface TestResultSnapshot {
-		/**
-		 * Unique identifier that matches that of the associated TestItem.
-		 * This is used to correlate test results and tests in the document with
-		 * those in the workspace (test explorer).
-		 */
-		readonly id: string;
-
-		/**
-		 * Parent of this item.
-		 */
-		readonly parent?: TestResultSnapshot;
-
-		/**
-		 * URI this TestItem is associated with. May be a file or file.
-		 */
-		readonly uri?: Uri;
-
-		/**
-		 * Display name describing the test case.
-		 */
-		readonly label: string;
-
-		/**
-		 * Optional description that appears next to the label.
-		 */
-		readonly description?: string;
-
-		/**
-		 * Location of the test item in its `uri`. This is only meaningful if the
-		 * `uri` points to a file.
-		 */
-		readonly range?: Range;
-
-		/**
-		 * State of the test in each task. In the common case, a test will only
-		 * be executed in a single task and the length of this array will be 1.
-		 */
-		readonly taskStates: ReadonlyArray<TestSnapshoptTaskState>;
-
-		/**
-		 * Optional list of nested tests for this item.
-		 */
-		readonly children: Readonly<TestResultSnapshot>[];
-	}
-
-	export interface TestSnapshoptTaskState {
-		/**
-		 * Current result of the test.
-		 */
-		readonly state: TestResultState;
-
-		/**
-		 * The number of milliseconds the test took to run. This is set once the
-		 * `state` is `Passed`, `Failed`, or `Errored`.
-		 */
-		readonly duration?: number;
-
-		/**
-		 * Associated test run message. Can, for example, contain assertion
-		 * failure information if the test fails.
-		 */
-		readonly messages: ReadonlyArray<TestMessage>;
-	}
-
 	//#endregion
 
 	//#region Opener service (https://github.com/microsoft/vscode/issues/109277)
