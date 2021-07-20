@@ -22,7 +22,7 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
-import { INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IActiveNotebookEditor, ICellViewModel, INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
@@ -36,9 +36,14 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
 import { IInteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
 import { ComplexNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
+import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 
+const enum ScrollingState {
+	Initial = 0,
+	StickyToBottom = 1
+}
 
 export class InteractiveEditor extends EditorPane {
 	static readonly ID: string = 'workbench.editor.interactive';
@@ -198,6 +203,10 @@ export class InteractiveEditor extends EditorPane {
 			}
 		}));
 
+		if (this.#notebookWidget.value?.hasModel()) {
+			this.#registerExecutionScrollListener(this.#notebookWidget.value);
+		}
+
 		const cursorAtBoundaryContext = INTERACTIVE_INPUT_CURSOR_BOUNDARY.bindTo(this.#contextKeyService);
 		cursorAtBoundaryContext.set('none');
 
@@ -225,13 +234,99 @@ export class InteractiveEditor extends EditorPane {
 		}));
 
 		this.#widgetDisposableStore.add(editorModel.onDidChangeContent(() => {
-			if (this.input?.resource) {
-				this.#historyService.replaceLast(this.input.resource, editorModel!.getValue());
+			const value = editorModel!.getValue();
+			if (this.input?.resource && value !== '') {
+				this.#historyService.replaceLast(this.input.resource, value);
 			}
 		}));
 
 		this.#updateInputDecoration();
 		this.#updateInputEditorLanguage();
+	}
+
+	#lastCell: ICellViewModel | undefined = undefined;
+	#lastCellDisposable = new DisposableStore();
+	#state: ScrollingState = ScrollingState.Initial;
+
+	#cellAtBottom(widget: NotebookEditorWidget & IActiveNotebookEditor, cell: ICellViewModel): boolean {
+		const visibleRanges = widget.visibleRanges;
+		const cellIndex = widget.viewModel.getCellIndex(cell);
+		if (cellIndex === Math.max(...visibleRanges.map(range => range.end))) {
+			return true;
+		}
+		return false;
+	}
+
+	/**
+	 * - Init state: 0
+	 * - Will cell insertion: check if the last cell is at the bottom, false, stay 0
+	 * 						if true, state 1 (ready for auto reveal)
+	 * - receive a scroll event (scroll even already happened). If the last cell is at bottom, false, 0, true, state 1
+	 * - height change of the last cell, if state 0, do nothing, if state 1, scroll the last cell fully into view
+	 */
+	#registerExecutionScrollListener(widget: NotebookEditorWidget & IActiveNotebookEditor) {
+		this.#widgetDisposableStore.add(widget.textModel.onWillAddRemoveCells(e => {
+			const lastViewCell = widget.viewModel.viewCells[widget.viewModel.viewCells.length - 1];
+
+			// check if the last cell is at the bottom
+			if (this.#cellAtBottom(widget, lastViewCell)) {
+				this.#state = ScrollingState.StickyToBottom;
+			} else {
+				this.#state = ScrollingState.Initial;
+			}
+		}));
+
+		this.#widgetDisposableStore.add(widget.onDidScroll(() => {
+			const lastViewCell = widget.viewModel.viewCells[widget.viewModel.viewCells.length - 1];
+
+			// check if the last cell is at the bottom
+			if (this.#cellAtBottom(widget, lastViewCell)) {
+				this.#state = ScrollingState.StickyToBottom;
+			} else {
+				this.#state = ScrollingState.Initial;
+			}
+		}));
+
+		this.#widgetDisposableStore.add(widget.textModel.onDidChangeContent(e => {
+			for (let i = 0; i < e.rawEvents.length; i++) {
+				const event = e.rawEvents[i];
+
+				if (event.kind === NotebookCellsChangeType.ModelChange && this.#notebookWidget.value?.viewModel) {
+					const lastViewCell = this.#notebookWidget.value.viewModel.viewCells[this.#notebookWidget.value.viewModel.viewCells.length - 1];
+					if (lastViewCell !== this.#lastCell) {
+						this.#lastCellDisposable.clear();
+						this.#lastCell = lastViewCell;
+						this.#registerListenerForCell();
+					}
+				}
+			}
+		}));
+	}
+
+	#registerListenerForCell() {
+		if (!this.#lastCell) {
+			return;
+		}
+
+		this.#lastCellDisposable.add(this.#lastCell.onDidChangeLayout((e) => {
+			if (e.totalHeight === undefined) {
+				// not cell height change
+				return;
+			}
+
+			if (this.#state !== ScrollingState.StickyToBottom) {
+				return;
+			}
+
+			// scroll to bottom
+			// postpone to next tick as the list view might not process the output height change yet
+			// e.g., when we register this listener later than the list view
+			this.#lastCellDisposable.add(DOM.scheduleAtNextAnimationFrame(() => {
+				if (this.#state === ScrollingState.StickyToBottom) {
+					this.#notebookWidget.value!.scrollToBottom();
+				}
+			}));
+		}));
 	}
 
 	#updateInputEditorLanguage() {

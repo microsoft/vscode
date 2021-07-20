@@ -77,6 +77,10 @@ export class ListViewInfoAccessor extends Disposable {
 		super();
 	}
 
+	scrollToBottom() {
+		this.list.scrollToBottom();
+	}
+
 	revealCellRangeInView(range: ICellRange) {
 		return this.list.revealElementsInView(range);
 	}
@@ -1678,6 +1682,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			primary: cell.handle,
 			selections: [cell.handle]
 		});
+	}
+
+	scrollToBottom() {
+		this._listViewInfoAccessor.scrollToBottom();
 	}
 
 	revealCellRangeInView(range: ICellRange) {
