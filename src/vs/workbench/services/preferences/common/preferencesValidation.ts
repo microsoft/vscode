@@ -287,8 +287,6 @@ function getArrayOfStringValidator(prop: IConfigurationPropertySchema): ((value:
 }
 
 function getObjectValidator(prop: IConfigurationPropertySchema): ((value: any) => (string | null)) | null {
-	// see if it is renderable object
-	// the only renderable values for now are strings and bools
 	if (prop.type === 'object' && !prop.additionalProperties) {
 		const { properties, patternProperties } = prop;
 		return value => {

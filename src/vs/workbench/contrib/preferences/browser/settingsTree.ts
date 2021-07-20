@@ -1270,7 +1270,7 @@ export class SettingObjectRenderer extends AbstractSettingObjectRenderer impleme
 		template.onChange = (v: Record<string, unknown> | undefined) => {
 			renderArrayValidations(dataElement, template, v, false);
 		};
-		template.onChange(dataElement.value);
+		renderArrayValidations(dataElement, template, dataElement.value, true);
 	}
 }
 
