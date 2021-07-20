@@ -226,6 +226,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		const authentication: typeof vscode.authentication = {
 			getSession(providerId: string, scopes: readonly string[], options?: vscode.AuthenticationGetSessionOptions) {
+				if (options?.forceRecreate) {
+					checkProposedApiEnabled(extension);
+				}
 				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
 			},
 			get onDidChangeSessions(): Event<vscode.AuthenticationSessionsChangeEvent> {

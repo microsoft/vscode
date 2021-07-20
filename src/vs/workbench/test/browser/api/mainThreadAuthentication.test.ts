@@ -23,9 +23,10 @@ import { TestRemoteAgentService } from 'vs/workbench/services/remote/test/common
 import { TestQuickInputService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestActivityService, TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
+let i = 0;
 function createSession(id: string = '1234', scope: string[] = []) {
 	return {
-		accessToken: '1234',
+		accessToken: (++i) + '',
 		account: {
 			id: 'test@test.com',
 			label: 'Test Person'
@@ -86,7 +87,6 @@ suite('MainThreadAuthentication', () => {
 
 		const instaService = new InstantiationService(services);
 		services.set(IAuthenticationService, instaService.createInstance(AuthenticationService));
-
 		mainThreadAuthentication = instaService.createInstance(MainThreadAuthentication,
 			new class implements IExtHostContext {
 				remoteAuthority = '';
@@ -108,18 +108,52 @@ suite('MainThreadAuthentication', () => {
 				}
 				drain(): any { return null; }
 			});
+	});
 
+	setup(async () => {
 		await mainThreadAuthentication.$registerAuthenticationProvider('test', 'test provider', true);
 	});
 
-	suiteTeardown(() => {
+	teardown(() => {
 		mainThreadAuthentication.$unregisterAuthenticationProvider('test');
-		mainThreadAuthentication.dispose();
 	});
 
 	test('Can get a session', async () => {
-		const session = await mainThreadAuthentication.$getSession('test', ['foo'], 'testextension', 'test extension', { createIfNone: true, clearSessionPreference: false });
+		const session = await mainThreadAuthentication.$getSession('test', ['foo'], 'testextension', 'test extension', {
+			createIfNone: true,
+			clearSessionPreference: false,
+			forceRecreate: false
+		});
 		assert.strictEqual(session?.id, 'test');
 		assert.strictEqual(session?.scopes[0], 'foo');
+	});
+
+	test('Can recreate a session', async () => {
+		const session = await mainThreadAuthentication.$getSession('test', ['foo'], 'testextension', 'test extension', {
+			createIfNone: true,
+			clearSessionPreference: false,
+			forceRecreate: false
+		});
+
+		assert.strictEqual(session?.id, 'test');
+		assert.strictEqual(session?.scopes[0], 'foo');
+
+		const session2 = await mainThreadAuthentication.$getSession('test', ['foo'], 'testextension', 'test extension', {
+			createIfNone: false,
+			clearSessionPreference: false,
+			forceRecreate: true
+		});
+
+		assert.strictEqual(session.id, session2?.id);
+		assert.strictEqual(session.scopes[0], session2?.scopes[0]);
+		assert.notStrictEqual(session.accessToken, session2?.accessToken);
+	});
+
+	test('Can not recreate a session if none exists', async () => {
+		assert.rejects(() => mainThreadAuthentication.$getSession('test', ['foo'], 'testextension', 'test extension', {
+			createIfNone: false,
+			clearSessionPreference: false,
+			forceRecreate: true
+		}), new Error('Session does not exist.'));
 	});
 });
