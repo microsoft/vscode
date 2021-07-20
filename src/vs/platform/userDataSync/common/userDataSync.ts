@@ -207,7 +207,7 @@ export function createSyncHeaders(executionId: string): IHeaders {
 
 // #region User Data Sync Error
 
-export enum UserDataSyncErrorCode {
+export const enum UserDataSyncErrorCode {
 	// Client Errors (>= 400 )
 	Unauthorized = 'Unauthorized', /* 401 */
 	Conflict = 'Conflict', /* 409 */
@@ -254,7 +254,7 @@ export class UserDataSyncError extends Error {
 }
 
 export class UserDataSyncStoreError extends UserDataSyncError {
-	constructor(message: string, readonly url: string, code: UserDataSyncErrorCode, operationId: string | undefined) {
+	constructor(message: string, readonly url: string, code: UserDataSyncErrorCode, readonly serverCode: number | undefined, operationId: string | undefined) {
 		super(message, code, undefined, operationId);
 	}
 }
