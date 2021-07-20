@@ -272,12 +272,12 @@ const terminalConfiguration: IConfigurationNode = {
 			enumDescriptions: [
 				localize('terminal.integrated.confirmOnExit.never', "Never confirm."),
 				localize('terminal.integrated.confirmOnExit.always', "Always confirm if there are terminals."),
-				localize('terminal.integrated.confirmOnExit.hasChildProcesses', "Confirm if there are any terminals that has child processes."),
+				localize('terminal.integrated.confirmOnExit.hasChildProcesses', "Confirm if there are any terminals that have child processes."),
 			],
 			default: 'never'
 		},
 		[TerminalSettingId.ConfirmOnKill]: {
-			description: localize('terminal.integrated.confirmOnKill', "Controls whether to confirm killing terminals when they have child processes. When set to editor, terminals in the editor area will be marked as dirty when they have child processes."),
+			description: localize('terminal.integrated.confirmOnKill', "Controls whether to confirm killing terminals when they have child processes. When set to editor, terminals in the editor area will be marked as dirty when they have child processes. Note that child process detection may not work well for shells like Git Bash which don't run their processes as child processes of the shell."),
 			type: 'string',
 			enum: ['never', 'editor', 'panel', 'always'],
 			enumDescriptions: [
