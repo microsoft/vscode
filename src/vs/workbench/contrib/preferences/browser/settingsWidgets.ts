@@ -1108,6 +1108,16 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 
 		selectBox.render(wrapper);
 
+		// Switch to the first item if the user set something invalid in the json
+		const selected = keyOrValue.options.findIndex(option => keyOrValue.data === option.value);
+		if (selected === -1 && keyOrValue.options.length) {
+			update(
+				originalKeyOrValue.type === 'boolean'
+					? { ...originalKeyOrValue, data: true }
+					: { ...originalKeyOrValue, data: keyOrValue.options[0].value }
+			);
+		}
+
 		return { widget: selectBox, element: wrapper };
 	}
 
