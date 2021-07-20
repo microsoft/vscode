@@ -112,6 +112,7 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 			retired: false,
 			ownComputedState: state,
 			computedState: state,
+			expand: 0,
 			controllerId: 'ctrl',
 		});
 

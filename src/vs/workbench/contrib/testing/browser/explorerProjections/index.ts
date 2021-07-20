@@ -154,6 +154,10 @@ export class TestItemTreeElement implements IActionableTestTreeElement {
 	) { }
 
 	public toJSON() {
+		if (this.depth === 0) {
+			return { controllerId: this.test.controllerId };
+		}
+
 		const context: ITestItemContext = {
 			$mid: MarshalledId.TestItemContext,
 			tests: [this.test],

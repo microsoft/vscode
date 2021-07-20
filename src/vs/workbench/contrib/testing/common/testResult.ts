@@ -13,7 +13,7 @@ import { localize } from 'vs/nls';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
 import { IObservableValue, MutableObservableValue, staticObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { ISerializedTestResults, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, ResolvedTestRunRequest, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ISerializedTestResults, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, ResolvedTestRunRequest, TestItemExpandState, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { maxPriority, statesInOrder } from 'vs/workbench/contrib/testing/common/testingStates';
 
@@ -211,6 +211,7 @@ interface TestResultItemWithChildren extends TestResultItem {
 const itemToNode = (controllerId: string, item: ITestItem, parent: string | null): TestResultItemWithChildren => ({
 	parent,
 	controllerId,
+	expand: TestItemExpandState.NotExpandable,
 	item: { ...item },
 	children: [],
 	tasks: [],

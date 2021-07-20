@@ -142,9 +142,13 @@ export const enum TestItemExpandState {
  * TestItem-like shape, butm with an ID and children as strings.
  */
 export interface InternalTestItem {
+	/** Controller ID from whence this test came */
 	controllerId: string;
+	/** Expandability state */
 	expand: TestItemExpandState;
+	/** Parent ID, if any */
 	parent: string | null;
+	/** Raw test item properties */
 	item: ITestItem;
 }
 
@@ -169,11 +173,7 @@ export const applyTestItemUpdate = (internal: InternalTestItem | ITestItemUpdate
 /**
  * Test result item used in the main thread.
  */
-export interface TestResultItem {
-	/** Parent ID, if any */
-	parent: string | null;
-	/** Raw test item properties */
-	item: ITestItem;
+export interface TestResultItem extends InternalTestItem {
 	/** State of this test in various tasks */
 	tasks: ITestTaskState[];
 	/** State of this test as a computation of its tasks */
@@ -184,8 +184,6 @@ export interface TestResultItem {
 	retired: boolean;
 	/** Max duration of the item's tasks (if run directly) */
 	ownDuration?: number;
-	/** Controller ID from whence this test came */
-	controllerId: string;
 }
 
 export type SerializedTestResultItem = Omit<TestResultItem, 'children' | 'expandable' | 'retired'>
