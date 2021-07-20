@@ -10,14 +10,13 @@ import { Lazy } from 'vs/base/common/lazy';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { SingleUseTestCollection } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
-import { ITestTaskState, ResolvedTestRunRequest, TestResultItem, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestTaskState, ResolvedTestRunRequest, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestProfileService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { TestResultState } from 'vs/workbench/contrib/testing/common/testingStates';
 import { HydratedTestResult, LiveOutputController, LiveTestResult, makeEmptyCounts, resultItemParents, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { InMemoryResultStorage, ITestResultStorage } from 'vs/workbench/contrib/testing/common/testResultStorage';
-import { Convert, getInitializedMainTestCollection, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
+import { Convert, getInitializedMainTestCollection, TestItemImpl, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 export const emptyOutputController = () => new LiveOutputController(
@@ -65,14 +64,14 @@ suite('Workbench - Test Results Service', () => {
 		tests = testStubs.nested();
 		await tests.expand(tests.root.id, Infinity);
 		r.addTestChainToRun('ctrlId', [
-			Convert.TestItem.from(tests.root, 'ctrlId'),
-			Convert.TestItem.from(tests.root.children.get('id-a')!, 'ctrlId'),
-			Convert.TestItem.from(tests.root.children.get('id-a')!.children.get('id-aa')!, 'ctrlId'),
+			Convert.TestItem.from(tests.root),
+			Convert.TestItem.from(tests.root.children.get('id-a') as TestItemImpl),
+			Convert.TestItem.from(tests.root.children.get('id-a')!.children.get('id-aa') as TestItemImpl),
 		]);
 
 		r.addTestChainToRun('ctrlId', [
-			Convert.TestItem.from(tests.root.children.get('id-a')!, 'ctrlId'),
-			Convert.TestItem.from(tests.root.children.get('id-a')!.children.get('id-ab')!, 'ctrlId'),
+			Convert.TestItem.from(tests.root.children.get('id-a') as TestItemImpl),
+			Convert.TestItem.from(tests.root.children.get('id-a')!.children.get('id-ab') as TestItemImpl),
 		]);
 	});
 

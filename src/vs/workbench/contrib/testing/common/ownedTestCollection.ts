@@ -218,7 +218,7 @@ export class SingleUseTestCollection extends Disposable {
 					parent: internal.parent && internal.parent.toString(),
 					controllerId: this.controllerId,
 					expand: internal.expand,
-					item: Convert.TestItem.from(actual, this.root.id),
+					item: Convert.TestItem.from(actual),
 				},
 			]);
 

@@ -8,13 +8,21 @@ import { MarshalledId } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { TestMessageSeverity, TestResultState } from 'vs/workbench/api/common/extHostTypes';
-
-export { TestResultState } from 'vs/workbench/api/common/extHostTypes';
+import { TestMessageSeverity } from 'vs/workbench/api/common/extHostTypes';
 
 export interface ITestIdWithSrc {
 	testId: string;
 	controllerId: string;
+}
+
+export const enum TestResultState {
+	Unset = 0,
+	Queued = 1,
+	Running = 2,
+	Passed = 3,
+	Failed = 4,
+	Skipped = 5,
+	Errored = 6
 }
 
 export const identifyTest = (test: { controllerId: string, item: { extId: string } }): ITestIdWithSrc =>
@@ -98,6 +106,7 @@ export interface IRichLocation {
 
 export interface ITestMessage {
 	message: string | IMarkdownString;
+	/** @deprecated */
 	severity: TestMessageSeverity;
 	expectedOutput: string | undefined;
 	actualOutput: string | undefined;

@@ -46,26 +46,25 @@ export type ExtHostTestItemEvent =
 	| ITestItemBulkReplace;
 
 export interface IExtHostTestItemApi {
+	controllerId: string;
 	parent?: TestItemImpl;
 	listener?: (evt: ExtHostTestItemEvent) => void;
 }
 
 const eventPrivateApis = new WeakMap<TestItemImpl, IExtHostTestItemApi>();
 
+export const createPrivateApiFor = (impl: TestItemImpl, controllerId: string) => {
+	const api: IExtHostTestItemApi = { controllerId };
+	eventPrivateApis.set(impl, api);
+	return api;
+};
+
 /**
  * Gets the private API for a test item implementation. This implementation
  * is a managed object, but we keep a weakmap to avoid exposing any of the
  * internals to extensions.
  */
-export const getPrivateApiFor = (impl: TestItemImpl) => {
-	let api = eventPrivateApis.get(impl);
-	if (!api) {
-		api = {};
-		eventPrivateApis.set(impl, api);
-	}
-
-	return api;
-};
+export const getPrivateApiFor = (impl: TestItemImpl) => eventPrivateApis.get(impl)!;
 
 const testItemPropAccessor = <K extends keyof vscode.TestItem>(
 	api: IExtHostTestItemApi,
@@ -145,9 +144,16 @@ export class InvalidTestItemError extends Error {
 	}
 }
 
+export class MixedTestItemController extends Error {
+	constructor(id: string, ctrlA: string, ctrlB: string) {
+		super(`TestItem with ID "${id}" is from controller "${ctrlA}" and cannot be added as a child of an item from controller "${ctrlB}".`);
+	}
+}
+
+
 export type TestItemCollectionImpl = vscode.TestItemCollection & { toJSON(): readonly TestItemImpl[] } & Iterable<TestItemImpl>;
 
-export const createTestItemCollection = (owningItem: TestItemImpl): TestItemCollectionImpl => {
+const createTestItemCollection = (owningItem: TestItemImpl): TestItemCollectionImpl => {
 	const api = getPrivateApiFor(owningItem);
 	let mapped = new Map<string, TestItemImpl>();
 
@@ -160,7 +166,7 @@ export const createTestItemCollection = (owningItem: TestItemImpl): TestItemColl
 		},
 
 		/** @inheritdoc */
-		set(items: Iterable<vscode.TestItem>) {
+		replace(items: Iterable<vscode.TestItem>) {
 			const newMapped = new Map<string, TestItemImpl>();
 			const toDelete = new Set(mapped.keys());
 			const bulk: ITestItemBulkReplace = { op: ExtHostTestItemEventOp.Bulk, ops: [] };
@@ -168,6 +174,11 @@ export const createTestItemCollection = (owningItem: TestItemImpl): TestItemColl
 			for (const item of items) {
 				if (!(item instanceof TestItemImpl)) {
 					throw new InvalidTestItemError(item.id);
+				}
+
+				const itemController = getPrivateApiFor(item).controllerId;
+				if (itemController !== api.controllerId) {
+					throw new MixedTestItemController(item.id, itemController, api.controllerId);
 				}
 
 				if (newMapped.has(item.id)) {
@@ -241,12 +252,12 @@ export class TestItemImpl implements vscode.TestItem {
 	/**
 	 * Note that data is deprecated and here for back-compat only
 	 */
-	constructor(id: string, label: string, uri: vscode.Uri | undefined) {
-		const api = getPrivateApiFor(this);
+	constructor(controllerId: string, id: string, label: string, uri: vscode.Uri | undefined) {
 		if (id.includes(TestIdPathParts.Delimiter)) {
 			throw new Error(`Test IDs may not include the ${JSON.stringify(id)} symbol`);
 		}
 
+		const api = createPrivateApiFor(this, controllerId);
 		Object.defineProperties(this, {
 			id: {
 				value: id,
@@ -281,6 +292,6 @@ export class TestItemImpl implements vscode.TestItem {
 
 export class TestItemRootImpl extends TestItemImpl {
 	constructor(controllerId: string, label: string) {
-		super(controllerId, label, undefined);
+		super(controllerId, controllerId, label, undefined);
 	}
 }

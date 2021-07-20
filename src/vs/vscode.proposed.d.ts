@@ -1761,7 +1761,7 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/107467
 	// todo@API test or tests?
-	export namespace test {
+	export namespace tests {
 		/**
 		 * Creates a new test controller.
 		 *
@@ -1782,18 +1782,6 @@ declare module 'vscode' {
 		 * @stability experimental
 		 */
 		export function createTestObserver(): TestObserver;
-
-		/**
-		 * Creates a new managed {@link TestItem} instance. It can be added into
-		 * the {@link TestItem.children} of an existing item, or into the
-		 * {@link TestController.items}.
-		 * @param id Unique identifier for the TestItem.
-		 * @param label Human-readable label of the test item.
-		 * @param uri URI this TestItem is associated with. May be a file or directory.
-		 */
-		// todo@API move into TestController
-		export function createTestItem(id: string, label: string, uri?: Uri): TestItem;
-
 		/**
 		 * List of test results stored by the editor, sorted in descending
 		 * order by their `completedAt` time.
@@ -1851,13 +1839,10 @@ declare module 'vscode' {
 		readonly removed: ReadonlyArray<TestItem>;
 	}
 
-	// Todo@api: this is basically the same as the TaskGroup, which is a class that
-	// allows custom groups to be created. However I don't anticipate having any
-	// UI for that, so enum for now?
 	/**
-	 *
+	 * The kind of executions that {@link TestRunProfile | TestRunProfiles} control.
 	 */
-	export enum TestRunProfileGroup {
+	export enum TestRunProfileKind {
 		Run = 1,
 		Debug = 2,
 		Coverage = 3,
@@ -1879,16 +1864,16 @@ declare module 'vscode' {
 		label: string;
 
 		/**
-		 * Configures where this profile is grouped in the UI. If there
-		 * are no profiles for a group, it will not be available in the UI.
+		 * Configures what kind of execution this profile controls. If there
+		 * are no profiles for a kind, it will not be available in the UI.
 		 */
-		readonly group: TestRunProfileGroup;
+		readonly kind: TestRunProfileKind;
 
 		/**
 		 * Controls whether this profile is the default action that will
 		 * be taken when its group is actions. For example, if the user clicks
 		 * the generic "run all" button, then the default profile for
-		 * {@link TestRunProfileGroup.Run} will be executed.
+		 * {@link TestRunProfileKind.Run} will be executed.
 		 */
 		isDefault: boolean;
 
@@ -1928,9 +1913,9 @@ declare module 'vscode' {
 	 */
 	export interface TestController {
 		/**
-		 * The ID of the controller, passed in {@link vscode.test.createTestController}
+		 * The ID of the controller, passed in {@link vscode.tests.createTestController}.
+		 * This must be globally unique,
 		 */
-		// todo@api maybe explain what the id is used for and iff it must be globally unique or only unique within the extension
 		readonly id: string;
 
 		/**
@@ -1960,13 +1945,13 @@ declare module 'vscode' {
 		 * @param runHandler Function called to start a test run
 		 * @param isDefault Whether this is the default action for the group
 		 */
-		createRunProfile(label: string, group: TestRunProfileGroup, runHandler: (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void, isDefault?: boolean): TestRunProfile;
+		createRunProfile(label: string, group: TestRunProfileKind, runHandler: (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void, isDefault?: boolean): TestRunProfile;
 
 		/**
 		 * A function provided by the extension that the editor may call to request
 		 * children of a test item, if the {@link TestItem.canResolveChildren} is
 		 * `true`. When called, the item should discover children and call
-		 * {@link vscode.test.createTestItem} as children are discovered.
+		 * {@link vscode.tests.createTestItem} as children are discovered.
 		 *
 		 * The item in the explorer will automatically be marked as "busy" until
 		 * the function returns or the returned thenable resolves.
@@ -1984,7 +1969,7 @@ declare module 'vscode' {
 		 * {@link TestRunner} when a request is made to execute tests, and may also
 		 * be called if a test run is detected externally. Once created, tests
 		 * that are included in the results will be moved into the
-		 * {@link TestResultState.Pending} state. todo@API there is no Pending
+		 * {@link TestResultState.Queued} state.
 		 *
 		 * All runs created using the same `request` instance will be grouped
 		 * together. This is useful if, for example, a single suite of tests is
@@ -2002,6 +1987,17 @@ declare module 'vscode' {
 		createTestRun(request: TestRunRequest, name?: string, persist?: boolean): TestRun;
 
 		/**
+		 * Creates a new managed {@link TestItem} instance. It can be added into
+		 * the {@link TestItem.children} of an existing item, or into the
+		 * {@link TestController.items}.
+		 * @param id Identifier for the TestItem. The test item's ID must be unique
+		 * in the {@link TestItemCollection} it's added to.
+		 * @param label Human-readable label of the test item.
+		 * @param uri URI this TestItem is associated with. May be a file or directory.
+		 */
+		createTestItem(id: string, label: string, uri?: Uri): TestItem;
+
+		/**
 		 * Unregisters the test controller, disposing of its associated tests
 		 * and unpersisted results.
 		 */
@@ -2009,7 +2005,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Options given to {@link test.runTests}.
+	 * Options given to {@link tests.runTests}.
 	 */
 	export class TestRunRequest {
 		/**
@@ -2017,16 +2013,19 @@ declare module 'vscode' {
 		 * of the given tests and all children of the given tests, excluding
 		 * any tests that appear in {@link TestRunRequest.exclude}. If this is
 		 * not given, then the extension should simply run all tests.
+		 *
+		 * The process of running tests should resolve the children of any test
+		 * items who have not yet been resolved.
 		 */
-		// todo@API "...run all tests." which can mean resolve all tests first
 		include?: TestItem[];
 
 		/**
-		 * An array of tests the user has marked as excluded in the editor. May be
-		 * omitted if no exclusions were requested. Test controllers should not run
-		 * excluded tests or any children of excluded tests.
+		 * An array of tests the user has marked as excluded from the test included
+		 * in this run; exclusions should apply after inclusions.
+		 *
+		 * May be omitted if no exclusions were requested. Test controllers should
+		 * not run excluded tests or any children of excluded tests.
 		 */
-		// @todo@API say that exclude is more important than include!
 		exclude?: TestItem[];
 
 		/**
@@ -2047,7 +2046,6 @@ declare module 'vscode' {
 	/**
 	 * Options given to {@link TestController.runTests}
 	 */
-	// todo@API add readonly or rw `isPersisted: boolean`
 	export interface TestRun {
 		/**
 		 * The human-readable name of the run. This can be used to
@@ -2063,6 +2061,11 @@ declare module 'vscode' {
 		readonly token: CancellationToken;
 
 		/**
+		 * Whether the test run will be persisteded across reloads by the editor UI.
+		 */
+		readonly isPersisted: boolean;
+
+		/**
 		 * Updates the state of the test in the run. Calling with method with nodes
 		 * outside the {@link TestRunRequest.tests} or in the {@link TestRunRequest.exclude}
 		 * array will no-op. This will usually be called multiple times for a test
@@ -2070,10 +2073,20 @@ declare module 'vscode' {
 		 *
 		 * @param test The test to update
 		 * @param state The state to assign to the test
+		 */
+		setState(test: TestItem, state: TestResultState): void;
+
+		/**
+		 * Updates the state of the test in the run. Calling with method with nodes
+		 * outside the {@link TestRunRequest.tests} or in the {@link TestRunRequest.exclude}
+		 * array will no-op. This override moves the test into a terminal state and
+		 * indicates how long it ran for.
+		 *
+		 * @param test The terminal test state
+		 * @param state The state to assign to the test
 		 * @param duration Optionally sets how long the test took to run, in milliseconds
 		 */
-		// todo@API clarify duration, either add doc or new composite type
-		setState(test: TestItem, state: TestResultState, duration?: number): void;
+		setState(test: TestItem, state: TestResultState.Passed | TestResultState.Failed | TestResultState.Errored, duration: number): void;
 
 		/**
 		 * Appends a message, such as an assertion error, to the test item.
@@ -2084,7 +2097,6 @@ declare module 'vscode' {
 		 * @param test The test to update
 		 * @param message The message to add
 		 */
-		// todo@API can this called many times, should this be part of setState?
 		appendMessage(test: TestItem, message: TestMessage): void;
 
 		/**
@@ -2098,8 +2110,7 @@ declare module 'vscode' {
 
 		/**
 		 * Signals that the end of the test run. Any tests included in the run whose
-		 * states have not been updated will be moved into
-		 * the {@link TestResultState.Unset} state.
+		 * states have not been updated will have their state reset.
 		 */
 		end(): void;
 	}
@@ -2110,13 +2121,10 @@ declare module 'vscode' {
 	 */
 	export interface TestItemCollection {
 		/**
-		 * Updates the items stored by the collection.
+		 * Replaces the items stored by the collection.
 		 * @param items Items to store, can be an array or other iterable.
 		 */
-		// todo@API better names: reset, update...
-		// todo@API no Iterable
-		// @ts-ignore
-		set(items: Iterable<TestItem>): void;
+		replace(items: readonly TestItem[]): void;
 
 		/**
 		 * Iterate over each entry in this collection.
@@ -2170,7 +2178,7 @@ declare module 'vscode' {
 		readonly children: TestItemCollection;
 
 		/**
-		 * The parent of this item, given in {@link vscode.test.createTestItem}.
+		 * The parent of this item, given in {@link vscode.tests.createTestItem}.
 		 * This is undefined top-level items in the `TestController` and for
 		 * items that aren't yet included in another item's {@link children}.
 		 */
@@ -2233,9 +2241,6 @@ declare module 'vscode' {
 	 * Possible states of tests in a test run.
 	 */
 	export enum TestResultState {
-		// Initial state
-		// todo@API what is this state for? not needed, has no references
-		Unset = 0,
 		// Test will be run, but is not currently running.
 		Queued = 1,
 		// Test is currently running
@@ -2249,17 +2254,6 @@ declare module 'vscode' {
 		// Test run failed for some other reason (compilation error, timeout, etc)
 		Errored = 6
 	}
-
-	/**
-	 * Represents the severity of test messages.
-	 */
-	export enum TestMessageSeverity {
-		Error = 0,
-		Warning = 1,
-		Information = 2,
-		Hint = 3
-	}
-
 	/**
 	 * Message associated with the test state. Can be linked to a specific
 	 * source range -- useful for assertion failures, for example.
@@ -2269,12 +2263,6 @@ declare module 'vscode' {
 		 * Human-readable message text to display.
 		 */
 		message: string | MarkdownString;
-
-		/**
-		 * Message severity. Defaults to "Error".
-		 */
-		// todo@API maybe not needed? what does it change?
-		severity: TestMessageSeverity;
 
 		/**
 		 * Expected test output. If given with `actualOutput`, a diff view will be shown.
@@ -2307,8 +2295,8 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * TestResults can be provided to the editor in {@link test.publishTestResult},
-	 * or read from it in {@link test.testResults}.
+	 * TestResults can be provided to the editor in {@link tests.publishTestResult},
+	 * or read from it in {@link tests.testResults}.
 	 *
 	 * The results contain a 'snapshot' of the tests at the point when the test
 	 * run is complete. Therefore, information such as its {@link Range} may be
@@ -2328,7 +2316,7 @@ declare module 'vscode' {
 
 		/**
 		 * List of test results. The items in this array are the items that
-		 * were passed in the {@link test.runTests} method.
+		 * were passed in the {@link tests.runTests} method.
 		 */
 		results: ReadonlyArray<Readonly<TestResultSnapshot>>;
 	}

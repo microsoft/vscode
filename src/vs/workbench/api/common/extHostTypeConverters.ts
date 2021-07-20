@@ -1642,7 +1642,7 @@ export namespace TestMessage {
 	export function from(message: vscode.TestMessage): ITestMessage {
 		return {
 			message: MarkdownString.fromStrict(message.message) || '',
-			severity: message.severity,
+			severity: types.TestMessageSeverity.Error,
 			expectedOutput: message.expectedOutput,
 			actualOutput: message.actualOutput,
 			location: message.location ? location.from(message.location) as any : undefined,
@@ -1651,7 +1651,6 @@ export namespace TestMessage {
 
 	export function to(item: ITestMessage): vscode.TestMessage {
 		const message = new types.TestMessage(typeof item.message === 'string' ? item.message : MarkdownString.to(item.message));
-		message.severity = item.severity;
 		message.actualOutput = item.actualOutput;
 		message.expectedOutput = item.expectedOutput;
 		return message;
@@ -1661,9 +1660,9 @@ export namespace TestMessage {
 export namespace TestItem {
 	export type Raw = vscode.TestItem;
 
-	export function from(item: vscode.TestItem, controllerId: string): ITestItem {
+	export function from(item: TestItemImpl): ITestItem {
 		return {
-			extId: TestId.fromExtHostTestItem(item, controllerId).toString(),
+			extId: TestId.fromExtHostTestItem(item, getPrivateApiFor(item).controllerId).toString(),
 			label: item.label,
 			uri: item.uri,
 			range: Range.from(item.range) || null,
@@ -1686,7 +1685,8 @@ export namespace TestItem {
 	}
 
 	function to(item: ITestItem): TestItemImpl {
-		const testItem = new TestItemImpl(TestId.fromString(item.extId).localId, item.label, URI.revive(item.uri));
+		const testId = TestId.fromString(item.extId);
+		const testItem = new TestItemImpl(testId.controllerId, testId.localId, item.label, URI.revive(item.uri));
 		testItem.range = Range.to(item.range || undefined);
 		testItem.description = item.description || undefined;
 		return testItem;
@@ -1710,7 +1710,7 @@ export namespace TestResults {
 			...TestItem.toPlain(item.item),
 			parent: undefined,
 			taskStates: item.tasks.map(t => ({
-				state: t.state,
+				state: t.state as number as types.TestResultState,
 				duration: t.duration,
 				messages: t.messages.map(TestMessage.to),
 			})),

@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
-import { TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export const enum Testing {
 	// marked as "extension" so that any existing test extensions are assigned to it.

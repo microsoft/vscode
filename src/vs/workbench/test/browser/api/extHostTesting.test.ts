@@ -11,7 +11,7 @@ import { mockObject, MockObject } from 'vs/base/test/common/mock';
 import { MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
 import { TestRunProfileImpl, TestRunCoordinator, TestRunDto } from 'vs/workbench/api/common/extHostTesting';
 import * as convert from 'vs/workbench/api/common/extHostTypeConverters';
-import { TestMessage, TestResultState, TestRunProfileGroup } from 'vs/workbench/api/common/extHostTypes';
+import { TestMessage, TestResultState, TestRunProfileKind } from 'vs/workbench/api/common/extHostTypes';
 import { TestDiffOpType, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestItemImpl, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
@@ -74,24 +74,24 @@ suite('ExtHost Testing', () => {
 	suite('OwnedTestCollection', () => {
 		test('adds a root recursively', async () => {
 			await single.expand(single.root.id, Infinity);
-			const a = single.root.children.get('id-a')!;
-			const b = single.root.children.get('id-b')!;
+			const a = single.root.children.get('id-a') as TestItemImpl;
+			const b = single.root.children.get('id-b') as TestItemImpl;
 			assert.deepStrictEqual(single.collectDiff(), [
 				[
 					TestDiffOpType.Add,
-					{ controllerId: 'ctrlId', parent: null, expand: TestItemExpandState.BusyExpanding, item: { ...convert.TestItem.from(single.root, 'ctrlId') } }
+					{ controllerId: 'ctrlId', parent: null, expand: TestItemExpandState.BusyExpanding, item: { ...convert.TestItem.from(single.root) } }
 				],
 				[
 					TestDiffOpType.Add,
-					{ controllerId: 'ctrlId', parent: single.root.id, expand: TestItemExpandState.BusyExpanding, item: { ...convert.TestItem.from(a, 'ctrlId') } }
+					{ controllerId: 'ctrlId', parent: single.root.id, expand: TestItemExpandState.BusyExpanding, item: { ...convert.TestItem.from(a) } }
 				],
 				[
 					TestDiffOpType.Add,
-					{ controllerId: 'ctrlId', parent: new TestId(['ctrlId', 'id-a']).toString(), expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(a.children.get('id-aa')!, 'ctrlId') }
+					{ controllerId: 'ctrlId', parent: new TestId(['ctrlId', 'id-a']).toString(), expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(a.children.get('id-aa') as TestItemImpl) }
 				],
 				[
 					TestDiffOpType.Add,
-					{ controllerId: 'ctrlId', parent: new TestId(['ctrlId', 'id-a']).toString(), expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(a.children.get('id-ab')!, 'ctrlId') }
+					{ controllerId: 'ctrlId', parent: new TestId(['ctrlId', 'id-a']).toString(), expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(a.children.get('id-ab') as TestItemImpl) }
 				],
 				[
 					TestDiffOpType.Update,
@@ -99,7 +99,7 @@ suite('ExtHost Testing', () => {
 				],
 				[
 					TestDiffOpType.Add,
-					{ controllerId: 'ctrlId', parent: single.root.id, expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(b, 'ctrlId') }
+					{ controllerId: 'ctrlId', parent: single.root.id, expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(b) }
 				],
 				[
 					TestDiffOpType.Update,
@@ -153,7 +153,7 @@ suite('ExtHost Testing', () => {
 		test('adds new children', () => {
 			single.expand(single.root.id, Infinity);
 			single.collectDiff();
-			const child = new TestItemImpl('id-ac', 'c', undefined);
+			const child = new TestItemImpl('ctrlId', 'id-ac', 'c', undefined);
 			single.root.children.get('id-a')!.children.add(child);
 
 			assert.deepStrictEqual(single.collectDiff(), [
@@ -161,7 +161,7 @@ suite('ExtHost Testing', () => {
 					controllerId: 'ctrlId',
 					parent: new TestId(['ctrlId', 'id-a']).toString(),
 					expand: TestItemExpandState.NotExpandable,
-					item: convert.TestItem.from(child, 'ctrlId'),
+					item: convert.TestItem.from(child),
 				}],
 			]);
 			assert.deepStrictEqual(
@@ -176,11 +176,11 @@ suite('ExtHost Testing', () => {
 			single.collectDiff();
 
 			const oldA = single.root.children.get('id-a') as TestItemImpl;
-			const newA = new TestItemImpl('id-a', 'Hello world', undefined);
-			newA.children.set(oldA.children);
-			single.root.children.set([
+			const newA = new TestItemImpl('ctrlId', 'id-a', 'Hello world', undefined);
+			newA.children.replace([...oldA.children]);
+			single.root.children.replace([
 				newA,
-				new TestItemImpl('id-b', single.root.children.get('id-b')!.label, undefined),
+				new TestItemImpl('ctrlId', 'id-b', single.root.children.get('id-b')!.label, undefined),
 			]);
 
 			assert.deepStrictEqual(single.collectDiff(), [
@@ -207,12 +207,12 @@ suite('ExtHost Testing', () => {
 			single.collectDiff();
 
 			const oldA = single.root.children.get('id-a')!;
-			const newA = new TestItemImpl('id-a', single.root.children.get('id-a')!.label, undefined);
+			const newA = new TestItemImpl('ctrlId', 'id-a', single.root.children.get('id-a')!.label, undefined);
 			const oldAA = oldA.children.get('id-aa')!;
 			const oldAB = oldA.children.get('id-ab')!;
-			const newAB = new TestItemImpl('id-ab', 'Hello world', undefined);
-			newA.children.set([oldAA, newAB]);
-			single.root.children.set([newA, single.root.children.get('id-b')!]);
+			const newAB = new TestItemImpl('ctrlId', 'id-ab', 'Hello world', undefined);
+			newA.children.replace([oldAA, newAB]);
+			single.root.children.replace([newA, single.root.children.get('id-b')!]);
 
 			assert.deepStrictEqual(single.collectDiff(), [
 				[
@@ -247,8 +247,8 @@ suite('ExtHost Testing', () => {
 		test('moves an item to be a new child', async () => {
 			await single.expand(single.root.id, 0);
 			single.collectDiff();
-			const b = single.root.children.get('id-b')!;
-			const a = single.root.children.get('id-a')!;
+			const b = single.root.children.get('id-b') as TestItemImpl;
+			const a = single.root.children.get('id-a') as TestItemImpl;
 			a.children.add(b);
 			assert.deepStrictEqual(single.collectDiff(), [
 				[
@@ -257,7 +257,7 @@ suite('ExtHost Testing', () => {
 				],
 				[
 					TestDiffOpType.Add,
-					{ controllerId: 'ctrlId', parent: new TestId(['ctrlId', 'id-a']).toString(), expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(b, 'ctrlId') }
+					{ controllerId: 'ctrlId', parent: new TestId(['ctrlId', 'id-a']).toString(), expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(b) }
 				],
 			]);
 
@@ -426,7 +426,7 @@ suite('ExtHost Testing', () => {
 			cts = new CancellationTokenSource();
 			c = new TestRunCoordinator(proxy);
 
-			configuration = new TestRunProfileImpl(mockObject<MainThreadTestingShape, {}>(), 'ctrlId', 42, 'Do Run', TestRunProfileGroup.Run, () => { }, false);
+			configuration = new TestRunProfileImpl(mockObject<MainThreadTestingShape, {}>(), 'ctrlId', 42, 'Do Run', TestRunProfileKind.Run, () => { }, false);
 
 			await single.expand(single.root.id, Infinity);
 			single.collectDiff();
@@ -509,9 +509,9 @@ suite('ExtHost Testing', () => {
 				'ctrl',
 				tracker.id,
 				[
-					convert.TestItem.from(single.root, 'ctrlId'),
-					convert.TestItem.from(single.root.children.get('id-a')!, 'ctrlId'),
-					convert.TestItem.from(single.root.children.get('id-a')!.children.get('id-aa')!, 'ctrlId'),
+					convert.TestItem.from(single.root),
+					convert.TestItem.from(single.root.children.get('id-a') as TestItemImpl),
+					convert.TestItem.from(single.root.children.get('id-a')!.children.get('id-aa') as TestItemImpl),
 				]
 			]);
 			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
@@ -522,8 +522,8 @@ suite('ExtHost Testing', () => {
 				'ctrl',
 				tracker.id,
 				[
-					convert.TestItem.from(single.root.children.get('id-a')!, 'ctrlId'),
-					convert.TestItem.from(single.root.children.get('id-a')!.children.get('id-ab')!, 'ctrlId'),
+					convert.TestItem.from(single.root.children.get('id-a') as TestItemImpl),
+					convert.TestItem.from(single.root.children.get('id-a')!.children.get('id-ab') as TestItemImpl),
 				],
 			]);
 			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);

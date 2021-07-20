@@ -341,14 +341,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			? extHostTypes.ExtensionKind.Workspace
 			: extHostTypes.ExtensionKind.UI;
 
-		const test: typeof vscode.test = {
+		const tests: typeof vscode.tests = {
 			createTestController(provider, label) {
 				checkProposedApiEnabled(extension);
 				return extHostTesting.createTestController(provider, label);
-			},
-			createTestItem(id, label, uri) {
-				checkProposedApiEnabled(extension);
-				return extHostTesting.createTestItem(id, label, uri);
 			},
 			createTestObserver() {
 				checkProposedApiEnabled(extension);
@@ -1127,7 +1123,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			notebooks,
 			scm,
 			tasks,
-			test,
+			tests,
 			window,
 			workspace,
 			// types
@@ -1272,7 +1268,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TestResultState: extHostTypes.TestResultState,
 			TestRunRequest: extHostTypes.TestRunRequest,
 			TestMessage: extHostTypes.TestMessage,
-			TestRunProfileGroup: extHostTypes.TestRunProfileGroup,
+			TestRunProfileKind: extHostTypes.TestRunProfileKind,
 			TextSearchCompleteMessageType: TextSearchCompleteMessageType,
 			TestMessageSeverity: extHostTypes.TestMessageSeverity,
 			CoveredCount: extHostTypes.CoveredCount,

@@ -95,6 +95,13 @@ export class TestId {
 	/**
 	 * Gets whether this ID refers to the root.
 	 */
+	public get controllerId() {
+		return this.path[0];
+	}
+
+	/**
+	 * Gets whether this ID refers to the root.
+	 */
 	public get isRoot() {
 		return this.viewEnd === 1;
 	}
