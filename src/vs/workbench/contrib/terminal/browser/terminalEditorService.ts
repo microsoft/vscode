@@ -253,11 +253,11 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		return instance;
 	}
 
-	// todo input key helper
 	detachInstance(instance: ITerminalInstance) {
-		const editorInput = this._editorInputs.get(instance.resource.path);
+		const inputKey = instance.resource.path;
+		const editorInput = this._editorInputs.get(inputKey);
 		editorInput?.detachInstance();
-		this._editorInputs.delete(instance.resource.path);
+		this._editorInputs.delete(inputKey);
 		const instanceIndex = this.instances.findIndex(e => e === instance);
 		if (instanceIndex !== -1) {
 			this.instances.splice(instanceIndex, 1);
@@ -266,8 +266,8 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		if (!this._isShuttingDown) {
 			editorInput?.dispose();
 		}
-		const disposables = this._instanceDisposables.get(instance.resource.path);
-		this._instanceDisposables.delete(instance.resource.path);
+		const disposables = this._instanceDisposables.get(inputKey);
+		this._instanceDisposables.delete(inputKey);
 		if (disposables) {
 			dispose(disposables);
 		}
