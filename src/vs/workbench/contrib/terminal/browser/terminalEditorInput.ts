@@ -153,7 +153,7 @@ export class TerminalEditorInput extends EditorInput {
 	}
 
 	override getName() {
-		return this._terminalInstance?.title || this.resource?.fragment || '';
+		return this._terminalInstance?.title || this.resource.fragment;
 	}
 
 	override getLabelExtraClasses(): string[] {
