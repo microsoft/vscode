@@ -398,8 +398,34 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 			context = await this.session.request(url, options, token);
 		} catch (e) {
 			if (!(e instanceof UserDataSyncStoreError)) {
-				const code = isPromiseCanceledError(e) ? UserDataSyncErrorCode.RequestCanceled
-					: getErrorMessage(e).startsWith('XHR timeout') ? UserDataSyncErrorCode.RequestTimeout : UserDataSyncErrorCode.RequestFailed;
+				let code = UserDataSyncErrorCode.RequestFailed;
+				const errorMessage = getErrorMessage(e).toLowerCase();
+
+				// Request timed out
+				if (errorMessage.includes('xhr timeout')) {
+					code = UserDataSyncErrorCode.RequestTimeout;
+				}
+
+				// Request protocol not supported
+				else if (errorMessage.includes('protocol') && errorMessage.includes('not supported')) {
+					code = UserDataSyncErrorCode.RequestProtocolNotSupported;
+				}
+
+				// Request path not escaped
+				else if (errorMessage.includes('request path contains unescaped characters')) {
+					code = UserDataSyncErrorCode.RequestPathNotEscaped;
+				}
+
+				// Request header not an object
+				else if (errorMessage.includes('headers must be an object')) {
+					code = UserDataSyncErrorCode.RequestHeadersNotObject;
+				}
+
+				// Request canceled
+				else if (isPromiseCanceledError(e)) {
+					code = UserDataSyncErrorCode.RequestCanceled;
+				}
+
 				e = new UserDataSyncStoreError(`Connection refused for the request '${url}'.`, url, code, undefined, undefined);
 			}
 			this.logService.info('Request failed', url);
