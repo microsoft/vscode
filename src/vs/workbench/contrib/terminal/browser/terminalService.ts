@@ -268,7 +268,7 @@ export class TerminalService implements ITerminalService {
 			if (instanceToDetach) {
 				const persistentProcessId = instanceToDetach?.persistentProcessId;
 				if (persistentProcessId && !instanceToDetach.shellLaunchConfig.isFeatureTerminal && !instanceToDetach.shellLaunchConfig.customPtyImplementation) {
-					// this._terminalEditorService.detachInstance(instanceToDetach);
+					this._terminalEditorService.detachInstance(instanceToDetach);
 					await instanceToDetach.detachFromProcess();
 					await this._primaryOffProcessTerminalService?.acceptDetachInstanceReply(e.requestId, persistentProcessId);
 				} else {

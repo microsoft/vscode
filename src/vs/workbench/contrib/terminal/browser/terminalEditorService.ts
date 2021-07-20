@@ -59,6 +59,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		this._primaryOffProcessTerminalService = !!environmentService.remoteAuthority ? this._remoteTerminalService : (this._localTerminalService || this._remoteTerminalService);
 		this._register(toDisposable(() => {
 			for (const d of this._instanceDisposables.values()) {
+				console.log('disposing');
 				dispose(d);
 			}
 		}));
@@ -180,7 +181,6 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		const inputKey = resource.path;
 		const cachedEditor = this._editorInputs.get(inputKey);
 		if (cachedEditor) {
-			console.log('cachedEditor', cachedEditor);
 			return cachedEditor;
 		}
 
@@ -207,9 +207,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 					this._instanceDisposables.set(inputKey, [
 						toDisposable(() => {
 							this._editorInputs.delete(inputKey);
-							console.log('deleted', inputKey);
 						}),
-						instance.onDisposed(() => console.log('received')),
 						instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance),
 						instance.onDidFocus(this._onDidFocusInstance.fire, this._onDidFocusInstance)
 					]);
@@ -225,11 +223,9 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			input = this._instantiationService.createInstance(TerminalEditorInput, resource, instanceOrUri);
 			this._editorInputs.set(inputKey, input);
 			// TODO: pull into helper setup instance function
+			// TODO: why doesn't this do anything?
 			this._instanceDisposables.set(inputKey, [
-				toDisposable(() => {
-					this._editorInputs.delete(inputKey);
-					console.log('deleted', inputKey);
-				}),
+				toDisposable(() => this._editorInputs.delete(inputKey)),
 				instanceOrUri.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance),
 				instanceOrUri.onDidFocus(this._onDidFocusInstance.fire, this._onDidFocusInstance)
 			]);
