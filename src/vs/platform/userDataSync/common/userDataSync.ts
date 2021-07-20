@@ -137,8 +137,9 @@ export function getLastSyncResourceUri(syncResource: SyncResource, environmentSe
 }
 
 export interface IUserDataManifest {
-	latest?: Record<ServerResource, string>
-	session: string;
+	readonly latest?: Record<ServerResource, string>
+	readonly session: string;
+	readonly ref: string;
 }
 
 export interface IResourceRefHandle {
@@ -167,7 +168,7 @@ export interface IUserDataSyncStoreClient {
 	setAuthToken(token: string, type: string): void;
 
 	// Sync requests
-	manifest(headers?: IHeaders): Promise<IUserDataManifest | null>;
+	manifest(oldValue: IUserDataManifest | null, headers?: IHeaders): Promise<IUserDataManifest | null>;
 	read(resource: ServerResource, oldValue: IUserData | null, headers?: IHeaders): Promise<IUserData>;
 	write(resource: ServerResource, content: string, ref: string | null, headers?: IHeaders): Promise<string>;
 	clear(): Promise<void>;
@@ -460,7 +461,7 @@ export interface IUserDataSyncService {
 	readonly onDidResetRemote: Event<void>;
 	readonly onDidResetLocal: Event<void>;
 
-	createSyncTask(disableCache?: boolean): Promise<ISyncTask>;
+	createSyncTask(manifest: IUserDataManifest | null, disableCache?: boolean): Promise<ISyncTask>;
 	createManualSyncTask(): Promise<IManualSyncTask>;
 
 	replace(uri: URI): Promise<void>;

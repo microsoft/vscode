@@ -131,7 +131,7 @@ export class UserDataSyncClient extends Disposable {
 	}
 
 	async sync(): Promise<void> {
-		await (await this.instantiationService.get(IUserDataSyncService).createSyncTask()).run();
+		await (await this.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
 	}
 
 	read(resource: SyncResource): Promise<IUserData> {
@@ -139,7 +139,7 @@ export class UserDataSyncClient extends Disposable {
 	}
 
 	manifest(): Promise<IUserDataManifest | null> {
-		return this.instantiationService.get(IUserDataSyncStoreService).manifest();
+		return this.instantiationService.get(IUserDataSyncStoreService).manifest(null);
 	}
 
 }
@@ -210,8 +210,8 @@ export class UserDataSyncTestServer implements IRequestService {
 	private async getManifest(headers?: IHeaders): Promise<IRequestContext> {
 		if (this.session) {
 			const latest: Record<ServerResource, string> = Object.create({});
-			const manifest: IUserDataManifest = { session: this.session, latest };
 			this.data.forEach((value, key) => latest[key] = value.ref);
+			const manifest: IUserDataManifest = { session: this.session, latest, ref: '' };
 			return this.toResponse(200, { 'Content-Type': 'application/json' }, JSON.stringify(manifest));
 		}
 		return this.toResponse(204);

@@ -102,17 +102,16 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this.onDidChangeLocal = Event.any(...this.synchronisers.map(s => Event.map(s.onDidChangeLocal, () => s.resource)));
 	}
 
-	async createSyncTask(disableCache?: boolean): Promise<ISyncTask> {
+	async createSyncTask(manifest: IUserDataManifest | null, disableCache?: boolean): Promise<ISyncTask> {
 		await this.checkEnablement();
 
 		const executionId = generateUuid();
-		let manifest: IUserDataManifest | null;
 		try {
 			const syncHeaders = createSyncHeaders(executionId);
 			if (disableCache) {
 				syncHeaders['Cache-Control'] = 'no-cache';
 			}
-			manifest = await this.userDataSyncStoreService.manifest(syncHeaders);
+			manifest = await this.userDataSyncStoreService.manifest(manifest, syncHeaders);
 		} catch (error) {
 			const userDataSyncError = UserDataSyncError.toUserDataSyncError(error);
 			this.reportUserDataSyncError(userDataSyncError, executionId);
@@ -150,7 +149,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 		let manifest: IUserDataManifest | null;
 		try {
-			manifest = await this.userDataSyncStoreService.manifest(syncHeaders);
+			manifest = await this.userDataSyncStoreService.manifest(null, syncHeaders);
 		} catch (error) {
 			const userDataSyncError = UserDataSyncError.toUserDataSyncError(error);
 			this.reportUserDataSyncError(userDataSyncError, executionId);

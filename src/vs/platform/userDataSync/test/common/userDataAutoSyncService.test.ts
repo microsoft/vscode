@@ -37,7 +37,7 @@ suite('UserDataAutoSyncService', () => {
 		await client.setUp();
 
 		// Sync once and reset requests
-		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask()).run();
+		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
 		target.reset();
 
 		const testObject: UserDataAutoSyncService = disposableStore.add(client.instantiationService.createInstance(TestUserDataAutoSyncService));
@@ -59,7 +59,7 @@ suite('UserDataAutoSyncService', () => {
 		await client.setUp();
 
 		// Sync once and reset requests
-		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask()).run();
+		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
 		target.reset();
 
 		const testObject: UserDataAutoSyncService = disposableStore.add(client.instantiationService.createInstance(TestUserDataAutoSyncService));
@@ -85,7 +85,7 @@ suite('UserDataAutoSyncService', () => {
 		await client.setUp();
 
 		// Sync once and reset requests
-		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask()).run();
+		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
 		target.reset();
 
 		const testObject: UserDataAutoSyncService = disposableStore.add(client.instantiationService.createInstance(TestUserDataAutoSyncService));
@@ -107,7 +107,7 @@ suite('UserDataAutoSyncService', () => {
 		await client.setUp();
 
 		// Sync once and reset requests
-		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask()).run();
+		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
 		target.reset();
 
 		const testObject: UserDataAutoSyncService = disposableStore.add(client.instantiationService.createInstance(TestUserDataAutoSyncService));
@@ -245,7 +245,7 @@ suite('UserDataAutoSyncService', () => {
 		// Set up and sync from the client
 		const client = disposableStore.add(new UserDataSyncClient(target));
 		await client.setUp();
-		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask()).run();
+		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
 
 		// Set up and sync from the test client
 		const testClient = disposableStore.add(new UserDataSyncClient(target));
@@ -334,7 +334,7 @@ suite('UserDataAutoSyncService', () => {
 		// Set up and sync from the client
 		const client = disposableStore.add(new UserDataSyncClient(target));
 		await client.setUp();
-		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask()).run();
+		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
 
 		// Set up and sync from the test client
 		const testClient = disposableStore.add(new UserDataSyncClient(target));
@@ -346,7 +346,7 @@ suite('UserDataAutoSyncService', () => {
 		await client.instantiationService.get(IUserDataSyncService).reset();
 
 		// Sync again from the first client to create new session
-		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask()).run();
+		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
 
 		// Sync from the test client
 		target.reset();

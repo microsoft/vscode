@@ -6,7 +6,7 @@
 import { Delayer, disposableTimeout, CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, toDisposable, MutableDisposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IUserDataSyncLogService, IUserDataSyncService, IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode, IUserDataSyncResourceEnablementService, IUserDataSyncStoreService, UserDataAutoSyncError, ISyncTask, IUserDataSyncStoreManagementService, IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncLogService, IUserDataSyncService, IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode, IUserDataSyncResourceEnablementService, IUserDataSyncStoreService, UserDataAutoSyncError, ISyncTask, IUserDataSyncStoreManagementService, IUserDataAutoSyncEnablementService, IUserDataManifest } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
@@ -433,6 +433,7 @@ class AutoSync extends Disposable {
 	private readonly _onDidFinishSync = this._register(new Emitter<Error | undefined>());
 	readonly onDidFinishSync = this._onDidFinishSync.event;
 
+	private manifest: IUserDataManifest | null = null;
 	private syncTask: ISyncTask | undefined;
 	private syncPromise: CancelablePromise<void> | undefined;
 
@@ -510,14 +511,14 @@ class AutoSync extends Disposable {
 		this._onDidStartSync.fire();
 		let error: Error | undefined;
 		try {
-			this.syncTask = await this.userDataSyncService.createSyncTask(disableCache);
+			this.syncTask = await this.userDataSyncService.createSyncTask(this.manifest, disableCache);
 			if (token.isCancellationRequested) {
 				return;
 			}
-			let manifest = this.syncTask.manifest;
+			this.manifest = this.syncTask.manifest;
 
 			// Server has no data but this machine was synced before
-			if (manifest === null && await this.userDataSyncService.hasPreviouslySynced()) {
+			if (this.manifest === null && await this.userDataSyncService.hasPreviouslySynced()) {
 				if (this.hasSyncServiceChanged()) {
 					if (await this.hasDefaultServiceChanged()) {
 						throw new UserDataAutoSyncError(localize('default service changed', "Cannot sync because default service has changed"), UserDataSyncErrorCode.DefaultServiceChanged);
@@ -532,7 +533,7 @@ class AutoSync extends Disposable {
 
 			const sessionId = this.storageService.get(sessionIdKey, StorageScope.GLOBAL);
 			// Server session is different from client session
-			if (sessionId && manifest && sessionId !== manifest.session) {
+			if (sessionId && this.manifest && sessionId !== this.manifest.session) {
 				if (this.hasSyncServiceChanged()) {
 					if (await this.hasDefaultServiceChanged()) {
 						throw new UserDataAutoSyncError(localize('default service changed', "Cannot sync because default service has changed"), UserDataSyncErrorCode.DefaultServiceChanged);
@@ -544,7 +545,7 @@ class AutoSync extends Disposable {
 				}
 			}
 
-			const machines = await this.userDataSyncMachinesService.getMachines(manifest || undefined);
+			const machines = await this.userDataSyncMachinesService.getMachines(this.manifest || undefined);
 			// Return if cancellation is requested
 			if (token.isCancellationRequested) {
 				return;
@@ -560,13 +561,13 @@ class AutoSync extends Disposable {
 			await this.syncTask.run();
 
 			// After syncing, get the manifest if it was not available before
-			if (manifest === null) {
-				manifest = await this.userDataSyncStoreService.manifest();
+			if (this.manifest === null) {
+				this.manifest = await this.userDataSyncStoreService.manifest(null);
 			}
 
 			// Update local session id
-			if (manifest && manifest.session !== sessionId) {
-				this.storageService.store(sessionIdKey, manifest.session, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			if (this.manifest && this.manifest.session !== sessionId) {
+				this.storageService.store(sessionIdKey, this.manifest.session, StorageScope.GLOBAL, StorageTarget.MACHINE);
 			}
 
 			// Return if cancellation is requested
@@ -576,7 +577,7 @@ class AutoSync extends Disposable {
 
 			// Add current machine
 			if (!currentMachine) {
-				await this.userDataSyncMachinesService.addCurrentMachine(manifest || undefined);
+				await this.userDataSyncMachinesService.addCurrentMachine(this.manifest || undefined);
 			}
 
 		} catch (e) {

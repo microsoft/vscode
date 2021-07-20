@@ -319,7 +319,7 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 		return newRef;
 	}
 
-	async manifest(headers: IHeaders = {}): Promise<IUserDataManifest | null> {
+	async manifest(oldValue: IUserDataManifest | null, headers: IHeaders = {}): Promise<IUserDataManifest | null> {
 		if (!this.userDataSyncStoreUrl) {
 			throw new Error('No settings sync store url configured.');
 		}
@@ -327,10 +327,22 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 		const url = joinPath(this.userDataSyncStoreUrl, 'manifest').toString();
 		headers = { ...headers };
 		headers['Content-Type'] = 'application/json';
+		if (oldValue) {
+			headers['If-None-Match'] = oldValue.ref;
+		}
 
-		const context = await this.request(url, { type: 'GET', headers }, [], CancellationToken.None);
+		const context = await this.request(url, { type: 'GET', headers }, [304], CancellationToken.None);
+		const ref = context.res.headers['etag'];
+		if (!ref) {
+			throw new UserDataSyncStoreError('Server did not return the ref', url, UserDataSyncErrorCode.NoRef, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
+		}
 
-		const manifest = await asJson<IUserDataManifest>(context);
+		if (context.res.statusCode === 304) {
+			// There is no new value. Hence return the old value.
+			return oldValue!;
+		}
+
+		const manifest = await asJson<Omit<IUserDataManifest, 'ref'>>(context);
 		const currentSessionId = this.storageService.get(USER_SESSION_ID_KEY, StorageScope.GLOBAL);
 
 		if (currentSessionId && manifest && currentSessionId !== manifest.session) {
@@ -348,7 +360,7 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 			this.storageService.store(USER_SESSION_ID_KEY, manifest.session, StorageScope.GLOBAL, StorageTarget.MACHINE);
 		}
 
-		return manifest;
+		return manifest ? { ...manifest, ref } : null;
 	}
 
 	async clear(): Promise<void> {
