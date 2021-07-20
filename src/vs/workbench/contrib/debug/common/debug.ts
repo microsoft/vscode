@@ -180,6 +180,9 @@ export interface IDebugSessionOptions {
 	repl?: IDebugSessionReplMode;
 	compoundRoot?: DebugCompoundRoot;
 	compact?: boolean;
+	debugUI?: {
+		simple?: boolean;
+	};
 }
 
 export interface IDataBreakpointInfoResponse {
@@ -200,6 +203,7 @@ export interface IDebugSession extends ITreeElement {
 	readonly compact: boolean;
 	readonly compoundRoot: DebugCompoundRoot | undefined;
 	readonly name: string;
+	readonly isSimpleUI: boolean;
 
 	setSubId(subId: string | undefined): void;
 
@@ -788,6 +792,8 @@ export interface IDebugService {
 	 * Gets the current debug state.
 	 */
 	readonly state: State;
+
+	readonly initializingOptions?: IDebugSessionOptions | undefined;
 
 	/**
 	 * Allows to register on debug state changes.
