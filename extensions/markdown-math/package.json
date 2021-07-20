@@ -69,7 +69,7 @@
     ],
     "markdown.markdownItPlugins": true,
     "markdown.previewStyles": [
-      "./node_modules/katex/dist/katex.min.css",
+      "./notebook-out/katex.min.css",
       "./preview-styles/index.css"
     ],
     "configuration": [

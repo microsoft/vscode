@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/65f211722c85e9fdf0aa658d5663e6ccaf2ebe25",
+	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/e0055eb2f95dd206689f5b1527dadb7bebbfae3d",
 	"name": "Dart",
 	"scopeName": "source.dart",
 	"patterns": [
@@ -36,6 +36,10 @@
 				{
 					"name": "keyword.other.import.dart",
 					"match": "\\b(as|show|hide)\\b"
+				},
+				{
+					"name": "keyword.control.dart",
+					"match": "\\b(if)\\b"
 				}
 			]
 		},

@@ -5,8 +5,8 @@
 
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
-import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_LOCAL_ECHO_EXCLUDE, TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_LOCAL_ECHO_EXCLUDE } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Registry } from 'vs/platform/registry/common/platform';
 
@@ -23,6 +23,11 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.TabsEnabled]: {
 			description: localize('terminal.integrated.tabs.enabled', 'Controls whether terminal tabs display as a list to the side of the terminal. When this is disabled a dropdown will display instead.'),
+			type: 'boolean',
+			default: true,
+		},
+		[TerminalSettingId.TabsEnableAnimation]: {
+			description: localize('terminal.integrated.tabs.enableAnimation', 'Controls whether terminal tab statuses support animation (eg. in progress tasks).'),
 			type: 'boolean',
 			default: true,
 		},
@@ -261,9 +266,27 @@ const terminalConfiguration: IConfigurationNode = {
 			default: undefined
 		},
 		[TerminalSettingId.ConfirmOnExit]: {
-			description: localize('terminal.integrated.confirmOnExit', "Controls whether to confirm on exit if there are active terminal sessions."),
-			type: 'boolean',
-			default: false
+			description: localize('terminal.integrated.confirmOnExit', "Controls whether to confirm when the window closes if there are active terminal sessions."),
+			type: 'string',
+			enum: ['never', 'always', 'hasChildProcesses'],
+			enumDescriptions: [
+				localize('terminal.integrated.confirmOnExit.never', "Never confirm."),
+				localize('terminal.integrated.confirmOnExit.always', "Always confirm if there are terminals."),
+				localize('terminal.integrated.confirmOnExit.hasChildProcesses', "Confirm if there are any terminals that has child processes."),
+			],
+			default: 'never'
+		},
+		[TerminalSettingId.ConfirmOnKill]: {
+			description: localize('terminal.integrated.confirmOnKill', "Controls whether to confirm killing terminals when they have child processes. When set to editor, terminals in the editor area will be marked as dirty when they have child processes."),
+			type: 'string',
+			enum: ['never', 'editor', 'panel', 'always'],
+			enumDescriptions: [
+				localize('terminal.integrated.confirmOnKill.never', "Never confirm."),
+				localize('terminal.integrated.confirmOnKill.editor', "Confirm if the terminal is in the editor."),
+				localize('terminal.integrated.confirmOnKill.panel', "Confirm if the terminal is in the panel."),
+				localize('terminal.integrated.confirmOnKill.always', "Confirm if the terminal is either in the editor or panel."),
+			],
+			default: 'editor'
 		},
 		[TerminalSettingId.EnableBell]: {
 			description: localize('terminal.integrated.enableBell', "Controls whether the terminal bell is enabled, this shows up as a visual bell next to the terminal's name."),

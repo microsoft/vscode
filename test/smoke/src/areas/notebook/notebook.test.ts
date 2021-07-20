@@ -24,7 +24,7 @@ export function setup(opts: minimist.ParsedArgs) {
 			cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePathOrFolder });
 		});
 
-		afterSuite();
+		afterSuite(opts);
 
 		it.skip('inserts/edits code cell', async function () {
 			const app = this.app as Application;

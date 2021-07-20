@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalGroupService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 export function setupTerminalCommands(): void {
 	registerOpenTerminalAtIndexCommands();
@@ -22,7 +22,7 @@ function registerOpenTerminalAtIndexCommands(): void {
 			primary: 0,
 			handler: accessor => {
 				accessor.get(ITerminalGroupService).setActiveInstanceByIndex(terminalIndex);
-				return accessor.get(ITerminalService).showPanel(true);
+				return accessor.get(ITerminalGroupService).showPanel(true);
 			}
 		});
 	}

@@ -47,10 +47,6 @@ const TOP_STACK_FRAME_DECORATION: IModelDecorationOptions = {
 	className: 'debug-top-stack-frame-line',
 	stickiness
 };
-const TOP_STACK_FRAME_INLINE_DECORATION: IModelDecorationOptions = {
-	description: 'top-stack-frame-inline-decoration',
-	beforeContentClassName: 'debug-top-stack-frame-column'
-};
 const FOCUSED_STACK_FRAME_DECORATION: IModelDecorationOptions = {
 	description: 'focused-stack-frame-decoration',
 	isWholeLine: true,
@@ -58,7 +54,7 @@ const FOCUSED_STACK_FRAME_DECORATION: IModelDecorationOptions = {
 	stickiness
 };
 
-export function createDecorationsForStackFrame(stackFrame: IStackFrame, isFocusedSession: boolean): IModelDeltaDecoration[] {
+export function createDecorationsForStackFrame(stackFrame: IStackFrame, isFocusedSession: boolean, noCharactersBefore: boolean): IModelDeltaDecoration[] {
 	// only show decorations for the currently focused thread.
 	const result: IModelDeltaDecoration[] = [];
 	const columnUntilEOLRange = new Range(stackFrame.range.startLineNumber, stackFrame.range.startColumn, stackFrame.range.startLineNumber, Constants.MAX_SAFE_SMALL_INTEGER);
@@ -82,7 +78,10 @@ export function createDecorationsForStackFrame(stackFrame: IStackFrame, isFocuse
 
 		if (stackFrame.range.startColumn > 1) {
 			result.push({
-				options: TOP_STACK_FRAME_INLINE_DECORATION,
+				options: {
+					description: 'top-stack-frame-inline-decoration',
+					beforeContentClassName: noCharactersBefore ? 'debug-top-stack-frame-column start-of-line' : 'debug-top-stack-frame-column'
+				},
 				range: columnUntilEOLRange
 			});
 		}
@@ -142,7 +141,8 @@ export class CallStackEditorContribution implements IEditorContribution {
 
 					stackFrames.forEach(candidateStackFrame => {
 						if (candidateStackFrame && this.uriIdentityService.extUri.isEqual(candidateStackFrame.source.uri, this.editor.getModel()?.uri)) {
-							decorations.push(...createDecorationsForStackFrame(candidateStackFrame, isSessionFocused));
+							const noCharactersBefore = this.editor.hasModel() ? this.editor.getModel()?.getLineFirstNonWhitespaceColumn(candidateStackFrame.range.startLineNumber) >= candidateStackFrame.range.startColumn : false;
+							decorations.push(...createDecorationsForStackFrame(candidateStackFrame, isSessionFocused, noCharactersBefore));
 						}
 					});
 				}

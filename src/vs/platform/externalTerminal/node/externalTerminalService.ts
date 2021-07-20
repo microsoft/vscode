@@ -20,8 +20,11 @@ abstract class ExternalTerminalService {
 	public _serviceBrand: undefined;
 
 	async getDefaultTerminalForPlatforms(): Promise<ITerminalForPlatform> {
-		const linuxTerminal = await LinuxExternalTerminalService.getDefaultTerminalLinuxReady();
-		return { windows: WindowsExternalTerminalService.getDefaultTerminalWindows(), linux: linuxTerminal, osx: 'xterm' };
+		return {
+			windows: WindowsExternalTerminalService.getDefaultTerminalWindows(),
+			linux: await LinuxExternalTerminalService.getDefaultTerminalLinuxReady(),
+			osx: 'xterm'
+		};
 	}
 }
 
@@ -144,8 +147,11 @@ export class MacExternalTerminalService extends ExternalTerminalService implemen
 				}
 
 				if (envVars) {
-					for (let key in envVars) {
-						const value = envVars[key];
+					// merge environment variables into a copy of the process.env
+					const env = Object.assign({}, getSanitizedEnvironment(process), envVars);
+
+					for (let key in env) {
+						const value = env[key];
 						if (value === null) {
 							osaArgs.push('-u');
 							osaArgs.push(key);
@@ -190,7 +196,8 @@ export class MacExternalTerminalService extends ExternalTerminalService implemen
 			if (cwd) {
 				args.push(cwd);
 			}
-			const child = spawner.spawn('/usr/bin/open', args);
+			const env = getSanitizedEnvironment(process);
+			const child = spawner.spawn('/usr/bin/open', args, { cwd, env });
 			child.on('error', e);
 			child.on('exit', () => c());
 		});
@@ -226,8 +233,9 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 				const bashCommand = `${quote(args)}; echo; read -p "${LinuxExternalTerminalService.WAIT_MESSAGE}" -n1;`;
 				termArgs.push(`''${bashCommand}''`);	// wrapping argument in two sets of ' because node is so "friendly" that it removes one set...
 
+
 				// merge environment variables into a copy of the process.env
-				const env = Object.assign({}, process.env, envVars);
+				const env = Object.assign({}, getSanitizedEnvironment(process), envVars);
 
 				// delete environment variables that have a null value
 				Object.keys(env).filter(v => env[v] === null).forEach(key => delete env[key]);

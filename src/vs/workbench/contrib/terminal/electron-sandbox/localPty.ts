@@ -32,6 +32,8 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
 	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
 	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
+	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
+	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
 
 	constructor(
 		readonly id: number,
@@ -106,6 +108,9 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	handleResolvedShellLaunchConfig(e: IShellLaunchConfig) {
 		this._onProcessResolvedShellLaunchConfig.fire(e);
 	}
+	handleDidChangeHasChildProcesses(e: boolean) {
+		this._onDidChangeHasChildProcesses.fire(e);
+	}
 
 	async handleReplay(e: IPtyHostProcessReplayEvent) {
 		try {
@@ -125,5 +130,9 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 
 		// remove size override
 		this._onProcessOverrideDimensions.fire(undefined);
+	}
+
+	handleOrphanQuestion() {
+		this._localPtyService.orphanQuestionReply(this.id);
 	}
 }

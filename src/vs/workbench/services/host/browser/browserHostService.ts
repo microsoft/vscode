@@ -138,7 +138,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 			// Unknown / Keyboard shows veto depending on setting
 			case HostShutdownReason.Unknown:
 			case HostShutdownReason.Keyboard:
-				const confirmBeforeClose = this.configurationService.getValue<'always' | 'keyboardOnly' | 'never'>('window.confirmBeforeClose');
+				const confirmBeforeClose = this.configurationService.getValue('window.confirmBeforeClose');
 				if (confirmBeforeClose === 'always' || (confirmBeforeClose === 'keyboardOnly' && this.shutdownReason === HostShutdownReason.Keyboard)) {
 					e.veto(true, 'veto.confirmBeforeClose');
 				}
@@ -257,8 +257,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 					// Same Window: open via editor service in current window
 					if (this.shouldReuse(options, true /* file */)) {
 						editorService.openEditor({
-							originalInput: { resource: editors[0].resource },
-							modifiedInput: { resource: editors[1].resource },
+							original: { resource: editors[0].resource },
+							modified: { resource: editors[1].resource },
 							options: { pinned: true }
 						});
 					}

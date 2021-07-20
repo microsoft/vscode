@@ -70,7 +70,6 @@ suite('Files', () => {
 			}
 			assert(!event.contains(toResource.call(this, '/bar/folder2/somefile'), FileChangeType.DELETED));
 
-			assert.strictEqual(6, event.raw.length);
 			assert.strictEqual(1, count(event.rawAdded));
 			assert.strictEqual(true, event.gotAdded());
 			assert.strictEqual(true, event.gotUpdated());

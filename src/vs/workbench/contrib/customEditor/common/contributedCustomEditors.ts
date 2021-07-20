@@ -12,7 +12,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { Memento } from 'vs/workbench/common/memento';
 import { CustomEditorDescriptor, CustomEditorInfo } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { customEditorsExtensionPoint, ICustomEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/common/extensionPoint';
-import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
 export const defaultCustomEditor = new CustomEditorInfo({

@@ -687,7 +687,7 @@ registerThemingParticipant((theme, collector) => {
 	if (debugIconBreakpointDisabledColor) {
 		collector.addRule(`
 		${icons.allBreakpoints.map(b => `.monaco-workbench ${ThemeIcon.asCSSSelector(b.disabled)}`).join(',\n		')} {
-			color: ${debugIconBreakpointDisabledColor} !important;
+			color: ${debugIconBreakpointDisabledColor};
 		}
 		`);
 	}

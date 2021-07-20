@@ -50,6 +50,7 @@ export class FindInput extends Widget {
 	private validation?: IInputValidator;
 	private label: string;
 	private fixFocusOnOptionClickEnabled = true;
+	private imeSessionInProgress = false;
 
 	private inputActiveOptionBorder?: Color;
 	private inputActiveOptionForeground?: Color;
@@ -252,10 +253,22 @@ export class FindInput extends Widget {
 			parent.appendChild(this.domNode);
 		}
 
+		this._register(dom.addDisposableListener(this.inputBox.inputElement, 'compositionstart', (e: CompositionEvent) => {
+			this.imeSessionInProgress = true;
+		}));
+		this._register(dom.addDisposableListener(this.inputBox.inputElement, 'compositionend', (e: CompositionEvent) => {
+			this.imeSessionInProgress = false;
+			this._onInput.fire();
+		}));
+
 		this.onkeydown(this.inputBox.inputElement, (e) => this._onKeyDown.fire(e));
 		this.onkeyup(this.inputBox.inputElement, (e) => this._onKeyUp.fire(e));
 		this.oninput(this.inputBox.inputElement, (e) => this._onInput.fire());
 		this.onmousedown(this.inputBox.inputElement, (e) => this._onMouseDown.fire(e));
+	}
+
+	public get isImeSessionInProgress(): boolean {
+		return this.imeSessionInProgress;
 	}
 
 	public get onDidChange(): Event<string> {

@@ -10,7 +10,7 @@ import { afterSuite, beforeSuite } from '../../utils';
 export function setup(opts: minimist.ParsedArgs) {
 	describe('Statusbar', () => {
 		beforeSuite(opts);
-		afterSuite();
+		afterSuite(opts);
 
 		it('verifies presence of all default status bar elements', async function () {
 			const app = this.app as Application;

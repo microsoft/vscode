@@ -67,7 +67,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 	async getSessions(scopes?: string[]): Promise<vscode.AuthenticationSession[]> {
 		return scopes
-			? this._sessions.filter(session => arrayEquals(session.scopes, scopes))
+			? this._sessions.filter(session => arrayEquals([...session.scopes].sort(), scopes.sort()))
 			: this._sessions;
 	}
 
@@ -86,6 +86,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			try {
 				await this._githubServer.getUserInfo(session.accessToken);
 				this.afterTokenLoad(session.accessToken);
+				Logger.info(`Verified sesion with the following scopes: ${session.scopes}`);
 				verifiedSessions.push(session);
 			} catch (e) {
 				// Remove sessions that return unauthorized response
@@ -156,6 +157,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 						userInfo = await this._githubServer.getUserInfo(session.accessToken);
 					}
 
+					Logger.trace(`Read the following session from the keychain with the following scopes: ${session.scopes}`);
 					return {
 						id: session.id,
 						account: {
@@ -194,9 +196,13 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	public async createSession(scopes: string[]): Promise<vscode.AuthenticationSession> {
 		try {
 			/* __GDPR__
-				"login" : { }
+				"login" : {
+					"scopes": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+				}
 			*/
-			this.telemetryReporter?.sendTelemetryEvent('login');
+			this.telemetryReporter?.sendTelemetryEvent('login', {
+				scopes: JSON.stringify(scopes),
+			});
 
 			const token = await this._githubServer.login(scopes.join(' '));
 			this.afterTokenLoad(token);

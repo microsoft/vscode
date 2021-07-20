@@ -7,11 +7,11 @@ import 'vs/css!./media/interactive';
 import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
-import { IModelService } from 'vs/editor/common/services/modelService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -22,19 +22,28 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
-import { INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IActiveNotebookEditor, ICellViewModel, INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { NotebookStatusBarController } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionStatusBarItemController';
+import { ExecutionStateCellStatusBarContrib, TimerCellStatusBarContrib } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionStatusBarItemController';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
+import { IInteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
+import { ComplexNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
+import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 
+const enum ScrollingState {
+	Initial = 0,
+	StickyToBottom = 1
+}
 
 export class InteractiveEditor extends EditorPane {
 	static readonly ID: string = 'workbench.editor.interactive';
@@ -47,12 +56,16 @@ export class InteractiveEditor extends EditorPane {
 	// #inputLineCount = 1;
 	#notebookWidgetService: INotebookEditorService;
 	#instantiationService: IInstantiationService;
-	#modelService: IModelService;
 	#modeService: IModeService;
 	#contextKeyService: IContextKeyService;
 	#notebookKernelService: INotebookKernelService;
+	#keybindingService: IKeybindingService;
+	#historyService: IInteractiveHistoryService;
 	#widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
 	#dimension?: DOM.Dimension;
+
+	#onDidFocusWidget = this._register(new Emitter<void>());
+	override get onDidFocus(): Event<void> { return this.#onDidFocusWidget.event; }
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -60,11 +73,12 @@ export class InteractiveEditor extends EditorPane {
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@INotebookEditorService notebookWidgetService: INotebookEditorService,
-		@IModelService modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@INotebookKernelService notebookKernelService: INotebookKernelService,
 		@IModeService modeService: IModeService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IInteractiveHistoryService historyService: IInteractiveHistoryService,
 	) {
 		super(
 			InteractiveEditor.ID,
@@ -74,12 +88,14 @@ export class InteractiveEditor extends EditorPane {
 		);
 		this.#instantiationService = instantiationService;
 		this.#notebookWidgetService = notebookWidgetService;
-		this.#modelService = modelService;
 		this.#contextKeyService = contextKeyService;
 		this.#notebookKernelService = notebookKernelService;
 		this.#modeService = modeService;
+		this.#keybindingService = keybindingService;
+		this.#historyService = historyService;
 
 		codeEditorService.registerDecorationType('interactive-decoration', DECORATION_KEY, {});
+		this._register(this.#keybindingService.onDidUpdateKeybindings(this.#updateInputDecoration, this));
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -111,7 +127,8 @@ export class InteractiveEditor extends EditorPane {
 			isEmbedded: true,
 			isReadOnly: true,
 			contributions: NotebookEditorExtensionsRegistry.getSomeEditorContributions([
-				NotebookStatusBarController.id
+				ExecutionStateCellStatusBarContrib.id,
+				TimerCellStatusBarContrib.id
 			]),
 			menuIds: {
 				notebookToolbar: MenuId.InteractiveToolbar,
@@ -119,9 +136,15 @@ export class InteractiveEditor extends EditorPane {
 				cellInsertToolbar: MenuId.NotebookCellBetween,
 				cellTopInsertToolbar: MenuId.NotebookCellListTop,
 				cellExecuteToolbar: MenuId.InteractiveCellExecute
+			},
+			cellEditorContributions: []
+		});
+		this.#codeEditorWidget = this.#instantiationService.createInstance(CodeEditorWidget, this.#inputEditorContainer, getSimpleEditorOptions(), {
+			...getSimpleCodeEditorWidgetOptions(),
+			...{
+				isSimpleWidget: false
 			}
 		});
-		this.#codeEditorWidget = this.#instantiationService.createInstance(CodeEditorWidget, this.#inputEditorContainer, getSimpleEditorOptions(), getSimpleCodeEditorWidgetOptions());
 
 		if (this.#dimension) {
 			this.#notebookWidget.value!.layout(this.#dimension.with(this.#dimension.width, this.#dimension.height - 19), this.#rootElement);
@@ -142,9 +165,14 @@ export class InteractiveEditor extends EditorPane {
 		this.#notebookWidget.value!.setOptions({
 			isReadOnly: true
 		});
+		this.#widgetDisposableStore.add(this.#notebookWidget.value!.onDidFocus(() => this.#onDidFocusWidget.fire()));
+		this.#widgetDisposableStore.add(model.notebook.onDidChangeContent(() => {
+			(model as ComplexNotebookEditorModel).setDirty(false);
+		}));
 
-		const editorModel = this.#modelService.getModel(input.inputResource) || this.#modelService.createModel('', null, input.inputResource, true);
+		const editorModel = input.resolveInput(this.#notebookWidget.value?.activeKernel?.supportedLanguages[0] ?? 'plaintext');
 		this.#codeEditorWidget.setModel(editorModel);
+		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidFocusEditorWidget(() => this.#onDidFocusWidget.fire()));
 		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidContentSizeChange(e => {
 			if (!e.contentHeightChanged) {
 				return;
@@ -175,8 +203,130 @@ export class InteractiveEditor extends EditorPane {
 			}
 		}));
 
+		if (this.#notebookWidget.value?.hasModel()) {
+			this.#registerExecutionScrollListener(this.#notebookWidget.value);
+		}
+
+		const cursorAtBoundaryContext = INTERACTIVE_INPUT_CURSOR_BOUNDARY.bindTo(this.#contextKeyService);
+		cursorAtBoundaryContext.set('none');
+
+		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidChangeCursorPosition(({ position }) => {
+			const viewModel = this.#codeEditorWidget._getViewModel()!;
+			const lastLineNumber = viewModel.getLineCount();
+			const lastLineCol = viewModel.getLineContent(lastLineNumber).length + 1;
+			const viewPosition = viewModel.coordinatesConverter.convertModelPositionToViewPosition(position);
+			const firstLine = viewPosition.lineNumber === 1 && viewPosition.column === 1;
+			const lastLine = viewPosition.lineNumber === lastLineNumber && viewPosition.column === lastLineCol;
+
+			if (firstLine) {
+				if (lastLine) {
+					cursorAtBoundaryContext.set('both');
+				} else {
+					cursorAtBoundaryContext.set('top');
+				}
+			} else {
+				if (lastLine) {
+					cursorAtBoundaryContext.set('bottom');
+				} else {
+					cursorAtBoundaryContext.set('none');
+				}
+			}
+		}));
+
+		this.#widgetDisposableStore.add(editorModel.onDidChangeContent(() => {
+			const value = editorModel!.getValue();
+			if (this.input?.resource && value !== '') {
+				this.#historyService.replaceLast(this.input.resource, value);
+			}
+		}));
+
 		this.#updateInputDecoration();
 		this.#updateInputEditorLanguage();
+	}
+
+	#lastCell: ICellViewModel | undefined = undefined;
+	#lastCellDisposable = new DisposableStore();
+	#state: ScrollingState = ScrollingState.Initial;
+
+	#cellAtBottom(widget: NotebookEditorWidget & IActiveNotebookEditor, cell: ICellViewModel): boolean {
+		const visibleRanges = widget.visibleRanges;
+		const cellIndex = widget.viewModel.getCellIndex(cell);
+		if (cellIndex === Math.max(...visibleRanges.map(range => range.end))) {
+			return true;
+		}
+		return false;
+	}
+
+	/**
+	 * - Init state: 0
+	 * - Will cell insertion: check if the last cell is at the bottom, false, stay 0
+	 * 						if true, state 1 (ready for auto reveal)
+	 * - receive a scroll event (scroll even already happened). If the last cell is at bottom, false, 0, true, state 1
+	 * - height change of the last cell, if state 0, do nothing, if state 1, scroll the last cell fully into view
+	 */
+	#registerExecutionScrollListener(widget: NotebookEditorWidget & IActiveNotebookEditor) {
+		this.#widgetDisposableStore.add(widget.textModel.onWillAddRemoveCells(e => {
+			const lastViewCell = widget.viewModel.viewCells[widget.viewModel.viewCells.length - 1];
+
+			// check if the last cell is at the bottom
+			if (this.#cellAtBottom(widget, lastViewCell)) {
+				this.#state = ScrollingState.StickyToBottom;
+			} else {
+				this.#state = ScrollingState.Initial;
+			}
+		}));
+
+		this.#widgetDisposableStore.add(widget.onDidScroll(() => {
+			const lastViewCell = widget.viewModel.viewCells[widget.viewModel.viewCells.length - 1];
+
+			// check if the last cell is at the bottom
+			if (this.#cellAtBottom(widget, lastViewCell)) {
+				this.#state = ScrollingState.StickyToBottom;
+			} else {
+				this.#state = ScrollingState.Initial;
+			}
+		}));
+
+		this.#widgetDisposableStore.add(widget.textModel.onDidChangeContent(e => {
+			for (let i = 0; i < e.rawEvents.length; i++) {
+				const event = e.rawEvents[i];
+
+				if (event.kind === NotebookCellsChangeType.ModelChange && this.#notebookWidget.value?.viewModel) {
+					const lastViewCell = this.#notebookWidget.value.viewModel.viewCells[this.#notebookWidget.value.viewModel.viewCells.length - 1];
+					if (lastViewCell !== this.#lastCell) {
+						this.#lastCellDisposable.clear();
+						this.#lastCell = lastViewCell;
+						this.#registerListenerForCell();
+					}
+				}
+			}
+		}));
+	}
+
+	#registerListenerForCell() {
+		if (!this.#lastCell) {
+			return;
+		}
+
+		this.#lastCellDisposable.add(this.#lastCell.onDidChangeLayout((e) => {
+			if (e.totalHeight === undefined) {
+				// not cell height change
+				return;
+			}
+
+			if (this.#state !== ScrollingState.StickyToBottom) {
+				return;
+			}
+
+			// scroll to bottom
+			// postpone to next tick as the list view might not process the output height change yet
+			// e.g., when we register this listener later than the list view
+			this.#lastCellDisposable.add(DOM.scheduleAtNextAnimationFrame(() => {
+				if (this.#state === ScrollingState.StickyToBottom) {
+					this.#notebookWidget.value!.scrollToBottom();
+				}
+			}));
+		}));
 	}
 
 	#updateInputEditorLanguage() {
@@ -229,6 +379,8 @@ export class InteractiveEditor extends EditorPane {
 
 		if (model?.getValueLength() === 0) {
 			const transparentForeground = resolveColorValue(editorForeground, this.themeService.getColorTheme())?.transparent(0.4);
+			const keybinding = this.#keybindingService.lookupKeybinding('interactive.execute')?.getLabel();
+			const text = nls.localize('interactiveInputPlaceHolder', "Type code here and press {0} to run", keybinding ?? 'ctrl+enter');
 			decorations.push({
 				range: {
 					startLineNumber: 0,
@@ -238,7 +390,7 @@ export class InteractiveEditor extends EditorPane {
 				},
 				renderOptions: {
 					after: {
-						contentText: nls.localize('interactiveInputPlaceHolder', "Type code here and press ctrl+enter to run"),
+						contentText: text,
 						color: transparentForeground ? transparentForeground.toString() : undefined
 					}
 				}
@@ -246,6 +398,10 @@ export class InteractiveEditor extends EditorPane {
 		}
 
 		this.#codeEditorWidget.setDecorations('interactive-decoration', DECORATION_KEY, decorations);
+	}
+
+	override focus() {
+		this.#codeEditorWidget.focus();
 	}
 
 	override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
@@ -266,6 +422,9 @@ export class InteractiveEditor extends EditorPane {
 		if (this.#codeEditorWidget) {
 			this.#codeEditorWidget.dispose();
 		}
+
+		this.#notebookWidget = { value: undefined };
+		this.#widgetDisposableStore.clear();
 
 		super.clearInput();
 	}

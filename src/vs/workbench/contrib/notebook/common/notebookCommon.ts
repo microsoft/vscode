@@ -92,6 +92,7 @@ export interface NotebookCellInternalMetadata {
 	runStartTime?: number;
 	runStartTimeAdjustment?: number;
 	runEndTime?: number;
+	isPaused?: boolean;
 }
 
 export type TransientCellMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
@@ -347,6 +348,10 @@ export type NotebookTextModelChangedEvent = {
 	readonly endSelectionState: ISelectionState | undefined;
 };
 
+export type NotebookTextModelWillAddRemoveEvent = {
+	readonly rawEvent: NotebookCellsModelChangedEvent<ICell>;
+};
+
 export const enum CellEditType {
 	Replace = 1,
 	Output = 2,
@@ -463,7 +468,7 @@ export interface NotebookData {
 
 
 export interface INotebookContributionData {
-	extension: ExtensionIdentifier,
+	extension?: ExtensionIdentifier,
 	providerDisplayName: string;
 	displayName: string;
 	filenamePattern: (string | glob.IRelativePattern | INotebookExclusiveDocumentFilter)[];
@@ -714,8 +719,6 @@ export interface INotebookEditorModel extends IEditorModel {
 export interface INotebookDiffEditorModel extends IEditorModel {
 	original: IResolvedNotebookEditorModel;
 	modified: IResolvedNotebookEditorModel;
-	resolveOriginalFromDisk(): Promise<void>;
-	resolveModifiedFromDisk(): Promise<void>;
 }
 
 export interface NotebookDocumentBackupData extends IWorkingCopyBackupMeta {
@@ -835,7 +838,6 @@ export const CellToolbarVisibility = 'notebook.cellToolbarVisibility';
 export type ShowCellStatusBarType = 'hidden' | 'visible' | 'visibleAfterExecute';
 export const ShowCellStatusBar = 'notebook.showCellStatusBar';
 export const NotebookTextDiffEditorPreview = 'notebook.diff.enablePreview';
-export const ExperimentalUseMarkdownRenderer = 'notebook.experimental.useMarkdownRenderer';
 export const ExperimentalInsertToolbarAlignment = 'notebook.experimental.insertToolbarAlignment';
 export const CompactView = 'notebook.compactView';
 export const FocusIndicator = 'notebook.cellFocusIndicator';

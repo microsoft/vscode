@@ -9,7 +9,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
-import { notebookCellBorder, NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
+import { getDefaultNotebookCreationOptions, notebookCellBorder, NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { NotebookDiffEditorInput } from '../notebookDiffEditorInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -17,13 +17,13 @@ import { DiffElementViewModelBase, SideBySideDiffElementViewModel, SingleSideDif
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CellDiffSideBySideRenderer, CellDiffSingleSideRenderer, NotebookCellTextDiffListDelegate, NotebookTextDiffList } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffList';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { diffDiagonalFill, diffInserted, diffRemoved, editorBackground, focusBorder, foreground, iconForeground } from 'vs/platform/theme/common/colorRegistry';
+import { diffDiagonalFill, diffInserted, diffRemoved, editorBackground, focusBorder, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
-import { CellEditState, ICellOutputViewModel, IDisplayOutputLayoutUpdateRequest, IGenericCellViewModel, IInsetRenderOutput, INotebookEditorOptions, NotebookLayoutInfo, NOTEBOOK_DIFF_EDITOR_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, ICellOutputViewModel, IDisplayOutputLayoutUpdateRequest, IGenericCellViewModel, IInsetRenderOutput, INotebookEditorCreationOptions, INotebookEditorOptions, NotebookLayoutInfo, NOTEBOOK_DIFF_EDITOR_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { DiffSide, DIFF_CELL_MARGIN, IDiffCellInfo, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -45,6 +45,7 @@ import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOp
 const $ = DOM.$;
 
 export class NotebookTextDiffEditor extends EditorPane implements INotebookTextDiffEditor {
+	creationOptions: INotebookEditorCreationOptions = getDefaultNotebookCreationOptions();
 	static readonly ID: string = NOTEBOOK_DIFF_EDITOR_ID;
 
 	private _rootElement!: HTMLElement;
@@ -190,7 +191,6 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 					listBackground: editorBackground,
 					listActiveSelectionBackground: editorBackground,
 					listActiveSelectionForeground: foreground,
-					listActiveSelectionIconForeground: iconForeground,
 					listFocusAndSelectionBackground: editorBackground,
 					listFocusAndSelectionForeground: foreground,
 					listFocusBackground: editorBackground,
@@ -382,7 +382,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._modifiedWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, this._notebookOptions.computeDiffWebviewOptions(), undefined) as BackLayerWebView<IDiffCellInfo>;
 		// attach the webview container to the DOM tree first
 		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._modifiedWebview.element);
-		await this._modifiedWebview.createWebview();
+		this._modifiedWebview.createWebview();
 		this._modifiedWebview.element.style.width = `calc(50% - 16px)`;
 		this._modifiedWebview.element.style.left = `calc(50%)`;
 	}
@@ -395,7 +395,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._originalWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, this._notebookOptions.computeDiffWebviewOptions(), undefined) as BackLayerWebView<IDiffCellInfo>;
 		// attach the webview container to the DOM tree first
 		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._originalWebview.element);
-		await this._originalWebview.createWebview();
+		this._originalWebview.createWebview();
 		this._originalWebview.element.style.width = `calc(50% - 16px)`;
 		this._originalWebview.element.style.left = `16px`;
 	}

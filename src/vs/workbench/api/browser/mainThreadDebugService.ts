@@ -228,6 +228,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			parentSession,
 			repl: options.repl,
 			compact: options.compact,
+			debugUI: options.debugUI,
 			compoundRoot: parentSession?.compoundRoot
 		};
 		return this.debugService.startDebugging(launch, nameOrConfig, debugOptions).then(success => {

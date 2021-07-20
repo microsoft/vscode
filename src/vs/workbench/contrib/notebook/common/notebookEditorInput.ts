@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as glob from 'vs/base/common/glob';
-import { IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorInputCapabilities, Verbosity } from 'vs/workbench/common/editor';
+import { IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorInputCapabilities, Verbosity, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
 import { isEqual, joinPath } from 'vs/base/common/resources';
@@ -19,7 +19,6 @@ import { mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
 import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { AbstractResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
 interface NotebookEditorInputOptions {
@@ -210,7 +209,14 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		this._sideLoadedListener.dispose();
 
 		if (!this._editorModelReference) {
-			this._editorModelReference = await this._notebookModelResolverService.resolve(this.resource, this.viewType);
+			const ref = await this._notebookModelResolverService.resolve(this.resource, this.viewType);
+			if (this._editorModelReference) {
+				// Re-entrant, double resolve happened. Dispose the addition references and proceed
+				// with the truth.
+				ref.dispose();
+				return (<IReference<IResolvedNotebookEditorModel>>this._editorModelReference).object;
+			}
+			this._editorModelReference = ref;
 			if (this.isDisposed()) {
 				this._editorModelReference.dispose();
 				this._editorModelReference = null;
@@ -229,7 +235,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		return this._editorModelReference.object;
 	}
 
-	override asResourceEditorInput(groupId: GroupIdentifier): IResourceEditorInput {
+	override toUntyped(): IResourceEditorInput {
 		return {
 			resource: this.preferredResource,
 			options: {
@@ -238,7 +244,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		};
 	}
 
-	override matches(otherInput: IEditorInput | IResourceEditorInputType): boolean {
+	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
 		if (super.matches(otherInput)) {
 			return true;
 		}

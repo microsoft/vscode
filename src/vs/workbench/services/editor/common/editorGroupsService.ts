@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInput, IEditorPane, GroupIdentifier, IEditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IEditorMoveEvent, IEditorOpenEvent } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorPane, GroupIdentifier, IEditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IEditorMoveEvent, IEditorOpenEvent, IUntypedEditorInput, isEditorInput } from 'vs/workbench/common/editor';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDimension } from 'vs/editor/common/editorCommon';
@@ -108,6 +108,12 @@ export interface IEditorReplacement {
 	 * save the document. Only use this if you really need to!
 	 */
 	forceReplaceDirty?: boolean;
+}
+
+export function isEditorReplacement(replacement: unknown): replacement is IEditorReplacement {
+	const candidate = replacement as IEditorReplacement | undefined;
+
+	return isEditorInput(candidate?.editor) && isEditorInput(candidate?.replacement);
 }
 
 export const enum GroupsOrder {
@@ -546,14 +552,14 @@ export interface IEditorGroup {
 	/**
 	 * Find out if the provided editor is active in the group.
 	 */
-	isActive(editor: IEditorInput): boolean;
+	isActive(editor: IEditorInput | IUntypedEditorInput): boolean;
 
 	/**
 	 * Find out if a certain editor is included in the group.
 	 *
 	 * @param candidate the editor to find
 	 */
-	contains(candidate: IEditorInput): boolean;
+	contains(candidate: IEditorInput | IUntypedEditorInput): boolean;
 
 	/**
 	 * Move an editor from this group either within this group or to another group.
@@ -637,11 +643,16 @@ export interface IEditorGroup {
 	focus(): void;
 }
 
+export function isEditorGroup(obj: unknown): obj is IEditorGroup {
+	const group = obj as IEditorGroup | undefined;
+
+	return !!group && typeof group.id === 'number' && Array.isArray(group.editors);
+}
 
 //#region Editor Group Helpers
 
 export function preferredSideBySideGroupDirection(configurationService: IConfigurationService): GroupDirection.DOWN | GroupDirection.RIGHT {
-	const openSideBySideDirection = configurationService.getValue<'right' | 'down'>('workbench.editor.openSideBySideDirection');
+	const openSideBySideDirection = configurationService.getValue('workbench.editor.openSideBySideDirection');
 
 	if (openSideBySideDirection === 'down') {
 		return GroupDirection.DOWN;

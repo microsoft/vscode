@@ -7,7 +7,7 @@ import { URI as uri } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Position, IPosition } from 'vs/editor/common/core/position';
-import { ILaunch, IDebugService, State, IDebugSession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IDebugModel, IViewModel, IBreakpoint, LoadedSourceEvent, IThread, IRawModelUpdate, IFunctionBreakpoint, IExceptionBreakpoint, IDebugger, IExceptionInfo, AdapterEndEvent, IReplElement, IExpression, IReplElementSource, IDataBreakpoint, IDebugSessionOptions, IEvaluate, IAdapterManager } from 'vs/workbench/contrib/debug/common/debug';
+import { ILaunch, IDebugService, State, IDebugSession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IDebugModel, IViewModel, IBreakpoint, LoadedSourceEvent, IThread, IRawModelUpdate, IFunctionBreakpoint, IExceptionBreakpoint, IDebugger, IExceptionInfo, AdapterEndEvent, IReplElement, IExpression, IReplElementSource, IDataBreakpoint, IDebugSessionOptions, IEvaluate, IAdapterManager, IRawStoppedDetails } from 'vs/workbench/contrib/debug/common/debug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import Severity from 'vs/base/common/severity';
 import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
@@ -163,6 +163,10 @@ export class MockSession implements IDebugSession {
 		return undefined;
 	}
 
+	get isSimpleUI(): boolean {
+		return false;
+	}
+
 	stepInTargets(frameId: number): Promise<{ id: number; label: string; }[]> {
 		throw new Error('Method not implemented.');
 	}
@@ -244,6 +248,10 @@ export class MockSession implements IDebugSession {
 	}
 
 	getThread(threadId: number): IThread {
+		throw new Error('not implemented');
+	}
+
+	getStoppedDetails(): IRawStoppedDetails {
 		throw new Error('not implemented');
 	}
 

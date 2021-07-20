@@ -14,7 +14,7 @@ import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsServi
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IOutputChannelRegistry, Extensions as OutputExtensions } from 'vs/workbench/services/output/common/output';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, DefaultViewsContext, ExtensionsSortByContext, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
+import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, DefaultViewsContext, ExtensionsSortByContext, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, ExtensionEditorTab } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ReinstallAction, InstallSpecificVersionOfExtensionAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, PromptExtensionInstallFailureAction, SearchExtensionsAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
@@ -26,7 +26,7 @@ import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/c
 import { IInstantiationService, ServicesAccessor, optional } from 'vs/platform/instantiation/common/instantiation';
 import { KeymapExtensions } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtensionActivationProgress } from 'vs/workbench/contrib/extensions/browser/extensionsActivationProgress';
@@ -75,6 +75,7 @@ import { WORKSPACE_TRUST_EXTENSION_SUPPORT } from 'vs/workbench/services/workspa
 import { ExtensionsCompletionItemsProvider } from 'vs/workbench/contrib/extensions/browser/extensionsCompletionItemsProvider';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { Event } from 'vs/base/common/event';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -93,8 +94,8 @@ Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessPro
 });
 
 // Editor
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
 		ExtensionEditor,
 		ExtensionEditor.ID,
 		localize('extension', "Extension")
@@ -196,7 +197,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			[WORKSPACE_TRUST_EXTENSION_SUPPORT]: {
 				type: 'object',
 				scope: ConfigurationScope.APPLICATION,
-				markdownDescription: localize('extensions.supportUntrustedWorkspaces', "Override the untrusted workpace support of an extension. Extensions using `true` will always be enabled. Extensions using `limited` will always be enabled, and the extension will hide functionality that requires trust. Extensions using `false` will only be enabled only when the workspace is trusted."),
+				markdownDescription: localize('extensions.supportUntrustedWorkspaces', "Override the untrusted workspace support of an extension. Extensions using `true` will always be enabled. Extensions using `limited` will always be enabled, and the extension will hide functionality that requires trust. Extensions using `false` will only be enabled only when the workspace is trusted."),
 				patternProperties: {
 					'([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$': {
 						type: 'object',
@@ -226,24 +227,24 @@ const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registr
 jsonRegistry.registerSchema(ExtensionsConfigurationSchemaId, ExtensionsConfigurationSchema);
 
 // Register Commands
-CommandsRegistry.registerCommand('_extensions.manage', (accessor: ServicesAccessor, extensionId: string) => {
+CommandsRegistry.registerCommand('_extensions.manage', (accessor: ServicesAccessor, extensionId: string, tab?: ExtensionEditorTab) => {
 	const extensionService = accessor.get(IExtensionsWorkbenchService);
 	const extension = extensionService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }));
 	if (extension.length === 1) {
-		extensionService.open(extension[0]);
+		extensionService.open(extension[0], { tab });
 	}
 });
 
-CommandsRegistry.registerCommand('extension.open', (accessor: ServicesAccessor, extensionId: string) => {
+CommandsRegistry.registerCommand('extension.open', async (accessor: ServicesAccessor, extensionId: string, tab?: ExtensionEditorTab) => {
 	const extensionService = accessor.get(IExtensionsWorkbenchService);
+	const commandService = accessor.get(ICommandService);
 
-	return extensionService.queryGallery({ names: [extensionId], pageSize: 1 }, CancellationToken.None).then(pager => {
-		if (pager.total !== 1) {
-			return;
-		}
+	const pager = await extensionService.queryGallery({ names: [extensionId], pageSize: 1 }, CancellationToken.None);
+	if (pager.total === 1) {
+		return extensionService.open(pager.firstPage[0], { tab });
+	}
 
-		extensionService.open(pager.firstPage[0]);
-	});
+	return commandService.executeCommand('_extensions.manage', extensionId, tab);
 });
 
 CommandsRegistry.registerCommand({
@@ -792,7 +793,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				quickPick.customLabel = localize('install button', "Install");
 				quickPick.placeholder = localize('installFromLocationPlaceHolder', "Location of the web extension");
 				quickPick.ignoreFocusOut = true;
-				disposables.add(quickPick.onDidAccept(() => {
+				disposables.add(Event.any(quickPick.onDidAccept, quickPick.onDidCustom)(() => {
 					quickPick.hide();
 					if (quickPick.value) {
 						extensionManagementService.installWebExtension(URI.parse(quickPick.value));
@@ -936,11 +937,12 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
-				when: ContextKeyOrExpr.create([CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER])
+				when: ContextKeyOrExpr.create([CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER]),
 			}, {
 				id: extensionsFilterSubMenu,
 				group: '3_installed',
 				order: 6,
+				when: ContextKeyOrExpr.create([CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER]),
 			}],
 			menuTitles: {
 				[extensionsFilterSubMenu.id]: localize('workspace unsupported filter', "Workspace Unsupported")

@@ -32,7 +32,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { focusBorder, textLinkForeground, textLinkActiveForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IExtensionsViewPaneContainer, IExtensionsWorkbenchService, VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IEditorInputSerializer } from 'vs/workbench/common/editor';
+import { IEditorSerializer } from 'vs/workbench/common/editor';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -152,12 +152,14 @@ function isWelcomePageEnabled(configurationService: IConfigurationService, conte
 			return welcomeEnabled.value;
 		}
 	}
-	if (startupEditor.value === 'readme' && startupEditor.userValue !== 'readme') {
-		console.error('Warning: `workbench.startupEditor: readme` setting ignored due to being set somewhere other than user settings');
+
+	if (startupEditor.value === 'readme' && startupEditor.userValue !== 'readme' && startupEditor.defaultValue !== 'readme') {
+		console.error(`Warning: 'workbench.startupEditor: readme' setting ignored due to being set somewhere other than user or default settings (user=${startupEditor.userValue}, default=${startupEditor.defaultValue})`);
 	}
 	return startupEditor.value === 'welcomePage'
 		|| startupEditor.value === 'legacy_welcomePage'
 		|| startupEditor.userValue === 'readme'
+		|| startupEditor.defaultValue === 'readme'
 		|| (contextService.getWorkbenchState() === WorkbenchState.EMPTY && (startupEditor.value === 'legacy_welcomePageInEmptyWorkbench' || startupEditor.value === 'welcomePageInEmptyWorkbench'));
 }
 
@@ -646,7 +648,7 @@ class WelcomePage extends Disposable {
 	}
 }
 
-export class WelcomeInputSerializer implements IEditorInputSerializer {
+export class WelcomeInputSerializer implements IEditorSerializer {
 
 	static readonly ID = welcomeInputTypeId;
 

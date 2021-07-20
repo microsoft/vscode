@@ -69,6 +69,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 	}
 
 	async pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void> {
+		options.availableFileSystems = this.getWorkspaceAvailableFileSystems(options);
 		const schema = this.getFileSystemSchema(options);
 
 		if (!options.defaultUri) {
@@ -128,10 +129,6 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		this.fileSystemProvider.registerDirectoryHandle(uuid, handle);
 
 		return [uri];
-	}
-
-	protected addFileSchemaIfNeeded(schema: string): string[] {
-		return schema === Schemas.untitled ? [Schemas.file] : [schema];
 	}
 
 	private shouldUseSimplified(scheme: string): boolean {

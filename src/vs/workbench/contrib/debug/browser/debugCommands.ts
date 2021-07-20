@@ -88,7 +88,15 @@ async function getThreadAndRun(accessor: ServicesAccessor, sessionAndThreadId: C
 		if (session) {
 			thread = session.getAllThreads().find(t => t.getId() === sessionAndThreadId.threadId);
 		}
-	} else {
+	} else if (isSessionContext(sessionAndThreadId)) {
+		const session = debugService.getModel().getSession(sessionAndThreadId.sessionId);
+		if (session) {
+			const threads = session.getAllThreads();
+			thread = threads.length > 0 ? threads[0] : undefined;
+		}
+	}
+
+	if (!thread) {
 		thread = debugService.getViewModel().focusedThread;
 		if (!thread) {
 			const focusedSession = debugService.getViewModel().focusedSession;

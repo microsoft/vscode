@@ -21,8 +21,8 @@ yarn smoketest
 yarn smoketest --web --browser [chromium|webkit]
 
 # Build (Electron)
-yarn smoketest --build <path to latest version> --stable-build <path to stable version>
-example: yarn smoketest --build /Applications/Visual\ Studio\ Code\ -\ Insiders.app --stable-build /Applications/Visual\ Studio\ Code.app/
+yarn smoketest --build <path to latest version>
+example: yarn smoketest --build /Applications/Visual\ Studio\ Code\ -\ Insiders.app
 
 # Build (Web - read instructions below)
 yarn smoketest --build <path to server web build (ends in -web)> --web --browser [chromium|webkit]
@@ -42,17 +42,6 @@ git fetch
 git checkout release/1.22
 yarn && yarn compile
 yarn --cwd test/smoke
-```
-
-#### Electron with --build and --stable-build
-
-In addition to the vscode repository, you will need the latest build and the previous stable build, so that the smoketest can test data migration.
-
-The recommended way to make these builds available for the smoketest is by downloading their archive versions (\*.zip) from the **[builds page](https://builds.code.visualstudio.com/)**, and extracting
-them into two folders (e.g. with 'Extract All' on Windows). Pass the **absolute paths** of those folders to the smoketest as follows:
-
-```bash
-yarn smoketest --build <path to latest version> --stable-build <path to stable version>
 ```
 
 #### Web

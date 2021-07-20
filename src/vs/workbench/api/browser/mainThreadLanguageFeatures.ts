@@ -11,7 +11,7 @@ import * as search from 'vs/workbench/contrib/search/common/search';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange, IRange } from 'vs/editor/common/core/range';
-import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ILanguageConfigurationDto, IRegExpDto, IIndentationRuleDto, IOnEnterRuleDto, ILocationDto, IWorkspaceSymbolDto, reviveWorkspaceEditDto, IDocumentFilterDto, IDefinitionLinkDto, ISignatureHelpProviderMetadataDto, ILinkDto, ICallHierarchyItemDto, ISuggestDataDto, ICodeActionDto, ISuggestDataDtoField, ISuggestResultDtoField, ICodeActionProviderMetadataDto, ILanguageWordDefinitionDto, IdentifiableInlineCompletions, IdentifiableInlineCompletion } from '../common/extHost.protocol';
+import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ILanguageConfigurationDto, IRegExpDto, IIndentationRuleDto, IOnEnterRuleDto, ILocationDto, IWorkspaceSymbolDto, reviveWorkspaceEditDto, IDocumentFilterDto, IDefinitionLinkDto, ISignatureHelpProviderMetadataDto, ILinkDto, ICallHierarchyItemDto, ISuggestDataDto, ICodeActionDto, ISuggestDataDtoField, ISuggestResultDtoField, ICodeActionProviderMetadataDto, ILanguageWordDefinitionDto, IdentifiableInlineCompletions, IdentifiableInlineCompletion, ITypeHierarchyItemDto } from '../common/extHost.protocol';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { LanguageConfiguration, IndentationRule, OnEnterRule } from 'vs/editor/common/modes/languageConfiguration';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -20,6 +20,7 @@ import { URI } from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
+import * as typeh from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { mixin } from 'vs/base/common/objects';
 import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
 
@@ -145,6 +146,13 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			data.uri = URI.revive(data.uri);
 		}
 		return data as callh.CallHierarchyItem;
+	}
+
+	private static _reviveTypeHierarchyItemDto(data: ITypeHierarchyItemDto | undefined): typeh.TypeHierarchyItem {
+		if (data) {
+			data.uri = URI.revive(data.uri);
+		}
+		return data as typeh.TypeHierarchyItem;
 	}
 
 	//#endregion
@@ -443,8 +451,10 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	private static _inflateSuggestDto(defaultRange: IRange | { insert: IRange, replace: IRange }, data: ISuggestDataDto): modes.CompletionItem {
 
+		const label = data[ISuggestDataDtoField.label];
+
 		return {
-			label: data[ISuggestDataDtoField.label2] ?? data[ISuggestDataDtoField.label],
+			label,
 			kind: data[ISuggestDataDtoField.kind] ?? modes.CompletionItemKind.Property,
 			tags: data[ISuggestDataDtoField.kindModifier],
 			detail: data[ISuggestDataDtoField.detail],
@@ -452,7 +462,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			sortText: data[ISuggestDataDtoField.sortText],
 			filterText: data[ISuggestDataDtoField.filterText],
 			preselect: data[ISuggestDataDtoField.preselect],
-			insertText: typeof data.h === 'undefined' ? data[ISuggestDataDtoField.label] : data.h,
+			insertText: data[ISuggestDataDtoField.insertText] ?? (typeof label === 'string' ? label : label.label),
 			range: data[ISuggestDataDtoField.range] ?? defaultRange,
 			insertTextRules: data[ISuggestDataDtoField.insertTextRules],
 			commitCharacters: data[ISuggestDataDtoField.commitCharacters],
@@ -769,6 +779,43 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		if (languageIdentifier) {
 			this._registrations.set(handle, LanguageConfigurationRegistry.register(languageIdentifier, configuration, 100));
 		}
+	}
+
+	// --- type hierarchy
+
+	$registerTypeHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void {
+		this._registrations.set(handle, typeh.TypeHierarchyProviderRegistry.register(selector, {
+
+			prepareTypeHierarchy: async (document, position, token) => {
+				const items = await this._proxy.$prepareTypeHierarchy(handle, document.uri, position, token);
+				if (!items) {
+					return undefined;
+				}
+				return {
+					dispose: () => {
+						for (const item of items) {
+							this._proxy.$releaseTypeHierarchy(handle, item._sessionId);
+						}
+					},
+					roots: items.map(MainThreadLanguageFeatures._reviveTypeHierarchyItemDto)
+				};
+			},
+
+			provideSupertypes: async (item, token) => {
+				const supertypes = await this._proxy.$provideTypeHierarchySupertypes(handle, item._sessionId, item._itemId, token);
+				if (!supertypes) {
+					return supertypes;
+				}
+				return supertypes.map(MainThreadLanguageFeatures._reviveTypeHierarchyItemDto);
+			},
+			provideSubtypes: async (item, token) => {
+				const subtypes = await this._proxy.$provideTypeHierarchySubtypes(handle, item._sessionId, item._itemId, token);
+				if (!subtypes) {
+					return subtypes;
+				}
+				return subtypes.map(MainThreadLanguageFeatures._reviveTypeHierarchyItemDto);
+			}
+		}));
 	}
 
 }

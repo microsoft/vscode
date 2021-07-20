@@ -181,7 +181,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this._localDisposableStore.add(this.view.onMouseDblClick(() => {
 			const focus = this.getFocusedElements()[0];
 
-			if (focus && focus.cellKind === CellKind.Markup && !focus.metadata.inputCollapsed) {
+			if (focus && focus.cellKind === CellKind.Markup && !focus.metadata.inputCollapsed && !this._viewModel?.options.isReadOnly) {
 				focus.updateEditState(CellEditState.Editing, 'dbclick');
 				focus.focusMode = CellFocusMode.Editor;
 			}
@@ -736,6 +736,15 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this._revealInView(startIndex);
 	}
 
+	scrollToBottom() {
+		const scrollHeight = this.view.scrollHeight;
+		const scrollTop = this.getViewScrollTop();
+		const wrapperBottom = this.getViewScrollBottom();
+		const topInsertToolbarHeight = this._viewContext.notebookOptions.computeTopInserToolbarHeight(this.viewModel?.viewType);
+
+		this.view.setScrollTop(scrollHeight - (wrapperBottom - scrollTop) - topInsertToolbarHeight);
+	}
+
 	revealElementInView(cell: ICellViewModel) {
 		const index = this._getViewIndexUpperBound(cell);
 
@@ -1177,10 +1186,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		if (styles.listActiveSelectionForeground) {
 			content.push(`.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected { color: ${styles.listActiveSelectionForeground}; }`);
-		}
-
-		if (styles.listActiveSelectionIconForeground) {
-			content.push(`.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected .codicon { color: ${styles.listActiveSelectionIconForeground} !important };`);
 		}
 
 		if (styles.listFocusAndSelectionBackground) {

@@ -10,7 +10,7 @@ import { afterSuite, beforeSuite } from '../../utils';
 export function setup(opts: minimist.ParsedArgs) {
 	describe('Preferences', () => {
 		beforeSuite(opts);
-		afterSuite();
+		afterSuite(opts);
 
 		it('turns off editor line numbers and verifies the live change', async function () {
 			const app = this.app as Application;

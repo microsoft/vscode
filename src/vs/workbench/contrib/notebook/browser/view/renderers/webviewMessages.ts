@@ -129,6 +129,12 @@ export interface IInitializedMarkupMessage extends BaseToWebviewMessage {
 	readonly type: 'initializedMarkup';
 }
 
+export interface IRenderedMarkupMessage extends BaseToWebviewMessage {
+	readonly type: 'renderedMarkup';
+	readonly cellId: string;
+	readonly html: string;
+}
+
 export interface ITelemetryFoundRenderedMarkdownMath extends BaseToWebviewMessage {
 	readonly type: 'telemetryFoundRenderedMarkdownMath';
 }
@@ -342,6 +348,7 @@ export type FromWebviewMessage = WebviewIntialized |
 	ICellDropMessage |
 	ICellDragEndMessage |
 	IInitializedMarkupMessage |
+	IRenderedMarkupMessage |
 	ITelemetryFoundRenderedMarkdownMath |
 	ITelemetryFoundUnrenderedMarkdownMath;
 

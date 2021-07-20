@@ -12,12 +12,12 @@ import { INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { ILogService } from 'vs/platform/log/common/log';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { EditorActivation, EditorOverride } from 'vs/platform/editor/common/editor';
+import { EditorActivation, EditorResolution } from 'vs/platform/editor/common/editor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { editorGroupToViewColumn } from 'vs/workbench/common/editor';
+import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { equals } from 'vs/base/common/objects';
 import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 
@@ -96,7 +96,7 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 		for (let editorPane of this._editorService.visibleEditorPanes) {
 			const candidate = getNotebookEditorFromEditorPane(editorPane);
 			if (candidate && this._mainThreadEditors.has(candidate.getId())) {
-				result[candidate.getId()] = editorGroupToViewColumn(this._editorGroupService, editorPane.group);
+				result[candidate.getId()] = editorGroupToColumn(this._editorGroupService, editorPane.group);
 			}
 		}
 		if (!equals(result, this._currentViewColumnInfo)) {
@@ -131,7 +131,7 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 			// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
 			// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
 			activation: options.preserveFocus ? EditorActivation.RESTORE : undefined,
-			override: EditorOverride.DISABLED
+			override: EditorResolution.DISABLED
 		};
 
 		const input = NotebookEditorInput.create(this._instantiationService, URI.revive(resource), viewType);
@@ -190,9 +190,14 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 
 	$trySetSelections(id: string, ranges: ICellRange[]): void {
 		const editor = this._notebookEditorService.getNotebookEditor(id);
-		if (editor) {
-			// @rebornix how to set an editor selection?
-			// editor.setSelections(ranges)
+		if (!editor) {
+			return;
+		}
+
+		editor.setSelections(ranges);
+
+		if (ranges.length) {
+			editor.setFocus({ start: ranges[0].start, end: ranges[0].start + 1 });
 		}
 	}
 }

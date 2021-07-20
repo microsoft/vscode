@@ -74,7 +74,7 @@ export class CompletionItem {
 	) {
 		this.textLabel = typeof completion.label === 'string'
 			? completion.label
-			: completion.label.name;
+			: completion.label.label;
 
 		// ensure lower-variants (perf)
 		this.labelLow = this.textLabel.toLowerCase();
@@ -227,7 +227,7 @@ export async function provideSuggestionItems(
 				}
 				// fill in default sortText when missing
 				if (!suggestion.sortText) {
-					suggestion.sortText = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.name;
+					suggestion.sortText = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.label;
 				}
 				if (!needsClipboard && suggestion.insertTextRules && suggestion.insertTextRules & modes.CompletionItemInsertTextRule.InsertAsSnippet) {
 					needsClipboard = SnippetParser.guessNeedsClipboard(suggestion.insertText);

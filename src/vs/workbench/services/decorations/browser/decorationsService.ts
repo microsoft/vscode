@@ -88,14 +88,22 @@ class DecorationRule {
 		const { color } = data[0];
 		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(theme, color)};`, element);
 
-		// icon (only show first)
-		const icon = data.find(d => ThemeIcon.isThemeIcon(d.letter))?.letter as ThemeIcon | undefined;
+		// badge or icon
+		let letters: string[] = [];
+		let icon: ThemeIcon | undefined;
+
+		for (let d of data) {
+			if (ThemeIcon.isThemeIcon(d.letter)) {
+				icon = d.letter;
+				break;
+			} else if (d.letter) {
+				letters.push(d.letter);
+			}
+		}
+
 		if (icon) {
-			// todo@jrieken this is fishy. icons should be just like letter and not mute bubble badge
 			this._createIconCSSRule(icon, color, element, theme);
 		} else {
-			// badge
-			const letters = data.filter(d => !isFalsyOrWhitespace(d.letter as string | undefined)).map(d => d.letter);
 			if (letters.length) {
 				createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letters.join(', ')}"; color: ${getColor(theme, color)};`, element);
 			}
@@ -104,7 +112,7 @@ class DecorationRule {
 			// TODO @misolori update bubble badge to adopt letter: ThemeIcon instead of unicode
 			createCSSRule(
 				`.${this.bubbleBadgeClassName}::after`,
-				`content: "\uea71"; color: ${getColor(theme, color)}; font-family: codicon; font-size: 14px; padding-right: 14px; opacity: 0.4;`,
+				`content: "\uea71"; color: ${getColor(theme, color)}; font-family: codicon; font-size: 14px; margin-right: 14px; opacity: 0.4;`,
 				element
 			);
 		}
@@ -127,7 +135,7 @@ class DecorationRule {
 			color: ${getColor(theme, color)};
 			font-family: codicon;
 			font-size: 16px;
-			padding-right: 14px;
+			margin-right: 14px;
 			font-weight: normal;
 			${modifier === 'spin' ? 'animation: codicon-spin 1.5s steps(30) infinite' : ''};
 			`,

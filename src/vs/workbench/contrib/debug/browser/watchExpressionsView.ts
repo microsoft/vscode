@@ -94,7 +94,7 @@ export class WatchExpressionsView extends ViewPane {
 						return undefined;
 					}
 
-					return e;
+					return e.name;
 				}
 			},
 			dnd: new WatchExpressionsDragAndDrop(this.debugService),

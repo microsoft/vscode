@@ -5,27 +5,34 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceEditorInput, IEditorOptions, IResourceEditorInputIdentifier, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditorPane, GroupIdentifier, IEditorInputWithOptions, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, ITextEditorPane, ITextDiffEditorPane, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorPane, GroupIdentifier, IEditorInputWithOptions, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, ITextEditorPane, ITextDiffEditorPane, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
 import { IEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorGroup, IEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorReplacement, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { URI } from 'vs/base/common/uri';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
 
-export type IResourceEditorInputType = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput;
-
-export interface IResourceEditorReplacement {
-	readonly editor: IResourceEditorInputType;
-	readonly replacement: IResourceEditorInputType;
-}
-
+/**
+ * Open an editor in the currently active group.
+ */
 export const ACTIVE_GROUP = -1;
 export type ACTIVE_GROUP_TYPE = typeof ACTIVE_GROUP;
 
+/**
+ * Open an editor to the side of the active group.
+ */
 export const SIDE_GROUP = -2;
 export type SIDE_GROUP_TYPE = typeof SIDE_GROUP;
+
+export type PreferredGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
+
+export function isPreferredGroup(obj: unknown): obj is PreferredGroup {
+	const candidate = obj as PreferredGroup | undefined;
+
+	return typeof obj === 'number' || isEditorGroup(candidate);
+}
 
 export interface ISaveEditorsOptions extends ISaveOptions {
 
@@ -33,6 +40,17 @@ export interface ISaveEditorsOptions extends ISaveOptions {
 	 * If true, will ask for a location of the editor to save to.
 	 */
 	readonly saveAs?: boolean;
+}
+
+export interface IUntypedEditorReplacement {
+	readonly editor: IEditorInput;
+	readonly replacement: IUntypedEditorInput;
+
+	/**
+	 * Skips asking the user for confirmation and doesn't
+	 * save the document. Only use this if you really need to!
+	*/
+	forceReplaceDirty?: boolean;
 }
 
 export interface IBaseSaveRevertAllEditorOptions {
@@ -171,6 +189,7 @@ export interface IEditorService {
 	openEditor(editor: IResourceEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
 	openEditor(editor: ITextResourceEditorInput | IUntitledTextResourceEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextEditorPane | undefined>;
 	openEditor(editor: IResourceDiffEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextDiffEditorPane | undefined>;
+	openEditor(editor: IUntypedEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
 
 	/**
 	 * Open editors in an editor group.
@@ -184,19 +203,19 @@ export interface IEditorService {
 	 * that failed to open or were instructed to open as inactive.
 	 */
 	openEditors(editors: IEditorInputWithOptions[], group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE, options?: IOpenEditorsOptions): Promise<readonly IEditorPane[]>;
-	openEditors(editors: IResourceEditorInputType[], group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE, options?: IOpenEditorsOptions): Promise<readonly IEditorPane[]>;
+	openEditors(editors: IUntypedEditorInput[], group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE, options?: IOpenEditorsOptions): Promise<readonly IEditorPane[]>;
 
 	/**
 	 * Replaces editors in an editor group with the provided replacement.
 	 *
-	 * @param editors the editors to replace
+	 * @param replacements the editors to replace
 	 * @param group the editor group
 	 *
 	 * @returns a promise that is resolved when the replaced active
 	 * editor (if any) has finished loading.
 	 */
-	replaceEditors(editors: IResourceEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
-	replaceEditors(editors: IEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
+	replaceEditors(replacements: IUntypedEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
+	replaceEditors(replacements: IEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
 
 	/**
 	 * Find out if the provided editor is opened in any editor group.
@@ -209,6 +228,11 @@ export interface IEditorService {
 	isOpened(editor: IResourceEditorInputIdentifier): boolean;
 
 	/**
+	 * Find out if the provided editor is visible in any editor group.
+	 */
+	isVisible(editor: IEditorInput): boolean;
+
+	/**
 	 * This method will return an entry for each editor that reports
 	 * a `resource` that matches the provided one in the group or
 	 * across all groups.
@@ -218,14 +242,14 @@ export interface IEditorService {
 	 * editor, use the `IResourceEditorInputIdentifier` as input.
 	 */
 	findEditors(resource: URI): readonly IEditorIdentifier[];
-	findEditors(resource: IResourceEditorInputIdentifier): readonly IEditorIdentifier[];
+	findEditors(editor: IResourceEditorInputIdentifier): readonly IEditorIdentifier[];
 	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): readonly IEditorInput[];
-	findEditors(resource: IResourceEditorInputIdentifier, group: IEditorGroup | GroupIdentifier): IEditorInput | undefined;
+	findEditors(editor: IResourceEditorInputIdentifier, group: IEditorGroup | GroupIdentifier): IEditorInput | undefined;
 
 	/**
 	 * Converts a lightweight input to a workbench editor input.
 	 */
-	createEditorInput(input: IResourceEditorInputType): EditorInput;
+	createEditorInput(input: IUntypedEditorInput): EditorInput;
 
 	/**
 	 * Save the provided list of editors.

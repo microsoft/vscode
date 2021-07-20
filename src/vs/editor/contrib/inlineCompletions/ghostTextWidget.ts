@@ -21,21 +21,25 @@ import { ghostTextBorder, ghostTextForeground } from 'vs/editor/common/view/edit
 import { RGBA, Color } from 'vs/base/common/color';
 import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
-import { GhostTextWidgetModel, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/ghostText';
+import { GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/ghostText';
+import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
+import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
 
 export class GhostTextWidget extends Disposable {
 	private disposed = false;
-	private readonly partsWidget = this._register(new PartsWidget(this.editor, this.codeEditorService, this.themeService));
+	private readonly partsWidget = this._register(this.instantiationService.createInstance(DecorationsWidget, this.editor));
 	private readonly additionalLinesWidget = this._register(new AdditionalLinesWidget(this.editor));
 	private viewMoreContentWidget: ViewMoreLinesContentWidget | undefined = undefined;
 
 	constructor(
 		private readonly editor: ICodeEditor,
 		private readonly model: GhostTextWidgetModel,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@IThemeService private readonly themeService: IThemeService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -72,21 +76,74 @@ export class GhostTextWidget extends Disposable {
 	}
 
 	private update(): void {
-		if (!this.editor.hasModel() || !this.model.ghostText || this.disposed) {
+		const ghostText = this.model.ghostText;
+
+		if (!this.editor.hasModel() || !ghostText || this.disposed) {
 			this.partsWidget.clear();
 			this.additionalLinesWidget.clear();
 			return;
 		}
 
-		const ghostText = this.model.ghostText;
-		this.partsWidget.setParts(ghostText.lineNumber, ghostText.parts);
-		this.additionalLinesWidget.updateLines(ghostText.lineNumber, ghostText.additionalLines, ghostText.additionalReservedLineCount);
+		const inlineTexts = new Array<InsertedInlineText>();
+		const additionalLines = new Array<LineData>();
 
-		if (ghostText.additionalLines.length < 0) {
-			// not supported at the moment
+		function addToAdditionalLines(lines: readonly string[], className: string | undefined) {
+			if (additionalLines.length > 0) {
+				const lastLine = additionalLines[additionalLines.length - 1];
+				if (className) {
+					lastLine.decorations.push(new LineDecoration(lastLine.content.length + 1, lastLine.content.length + 1 + lines[0].length, className, InlineDecorationType.Regular));
+				}
+				lastLine.content += lines[0];
+
+				lines = lines.slice(1);
+			}
+			for (const line of lines) {
+				additionalLines.push({
+					content: line,
+					decorations: className ? [new LineDecoration(1, line.length + 1, className, InlineDecorationType.Regular)] : []
+				});
+			}
+		}
+
+		const textBufferLine = this.editor.getModel().getLineContent(ghostText.lineNumber);
+		this.editor.getModel().getLineTokens(ghostText.lineNumber);
+
+		let hiddenTextStartColumn: number | undefined = undefined;
+		let lastIdx = 0;
+		for (const part of ghostText.parts) {
+			let lines = part.lines;
+			if (hiddenTextStartColumn === undefined) {
+				inlineTexts.push({
+					column: part.column,
+					text: lines[0],
+				});
+				lines = lines.slice(1);
+			} else {
+				addToAdditionalLines([textBufferLine.substring(lastIdx, part.column - 1)], undefined);
+			}
+
+			if (lines.length > 0) {
+				addToAdditionalLines(lines, 'ghost-text');
+				if (hiddenTextStartColumn === undefined && part.column <= textBufferLine.length) {
+					hiddenTextStartColumn = part.column;
+				}
+			}
+
+			lastIdx = part.column - 1;
+		}
+		if (hiddenTextStartColumn !== undefined) {
+			addToAdditionalLines([textBufferLine.substring(lastIdx)], undefined);
+		}
+
+		this.partsWidget.setParts(ghostText.lineNumber, inlineTexts,
+			hiddenTextStartColumn !== undefined ? { column: hiddenTextStartColumn, length: textBufferLine.length + 1 - hiddenTextStartColumn } : undefined);
+		this.additionalLinesWidget.updateLines(ghostText.lineNumber, additionalLines, ghostText.additionalReservedLineCount);
+
+		if (ghostText.parts.some(p => p.lines.length < 0)) {
+			// Not supported at the moment, condition is always false.
 			this.viewMoreContentWidget = this.renderViewMoreLines(
 				new Position(ghostText.lineNumber, this.editor.getModel()!.getLineMaxColumn(ghostText.lineNumber)),
-				'', ghostText.additionalLines.length
+				'', 0
 			);
 		} else {
 			this.viewMoreContentWidget?.dispose();
@@ -127,14 +184,25 @@ export class GhostTextWidget extends Disposable {
 	}
 }
 
-class PartsWidget implements IDisposable {
+interface HiddenText {
+	column: number;
+	length: number;
+}
+
+interface InsertedInlineText {
+	column: number;
+	text: string;
+}
+
+class DecorationsWidget implements IDisposable {
 	private decorationIds: string[] = [];
 	private disposableStore: DisposableStore = new DisposableStore();
 
 	constructor(
 		private readonly editor: ICodeEditor,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@IThemeService private readonly themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 	}
 
@@ -148,7 +216,7 @@ class PartsWidget implements IDisposable {
 		this.disposableStore.clear();
 	}
 
-	public setParts(lineNumber: number, parts: GhostTextPart[]): void {
+	public setParts(lineNumber: number, parts: InsertedInlineText[], hiddenText?: HiddenText): void {
 		this.disposableStore.clear();
 
 		const colorTheme = this.themeService.getColorTheme();
@@ -177,15 +245,28 @@ class PartsWidget implements IDisposable {
 		let lastIndex = 0;
 		let currentLinePrefix = '';
 
-		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, parts.map(p => {
+		const hiddenTextDecorations = new Array<IModelDeltaDecoration>();
+		if (hiddenText) {
+			hiddenTextDecorations.push({
+				range: Range.fromPositions(new Position(lineNumber, hiddenText.column), new Position(lineNumber, hiddenText.column + hiddenText.length)),
+				options: {
+					inlineClassName: 'ghost-text-hidden',
+					description: 'ghost-text-hidden'
+				}
+			});
+		}
 
+		const key = this.contextKeyService.getContextKeyValue('config.editor.useInjectedText');
+		const shouldUseInjectedText = key === undefined ? true : !!key;
+
+		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, parts.map<IModelDeltaDecoration>(p => {
 			currentLinePrefix += line.substring(lastIndex, p.column - 1);
 			lastIndex = p.column - 1;
 
 			// To avoid visual confusion, we don't want to render visible whitespace
-			const contentText = this.renderSingleLineText(p.text, currentLinePrefix, tabSize, false);
+			const contentText = shouldUseInjectedText ? p.text : this.renderSingleLineText(p.text, currentLinePrefix, tabSize, false);
 
-			const decorationType = registerDecorationType(this.codeEditorService, 'ghost-text', '0-ghost-text-', {
+			const decorationType = this.disposableStore.add(registerDecorationType(this.codeEditorService, 'ghost-text', '0-ghost-text-', {
 				after: {
 					// TODO: escape?
 					contentText,
@@ -193,21 +274,23 @@ class PartsWidget implements IDisposable {
 					color,
 					border,
 				},
-			});
-			this.disposableStore.add(decorationType);
+			}));
+
 			return ({
 				range: Range.fromPositions(new Position(lineNumber, p.column)),
-				options: {
+				options: shouldUseInjectedText ? {
+					description: 'ghost-text',
+					after: { content: contentText, inlineClassName: 'ghost-text-decoration' }
+				} : {
 					...decorationType.resolve()
 				}
 			});
-		}));
+		}).concat(hiddenTextDecorations));
 	}
 
 	private renderSingleLineText(text: string, lineStart: string, tabSize: number, renderWhitespace: boolean): string {
 		const newLine = lineStart + text;
 		const visibleColumnsByColumns = CursorColumns.visibleColumnsByColumns(newLine, tabSize);
-
 
 		let contentText = '';
 		let curCol = lineStart.length + 1;
@@ -264,7 +347,7 @@ class AdditionalLinesWidget implements IDisposable {
 		});
 	}
 
-	public updateLines(lineNumber: number, additionalLines: string[], minReservedLineCount: number): void {
+	public updateLines(lineNumber: number, additionalLines: LineData[], minReservedLineCount: number): void {
 		const textModel = this.editor.getModel();
 		if (!textModel) {
 			return;
@@ -281,7 +364,7 @@ class AdditionalLinesWidget implements IDisposable {
 			const heightInLines = Math.max(additionalLines.length, minReservedLineCount);
 			if (heightInLines > 0) {
 				const domNode = document.createElement('div');
-				this.renderLines(domNode, tabSize, additionalLines, this.editor.getOptions());
+				renderLines(domNode, tabSize, additionalLines, this.editor.getOptions());
 
 				this._viewZoneId = changeAccessor.addZone({
 					afterLineNumber: lineNumber,
@@ -291,62 +374,68 @@ class AdditionalLinesWidget implements IDisposable {
 			}
 		});
 	}
+}
 
-	private renderLines(domNode: HTMLElement, tabSize: number, lines: string[], opts: IComputedEditorOptions): void {
-		const disableMonospaceOptimizations = opts.get(EditorOption.disableMonospaceOptimizations);
-		const stopRenderingLineAfter = opts.get(EditorOption.stopRenderingLineAfter);
-		// To avoid visual confusion, we don't want to render visible whitespace
-		const renderWhitespace = 'none';
-		const renderControlCharacters = opts.get(EditorOption.renderControlCharacters);
-		const fontLigatures = opts.get(EditorOption.fontLigatures);
-		const fontInfo = opts.get(EditorOption.fontInfo);
-		const lineHeight = opts.get(EditorOption.lineHeight);
+interface LineData {
+	content: string;
+	decorations: LineDecoration[];
+}
 
-		const sb = createStringBuilder(10000);
-		sb.appendASCIIString('<div class="suggest-preview-text">');
+function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], opts: IComputedEditorOptions): void {
+	const disableMonospaceOptimizations = opts.get(EditorOption.disableMonospaceOptimizations);
+	const stopRenderingLineAfter = opts.get(EditorOption.stopRenderingLineAfter);
+	// To avoid visual confusion, we don't want to render visible whitespace
+	const renderWhitespace = 'none';
+	const renderControlCharacters = opts.get(EditorOption.renderControlCharacters);
+	const fontLigatures = opts.get(EditorOption.fontLigatures);
+	const fontInfo = opts.get(EditorOption.fontInfo);
+	const lineHeight = opts.get(EditorOption.lineHeight);
 
-		for (let i = 0, len = lines.length; i < len; i++) {
-			const line = lines[i];
-			sb.appendASCIIString('<div class="view-line');
-			sb.appendASCIIString('" style="top:');
-			sb.appendASCIIString(String(i * lineHeight));
-			sb.appendASCIIString('px;width:1000000px;">');
+	const sb = createStringBuilder(10000);
+	sb.appendASCIIString('<div class="suggest-preview-text">');
 
-			const isBasicASCII = strings.isBasicASCII(line);
-			const containsRTL = strings.containsRTL(line);
-			const lineTokens = LineTokens.createEmpty(line);
+	for (let i = 0, len = lines.length; i < len; i++) {
+		const lineData = lines[i];
+		const line = lineData.content;
+		sb.appendASCIIString('<div class="view-line');
+		sb.appendASCIIString('" style="top:');
+		sb.appendASCIIString(String(i * lineHeight));
+		sb.appendASCIIString('px;width:1000000px;">');
 
-			renderViewLine(new RenderLineInput(
-				(fontInfo.isMonospace && !disableMonospaceOptimizations),
-				fontInfo.canUseHalfwidthRightwardsArrow,
-				line,
-				false,
-				isBasicASCII,
-				containsRTL,
-				0,
-				lineTokens,
-				[],
-				tabSize,
-				0,
-				fontInfo.spaceWidth,
-				fontInfo.middotWidth,
-				fontInfo.wsmiddotWidth,
-				stopRenderingLineAfter,
-				renderWhitespace,
-				renderControlCharacters,
-				fontLigatures !== EditorFontLigatures.OFF,
-				null
-			), sb);
+		const isBasicASCII = strings.isBasicASCII(line);
+		const containsRTL = strings.containsRTL(line);
+		const lineTokens = LineTokens.createEmpty(line);
 
-			sb.appendASCIIString('</div>');
-		}
+		renderViewLine(new RenderLineInput(
+			(fontInfo.isMonospace && !disableMonospaceOptimizations),
+			fontInfo.canUseHalfwidthRightwardsArrow,
+			line,
+			false,
+			isBasicASCII,
+			containsRTL,
+			0,
+			lineTokens,
+			lineData.decorations,
+			tabSize,
+			0,
+			fontInfo.spaceWidth,
+			fontInfo.middotWidth,
+			fontInfo.wsmiddotWidth,
+			stopRenderingLineAfter,
+			renderWhitespace,
+			renderControlCharacters,
+			fontLigatures !== EditorFontLigatures.OFF,
+			null
+		), sb);
+
 		sb.appendASCIIString('</div>');
-
-		Configuration.applyFontInfoSlow(domNode, fontInfo);
-		const html = sb.build();
-		const trustedhtml = ttPolicy ? ttPolicy.createHTML(html) : html;
-		domNode.innerHTML = trustedhtml as string;
 	}
+	sb.appendASCIIString('</div>');
+
+	Configuration.applyFontInfoSlow(domNode, fontInfo);
+	const html = sb.build();
+	const trustedhtml = ttPolicy ? ttPolicy.createHTML(html) : html;
+	domNode.innerHTML = trustedhtml as string;
 }
 
 let keyCounter = 0;
@@ -405,12 +494,12 @@ registerThemingParticipant((theme, collector) => {
 		const opacity = String(foreground.rgba.a);
 		const color = Color.Format.CSS.format(opaque(foreground))!;
 
-		// We need to override the only used token type .mtk1
-		collector.addRule(`.monaco-editor .suggest-preview-text .mtk1 { opacity: ${opacity}; color: ${color}; }`);
+		collector.addRule(`.monaco-editor .ghost-text-decoration { opacity: ${opacity}; color: ${color}; }`);
+		collector.addRule(`.monaco-editor .suggest-preview-text .ghost-text { opacity: ${opacity}; color: ${color}; }`);
 	}
 
 	const border = theme.getColor(ghostTextBorder);
 	if (border) {
-		collector.addRule(`.monaco-editor .suggest-preview-text .mtk1 { border: 2px dashed ${border}; }`);
+		collector.addRule(`.monaco-editor .suggest-preview-text .ghost-text { border: 2px dashed ${border}; }`);
 	}
 });

@@ -688,10 +688,10 @@ const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.Workbenc
 // Find in Files by default is the same as View: Show Search, but can be configured to open a search editor instead with the `search.mode` binding
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	description: {
-		description: nls.localize('findInFiles.description', "Open the search viewlet"),
+		description: nls.localize('findInFiles.description', "Open a workspace search"),
 		args: [
 			{
-				name: nls.localize('findInFiles.args', "A set of options for the search viewlet"),
+				name: nls.localize('findInFiles.args', "A set of options for the search"),
 				schema: {
 					type: 'object',
 					properties: {
@@ -705,6 +705,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 						isCaseSensitive: { 'type': 'boolean' },
 						matchWholeWord: { 'type': 'boolean' },
 						useExcludeSettingsAndIgnoreFiles: { 'type': 'boolean' },
+						onlyOpenEditors: { 'type': 'boolean' },
 					}
 				}
 			},
@@ -922,6 +923,11 @@ configurationRegistry.registerConfiguration({
 			default: 'sidebar',
 			description: nls.localize('search.location', "Controls whether the search will be shown as a view in the sidebar or as a panel in the panel area for more horizontal space."),
 			deprecationMessage: nls.localize('search.location.deprecationMessage', "This setting is deprecated. You can drag the search icon to a new location instead.")
+		},
+		'search.maxResults': {
+			type: ['number', 'null'],
+			default: 20000,
+			markdownDescription: nls.localize('search.maxResults', "Controls the maximum number of search results, this can be set to `null` (empty) to return unlimited results.")
 		},
 		'search.collapseResults': {
 			type: 'string',

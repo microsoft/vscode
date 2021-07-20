@@ -7,6 +7,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const retry_1 = require("./retry");
 const { installBrowsersWithProgressBar } = require('playwright/lib/install/installer');
 async function install() {
-    await retry_1.retry(() => installBrowsersWithProgressBar());
+    await (0, retry_1.retry)(() => installBrowsersWithProgressBar());
 }
 install();

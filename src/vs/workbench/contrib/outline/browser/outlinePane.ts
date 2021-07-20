@@ -37,9 +37,6 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { ITreeSorter } from 'vs/base/browser/ui/tree/tree';
 import { URI } from 'vs/base/common/uri';
-import { EditorOverride } from 'vs/platform/editor/common/editor';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 
 const _ctxFollowsCursor = new RawContextKey('outlineFollowsCursor', false);
 const _ctxFilterOnType = new RawContextKey('outlineFiltersOnType', false);
@@ -287,13 +284,7 @@ export class OutlinePane extends ViewPane {
 
 		// feature: reveal outline selection in editor
 		// on change -> reveal/select defining range
-		this._editorDisposables.add(tree.onDidOpen(e => {
-			let override: EditorOverride | string = EditorOverride.DISABLED;
-			if (this._editorService.activeEditor instanceof NotebookEditorInput || this._editorService.activeEditor instanceof CustomEditorInput) {
-				override = this._editorService.activeEditor.viewType;
-			}
-			newOutline.reveal(e.element, { ...e.editorOptions, override }, e.sideBySide);
-		}));
+		this._editorDisposables.add(tree.onDidOpen(e => newOutline.reveal(e.element, e.editorOptions, e.sideBySide)));
 		// feature: reveal editor selection in outline
 		const revealActiveElement = () => {
 			if (!this._outlineViewState.followCursor || !newOutline.activeElement) {

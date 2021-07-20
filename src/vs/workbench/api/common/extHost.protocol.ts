@@ -39,15 +39,17 @@ import { IRemoteConnectionData, RemoteAuthorityResolverErrorCode, ResolverResult
 import { ProvidedPortAttributes, TunnelCreationOptions, TunnelOptions, TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensions, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensions, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { ThemeColor, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IExtensionIdWithVersion } from 'vs/platform/userDataSync/common/extensionsStorageSync';
 import { WorkspaceTrustRequestOptions } from 'vs/platform/workspace/common/workspaceTrust';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
+import { ExtHostInteractive } from 'vs/workbench/api/common/extHostInteractive';
 import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { DebugConfigurationProviderTriggerKind, TestResultState } from 'vs/workbench/api/common/extHostTypes';
+import { TreeDataTransferDTO } from 'vs/workbench/api/common/shared/treeDataTransfer';
 import * as tasks from 'vs/workbench/api/common/shared/tasks';
-import { EditorGroupColumn, SaveReason } from 'vs/workbench/common/editor';
+import { SaveReason } from 'vs/workbench/common/editor';
 import { IRevealOptions, ITreeItem } from 'vs/workbench/common/views';
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { IAdapterDescriptor, IConfig, IDebugSessionReplMode } from 'vs/workbench/contrib/debug/common/debug';
@@ -56,8 +58,10 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { ExtensionRunTestsRequest, InternalTestItem, ISerializedTestResults, ITestItem, ITestMessage, ITestRunTask, RunTestForProviderRequest, RunTestsRequest, TestIdWithSrc, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ExtensionRunTestsRequest, ISerializedTestResults, ITestItem, ITestMessage, ITestRunTask, RunTestForControllerRequest, ResolvedTestRunRequest, ITestIdWithSrc, TestsDiff, IFileCoverage, CoverageDetails, ITestRunProfile } from 'vs/workbench/contrib/testing/common/testCollection';
 import { InternalTimelineOptions, Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
+import { TypeHierarchyItem } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
+import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ActivationKind, ExtensionHostKind, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
 import { createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId, IRPCProtocol } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
@@ -75,6 +79,7 @@ export interface IEnvironment {
 	globalStorageHome: URI;
 	workspaceStorageHome: URI;
 	useHostProxy?: boolean;
+	skipWorkspaceStorageLock?: boolean;
 }
 
 export interface IStaticWorkspaceData {
@@ -411,6 +416,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$emitFoldingRangeEvent(eventHandle: number, event?: any): void;
 	$registerSelectionRangeProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerCallHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void;
+	$registerTypeHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: ILanguageConfigurationDto): void;
 }
 
@@ -432,7 +438,7 @@ export interface MainThreadMessageServiceShape extends IDisposable {
 }
 
 export interface MainThreadOutputServiceShape extends IDisposable {
-	$register(label: string, log: boolean, file?: UriComponents): Promise<string>;
+	$register(label: string, log: boolean, file?: UriComponents, extensionId?: string): Promise<string>;
 	$append(channelId: string, value: string): Promise<void> | undefined;
 	$update(channelId: string): Promise<void> | undefined;
 	$clear(channelId: string, till: number): Promise<void> | undefined;
@@ -465,6 +471,7 @@ export interface TerminalLaunchConfig {
 	cwd?: string | UriComponents;
 	env?: ITerminalEnvironment;
 	icon?: URI | { light: URI; dark: URI } | ThemeIcon;
+	color?: string;
 	initialText?: string;
 	waitOnExit?: boolean;
 	strictEnv?: boolean;
@@ -474,6 +481,7 @@ export interface TerminalLaunchConfig {
 	isExtensionOwnedTerminal?: boolean;
 	useShellEnvironment?: boolean;
 	isSplitTerminal?: boolean;
+	target?: TerminalLocation;
 }
 
 export interface MainThreadTerminalServiceShape extends IDisposable {
@@ -928,6 +936,9 @@ export interface MainThreadNotebookRenderersShape extends IDisposable {
 	$postMessage(editorId: string, rendererId: string, message: unknown): void;
 }
 
+export interface MainThreadInteractiveShape extends IDisposable {
+}
+
 export interface MainThreadUrlsShape extends IDisposable {
 	$registerUriHandler(handle: number, extensionId: ExtensionIdentifier): Promise<void>;
 	$unregisterUriHandler(handle: number): Promise<void>;
@@ -1033,7 +1044,7 @@ export interface SCMGroupFeatures {
 export type SCMRawResource = [
 	number /*handle*/,
 	UriComponents /*resourceUri*/,
-	UriComponents[] /*icons: light, dark*/,
+	[UriComponents | ThemeIcon | undefined, UriComponents | ThemeIcon | undefined] /*icons: light, dark*/,
 	string /*tooltip*/,
 	boolean /*strike through*/,
 	boolean /*faded*/,
@@ -1086,6 +1097,9 @@ export interface IStartDebuggingOptions {
 	repl?: IDebugSessionReplMode;
 	noDebug?: boolean;
 	compact?: boolean;
+	debugUI?: {
+		simple?: boolean;
+	};
 }
 
 export interface MainThreadDebugServiceShape extends IDisposable {
@@ -1230,7 +1244,7 @@ export interface ExtHostDocumentsAndEditorsShape {
 
 export interface ExtHostTreeViewsShape {
 	$getChildren(treeViewId: string, treeItemHandle?: string): Promise<ITreeItem[]>;
-	$onDrop(treeViewId: string, treeItemHandle: string[], newParentTreeItemHandle: string): Promise<void>;
+	$onDrop(treeViewId: string, treeDataTransfer: TreeDataTransferDTO, newParentTreeItemHandle: string): Promise<void>;
 	$setExpanded(treeViewId: string, treeItemHandle: string, expanded: boolean): void;
 	$setSelection(treeViewId: string, treeItemHandles: string[]): void;
 	$setVisible(treeViewId: string, visible: boolean): void;
@@ -1275,7 +1289,6 @@ export interface ExtHostAuthenticationShape {
 	$createSession(id: string, scopes: string[]): Promise<modes.AuthenticationSession>;
 	$removeSession(id: string, sessionId: string): Promise<void>;
 	$onDidChangeAuthenticationSessions(id: string, label: string): Promise<void>;
-	$onDidChangeAuthenticationProviders(added: modes.AuthenticationProviderInformation[], removed: modes.AuthenticationProviderInformation[]): Promise<void>;
 	$setProviders(providers: modes.AuthenticationProviderInformation[]): Promise<void>;
 }
 
@@ -1392,14 +1405,10 @@ export const enum ISuggestDataDtoField {
 	additionalTextEdits = 'l',
 	command = 'm',
 	kindModifier = 'n',
-
-	// to merge into label
-	label2 = 'o',
 }
 
 export interface ISuggestDataDto {
-	[ISuggestDataDtoField.label]: string;
-	[ISuggestDataDtoField.label2]?: string | modes.CompletionItemLabel;
+	[ISuggestDataDtoField.label]: string | modes.CompletionItemLabel;
 	[ISuggestDataDtoField.kind]?: modes.CompletionItemKind;
 	[ISuggestDataDtoField.detail]?: string;
 	[ISuggestDataDtoField.documentation]?: string | IMarkdownString;
@@ -1626,6 +1635,8 @@ export interface IInlineValueContextDto {
 	stoppedLocation: IRange;
 }
 
+export type ITypeHierarchyItemDto = Dto<TypeHierarchyItem>;
+
 export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: UriComponents, token: CancellationToken): Promise<modes.DocumentSymbol[] | undefined>;
 	$provideCodeLenses(handle: number, resource: UriComponents, token: CancellationToken): Promise<ICodeLensListDto | undefined>;
@@ -1676,6 +1687,10 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideCallHierarchyOutgoingCalls(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<IOutgoingCallDto[] | undefined>;
 	$releaseCallHierarchy(handle: number, sessionId: string): void;
 	$setWordDefinitions(wordDefinitions: ILanguageWordDefinitionDto[]): void;
+	$prepareTypeHierarchy(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<ITypeHierarchyItemDto[] | undefined>;
+	$provideTypeHierarchySupertypes(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<ITypeHierarchyItemDto[] | undefined>;
+	$provideTypeHierarchySubtypes(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<ITypeHierarchyItemDto[] | undefined>;
+	$releaseTypeHierarchy(handle: number, sessionId: string): void;
 }
 
 export interface ExtHostQuickOpenShape {
@@ -1731,7 +1746,7 @@ export interface ExtHostTerminalServiceShape {
 	$activateLink(id: number, linkId: number): void;
 	$initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void;
 	$acceptDefaultProfile(profile: ITerminalProfile, automationProfile: ITerminalProfile): void;
-	$createContributedProfileTerminal(id: string, isSplitTerminal: boolean): Promise<void>;
+	$createContributedProfileTerminal(id: string, options: ICreateContributedTerminalProfileOptions): Promise<void>;
 }
 
 export interface ExtHostSCMShape {
@@ -2036,6 +2051,11 @@ export interface ExtHostNotebookKernelsShape {
 	$acceptKernelMessageFromRenderer(handle: number, editorId: string, message: any): void;
 }
 
+export interface ExtHostInteractiveShape {
+	$willAddInteractiveDocument(uri: UriComponents, eol: string, modeId: string, notebookUri: UriComponents): void;
+	$willRemoveInteractiveDocument(uri: UriComponents, notebookUri: UriComponents): void;
+}
+
 export interface ExtHostStorageShape {
 	$acceptValue(shared: boolean, key: string, value: object | undefined): void;
 }
@@ -2066,42 +2086,68 @@ export const enum ExtHostTestingResource {
 }
 
 export interface ExtHostTestingShape {
-	$runTestsForProvider(req: RunTestForProviderRequest, token: CancellationToken): Promise<void>;
+	$runControllerTests(req: RunTestForControllerRequest, token: CancellationToken): Promise<void>;
 	$cancelExtensionTestRun(runId: string | undefined): void;
-	$subscribeToTests(resource: ExtHostTestingResource, uri: UriComponents): void;
-	$unsubscribeFromTests(resource: ExtHostTestingResource, uri: UriComponents): void;
-	$lookupTest(test: TestIdWithSrc): Promise<InternalTestItem | undefined>;
-	$acceptDiff(resource: ExtHostTestingResource, uri: UriComponents, diff: TestsDiff): void;
+	/** Handles a diff of tests, as a result of a subscribeToDiffs() call */
+	$acceptDiff(diff: TestsDiff): void;
+	/** Publishes that a test run finished. */
 	$publishTestResults(results: ISerializedTestResults[]): void;
-	$expandTest(src: TestIdWithSrc, levels: number): Promise<void>;
+	/** Expands a test item's children, by the given number of levels. */
+	$expandTest(src: ITestIdWithSrc, levels: number): Promise<void>;
+	/** Requests file coverage for a test run. Errors if not available. */
+	$provideFileCoverage(runId: string, taskId: string, token: CancellationToken): Promise<IFileCoverage[]>;
+	/**
+	 * Requests coverage details for the file index in coverage data for the run.
+	 * Requires file coverage to have been previously requested via $provideFileCoverage.
+	 */
+	$resolveFileCoverage(runId: string, taskId: string, fileIndex: number, token: CancellationToken): Promise<CoverageDetails[]>;
+	/** Configures a test run config. */
+	$configureRunProfile(controllerId: string, configId: number): void;
 }
 
 export interface MainThreadTestingShape {
-	/** Registeres that there's a test controller with the given ID */
-	$registerTestController(id: string): void;
+	// --- test lifecycle:
+
+	/** Registers that there's a test controller with the given ID */
+	$registerTestController(controllerId: string, label: string): void;
+	/** Updates the label of an existing test controller. */
+	$updateControllerLabel(controllerId: string, label: string): void;
 	/** Diposes of the test controller with the given ID */
-	$unregisterTestController(id: string): void;
-	/** Requests tests from the given resource/uri, from the observer API. */
-	$subscribeToDiffs(resource: ExtHostTestingResource, uri: UriComponents): void;
-	/** Stops requesting tests from the given resource/uri, from the observer API. */
-	$unsubscribeFromDiffs(resource: ExtHostTestingResource, uri: UriComponents): void;
+	$unregisterTestController(controllerId: string): void;
+	/** Requests tests published to VS Code. */
+	$subscribeToDiffs(): void;
+	/** Stops requesting tests published to VS Code. */
+	$unsubscribeFromDiffs(): void;
 	/** Publishes that new tests were available on the given source. */
-	$publishDiff(resource: ExtHostTestingResource, uri: UriComponents, diff: TestsDiff): void;
-	/** Request by an extension to run tests. */
-	$runTests(req: RunTestsRequest, token: CancellationToken): Promise<string>;
+	$publishDiff(controllerId: string, diff: TestsDiff): void;
+
+	// --- test run configurations:
+
+	/** Called when a new test run configuration is available */
+	$publishTestRunProfile(config: ITestRunProfile): void;
+	/** Updates an existing test run configuration */
+	$updateTestRunConfig(controllerId: string, configId: number, update: Partial<ITestRunProfile>): void;
+	/** Removes a previously-published test run config */
+	$removeTestProfile(controllerId: string, configId: number): void;
+
 
 	// --- test run handling:
+
+	/** Request by an extension to run tests. */
+	$runTests(req: ResolvedTestRunRequest, token: CancellationToken): Promise<string>;
 	/**
 	 * Adds tests to the run. The tests are given in descending depth. The first
 	 * item will be a previously-known test, or a test root.
 	 */
-	$addTestsToRun(runId: string, tests: ITestItem[]): void;
+	$addTestsToRun(controllerId: string, runId: string, tests: ITestItem[]): void;
 	/** Updates the state of a test run in the given run. */
 	$updateTestStateInRun(runId: string, taskId: string, testId: string, state: TestResultState, duration?: number): void;
 	/** Appends a message to a test in the run. */
 	$appendTestMessageInRun(runId: string, taskId: string, testId: string, message: ITestMessage): void;
 	/** Appends raw output to the test run.. */
 	$appendOutputToRun(runId: string, taskId: string, output: VSBuffer): void;
+	/** Triggered when coverage is added to test results. */
+	$signalCoverageAvailable(runId: string, taskId: string): void;
 	/** Signals a task in a test run started. */
 	$startedTestRunTask(runId: string, task: ITestRunTask): void;
 	/** Signals a task in a test run ended. */
@@ -2166,6 +2212,7 @@ export const MainContext = {
 	MainThreadNotebookEditors: createMainId<MainThreadNotebookEditorsShape>('MainThreadNotebookEditorsShape'),
 	MainThreadNotebookKernels: createMainId<MainThreadNotebookKernelsShape>('MainThreadNotebookKernels'),
 	MainThreadNotebookRenderers: createMainId<MainThreadNotebookRenderersShape>('MainThreadNotebookRenderers'),
+	MainThreadInteractive: createMainId<MainThreadInteractiveShape>('MainThreadInteractive'),
 	MainThreadTheming: createMainId<MainThreadThemingShape>('MainThreadTheming'),
 	MainThreadTunnelService: createMainId<MainThreadTunnelServiceShape>('MainThreadTunnelService'),
 	MainThreadTimeline: createMainId<MainThreadTimelineShape>('MainThreadTimeline'),
@@ -2216,6 +2263,7 @@ export const ExtHostContext = {
 	ExtHostNotebookEditors: createMainId<ExtHostNotebookEditorsShape>('ExtHostNotebookEditors'),
 	ExtHostNotebookKernels: createMainId<ExtHostNotebookKernelsShape>('ExtHostNotebookKernels'),
 	ExtHostNotebookRenderers: createMainId<ExtHostNotebookRenderersShape>('ExtHostNotebookRenderers'),
+	ExtHostInteractive: createMainId<ExtHostInteractive>('ExtHostInteractive'),
 	ExtHostTheming: createMainId<ExtHostThemingShape>('ExtHostTheming'),
 	ExtHostTunnelService: createMainId<ExtHostTunnelServiceShape>('ExtHostTunnelService'),
 	ExtHostAuthentication: createMainId<ExtHostAuthenticationShape>('ExtHostAuthentication'),

@@ -55,7 +55,7 @@ import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { Codicon } from 'vs/base/common/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 
 interface IExplorerViewColors extends IColorMapping {
 	listDropBackground?: ColorValue | undefined;
@@ -176,7 +176,7 @@ export class ExplorerView extends ViewPane {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IEditorOverrideService private readonly editorOverrideService: IEditorOverrideService,
+		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -507,7 +507,7 @@ export class ExplorerView extends ViewPane {
 		this.rootContext.set(!!stat && stat.isRoot);
 
 		if (resource) {
-			const overrides = resource ? this.editorOverrideService.getEditorIds(resource) : [];
+			const overrides = resource ? this.editorResolverService.getEditorIds(resource) : [];
 			this.availableEditorIdsContext.set(overrides.join(','));
 		} else {
 			this.availableEditorIdsContext.reset();
@@ -609,30 +609,6 @@ export class ExplorerView extends ViewPane {
 		return this.tree.updateChildren(toRefresh, recursive, false, {
 			diffIdentityProvider: identityProvider
 		});
-	}
-
-	focusNeighbourIfItemFocused(item: ExplorerItem): void {
-		const focus = this.tree.getFocus();
-		if (focus.length !== 1) {
-			return;
-		}
-		const compressedController = this.renderer.getCompressedNavigationController(focus[0]) || this.renderer.getCompressedNavigationController(item);
-		const indexOfItem = compressedController?.items.indexOf(item) || -1;
-		const itemsCompressedTogether = compressedController && (compressedController.items.indexOf(focus[0]) >= 0) && (indexOfItem >= 0);
-
-		if (focus[0] === item || itemsCompressedTogether) {
-			if (itemsCompressedTogether && indexOfItem > 0 && item.parent) {
-				// In case of compact items just focus the parent if it is part of the compact item. So the focus stays
-				this.tree.setFocus([item.parent]);
-			} else {
-				this.tree.focusNext();
-				const newFocus = this.tree.getFocus();
-				if (newFocus.length === 1 && newFocus[0] === item) {
-					// There was no next item to focus, focus the previous one
-					this.tree.focusPrevious();
-				}
-			}
-		}
 	}
 
 	override getOptimalWidth(): number {

@@ -6,19 +6,19 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { deepClone } from 'vs/base/common/objects';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEditorOptions, LineNumbersType } from 'vs/editor/common/config/editorOptions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { getNotebookEditorFromEditorPane, ICellViewModel, INotebookEditor, NOTEBOOK_BREAKPOINT_MARGIN_ACTIVE, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { INotebookActionContext, NotebookAction, NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { getNotebookEditorFromEditorPane, ICellViewModel, INotebookEditor, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class CellEditorOptions extends Disposable {
 
@@ -37,10 +37,11 @@ export class CellEditorOptions extends Disposable {
 		selectOnLineNumbers: false,
 		lineNumbers: 'off',
 		lineDecorationsWidth: 0,
-		glyphMargin: false,
+		folding: false,
 		fixedOverflowWidgets: true,
 		minimap: { enabled: false },
-		renderValidationDecorations: 'on'
+		renderValidationDecorations: 'on',
+		lineNumbersMinChars: 3
 	};
 
 	private _value: IEditorOptions;
@@ -94,7 +95,6 @@ export class CellEditorOptions extends Disposable {
 		const lineNumbers: LineNumbersType = renderLiNumbers ? 'on' : 'off';
 		const editorOptions = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: this.language }));
 		const layoutConfig = this.notebookOptions.getLayoutConfiguration();
-		const cellBreakpointMargin = layoutConfig.cellBreakpointMarginActive;
 		const editorOptionsOverrideRaw = layoutConfig.editorOptionsCustomizations ?? {};
 		let editorOptionsOverride: { [key: string]: any; } = {};
 		for (let key in editorOptionsOverrideRaw) {
@@ -108,13 +108,8 @@ export class CellEditorOptions extends Disposable {
 			... { lineNumbers },
 			...editorOptionsOverride,
 			...{ padding: { top: 12, bottom: 12 } },
-			readonly: this.notebookEditor.viewModel?.options.isReadOnly ?? false,
-			glyphMargin: cellBreakpointMargin
+			readOnly: this.notebookEditor.viewModel?.options.isReadOnly ?? false
 		};
-
-		if (!computed.folding) {
-			computed.lineDecorationsWidth = 16;
-		}
 
 		return computed;
 	}
@@ -250,39 +245,5 @@ registerAction2(class ToggleActiveLineNumberAction extends Action2 {
 				cell.lineNumbers = 'on';
 			}
 		}
-	}
-});
-
-registerAction2(class ToggleCellBreakpointMargin extends NotebookAction {
-	constructor() {
-		super({
-			id: 'notebook.toggleBreakpointMargin',
-			title: localize('notebookActions.toggleBreakpointMargin', "Toggle Cell Breakpoint Margin"),
-			menu: [{
-				id: MenuId.EditorTitle,
-				group: 'notebookLayout',
-				order: 3,
-				when: ContextKeyExpr.and(
-					NOTEBOOK_IS_ACTIVE_EDITOR,
-					ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
-				)
-			}, {
-				id: MenuId.NotebookToolbar,
-				group: 'notebookLayout',
-				order: 3,
-				when: ContextKeyExpr.equals('config.notebook.globalToolbar', true)
-			}],
-			category: NOTEBOOK_ACTIONS_CATEGORY,
-			f1: true,
-			toggled: {
-				condition: NOTEBOOK_BREAKPOINT_MARGIN_ACTIVE,
-				title: { value: localize('notebook.showBreakpointMargin', "Show Breakpoints"), original: 'Show Breakpoints' },
-			}
-		});
-	}
-
-	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		const opts = context.notebookEditor.notebookOptions;
-		opts.setCellBreakpointMarginActive(!opts.getLayoutConfiguration().cellBreakpointMarginActive);
 	}
 });

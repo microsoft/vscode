@@ -15,7 +15,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IListService, IWorkbenchObjectTreeOptions, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { editorBackground, focusBorder, foreground, iconForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, focusBorder, foreground, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { SettingsTreeFilter } from 'vs/workbench/contrib/preferences/browser/settingsTree';
@@ -244,7 +244,6 @@ export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
 			listFocusOutline: focusBorder,
 			listActiveSelectionBackground: editorBackground,
 			listActiveSelectionForeground: settingsHeaderForeground,
-			listActiveSelectionIconForeground: iconForeground,
 			listFocusAndSelectionBackground: editorBackground,
 			listFocusAndSelectionForeground: settingsHeaderForeground,
 			listFocusBackground: editorBackground,

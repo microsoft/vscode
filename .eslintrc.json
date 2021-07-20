@@ -7,7 +7,8 @@
 	},
 	"plugins": [
 		"@typescript-eslint",
-		"jsdoc"
+		"jsdoc",
+		"header"
 	],
 	"rules": {
 		"constructor-super": "warn",
@@ -576,7 +577,8 @@
 					"vscode-textmate",
 					"vscode-oniguruma",
 					"iconv-lite-umd",
-					"jschardet"
+					"jschardet",
+					"@vscode/vscode-languagedetection"
 				]
 			},
 			{
@@ -979,6 +981,16 @@
 					"xterm*"
 				]
 			}
+		],
+		"header/header": [
+			2,
+			"block",
+			[
+				"---------------------------------------------------------------------------------------------",
+				" *  Copyright (c) Microsoft Corporation. All rights reserved.",
+				" *  Licensed under the MIT License. See License.txt in the project root for license information.",
+				" *--------------------------------------------------------------------------------------------"
+			]
 		]
 	},
 	"overrides": [

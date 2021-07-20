@@ -5,7 +5,7 @@
 
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICellViewModel, INotebookEditor, NOTEBOOK_BREAKPOINT_MARGIN_ACTIVE, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SELECTED, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON, NOTEBOOK_VIEW_TYPE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellViewModel, INotebookEditor, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SELECTED, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON, NOTEBOOK_VIEW_TYPE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
@@ -18,7 +18,6 @@ export class NotebookEditorContextKeys {
 	private readonly _someCellRunning: IContextKey<boolean>;
 	private readonly _hasOutputs: IContextKey<boolean>;
 	private readonly _useConsolidatedOutputButton: IContextKey<boolean>;
-	private readonly _breakpointMarginActive: IContextKey<boolean>;
 	private _viewType!: IContextKey<string>;
 
 	private readonly _disposables = new DisposableStore();
@@ -36,7 +35,6 @@ export class NotebookEditorContextKeys {
 		this._interruptibleKernel = NOTEBOOK_INTERRUPTIBLE_KERNEL.bindTo(contextKeyService);
 		this._someCellRunning = NOTEBOOK_HAS_RUNNING_CELL.bindTo(contextKeyService);
 		this._useConsolidatedOutputButton = NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON.bindTo(contextKeyService);
-		this._breakpointMarginActive = NOTEBOOK_BREAKPOINT_MARGIN_ACTIVE.bindTo(contextKeyService);
 		this._hasOutputs = NOTEBOOK_HAS_OUTPUTS.bindTo(contextKeyService);
 		this._viewType = NOTEBOOK_VIEW_TYPE.bindTo(contextKeyService);
 
@@ -149,6 +147,5 @@ export class NotebookEditorContextKeys {
 	private _updateForNotebookOptions(): void {
 		const layout = this._editor.notebookOptions.getLayoutConfiguration();
 		this._useConsolidatedOutputButton.set(layout.consolidatedOutputButton);
-		this._breakpointMarginActive.set(layout.cellBreakpointMarginActive);
 	}
 }

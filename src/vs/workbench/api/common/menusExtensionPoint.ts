@@ -239,6 +239,12 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('view.tunnelPortInline', "The Ports view item port inline menu")
 	},
 	{
+		key: 'file/newFile',
+		id: MenuId.NewFile,
+		description: localize('file.newFile', "The 'New File...' quick pick, shown on welcome page and File menu."),
+		supportsSubmenus: false,
+	},
+	{
 		key: 'editor/inlineCompletions/actions',
 		id: MenuId.InlineCompletionsActions,
 		description: localize('inlineCompletions.actions', "The actions shown when hovering on an inline completion"),

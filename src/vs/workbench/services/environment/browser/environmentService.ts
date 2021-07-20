@@ -226,6 +226,8 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	get disableExtensions() { return this.payload?.get('disableExtensions') === 'true'; }
 
+	get enableExtensions() { return this.options.enabledExtensions; }
+
 	@memoize
 	get webviewExternalEndpoint(): string {
 		const endpoint = this.options.webviewEndpoint
@@ -276,16 +278,6 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 			extensionDevelopmentLocationURI: undefined,
 			extensionDevelopmentKind: undefined
 		};
-		const developmentOptions = this.options.developmentOptions;
-		if (developmentOptions) {
-			if (developmentOptions.extensions?.length) {
-				extensionHostDebugEnvironment.extensionDevelopmentLocationURI = developmentOptions.extensions.map(e => URI.revive(e));
-				extensionHostDebugEnvironment.isExtensionDevelopment = true;
-			}
-			if (developmentOptions) {
-				extensionHostDebugEnvironment.extensionTestsLocationURI = URI.revive(developmentOptions.extensionTestsPath);
-			}
-		}
 
 		// Fill in selected extra environmental properties
 		if (this.payload) {
@@ -321,6 +313,17 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 						extensionHostDebugEnvironment.extensionEnabledProposedApi = [];
 						break;
 				}
+			}
+		}
+
+		const developmentOptions = this.options.developmentOptions;
+		if (developmentOptions && !extensionHostDebugEnvironment.isExtensionDevelopment) {
+			if (developmentOptions.extensions?.length) {
+				extensionHostDebugEnvironment.extensionDevelopmentLocationURI = developmentOptions.extensions.map(e => URI.revive(e));
+				extensionHostDebugEnvironment.isExtensionDevelopment = true;
+			}
+			if (developmentOptions.extensionTestsPath) {
+				extensionHostDebugEnvironment.extensionTestsLocationURI = URI.revive(developmentOptions.extensionTestsPath);
 			}
 		}
 

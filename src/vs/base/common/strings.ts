@@ -33,6 +33,16 @@ export function format(value: string, ...args: any[]): string {
 	});
 }
 
+const _format2Regexp = /{([^}]+)}/g;
+
+/**
+ * Helper to create a string from a template and a string record.
+ * Similar to `format` but with objects instead of positional arguments.
+ */
+export function format2(template: string, values: Record<string, unknown>): string {
+	return template.replace(_format2Regexp, (match, group) => (values[group] ?? match) as string);
+}
+
 /**
  * Converts HTML characters inside the string to use entities instead. Makes the string safe from
  * being used e.g. in HTMLElement.innerHTML.

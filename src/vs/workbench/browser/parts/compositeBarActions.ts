@@ -128,7 +128,6 @@ export interface ICompositeBarColors {
 
 export interface IActivityHoverOptions {
 	position: () => HoverPosition;
-	delay: () => number;
 }
 
 export interface IActivityActionViewItemOptions extends IBaseActionViewItemOptions {
@@ -153,6 +152,8 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 	private readonly hover = this._register(new MutableDisposable<IDisposable>());
 	private readonly showHoverScheduler = new RunOnceScheduler(() => this.showHover(), 0);
 
+	private static _hoverLeaveTime = 0;
+
 	constructor(
 		action: ActivityAction,
 		options: IActivityActionViewItemOptions,
@@ -168,7 +169,6 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		this._register(this.themeService.onDidColorThemeChange(this.onThemeChange, this));
 		this._register(action.onDidChangeActivity(this.updateActivity, this));
 		this._register(Event.filter(keybindingService.onDidUpdateKeybindings, () => this.keybindingLabel !== this.computeKeybindingLabel())(() => this.updateTitle()));
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('workbench.experimental.useCustomHover'))(() => this.updateHover()));
 		this._register(action.onDidChangeBadge(this.updateBadge, this));
 		this._register(toDisposable(() => this.showHoverScheduler.cancel()));
 	}
@@ -364,12 +364,8 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		[this.label, this.badge, this.container].forEach(element => {
 			if (element) {
 				element.setAttribute('aria-label', title);
-				if (this.useCustomHover) {
-					element.setAttribute('title', '');
-					element.removeAttribute('title');
-				} else {
-					element.setAttribute('title', title);
-				}
+				element.setAttribute('title', '');
+				element.removeAttribute('title');
 			}
 		});
 	}
@@ -393,24 +389,27 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		this.hoverDisposables.clear();
 
 		this.updateTitle();
-		if (this.useCustomHover) {
-			this.hoverDisposables.add(addDisposableListener(this.container, EventType.MOUSE_OVER, () => {
-				if (!this.showHoverScheduler.isScheduled()) {
-					this.showHoverScheduler.schedule(this.options.hoverOptions!.delay() || 500);
+		this.hoverDisposables.add(addDisposableListener(this.container, EventType.MOUSE_OVER, () => {
+			if (!this.showHoverScheduler.isScheduled()) {
+				if (Date.now() - ActivityActionViewItem._hoverLeaveTime < 200) {
+					this.showHover(true);
+				} else {
+					this.showHoverScheduler.schedule(this.configurationService.getValue<number>('workbench.hover.delay'));
 				}
-			}, true));
-			this.hoverDisposables.add(addDisposableListener(this.container, EventType.MOUSE_LEAVE, () => {
-				this.hover.value = undefined;
-				this.showHoverScheduler.cancel();
-			}, true));
-			this.hoverDisposables.add(toDisposable(() => {
-				this.hover.value = undefined;
-				this.showHoverScheduler.cancel();
-			}));
-		}
+			}
+		}, true));
+		this.hoverDisposables.add(addDisposableListener(this.container, EventType.MOUSE_LEAVE, () => {
+			ActivityActionViewItem._hoverLeaveTime = Date.now();
+			this.hover.value = undefined;
+			this.showHoverScheduler.cancel();
+		}, true));
+		this.hoverDisposables.add(toDisposable(() => {
+			this.hover.value = undefined;
+			this.showHoverScheduler.cancel();
+		}));
 	}
 
-	private showHover(): void {
+	private showHover(skipFadeInAnimation: boolean = false): void {
 		if (this.hover.value) {
 			return;
 		}
@@ -420,12 +419,9 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 			hoverPosition,
 			text: this.computeTitle(),
 			showPointer: true,
-			compact: true
+			compact: true,
+			skipFadeInAnimation
 		});
-	}
-
-	private get useCustomHover(): boolean {
-		return !!this.configurationService.getValue<boolean>('workbench.experimental.useCustomHover');
 	}
 
 	override dispose(): void {

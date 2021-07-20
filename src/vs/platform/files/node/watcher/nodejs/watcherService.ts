@@ -100,9 +100,9 @@ export class FileWatcher extends Disposable {
 
 			// Logging
 			if (this.verboseLogging) {
-				normalizedFileChanges.forEach(event => {
-					this.onVerbose(`>> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
-				});
+				for (const e of normalizedFileChanges) {
+					this.onVerbose(`>> normalized ${e.type === FileChangeType.ADDED ? '[ADDED]' : e.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${e.path}`);
+				}
 			}
 
 			// Fire

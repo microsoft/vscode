@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import type * as vscode from 'vscode';
 import * as platform from 'vs/base/common/platform';
-import { DebugAdapterExecutable } from 'vs/workbench/api/common/extHostTypes';
+import { DebugAdapterExecutable, ThemeIcon } from 'vs/workbench/api/common/extHostTypes';
 import { ExecutableDebugAdapter, SocketDebugAdapter, NamedPipeDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
 import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
@@ -98,6 +98,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 					shellArgs: shellArgs,
 					cwd: args.cwd,
 					name: terminalName,
+					iconPath: new ThemeIcon('debug'),
 				};
 				giveShellTimeToInitialize = true;
 				terminal = this._terminalService.createTerminalFromOptions(options, {

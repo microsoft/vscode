@@ -1036,27 +1036,27 @@ registerThemingParticipant((theme, collector) => {
 	if (theme.type !== ColorScheme.HIGH_CONTRAST) {
 		const statusBarItemHoverBackground = theme.getColor(STATUS_BAR_ITEM_HOVER_BACKGROUND);
 		if (statusBarItemHoverBackground) {
-			collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:hover { background-color: ${statusBarItemHoverBackground}; }`);
-			collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:focus { background-color: ${statusBarItemHoverBackground}; }`);
+			collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:hover:not(.disabled) { background-color: ${statusBarItemHoverBackground}; }`);
+			collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:focus:not(.disabled) { background-color: ${statusBarItemHoverBackground}; }`);
 		}
 
 		const statusBarItemActiveBackground = theme.getColor(STATUS_BAR_ITEM_ACTIVE_BACKGROUND);
 		if (statusBarItemActiveBackground) {
-			collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:active { background-color: ${statusBarItemActiveBackground}; }`);
+			collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:active:not(.disabled) { background-color: ${statusBarItemActiveBackground}; }`);
 		}
 	}
 
 	const activeContrastBorderColor = theme.getColor(activeContrastBorder);
 	if (activeContrastBorderColor) {
 		collector.addRule(`
-			.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:focus,
-			.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:active {
+			.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:focus:not(.disabled),
+			.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:active:not(.disabled) {
 				outline: 1px solid ${activeContrastBorderColor} !important;
 				outline-offset: -1px;
 			}
 		`);
 		collector.addRule(`
-			.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:hover {
+			.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:hover:not(.disabled) {
 				outline: 1px dashed ${activeContrastBorderColor};
 				outline-offset: -1px;
 			}
@@ -1075,7 +1075,7 @@ registerThemingParticipant((theme, collector) => {
 
 	const statusBarProminentItemHoverBackground = theme.getColor(STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND);
 	if (statusBarProminentItemHoverBackground) {
-		collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a.status-bar-info:hover { background-color: ${statusBarProminentItemHoverBackground}; }`);
+		collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a.status-bar-info:hover:not(.disabled) { background-color: ${statusBarProminentItemHoverBackground}; }`);
 	}
 });
 

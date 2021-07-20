@@ -559,7 +559,7 @@ export abstract class CommonTask {
 	/**
 	 * The task's internal id
 	 */
-	_id: string;
+	readonly _id: string;
 
 	/**
 	 * The cached label.

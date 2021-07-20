@@ -23,6 +23,7 @@ import { IAuthenticationService } from 'vs/workbench/services/authentication/bro
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { testUrlMatchesGlob } from 'vs/workbench/contrib/url/common/urlGlob';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 type TrustedDomainsDialogActionClassification = {
 	action: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
@@ -45,6 +46,7 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustService: IWorkspaceTrustManagementService,
 	) {
 		this._openerService.registerValidator({ shouldOpen: r => this.validateLink(r) });
@@ -71,7 +73,7 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 			return true;
 		}
 
-		if (this._workspaceTrustService.isWorkpaceTrusted()) {
+		if (this._workspaceTrustService.isWorkspaceTrusted() && !this._configurationService.getValue('workbench.trustedDomains.promptInTrustedWorkspace')) {
 			return true;
 		}
 

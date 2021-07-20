@@ -13,7 +13,7 @@ import { join, basename, dirname, posix } from 'vs/base/common/path';
 import { Promises, rimrafSync } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, createReadStream } from 'fs';
-import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType, IFileChange, FileChangesEvent, FileOperationError, etag, IStat, IFileStatWithMetadata, IReadFileOptions, FilePermission, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType, IFileChange, FileOperationError, etag, IStat, IFileStatWithMetadata, IReadFileOptions, FilePermission, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -2279,23 +2279,23 @@ flakySuite('Disk File Service', function () {
 				}
 			}
 
-			function printEvents(event: FileChangesEvent): string {
-				return event.raw.map(change => `Change: type ${toString(change.type)} path ${change.resource.toString()}`).join('\n');
+			function printEvents(raw: readonly IFileChange[]): string {
+				return raw.map(change => `Change: type ${toString(change.type)} path ${change.resource.toString()}`).join('\n');
 			}
 
-			const listenerDisposable = service.onDidFilesChange(event => {
+			const listenerDisposable = service.onDidChangeFilesRaw(({ changes }) => {
 				watcherDisposable.dispose();
 				listenerDisposable.dispose();
 
 				try {
-					assert.strictEqual(event.raw.length, expected.length, `Expected ${expected.length} events, but got ${event.raw.length}. Details (${printEvents(event)})`);
+					assert.strictEqual(changes.length, expected.length, `Expected ${expected.length} events, but got ${changes.length}. Details (${printEvents(changes)})`);
 
 					if (expected.length === 1) {
-						assert.strictEqual(event.raw[0].type, expected[0][0], `Expected ${toString(expected[0][0])} but got ${toString(event.raw[0].type)}. Details (${printEvents(event)})`);
-						assert.strictEqual(event.raw[0].resource.fsPath, expected[0][1].fsPath);
+						assert.strictEqual(changes[0].type, expected[0][0], `Expected ${toString(expected[0][0])} but got ${toString(changes[0].type)}. Details (${printEvents(changes)})`);
+						assert.strictEqual(changes[0].resource.fsPath, expected[0][1].fsPath);
 					} else {
 						for (const expect of expected) {
-							assert.strictEqual(hasChange(event.raw, expect[0], expect[1]), true, `Unable to find ${toString(expect[0])} for ${expect[1].fsPath}. Details (${printEvents(event)})`);
+							assert.strictEqual(hasChange(changes, expect[0], expect[1]), true, `Unable to find ${toString(expect[0])} for ${expect[1].fsPath}. Details (${printEvents(changes)})`);
 						}
 					}
 

@@ -29,7 +29,7 @@ export class LoggerService extends AbstractLoggerService implements ILoggerServi
 			}
 			return logger;
 		} else {
-			return new FileLogger(options?.name ?? basename(resource), resource, logLevel, this.fileService);
+			return new FileLogger(options?.name ?? basename(resource), resource, logLevel, !!options?.donotUseFormatters, this.fileService);
 		}
 	}
 }

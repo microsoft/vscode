@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/editorgroupview';
 import { EditorGroupModel, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroupModel, isSerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
-import { GroupIdentifier, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, EditorResourceAccessor, IEditorMoveEvent, EditorInputCapabilities, IEditorOpenEvent } from 'vs/workbench/common/editor';
+import { GroupIdentifier, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, EditorResourceAccessor, IEditorMoveEvent, EditorInputCapabilities, IEditorOpenEvent, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
@@ -291,7 +291,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			if (this.isEmpty) {
 				EventHelper.stop(e);
 
-				this.openEditor(this.editorService.createEditorInput({ forceUntitled: true }), { pinned: true });
+				this.editorService.openEditor({
+					resource: undefined,
+					forceUntitled: true,
+					options: {
+						pinned: true,
+						override: DEFAULT_EDITOR_ASSOCIATION.id
+					}
+				}, this.id);
 			}
 		}));
 
@@ -600,7 +607,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const resource = EditorResourceAccessor.getOriginalUri(editor);
 		const path = resource ? resource.scheme === Schemas.file ? resource.fsPath : resource.path : undefined;
 		if (resource && path) {
-			descriptor['resource'] = { mimeType: guessMimeTypes(resource).join(', '), scheme: resource.scheme, ext: extname(resource), path: hash(path) };
+			let resourceExt = extname(resource);
+			// Remove query parameters from the resource extension
+			const queryStringLocation = resourceExt.indexOf('?');
+			resourceExt = queryStringLocation !== -1 ? resourceExt.substr(0, queryStringLocation) : resourceExt;
+			descriptor['resource'] = { mimeType: guessMimeTypes(resource).join(', '), scheme: resource.scheme, ext: resourceExt, path: hash(path) };
 
 			/* __GDPR__FRAGMENT__
 				"EditorTelemetryDescriptor" : {
@@ -820,11 +831,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.model.isSticky(editorOrIndex);
 	}
 
-	isActive(editor: EditorInput): boolean {
+	isActive(editor: EditorInput | IUntypedEditorInput): boolean {
 		return this.model.isActive(editor);
 	}
 
-	contains(candidate: EditorInput): boolean {
+	contains(candidate: EditorInput | IUntypedEditorInput): boolean {
 		return this.model.contains(candidate);
 	}
 

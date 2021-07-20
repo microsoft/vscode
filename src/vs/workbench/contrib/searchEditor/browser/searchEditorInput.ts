@@ -16,7 +16,7 @@ import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, EditorResourceAccessor, IMoveResult, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, EditorResourceAccessor, IMoveResult, EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { Memento } from 'vs/workbench/common/memento';
 import { SearchEditorFindMatchClass, SearchEditorScheme, SearchEditorWorkingCopyTypeId } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { SearchConfigurationModel, SearchEditorModel, searchEditorModelFactory } from 'vs/workbench/contrib/searchEditor/browser/searchEditorModel';
@@ -31,7 +31,6 @@ import { ISearchComplete, ISearchConfigurationProperties } from 'vs/workbench/se
 import { bufferToReadable, VSBuffer } from 'vs/base/common/buffer';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 
 export type SearchConfiguration = {
 	query: string,
@@ -220,7 +219,7 @@ export class SearchEditorInput extends EditorInput {
 		super.dispose();
 	}
 
-	override matches(other: IEditorInput | IResourceEditorInputType): boolean {
+	override matches(other: IEditorInput | IUntypedEditorInput): boolean {
 		if (super.matches(other)) {
 			return true;
 		}
@@ -278,7 +277,7 @@ export class SearchEditorInput extends EditorInput {
 		return joinPath(await this.fileDialogService.defaultFilePath(this.pathService.defaultUriScheme), searchFileName);
 	}
 
-	override asResourceEditorInput(group: GroupIdentifier): IResourceEditorInput | undefined {
+	override toUntyped(): IResourceEditorInput | undefined {
 		if (this.hasCapability(EditorInputCapabilities.Untitled)) {
 			return undefined;
 		}

@@ -52,6 +52,8 @@ export interface IListViewOptionsUpdate {
 	readonly additionalScrollHeight?: number;
 	readonly smoothScrolling?: boolean;
 	readonly horizontalScrolling?: boolean;
+	readonly mouseWheelScrollSensitivity?: number;
+	readonly fastScrollSensitivity?: number;
 }
 
 export interface IListViewOptions<T> extends IListViewOptionsUpdate {
@@ -333,6 +335,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			horizontal: ScrollbarVisibility.Auto,
 			vertical: getOrDefault(options, o => o.verticalScrollMode, DefaultOptions.verticalScrollMode),
 			useShadows: getOrDefault(options, o => o.useShadows, DefaultOptions.useShadows),
+			mouseWheelScrollSensitivity: options.mouseWheelScrollSensitivity,
+			fastScrollSensitivity: options.fastScrollSensitivity
 		}, this.scrollable));
 
 		this.domNode.appendChild(this.scrollableElement.getDomNode());
@@ -347,7 +351,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		this.disposables.add(addDisposableListener(this.domNode, 'dragover', e => this.onDragOver(this.toDragEvent(e))));
 		this.disposables.add(addDisposableListener(this.domNode, 'drop', e => this.onDrop(this.toDragEvent(e))));
-		this.disposables.add(addDisposableListener(this.domNode, 'dragleave', _ => this.onDragLeave()));
+		this.disposables.add(addDisposableListener(this.domNode, 'dragleave', e => this.onDragLeave(this.toDragEvent(e))));
 		this.disposables.add(addDisposableListener(this.domNode, 'dragend', e => this.onDragEnd(e)));
 
 		this.setRowLineHeight = getOrDefault(options, o => o.setRowLineHeight, DefaultOptions.setRowLineHeight);
@@ -370,6 +374,14 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		if (options.horizontalScrolling !== undefined) {
 			this.horizontalScrolling = options.horizontalScrolling;
+		}
+
+		if (options.mouseWheelScrollSensitivity !== undefined) {
+			this.scrollableElement.updateOptions({ mouseWheelScrollSensitivity: options.mouseWheelScrollSensitivity });
+		}
+
+		if (options.fastScrollSensitivity !== undefined) {
+			this.scrollableElement.updateOptions({ fastScrollSensitivity: options.fastScrollSensitivity });
 		}
 	}
 
@@ -959,7 +971,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const elements = this.dnd.getDragElements(element);
 
 		event.dataTransfer.effectAllowed = 'copyMove';
-		event.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify([uri]));
+		event.dataTransfer.setData(DataTransfers.TEXT, uri);
 
 		if (event.dataTransfer.setDragImage) {
 			let label: string | undefined;
@@ -1084,9 +1096,12 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		return true;
 	}
 
-	private onDragLeave(): void {
+	private onDragLeave(event: IListDragEvent<T>): void {
 		this.onDragLeaveTimeout.dispose();
 		this.onDragLeaveTimeout = disposableTimeout(() => this.clearDragOverFeedback(), 100);
+		if (this.currentDragData) {
+			this.dnd.onDragLeave?.(this.currentDragData, event.element, event.index, event.browserEvent);
+		}
 	}
 
 	private onDrop(event: IListDragEvent<T>): void {

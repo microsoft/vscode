@@ -19,6 +19,7 @@ import { IProductConfiguration } from 'vs/base/common/product';
 import { mark } from 'vs/base/common/performance';
 import { ICredentialsProvider } from 'vs/workbench/services/credentials/common/credentials';
 import { TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
+import { ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -31,7 +32,8 @@ interface IStaticExtension {
 }
 
 /**
- * The id of an extension. It is always ${publisher}.${name}. For example: vscode.csharp.
+ * The identifier of an extension in the format: `PUBLISHER.NAME`.
+ * For example: `vscode.csharp`
  */
 type ExtensionId = string;
 
@@ -159,7 +161,7 @@ interface IWindowIndicator {
 	/**
 	 * Triggering this event will cause the window indicator to update.
 	 */
-	onDidChange: Event<void>;
+	readonly onDidChange?: Event<void>;
 
 	/**
 	 * Label of the window indicator may include octicons
@@ -191,12 +193,12 @@ interface IInitialColorTheme {
 	/**
 	 * Initial color theme type.
 	 */
-	themeType: ColorScheme;
+	readonly themeType: ColorScheme;
 
 	/**
 	 * A list of workbench colors to apply initially.
 	 */
-	colors?: { [colorId: string]: string };
+	readonly colors?: { [colorId: string]: string };
 }
 
 interface IDefaultView {
@@ -270,8 +272,16 @@ interface IWorkbenchConstructionOptions {
 
 	/**
 	 * An URL pointing to the web worker extension host <iframe> src.
+	 * @deprecated. This will be removed soon.
 	 */
 	readonly webWorkerExtensionHostIframeSrc?: string;
+
+	/**
+	 * [TEMPORARY]: This will be removed soon.
+	 * Use an unique origin for the web worker extension host.
+	 * Defaults to false.
+	 */
+	readonly __uniqueWebWorkerExtensionHostOrigin?: boolean;
 
 	/**
 	 * A factory for web sockets.
@@ -310,15 +320,6 @@ interface IWorkbenchConstructionOptions {
 	readonly workspaceProvider?: IWorkspaceProvider;
 
 	/**
-	 * Enables Settings Sync by default.
-	 *
-	 * Syncs with the current authenticated user account (provided in [credentialsProvider](#credentialsProvider)) by default.
-	 *
-	 * @deprecated Instead use [settingsSyncOptions](#settingsSyncOptions) to enable/disable settings sync in the workbench.
-	 */
-	readonly enableSyncByDefault?: boolean;
-
-	/**
 	 * Settings sync options
 	 */
 	readonly settingsSyncOptions?: ISettingsSyncOptions;
@@ -330,7 +331,7 @@ interface IWorkbenchConstructionOptions {
 
 	/**
 	 * Add static extensions that cannot be uninstalled but only be disabled.
-	 * @deprecated
+	 * @deprecated. Use `additionalBuiltinExtensions` instead.
 	 */
 	readonly staticExtensions?: readonly IStaticExtension[];
 
@@ -343,9 +344,9 @@ interface IWorkbenchConstructionOptions {
 	readonly additionalBuiltinExtensions?: readonly (ExtensionId | UriComponents)[];
 
 	/**
-	 * Filter for built-in extensions.
+	 * List of extensions to be enabled.
 	 */
-	readonly builtinExtensionsFilter?: (extensionId: string) => boolean;
+	readonly enabledExtensions?: readonly ExtensionId[];
 
 	/**
 	 * [TEMPORARY]: This will be removed soon.
@@ -353,13 +354,6 @@ interface IWorkbenchConstructionOptions {
 	 * Defaults to true.
 	 */
 	readonly _enableBuiltinExtensions?: boolean;
-
-	/**
-	 * Allows the workbench to skip checking whether an extension was built for the web
-	 * and assumes they are addressable via the `Microsoft.VisualStudio.Code.WebResources`
-	 * asset URI.
-	 */
-	readonly assumeGalleryExtensionsAreAddressable?: boolean;
 
 	/**
 	 * Support for URL callbacks.
@@ -370,6 +364,12 @@ interface IWorkbenchConstructionOptions {
 	 * Support adding additional properties to telemetry.
 	 */
 	readonly resolveCommonTelemetryProperties?: ICommonTelemetryPropertiesResolver;
+
+	/**
+	 * When provided used as the interface for sending telemetry events rather than the VS Code server.
+	 * If no appender is provided and no server is present, no telemetry is sent.
+	 */
+	readonly telemetryAppender?: ITelemetryAppender;
 
 	/**
 	 * A set of optional commands that should be registered with the commands
@@ -656,6 +656,7 @@ export {
 
 	// Telemetry
 	ICommonTelemetryPropertiesResolver,
+	ITelemetryAppender,
 
 	// External Uris
 	IExternalUriResolver,

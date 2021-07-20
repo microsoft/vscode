@@ -20,6 +20,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import * as env from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
+import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchview';
 import { getCodeEditor, ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
@@ -86,8 +87,6 @@ export enum SearchViewPosition {
 
 const SEARCH_CANCELLED_MESSAGE = nls.localize('searchCanceled', "Search was canceled before any results could be found - ");
 export class SearchView extends ViewPane {
-
-	private static readonly MAX_TEXT_RESULTS = 10000;
 
 	private static readonly ACTIONS_RIGHT_CLASS_NAME = 'actions-right';
 
@@ -1241,6 +1240,9 @@ export class SearchView extends ViewPane {
 		if (typeof args.useExcludeSettingsAndIgnoreFiles === 'boolean') {
 			this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(args.useExcludeSettingsAndIgnoreFiles);
 		}
+		if (typeof args.onlyOpenEditors === 'boolean') {
+			this.searchIncludePattern.setOnlySearchInOpenEditors(args.onlyOpenEditors);
+		}
 	}
 
 	toggleQueryDetails(moveFocus = true, show?: boolean, skipLayout?: boolean, reverse?: boolean): void {
@@ -1340,7 +1342,7 @@ export class SearchView extends ViewPane {
 		const options: ITextQueryBuilderOptions = {
 			_reason: 'searchView',
 			extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
-			maxResults: SearchView.MAX_TEXT_RESULTS,
+			maxResults: withNullAsUndefined(this.searchConfig.maxResults),
 			disregardIgnoreFiles: !useExcludesAndIgnoreFiles || undefined,
 			disregardExcludeSettings: !useExcludesAndIgnoreFiles || undefined,
 			onlyOpenEditors: onlySearchInOpenEditors,

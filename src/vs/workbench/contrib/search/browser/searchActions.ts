@@ -172,6 +172,7 @@ export interface IFindInFilesArgs {
 	isCaseSensitive?: boolean;
 	matchWholeWord?: boolean;
 	useExcludeSettingsAndIgnoreFiles?: boolean;
+	onlyOpenEditors?: boolean;
 }
 export const FindInFilesCommand: ICommandHandler = (accessor, args: IFindInFilesArgs = {}) => {
 	const searchConfig = accessor.get(IConfigurationService).getValue<ISearchConfiguration>().search;
@@ -201,6 +202,7 @@ export const FindInFilesCommand: ICommandHandler = (accessor, args: IFindInFiles
 			isCaseSensitive: args.isCaseSensitive,
 			isRegexp: args.isRegex,
 			useExcludeSettingsAndIgnoreFiles: args.useExcludeSettingsAndIgnoreFiles,
+			onlyOpenEditors: args.onlyOpenEditors,
 			showIncludesExcludes: !!(args.filesToExclude || args.filesToExclude || !args.useExcludeSettingsAndIgnoreFiles),
 		});
 		accessor.get(ICommandService).executeCommand(OpenEditorCommandId, convertArgs(args));

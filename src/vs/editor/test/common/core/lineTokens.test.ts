@@ -42,6 +42,56 @@ suite('LineTokens', () => {
 		);
 	}
 
+	function renderLineTokens(tokens: LineTokens): string {
+		let result = '';
+		const str = tokens.getLineContent();
+		let lastOffset = 0;
+		for (let i = 0; i < tokens.getCount(); i++) {
+			result += str.substring(lastOffset, tokens.getEndOffset(i));
+			result += `(${tokens.getMetadata(i)})`;
+			lastOffset = tokens.getEndOffset(i);
+		}
+		return result;
+	}
+
+	test('withInserted 1', () => {
+		const lineTokens = createTestLineTokens();
+		assert.strictEqual(renderLineTokens(lineTokens), 'Hello (16384)world, (32768)this (49152)is (65536)a (81920)lovely (98304)day(114688)');
+
+		const lineTokens2 = lineTokens.withInserted([
+			{ offset: 0, text: '1', tokenMetadata: 0, },
+			{ offset: 6, text: '2', tokenMetadata: 0, },
+			{ offset: 9, text: '3', tokenMetadata: 0, },
+		]);
+
+		assert.strictEqual(renderLineTokens(lineTokens2), '1(0)Hello (16384)2(0)wor(32768)3(0)ld, (32768)this (49152)is (65536)a (81920)lovely (98304)day(114688)');
+	});
+
+	test('withInserted (tokens at the same position)', () => {
+		const lineTokens = createTestLineTokens();
+		assert.strictEqual(renderLineTokens(lineTokens), 'Hello (16384)world, (32768)this (49152)is (65536)a (81920)lovely (98304)day(114688)');
+
+		const lineTokens2 = lineTokens.withInserted([
+			{ offset: 0, text: '1', tokenMetadata: 0, },
+			{ offset: 0, text: '2', tokenMetadata: 0, },
+			{ offset: 0, text: '3', tokenMetadata: 0, },
+		]);
+
+		assert.strictEqual(renderLineTokens(lineTokens2), '1(0)2(0)3(0)Hello (16384)world, (32768)this (49152)is (65536)a (81920)lovely (98304)day(114688)');
+	});
+
+	test('withInserted (tokens at the end)', () => {
+		const lineTokens = createTestLineTokens();
+		assert.strictEqual(renderLineTokens(lineTokens), 'Hello (16384)world, (32768)this (49152)is (65536)a (81920)lovely (98304)day(114688)');
+
+		const lineTokens2 = lineTokens.withInserted([
+			{ offset: 'Hello world, this is a lovely day'.length - 1, text: '1', tokenMetadata: 0, },
+			{ offset: 'Hello world, this is a lovely day'.length, text: '2', tokenMetadata: 0, },
+		]);
+
+		assert.strictEqual(renderLineTokens(lineTokens2), 'Hello (16384)world, (32768)this (49152)is (65536)a (81920)lovely (98304)da(114688)1(0)y(114688)2(0)');
+	});
+
 	test('basics', () => {
 		const lineTokens = createTestLineTokens();
 

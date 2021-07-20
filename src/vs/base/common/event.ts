@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { once as onceFn } from 'vs/base/common/functional';
-import { Disposable, IDisposable, toDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, combinedDisposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { StopWatch } from 'vs/base/common/stopwatch';
 
@@ -122,7 +123,13 @@ export namespace Event {
 	 * @deprecated DO NOT use, this leaks memory
 	 */
 	export function debounce<T>(event: Event<T>, merge: (last: T | undefined, event: T) => T, delay?: number, leading?: boolean, leakWarningThreshold?: number): Event<T>;
+	/**
+	 * @deprecated DO NOT use, this leaks memory
+	 */
 	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay?: number, leading?: boolean, leakWarningThreshold?: number): Event<O>;
+	/**
+	 * @deprecated DO NOT use, this leaks memory
+	 */
 	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay: number = 100, leading = false, leakWarningThreshold?: number): Event<O> {
 
 		let subscription: IDisposable;
@@ -471,9 +478,6 @@ class LeakageMonitor {
 	}
  */
 export class Emitter<T> {
-
-	private static readonly _noop = function () { };
-
 	private readonly _options?: EmitterOptions;
 	private readonly _leakageMon?: LeakageMonitor;
 	private readonly _perfMon?: EventProfiling;
@@ -518,24 +522,21 @@ export class Emitter<T> {
 				// check and record this emitter for potential leakage
 				const removeMonitor = this._leakageMon?.check(this._listeners.size);
 
-				let result: IDisposable;
-				result = {
-					dispose: () => {
-						if (removeMonitor) {
-							removeMonitor();
-						}
-						result.dispose = Emitter._noop;
-						if (!this._disposed) {
-							remove();
-							if (this._options && this._options.onLastListenerRemove) {
-								const hasListeners = (this._listeners && !this._listeners.isEmpty());
-								if (!hasListeners) {
-									this._options.onLastListenerRemove(this);
-								}
+				const result = toDisposable(() => {
+					if (removeMonitor) {
+						removeMonitor();
+					}
+					if (!this._disposed) {
+						remove();
+						if (this._options && this._options.onLastListenerRemove) {
+							const hasListeners = (this._listeners && !this._listeners.isEmpty());
+							if (!hasListeners) {
+								this._options.onLastListenerRemove(this);
 							}
 						}
 					}
-				};
+				});
+
 				if (disposables instanceof DisposableStore) {
 					disposables.add(result);
 				} else if (Array.isArray(disposables)) {
@@ -596,6 +597,73 @@ export class Emitter<T> {
 		}
 	}
 }
+
+
+export interface IWaitUntil {
+	waitUntil(thenable: Promise<unknown>): void;
+}
+
+export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
+
+	private _asyncDeliveryQueue?: LinkedList<[Listener<T>, Omit<T, 'waitUntil'>]>;
+
+	async fireAsync(data: Omit<T, 'waitUntil'>, token: CancellationToken, promiseJoin?: (p: Promise<unknown>, listener: Function) => Promise<unknown>): Promise<void> {
+		if (!this._listeners) {
+			return;
+		}
+
+		if (!this._asyncDeliveryQueue) {
+			this._asyncDeliveryQueue = new LinkedList();
+		}
+
+		for (const listener of this._listeners) {
+			this._asyncDeliveryQueue.push([listener, data]);
+		}
+
+		while (this._asyncDeliveryQueue.size > 0 && !token.isCancellationRequested) {
+
+			const [listener, data] = this._asyncDeliveryQueue.shift()!;
+			const thenables: Promise<unknown>[] = [];
+
+			const event = <T>{
+				...data,
+				waitUntil: (p: Promise<unknown>): void => {
+					if (Object.isFrozen(thenables)) {
+						throw new Error('waitUntil can NOT be called asynchronous');
+					}
+					if (promiseJoin) {
+						p = promiseJoin(p, typeof listener === 'function' ? listener : listener[0]);
+					}
+					thenables.push(p);
+				}
+			};
+
+			try {
+				if (typeof listener === 'function') {
+					listener.call(undefined, event);
+				} else {
+					listener[0].call(listener[1], event);
+				}
+			} catch (e) {
+				onUnexpectedError(e);
+				continue;
+			}
+
+			// freeze thenables-collection to enforce sync-calls to
+			// wait until and then wait for all thenables to resolve
+			Object.freeze(thenables);
+
+			await Promise.allSettled(thenables).then(values => {
+				for (const value of values) {
+					if (value.status === 'rejected') {
+						onUnexpectedError(value.reason);
+					}
+				}
+			});
+		}
+	}
+}
+
 
 export class PauseableEmitter<T> extends Emitter<T> {
 

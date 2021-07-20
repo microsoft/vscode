@@ -958,11 +958,14 @@ export interface IKeyboardNavigationEventFilter {
 }
 
 export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
+	readonly multipleSelectionSupport?: boolean;
 	readonly automaticKeyboardNavigation?: boolean;
 	readonly simpleKeyboardNavigation?: boolean;
 	readonly filterOnType?: boolean;
 	readonly smoothScrolling?: boolean;
 	readonly horizontalScrolling?: boolean;
+	readonly mouseWheelScrollSensitivity?: number;
+	readonly fastScrollSensitivity?: number;
 	readonly expandOnDoubleClick?: boolean;
 	readonly expandOnlyOnTwistieClick?: boolean | ((e: any) => boolean); // e is T
 }
@@ -1001,7 +1004,10 @@ class Trait<T> {
 		return this._nodeSet;
 	}
 
-	constructor(private identityProvider?: IIdentityProvider<T>) { }
+	constructor(
+		private getFirstViewElementWithTrait: () => ITreeNode<T, any> | undefined,
+		private identityProvider?: IIdentityProvider<T>
+	) { }
 
 	set(nodes: ITreeNode<T, any>[], browserEvent?: UIEvent): void {
 		if (!(browserEvent as any)?.__forceEvent && equals(this.nodes, nodes)) {
@@ -1069,6 +1075,14 @@ class Trait<T> {
 				if (insertedNode) {
 					nodes.push(insertedNode);
 				}
+			}
+		}
+
+		if (this.nodes.length > 0 && nodes.length === 0) {
+			const node = this.getFirstViewElementWithTrait();
+
+			if (node) {
+				nodes.push(node);
 			}
 		}
 
@@ -1321,9 +1335,9 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			this.disposables.add(filter);
 		}
 
-		this.focus = new Trait(_options.identityProvider);
-		this.selection = new Trait(_options.identityProvider);
-		this.anchor = new Trait(_options.identityProvider);
+		this.focus = new Trait(() => this.view.getFocusedElements()[0], _options.identityProvider);
+		this.selection = new Trait(() => this.view.getSelectedElements()[0], _options.identityProvider);
+		this.anchor = new Trait(() => this.view.getAnchorElement(), _options.identityProvider);
 		this.view = new TreeNodeList(user, container, treeDelegate, this.renderers, this.focus, this.selection, this.anchor, { ...asListOptions(() => this.model, _options), tree: this });
 
 		this.model = this.createModel(user, this.view, _options);
@@ -1388,10 +1402,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		}
 
 		this.view.updateOptions({
+			...this._options,
 			enableKeyboardNavigation: this._options.simpleKeyboardNavigation,
-			automaticKeyboardNavigation: this._options.automaticKeyboardNavigation,
-			smoothScrolling: this._options.smoothScrolling,
-			horizontalScrolling: this._options.horizontalScrolling
 		});
 
 		if (this.typeFilterController) {
