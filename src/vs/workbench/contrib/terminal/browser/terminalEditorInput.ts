@@ -57,7 +57,6 @@ export class TerminalEditorInput extends EditorInput {
 		}
 		this._terminalInstance = instance;
 		this._setupInstanceListeners();
-		this._terminalEditorFocusContextKey = TerminalContextKeys.editorFocus.bindTo(this._contextKeyService);
 
 		// Refresh dirty state when the confirm on kill setting is changed
 		this._configurationService.onDidChangeConfiguration(e => {
@@ -105,7 +104,7 @@ export class TerminalEditorInput extends EditorInput {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IContextKeyService _contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -123,25 +122,26 @@ export class TerminalEditorInput extends EditorInput {
 	}
 
 	private _setupInstanceListeners(): void {
-		if (!this._terminalInstance) {
+		const instance = this._terminalInstance;
+		if (!instance) {
 			return;
 		}
 
 		this._register(toDisposable(() => {
 			if (!this._isDetached && !this._isShuttingDown) {
-				this._terminalInstance?.dispose();
+				instance.dispose();
 			}
 		}));
 
 		const disposeListeners = [
-			this._terminalInstance.onExit(() => this.dispose()),
-			this._terminalInstance.onDisposed(() => this.dispose()),
-			this._terminalInstance.onTitleChanged(() => this._onDidChangeLabel.fire()),
-			this._terminalInstance.onIconChanged(() => this._onDidChangeLabel.fire()),
-			this._terminalInstance.onDidFocus(() => this._terminalEditorFocusContextKey.set(true)),
-			this._terminalInstance.onDidBlur(() => this._terminalEditorFocusContextKey.reset()),
-			this._terminalInstance.onDidChangeHasChildProcesses(() => this._onDidChangeDirty.fire()),
-			this._terminalInstance.statusList.onDidChangePrimaryStatus(() => this._onDidChangeLabel.fire())
+			instance.onExit(() => this.dispose()),
+			instance.onDisposed(() => this.dispose()),
+			instance.onTitleChanged(() => this._onDidChangeLabel.fire()),
+			instance.onIconChanged(() => this._onDidChangeLabel.fire()),
+			instance.onDidFocus(() => this._terminalEditorFocusContextKey.set(true)),
+			instance.onDidBlur(() => this._terminalEditorFocusContextKey.reset()),
+			instance.onDidChangeHasChildProcesses(() => this._onDidChangeDirty.fire()),
+			instance.statusList.onDidChangePrimaryStatus(() => this._onDidChangeLabel.fire())
 		];
 
 		// Don't dispose editor when instance is torn down on shutdown to avoid extra work and so

@@ -5,7 +5,6 @@
 
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { ITerminalIdentifier } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 export function parseTerminalUri(resource: URI): ITerminalIdentifier {
 	const [, workspaceId, instanceId] = resource.path.split('/');
@@ -18,4 +17,9 @@ export function getTerminalUri(workspaceId: string, instanceId: number, title?: 
 		path: `/${workspaceId}/${instanceId}`,
 		fragment: title || undefined,
 	});
+}
+
+export interface ITerminalIdentifier {
+	workspaceId: string;
+	instanceId: number | undefined;
 }

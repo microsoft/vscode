@@ -44,8 +44,6 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 	readonly onPtyHostRequestResolveVariables = this._onPtyHostRequestResolveVariables.event;
 	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number, workspaceId: string, instanceId: number }>());
 	readonly onDidRequestDetach = this._onDidRequestDetach.event;
-	private readonly _onDidAcceptAttachInstanceReply = this._register(new Emitter<IProcessDetails>());
-	readonly onDidAcceptAttachInstanceReply = this._onDidAcceptAttachInstanceReply.event;
 
 	constructor(
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,

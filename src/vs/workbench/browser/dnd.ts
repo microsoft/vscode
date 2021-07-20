@@ -119,11 +119,9 @@ export function extractEditorsDropData(e: DragEvent, externalOnly?: boolean): Ar
 		if (terminals) {
 			try {
 				const terminalEditors: string[] = JSON.parse(terminals);
-				editors.push(...terminalEditors.map(e => {
-					return {
-						resource: URI.parse(e), isExternal: true
-					};
-				}));
+				for (const terminalEditor of terminalEditors) {
+					editors.push({ resource: URI.parse(terminalEditor), isExternal: true });
+				}
 			} catch (error) {
 				// Invalid transfer
 			}

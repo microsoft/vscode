@@ -82,7 +82,6 @@ export interface IOffProcessTerminalService {
 	onPtyHostRestart: Event<void>;
 
 	onDidRequestDetach: Event<{ requestId: number, workspaceId: string, instanceId: number }>;
-	onDidAcceptAttachInstanceReply: Event<IProcessDetails>;
 
 	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
 	listProcesses(): Promise<IProcessDetails[]>;
