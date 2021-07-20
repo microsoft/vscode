@@ -74,7 +74,7 @@ suite('UserDataAutoSyncService', () => {
 
 		assert.deepStrictEqual(actual, [
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} }
+			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: { 'If-None-Match': '1' } }
 		]);
 	});
 
@@ -175,7 +175,7 @@ suite('UserDataAutoSyncService', () => {
 
 		assert.deepStrictEqual(target.requests, [
 			// Manifest
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} }
+			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: { 'If-None-Match': '1' } }
 		]);
 
 	});
@@ -202,7 +202,7 @@ suite('UserDataAutoSyncService', () => {
 
 		assert.deepStrictEqual(target.requests, [
 			// Manifest
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: { 'If-None-Match': '1' } },
 			// Settings
 			{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '1' } },
 			// Keybindings
@@ -267,7 +267,7 @@ suite('UserDataAutoSyncService', () => {
 		assert.deepStrictEqual((<UserDataAutoSyncError>e).code, UserDataSyncErrorCode.TurnedOff);
 		assert.deepStrictEqual(target.requests, [
 			// Manifest
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: { 'If-None-Match': '1' } },
 			// Machine
 			{ type: 'GET', url: `${target.url}/v1/resource/machines/latest`, headers: { 'If-None-Match': '1' } },
 		]);
@@ -298,7 +298,7 @@ suite('UserDataAutoSyncService', () => {
 		assert.deepStrictEqual((<UserDataAutoSyncError>e).code, UserDataSyncErrorCode.TurnedOff);
 		assert.deepStrictEqual(target.requests, [
 			// Manifest
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: { 'If-None-Match': '1' } },
 			// Machine
 			{ type: 'GET', url: `${target.url}/v1/resource/machines/latest`, headers: { 'If-None-Match': '2' } },
 			{ type: 'POST', url: `${target.url}/v1/resource/machines`, headers: { 'If-Match': '2' } },
@@ -322,7 +322,7 @@ suite('UserDataAutoSyncService', () => {
 		await testObject.sync();
 		assert.deepStrictEqual(target.requests, [
 			// Manifest
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: { 'If-None-Match': '1' } },
 			// Machine
 			{ type: 'POST', url: `${target.url}/v1/resource/machines`, headers: { 'If-Match': '2' } },
 		]);
@@ -359,7 +359,7 @@ suite('UserDataAutoSyncService', () => {
 		assert.deepStrictEqual((<UserDataAutoSyncError>e).code, UserDataSyncErrorCode.SessionExpired);
 		assert.deepStrictEqual(target.requests, [
 			// Manifest
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: { 'If-None-Match': '1' } },
 			// Machine
 			{ type: 'GET', url: `${target.url}/v1/resource/machines/latest`, headers: { 'If-None-Match': '1' } },
 		]);

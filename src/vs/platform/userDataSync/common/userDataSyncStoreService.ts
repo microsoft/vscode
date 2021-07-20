@@ -332,14 +332,15 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 		}
 
 		const context = await this.request(url, { type: 'GET', headers }, [304], CancellationToken.None);
-		const ref = context.res.headers['etag'];
-		if (!ref) {
-			throw new UserDataSyncStoreError('Server did not return the ref', url, UserDataSyncErrorCode.NoRef, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
-		}
 
 		if (context.res.statusCode === 304) {
 			// There is no new value. Hence return the old value.
 			return oldValue!;
+		}
+
+		const ref = context.res.headers['etag'];
+		if (!ref) {
+			throw new UserDataSyncStoreError('Server did not return the ref', url, UserDataSyncErrorCode.NoRef, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
 		}
 
 		const manifest = await asJson<Omit<IUserDataManifest, 'ref'>>(context);

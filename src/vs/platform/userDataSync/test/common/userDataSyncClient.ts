@@ -164,6 +164,8 @@ export class UserDataSyncTestServer implements IRequestService {
 	get responses(): { status: number }[] { return this._responses; }
 	reset(): void { this._requests = []; this._responses = []; this._requestsWithAllHeaders = []; }
 
+	private manifestRef = 0;
+
 	constructor(private readonly rateLimit = Number.MAX_SAFE_INTEGER, private readonly retryAfter?: number) { }
 
 	async resolveProxy(url: string): Promise<string | undefined> { return url; }
@@ -211,10 +213,10 @@ export class UserDataSyncTestServer implements IRequestService {
 		if (this.session) {
 			const latest: Record<ServerResource, string> = Object.create({});
 			this.data.forEach((value, key) => latest[key] = value.ref);
-			const manifest: IUserDataManifest = { session: this.session, latest, ref: '' };
-			return this.toResponse(200, { 'Content-Type': 'application/json' }, JSON.stringify(manifest));
+			const manifest = { session: this.session, latest };
+			return this.toResponse(200, { 'Content-Type': 'application/json', etag: `${this.manifestRef++}` }, JSON.stringify(manifest));
 		}
-		return this.toResponse(204);
+		return this.toResponse(204, { etag: `${this.manifestRef++}` });
 	}
 
 	private async getLatestData(resource: string, headers: IHeaders = {}): Promise<IRequestContext> {
