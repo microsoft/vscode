@@ -55,6 +55,7 @@ import { IUserDataSyncWorkbenchService, getSyncAreaLabel, AccountStatus, CONTEXT
 import { Codicon } from 'vs/base/common/codicons';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { EditorResolution } from 'vs/platform/editor/common/editor';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
 
@@ -761,6 +762,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		this.registerSyncNowAction();
 		this.registerConfigureSyncAction();
 		this.registerShowSettingsAction();
+		this.registerHelpAction();
 		this.registerShowLogAction();
 		this.registerResetSyncDataAction();
 	}
@@ -1154,6 +1156,32 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}));
 	}
 
+	private registerHelpAction(): void {
+		const that = this;
+		this._register(registerAction2(class HelpAction extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.userDataSync.actions.help',
+					title: { value: SYNC_TITLE, original: 'Settings Sync' },
+					category: CATEGORIES.Help,
+					menu: [{
+						id: MenuId.CommandPalette,
+						when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized)),
+					}],
+				});
+			}
+			run(): any { return that.openerService.open(URI.parse('https://aka.ms/vscode-settings-sync-help')); }
+		}));
+		MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
+			command: {
+				id: 'workbench.userDataSync.actions.help',
+				title: CATEGORIES.Help.value
+			},
+			when: ContextKeyEqualsExpr.create('viewContainer', SYNC_VIEW_CONTAINER_ID),
+			group: '1_help',
+		});
+	}
+
 	private registerViews(): void {
 		const container = this.registerViewContainer();
 		this.registerDataViews(container);
@@ -1182,7 +1210,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					title: localize('workbench.actions.syncData.reset', "Clear Data in Cloud..."),
 					menu: [{
 						id: MenuId.ViewContainerTitle,
-						when: ContextKeyEqualsExpr.create('viewContainer', SYNC_VIEW_CONTAINER_ID)
+						when: ContextKeyEqualsExpr.create('viewContainer', SYNC_VIEW_CONTAINER_ID),
+						group: '0_configure',
 					}],
 				});
 			}
