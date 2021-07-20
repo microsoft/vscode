@@ -10,9 +10,9 @@ import { IExtensionResourceLoaderService } from 'vs/workbench/services/extension
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IHeaders } from 'vs/base/parts/request/common/request';
 import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { isWeb } from 'vs/base/common/platform';
 
 class ExtensionResourceLoaderService implements IExtensionResourceLoaderService {
 
@@ -22,12 +22,12 @@ class ExtensionResourceLoaderService implements IExtensionResourceLoaderService 
 
 	constructor(
 		@IFileService private readonly _fileService: IFileService,
-		@IProductService productService: IProductService,
+		@IProductService private readonly _productService: IProductService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 	) {
-		if (productService.extensionsGallery) {
-			this._extensionGalleryResourceAuthority = this._getExtensionResourceAuthority(URI.parse(productService.extensionsGallery.resourceUrlTemplate));
+		if (_productService.extensionsGallery) {
+			this._extensionGalleryResourceAuthority = this._getExtensionResourceAuthority(URI.parse(_productService.extensionsGallery.resourceUrlTemplate));
 		}
 	}
 
@@ -39,13 +39,20 @@ class ExtensionResourceLoaderService implements IExtensionResourceLoaderService 
 			return result.value.toString();
 		}
 
-		let headers: IHeaders = {};
+		const requestInit: RequestInit = {};
 		if (this._extensionGalleryResourceAuthority && this._extensionGalleryResourceAuthority === this._getExtensionResourceAuthority(uri)) {
 			const machineId = await this._getServiceMachineId();
-			headers['X-Machine-Id'] = machineId;
+			requestInit.headers = {
+				'X-Client-Name': `${this._productService.applicationName}${isWeb ? '-web' : ''}`,
+				'X-Client-Version': this._productService.version,
+				'X-Machine-Id': machineId
+			};
+			if (this._productService.commit) {
+				requestInit.headers['X-Client-Commit'] = this._productService.commit;
+			}
 		}
 
-		const response = await fetch(uri.toString(true) /* not adding machineid header due to CORS error */);
+		const response = await fetch(uri.toString(true), requestInit);
 		if (response.status !== 200) {
 			throw new Error(response.statusText);
 		}
