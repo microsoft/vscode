@@ -578,7 +578,8 @@
 					"vscode-oniguruma",
 					"iconv-lite-umd",
 					"jschardet",
-					"@vscode/vscode-languagedetection"
+					"@vscode/vscode-languagedetection",
+					"@microsoft/applicationinsights-web"
 				]
 			},
 			{
