@@ -219,14 +219,14 @@ export class DisassemblyView extends EditorPane {
 		if (index >= 0) {
 			// If the row is out of the viewport, reveal it
 			const topElement = Math.floor(this._disassembledInstructions.scrollTop / this.fontInfo.lineHeight);
-			const bottomElement = Math.ceil((this._disassembledInstructions.scrollTop + this._disassembledInstructions.renderHeight) / this.fontInfo.lineHeight);
+			const bottomElement = Math.floor((this._disassembledInstructions.scrollTop + this._disassembledInstructions.renderHeight) / this.fontInfo.lineHeight);
 			if (index > topElement && index < bottomElement) {
 				// Inside the viewport, don't do anything here
 				return;
-			} else if (index < topElement && index > topElement - 5) {
+			} else if (index <= topElement && index > topElement - 5) {
 				// Not too far from top, review it at the top
 				return this._disassembledInstructions.reveal(index, 0);
-			} else if (index > bottomElement && index < bottomElement + 5) {
+			} else if (index >= bottomElement && index < bottomElement + 5) {
 				// Not too far from bottom, review it at the bottom
 				return this._disassembledInstructions.reveal(index, 1);
 			} else {

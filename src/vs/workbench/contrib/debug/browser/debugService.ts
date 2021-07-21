@@ -51,7 +51,6 @@ import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL } from 'vs/workbench/
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
 import { IEditorInput } from 'vs/workbench/common/editor';
-import { DisassemblyView } from 'vs/workbench/contrib/debug/browser/disassemblyView';
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 
 export class DebugService implements IDebugService {
@@ -832,8 +831,7 @@ export class DebugService implements IDebugService {
 			const editor = await stackFrame.openInEditor(this.editorService, true);
 			if (editor) {
 				if (editor.input === DisassemblyViewInput.instance) {
-					const disassemblyView = editor as DisassemblyView;
-					disassemblyView.goToAddress(stackFrame.instructionPointerReference);
+					// Go to address is invoked via setFocus
 				} else {
 					const control = editor.getControl();
 					if (stackFrame && isCodeEditor(control) && control.hasModel()) {
