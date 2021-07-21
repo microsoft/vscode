@@ -334,6 +334,16 @@ suite('CustomConfigurationModel', () => {
 		assert.deepStrictEqual(testObject.configurationModel.keys, []);
 	});
 
+	test('Test empty property is not ignored', () => {
+		const testObject = new ConfigurationModelParser('test');
+		testObject.parse(JSON.stringify({ '': 1 }));
+
+		// deepStrictEqual seems to ignore empty properties, fall back
+		// to comparing the output of JSON.stringify
+		assert.strictEqual(JSON.stringify(testObject.configurationModel.contents), JSON.stringify({ '': 1 }));
+		assert.deepStrictEqual(testObject.configurationModel.keys, ['']);
+	});
+
 	test('Test registering the same property again', () => {
 		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 			'id': 'a',
