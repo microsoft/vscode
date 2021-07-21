@@ -503,16 +503,6 @@ class MyCompletionItem extends vscode.CompletionItem {
 	}
 }
 
-class CompositeCommand implements Command {
-	public static readonly ID = '_typescript.composite';
-	public readonly id = CompositeCommand.ID;
-
-	public execute(...commands: vscode.Command[]) {
-		for (const command of commands) {
-			vscode.commands.executeCommand(command.command, ...(command.arguments || []));
-		}
-	}
-}
 
 class CompletionAcceptedCommand implements Command {
 	public static readonly ID = '_typescript.onCompletionAccepted';
@@ -653,7 +643,6 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		onCompletionAccepted: (item: vscode.CompletionItem) => void
 	) {
 		commandManager.register(new ApplyCompletionCodeActionCommand(this.client));
-		commandManager.register(new CompositeCommand());
 		commandManager.register(new CompletionAcceptedCommand(onCompletionAccepted, this.telemetryReporter));
 		commandManager.register(new ApplyCompletionCommand(this.client));
 	}
