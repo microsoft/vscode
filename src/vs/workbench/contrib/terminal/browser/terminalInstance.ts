@@ -31,7 +31,7 @@ import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalInstanceService, ITerminalInstance, ITerminalExternalLinkProvider, IRequestAddInstanceToGroupEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
-import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon, RendererType, ITheme } from 'xterm';
+import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon, RendererType, ITheme, IMarker, IBufferLine } from 'xterm';
 import type { SearchAddon, ISearchOptions } from 'xterm-addon-search';
 import type { Unicode11Addon } from 'xterm-addon-unicode11';
 import type { WebglAddon } from 'xterm-addon-webgl';
@@ -2004,6 +2004,50 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		quickPick.hide();
 		document.body.removeChild(styleElement);
+	}
+
+	registerMarker(cursorYOffset: number): IMarker | undefined {
+		return this._xterm!.registerMarker(cursorYOffset);
+	}
+
+	translateLinesToText(start: number, length: number): string[] {
+		if (length <= 0) {
+			throw new Error(`Invalid argument value length=${length}`);
+		}
+		const buffer = this._xterm!.buffer.active;
+		const lines: string[] = [];
+		let line: IBufferLine | undefined;
+		let workIndex = 0;
+
+
+		// If the first line is wrapped, scan backwards and include the rest of it.
+		line = buffer.getLine(start)!;
+		// TODO: This may mess up if the following lines are wrapped?
+		lines[0] = line.translateToString(true);
+		workIndex = 0;
+		while (start - workIndex > 0 && line.isWrapped) {
+			line = buffer.getLine(start - (++workIndex));
+			if (!line) {
+				break;
+			}
+			lines[0] = line.translateToString(false) + lines[0];
+		}
+
+		// Get the remaining lines
+		let lineIndex = 1;
+		for (let i = 1; i < length; i++) {
+			line = buffer.getLine(start + i)!;
+
+			// If the line is wrapped, add it to the previous line
+			if (line.isWrapped) {
+				lines[lineIndex - 1] = lines[lineIndex - 1] + line.translateToString(true);
+				continue;
+			}
+
+			// Set the line and increment
+			lines[lineIndex++] = line.translateToString(true);
+		}
+		return lines;
 	}
 }
 

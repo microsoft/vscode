@@ -10,7 +10,7 @@ import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalIcon, TitleEventSource, TerminalShellType, ICreateContributedTerminalProfileOptions, TerminalLocation, IExtensionTerminalProfile, ITerminalProfileType } from 'vs/platform/terminal/common/terminal';
 import { ICommandTracker, INavigationMode, IOffProcessTerminalService, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
-import type { Terminal as XTermTerminal } from 'xterm';
+import type { IMarker, Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
 import type { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
@@ -746,6 +746,23 @@ export interface ITerminalInstance {
 	 * Triggers a quick pick to change the color of the associated terminal tab icon.
 	 */
 	changeColor(): Promise<void>;
+
+	/**
+	 * Create's an xterm.js marker for the given line which tracks the line even when the buffer is
+	 * trimmed because the maximum scrollback is hit.
+	 * @param cursorYOffset The y position offset of the marker from the cursor.
+	 * @returns The new marker, this will be undefined if the alt buffer is currently active.
+	 */
+	registerMarker(cursorYOffset: number): IMarker | undefined;
+
+	/**
+	 * Translates a range of lines to their text representation, excluding all escape sequences and
+	 * styles.
+	 * @param start The start line index to translate.
+	 * @param length The number of lines to translate, must be >= 1.
+	 * @return An array of lines as text.
+	 */
+	translateLinesToText(start: number, length: number): string[];
 }
 
 export interface IRequestAddInstanceToGroupEvent {
