@@ -809,13 +809,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}));
 		this._register(dom.addDisposableListener(xterm.element, 'touchstart', () => {
 			xterm.focus();
-			this._terminalFocusContextKey.set(true);
-			if (this.shellType) {
-				this._terminalShellTypeContextKey.set(this.shellType.toString());
-			} else {
-				this._terminalShellTypeContextKey.reset();
-			}
-			this._onDidFocus.fire(this);
 		}));
 
 		// xterm.js currently drops selection on keyup as we need to handle this case.
