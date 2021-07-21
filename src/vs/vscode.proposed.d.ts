@@ -2103,6 +2103,7 @@ declare module 'vscode' {
 		 * @param item An unresolved test item for which
 		 * children are being requested
 		 */
+		// todo@API resolveHandler
 		resolveChildrenHandler?: (item: TestItem | undefined) => Thenable<void> | void;
 
 		/**
