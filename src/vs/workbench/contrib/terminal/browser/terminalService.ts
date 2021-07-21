@@ -902,15 +902,12 @@ export class TerminalService implements ITerminalService {
 			quickPickItems.push(...configProfiles.map(e => this._createProfileQuickPickItem(e)));
 		}
 
-		// Add contributed profiles
-		if (type === 'createInstance') {
-			for (const contributed of this._terminalContributionService.terminalProfiles) {
-				const icon = contributed.icon ? (iconRegistry.get(contributed.icon) || Codicon.terminal) : Codicon.terminal;
-				quickPickItems.push({
-					label: `$(${icon.id}) ${contributed.title}`,
-					profile: contributed
-				});
-			}
+		for (const contributed of this._terminalContributionService.terminalProfiles) {
+			const icon = contributed.icon ? (iconRegistry.get(contributed.icon) || Codicon.terminal) : Codicon.terminal;
+			quickPickItems.push({
+				label: `$(${icon.id}) ${contributed.title}`,
+				profile: contributed
+			});
 		}
 
 		if (autoDetectedProfiles.length > 0) {
@@ -947,29 +944,46 @@ export class TerminalService implements ITerminalService {
 				return instance;
 			}
 		} else { // setDefault
-			if ('command' in value.profile || 'id' in value.profile) {
+			if ('command' in value.profile) {
 				return; // Should never happen
-			}
-
-			// Add the profile to settings if necessary
-			if (value.profile.isAutoDetected) {
+			} else if ('id' in value.profile) {
+				// extension contributed profile
+				const profile = this._createProfileFromContribution(value.profile);
 				const profilesConfig = await this._configurationService.getValue(`terminal.integrated.profiles.${platformKey}`);
 				if (typeof profilesConfig === 'object') {
 					const newProfile: ITerminalProfileObject = {
-						path: value.profile.path
+						path: value.profile.id,
+						icon: profile.icon
 					};
-					if (value.profile.args) {
-						newProfile.args = value.profile.args;
-					}
-					(profilesConfig as { [key: string]: ITerminalProfileObject })[value.profile.profileName] = newProfile;
+
+					(profilesConfig as { [key: string]: ITerminalProfileObject })[profile.profileName] = newProfile;
 				}
 				await this._configurationService.updateValue(`terminal.integrated.profiles.${platformKey}`, profilesConfig, ConfigurationTarget.USER);
+				// Set the default profile
+				await this._configurationService.updateValue(`terminal.integrated.defaultProfile.${platformKey}`, profile.profileName, ConfigurationTarget.USER);
+				return;
 			}
-			// Set the default profile
-			await this._configurationService.updateValue(`terminal.integrated.defaultProfile.${platformKey}`, value.profile.profileName, ConfigurationTarget.USER);
 		}
+
+		// Add the profile to settings if necessary
+		if (value.profile.isAutoDetected) {
+			const profilesConfig = await this._configurationService.getValue(`terminal.integrated.profiles.${platformKey}`);
+			if (typeof profilesConfig === 'object') {
+				const newProfile: ITerminalProfileObject = {
+					path: value.profile.path
+				};
+				if (value.profile.args) {
+					newProfile.args = value.profile.args;
+				}
+				(profilesConfig as { [key: string]: ITerminalProfileObject })[value.profile.profileName] = newProfile;
+			}
+			await this._configurationService.updateValue(`terminal.integrated.profiles.${platformKey}`, profilesConfig, ConfigurationTarget.USER);
+		}
+		// Set the default profile
+		await this._configurationService.updateValue(`terminal.integrated.defaultProfile.${platformKey}`, value.profile.profileName, ConfigurationTarget.USER);
 		return undefined;
 	}
+
 
 	getDefaultInstanceHost(): ITerminalInstanceHost {
 		if (this.configHelper.config.defaultLocation === TerminalLocation.Editor) {
@@ -1007,6 +1021,15 @@ export class TerminalService implements ITerminalService {
 		} catch (e) {
 			this._notificationService.error(e.message);
 		}
+	}
+
+	private _createProfileFromContribution(profile: ITerminalProfileContribution): ITerminalProfile {
+		return {
+			profileName: profile.title,
+			icon: profile.icon ? { id: profile.icon } : undefined,
+			isDefault: false,
+			path: profile.id
+		};
 	}
 
 	private _createProfileQuickPickItem(profile: ITerminalProfile): IProfileQuickPickItem {
