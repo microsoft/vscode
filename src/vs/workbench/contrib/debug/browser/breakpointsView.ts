@@ -1067,6 +1067,32 @@ export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: 
 		};
 	}
 
+	if (breakpoint instanceof InstructionBreakpoint) {
+		if (!breakpoint.supported) {
+			return {
+				icon: breakpointIcon.unverified,
+				message: localize('instructionBreakpointUnsupported', "Instruction breakpoints not supported by this debug type"),
+			};
+		}
+		const messages: string[] = [];
+		if (breakpoint.message) {
+			messages.push(breakpoint.message);
+		} else if (breakpoint.instructionReference) {
+			messages.push(localize('instructionBreakpointAtAddress', "Instruction breakpoint at address {0}", breakpoint.instructionReference));
+		} else {
+			messages.push(localize('instructionBreakpoint', "Instruction breakpoint"));
+		}
+
+		if (breakpoint.hitCondition) {
+			messages.push(localize('hitCount', "Hit Count: {0}", breakpoint.hitCondition));
+		}
+
+		return {
+			icon: breakpointIcon.regular,
+			message: appendMessage(messages.join('\n'))
+		};
+	}
+
 	if (breakpoint.logMessage || breakpoint.condition || breakpoint.hitCondition) {
 		const messages: string[] = [];
 
