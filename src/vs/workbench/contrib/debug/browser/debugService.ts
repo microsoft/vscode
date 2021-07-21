@@ -831,7 +831,7 @@ export class DebugService implements IDebugService {
 		if (stackFrame) {
 			const editor = await stackFrame.openInEditor(this.editorService, true);
 			if (editor) {
-				if (editor.getId() === 'workbench.debug.disassemblyView') {
+				if (editor.input === DisassemblyViewInput.instance) {
 					const disassemblyView = editor as DisassemblyView;
 					disassemblyView.goToAddress(stackFrame.instructionPointerReference);
 				} else {

@@ -43,7 +43,6 @@ export class DisassemblyView extends EditorPane {
 
 	// Used in instruction renderer
 	private _fontInfo: BareFontInfo;
-	private _currentInstructionAddress: string | undefined;
 	private _disassembledInstructions: WorkbenchTable<IDisassembledInstructionEntry> | undefined;
 	private _onDidChangeStackFrame: Emitter<void>;
 	private _previousDebuggingState: State;
@@ -75,7 +74,9 @@ export class DisassemblyView extends EditorPane {
 
 	get fontInfo() { return this._fontInfo; }
 
-	get currentInstructionAddress() { return this._currentInstructionAddress; }
+	get currentInstructionAddress() {
+		return this._debugService.getViewModel().focusedStackFrame?.instructionPointerReference;
+	}
 
 	get onDidChangeStackFrame() { return this._onDidChangeStackFrame.event; }
 
@@ -143,33 +144,8 @@ export class DisassemblyView extends EditorPane {
 		}));
 
 		this._register(this._debugService.getViewModel().onDidFocusStackFrame((stackFrame) => {
-			if (this._disassembledInstructions && this._currentInstructionAddress !== stackFrame.stackFrame?.instructionPointerReference) {
-				this._currentInstructionAddress = stackFrame.stackFrame?.instructionPointerReference;
-				if (this._currentInstructionAddress) {
-					// console.log(`DisassemblyView: ${this._currentInstructionAddress}`);
-					const index = this.getIndexFromAddress(this._currentInstructionAddress);
-					if (index >= 0) {
-						// If the row is out of the viewport, reveal it
-						const topElement = Math.floor(this._disassembledInstructions.scrollTop / this.fontInfo.lineHeight);
-						const bottomElement = Math.ceil((this._disassembledInstructions.scrollTop + this._disassembledInstructions.renderHeight) / this.fontInfo.lineHeight);
-						if (index > topElement && index < bottomElement) {
-							// Inside the viewport, don't do anything here
-						} else if (index < topElement && index > topElement - 5) {
-							// Not too far from top, review it at the top
-							this._disassembledInstructions.reveal(index, 0);
-						} else if (index > bottomElement && index < bottomElement + 5) {
-							// Not too far from bottom, review it at the bottom
-							this._disassembledInstructions.reveal(index, 1);
-						} else {
-							// Far from the current viewport, reveal it
-							this._disassembledInstructions.reveal(index, 0.5);
-						}
-					} else {
-						// Stack frame is very far from what's shown in the view now. Clear the table and reload.
-						this.reloadDisassembly();
-					}
-				}
-
+			if (this._disassembledInstructions) {
+				this.goToAddress();
 				this._onDidChangeStackFrame.fire();
 			}
 		}));
@@ -224,18 +200,43 @@ export class DisassemblyView extends EditorPane {
 		}
 	}
 
+	/**
+	 * Go to the address provided. If no address is provided, reveal the address of the currently focused stack frame.
+	 */
 	goToAddress(address?: string): void {
-		if (address) {
-			const index = this.getIndexFromAddress(address);
-			if (index >= 0) {
-				this._disassembledInstructions?.reveal(index, 0.5);
-				return;
-			}
+		if (!this._disassembledInstructions) {
+			return;
 		}
-		// Address is not provided or not in the table currently, clear the table
-		// and reload if we are in the state where we can load disassembly.
-		if (this._debugService.state === State.Stopped) {
-			this.reloadDisassembly(address);
+
+		if (!address) {
+			address = this.currentInstructionAddress;
+		}
+		if (!address) {
+			return;
+		}
+
+		const index = this.getIndexFromAddress(address);
+		if (index >= 0) {
+			// If the row is out of the viewport, reveal it
+			const topElement = Math.floor(this._disassembledInstructions.scrollTop / this.fontInfo.lineHeight);
+			const bottomElement = Math.ceil((this._disassembledInstructions.scrollTop + this._disassembledInstructions.renderHeight) / this.fontInfo.lineHeight);
+			if (index > topElement && index < bottomElement) {
+				// Inside the viewport, don't do anything here
+				return;
+			} else if (index < topElement && index > topElement - 5) {
+				// Not too far from top, review it at the top
+				return this._disassembledInstructions.reveal(index, 0);
+			} else if (index > bottomElement && index < bottomElement + 5) {
+				// Not too far from bottom, review it at the bottom
+				return this._disassembledInstructions.reveal(index, 1);
+			} else {
+				// Far from the current viewport, reveal it
+				return this._disassembledInstructions.reveal(index, 0.5);
+			}
+		} else if (this._debugService.state === State.Stopped) {
+			// Address is not provided or not in the table currently, clear the table
+			// and reload if we are in the state where we can load disassembly.
+			return this.reloadDisassembly(address);
 		}
 	}
 
@@ -258,20 +259,17 @@ export class DisassemblyView extends EditorPane {
 	}
 
 	private async loadDisassembledInstructions(address: string | undefined, instructionOffset: number, instructionCount: number): Promise<boolean> {
-		// if address is null, then use current stackframe.
+		// if address is null, then use current stack frame.
 		if (!address) {
-			const frame = this._debugService.getViewModel().focusedStackFrame;
-			if (frame?.instructionPointerReference) {
-				address = frame.instructionPointerReference;
-				this._currentInstructionAddress = address;
-			} else {
-				return false;
-			}
+			address = this.currentInstructionAddress;
+		}
+		if (!address) {
+			return false;
 		}
 
 		// console.log(`DisassemblyView: loadDisassembledInstructions ${address}, ${instructionOffset}, ${instructionCount}`);
 		const session = this._debugService.getViewModel().focusedSession;
-		const resultEntries = await session?.disassemble(address!, 0, instructionOffset, instructionCount);
+		const resultEntries = await session?.disassemble(address, 0, instructionOffset, instructionCount);
 		if (session && resultEntries && this._disassembledInstructions) {
 			const newEntries: IDisassembledInstructionEntry[] = [];
 
