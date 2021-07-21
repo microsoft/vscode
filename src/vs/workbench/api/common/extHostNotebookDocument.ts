@@ -45,8 +45,8 @@ export class ExtHostCell {
 	}
 
 	private _outputs: vscode.NotebookCellOutput[];
-	private _metadata: notebookCommon.NotebookCellMetadata;
-	private _previousResult: vscode.NotebookCellExecutionSummary | undefined;
+	private _metadata: Readonly<notebookCommon.NotebookCellMetadata>;
+	private _previousResult: Readonly<vscode.NotebookCellExecutionSummary | undefined>;
 
 	private _internalMetadata: notebookCommon.NotebookCellInternalMetadata;
 	readonly handle: number;
@@ -66,8 +66,8 @@ export class ExtHostCell {
 		this.cellKind = _cellData.cellKind;
 		this._outputs = _cellData.outputs.map(extHostTypeConverters.NotebookCellOutput.to);
 		this._internalMetadata = _cellData.internalMetadata ?? {};
-		this._metadata = _cellData.metadata ?? {};
-		this._previousResult = extHostTypeConverters.NotebookCellExecutionSummary.to(_cellData.internalMetadata ?? {});
+		this._metadata = Object.freeze(_cellData.metadata ?? {});
+		this._previousResult = Object.freeze(extHostTypeConverters.NotebookCellExecutionSummary.to(_cellData.internalMetadata ?? {}));
 	}
 
 	get internalMetadata(): notebookCommon.NotebookCellInternalMetadata {
@@ -112,12 +112,12 @@ export class ExtHostCell {
 	}
 
 	setMetadata(newMetadata: notebookCommon.NotebookCellMetadata): void {
-		this._metadata = newMetadata;
+		this._metadata = Object.freeze(newMetadata);
 	}
 
 	setInternalMetadata(newInternalMetadata: notebookCommon.NotebookCellInternalMetadata): void {
 		this._internalMetadata = newInternalMetadata;
-		this._previousResult = extHostTypeConverters.NotebookCellExecutionSummary.to(newInternalMetadata);
+		this._previousResult = Object.freeze(extHostTypeConverters.NotebookCellExecutionSummary.to(newInternalMetadata));
 	}
 
 	setMime(newMime: string | undefined) {
