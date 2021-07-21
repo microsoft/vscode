@@ -218,13 +218,16 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 }
 
 function createArraySuggester(element: SettingsTreeSettingElement): IObjectKeySuggester {
-	return keys => {
+	return (keys, idx) => {
 		const enumOptions: IObjectEnumOption[] = [];
 
 		if (element.setting.enum) {
-			element.setting.enum.forEach((staticKey, i) => {
-				const description = element.setting.enumDescriptions?.[i];
-				enumOptions.push({ value: staticKey, description });
+			element.setting.enum.forEach((key, i) => {
+				// include the currently selected value, even if uniqueItems is true
+				if (!element.setting.uniqueItems || (idx !== undefined && key === keys[idx]) || !keys.includes(key)) {
+					const description = element.setting.enumDescriptions?.[i];
+					enumOptions.push({ value: key, description });
+				}
 			});
 		}
 
@@ -1064,7 +1067,14 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 				newValue = [...template.context.value];
 			}
 
-			if (e.targetIndex !== undefined) {
+			if (e.sourceIndex !== undefined) {
+				// A drag and drop occurred
+				const sourceIndex = e.sourceIndex;
+				const targetIndex = e.targetIndex!;
+				const splicedElem = newValue.splice(sourceIndex, 1)[0];
+				newValue.splice(targetIndex, 0, splicedElem);
+			} else if (e.targetIndex !== undefined) {
+				const itemValueData = e.item?.value.data.toString() ?? '';
 				// Delete value
 				if (!e.item?.value.data && e.originalItem.value.data && e.targetIndex > -1) {
 					newValue.splice(e.targetIndex, 1);
@@ -1072,19 +1082,20 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 				// Update value
 				else if (e.item?.value.data && e.originalItem.value.data) {
 					if (e.targetIndex > -1) {
-						newValue[e.targetIndex] = e.item.value.data.toString();
+						newValue[e.targetIndex] = itemValueData;
 					}
 					// For some reason, we are updating and cannot find original value
 					// Just append the value in this case
 					else {
-						newValue.push(e.item.value.data.toString());
+						newValue.push(itemValueData);
 					}
 				}
 				// Add value
 				else if (e.item?.value.data && !e.originalItem.value.data && e.targetIndex >= newValue.length) {
-					newValue.push(e.item.value.data.toString());
+					newValue.push(itemValueData);
 				}
 			}
+
 			if (
 				template.context.defaultValue &&
 				isArray(template.context.defaultValue) &&
@@ -1093,7 +1104,6 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 			) {
 				return undefined;
 			}
-
 			return newValue;
 		}
 
