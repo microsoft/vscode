@@ -428,7 +428,7 @@
         "@types/node": "^12.11.7",
         "mocha-junit-reporter": "^1.17.0",
         "mocha-multi-reporters": "^1.1.7",
-        "vscode": "1.0.1"
+        "vscode": "1.1.6"
     },
     "dependencies": {
         "@emmetio/css-parser": "ramya-rao-a/css-parser#vscode",
