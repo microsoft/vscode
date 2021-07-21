@@ -772,7 +772,22 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		let lineQueue: string[] = [];
 		let doneDebouncing = false;
 		// If "enough" time (3 seconds) has passed without more line data, start processing and stop debouncing.
-		let startProcessingTimeout: Async.TimeoutTimer | undefined;
+		let interval: Async.IntervalTimer = new Async.IntervalTimer();
+		interval.cancelAndSet(() => {
+			if (doneDebouncing) {
+				interval.dispose();
+				return;
+			}
+			if ((new Date().getTime() - lastEventTime) < 3000) {
+				return;
+			}
+			interval.dispose();
+			doneDebouncing = true;
+			for (const queuedLine of lineQueue) {
+				watchingProblemMatcher.processLine(queuedLine);
+			}
+			lineQueue = [];
+		}, 3000);
 		return terminal.onLineData((line) => {
 			if (skipLine) {
 				skipLine = false;
@@ -780,33 +795,15 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			}
 			const currentTime = new Date().getTime();
 			if (!doneDebouncing && ((currentTime - lastEventTime) < 1500)) {
-				if (startProcessingTimeout) {
-					startProcessingTimeout.dispose();
-				}
 				if (lineQueue.length > 300) {
 					lineQueue = lineQueue.slice(100, lineQueue.length);
 				}
 				lineQueue.push(line);
-				startProcessingTimeout = new Async.TimeoutTimer(() => {
-					if (doneDebouncing) {
-						return;
-					}
-					doneDebouncing = true;
-					for (const queuedLine of lineQueue) {
-						watchingProblemMatcher.processLine(queuedLine);
-					}
-					lineQueue = [];
-					if (startProcessingTimeout) {
-						startProcessingTimeout.dispose();
-					}
-				}, 3000);
 				lastEventTime = new Date().getTime();
 				return;
 			} else if (!doneDebouncing) {
 				doneDebouncing = true;
-				if (startProcessingTimeout) {
-					startProcessingTimeout.dispose();
-				}
+				interval.dispose();
 				for (const queuedLine of lineQueue) {
 					watchingProblemMatcher.processLine(queuedLine);
 				}
