@@ -11571,11 +11571,13 @@ declare module 'vscode' {
 
 		/**
 		 * Sends a message to the renderer.
-		 * @param editor Editor to target with the message
 		 * @param message Message to send
-		 * @returns a boolean indicating whether the message was successfully delivered
+		 * @param editor Editor to target with the message. If not provided, the
+		 * message is sent to all renderers.
+		 * @returns a boolean indicating whether the message was successfully
+		 * delivered to any renderer.
 		 */
-		postMessage(editor: NotebookEditor, message: any): Thenable<boolean>;
+		postMessage(message: any, editor?: NotebookEditor): Thenable<boolean>;
 	}
 
 	/**

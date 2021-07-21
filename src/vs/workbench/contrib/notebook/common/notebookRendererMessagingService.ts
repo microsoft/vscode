@@ -29,7 +29,7 @@ export interface INotebookRendererMessagingService {
 	/**
 	 * Called when the main thread gets a message for a renderer.
 	 */
-	receiveMessage(editorId: string, rendererId: string, message: unknown): Promise<boolean>;
+	receiveMessage(editorId: string | undefined, rendererId: string, message: unknown): Promise<boolean>;
 }
 
 export interface IScopedRendererMessaging extends IDisposable {

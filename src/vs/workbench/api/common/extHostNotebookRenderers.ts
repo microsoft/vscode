@@ -44,14 +44,15 @@ export class ExtHostNotebookRenderers implements ExtHostNotebookRenderersShape {
 
 				return this.getOrCreateEmitterFor(rendererId).event(wrappedListener, thisArg, disposables);
 			},
-			postMessage: (editorOrAlias, message) => {
-				const editor = notebookEditorVisible ? editorOrAlias : notebookEditorAliases.get(editorOrAlias);
-				const extHostEditor = editor && ExtHostNotebookEditor.apiEditorsToExtHost.get(editor);
-				if (!extHostEditor) {
-					throw new Error(`The first argument to postMessage() must be a NotebookEditor`);
+			postMessage: (message, editorOrAlias) => {
+				if (ExtHostNotebookEditor.apiEditorsToExtHost.has(message)) { // back compat for swapped args
+					[message, editorOrAlias] = [editorOrAlias, message];
 				}
 
-				return this.proxy.$postMessage(extHostEditor.id, rendererId, message);
+
+				const editor = notebookEditorVisible ? editorOrAlias : notebookEditorAliases.get(editorOrAlias!);
+				const extHostEditor = editor && ExtHostNotebookEditor.apiEditorsToExtHost.get(editor);
+				return this.proxy.$postMessage(extHostEditor?.id, rendererId, message);
 			},
 		};
 

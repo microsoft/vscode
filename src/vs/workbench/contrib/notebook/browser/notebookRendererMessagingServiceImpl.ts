@@ -23,7 +23,12 @@ export class NotebookRendererMessagingService implements INotebookRendererMessag
 	constructor(@IExtensionService private readonly extensionService: IExtensionService) { }
 
 	/** @inheritdoc */
-	public receiveMessage(editorId: string, rendererId: string, message: unknown): Promise<boolean> {
+	public receiveMessage(editorId: string | undefined, rendererId: string, message: unknown): Promise<boolean> {
+		if (editorId === undefined) {
+			const sends = [...this.scopedMessaging.values()].map(e => e.receiveMessageHandler?.(rendererId, message));
+			return Promise.all(sends).then(s => s.some(s => !!s));
+		}
+
 		return this.scopedMessaging.get(editorId)?.receiveMessageHandler?.(rendererId, message) ?? Promise.resolve(false);
 	}
 
