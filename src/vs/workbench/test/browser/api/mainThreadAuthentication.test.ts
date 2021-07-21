@@ -153,10 +153,15 @@ suite('MainThreadAuthentication', () => {
 	});
 
 	test('Can not recreate a session if none exists', async () => {
-		await assert.rejects(() => mainThreadAuthentication.$getSession('empty', ['foo'], 'testextension', 'test extension', {
-			createIfNone: false,
-			clearSessionPreference: false,
-			forceRecreate: true
-		}), new Error('No existing sessions found.'));
+		try {
+			await mainThreadAuthentication.$getSession('empty', ['foo'], 'testextension', 'test extension', {
+				createIfNone: false,
+				clearSessionPreference: false,
+				forceRecreate: true
+			});
+			assert.fail('should have thrown an Error.');
+		} catch (e) {
+			assert.strictEqual(e.message, 'No existing sessions found.');
+		}
 	});
 });
