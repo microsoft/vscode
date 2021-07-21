@@ -628,7 +628,6 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 					sourceInstances = [instance];
 					this._terminalService.moveToTerminalView(instance);
 				} else if (this._offProcessTerminalService) {
-					// why is this undefined
 					const terminalIdentifier = parseTerminalUri(uri);
 					if (terminalIdentifier.instanceId) {
 						promises.push(this._offProcessTerminalService.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId));
@@ -637,9 +636,12 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 			}
 			let processes = await Promise.all(promises);
 			processes = processes.filter(p => p !== undefined);
+			let lastInstance: ITerminalInstance | undefined;
 			for (const attachPersistentProcess of processes) {
-				const instance = this._terminalService.createTerminal({ config: { attachPersistentProcess } });
-				this._terminalService.setActiveInstance(instance);
+				lastInstance = this._terminalService.createTerminal({ config: { attachPersistentProcess } });
+			}
+			if (lastInstance) {
+				this._terminalService.setActiveInstance(lastInstance);
 			}
 			return;
 		}
