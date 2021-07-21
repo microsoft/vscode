@@ -3166,19 +3166,16 @@ declare module 'vscode' {
 		Error = 2
 	}
 
-	class LanguageStatus {
+	interface LanguageStatusItem {
+		selector: DocumentSelector;
 		text: string;
-		detail: string | MarkdownString;
+		detail: string | MarkdownString
 		severity: LanguageStatusSeverity;
-		constructor(text: string);
-	}
-
-	export interface LanguageStatusProvider {
-		provideLanguageStatus(token: CancellationToken): ProviderResult<LanguageStatus>;
+		dispose(): void;
 	}
 
 	namespace languages {
-		export function registerLanguageStatusProvider(selector: DocumentSelector, provider: LanguageStatusProvider): Disposable;
+		export function createLanguageStatusItem(selector: DocumentSelector): LanguageStatusItem;
 	}
 
 	//#endregion

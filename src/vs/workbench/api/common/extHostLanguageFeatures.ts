@@ -7,7 +7,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { mixin } from 'vs/base/common/objects';
 import type * as vscode from 'vscode';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit, LanguageStatusSeverity } from 'vs/workbench/api/common/extHostTypes';
+import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit } from 'vs/workbench/api/common/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
@@ -33,36 +33,8 @@ import { Cache } from './cache';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { CancellationError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
-import { ILanguageStatus } from 'vs/editor/common/services/languageStatusService';
-import Severity from 'vs/base/common/severity';
 
 // --- adapter
-
-class LanguageStatusAdapter {
-
-	constructor(private readonly _provider: vscode.LanguageStatusProvider) { }
-
-	async provideLanguageStatus(token: CancellationToken): Promise<ILanguageStatus | undefined> {
-
-		const value = await this._provider.provideLanguageStatus(token);
-		if (!value) {
-			return;
-		}
-
-		let severity = Severity.Info;
-		if (value.severity === LanguageStatusSeverity.Error) {
-			severity = Severity.Error;
-		} else if (value.severity === LanguageStatusSeverity.Warning) {
-			severity = Severity.Warning;
-		}
-
-		return {
-			text: value.text,
-			message: typeConvert.MarkdownString.from(value.detail),
-			severity
-		};
-	}
-}
 
 class DocumentSymbolAdapter {
 
@@ -1520,7 +1492,7 @@ class TypeHierarchyAdapter {
 		return map?.get(itemId);
 	}
 }
-type Adapter = LanguageStatusAdapter | DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
+type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
 	| DocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
 	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter
@@ -1650,18 +1622,6 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	private static _extLabel(ext: IExtensionDescription): string {
 		return ext.displayName || ext.name;
-	}
-
-	// --- language status
-
-	registerLanguageStatusProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.LanguageStatusProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new LanguageStatusAdapter(provider), extension);
-		this._proxy.$registerLanguageStatusProvider(handle, this._transformDocumentSelector(selector));
-		return this._createDisposable(handle);
-	}
-
-	$provideLanguageStatus(handle: number, token: CancellationToken): Promise<ILanguageStatus | undefined> {
-		return this._withAdapter(handle, LanguageStatusAdapter, adapter => adapter.provideLanguageStatus(token), undefined);
 	}
 
 	// --- outline

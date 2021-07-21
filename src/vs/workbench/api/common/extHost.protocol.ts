@@ -383,7 +383,6 @@ export interface IdentifiableInlineCompletion extends modes.InlineCompletion {
 
 export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$unregister(handle: number): void;
-	$registerLanguageStatusProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerDocumentSymbolProvider(handle: number, selector: IDocumentFilterDto[], label: string): void;
 	$registerCodeLensSupport(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void;
 	$emitCodeLensEvent(eventHandle: number, event?: any): void;
@@ -426,6 +425,8 @@ export interface MainThreadLanguagesShape extends IDisposable {
 	$getLanguages(): Promise<string[]>;
 	$changeLanguage(resource: UriComponents, languageId: string): Promise<void>;
 	$tokensAtPosition(resource: UriComponents, position: IPosition): Promise<undefined | { type: modes.StandardTokenType, range: IRange }>;
+	$setLanguageStatus(handle: number, status: ILanguageStatus): void;
+	$removeLanguageStatus(handle: number): void;
 }
 
 export interface MainThreadMessageOptions {
@@ -1641,7 +1642,6 @@ export interface IInlineValueContextDto {
 export type ITypeHierarchyItemDto = Dto<TypeHierarchyItem>;
 
 export interface ExtHostLanguageFeaturesShape {
-	$provideLanguageStatus(handle: number, token: CancellationToken): Promise<ILanguageStatus | undefined>;
 	$provideDocumentSymbols(handle: number, resource: UriComponents, token: CancellationToken): Promise<modes.DocumentSymbol[] | undefined>;
 	$provideCodeLenses(handle: number, resource: UriComponents, token: CancellationToken): Promise<ICodeLensListDto | undefined>;
 	$resolveCodeLens(handle: number, symbol: ICodeLensDto, token: CancellationToken): Promise<ICodeLensDto | undefined>;

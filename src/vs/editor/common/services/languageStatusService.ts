@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
@@ -17,6 +16,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 
 
 export interface ILanguageStatus {
+	selector: LanguageSelector,
 	severity: Severity;
 	text: string;
 	message: string | IMarkdownString;
@@ -34,41 +34,26 @@ export interface ILanguageStatusService {
 
 	onDidChange: Event<void>;
 
-	registerLanguageStatusProvider(selector: LanguageSelector, provider: ILanguageStatusProvider): IDisposable;
+	addStatus(status: ILanguageStatus): IDisposable;
 
 	getLanguageStatus(model: ITextModel): Promise<ILanguageStatus[]>;
 }
 
 
 class LanguageStatusServiceImpl implements ILanguageStatusService {
+
 	declare _serviceBrand: undefined;
 
-	private readonly _provider = new LanguageFeatureRegistry<ILanguageStatusProvider>();
+	private readonly _provider = new LanguageFeatureRegistry<ILanguageStatus>();
 
-	private readonly _onDidChange = new Emitter<void>();
-	readonly onDidChange: Event<void> = Event.any(this._onDidChange.event, this._provider.onDidChange);
+	readonly onDidChange: Event<any> = this._provider.onDidChange;
 
-	dispose() {
-		this._onDidChange.dispose();
-	}
-
-	registerLanguageStatusProvider(selector: LanguageSelector, provider: ILanguageStatusProvider): IDisposable {
-		return this._provider.register(selector, provider);
+	addStatus(status: ILanguageStatus): IDisposable {
+		return this._provider.register(status.selector, status);
 	}
 
 	async getLanguageStatus(model: ITextModel): Promise<ILanguageStatus[]> {
-		const all: ILanguageStatus[] = [];
-		for (const provider of this._provider.ordered(model)) {
-			try {
-				const status = await provider.provideLanguageStatus(model.getLanguageIdentifier().language, CancellationToken.None);
-				if (status) {
-					all.push(status);
-				}
-			} catch (err) {
-				onUnexpectedExternalError(err);
-			}
-		}
-		return all.sort((a, b) => b.severity - a.severity);
+		return this._provider.ordered(model).sort((a, b) => b.severity - a.severity);
 	}
 }
 
