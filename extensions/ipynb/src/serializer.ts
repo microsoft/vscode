@@ -13,15 +13,17 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 	public deserializeNotebook(content: Uint8Array, _token: vscode.CancellationToken): vscode.NotebookData {
 		let contents = '';
 		try {
-			contents = new TextDecoder().decode(content.buffer.slice(content.byteOffset));
+			contents = new TextDecoder().decode(content.buffer.slice(content.byteOffset, content.byteOffset + content.byteLength));
 		} catch {
 		}
-		let json: any;
+
+		let json: Partial<nbformat.INotebookContent>;
 		try {
 			json = contents ? (JSON.parse(contents) as Partial<nbformat.INotebookContent>) : {};
 		} catch (e) {
 			console.log(contents);
 			console.log(e);
+			throw e;
 		}
 
 		// Then compute indent from the contents
