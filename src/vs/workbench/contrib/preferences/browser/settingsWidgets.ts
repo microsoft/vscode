@@ -594,6 +594,11 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 		valueElement.textContent = item.value.data.toString();
 		siblingElement.textContent = item.sibling ? `when: ${item.sibling}` : null;
 
+		this.addDragAndDrop(rowElement, item, idx);
+		return rowElement;
+	}
+
+	protected addDragAndDrop(rowElement: HTMLElement, item: IListDataItem, idx: number) {
 		if (this.inReadMode) {
 			rowElement.draggable = true;
 			rowElement.classList.add('draggable');
@@ -602,7 +607,7 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 			rowElement.classList.remove('draggable');
 		}
 
-		this._register(DOM.addDisposableListener(rowElement, DOM.EventType.DRAG_START, (ev) => {
+		this.listDisposables.add(DOM.addDisposableListener(rowElement, DOM.EventType.DRAG_START, (ev) => {
 			this.dragDetails = {
 				element: rowElement,
 				item,
@@ -616,7 +621,7 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 				setTimeout(() => document.body.removeChild(dragImage), 0);
 			}
 		}));
-		this._register(DOM.addDisposableListener(rowElement, DOM.EventType.DRAG_OVER, (ev) => {
+		this.listDisposables.add(DOM.addDisposableListener(rowElement, DOM.EventType.DRAG_OVER, (ev) => {
 			if (!this.dragDetails) {
 				return false;
 			}
@@ -627,17 +632,17 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 			return true;
 		}));
 		let counter = 0;
-		this._register(DOM.addDisposableListener(rowElement, DOM.EventType.DRAG_ENTER, (ev) => {
+		this.listDisposables.add(DOM.addDisposableListener(rowElement, DOM.EventType.DRAG_ENTER, (ev) => {
 			counter++;
 			rowElement.classList.add('drag-hover');
 		}));
-		this._register(DOM.addDisposableListener(rowElement, DOM.EventType.DRAG_LEAVE, (ev) => {
+		this.listDisposables.add(DOM.addDisposableListener(rowElement, DOM.EventType.DRAG_LEAVE, (ev) => {
 			counter--;
 			if (!counter) {
 				rowElement.classList.remove('drag-hover');
 			}
 		}));
-		this._register(DOM.addDisposableListener(rowElement, DOM.EventType.DROP, (ev) => {
+		this.listDisposables.add(DOM.addDisposableListener(rowElement, DOM.EventType.DROP, (ev) => {
 			// cancel the op if we dragged to a completely different setting
 			if (!this.dragDetails) {
 				return false;
@@ -654,7 +659,7 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 			}
 			return true;
 		}));
-		this._register(DOM.addDisposableListener(rowElement, DOM.EventType.DRAG_END, (ev) => {
+		this.listDisposables.add(DOM.addDisposableListener(rowElement, DOM.EventType.DRAG_END, (ev) => {
 			counter = 0;
 			rowElement.classList.remove('drag-hover');
 			if (ev.dataTransfer) {
@@ -664,8 +669,6 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 				this.dragDetails = undefined;
 			}
 		}));
-
-		return rowElement;
 	}
 
 	protected renderEdit(item: IListDataItem, idx: number): HTMLElement {
@@ -848,6 +851,10 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 export class ExcludeSettingWidget extends ListSettingWidget {
 	protected override getContainerClasses() {
 		return ['setting-list-exclude-widget'];
+	}
+
+	protected override addDragAndDrop(rowElement: HTMLElement, item: IListDataItem, idx: number) {
+		return;
 	}
 
 	protected override getLocalizedRowTitle({ value, sibling }: IListDataItem): string {
