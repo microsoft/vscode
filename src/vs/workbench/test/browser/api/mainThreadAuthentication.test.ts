@@ -95,8 +95,9 @@ suite('MainThreadAuthentication', () => {
 				set(v: any): any { return null; }
 				getProxy(): any {
 					return {
-						$getSessions(id: string, scopes: string[]) {
-							return Promise.resolve([createSession(id, scopes)]);
+						async $getSessions(id: string, scopes: string[]) {
+							// if we get the empty auth provider, return no sessions
+							return id === 'empty' ? [] : [createSession(id, scopes)];
 						},
 						$createSession(id: string, scopes: string[]) {
 							return Promise.resolve(createSession(id, scopes));
@@ -112,10 +113,12 @@ suite('MainThreadAuthentication', () => {
 
 	setup(async () => {
 		await mainThreadAuthentication.$registerAuthenticationProvider('test', 'test provider', true);
+		await mainThreadAuthentication.$registerAuthenticationProvider('empty', 'test provider', true);
 	});
 
 	teardown(() => {
 		mainThreadAuthentication.$unregisterAuthenticationProvider('test');
+		mainThreadAuthentication.$unregisterAuthenticationProvider('empty');
 	});
 
 	test('Can get a session', async () => {
@@ -150,10 +153,10 @@ suite('MainThreadAuthentication', () => {
 	});
 
 	test('Can not recreate a session if none exists', async () => {
-		assert.rejects(() => mainThreadAuthentication.$getSession('test', ['foo'], 'testextension', 'test extension', {
+		await assert.rejects(() => mainThreadAuthentication.$getSession('empty', ['foo'], 'testextension', 'test extension', {
 			createIfNone: false,
 			clearSessionPreference: false,
 			forceRecreate: true
-		}), new Error('Session does not exist.'));
+		}), new Error('No existing sessions found.'));
 	});
 });
