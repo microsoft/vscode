@@ -4,10 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { registerNotebookSerializer } from './serializer';
+import { NotebookSerializer } from './serializer';
 
 export function activate(context: vscode.ExtensionContext) {
-	registerNotebookSerializer(context);
+	context.subscriptions.push(vscode.workspace.registerNotebookSerializer('jupyter-notebook', new NotebookSerializer(), {
+		transientOutputs: false,
+		transientCellMetadata: {
+			breakpointMargin: true,
+			inputCollapsed: true,
+			outputCollapsed: true,
+			custom: false
+		}
+	}));
 }
 
 export function deactivate() { }

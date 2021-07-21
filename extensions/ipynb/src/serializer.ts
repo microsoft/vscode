@@ -4,22 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { nbformat } from '@jupyterlab/coreutils';
-import detectIndent = require('detect-indent');
+import * as detectIndent from 'detect-indent';
 import * as vscode from 'vscode';
 import { defaultNotebookFormat } from './constants';
-import { createJupyterCellFromVSCNotebookCell, getPreferredLanguage, notebookModelToVSCNotebookData, pruneCell } from './helpers';
-
-export function registerNotebookSerializer(context: vscode.ExtensionContext) {
-	context.subscriptions.push(vscode.workspace.registerNotebookSerializer('jupyter-notebook', new NotebookSerializer(), {
-		transientOutputs: false,
-		transientCellMetadata: {
-			breakpointMargin: true,
-			inputCollapsed: true,
-			outputCollapsed: true,
-			custom: false
-		}
-	}));
-}
+import { createJupyterCellFromNotebookCell, getPreferredLanguage, jupyterNotebookModelToNotebookData, pruneCell } from './helpers';
 
 export class NotebookSerializer implements vscode.NotebookSerializer {
 	public deserializeNotebook(content: Uint8Array, _token: vscode.CancellationToken): vscode.NotebookData {
@@ -28,14 +16,20 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 			contents = new TextDecoder().decode(content.buffer.slice(content.byteOffset));
 		} catch {
 		}
-		const json = contents ? (JSON.parse(contents) as Partial<nbformat.INotebookContent>) : {};
+		let json: any;
+		try {
+			json = contents ? (JSON.parse(contents) as Partial<nbformat.INotebookContent>) : {};
+		} catch (e) {
+			console.log(contents);
+			console.log(e);
+		}
 
-		// Then compute indent. It's computed from the contents
+		// Then compute indent from the contents
 		const indentAmount = contents ? detectIndent(contents).indent : ' ';
 
-		const preferredCellLanguage = getPreferredLanguage(json?.metadata);
+		const preferredCellLanguage = getPreferredLanguage(json.metadata);
 		// Ensure we always have a blank cell.
-		if ((json?.cells || []).length === 0) {
+		if ((json.cells || []).length === 0) {
 			json.cells = [
 				{
 					cell_type: 'code',
@@ -46,51 +40,49 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 				}
 			];
 		}
+
 		// For notebooks without metadata default the language in metadata to the preferred language.
 		if (!json.metadata || (!json.metadata.kernelspec && !json.metadata.language_info)) {
-			json.metadata = json?.metadata || { orig_nbformat: defaultNotebookFormat.major };
+			json.metadata = json.metadata || { orig_nbformat: defaultNotebookFormat.major };
 			json.metadata.language_info = json.metadata.language_info || { name: preferredCellLanguage };
 		}
-		const data = notebookModelToVSCNotebookData(
-			{ ...json, cells: [] },
-			json?.cells || [],
-			preferredCellLanguage,
-			json || {}
+
+		const data = jupyterNotebookModelToNotebookData(
+			json,
+			preferredCellLanguage
 		);
 		data.metadata = data.metadata || {};
 		data.metadata.indentAmount = indentAmount;
 
 		return data;
 	}
+
 	public serializeNotebookDocument(data: vscode.NotebookDocument): string {
 		return this.serialize(data);
 	}
+
 	public serializeNotebook(data: vscode.NotebookData, _token: vscode.CancellationToken): Uint8Array {
 		return new TextEncoder().encode(this.serialize(data));
 	}
+
 	private serialize(data: vscode.NotebookDocument | vscode.NotebookData): string {
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		const notebookContent: Partial<nbformat.INotebookContent> = (data.metadata?.custom as any) || {};
+		const notebookContent: Partial<nbformat.INotebookContent> = data.metadata?.custom || {};
 		notebookContent.cells = notebookContent.cells || [];
 		notebookContent.nbformat = notebookContent.nbformat || 4;
 		notebookContent.nbformat_minor = notebookContent.nbformat_minor || 2;
 		notebookContent.metadata = notebookContent.metadata || { orig_nbformat: 4 };
 
-		// Override with what ever is in the metadata.
-		const indentAmount =
-			data.metadata && 'indentAmount' in data.metadata && typeof data.metadata.indentAmount === 'string'
-				? data.metadata.indentAmount
-				: ' ';
+		const cells = 'notebookType' in data ?
+			data.getCells() :
+			data.cells;
 
-		if ('notebookType' in data) {
-			notebookContent.cells = data
-				.getCells()
-				.map((cell) => createJupyterCellFromVSCNotebookCell(cell))
-				.map(pruneCell);
-		} else {
-			notebookContent.cells = data.cells.map((cell) => createJupyterCellFromVSCNotebookCell(cell)).map(pruneCell);
-		}
+		notebookContent.cells = cells
+			.map(cell => createJupyterCellFromNotebookCell(cell))
+			.map(pruneCell);
 
+		const indentAmount = data.metadata && 'indentAmount' in data.metadata && typeof data.metadata.indentAmount === 'string' ?
+			data.metadata.indentAmount :
+			' ';
 		return JSON.stringify(notebookContent, undefined, indentAmount);
 	}
 }
