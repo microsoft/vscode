@@ -23,6 +23,7 @@ import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy'
 import * as typeh from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { mixin } from 'vs/base/common/objects';
 import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
+import { ILanguageStatus, ILanguageStatusService } from 'vs/editor/common/services/languageStatusService';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
@@ -34,6 +35,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	constructor(
 		extHostContext: IExtHostContext,
 		@IModeService modeService: IModeService,
+		@ILanguageStatusService private readonly _languageStatusService: ILanguageStatusService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostLanguageFeatures);
 		this._modeService = modeService;
@@ -156,6 +158,16 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	}
 
 	//#endregion
+
+	// --- language status
+
+	$registerLanguageStatusProvider(handle: number, selector: IDocumentFilterDto[]): void {
+		this._registrations.set(handle, this._languageStatusService.registerLanguageStatusProvider(selector, {
+			provideLanguageStatus: (_langId: string, token: CancellationToken): Promise<ILanguageStatus | undefined> => {
+				return this._proxy.$provideLanguageStatus(handle, token);
+			}
+		}));
+	}
 
 	// --- outline
 

@@ -3158,4 +3158,28 @@ declare module 'vscode' {
 	}
 	//#endregion
 
+	//#region https://github.com/microsoft/vscode/issues/129037
+
+	enum LanguageStatusSeverity {
+		Information = 0,
+		Warning = 1,
+		Error = 2
+	}
+
+	class LanguageStatus {
+		text: string;
+		detail: string | MarkdownString;
+		severity: LanguageStatusSeverity;
+		constructor(text: string);
+	}
+
+	export interface LanguageStatusProvider {
+		provideLanguageStatus(token: CancellationToken): ProviderResult<LanguageStatus>;
+	}
+
+	namespace languages {
+		export function registerLanguageStatusProvider(selector: DocumentSelector, provider: LanguageStatusProvider): Disposable;
+	}
+
+	//#endregion
 }

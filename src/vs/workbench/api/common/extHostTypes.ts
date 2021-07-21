@@ -1280,6 +1280,24 @@ export class CallHierarchyOutgoingCall {
 	}
 }
 
+export enum LanguageStatusSeverity {
+	Information = 0,
+	Warning = 1,
+	Error = 2
+}
+
+export class LanguageStatus {
+
+	text: string;
+	detail: string | MarkdownString;
+	severity: LanguageStatusSeverity;
+
+	constructor(text: string) {
+		this.text = text;
+		this.detail = '';
+		this.severity = LanguageStatusSeverity.Information;
+	}
+}
 @es5ClassCompat
 export class CodeLens {
 
