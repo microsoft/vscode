@@ -336,7 +336,7 @@ export class ThemeConfiguration {
 	}
 
 	private async writeConfiguration(key: string, value: any, settingsTarget: ThemeSettingTarget): Promise<void> {
-		if (settingsTarget === undefined) {
+		if (settingsTarget === undefined || settingsTarget === 'preview') {
 			return;
 		}
 
