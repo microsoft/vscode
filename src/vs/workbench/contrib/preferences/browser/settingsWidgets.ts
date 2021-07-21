@@ -1259,13 +1259,15 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 	protected addTooltipsToRow(rowElement: HTMLElement, item: IObjectDataItem): void {
 		const keyElement = rowElement.getElementsByClassName('setting-list-object-key')[0] as HTMLElement;
 		const valueElement = rowElement.getElementsByClassName('setting-list-object-value')[0] as HTMLElement;
-		const defaultDescription = localize('objectPairHintLabel', "The property `{0}` is set to `{1}`.", item.key.data, item.value.data);
+		const accessibleDescription = localize('objectPairHintLabel', "The property `{0}` is set to `{1}`.", item.key.data, item.value.data);
 
-		const keyDescription = this.getEnumDescription(item.key) ?? item.keyDescription ?? defaultDescription;
-		this.addTooltipToElement(keyElement, keyDescription);
+		const keyDescription = this.getEnumDescription(item.key) ?? item.keyDescription ?? accessibleDescription;
+		keyElement.title = keyDescription;
 
-		const valueDescription = this.getEnumDescription(item.value) ?? defaultDescription;
-		this.addTooltipToElement(valueElement, valueDescription);
+		const valueDescription = this.getEnumDescription(item.value) ?? accessibleDescription;
+		valueElement.title = valueDescription;
+
+		rowElement.setAttribute('aria-label', accessibleDescription);
 	}
 
 	private getEnumDescription(keyOrValue: ObjectKey | ObjectValue): string | undefined {
@@ -1273,11 +1275,6 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 			? keyOrValue.options.find(({ value }) => keyOrValue.data === value)?.description
 			: undefined;
 		return enumDescription;
-	}
-
-	private addTooltipToElement(element: HTMLElement, description: string) {
-		element.title = description;
-		element.setAttribute('aria-label', description);
 	}
 
 	protected getLocalizedStrings() {
@@ -1406,11 +1403,11 @@ export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IObje
 	}
 
 	protected addTooltipsToRow(rowElement: HTMLElement, item: IObjectDataItem): void {
-		const title = item.keyDescription ??
-			localize('objectPairHintLabel', "The property `{0}` is set to `{1}`.", item.key.data, item.value.data);
+		const accessibleDescription = localize('objectPairHintLabel', "The property `{0}` is set to `{1}`.", item.key.data, item.value.data);
+		const title = item.keyDescription ?? accessibleDescription;
 
 		rowElement.title = title;
-		rowElement.setAttribute('aria-label', rowElement.title);
+		rowElement.setAttribute('aria-label', accessibleDescription);
 	}
 
 	protected getLocalizedStrings() {
