@@ -13,7 +13,7 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 	public deserializeNotebook(content: Uint8Array, _token: vscode.CancellationToken): vscode.NotebookData {
 		let contents = '';
 		try {
-			contents = new TextDecoder().decode(content.buffer.slice(content.byteOffset, content.byteOffset + content.byteLength));
+			contents = new TextDecoder().decode(content);
 		} catch {
 		}
 
