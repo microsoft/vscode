@@ -13839,8 +13839,8 @@ declare module 'vscode' {
 		 * Note that the label has some significance if the user requests that
 		 * tests be re-run in a certain way. For example, if tests were run
 		 * normally and the user requests to re-run them in debug mode, the editor
-		 * will attempt use a configuration with the same label in the `Debug`
-		 * group. If there is no such configuration, the default will be used.
+		 * will attempt use a configuration with the same label of the `Debug`
+		 * kind. If there is no such configuration, the default will be used.
 		 */
 		label: string;
 
@@ -13852,9 +13852,10 @@ declare module 'vscode' {
 
 		/**
 		 * Controls whether this profile is the default action that will
-		 * be taken when its group is actions. For example, if the user clicks
+		 * be taken when its kind is actioned. For example, if the user clicks
 		 * the generic "run all" button, then the default profile for
-		 * {@link TestRunProfileKind.Run} will be executed.
+		 * {@link TestRunProfileKind.Run} will be executed, although the
+		 * user can configure this.
 		 */
 		isDefault: boolean;
 
@@ -13867,10 +13868,10 @@ declare module 'vscode' {
 		configureHandler?: () => void;
 
 		/**
-		 * Handler called to start a test run. When invoked, the function should
-		 * {@link TestController.createTestRun} at least once, and all tasks
-		 * associated with the run should be created before the function returns
-		 * or the reutrned promise is resolved.
+		 * Handler called to start a test run. When invoked, the function should call
+		 * {@link TestController.createTestRun} at least once, and all test runs
+		 * associated with the request should be created before the function returns
+		 * or the returned promise is resolved.
 		 *
 		 * @param request Request information for the test run
 		 * @param cancellationToken Token that signals the used asked to abort the
@@ -13889,13 +13890,13 @@ declare module 'vscode' {
 	/**
 	 * Entry point to discover and execute tests. It contains {@link items} which
 	 * are used to populate the editor UI, and is associated with
-	 * {@link createRunProfile run profiles} to allow
+	 * {@link createRunProfile | run profiles} to allow
 	 * for tests to be executed.
 	 */
 	export interface TestController {
 		/**
-		 * The ID of the controller, passed in {@link vscode.tests.createTestController}.
-		 * This must be globally unique,
+		 * The ID of the controller passed in {@link vscode.tests.createTestController}.
+		 * This must be globally unique.
 		 */
 		readonly id: string;
 
@@ -13910,7 +13911,7 @@ declare module 'vscode' {
 		 * editor may request children using the {@link resolveHandler},
 		 * and the extension should add tests for a file when
 		 * {@link vscode.workspace.onDidOpenTextDocument} fires in order for
-		 * decorations for tests within the file to be visible.
+		 * decorations for tests within a file to be visible.
 		 *
 		 * Tests in this collection should be watched and updated by the extension
 		 * as files change. See {@link resolveHandler} for details around
@@ -13922,11 +13923,11 @@ declare module 'vscode' {
 		 * Creates a profile used for running tests. Extensions must create
 		 * at least one profile in order for tests to be run.
 		 * @param label Human-readable label for this profile
-		 * @param group Configures where this profile is grouped in the UI.
+		 * @param kind Configures what kind of execution this profile manages
 		 * @param runHandler Function called to start a test run
-		 * @param isDefault Whether this is the default action for the group
+		 * @param isDefault Whether this is the default action for its kind
 		 */
-		createRunProfile(label: string, group: TestRunProfileKind, runHandler: (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void, isDefault?: boolean): TestRunProfile;
+		createRunProfile(label: string, kind: TestRunProfileKind, runHandler: (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void, isDefault?: boolean): TestRunProfile;
 
 		/**
 		 * A function provided by the extension that the editor may call to request
@@ -13934,22 +13935,25 @@ declare module 'vscode' {
 		 * `true`. When called, the item should discover children and call
 		 * {@link vscode.tests.createTestItem} as children are discovered.
 		 *
+		 * Generally the extension manages the lifecycle of test items, but under
+		 * certain conditions the editor may request the children of a specific
+		 * item to be loaded. For example, if the user requests to re-run tests
+		 * after reloading the editor, the editor may need to call this method
+		 * to resolve the previously-run tests.
+		 *
 		 * The item in the explorer will automatically be marked as "busy" until
 		 * the function returns or the returned thenable resolves.
 		 *
-		 * The handler will be called `undefined` to resolve the controller's
-		 * initial children.
-		 *
-		 * @param item An unresolved test item for which
-		 * children are being requested
+		 * @param item An unresolved test item for which children are being
+		 * requested, or `undefined` to resolve the controller's initial {@link items}.
 		 */
 		resolveHandler?: (item: TestItem | undefined) => Thenable<void> | void;
 
 		/**
 		 * Creates a {@link TestRun<T>}. This should be called by the
-		 * {@link TestRunner} when a request is made to execute tests, and may also
-		 * be called if a test run is detected externally. Once created, tests
-		 * that are included in the results will be moved into the queued state.
+		 * {@link TestRunProfile} when a request is made to execute tests, and may
+		 * also be called if a test run is detected externally. Once created, tests
+		 * that are included in the request will be moved into the queued state.
 		 *
 		 * All runs created using the same `request` instance will be grouped
 		 * together. This is useful if, for example, a single suite of tests is
@@ -13970,6 +13974,7 @@ declare module 'vscode' {
 		 * Creates a new managed {@link TestItem} instance. It can be added into
 		 * the {@link TestItem.children} of an existing item, or into the
 		 * {@link TestController.items}.
+		 *
 		 * @param id Identifier for the TestItem. The test item's ID must be unique
 		 * in the {@link TestItemCollection} it's added to.
 		 * @param label Human-readable label of the test item.
@@ -13989,10 +13994,10 @@ declare module 'vscode' {
 	 */
 	export class TestRunRequest {
 		/**
-		 * Filter for specific tests to run. If given, the extension should run all
-		 * of the given tests and all children of the given tests, excluding
-		 * any tests that appear in {@link TestRunRequest.exclude}. If this is
-		 * not given, then the extension should simply run all tests.
+		 * A filter for specific tests to run. If given, the extension should run
+		 * all of the included tests and all their children, excluding any tests
+		 * that appear in {@link TestRunRequest.exclude}. If this property is
+		 * undefined, then the extension should simply run all tests.
 		 *
 		 * The process of running tests should resolve the children of any test
 		 * items who have not yet been resolved.
@@ -14041,30 +14046,30 @@ declare module 'vscode' {
 		readonly token: CancellationToken;
 
 		/**
-		 * Whether the test run will be persisteded across reloads by the editor UI.
+		 * Whether the test run will be persisted across reloads by the editor.
 		 */
 		readonly isPersisted: boolean;
 
 		/**
-		 * Indicates a test in the run is queued for later execution.
+		 * Indicates a test is queued for later execution.
 		 * @param test Test item to update
 		 */
 		enqueued(test: TestItem): void;
 
 		/**
-		 * Indicates a test in the run has started running.
+		 * Indicates a test has started running.
 		 * @param test Test item to update
 		 */
 		started(test: TestItem): void;
 
 		/**
-		 * Indicates a test in the run has been skipped.
+		 * Indicates a test has been skipped.
 		 * @param test Test item to update
 		 */
 		skipped(test: TestItem): void;
 
 		/**
-		 * Indicates a test in the run has failed. You should pass one or more
+		 * Indicates a test has failed. You should pass one or more
 		 * {@link TestMessage | TestMessages} to describe the failure.
 		 * @param test Test item to update
 		 * @param messages Messages associated with the test failure
@@ -14073,7 +14078,7 @@ declare module 'vscode' {
 		failed(test: TestItem, message: TestMessage | readonly TestMessage[], duration?: number): void;
 
 		/**
-		 * Indicates a test in the run has passed.
+		 * Indicates a test has passed.
 		 * @param test Test item to update
 		 * @param duration How long the test took to execute, in milliseconds
 		 */
@@ -14107,7 +14112,7 @@ declare module 'vscode' {
 
 		/**
 		 * Replaces the items stored by the collection.
-		 * @param items Items to store, can be an array or other iterable.
+		 * @param items Items to store
 		 */
 		replace(items: readonly TestItem[]): void;
 
@@ -14141,7 +14146,7 @@ declare module 'vscode' {
 
 	/**
 	 * A test item is an item shown in the "test explorer" view. It encompasses
-	 * both a suite and a test, since they have almost or identical capabilities.
+	 * both a suite and a test, since they simiular capabilities.
 	 */
 	export interface TestItem {
 		/**
@@ -14158,14 +14163,15 @@ declare module 'vscode' {
 		readonly uri?: Uri;
 
 		/**
-		 * A mapping of children by ID to the associated TestItem instances.
+		 * The children of this test item. For a test suite, this may contain the
+		 * individual test cases, or nested suites.
 		 */
 		readonly children: TestItemCollection;
 
 		/**
-		 * The parent of this item. It's is undefined top-level items in the
-		 * {@link TestController.items} and for items that aren't yet included in
-		 * another item's {@link children}.
+		 * The parent of this item. It's set automatically, and is undefined
+		 * top-level items in the {@link TestController.items} and for items that
+		 * aren't yet included in another item's {@link children}.
 		 */
 		readonly parent?: TestItem;
 
