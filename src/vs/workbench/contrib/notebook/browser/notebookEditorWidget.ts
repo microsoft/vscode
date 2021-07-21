@@ -1540,6 +1540,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return;
 		}
 
+		if (dimension.width <= 0 || dimension.height <= 0) {
+			this.onWillHide();
+			return;
+		}
+
 		if (shadowElement) {
 			const containerRect = shadowElement.getBoundingClientRect();
 
@@ -1617,6 +1622,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._editorFocus.set(false);
 		this._overlayContainer.style.visibility = 'hidden';
 		this._overlayContainer.style.left = '-50000px';
+		this._notebookTopToolbarContainer.style.display = 'none';
 	}
 
 	updateEditorFocus() {

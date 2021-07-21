@@ -196,6 +196,11 @@ export class NotebookEditorToolbar extends Disposable {
 	}
 
 	layout() {
+		if (!this._useGlobalToolbar) {
+			this.domNode.style.display = 'none';
+		} else {
+			this.domNode.style.display = 'flex';
+		}
 		this._updateScrollbar();
 	}
 
