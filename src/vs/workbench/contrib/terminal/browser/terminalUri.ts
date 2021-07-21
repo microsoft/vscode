@@ -6,6 +6,7 @@
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 export function parseTerminalUri(resource: URI): ITerminalIdentifier {
 	const [, workspaceId, instanceId] = resource.path.split('/');
@@ -41,6 +42,19 @@ export function getTerminalResourcesFromDragEvent(event: IPartialDragEvent): URI
 			result.push(URI.parse(entry));
 		}
 		return result.length === 0 ? undefined : result;
+	}
+	return undefined;
+}
+
+export function getInstanceFromResource<T extends Pick<ITerminalInstance, 'resource'>>(instances: T[], resource: URI | undefined): T | undefined {
+	if (resource) {
+		for (const instance of instances) {
+			// Note that the URI's workspace and instance id might not originally be from this window
+			// Don't bother checking the scheme and assume instances only contains terminals
+			if (instance.resource.path === resource.path) {
+				return instance;
+			}
+		}
 	}
 	return undefined;
 }

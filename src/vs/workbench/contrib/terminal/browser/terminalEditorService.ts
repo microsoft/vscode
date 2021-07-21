@@ -16,7 +16,7 @@ import { IRemoteTerminalService, ITerminalEditorService, ITerminalInstance, ITer
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { DeserializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
-import { parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
+import { getInstanceFromResource, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { ILocalTerminalService, IOffProcessTerminalService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -219,16 +219,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	}
 
 	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined {
-		if (URI.isUri(resource)) {
-			// note that the uri and and instance id might
-			// not match this window
-			for (const instance of this.instances) {
-				if (instance.resource.path === resource.path) {
-					return instance;
-				}
-			}
-		}
-		return undefined;
+		return getInstanceFromResource(this.instances, resource);
 	}
 
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig: IShellLaunchConfig = {}): ITerminalInstance {
