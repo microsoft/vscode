@@ -316,7 +316,7 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 	protected abstract renderItem(item: TDataItem, idx: number): HTMLElement;
 	protected abstract renderEdit(item: TDataItem, idx: number): HTMLElement;
 	protected abstract isItemNew(item: TDataItem): boolean;
-	protected abstract getLocalizedRowTitle(item: TDataItem): string;
+	protected abstract addTooltipsToRow(rowElement: HTMLElement, item: TDataItem): void;
 	protected abstract getLocalizedStrings(): {
 		deleteActionTooltip: string
 		editActionTooltip: string
@@ -415,8 +415,7 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 		this.listDisposables.add(actionBar);
 
 		actionBar.push(this.getActionsForItem(item, idx), { icon: true, label: true });
-		rowElement.title = this.getLocalizedRowTitle(item);
-		rowElement.setAttribute('aria-label', rowElement.title);
+		this.addTooltipsToRow(rowElement, item);
 
 		if (item.selected && listFocused) {
 			this.listDisposables.add(disposableTimeout(() => rowElement.focus()));
@@ -801,10 +800,13 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 		return item.value.data === '';
 	}
 
-	protected getLocalizedRowTitle({ value, sibling }: IListDataItem): string {
-		return isUndefinedOrNull(sibling)
+	protected addTooltipsToRow(rowElement: HTMLElement, { value, sibling }: IListDataItem) {
+		const title = isUndefinedOrNull(sibling)
 			? localize('listValueHintLabel', "List item `{0}`", value.data)
 			: localize('listSiblingHintLabel', "List item `{0}` with sibling `${1}`", value.data, sibling);
+
+		rowElement.title = title;
+		rowElement.setAttribute('aria-label', rowElement.title);
 	}
 
 	protected getLocalizedStrings() {
@@ -857,10 +859,13 @@ export class ExcludeSettingWidget extends ListSettingWidget {
 		return;
 	}
 
-	protected override getLocalizedRowTitle({ value, sibling }: IListDataItem): string {
-		return isUndefinedOrNull(sibling)
+	protected override addTooltipsToRow(rowElement: HTMLElement, { value, sibling }: IListDataItem): void {
+		const title = isUndefinedOrNull(sibling)
 			? localize('excludePatternHintLabel', "Exclude files matching `{0}`", value.data)
 			: localize('excludeSiblingHintLabel', "Exclude files matching `{0}`, only when a file matching `{1}` is present", value.data, sibling);
+
+		rowElement.title = title;
+		rowElement.setAttribute('aria-label', rowElement.title);
 	}
 
 	protected override getLocalizedStrings() {
@@ -893,7 +898,6 @@ interface IObjectEnumData {
 interface IObjectBoolData {
 	type: 'boolean';
 	data: boolean;
-	description?: string;
 }
 
 type ObjectKey = IObjectStringData | IObjectEnumData;
@@ -903,6 +907,7 @@ type ObjectWidget = InputBox | SelectBox;
 export interface IObjectDataItem {
 	key: ObjectKey;
 	value: ObjectValue;
+	keyDescription?: string;
 	removable: boolean;
 }
 
@@ -1251,20 +1256,28 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 		return true;
 	}
 
-	protected getLocalizedRowTitle(item: IObjectDataItem): string {
-		let enumDescription = item.key.type === 'enum'
-			? item.key.options.find(({ value }) => item.key.data === value)?.description
+	protected addTooltipsToRow(rowElement: HTMLElement, item: IObjectDataItem): void {
+		const keyElement = rowElement.getElementsByClassName('setting-list-object-key')[0] as HTMLElement;
+		const valueElement = rowElement.getElementsByClassName('setting-list-object-value')[0] as HTMLElement;
+		const defaultDescription = localize('objectPairHintLabel', "The property `{0}` is set to `{1}`.", item.key.data, item.value.data);
+
+		const keyDescription = this.getEnumDescription(item.key) ?? item.keyDescription ?? defaultDescription;
+		this.addTooltipToElement(keyElement, keyDescription);
+
+		const valueDescription = this.getEnumDescription(item.value) ?? defaultDescription;
+		this.addTooltipToElement(valueElement, valueDescription);
+	}
+
+	private getEnumDescription(keyOrValue: ObjectKey | ObjectValue): string | undefined {
+		const enumDescription = keyOrValue.type === 'enum'
+			? keyOrValue.options.find(({ value }) => keyOrValue.data === value)?.description
 			: undefined;
+		return enumDescription;
+	}
 
-		// avoid rendering double '.'
-		if (isDefined(enumDescription)) {
-			if (enumDescription.endsWith('.')) {
-				enumDescription = enumDescription.slice(0, enumDescription.length - 1);
-			}
-			return `${enumDescription}. Currently set to ${item.value.data}.`;
-		}
-
-		return localize('objectPairHintLabel', "The property `{0}` is set to `{1}`.", item.key.data, item.value.data);
+	private addTooltipToElement(element: HTMLElement, description: string) {
+		element.title = description;
+		element.setAttribute('aria-label', description);
 	}
 
 	protected getLocalizedStrings() {
@@ -1349,7 +1362,7 @@ export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IObje
 
 		const valueElement = DOM.append(rowElement, $('.setting-list-object-value'));
 		valueElement.textContent = changedItem.key.data;
-		valueElement.setAttribute('title', this.getLocalizedRowTitle(changedItem));
+		this.addTooltipsToRow(valueElement, item);
 		this._register(DOM.addDisposableListener(valueElement, DOM.EventType.MOUSE_DOWN, e => {
 			const targetElement = <HTMLElement>e.target;
 			if (targetElement.tagName.toLowerCase() !== 'a') {
@@ -1392,13 +1405,12 @@ export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IObje
 		return { widget: checkbox, element: wrapper };
 	}
 
-	protected getLocalizedRowTitle(item: IObjectDataItem): string {
-		const description = (item.value as IObjectBoolData).description;
-		if (description) {
-			return description;
-		} else {
-			return localize('objectPairHintLabel', "The property `{0}` is set to `{1}`.", item.key.data, item.value.data);
-		}
+	protected addTooltipsToRow(rowElement: HTMLElement, item: IObjectDataItem): void {
+		const title = item.keyDescription ??
+			localize('objectPairHintLabel', "The property `{0}` is set to `{1}`.", item.key.data, item.value.data);
+
+		rowElement.title = title;
+		rowElement.setAttribute('aria-label', rowElement.title);
 	}
 
 	protected getLocalizedStrings() {

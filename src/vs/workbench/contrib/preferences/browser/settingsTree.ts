@@ -145,12 +145,6 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 			schema
 		}));
 
-	const additionalValueEnums = getEnumOptionsFromSchema(
-		typeof objectAdditionalProperties === 'boolean'
-			? {}
-			: objectAdditionalProperties ?? {}
-	);
-
 	const wellDefinedKeyEnumOptions = Object.entries(objectProperties ?? {}).map(
 		([key, schema]) => ({ value: key, description: schema.description })
 	);
@@ -167,15 +161,14 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 					},
 					value: {
 						type: 'boolean',
-						data: data[key],
-						description: objectProperties[key].description
+						data: data[key]
 					},
+					keyDescription: objectProperties[key].description,
 					removable: false
 				} as IObjectDataItem;
 			}
 
 			const valueEnumOptions = getEnumOptionsFromSchema(objectProperties[key]);
-
 			return {
 				key: {
 					type: 'enum',
@@ -187,6 +180,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 					data: data[key],
 					options: valueEnumOptions,
 				},
+				keyDescription: objectProperties[key].description,
 				removable: isUndefinedOrNull(defaultValue),
 			} as IObjectDataItem;
 		}
@@ -201,9 +195,16 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 					data: data[key],
 					options: valueEnumOptions,
 				},
+				keyDescription: schema.description,
 				removable: true,
 			} as IObjectDataItem;
 		}
+
+		const additionalValueEnums = getEnumOptionsFromSchema(
+			typeof objectAdditionalProperties === 'boolean'
+				? {}
+				: objectAdditionalProperties ?? {}
+		);
 
 		return {
 			key: { type: 'string', data: key },
@@ -212,6 +213,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 				data: data[key],
 				options: additionalValueEnums,
 			},
+			keyDescription: typeof objectAdditionalProperties === 'object' ? objectAdditionalProperties.description : undefined,
 			removable: true,
 		} as IObjectDataItem;
 	});
