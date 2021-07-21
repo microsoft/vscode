@@ -73,7 +73,13 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			// add any terminal editors created via the editor service split command
 			const knownIds = this.instances.map(i => i.instanceId);
 			const terminalEditors = this._getActiveTerminalEditors();
-			const unknownEditor = terminalEditors.find(input => !knownIds.includes((input as any).terminalInstance.instanceId));
+			const unknownEditor = terminalEditors.find(input => {
+				const inputId = input instanceof TerminalEditorInput ? input.terminalInstance?.instanceId : undefined;
+				if (inputId === undefined) {
+					return false;
+				}
+				return !knownIds.includes(inputId);
+			});
 			if (unknownEditor instanceof TerminalEditorInput && unknownEditor.terminalInstance) {
 				this._editorInputs.set(unknownEditor.terminalInstance.resource.path, unknownEditor);
 				this.instances.push(unknownEditor.terminalInstance);
