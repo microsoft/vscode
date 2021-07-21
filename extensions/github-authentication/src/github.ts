@@ -86,7 +86,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			try {
 				await this._githubServer.getUserInfo(session.accessToken);
 				this.afterTokenLoad(session.accessToken);
-				Logger.info(`Verified sesion with the following scopes: ${session.scopes}`);
+				Logger.info(`Verified session with the following scopes: ${session.scopes}`);
 				verifiedSessions.push(session);
 			} catch (e) {
 				// Remove sessions that return unauthorized response
