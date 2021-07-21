@@ -158,7 +158,7 @@ export class ExtHostNotebookDocument {
 		data: extHostProtocol.INotebookModelAddedData
 	) {
 		this._notebookType = data.viewType;
-		this._metadata = data.metadata ?? Object.create(null);
+		this._metadata = Object.freeze(data.metadata ?? Object.create(null));
 		this._spliceNotebookCells([[0, 0, data.cells]], true /* init -> no event*/);
 		this._versionId = data.versionId;
 	}
@@ -207,7 +207,7 @@ export class ExtHostNotebookDocument {
 
 	acceptDocumentPropertiesChanged(data: extHostProtocol.INotebookDocumentPropertiesChangeData) {
 		if (data.metadata) {
-			this._metadata = { ...this._metadata, ...data.metadata };
+			this._metadata = Object.freeze({ ...this._metadata, ...data.metadata });
 		}
 	}
 
