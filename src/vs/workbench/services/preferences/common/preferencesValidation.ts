@@ -301,14 +301,14 @@ function getObjectValidator(prop: IConfigurationPropertySchema): ((value: any) =
 				if (properties && key in properties) {
 					const errorMessage = getErrorsForSchema(properties[key], data);
 					if (errorMessage) {
-						errors.push(nls.localize('validations.errorsForKey', 'For key "{0}": {1}\n', key, errorMessage));
+						errors.push(nls.localize('validations.errorsForKey', "{0}: {1}", key, errorMessage) + '\n');
 					}
 				} else if (patternProperties) {
 					for (const pattern in patternProperties) {
 						if (RegExp(pattern).test(key)) {
 							const errorMessage = getErrorsForSchema(patternProperties[pattern], data);
 							if (errorMessage) {
-								errors.push(nls.localize('validations.errorsForKey', 'For key "{0}": {1}\n', key, errorMessage));
+								errors.push(nls.localize('validations.errorsForKey', "{0}: {1}", key, errorMessage) + '\n');
 							}
 							return;
 						}
