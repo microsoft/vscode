@@ -2067,13 +2067,13 @@ declare module 'vscode' {
 		/**
 		 * Available test items. Tests in the workspace should be added in this
 		 * collection. The extension controls when to add these, although the
-		 * editor may request children using the {@link resolveChildrenHandler},
+		 * editor may request children using the {@link resolveHandler},
 		 * and the extension should add tests for a file when
 		 * {@link vscode.workspace.onDidOpenTextDocument} fires in order for
 		 * decorations for tests within the file to be visible.
 		 *
 		 * Tests in this collection should be watched and updated by the extension
-		 * as files change. See {@link resolveChildrenHandler} for details around
+		 * as files change. See {@link resolveHandler} for details around
 		 * for the lifecycle of watches.
 		 */
 		readonly items: TestItemCollection;
@@ -2103,8 +2103,7 @@ declare module 'vscode' {
 		 * @param item An unresolved test item for which
 		 * children are being requested
 		 */
-		// todo@API resolveHandler
-		resolveChildrenHandler?: (item: TestItem | undefined) => Thenable<void> | void;
+		resolveHandler?: (item: TestItem | undefined) => Thenable<void> | void;
 
 		/**
 		 * Creates a {@link TestRun<T>}. This should be called by the
@@ -2208,38 +2207,38 @@ declare module 'vscode' {
 		readonly isPersisted: boolean;
 
 		/**
-		 * Updates the state of the test in the run. Calling with method with nodes
-		 * outside the {@link TestRunRequest.tests} or in the {@link TestRunRequest.exclude}
-		 * array will no-op. This will usually be called multiple times for a test
-		 * as it is queued, enters the running state, and then passes or fails.
-		 *
-		 * @param test The test to update
-		 * @param state The state to assign to the test
+		 * Indicates a test in the run is queued for later execution.
+		 * @param test Test item to update
 		 */
-		setState(test: TestItem, state: TestResultState): void;
+		enqueued(test: TestItem): void;
 
 		/**
-		 * Updates the state of the test in the run. Calling with method with nodes
-		 * outside the {@link TestRunRequest.tests} or in the {@link TestRunRequest.exclude}
-		 * array will no-op. This override moves the test into a terminal state and
-		 * indicates how long it ran for.
-		 *
-		 * @param test The terminal test state
-		 * @param state The state to assign to the test
-		 * @param duration Optionally sets how long the test took to run, in milliseconds
+		 * Indicates a test in the run has started running.
+		 * @param test Test item to update
 		 */
-		setState(test: TestItem, state: TestResultState.Passed | TestResultState.Failed | TestResultState.Errored, duration: number): void;
+		started(test: TestItem): void;
 
 		/**
-		 * Appends a message, such as an assertion error, to the test item.
-		 *
-		 * Calling with method with nodes outside the {@link TestRunRequest.tests}
-		 * or in the {@link TestRunRequest.exclude} array will no-op.
-		 *
-		 * @param test The test to update
-		 * @param message The message to add
+		 * Indicates a test in the run has been skipped.
+		 * @param test Test item to update
 		 */
-		appendMessage(test: TestItem, message: TestMessage): void;
+		skipped(test: TestItem): void;
+
+		/**
+		 * Indicates a test in the run has failed. You should pass one or more
+		 * {@link TestMessage | TestMessages} to describe the failure.
+		 * @param test Test item to update
+		 * @param messages Messages associated with the test failure
+		 * @param duration How long the test took to execute, in milliseconds
+		 */
+		failed(test: TestItem, message: TestMessage | readonly TestMessage[], duration?: number): void;
+
+		/**
+		 * Indicates a test in the run has passed.
+		 * @param test Test item to update
+		 * @param duration How long the test took to execute, in milliseconds
+		 */
+		passed(test: TestItem, duration?: number): void;
 
 		/**
 		 * Appends raw output from the test runner. On the user's request, the
@@ -2262,6 +2261,11 @@ declare module 'vscode' {
 	 * {@link TestController.items}.
 	 */
 	export interface TestItemCollection {
+		/**
+		 * Gets the number of items in the collection.
+		 */
+		readonly size: number;
+
 		/**
 		 * Replaces the items stored by the collection.
 		 * @param items Items to store, can be an array or other iterable.
@@ -2329,12 +2333,11 @@ declare module 'vscode' {
 		/**
 		 * Indicates whether this test item may have children discovered by resolving.
 		 * If so, it will be shown as expandable in the Test Explorer view, and
-		 * expanding the item will cause {@link TestController.resolveChildrenHandler}
+		 * expanding the item will cause {@link TestController.resolveHandler}
 		 * to be invoked with the item.
 		 *
 		 * Default to false.
 		 */
-		// todo@API better names: isLeaf, isLeaf{Type|Node}, canHaveChildren
 		canResolveChildren: boolean;
 
 		/**

@@ -92,10 +92,10 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			createTestRun: (request, name, persist = true) => {
 				return this.runTracker.createTestRun(controllerId, collection, request, name, persist);
 			},
-			set resolveChildrenHandler(fn) {
+			set resolveHandler(fn) {
 				collection.resolveHandler = fn;
 			},
-			get resolveChildrenHandler() {
+			get resolveHandler() {
 				return collection.resolveHandler;
 			},
 			dispose: () => {
@@ -274,7 +274,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 }
 
 class TestRunTracker extends Disposable {
-	private readonly tasks = new Map</* task ID */string, { run: TestRunImpl, coverage: TestRunCoverageBearer }>();
+	private readonly tasks = new Map</* task ID */string, { run: vscode.TestRun, coverage: TestRunCoverageBearer }>();
 	private readonly sharedTestIds = new Set<string>();
 	private readonly cts: CancellationTokenSource;
 	private readonly endEmitter = this._register(new Emitter<void>());
@@ -314,16 +314,78 @@ class TestRunTracker extends Disposable {
 	}
 
 	public createRun(name: string | undefined) {
+		const runId = this.dto.id;
+		const ctrlId = this.dto.controllerId;
 		const taskId = generateUuid();
-		const coverage = new TestRunCoverageBearer(this.proxy, this.dto.id, taskId);
-		const run = new TestRunImpl(name, this.cts.token, taskId, coverage, this.dto, this.sharedTestIds, this.proxy, () => {
-			this.tasks.delete(run.taskId);
-			if (!this.isRunning) {
-				this.dispose();
-			}
-		});
+		const coverage = new TestRunCoverageBearer(this.proxy, runId, taskId);
 
-		this.tasks.set(run.taskId, { run, coverage });
+		const guardTestMutation = <Args extends unknown[]>(fn: (test: vscode.TestItem, ...args: Args) => void) =>
+			(test: vscode.TestItem, ...args: Args) => {
+				if (ended) {
+					console.warn(`Setting the state of test "${test.id}" is a no-op after the run ends.`);
+					return;
+				}
+
+				if (!this.dto.isIncluded(test)) {
+					return;
+				}
+
+				this.ensureTestIsKnown(test);
+				fn(test, ...args);
+			};
+
+		let ended = false;
+		const run: vscode.TestRun = {
+			isPersisted: this.dto.isPersisted,
+			token: this.cts.token,
+			name,
+			get coverageProvider() {
+				return coverage.coverageProvider;
+			},
+			set coverageProvider(provider) {
+				coverage.coverageProvider = provider;
+			},
+			//#region state mutation
+			enqueued: guardTestMutation(test => {
+				this.proxy.$updateTestStateInRun(runId, taskId, TestId.fromExtHostTestItem(test, ctrlId).toString(), TestResultState.Queued);
+			}),
+			skipped: guardTestMutation(test => {
+				this.proxy.$updateTestStateInRun(runId, taskId, TestId.fromExtHostTestItem(test, ctrlId).toString(), TestResultState.Skipped);
+			}),
+			started: guardTestMutation(test => {
+				this.proxy.$updateTestStateInRun(runId, taskId, TestId.fromExtHostTestItem(test, ctrlId).toString(), TestResultState.Running);
+			}),
+			failed: guardTestMutation((test, messages, duration) => {
+				this.proxy.$appendTestMessagesInRun(runId, taskId, TestId.fromExtHostTestItem(test, ctrlId).toString(),
+					messages instanceof Array ? messages.map(Convert.TestMessage.from) : [Convert.TestMessage.from(messages)]);
+				this.proxy.$updateTestStateInRun(runId, taskId, TestId.fromExtHostTestItem(test, ctrlId).toString(), TestResultState.Failed, duration);
+			}),
+			passed: guardTestMutation((test, duration) => {
+				this.proxy.$updateTestStateInRun(runId, taskId, TestId.fromExtHostTestItem(test, this.dto.controllerId).toString(), TestResultState.Passed, duration);
+			}),
+			//#endregion
+			appendOutput: output => {
+				if (!ended) {
+					this.proxy.$appendOutputToRun(runId, taskId, VSBuffer.fromString(output));
+				}
+			},
+			end: () => {
+				if (ended) {
+					return;
+				}
+
+				ended = true;
+				this.proxy.$finishedTestRunTask(runId, taskId);
+				this.tasks.delete(taskId);
+				if (!this.isRunning) {
+					this.dispose();
+				}
+			}
+		};
+
+		this.tasks.set(taskId, { run, coverage });
+		this.proxy.$startedTestRunTask(runId, { id: taskId, name, running: true });
+
 		return run;
 	}
 
@@ -334,6 +396,41 @@ class TestRunTracker extends Disposable {
 			this.cts.cancel();
 			super.dispose();
 		}
+	}
+
+
+	private ensureTestIsKnown(test: vscode.TestItem) {
+		if (!(test instanceof TestItemImpl)) {
+			throw new InvalidTestItemError(test.id);
+		}
+
+		if (this.sharedTestIds.has(test.id)) {
+			return;
+		}
+
+		const chain: ITestItem[] = [];
+		while (true) {
+			chain.unshift(Convert.TestItem.from(test as TestItemImpl));
+
+			if (this.sharedTestIds.has(test.id)) {
+				break;
+			}
+
+			this.sharedTestIds.add(test.id);
+			if (!test.parent) {
+				break;
+			}
+
+			test = test.parent;
+		}
+
+		const root = this.dto.colllection.root;
+		if (!this.sharedTestIds.has(root.id)) {
+			this.sharedTestIds.add(root.id);
+			chain.unshift(Convert.TestItem.from(root));
+		}
+
+		this.proxy.$addTestsToRun(this.dto.controllerId, this.dto.id, chain);
 	}
 }
 
@@ -542,110 +639,6 @@ class TestRunCoverageBearer {
 		}
 
 		return file.detailedCoverage?.map(Convert.TestCoverage.fromDetailed) ?? [];
-	}
-}
-
-class TestRunImpl implements vscode.TestRun {
-	readonly #proxy: MainThreadTestingShape;
-	readonly #req: TestRunDto;
-	readonly #sharedIds: Set<string>;
-	readonly #onEnd: () => void;
-	readonly #coverage: TestRunCoverageBearer;
-	#ended = false;
-
-	public set coverageProvider(provider: vscode.TestCoverageProvider | undefined) {
-		this.#coverage.coverageProvider = provider;
-	}
-
-	public get coverageProvider() {
-		return this.#coverage.coverageProvider;
-	}
-
-	public get isPersisted() {
-		return this.#req.isPersisted;
-	}
-
-	constructor(
-		public readonly name: string | undefined,
-		public readonly token: CancellationToken,
-		public readonly taskId: string,
-		coverage: TestRunCoverageBearer,
-		dto: TestRunDto,
-		sharedTestIds: Set<string>,
-		proxy: MainThreadTestingShape,
-		onEnd: () => void,
-	) {
-		this.#onEnd = onEnd;
-		this.#proxy = proxy;
-		this.#req = dto;
-		this.#coverage = coverage;
-		this.#sharedIds = sharedTestIds;
-		proxy.$startedTestRunTask(dto.id, { id: this.taskId, name, running: true });
-	}
-
-	setState(test: vscode.TestItem, state: vscode.TestResultState, duration?: number): void {
-		const req = this.#req;
-		if (!this.#ended && req.isIncluded(test)) {
-			this.ensureTestIsKnown(test);
-			this.#proxy.$updateTestStateInRun(req.id, this.taskId, TestId.fromExtHostTestItem(test, req.controllerId).toString(), state as number as TestResultState, duration);
-		}
-	}
-
-	appendMessage(test: vscode.TestItem, message: vscode.TestMessage): void {
-		const req = this.#req;
-		if (!this.#ended && req.isIncluded(test)) {
-			this.ensureTestIsKnown(test);
-			this.#proxy.$appendTestMessageInRun(req.id, this.taskId, TestId.fromExtHostTestItem(test, req.controllerId).toString(), Convert.TestMessage.from(message));
-		}
-	}
-
-	appendOutput(output: string): void {
-		if (!this.#ended) {
-			this.#proxy.$appendOutputToRun(this.#req.id, this.taskId, VSBuffer.fromString(output));
-		}
-	}
-
-	end(): void {
-		if (!this.#ended) {
-			this.#ended = true;
-			this.#proxy.$finishedTestRunTask(this.#req.id, this.taskId);
-			this.#onEnd();
-		}
-	}
-
-	private ensureTestIsKnown(test: vscode.TestItem) {
-		if (!(test instanceof TestItemImpl)) {
-			throw new InvalidTestItemError(test.id);
-		}
-
-		const sent = this.#sharedIds;
-		if (sent.has(test.id)) {
-			return;
-		}
-
-		const chain: ITestItem[] = [];
-		while (true) {
-			chain.unshift(Convert.TestItem.from(test as TestItemImpl));
-
-			if (sent.has(test.id)) {
-				break;
-			}
-
-			sent.add(test.id);
-			if (!test.parent) {
-				break;
-			}
-
-			test = test.parent;
-		}
-
-		const root = this.#req.colllection.root;
-		if (!sent.has(root.id)) {
-			sent.add(root.id);
-			chain.unshift(Convert.TestItem.from(root));
-		}
-
-		this.#proxy.$addTestsToRun(this.#req.controllerId, this.#req.id, chain);
 	}
 }
 
