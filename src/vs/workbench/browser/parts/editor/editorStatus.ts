@@ -50,7 +50,7 @@ import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessi
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IMarker, IMarkerService, MarkerSeverity, IMarkerData } from 'vs/platform/markers/common/markers';
-import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
+import { STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ERROR_ITEM_FOREGROUND, STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND, STATUS_BAR_WARNING_ITEM_BACKGROUND, STATUS_BAR_WARNING_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
 import { ThemeColor, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
@@ -567,18 +567,22 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		const [first] = status;
 
 		let backgroundColor: ThemeColor | undefined;
+		let color: ThemeColor | undefined;
 		if (first.severity === Severity.Error) {
-			backgroundColor = { id: 'statusBarItem.errorBackground' };
+			backgroundColor = themeColorFromId(STATUS_BAR_ERROR_ITEM_BACKGROUND);
+			color = themeColorFromId(STATUS_BAR_ERROR_ITEM_FOREGROUND);
 		} else if (first.severity === Severity.Warning) {
-			backgroundColor = { id: 'statusBarItem.warningBackground' };
+			backgroundColor = themeColorFromId(STATUS_BAR_WARNING_ITEM_BACKGROUND);
+			color = themeColorFromId(STATUS_BAR_WARNING_ITEM_FOREGROUND);
 		}
 
 		const props: IStatusbarEntry = {
 			name: localize('status.editor.status', "Language Status"),
 			text: first.text,
 			ariaLabel: first.text,
-			backgroundColor,
 			tooltip: first.message,
+			backgroundColor,
+			color
 		};
 
 		this.updateElement(this.statusElement, props, 'status.editor.status', StatusbarAlignment.RIGHT, 100.05);
