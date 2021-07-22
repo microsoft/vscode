@@ -164,7 +164,11 @@ export function registerTerminalActions() {
 			let event: MouseEvent | PointerEvent | KeyboardEvent | undefined;
 			let options: ICreateTerminalOptions | undefined;
 			if (typeof eventOrOptionsOrProfile === 'object' && eventOrOptionsOrProfile && 'profileName' in eventOrOptionsOrProfile) {
-				options = { config: terminalService.availableProfiles.find(profile => profile.profileName === eventOrOptionsOrProfile.profileName) };
+				const config = terminalService.availableProfiles.find(profile => profile.profileName === eventOrOptionsOrProfile.profileName);
+				if (!config) {
+					throw new Error(`Could not find terminal profile ${eventOrOptionsOrProfile.profileName}`);
+				}
+				options = { config };
 			} else if (eventOrOptionsOrProfile instanceof MouseEvent || eventOrOptionsOrProfile instanceof PointerEvent || eventOrOptionsOrProfile instanceof KeyboardEvent) {
 				event = eventOrOptionsOrProfile;
 				options = profile ? { config: profile } : undefined;
