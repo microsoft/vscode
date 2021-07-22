@@ -1083,7 +1083,7 @@ export class TerminalService implements ITerminalService {
 		if (target === TerminalLocation.Editor) {
 			instance = this._terminalInstanceService.createInstance(shellLaunchConfig, undefined, options?.resource);
 			instance.target = TerminalLocation.Editor;
-			this._terminalEditorService.openEditor(instance);
+			this._terminalEditorService.openEditor(instance, options?.sideGroup);
 		} else {
 			// TODO: pass resource?
 			const group = this._terminalGroupService.createGroup(shellLaunchConfig);

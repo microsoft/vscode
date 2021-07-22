@@ -244,6 +244,25 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TerminalCommandId.CreateTerminalEditorSide,
+				title: { value: localize('workbench.action.terminal.createTerminalEditorSide', "Create Terminal in Editor Area to the Side"), original: 'Create Terminal in Editor Area to the Side' },
+				f1: true,
+				category,
+				precondition: TerminalContextKeys.processSupported
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			const terminalService = accessor.get(ITerminalService);
+			await terminalService.createTerminal({
+				target: TerminalLocation.Editor,
+				sideGroup: true
+			}).focusWhenReady();
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TerminalCommandId.MoveToEditor,
 				title: terminalStrings.moveToEditor,
 				f1: true,
