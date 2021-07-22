@@ -906,6 +906,7 @@ export interface IDebugService {
 
 	/**
 	 * Removes all instruction breakpoints. If address is passed only removes the instruction breakpoint with the passed address.
+	 * The address should be the address string supplied by the debugger from the "Disassemble" request.
 	 * Notifies debug adapter of breakpoint changes.
 	 */
 	removeInstructionBreakpoints(address?: string): Promise<void>;
@@ -964,8 +965,6 @@ export interface IDebugService {
 	 * Makes unavailable all sources with the passed uri. Source will appear as grayed out in callstack view.
 	 */
 	sourceIsNotAvailable(uri: uri): void;
-
-	getDisassemble(offset: number, instructionOffset: number, instructionCount: number): Promise<any>;
 
 	/**
 	 * Gets the current debug model.

@@ -157,10 +157,6 @@ export class MockDebugService implements IDebugService {
 		throw new Error('not implemented');
 	}
 
-	getDisassemble(offset: number, instructionOffset: number, instructionCount: number): Promise<any> {
-		throw new Error('not implemented');
-	}
-
 	logToRepl(session: IDebugSession, value: string): void { }
 
 	sourceIsNotAvailable(uri: uri): void { }
