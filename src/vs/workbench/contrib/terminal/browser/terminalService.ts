@@ -32,6 +32,7 @@ import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/the
 import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
 import { IEditableData, IViewsService } from 'vs/workbench/common/views';
 import { IRemoteTerminalService, IRequestAddInstanceToGroupEvent, ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalFindHost, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalProfileProvider, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { refreshTerminalActions } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
@@ -478,16 +479,14 @@ export class TerminalService implements ITerminalService {
 			this._availableProfiles = result;
 			this._onDidChangeAvailableProfiles.fire(this._availableProfiles);
 			this._profilesReadyBarrier.open();
-			await this._refreshPlatformConfig();
+			await this._refreshPlatformConfig(result);
 		}
 	}
 
-	private async _refreshPlatformConfig() {
+	private async _refreshPlatformConfig(profiles: ITerminalProfile[]) {
 		const env = await this._remoteAgentService.getEnvironment();
-		registerTerminalDefaultProfileConfiguration({
-			os: env?.os || OS,
-			profiles: this._availableProfiles!
-		});
+		registerTerminalDefaultProfileConfiguration({ os: env?.os || OS, profiles });
+		refreshTerminalActions(profiles);
 	}
 
 	private async _detectProfiles(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> {

@@ -36,6 +36,7 @@ import { Direction, IRemoteTerminalService, ITerminalGroupService, ITerminalInst
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
 import { ILocalTerminalService, IRemoteTerminalAttachTarget, ITerminalConfigHelper, TerminalCommandId, TERMINAL_ACTION_CATEGORY } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { createProfileSchemaEnums } from 'vs/platform/terminal/common/terminalProfiles';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -128,6 +129,7 @@ export function registerTerminalActions() {
 			await accessor.get(ITerminalGroupService).showPanel(true);
 		}
 	});
+
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -166,7 +168,7 @@ export function registerTerminalActions() {
 			if (typeof eventOrOptionsOrProfile === 'object' && eventOrOptionsOrProfile && 'profileName' in eventOrOptionsOrProfile) {
 				const config = terminalService.availableProfiles.find(profile => profile.profileName === eventOrOptionsOrProfile.profileName);
 				if (!config) {
-					throw new Error(`Could not find terminal profile ${eventOrOptionsOrProfile.profileName}`);
+					throw new Error(`Could not find terminal profile "${eventOrOptionsOrProfile.profileName}"`);
 				}
 				options = { config };
 			} else if (eventOrOptionsOrProfile instanceof MouseEvent || eventOrOptionsOrProfile instanceof PointerEvent || eventOrOptionsOrProfile instanceof KeyboardEvent) {
@@ -2030,4 +2032,102 @@ function convertOptionsOrProfileToOptions(optionsOrProfile?: ICreateTerminalOpti
 		return { config: optionsOrProfile as ITerminalProfile };
 	}
 	return optionsOrProfile;
+}
+
+export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
+	const profileEnum = createProfileSchemaEnums(detectedProfiles);
+	const category: ILocalizedString = { value: TERMINAL_ACTION_CATEGORY, original: 'Terminal' };
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.NewWithProfile,
+				title: { value: localize('workbench.action.terminal.newWithProfile', "Create New Integrated Terminal (With Profile)"), original: 'Create New Integrated Terminal (With Profile)' },
+				f1: true,
+				category,
+				precondition: TerminalContextKeys.processSupported,
+				description: {
+					description: 'workbench.action.terminal.newWithProfile',
+					args: [{
+						name: 'args',
+						schema: {
+							type: 'object',
+							required: ['profileName'],
+							properties: {
+								profileName: {
+									description: localize('workbench.action.terminal.newWithProfile.profileName', "The name of the profile to create"),
+									type: 'string',
+									enum: profileEnum.values,
+									markdownEnumDescriptions: profileEnum.markdownDescriptions
+								}
+							}
+						}
+					}]
+				},
+			});
+		}
+		async run(accessor: ServicesAccessor, eventOrOptionsOrProfile: MouseEvent | ICreateTerminalOptions | ITerminalProfile | { profileName: string } | undefined, profile?: ITerminalProfile) {
+			const terminalService = accessor.get(ITerminalService);
+			const terminalGroupService = accessor.get(ITerminalGroupService);
+			const workspaceContextService = accessor.get(IWorkspaceContextService);
+			const commandService = accessor.get(ICommandService);
+
+			let event: MouseEvent | PointerEvent | KeyboardEvent | undefined;
+			let options: ICreateTerminalOptions | undefined;
+			if (typeof eventOrOptionsOrProfile === 'object' && eventOrOptionsOrProfile && 'profileName' in eventOrOptionsOrProfile) {
+				const config = terminalService.availableProfiles.find(profile => profile.profileName === eventOrOptionsOrProfile.profileName);
+				if (!config) {
+					throw new Error(`Could not find terminal profile "${eventOrOptionsOrProfile.profileName}"`);
+				}
+				options = { config };
+			} else if (eventOrOptionsOrProfile instanceof MouseEvent || eventOrOptionsOrProfile instanceof PointerEvent || eventOrOptionsOrProfile instanceof KeyboardEvent) {
+				event = eventOrOptionsOrProfile;
+				options = profile ? { config: profile } : undefined;
+			} else {
+				options = convertOptionsOrProfileToOptions(eventOrOptionsOrProfile);
+			}
+
+			const folders = workspaceContextService.getWorkspace().folders;
+			if (event && (event.altKey || event.ctrlKey)) {
+				const activeInstance = terminalService.activeInstance;
+				if (activeInstance) {
+					const cwd = await getCwdForSplit(terminalService.configHelper, activeInstance);
+					terminalService.splitInstance(activeInstance, options?.config, cwd);
+					return;
+				}
+			}
+
+			if (terminalService.isProcessSupportRegistered) {
+				let instance: ITerminalInstance | undefined;
+				let cwd: string | URI | undefined;
+				if (folders.length > 1) {
+					// multi-root workspace, create root picker
+					const options: IPickOptions<IQuickPickItem> = {
+						placeHolder: localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
+					};
+					const workspace = await commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]);
+					if (!workspace) {
+						// Don't create the instance if the workspace picker was canceled
+						return;
+					}
+					cwd = workspace.uri;
+				}
+
+				if (options) {
+					instance = terminalService.createTerminal(options);
+				} else {
+					instance = await terminalService.showProfileQuickPick('createInstance', cwd);
+				}
+
+				if (instance) {
+					terminalService.setActiveInstance(instance);
+					if (instance.target === TerminalLocation.Editor) {
+						await instance.focusWhenReady(true);
+					} else {
+						await terminalGroupService.showPanel(true);
+					}
+				}
+
+			}
+		}
+	});
 }
