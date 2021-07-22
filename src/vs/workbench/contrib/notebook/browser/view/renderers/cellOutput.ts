@@ -364,10 +364,14 @@ export class CellOutputElement extends Disposable {
 	private async _pickActiveMimeTypeRenderer(notebookTextModel: NotebookTextModel, kernel: INotebookKernel | undefined, viewModel: ICellOutputViewModel) {
 		const [mimeTypes, currIndex] = viewModel.resolveMimeTypes(notebookTextModel, kernel?.preloadProvides);
 
-		let items: IMimeTypeRenderer[] = [];
+		const items: IMimeTypeRenderer[] = [];
+		const unsupportedItems: IMimeTypeRenderer[] = [];
 		mimeTypes.forEach((mimeType, index) => {
 			if (mimeType.isTrusted) {
-				items.push({
+				const arr = mimeType.rendererId === RENDERER_NOT_AVAILABLE ?
+					unsupportedItems :
+					items;
+				arr.push({
 					label: mimeType.mimeType,
 					id: mimeType.mimeType,
 					index: index,
@@ -378,8 +382,8 @@ export class CellOutputElement extends Disposable {
 			}
 		});
 
-		if (mimeTypes.some(m => m.rendererId === RENDERER_NOT_AVAILABLE && JUPYTER_RENDERER_MIMETYPES.includes(m.mimeType))) {
-			items.unshift({
+		if (unsupportedItems.some(m => JUPYTER_RENDERER_MIMETYPES.includes(m.id!))) {
+			unsupportedItems.unshift({
 				label: nls.localize('installJupyterPrompt', "Install additional renderers from the marketplace"),
 				id: 'installRenderers',
 				index: mimeTypes.length
@@ -387,7 +391,11 @@ export class CellOutputElement extends Disposable {
 		}
 
 		const picker = this.quickInputService.createQuickPick();
-		picker.items = items;
+		picker.items = [
+			...items,
+			{ type: 'separator' },
+			...unsupportedItems
+		];
 		picker.activeItems = items.filter(item => !!item.picked);
 		picker.placeholder = items.length !== mimeTypes.length
 			? nls.localize('promptChooseMimeTypeInSecure.placeHolder', "Select mimetype to render for current output")
