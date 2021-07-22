@@ -131,6 +131,7 @@ export interface IActivityHoverOptions {
 }
 
 export interface IActivityActionViewItemOptions extends IBaseActionViewItemOptions {
+	showIndicator?: boolean;
 	icon?: boolean;
 	colors: (theme: IColorTheme) => ICompositeBarColors;
 	hoverOptions: IActivityHoverOptions;
@@ -254,7 +255,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		this.badgeContent = append(this.badge, $('.badge-content'));
 
 		// Activity bar active border + background
-		const isActivityBarItem = this.options.icon;
+		const isActivityBarItem = this.options.showIndicator;
 		if (isActivityBarItem) {
 			append(container, $('.active-item-indicator'));
 		}

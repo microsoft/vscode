@@ -49,6 +49,7 @@ import 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import 'vs/workbench/browser/parts/statusbar/statusbarPart';
 import 'vs/workbench/browser/parts/views/viewsService';
 import 'vs/workbench/browser/parts/thirdpanel/thirdpanelPart';
+import 'vs/workbench/browser/parts/outlet/outletPart';
 
 //#endregion
 

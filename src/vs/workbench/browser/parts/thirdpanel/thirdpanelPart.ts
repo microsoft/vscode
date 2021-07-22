@@ -243,7 +243,7 @@ export class ThirdPanelPart extends CompositePart<Viewlet> implements IViewletSe
 		if (!this.layoutService.isVisible(Parts.THIRD_PANEL_PART)) {
 			try {
 				this.blockOpeningViewlet = true;
-				this.layoutService.setSideBarHidden(false);
+				this.layoutService.setThirdLayoutHidden(false);
 			} finally {
 				this.blockOpeningViewlet = false;
 			}

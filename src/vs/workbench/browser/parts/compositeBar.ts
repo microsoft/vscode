@@ -140,6 +140,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 
 export interface ICompositeBarOptions {
 
+	readonly showIndicator?: boolean;
 	readonly icon: boolean;
 	readonly orientation: ActionsOrientation;
 	readonly colors: (theme: IColorTheme) => ICompositeBarColors;
@@ -216,7 +217,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 				const item = this.model.findItem(action.id);
 				return item && this.instantiationService.createInstance(
 					CompositeActionViewItem,
-					{ draggable: true, colors: this.options.colors, icon: this.options.icon, hoverOptions: this.options.activityHoverOptions },
+					{ draggable: true, showIndicator: this.options.showIndicator, colors: this.options.colors, icon: this.options.icon, hoverOptions: this.options.activityHoverOptions },
 					action as ActivityAction,
 					item.pinnedAction,
 					compositeId => this.options.getContextMenuActionsForComposite(compositeId),

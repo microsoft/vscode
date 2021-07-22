@@ -76,8 +76,10 @@ export class ViewsService extends Disposable implements IViewsService {
 		// View Container Visibility
 		this._register(this.viewletService.onDidViewletOpen(viewlet => this._onDidChangeViewContainerVisibility.fire({ id: viewlet.getId(), visible: true, location: ViewContainerLocation.Sidebar })));
 		this._register(this.panelService.onDidPanelOpen(e => this._onDidChangeViewContainerVisibility.fire({ id: e.panel.getId(), visible: true, location: ViewContainerLocation.Panel })));
+		this._register(this.secondViewletService.onDidViewletOpen(viewlet => this._onDidChangeViewContainerVisibility.fire({ id: viewlet.getId(), visible: true, location: ViewContainerLocation.ThirdPanel })));
 		this._register(this.viewletService.onDidViewletClose(viewlet => this._onDidChangeViewContainerVisibility.fire({ id: viewlet.getId(), visible: false, location: ViewContainerLocation.Sidebar })));
 		this._register(this.panelService.onDidPanelClose(panel => this._onDidChangeViewContainerVisibility.fire({ id: panel.getId(), visible: false, location: ViewContainerLocation.Panel })));
+		this._register(this.secondViewletService.onDidViewletClose(viewlet => this._onDidChangeViewContainerVisibility.fire({ id: viewlet.getId(), visible: false, location: ViewContainerLocation.ThirdPanel })));
 
 		this.focusedViewContextKey = FocusedViewContext.bindTo(contextKeyService);
 	}
@@ -222,6 +224,9 @@ export class ViewsService extends Disposable implements IViewsService {
 				case ViewContainerLocation.Sidebar:
 					const viewlet = await this.viewletService.openViewlet(id, focus);
 					return viewlet || null;
+				case ViewContainerLocation.ThirdPanel:
+					const viewletInThirdPanel = await this.secondViewletService.openViewlet(id, focus);
+					return viewletInThirdPanel || null;
 			}
 		}
 		return null;

@@ -22,7 +22,7 @@ import { IActivity } from 'vs/workbench/common/activity';
 import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { ISecondViewletService, IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
@@ -37,6 +37,8 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewlet } from 'vs/workbench/common/viewlet';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -46,7 +48,9 @@ export class ViewContainerActivityAction extends ActivityAction {
 
 	constructor(
 		activity: IActivity,
+		private readonly location: ViewContainerLocation,
 		@IViewletService private readonly viewletService: IViewletService,
+		@ISecondViewletService private readonly secondViewletService: IViewletService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
@@ -70,11 +74,21 @@ export class ViewContainerActivityAction extends ActivityAction {
 		}
 		this.lastRun = now;
 
+		if (this.location === ViewContainerLocation.Sidebar) {
+			await this.runSidebar(event);
+		} else {
+			await this.runThirdPanel(event);
+		}
+
+		return this.activate();
+	}
+
+	private async runSidebar(event: any | { preserveFocus: boolean }): Promise<IViewlet | undefined> {
 		const sideBarVisible = this.layoutService.isVisible(Parts.SIDEBAR_PART);
 		const activeViewlet = this.viewletService.getActiveViewlet();
 		const focusBehavior = this.configurationService.getValue<string>('workbench.activityBar.iconClickBehavior');
-
 		const focus = (event && 'preserveFocus' in event) ? !event.preserveFocus : true;
+
 		if (sideBarVisible && activeViewlet?.getId() === this.activity.id) {
 			switch (focusBehavior) {
 				case 'focus':
@@ -93,9 +107,34 @@ export class ViewContainerActivityAction extends ActivityAction {
 		}
 
 		this.logAction('show');
-		await this.viewletService.openViewlet(this.activity.id, focus);
+		return this.viewletService.openViewlet(this.activity.id, focus);
+	}
 
-		return this.activate();
+	private async runThirdPanel(event: any | { preserveFocus: boolean }): Promise<IViewlet | undefined> {
+		const thirdPanelVisible = this.layoutService.isVisible(Parts.THIRD_PANEL_PART);
+		const activeViewlet = this.secondViewletService.getActiveViewlet();
+		const focusBehavior = this.configurationService.getValue<string>('workbench.activityBar.iconClickBehavior');
+		const focus = (event && 'preserveFocus' in event) ? !event.preserveFocus : true;
+
+		if (thirdPanelVisible && activeViewlet?.getId() === this.activity.id) {
+			switch (focusBehavior) {
+				case 'focus':
+					this.logAction('refocus');
+					this.secondViewletService.openViewlet(this.activity.id, focus);
+					break;
+				case 'toggle':
+				default:
+					// Hide sidebar if selected viewlet already visible
+					this.logAction('hide');
+					this.layoutService.setThirdLayoutHidden(true);
+					break;
+			}
+
+			return;
+		}
+
+		this.logAction('show');
+		return this.secondViewletService.openViewlet(this.activity.id, focus);
 	}
 
 	private logAction(action: string) {

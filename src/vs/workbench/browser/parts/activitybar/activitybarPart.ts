@@ -156,6 +156,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		return this._register(this.instantiationService.createInstance(CompositeBar, cachedItems, {
 			icon: true,
+			showIndicator: true,
 			orientation: ActionsOrientation.VERTICAL,
 			activityHoverOptions: this.getActivityHoverOptions(),
 			preventLoopNavigation: true,
@@ -570,13 +571,13 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			if (viewContainer) {
 				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
 				compositeActions = {
-					activityAction: this.instantiationService.createInstance(ViewContainerActivityAction, this.toActivity(viewContainerModel)),
+					activityAction: this.instantiationService.createInstance(ViewContainerActivityAction, this.toActivity(viewContainerModel), ViewContainerLocation.Sidebar),
 					pinnedAction: new ToggleCompositePinnedAction(this.toActivity(viewContainerModel), this.compositeBar)
 				};
 			} else {
 				const cachedComposite = this.cachedViewContainers.filter(c => c.id === compositeId)[0];
 				compositeActions = {
-					activityAction: this.instantiationService.createInstance(PlaceHolderViewContainerActivityAction, ActivitybarPart.toActivity(compositeId, compositeId, cachedComposite?.icon, undefined)),
+					activityAction: this.instantiationService.createInstance(PlaceHolderViewContainerActivityAction, ActivitybarPart.toActivity(compositeId, compositeId, cachedComposite?.icon, undefined), ViewContainerLocation.Sidebar),
 					pinnedAction: new PlaceHolderToggleCompositePinnedAction(compositeId, this.compositeBar)
 				};
 			}

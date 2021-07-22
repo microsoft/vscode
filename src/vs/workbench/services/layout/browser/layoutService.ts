@@ -21,7 +21,8 @@ export const enum Parts {
 	PANEL_PART = 'workbench.parts.panel',
 	EDITOR_PART = 'workbench.parts.editor',
 	STATUSBAR_PART = 'workbench.parts.statusbar',
-	THIRD_PANEL_PART = 'workbench.parts.thirdpanel'
+	THIRD_PANEL_PART = 'workbench.parts.thirdPanel',
+	OUTLET_PART = 'workbench.parts.outlet'
 }
 
 export const enum Position {

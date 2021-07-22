@@ -14,7 +14,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry, IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewDescriptorService } from 'vs/workbench/common/views';
 import { THIRD_PANEL_VIEWLET_ID } from 'vs/workbench/contrib/thirdPanel/browser/thirdPanel';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -48,14 +48,7 @@ export const thirdPanelViewRegistry = Registry.as<IViewContainersRegistry>(ViewC
 	id: THIRD_PANEL_VIEWLET_ID,
 	title: 'Third Panel',
 	ctorDescriptor: new SyncDescriptor(ThirdPanelViewPaneContainer),
-	storageId: 'workbench.thirdpanel.views.state',
-	order: 1,
-	hideIfEmpty: false,
+	storageId: 'workbench.thirdPanel.views.state',
+	order: 0,
+	hideIfEmpty: true,
 }, ViewContainerLocation.ThirdPanel, { isDefault: true, donotRegisterOpenCommand: true });
-
-const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
-
-viewsRegistry.registerViewWelcomeContent(THIRD_PANEL_VIEWLET_ID, {
-	content: 'Third Panel Area',
-	when: 'default'
-});

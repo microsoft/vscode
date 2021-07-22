@@ -33,7 +33,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedLeafNode, Direction, IViewSize } from 'vs/base/browser/ui/grid/grid';
 import { Part } from 'vs/workbench/browser/part';
 import { IStatusbarService } from 'vs/workbench/services/statusbar/common/statusbar';
-import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
+import { IActivityBarService, IOutletBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { coalesce } from 'vs/base/common/arrays';
@@ -163,6 +163,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private editorPartView!: ISerializableView;
 	private statusBarPartView!: ISerializableView;
 	private thirdPanelPartView!: ISerializableView;
+	private outletBarPartView!: ISerializableView;
 
 	private environmentService!: IWorkbenchEnvironmentService;
 	private extensionService!: IExtensionService;
@@ -181,6 +182,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private notificationService!: INotificationService;
 	private themeService!: IThemeService;
 	private activityBarService!: IActivityBarService;
+	private outletBarService!: IActivityBarService;
 	private statusBarService!: IStatusbarService;
 	private logService!: ILogService;
 
@@ -246,6 +248,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			hidden: false,
 			position: Position.RIGHT,
 			width: 300,
+		},
+
+		outlet: {
+			hidden: false,
+			position: Position.RIGHT,
+			width: 20,
 		}
 	};
 
@@ -279,6 +287,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.notificationService = accessor.get(INotificationService);
 		this.activityBarService = accessor.get(IActivityBarService);
 		this.statusBarService = accessor.get(IStatusbarService);
+		this.outletBarService = accessor.get(IOutletBarService);
 		accessor.get(IBannerService);
 
 		// Listeners
@@ -460,16 +469,16 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.state.sideBar.width = this.workbenchGrid.getViewSize(this.sideBarPartView).width;
 		}
 
-		// this.state.thirdPanel.width = this.workbenchGrid.getViewSize(this.thirdPanelPartView).width;
-
 		if (position === Position.LEFT) {
 			this.workbenchGrid.moveViewTo(this.activityBarPartView, [2, 0]);
 			this.workbenchGrid.moveViewTo(this.sideBarPartView, [2, 1]);
 			this.workbenchGrid.moveViewTo(this.thirdPanelPartView, [2, 5]);
+			this.workbenchGrid.moveViewTo(this.outletBarPartView, [2, 6]);
 		} else {
-			this.workbenchGrid.moveViewTo(this.sideBarPartView, [2, 5]);
+			this.workbenchGrid.moveViewTo(this.sideBarPartView, [2, 6]);
 			this.workbenchGrid.moveViewTo(this.activityBarPartView, [2, 5]);
-			this.workbenchGrid.moveViewTo(this.thirdPanelPartView, [2, 0]);
+			this.workbenchGrid.moveViewTo(this.thirdPanelPartView, [2, 1]);
+			this.workbenchGrid.moveViewTo(this.outletBarPartView, [2, 0]);
 		}
 
 		this.layout();
@@ -931,6 +940,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			case Parts.ACTIVITYBAR_PART:
 				this.activityBarService.focusActivityBar();
 				break;
+			case Parts.OUTLET_PART:
+				this.outletBarService.focusActivityBar();
+				break;
 			case Parts.STATUSBAR_PART:
 				this.statusBarService.focus();
 			default:
@@ -960,6 +972,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				return this.getPart(Parts.STATUSBAR_PART).getContainer();
 			case Parts.THIRD_PANEL_PART:
 				return this.getPart(Parts.THIRD_PANEL_PART).getContainer();
+			case Parts.OUTLET_PART:
+				return this.getPart(Parts.OUTLET_PART).getContainer();
 		}
 	}
 
@@ -1007,6 +1021,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				return !this.state.editor.hidden;
 			case Parts.THIRD_PANEL_PART:
 				return !this.state.thirdPanel.hidden;
+			case Parts.OUTLET_PART:
+				return !this.state.outlet.hidden;
 			default:
 				return true; // any other part cannot be hidden
 		}
@@ -1206,6 +1222,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const sideBar = this.getPart(Parts.SIDEBAR_PART);
 		const statusBar = this.getPart(Parts.STATUSBAR_PART);
 		const thirdPanel = this.getPart(Parts.THIRD_PANEL_PART);
+		const outletBar = this.getPart(Parts.OUTLET_PART);
 
 		// View references for all parts
 		this.titleBarPartView = titleBar;
@@ -1216,6 +1233,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.panelPartView = panelPart;
 		this.statusBarPartView = statusBar;
 		this.thirdPanelPartView = thirdPanel;
+		this.outletBarPartView = outletBar;
 
 		const viewMap = {
 			[Parts.ACTIVITYBAR_PART]: this.activityBarPartView,
@@ -1225,7 +1243,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			[Parts.PANEL_PART]: this.panelPartView,
 			[Parts.SIDEBAR_PART]: this.sideBarPartView,
 			[Parts.STATUSBAR_PART]: this.statusBarPartView,
-			[Parts.THIRD_PANEL_PART]: this.thirdPanelPartView
+			[Parts.THIRD_PANEL_PART]: this.thirdPanelPartView,
+			[Parts.OUTLET_PART]: this.outletBarPartView,
 		};
 
 		const fromJSON = ({ type }: { type: Parts; }) => viewMap[type];
@@ -1408,6 +1427,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Propagate to grid
 		this.workbenchGrid.setViewVisible(this.activityBarPartView, !hidden);
+	}
+
+	setOutletBarHidden(hidden: boolean): void {
+		this.workbenchGrid.setViewVisible(this.outletBarPartView, !hidden);
 	}
 
 	setBannerHidden(hidden: boolean): void {
@@ -1845,12 +1868,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const titleBarHeight = this.titleBarPartView.minimumHeight;
 		const bannerHeight = this.bannerPartView.minimumHeight;
 		const statusBarHeight = this.statusBarPartView.minimumHeight;
+		const outletBarWidth = this.outletBarPartView.minimumWidth;
 		const activityBarWidth = this.activityBarPartView.minimumWidth;
 		const middleSectionHeight = height - titleBarHeight - statusBarHeight;
 		const editorSectionWidth = width
 			- (this.state.activityBar.hidden ? 0 : activityBarWidth)
 			- (this.state.sideBar.hidden ? 0 : sideBarSize)
-			- (this.state.thirdPanel.hidden ? 0 : thirdPanelSize);
+			- (this.state.thirdPanel.hidden ? 0 : thirdPanelSize)
+			- (this.state.outlet.hidden ? 0 : outletBarWidth);
 
 		const activityBarNode: ISerializedLeafNode = {
 			type: 'leaf',
@@ -1889,11 +1914,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			visible: !this.state.thirdPanel.hidden
 		};
 
+		const outletNode: ISerializedLeafNode = {
+			type: 'leaf',
+			data: { type: Parts.OUTLET_PART },
+			size: outletBarWidth,
+			visible: !this.state.outlet.hidden
+		};
+
 		const editorSectionNode = this.arrangeEditorNodes(editorNode, panelNode, editorSectionWidth);
 
 		const middleSection: ISerializedNode[] = this.state.sideBar.position === Position.LEFT
-			? [activityBarNode, sideBarNode, ...editorSectionNode, thirdPanelNode]
-			: [thirdPanelNode, ...editorSectionNode, sideBarNode, activityBarNode];
+			? [activityBarNode, sideBarNode, ...editorSectionNode, thirdPanelNode, outletNode]
+			: [outletNode, thirdPanelNode, ...editorSectionNode, sideBarNode, activityBarNode];
 
 		const result: ISerializedGrid = {
 			root: {

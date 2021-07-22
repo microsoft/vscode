@@ -312,7 +312,7 @@ MenuRegistry.appendMenuItems([{
 
 // Toggle ThirdPanel Visibility
 
-class ToggleThirdPanelAction extends Action2 {
+export class ToggleThirdPanelAction extends Action2 {
 	static readonly ID = 'workbench.action.toggleThirdPanelVisibility';
 
 	constructor() {
