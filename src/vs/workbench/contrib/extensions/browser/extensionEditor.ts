@@ -22,7 +22,7 @@ import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsServi
 import { IExtensionManifest, IKeyBinding, IView, IViewContainer } from 'vs/platform/extensions/common/extensions';
 import { ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
-import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, IExtension, ExtensionContainers, ExtensionEditorTab } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, IExtension, ExtensionContainers, ExtensionEditorTab, ExtensionState } from 'vs/workbench/contrib/extensions/common/extensions';
 import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -140,6 +140,7 @@ interface IExtensionEditorTemplate {
 	installCount: HTMLElement;
 	rating: HTMLElement;
 	description: HTMLElement;
+	actionsAndStatusContainer: HTMLElement;
 	extensionActionBar: ActionBar;
 	status: HTMLElement;
 	recommendation: HTMLElement;
@@ -227,8 +228,8 @@ export class ExtensionEditor extends EditorPane {
 
 		const description = append(details, $('.description'));
 
-		const extensionActionsContainer = append(details, $('.actions'));
-		const extensionActionBar = this._register(new ActionBar(extensionActionsContainer, {
+		const actionsAndStatusContainer = append(details, $('.actions-status-container'));
+		const extensionActionBar = this._register(new ActionBar(actionsAndStatusContainer, {
 			animated: false,
 			actionViewItemProvider: (action: IAction) => {
 				if (action instanceof ExtensionDropDownAction) {
@@ -242,7 +243,7 @@ export class ExtensionEditor extends EditorPane {
 			focusOnlyEnabledItems: true
 		}));
 
-		const status = append(extensionActionsContainer, $('.status'));
+		const status = append(actionsAndStatusContainer, $('.status'));
 		const recommendation = append(details, $('.recommendation'));
 
 		this._register(Event.chain(extensionActionBar.onDidRun)
@@ -270,6 +271,7 @@ export class ExtensionEditor extends EditorPane {
 			preview,
 			publisher,
 			rating,
+			actionsAndStatusContainer,
 			extensionActionBar,
 			status,
 			recommendation
@@ -407,7 +409,7 @@ export class ExtensionEditor extends EditorPane {
 			this.transientDisposables.add(disposable);
 		}
 
-		this.setStatus(extensionStatus, template);
+		this.setStatus(extension, extensionStatus, template);
 		this.setRecommendationText(extension, template);
 
 		template.content.innerText = ''; // Clear content before setting navbar actions.
@@ -455,21 +457,27 @@ export class ExtensionEditor extends EditorPane {
 		this.editorLoadComplete = true;
 	}
 
-	private setStatus(extensionStatus: ExtensionStatusAction, template: IExtensionEditorTemplate): void {
+	private setStatus(extension: IExtension, extensionStatus: ExtensionStatusAction, template: IExtensionEditorTemplate): void {
+		const disposables = new DisposableStore();
+		this.transientDisposables.add(disposables);
 		const updateStatus = () => {
+			disposables.clear();
 			reset(template.status);
 			const status = extensionStatus.status;
 			if (status) {
-				const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 				if (status.icon) {
-					markdown.appendMarkdown(`$(${status.icon.id})&nbsp;`);
+					const statusIconActionBar = disposables.add(new ActionBar(template.status, { animated: false }));
+					statusIconActionBar.push(extensionStatus, { icon: true, label: false });
 				}
-				markdown.appendMarkdown(status.message.value);
-				append(template.status, renderMarkdown(markdown));
+				append(append(template.status, $('.status-text')), renderMarkdown(new MarkdownString(status.message.value, { isTrusted: true, supportThemeIcons: true })));
 			}
 		};
 		updateStatus();
 		this.transientDisposables.add(extensionStatus.onDidChangeStatus(() => updateStatus()));
+
+		const updateActionLayout = () => template.actionsAndStatusContainer.classList.toggle('list-layout', extension.state === ExtensionState.Installed);
+		updateActionLayout();
+		this.transientDisposables.add(this.extensionsWorkbenchService.onChange(() => updateActionLayout()));
 	}
 
 	private setRecommendationText(extension: IExtension, template: IExtensionEditorTemplate): void {
@@ -1620,15 +1628,15 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
 		collector.addRule(`.monaco-workbench .extension-editor .content a { color: ${link}; }`);
-		collector.addRule(`.monaco-workbench .extension-editor > .header > .details > .actions > .status a { color: ${link}; }`);
+		collector.addRule(`.monaco-workbench .extension-editor > .header > .details > .actions-status-container > .status > .status-text a { color: ${link}; }`);
 	}
 
 	const activeLink = theme.getColor(textLinkActiveForeground);
 	if (activeLink) {
 		collector.addRule(`.monaco-workbench .extension-editor .content a:hover,
 			.monaco-workbench .extension-editor .content a:active { color: ${activeLink}; }`);
-		collector.addRule(`.monaco-workbench .extension-editor > .header > .details > .actions > .status a:hover,
-			.monaco-workbench .extension-editor > .header > .details > .actions > .status a:active { color: ${activeLink}; }`);
+		collector.addRule(`.monaco-workbench .extension-editor > .header > .details > .actions-status-container > .status > .status-text a:hover,
+			.monaco-workbench .extension-editor > .header > .details > actions-status-container > .status > .status-text a:active { color: ${activeLink}; }`);
 
 	}
 

@@ -142,91 +142,111 @@
 	overflow: hidden;
 }
 
-.extension-editor > .header > .details > .actions {
+.extension-editor > .header > .details > .actions-status-container {
 	margin-top: 10px;
 	display: flex;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar {
+.extension-editor > .header > .details > .actions-status-container.list-layout {
+	display: inherit;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar {
 	text-align: initial;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item {
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item {
 	margin-right: 0;
 	overflow: hidden;
 	flex-shrink: 0;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item.disabled {
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.disabled {
 	min-width: 0;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item .extension-action {
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item .extension-action {
 	margin-bottom: 2px; /* margin for outline */
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action:not(.icon) {
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item > .extension-action:not(.icon) {
 	margin-left: 2px; /* margin for outline */
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .monaco-dropdown .extension-action.action-dropdown {
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .monaco-dropdown .extension-action.action-dropdown {
 	margin-right: 2px; /* margin for outline */
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item .extension-action:not(.icon) {
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item .extension-action:not(.icon) {
 	border-radius: 0;
 	padding-top: 0;
 	padding-bottom: 0;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action,
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .monaco-dropdown .extension-action.action-dropdown {
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item > .extension-action,
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .monaco-dropdown .extension-action.action-dropdown {
 	line-height: 22px;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item,
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item:not(.action-dropdown-item) > .extension-action {
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item,
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item:not(.action-dropdown-item) > .extension-action {
 	margin-right: 6px;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action.label,
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item .extension-action.label {
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item > .extension-action.label,
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item .extension-action.label {
 	font-weight: 600;
 	max-width: 300px;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label.extension-status {
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item > .action-label.extension-status {
 	margin-right: 0;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar .action-item .action-label.extension-status-label,
-.extension-editor > .header > .details > .actions > .monaco-action-bar .action-item .action-label.disable-status {
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar .action-item .action-label.extension-status-label,
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar .action-item .action-label.disable-status {
 	font-weight: normal;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar .action-item .action-label.extension-status-label:hover,
-.extension-editor > .header > .details > .actions > .monaco-action-bar .action-item .action-label.disable-status:hover {
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar .action-item .action-label.extension-status-label:hover,
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar .action-item .action-label.disable-status:hover {
 	opacity: 0.9;
 }
 
-.extension-editor > .header > .details > .actions > .status {
+.extension-editor > .header > .details > .actions-status-container > .status {
 	line-height: 22px;
 	font-size: 90%;
+	display: flex;
+}
+
+.extension-editor > .header > .details > .actions-status-container.list-layout > .status {
+	margin-top: 5px;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .status > .monaco-action-bar {
+	height: 22px;
+	margin-right: 2px;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .status > .monaco-action-bar .extension-action {
 	margin-top: 3px;
 }
 
-.extension-editor > .header > .details > .actions > .status p {
+.extension-editor > .header > .details > .actions-status-container.list-layout > .status > .monaco-action-bar .extension-action {
+	margin-top: 0px;
+}
+
+.extension-editor > .header > .details > .actions-status-container:not(.list-layout) > .status > .status-text {
+	margin-top: 2px;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .status > .status-text p {
 	margin-top: 0px;
 	margin-bottom: 0px;
 }
 
-.extension-editor > .header > .details > .actions > .status a:hover {
+.extension-editor > .header > .details > .actions-status-container > .status > .status-text a:hover {
 	text-decoration: underline;
-}
-
-.extension-editor > .header > .details > .actions > .status span {
-	vertical-align: middle;
-	margin-bottom: 4px;
 }
 
 .extension-editor > .header > .details > .recommendation {
@@ -235,7 +255,7 @@
 
 .extension-editor > .header > .details > .recommendation .codicon {
 	font-size: inherit;
-	padding-right: 3px;
+	padding: 0px 3px;
 }
 
 .extension-editor > .header > .details > .recommendation .recommendation-text {
