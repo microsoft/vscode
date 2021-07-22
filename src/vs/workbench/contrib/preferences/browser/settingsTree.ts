@@ -590,7 +590,6 @@ function addChildrenToTabOrder(node: Element): void {
 
 export interface HeightChangeParams {
 	element: SettingsTreeElement;
-	height: number;
 }
 
 export abstract class AbstractSettingRenderer extends Disposable implements ITreeRenderer<SettingsTreeElement, never, any> {
@@ -1495,16 +1494,10 @@ export class SettingMultilineTextRenderer extends AbstractSettingTextRenderer im
 		};
 		super.renderValue(dataElement, template, onChangeOverride);
 		template.elementDisposables.add(
-			template.inputBox.onDidHeightChange(e => {
-				const height = template.containerElement.clientHeight;
-				// Don't fire event if height is reported as 0,
-				// which sometimes happens when clicking onto a new setting.
-				if (height) {
-					this._onDidChangeSettingHeight.fire({
-						element: dataElement,
-						height: template.containerElement.clientHeight
-					});
-				}
+			template.inputBox.onDidHeightChange(() => {
+				this._onDidChangeSettingHeight.fire({
+					element: dataElement,
+				});
 			})
 		);
 		template.inputBox.layout();

@@ -747,9 +747,9 @@ export class SettingsEditor2 extends EditorPane {
 			this.searchWidget.setValue(element.targetKey);
 		}));
 		this._register(this.settingRenderers.onDidChangeSettingHeight((params: HeightChangeParams) => {
-			const { element, height } = params;
+			const { element } = params;
 			try {
-				this.settingsTree.updateElementHeight(element, height);
+				this.settingsTree.updateElementHeight(element, undefined);
 			} catch (e) {
 				// the element was not found
 			}
