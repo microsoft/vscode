@@ -160,10 +160,12 @@ async function transformToTerminalProfiles(
 			} else if (source.icon) {
 				icon = source.icon;
 			}
-		} else {
+		} else if ('path' in profile) {
 			originalPaths = Array.isArray(profile.path) ? profile.path : [profile.path];
 			args = isWindows ? profile.args : Array.isArray(profile.args) ? profile.args : undefined;
 			icon = validateIcon(profile.icon) || undefined;
+		} else {
+			continue;
 		}
 
 		const paths = (await variableResolver?.(originalPaths)) || originalPaths.slice();

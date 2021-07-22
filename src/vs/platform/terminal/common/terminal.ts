@@ -610,4 +610,20 @@ export interface ITerminalProfileSource extends IBaseUnresolvedTerminalProfile {
 	source: ProfileSource;
 }
 
-export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | null;
+export interface ITerminalContributions {
+	profiles?: ITerminalProfileContribution[];
+}
+
+export interface ITerminalProfileContribution {
+	title: string;
+	id: string;
+	icon?: string;
+	isSplitTerminal: boolean;
+}
+
+export interface IExtensionTerminalProfile extends ITerminalProfileContribution {
+	extensionIdentifier: string;
+}
+
+export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | IExtensionTerminalProfile | null;
+export type ITerminalProfileQuickpickObject = ITerminalProfile | IExtensionTerminalProfile;

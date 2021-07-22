@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ITerminalContributions, terminalContributionsDescriptor, ITerminalProfileContribution } from 'vs/workbench/contrib/terminal/common/terminal';
+import { terminalContributionsDescriptor } from 'vs/workbench/contrib/terminal/common/terminal';
 import { flatten } from 'vs/base/common/arrays';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { iconRegistry } from 'vs/base/common/codicons';
+import { IExtensionTerminalProfile, ITerminalContributions } from 'vs/platform/terminal/common/terminal';
 
 // terminal extension point
 export const terminalsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<ITerminalContributions>(terminalContributionsDescriptor);
@@ -15,7 +16,7 @@ export const terminalsExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 export interface ITerminalContributionService {
 	readonly _serviceBrand: undefined;
 
-	readonly terminalProfiles: ReadonlyArray<ITerminalProfileContribution & { extensionIdentifier: string }>;
+	readonly terminalProfiles: ReadonlyArray<IExtensionTerminalProfile>;
 }
 
 export const ITerminalContributionService = createDecorator<ITerminalContributionService>('terminalContributionsService');
@@ -23,7 +24,7 @@ export const ITerminalContributionService = createDecorator<ITerminalContributio
 export class TerminalContributionService implements ITerminalContributionService {
 	declare _serviceBrand: undefined;
 
-	private _terminalProfiles: ReadonlyArray<ITerminalProfileContribution & { extensionIdentifier: string }> = [];
+	private _terminalProfiles: ReadonlyArray<IExtensionTerminalProfile> = [];
 	get terminalProfiles() { return this._terminalProfiles; }
 
 	constructor() {
