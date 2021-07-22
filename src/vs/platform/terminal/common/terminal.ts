@@ -391,7 +391,7 @@ export interface ICreateTerminalOptions {
 	 * The shell launch config or profile to launch with, when not specified the default terminal
 	 * profile will be used.
 	 */
-	config?: IShellLaunchConfig | ITerminalProfile;
+	config?: IShellLaunchConfig | ITerminalProfile | IExtensionTerminalProfile;
 	/**
 	 * The current working directory to start with, this will override IShellLaunchConfig.cwd if
 	 * specified.

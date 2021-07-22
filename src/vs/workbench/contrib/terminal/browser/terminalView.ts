@@ -180,10 +180,10 @@ export class TerminalViewPane extends ViewPane {
 					label: action.label,
 					dispose: action.dispose.bind(action),
 					tooltip: action.tooltip,
-					run: () => {
+					run: async () => {
 						const instance = this._terminalGroupService.activeInstance;
 						if (instance) {
-							const newInstance = this._terminalService.splitInstance(instance);
+							const newInstance = await this._terminalService.splitInstance(instance);
 							return newInstance?.focusWhenReady();
 						}
 						return;

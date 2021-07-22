@@ -389,10 +389,10 @@ export class TerminalService implements ITerminalService {
 					reconnectCounter += terminalLayouts.length;
 					let terminalInstance: ITerminalInstance | undefined;
 					let group: ITerminalGroup | undefined;
-					terminalLayouts.forEach((terminalLayout) => {
+					terminalLayouts.forEach(async (terminalLayout) => {
 						if (!terminalInstance) {
 							// create group and terminal
-							terminalInstance = this.createTerminal({
+							terminalInstance = await this.createTerminal({
 								config: { attachPersistentProcess: terminalLayout.terminal! },
 								target: TerminalLocation.TerminalView
 							});
@@ -440,7 +440,7 @@ export class TerminalService implements ITerminalService {
 		this.onDidChangeInstances(() => updateTerminalContextKeys());
 	}
 
-	getActiveOrCreateInstance(): ITerminalInstance {
+	async getActiveOrCreateInstance(): Promise<ITerminalInstance> {
 		return this.activeInstance || this.createTerminal();
 	}
 
@@ -624,10 +624,22 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
-	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance | null;
-	splitInstance(instanceToSplit: ITerminalInstance, profile: ITerminalProfile, cwd?: string | URI): ITerminalInstance | null
-	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfigOrProfile: IShellLaunchConfig | ITerminalProfile = {}, cwd?: string | URI): ITerminalInstance | null {
+	async splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): Promise<ITerminalInstance | null>;
+	async splitInstance(instanceToSplit: ITerminalInstance, profile: ITerminalProfile, cwd?: string | URI): Promise<ITerminalInstance | null>
+	async splitInstance(instanceToSplit: ITerminalInstance, extensionProfile: IExtensionTerminalProfile, cwd?: string | URI): Promise<ITerminalInstance | null>
+	async splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfigOrProfile: IShellLaunchConfig | ITerminalProfile | IExtensionTerminalProfile = {}, cwd?: string | URI): Promise<ITerminalInstance | null> {
 		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile, cwd);
+
+		if (shellLaunchConfig && !shellLaunchConfig.extHostTerminalId) {
+			const key = await this._getPlatformKey();
+			const defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${key}`);
+			const defaultProfile = this._terminalContributionService.terminalProfiles.find(p => p.id === defaultProfileName);
+			if (defaultProfile) {
+				await this.createContributedTerminalProfile(defaultProfile.extensionIdentifier, defaultProfile.id, { isSplitTerminal: defaultProfile.isSplitTerminal, icon: defaultProfile.icon });
+				return this._terminalGroupService.instances[this._terminalGroupService.instances.length - 1];
+			}
+		}
+
 
 		// Use the URI from the base instance if it exists, this will correctly split local terminals
 		if (typeof shellLaunchConfig.cwd !== 'object' && typeof instanceToSplit.shellLaunchConfig.cwd === 'object') {
@@ -748,7 +760,7 @@ export class TerminalService implements ITerminalService {
 		if (!sourceInstance) {
 			const attachPersistentProcess = await this._primaryOffProcessTerminalService?.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId);
 			if (attachPersistentProcess) {
-				sourceInstance = this.createTerminal({ config: { attachPersistentProcess }, resource: e.uri });
+				sourceInstance = await this.createTerminal({ config: { attachPersistentProcess }, resource: e.uri });
 				this._terminalGroupService.moveInstance(sourceInstance, instance, e.side);
 				return;
 			}
@@ -938,9 +950,9 @@ export class TerminalService implements ITerminalService {
 			} else {
 				if (keyMods?.alt && activeInstance) {
 					// create split, only valid if there's an active instance
-					instance = this.splitInstance(activeInstance, value.profile, cwd);
+					instance = await this.splitInstance(activeInstance, value.profile, cwd);
 				} else {
-					instance = this.createTerminal({ target: this.configHelper.config.defaultLocation, config: value.profile, cwd });
+					instance = await this.createTerminal({ target: this.configHelper.config.defaultLocation, config: value.profile, cwd });
 				}
 			}
 
@@ -1097,26 +1109,18 @@ export class TerminalService implements ITerminalService {
 		return {};
 	}
 
-	createTerminal(options?: ICreateTerminalOptions): ITerminalInstance {
-		this._getPlatformKey().then(key => {
-			const profiles: { [key: string]: ITerminalProfileObject } = this._configurationService.getValue(`${TerminalSettingPrefix.Profiles}${key}`);
-			const defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${key}`);
-			let defaultProfile: ITerminalProfileObject | undefined;
-			for (const [profileName, value] of Object.entries(profiles)) {
-				if (profileName === defaultProfileName) {
-					defaultProfile = value;
-					break;
-				}
-			}
-			if (defaultProfile && 'extensionIdentifier' in defaultProfile) {
-				this.createContributedTerminalProfile(defaultProfile.extensionIdentifier, defaultProfile.id, { isSplitTerminal: defaultProfile.isSplitTerminal }).then((instance) => {
-					return instance;
-				});
-				return;
-			}
-		});
-
+	async createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance> {
 		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(options?.config || options);
+
+		if (shellLaunchConfig && !shellLaunchConfig.extHostTerminalId) {
+			const key = await this._getPlatformKey();
+			const defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${key}`);
+			const defaultProfile = this._terminalContributionService.terminalProfiles.find(p => p.id === defaultProfileName);
+			if (defaultProfile) {
+				await this.createContributedTerminalProfile(defaultProfile.extensionIdentifier, defaultProfile.id, { isSplitTerminal: defaultProfile.isSplitTerminal, icon: defaultProfile.icon });
+				return this._terminalGroupService.instances[this._terminalGroupService.instances.length - 1];
+			}
+		}
 
 		if (options?.cwd) {
 			shellLaunchConfig.cwd = options.cwd;

@@ -133,7 +133,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		this.onMouseDblClick(async e => {
 			const focus = this.getFocus();
 			if (focus.length === 0) {
-				const instance = this._terminalService.createTerminal({ target: TerminalLocation.TerminalView });
+				const instance = await this._terminalService.createTerminal({ target: TerminalLocation.TerminalView });
 				this._terminalGroupService.setActiveInstance(instance);
 				await instance.focusWhenReady();
 			}
@@ -638,7 +638,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 			processes = processes.filter(p => p !== undefined);
 			let lastInstance: ITerminalInstance | undefined;
 			for (const attachPersistentProcess of processes) {
-				lastInstance = this._terminalService.createTerminal({ config: { attachPersistentProcess } });
+				lastInstance = await this._terminalService.createTerminal({ config: { attachPersistentProcess } });
 			}
 			if (lastInstance) {
 				this._terminalService.setActiveInstance(lastInstance);

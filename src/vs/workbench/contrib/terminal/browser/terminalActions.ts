@@ -119,7 +119,7 @@ export function registerTerminalActions() {
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
 			if (terminalService.isProcessSupportRegistered) {
-				const instance = terminalService.createTerminal({ target: terminalService.configHelper.config.defaultLocation });
+				const instance = await terminalService.createTerminal({ target: terminalService.configHelper.config.defaultLocation });
 				if (!instance) {
 					return;
 				}
@@ -167,7 +167,7 @@ export function registerTerminalActions() {
 				const activeInstance = terminalService.activeInstance;
 				if (activeInstance) {
 					const cwd = await getCwdForSplit(terminalService.configHelper, activeInstance);
-					terminalService.splitInstance(activeInstance, options?.config, cwd);
+					await terminalService.splitInstance(activeInstance, options?.config, cwd);
 					return;
 				}
 			}
@@ -189,7 +189,7 @@ export function registerTerminalActions() {
 				}
 
 				if (options) {
-					instance = terminalService.createTerminal(options);
+					instance = await terminalService.createTerminal(options);
 				} else {
 					instance = await terminalService.showProfileQuickPick('createInstance', cwd);
 				}
@@ -219,9 +219,10 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			await terminalService.createTerminal({
+			const instance = await terminalService.createTerminal({
 				target: TerminalLocation.Editor
-			}).focusWhenReady();
+			});
+			instance.focusWhenReady();
 		}
 	});
 
@@ -436,7 +437,7 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			const instance = terminalService.activeInstance || terminalService.createTerminal({ target: TerminalLocation.TerminalView });
+			const instance = terminalService.activeInstance || await terminalService.createTerminal({ target: TerminalLocation.TerminalView });
 			if (!instance) {
 				return;
 			}
@@ -526,7 +527,7 @@ export function registerTerminalActions() {
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 			const codeEditorService = accessor.get(ICodeEditorService);
 
-			const instance = terminalService.getActiveOrCreateInstance();
+			const instance = await terminalService.getActiveOrCreateInstance();
 			const editor = codeEditorService.getActiveCodeEditor();
 			if (!editor || !editor.hasModel()) {
 				return;
@@ -575,7 +576,7 @@ export function registerTerminalActions() {
 			}
 
 			if (!instance) {
-				instance = terminalService.getActiveOrCreateInstance();
+				instance = await terminalService.getActiveOrCreateInstance();
 			}
 
 			// TODO: Convert this to ctrl+c, ctrl+v for pwsh?
@@ -996,7 +997,7 @@ export function registerTerminalActions() {
 			}
 			const selected = await quickInputService.pick<IRemoteTerminalPick>(items, { canPickMany: false });
 			if (selected) {
-				const instance = terminalService.createTerminal({
+				const instance = await terminalService.createTerminal({
 					config: { attachPersistentProcess: selected.term }
 				});
 				terminalService.setActiveInstance(instance);
@@ -1214,7 +1215,7 @@ export function registerTerminalActions() {
 		async run(accessor: ServicesAccessor, args?: { cwd?: string }) {
 			const terminalService = accessor.get(ITerminalService);
 			if (terminalService.isProcessSupportRegistered) {
-				const instance = terminalService.createTerminal(
+				const instance = await terminalService.createTerminal(
 					{
 						cwd: args?.cwd
 					});
@@ -1482,7 +1483,7 @@ export function registerTerminalActions() {
 			if (cwd === undefined) {
 				return undefined;
 			}
-			const instance = terminalService.splitInstance(activeInstance, options?.config, cwd);
+			const instance = await terminalService.splitInstance(activeInstance, options?.config, cwd);
 			if (instance) {
 				if (instance.target === TerminalLocation.Editor) {
 					instance.focusWhenReady();
@@ -1595,7 +1596,7 @@ export function registerTerminalActions() {
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 			await terminalService.doWithActiveInstance(async t => {
 				const cwd = await getCwdForSplit(terminalService.configHelper, t);
-				const instance = terminalService.splitInstance(t, { cwd });
+				const instance = await terminalService.splitInstance(t, { cwd });
 				if (instance?.target !== TerminalLocation.Editor) {
 					await terminalGroupService.showPanel(true);
 				}
@@ -1674,7 +1675,7 @@ export function registerTerminalActions() {
 				if (folders.length <= 1) {
 					// Allow terminal service to handle the path when there is only a
 					// single root
-					instance = terminalService.createTerminal(eventOrOptions);
+					instance = await terminalService.createTerminal(eventOrOptions);
 				} else {
 					const options: IPickOptions<IQuickPickItem> = {
 						placeHolder: localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
@@ -1685,7 +1686,7 @@ export function registerTerminalActions() {
 						return;
 					}
 					eventOrOptions.cwd = workspace.uri;
-					instance = terminalService.createTerminal(eventOrOptions);
+					instance = await terminalService.createTerminal(eventOrOptions);
 				}
 				terminalService.setActiveInstance(instance);
 				if (instance.target === TerminalLocation.Editor) {
@@ -1952,7 +1953,7 @@ export function registerTerminalActions() {
 			if (quickSelectProfiles) {
 				const profile = quickSelectProfiles.find(profile => profile.profileName === profileSelection);
 				if (profile) {
-					const instance = terminalService.createTerminal({
+					const instance = await terminalService.createTerminal({
 						config: profile
 					});
 					terminalService.setActiveInstance(instance);
