@@ -367,11 +367,11 @@
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info  > .more-info-entry :first-child {
-	flex: 0.4
+	width: 40%;
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info  > .more-info-entry :last-child {
-	flex: 0.6
+	width: 60%;
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info  > .more-info-entry code {

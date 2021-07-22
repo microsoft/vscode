@@ -815,18 +815,18 @@ export class ExtensionEditor extends EditorPane {
 		if (gallery) {
 			append(moreInfo,
 				$('.more-info-entry', undefined,
-					$('span', undefined, localize('release date', "Released on")),
-					$('span', undefined, new Date(gallery.releaseDate).toLocaleString())
+					$('div', undefined, localize('release date', "Released on")),
+					$('div', undefined, new Date(gallery.releaseDate).toLocaleString())
 				),
 				$('.more-info-entry', undefined,
-					$('span', undefined, localize('last updated', "Last updated")),
-					$('span', undefined, new Date(gallery.lastUpdated).toLocaleString())
+					$('div', undefined, localize('last updated', "Last updated")),
+					$('div', undefined, new Date(gallery.lastUpdated).toLocaleString())
 				)
 			);
 		}
 		append(moreInfo,
 			$('.more-info-entry', undefined,
-				$('span', undefined, localize('id', "Identifier")),
+				$('div', undefined, localize('id', "Identifier")),
 				$('code', undefined, extension.identifier.id)
 			));
 	}
