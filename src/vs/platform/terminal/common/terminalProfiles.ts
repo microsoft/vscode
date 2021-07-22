@@ -11,19 +11,16 @@ export function createProfileSchemaEnums(detectedProfiles: ITerminalProfile[]): 
 	values: string[] | undefined,
 	markdownDescriptions: string[] | undefined
 } {
-	let values: string[] | undefined = undefined;
-	let markdownDescriptions: string[] | undefined = undefined;
-	if (detectedProfiles) {
-		const result = detectedProfiles.map(e => {
-			return {
-				name: e.profileName,
-				description: createProfileDescription(e)
-			};
-		});
-		values = result.map(e => e.name);
-		markdownDescriptions = result.map(e => e.description);
-	}
-	return { values, markdownDescriptions };
+	const result = detectedProfiles.map(e => {
+		return {
+			name: e.profileName,
+			description: createProfileDescription(e)
+		};
+	});
+	return {
+		values: result.map(e => e.name),
+		markdownDescriptions: result.map(e => e.description)
+	};
 }
 
 function createProfileDescription(profile: ITerminalProfile): string {
@@ -32,7 +29,7 @@ function createProfileDescription(profile: ITerminalProfile): string {
 		if (typeof profile.args === 'string') {
 			description += `\n- args: "${profile.args}"`;
 		} else {
-			description += `\n- args: [${profile.args.length === 0 ? '' : profile.args.join(`','`)}]`;
+			description += `\n- args: [${profile.args.length === 0 ? '' : `'${profile.args.join(`','`)}'`}]`;
 		}
 	}
 	if (profile.overrideName !== undefined) {
