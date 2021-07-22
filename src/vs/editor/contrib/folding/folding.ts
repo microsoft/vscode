@@ -34,6 +34,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { registerColor, editorSelectionBackground, transparent, iconForeground } from 'vs/platform/theme/common/colorRegistry';
+import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
 
 const CONTEXT_FOLDING_ENABLED = new RawContextKey<boolean>('foldingEnabled', false);
 
@@ -299,17 +300,27 @@ export class FoldingController extends Disposable implements IEditorContribution
 				if (!foldingModel) { // null if editor has been disposed, or folding turned off
 					return null;
 				}
-				let foldingRegionPromise = this.foldingRegionPromise = createCancelablePromise(token => this.getRangeProvider(foldingModel.textModel).compute(token));
+				const provider = this.getRangeProvider(foldingModel.textModel);
+				let foldingRegionPromise = this.foldingRegionPromise = createCancelablePromise(token => provider.compute(token));
 				return foldingRegionPromise.then(foldingRanges => {
 					if (foldingRanges && foldingRegionPromise === this.foldingRegionPromise) { // new request or cancelled in the meantime?
+						let scrollState: StableEditorScrollState | undefined;
+
+						if (this._foldingImportsByDefault && !this._currentModelHasFoldedImports) {
+							const hasChanges = foldingRanges.setCollapsedAllOfType(FoldingRangeKind.Imports.value, true);
+							if (hasChanges) {
+								scrollState = StableEditorScrollState.capture(this.editor);
+								this._currentModelHasFoldedImports = hasChanges;
+							}
+						}
+
 						// some cursors might have moved into hidden regions, make sure they are in expanded regions
 						let selections = this.editor.getSelections();
 						let selectionLineNumbers = selections ? selections.map(s => s.startLineNumber) : [];
 						foldingModel.update(foldingRanges, selectionLineNumbers);
 
-						if (this._foldingImportsByDefault && !this._currentModelHasFoldedImports) {
-							this._currentModelHasFoldedImports = true;
-							setCollapseStateForType(foldingModel, FoldingRangeKind.Imports.value, true);
+						if (scrollState) {
+							scrollState.restore(this.editor);
 						}
 					}
 					return foldingModel;

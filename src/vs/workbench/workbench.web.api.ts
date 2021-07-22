@@ -19,6 +19,7 @@ import { IProductConfiguration } from 'vs/base/common/product';
 import { mark } from 'vs/base/common/performance';
 import { ICredentialsProvider } from 'vs/workbench/services/credentials/common/credentials';
 import { TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
+import { ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -343,7 +344,8 @@ interface IWorkbenchConstructionOptions {
 	readonly additionalBuiltinExtensions?: readonly (ExtensionId | UriComponents)[];
 
 	/**
-	 * List of extensions to be enabled.
+	 * List of extensions to be enabled if they are installed.
+	 * Note: This will not install extensions if not installed.
 	 */
 	readonly enabledExtensions?: readonly ExtensionId[];
 
@@ -363,6 +365,12 @@ interface IWorkbenchConstructionOptions {
 	 * Support adding additional properties to telemetry.
 	 */
 	readonly resolveCommonTelemetryProperties?: ICommonTelemetryPropertiesResolver;
+
+	/**
+	 * When provided used as the interface for sending telemetry events rather than the VS Code server.
+	 * If no appender is provided and no server is present, no telemetry is sent.
+	 */
+	readonly telemetryAppender?: ITelemetryAppender;
 
 	/**
 	 * A set of optional commands that should be registered with the commands
@@ -649,6 +657,7 @@ export {
 
 	// Telemetry
 	ICommonTelemetryPropertiesResolver,
+	ITelemetryAppender,
 
 	// External Uris
 	IExternalUriResolver,

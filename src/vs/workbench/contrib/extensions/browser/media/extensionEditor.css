@@ -144,6 +144,7 @@
 
 .extension-editor > .header > .details > .actions {
 	margin-top: 10px;
+	display: flex;
 }
 
 .extension-editor > .header > .details > .actions > .monaco-action-bar {
@@ -194,48 +195,52 @@
 	max-width: 300px;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label.extension-status-icon {
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label.extension-status {
 	margin-right: 0;
 }
 
-.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.extension-status-label,
-.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.disable-status {
+.extension-editor > .header > .details > .actions > .monaco-action-bar .action-item .action-label.extension-status-label,
+.extension-editor > .header > .details > .actions > .monaco-action-bar .action-item .action-label.disable-status {
 	font-weight: normal;
 }
 
-.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.extension-status-label:hover,
-.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.disable-status:hover {
+.extension-editor > .header > .details > .actions > .monaco-action-bar .action-item .action-label.extension-status-label:hover,
+.extension-editor > .header > .details > .actions > .monaco-action-bar .action-item .action-label.disable-status:hover {
 	opacity: 0.9;
 }
 
-.extension-editor > .header > .details > .subtext-container {
-	display: block;
-	float: left;
-	margin-top: 0;
-	font-size: 13px;
-	font-style: italic;
+.extension-editor > .header > .details > .actions > .status {
+	line-height: 22px;
+	font-size: 90%;
+	margin-top: 3px;
 }
 
-.extension-editor > .header > .details > .subtext-container > .monaco-action-bar {
-	float: left;
-	margin-top: 2px;
-	font-style: normal;
+.extension-editor > .header > .details > .actions > .status p {
+	margin-top: 0px;
+	margin-bottom: 0px;
 }
 
-.extension-editor > .header > .details > .subtext-container > .subtext {
-	float:left;
+.extension-editor > .header > .details > .actions > .status a:hover {
+	text-decoration: underline;
+}
+
+.extension-editor > .header > .details > .actions > .status span {
+	vertical-align: middle;
+	margin-bottom: 4px;
+}
+
+.extension-editor > .header > .details > .recommendation {
 	margin-top: 5px;
-	margin-right: 4px;
 }
 
-.extension-editor > .header > .details > .subtext-container > .monaco-action-bar .action-label {
-	margin-top: 4px;
-	margin-left: 4px;
-	padding-bottom: 1px;
+.extension-editor > .header > .details > .recommendation .codicon {
+	font-size: inherit;
+	padding-right: 3px;
 }
 
-.extension-editor > .header.recommended > .details > .recommendation > .monaco-action-bar .actions-container {
-	justify-content: flex-start;
+.extension-editor > .header > .details > .recommendation .recommendation-text {
+	vertical-align: text-bottom;
+	font-size: 90%;
 }
 
 .extension-editor > .body {
@@ -362,15 +367,16 @@
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info  > .more-info-entry :first-child {
-	flex: 0.4
+	width: 40%;
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info  > .more-info-entry :last-child {
-	flex: 0.6
+	width: 60%;
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info  > .more-info-entry code {
 	background-color: transparent;
+	padding: 0px;
 }
 
 .extension-editor > .body > .content  > .details > .readme-container > .extension-pack-readme {

@@ -45,6 +45,7 @@ const compilations = [
 	'html-language-features/client/tsconfig.json',
 	'html-language-features/server/tsconfig.json',
 	'image-preview/tsconfig.json',
+	'ipynb/tsconfig.json',
 	'jake/tsconfig.json',
 	'json-language-features/client/tsconfig.json',
 	'json-language-features/server/tsconfig.json',

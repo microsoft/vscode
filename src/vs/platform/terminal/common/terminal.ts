@@ -401,7 +401,10 @@ export interface ICreateTerminalOptions {
 	 * Where to create the terminal, when not specified the default target will be used.
 	 */
 	target?: TerminalLocation;
-
+	/**
+	 * Create the editor terminal in beside the current editor.
+	 */
+	sideGroup?: boolean;
 	/**
 	 * The terminal's resource, passed when the terminal has moved windows.
 	 */

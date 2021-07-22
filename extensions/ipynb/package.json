@@ -1,0 +1,66 @@
+{
+	"name": "ipynb",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"publisher": "vscode",
+	"version": "1.0.0",
+	"license": "MIT",
+	"engines": {
+		"vscode": "^1.57.0"
+	},
+	"activationEvents": [
+		"onNotebook:jupyter-notebook"
+	],
+	"extensionKind": [
+		"web",
+		"ui",
+		"workspace"
+	],
+	"main": "./out/ipynbMain.js",
+	"browser": "./dist/browser/ipynbMain.js",
+	"capabilities": {
+		"virtualWorkspaces": true,
+		"untrustedWorkspaces": {
+			"supported": true
+		}
+	},
+	"contributes": {
+		"languages": [
+			{
+				"id": "jupyter",
+				"aliases": [
+					"Jupyter"
+				],
+				"extensions": [
+					".ipynb"
+				]
+			}
+		],
+		"notebooks": [
+			{
+				"type": "jupyter-notebook",
+				"displayName": "Jupyter Notebook",
+				"selector": [
+					{
+						"filenamePattern": "*.ipynb"
+					}
+				],
+				"priority": "default"
+			}
+		]
+	},
+  "scripts": {
+    "compile": "npx gulp compile-extension:ipynb",
+    "watch": "npx gulp watch-extension:ipynb"
+  },
+	"dependencies": {
+		"detect-indent": "^6.0.0"
+	},
+	"devDependencies": {
+		"@jupyterlab/coreutils": "^3.1.0"
+	},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}

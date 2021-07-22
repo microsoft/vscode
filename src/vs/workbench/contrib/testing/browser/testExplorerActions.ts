@@ -1150,8 +1150,9 @@ export class OpenOutputPeek extends Action2 {
 }
 
 export const allTestActions = [
-	AutoRunOffAction,
-	AutoRunOnAction,
+	// todo: these are disabled until we figure out how we want autorun to work
+	// AutoRunOffAction,
+	// AutoRunOnAction,
 	CancelTestRunAction,
 	ClearTestResultsAction,
 	CollapseAllAction,
