@@ -13821,7 +13821,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The kind of executions that {@link TestRunProfile | TestRunProfiles} control.
+	 * The kind of executions that {@link TestRunProfile TestRunProfiles} control.
 	 */
 	export enum TestRunProfileKind {
 		Run = 1,
@@ -14181,7 +14181,7 @@ declare module 'vscode' {
 		 * expanding the item will cause {@link TestController.resolveHandler}
 		 * to be invoked with the item.
 		 *
-		 * Default to false.
+		 * Default to `false`.
 		 */
 		canResolveChildren: boolean;
 
