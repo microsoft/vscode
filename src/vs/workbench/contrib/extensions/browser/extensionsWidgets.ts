@@ -481,8 +481,8 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 	private getRecommendationMessage(extension: IExtension): string | undefined {
 		const recommendation = this.extensionRecommendationsService.getAllRecommendationsWithReason()[extension.identifier.id.toLowerCase()];
 		if (recommendation) {
-			const fgColor = this.themeService.getColorTheme().getColor(extensionButtonProminentForeground);
-			return `<span style="color:${fgColor ? Color.Format.CSS.formatHex(fgColor) : '#ffffff'};">$(${starEmptyIcon.id})</span>&nbsp;${recommendation.reasonText}`;
+			const bgColor = this.themeService.getColorTheme().getColor(extensionButtonProminentBackground);
+			return `<span style="color:${bgColor ? Color.Format.CSS.formatHex(bgColor) : '#ffffff'};">$(${starEmptyIcon.id})</span>&nbsp;${recommendation.reasonText}`;
 		}
 		return undefined;
 	}
@@ -501,11 +501,11 @@ registerThemingParticipant((theme, collector) => {
 	const fgColor = theme.getColor(extensionButtonProminentForeground);
 	if (fgColor) {
 		collector.addRule(`.extension-bookmark .recommendation { color: ${fgColor}; }`);
-		collector.addRule(`.monaco-workbench .extension-editor > .header > .details > .recommendation .codicon { color: ${fgColor}; }`);
 	}
 
 	const bgColor = theme.getColor(extensionButtonProminentBackground);
 	if (bgColor) {
 		collector.addRule(`.extension-bookmark .recommendation { border-top-color: ${bgColor}; }`);
+		collector.addRule(`.monaco-workbench .extension-editor > .header > .details > .recommendation .codicon { color: ${bgColor}; }`);
 	}
 });
