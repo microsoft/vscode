@@ -250,12 +250,13 @@
 }
 
 .extension-editor > .header > .details > .recommendation {
+	display: flex;
 	margin-top: 5px;
 }
 
 .extension-editor > .header > .details > .recommendation .codicon {
 	font-size: inherit;
-	padding: 0px 3px;
+	margin-right: 5px;
 }
 
 .extension-editor > .header > .details > .recommendation .recommendation-text {

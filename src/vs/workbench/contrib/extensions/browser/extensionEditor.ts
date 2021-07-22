@@ -485,10 +485,10 @@ export class ExtensionEditor extends EditorPane {
 			reset(template.recommendation);
 			const extRecommendations = this.extensionRecommendationsService.getAllRecommendationsWithReason();
 			if (extRecommendations[extension.identifier.id.toLowerCase()]) {
-				append(template.recommendation, $(`span${ThemeIcon.asCSSSelector(starEmptyIcon)}`));
-				append(template.recommendation, $(`span.recommendation-text`, undefined, extRecommendations[extension.identifier.id.toLowerCase()].reasonText));
+				append(template.recommendation, $(`div${ThemeIcon.asCSSSelector(starEmptyIcon)}`));
+				append(template.recommendation, $(`div.recommendation-text`, undefined, extRecommendations[extension.identifier.id.toLowerCase()].reasonText));
 			} else if (this.extensionIgnoredRecommendationsService.globalIgnoredRecommendations.indexOf(extension.identifier.id.toLowerCase()) !== -1) {
-				append(template.recommendation, $(`span.recommendation-text`, undefined, localize('recommendationHasBeenIgnored', "You have chosen not to receive recommendations for this extension.")));
+				append(template.recommendation, $(`div.recommendation-text`, undefined, localize('recommendationHasBeenIgnored', "You have chosen not to receive recommendations for this extension.")));
 			}
 		};
 		updateRecommendationText();
