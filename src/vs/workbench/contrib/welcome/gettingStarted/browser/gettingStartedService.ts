@@ -532,13 +532,13 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		this.triggerInstalledExtensionsRegistered();
 
 		if (sectionToOpen && this.configurationService.getValue<string>('workbench.welcomePage.walkthroughs.openOnInstall')) {
-			type EditorActionInvokedClassification = {
+			type GettingStartedAutoOpenClassification = {
 				id: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight', };
 			};
-			type EditorActionInvokedEvent = {
+			type GettingStartedAutoOpenEvent = {
 				id: string;
 			};
-			this.telemetryService.publicLog2<EditorActionInvokedEvent, EditorActionInvokedClassification>('gettingStarted.didAutoOpenWalktrhough', { id: sectionToOpen });
+			this.telemetryService.publicLog2<GettingStartedAutoOpenEvent, GettingStartedAutoOpenClassification>('gettingStarted.didAutoOpenWalkthrough', { id: sectionToOpen });
 			this.commandService.executeCommand('workbench.action.openWalkthrough', sectionToOpen);
 		}
 	}
