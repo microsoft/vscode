@@ -498,7 +498,7 @@ export class RawDebugSession implements IDisposable {
 	}
 
 	async setInstructionBreakpoints(args: DebugProtocol.SetInstructionBreakpointsArguments): Promise<DebugProtocol.SetInstructionBreakpointsResponse | undefined> {
-		if (this.capabilities.supportsDisassembleRequest) {
+		if (this.capabilities.supportsInstructionBreakpoints) {
 			return await this.send('setInstructionBreakpoints', args);
 		}
 
