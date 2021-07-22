@@ -263,7 +263,7 @@ export class CodeCell extends Disposable {
 		});
 	}
 
-	private updateInputCollapseElement(): void {
+	private updateInputCollaseElement(): void {
 		this.removeInputCollapsePreview();
 		const richEditorText = this.getRichText(this.viewCell.textBuffer, this.viewCell.language);
 		const element = DOM.$('div');
@@ -277,8 +277,9 @@ export class CodeCell extends Disposable {
 		DOM.hide(this.templateData.runButtonContainer);
 		DOM.show(this.templateData.collapsedPart);
 		DOM.show(this.templateData.outputContainer);
+		this.templateData.container.classList.toggle('input-collapsed', true);
 		this._outputContainerRenderer.viewUpdateShowOutputs();
-		this.updateInputCollapseElement();
+		this.updateInputCollaseElement();
 
 		this.relayoutCell();
 	}
@@ -290,6 +291,7 @@ export class CodeCell extends Disposable {
 		DOM.hide(this.templateData.outputContainer);
 		this.removeInputCollapsePreview();
 		this._outputContainerRenderer.viewUpdateHideOuputs();
+		this.templateData.container.classList.toggle('input-collapsed', false);
 		this.templateData.container.classList.toggle('output-collapsed', true);
 
 		this.relayoutCell();
@@ -300,9 +302,10 @@ export class CodeCell extends Disposable {
 		DOM.hide(this.templateData.runButtonContainer);
 		DOM.show(this.templateData.collapsedPart);
 		DOM.hide(this.templateData.outputContainer);
+		this.templateData.container.classList.toggle('input-collapsed', true);
 		this.templateData.container.classList.toggle('output-collapsed', true);
 		this._outputContainerRenderer.viewUpdateHideOuputs();
-		this.updateInputCollapseElement();
+		this.updateInputCollaseElement();
 		this.relayoutCell();
 	}
 
@@ -312,6 +315,7 @@ export class CodeCell extends Disposable {
 		DOM.hide(this.templateData.collapsedPart);
 		this.removeInputCollapsePreview();
 		DOM.show(this.templateData.outputContainer);
+		this.templateData.container.classList.toggle('input-collapsed', false);
 		this.templateData.container.classList.toggle('output-collapsed', false);
 		this._outputContainerRenderer.viewUpdateShowOutputs();
 		this.relayoutCell();
