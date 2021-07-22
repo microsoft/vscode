@@ -344,7 +344,8 @@ interface IWorkbenchConstructionOptions {
 	readonly additionalBuiltinExtensions?: readonly (ExtensionId | UriComponents)[];
 
 	/**
-	 * List of extensions to be enabled.
+	 * List of extensions to be enabled if they are installed.
+	 * Note: This will not install extensions if not installed.
 	 */
 	readonly enabledExtensions?: readonly ExtensionId[];
 
