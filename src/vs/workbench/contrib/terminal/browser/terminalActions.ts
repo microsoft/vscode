@@ -154,12 +154,12 @@ export function registerTerminalActions() {
 			const commandService = accessor.get(ICommandService);
 
 			let event: MouseEvent | PointerEvent | KeyboardEvent | undefined;
-			let options: ICreateTerminalOptions | undefined;
+			let options: ICreateTerminalOptions = {};
 			if (eventOrOptionsOrProfile instanceof MouseEvent || eventOrOptionsOrProfile instanceof PointerEvent || eventOrOptionsOrProfile instanceof KeyboardEvent) {
 				event = eventOrOptionsOrProfile;
-				options = profile ? { config: profile } : undefined;
+				options = profile ? { config: profile } : options;
 			} else {
-				options = convertOptionsOrProfileToOptions(eventOrOptionsOrProfile);
+				options = convertOptionsOrProfileToOptions(eventOrOptionsOrProfile || {});
 			}
 
 			const folders = workspaceContextService.getWorkspace().folders;
@@ -167,7 +167,8 @@ export function registerTerminalActions() {
 				const activeInstance = terminalService.activeInstance;
 				if (activeInstance) {
 					const cwd = await getCwdForSplit(terminalService.configHelper, activeInstance);
-					await terminalService.splitInstance(activeInstance, options?.config, cwd);
+					options.cwd = cwd;
+					await terminalService.splitInstance(activeInstance, options);
 					return;
 				}
 			}
@@ -1474,7 +1475,7 @@ export function registerTerminalActions() {
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 			const terminalService = accessor.get(ITerminalService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
-			const options = convertOptionsOrProfileToOptions(optionsOrProfile);
+			const options = convertOptionsOrProfileToOptions(optionsOrProfile || {});
 			const activeInstance = terminalService.getInstanceHost(options?.target).activeInstance;
 			if (!activeInstance) {
 				return;
@@ -1483,7 +1484,8 @@ export function registerTerminalActions() {
 			if (cwd === undefined) {
 				return undefined;
 			}
-			const instance = await terminalService.splitInstance(activeInstance, options?.config, cwd);
+			options.cwd = cwd;
+			const instance = await terminalService.splitInstance(activeInstance, options);
 			if (instance) {
 				if (instance.target === TerminalLocation.Editor) {
 					instance.focusWhenReady();
@@ -2012,7 +2014,7 @@ export function validateTerminalName(name: string): { content: string, severity:
 	return null;
 }
 
-function convertOptionsOrProfileToOptions(optionsOrProfile?: ICreateTerminalOptions | ITerminalProfile): ICreateTerminalOptions | undefined {
+function convertOptionsOrProfileToOptions(optionsOrProfile: ICreateTerminalOptions | ITerminalProfile): ICreateTerminalOptions {
 	if (typeof optionsOrProfile === 'object' && 'profileName' in optionsOrProfile) {
 		return { config: optionsOrProfile as ITerminalProfile };
 	}

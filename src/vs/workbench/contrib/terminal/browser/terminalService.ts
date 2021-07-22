@@ -402,7 +402,7 @@ export class TerminalService implements ITerminalService {
 							}
 						} else {
 							// add split terminals to this group
-							this.splitInstance(terminalInstance, { attachPersistentProcess: terminalLayout.terminal! });
+							this.splitInstance(terminalInstance, { config: { attachPersistentProcess: terminalLayout.terminal! } });
 						}
 					});
 					const activeInstance = this.instances.find(t => {
@@ -624,11 +624,8 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
-	async splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): Promise<ITerminalInstance | null>;
-	async splitInstance(instanceToSplit: ITerminalInstance, profile: ITerminalProfile, cwd?: string | URI): Promise<ITerminalInstance | null>
-	async splitInstance(instanceToSplit: ITerminalInstance, extensionProfile: IExtensionTerminalProfile, cwd?: string | URI): Promise<ITerminalInstance | null>
-	async splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfigOrProfile: IShellLaunchConfig | ITerminalProfile | IExtensionTerminalProfile = {}, cwd?: string | URI): Promise<ITerminalInstance | null> {
-		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile, cwd);
+	async splitInstance(instanceToSplit: ITerminalInstance, options?: ICreateTerminalOptions): Promise<ITerminalInstance | null> {
+		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(options, options?.cwd);
 
 		if (shellLaunchConfig && !shellLaunchConfig.extHostTerminalId) {
 			const key = await this._getPlatformKey();
@@ -950,7 +947,7 @@ export class TerminalService implements ITerminalService {
 			} else {
 				if (keyMods?.alt && activeInstance) {
 					// create split, only valid if there's an active instance
-					instance = await this.splitInstance(activeInstance, value.profile, cwd);
+					instance = await this.splitInstance(activeInstance, { config: value.profile, cwd });
 				} else {
 					instance = await this.createTerminal({ target: this.configHelper.config.defaultLocation, config: value.profile, cwd });
 				}
