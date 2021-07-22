@@ -180,7 +180,6 @@ export class StatefulMarkdownCell extends Disposable {
 		DOM.hide(this.editorPart);
 		this.markdownAccessibilityContainer.ariaHidden = 'true';
 
-		this.templateData.container.classList.toggle('collapsed', true);
 		this.viewCell.renderedMarkdownHeight = 0;
 		this.viewCell.layoutChange({});
 	}
@@ -195,7 +194,6 @@ export class StatefulMarkdownCell extends Disposable {
 
 		this.notebookEditor.hideMarkupPreviews([this.viewCell]);
 
-		this.templateData.container.classList.toggle('collapsed', false);
 		this.templateData.container.classList.toggle('markdown-cell-edit-mode', true);
 
 		if (this.editor && this.editor.hasModel()) {
@@ -282,7 +280,6 @@ export class StatefulMarkdownCell extends Disposable {
 		DOM.hide(this.editorPart);
 		DOM.hide(this.templateData.collapsedPart);
 		this.markdownAccessibilityContainer.ariaHidden = 'false';
-		this.templateData.container.classList.toggle('collapsed', false);
 		this.templateData.container.classList.toggle('markdown-cell-edit-mode', false);
 
 		this.renderedEditors.delete(this.viewCell);
