@@ -15,7 +15,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { extensionButtonProminentBackground, extensionButtonProminentForeground, ExtensionStatusIconAction, ExtensionToolTipAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IThemeService, IColorTheme, ThemeIcon, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EXTENSION_BADGE_REMOTE_BACKGROUND, EXTENSION_BADGE_REMOTE_FOREGROUND } from 'vs/workbench/common/theme';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -30,6 +30,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import Severity from 'vs/base/common/severity';
 import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
+import { Color } from 'vs/base/common/color';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension | null = null;
@@ -157,53 +158,10 @@ export class RatingsWidget extends ExtensionWidget {
 	}
 }
 
-export class TooltipWidget extends ExtensionWidget {
-
-	constructor(
-		private readonly parent: HTMLElement,
-		private readonly tooltipAction: ExtensionToolTipAction,
-		private readonly recommendationWidget: RecommendationWidget,
-		@ILabelService private readonly labelService: ILabelService
-	) {
-		super();
-		this._register(Event.any<any>(
-			this.tooltipAction.onDidChange,
-			this.recommendationWidget.onDidChangeTooltip,
-			this.labelService.onDidChangeFormatters
-		)(() => this.render()));
-	}
-
-	render(): void {
-		this.parent.title = this.getTooltip();
-	}
-
-	private getTooltip(): string {
-		if (!this.extension) {
-			return '';
-		}
-		if (this.tooltipAction.label) {
-			return this.tooltipAction.label;
-		}
-		return this.recommendationWidget.tooltip;
-	}
-
-}
-
 export class RecommendationWidget extends ExtensionWidget {
 
 	private element?: HTMLElement;
 	private readonly disposables = this._register(new DisposableStore());
-
-	private _tooltip: string = '';
-	get tooltip(): string { return this._tooltip; }
-	set tooltip(tooltip: string) {
-		if (this._tooltip !== tooltip) {
-			this._tooltip = tooltip;
-			this._onDidChangeTooltip.fire();
-		}
-	}
-	private _onDidChangeTooltip: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChangeTooltip: Event<void> = this._onDidChangeTooltip.event;
 
 	constructor(
 		private parent: HTMLElement,
@@ -217,7 +175,6 @@ export class RecommendationWidget extends ExtensionWidget {
 	}
 
 	private clear(): void {
-		this.tooltip = '';
 		if (this.element) {
 			this.parent.removeChild(this.element);
 		}
@@ -243,7 +200,6 @@ export class RecommendationWidget extends ExtensionWidget {
 			};
 			applyBookmarkStyle(this.themeService.getColorTheme());
 			this.themeService.onDidColorThemeChange(applyBookmarkStyle, this, this.disposables);
-			this.tooltip = extRecommendations[this.extension.identifier.id.toLowerCase()].reasonText;
 		}
 	}
 
@@ -435,10 +391,11 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		private readonly options: ExtensionHoverOptions,
 		private readonly extensionStatusIconAction: ExtensionStatusIconAction,
 		private readonly tooltipAction: ExtensionToolTipAction,
-		private readonly recommendationWidget: RecommendationWidget,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IExtensionRecommendationsService private readonly extensionRecommendationsService: IExtensionRecommendationsService,
+		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super();
 	}
@@ -469,7 +426,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		markdown.appendMarkdown(`**${this.extension.displayName}**&nbsp;_v${this.extension.version}_`);
 		markdown.appendText(`\n`);
 
-		const toolTip = this.getTooltip();
+		const toolTip = this.tooltipAction.label;
 		const extensionStatus = this.extensionsWorkbenchService.getExtensionStatus(this.extension);
 
 		if (toolTip || extensionStatus) {
@@ -514,18 +471,24 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 			markdown.appendText(`\n`);
 		}
 
+		const recommendationMessage = this.getRecommendationMessage(this.extension);
+		if (recommendationMessage) {
+			markdown.appendMarkdown(recommendationMessage);
+			markdown.appendText(`\n`);
+		}
+
 		return markdown;
 	}
 
-	private getTooltip(): string {
-		if (!this.extension) {
-			return '';
+	private getRecommendationMessage(extension: IExtension): string | undefined {
+		const recommendation = this.extensionRecommendationsService.getAllRecommendationsWithReason()[extension.identifier.id.toLowerCase()];
+		if (recommendation) {
+			const fgColor = this.themeService.getColorTheme().getColor(extensionButtonProminentForeground);
+			return `<span style="color:${fgColor ? Color.Format.CSS.formatHex(fgColor) : '#ffffff'};">$(${starEmptyIcon.id})</span>&nbsp;${recommendation.reasonText}`;
 		}
-		if (this.tooltipAction.label) {
-			return this.tooltipAction.label;
-		}
-		return this.recommendationWidget.tooltip;
+		return undefined;
 	}
+
 }
 
 // Rating icon
@@ -535,7 +498,5 @@ registerThemingParticipant((theme, collector) => {
 	const extensionRatingIcon = theme.getColor(extensionRatingIconColor);
 	if (extensionRatingIcon) {
 		collector.addRule(`.extension-ratings .codicon-extensions-star-full, .extension-ratings .codicon-extensions-star-half { color: ${extensionRatingIcon}; }`);
-		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(starFullIcon)} { color: ${extensionRatingIcon}; }`);
-		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(starHalfIcon)} { color: ${extensionRatingIcon}; }`);
 	}
 });

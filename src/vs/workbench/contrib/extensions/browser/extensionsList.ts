@@ -126,7 +126,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			this.instantiationService.createInstance(ManageExtensionAction)
 		];
 		const extensionTooltipAction = this.instantiationService.createInstance(ExtensionToolTipAction, extensionStatusIconAction, reloadAction);
-		const extensionHoverWidget = this.instantiationService.createInstance(ExtensionHoverWidget, { target: root, position: this.options.hoverOptions.position }, extensionStatusIconAction, extensionTooltipAction, recommendationWidget);
+		const extensionHoverWidget = this.instantiationService.createInstance(ExtensionHoverWidget, { target: root, position: this.options.hoverOptions.position }, extensionStatusIconAction, extensionTooltipAction);
 
 		const widgets = [
 			recommendationWidget,
