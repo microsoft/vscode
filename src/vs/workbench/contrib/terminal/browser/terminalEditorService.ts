@@ -7,7 +7,6 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IShellLaunchConfig, TerminalLocation } from 'vs/platform/terminal/common/terminal';
@@ -18,6 +17,7 @@ import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/termi
 import { DeserializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
 import { getInstanceFromResource, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { ILocalTerminalService, IOffProcessTerminalService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -44,8 +44,8 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	readonly onDidChangeInstances = this._onDidChangeInstances.event;
 
 	constructor(
-		@ICommandService private readonly _commandService: ICommandService,
 		@IEditorService private readonly _editorService: IEditorService,
+		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService,
@@ -227,10 +227,15 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	}
 
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig: IShellLaunchConfig = {}): ITerminalInstance {
-		const input = this.getOrCreateEditorInput(instanceToSplit);
+		if (instanceToSplit.target === TerminalLocation.Editor) {
+			// Make sure the instance to split's group is active
+			const group = this._editorInputs.get(instanceToSplit.resource.path)?.group;
+			if (group) {
+				this._editorGroupsService.activateGroup(group);
+			}
+		}
 		const instance = this._terminalInstanceService.createInstance(shellLaunchConfig, TerminalLocation.Editor);
-		input.setCopyInstance(instance);
-		this._commandService.executeCommand('workbench.action.splitEditor');
+		this._editorService.openEditor(this.getOrCreateEditorInput(instance), undefined, SIDE_GROUP);
 		return instance;
 	}
 
