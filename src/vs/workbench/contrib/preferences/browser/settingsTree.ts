@@ -1453,7 +1453,7 @@ export class SettingMultilineTextRenderer extends AbstractSettingTextRenderer im
 			onChange(value);
 		};
 		super.renderValue(dataElement, template, onChangeOverride);
-		template.toDispose.add(
+		template.elementDisposables.add(
 			template.inputBox.onDidHeightChange(e => {
 				const height = template.containerElement.clientHeight;
 				// Don't fire event if height is reported as 0,
