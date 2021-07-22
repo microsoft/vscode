@@ -1585,7 +1585,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this._webviewTransparentCover.style.width = `${dimension.width}px`;
 		}
 
-		this._notebookTopToolbar.layout();
+		this._notebookTopToolbar.layout(this._dimension);
 
 		this._viewContext?.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 	}

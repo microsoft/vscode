@@ -5,7 +5,7 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { ToggleMenuAction, ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IAction, Separator } from 'vs/base/common/actions';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -26,6 +26,13 @@ import { GlobalToolbar } from 'vs/workbench/contrib/notebook/common/notebookComm
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 
+interface IActionModel {
+	action: IAction; size: number; visible: boolean;
+}
+
+const TOGGLE_MORE_ACTION_WIDTH = 21;
+const ACTION_PADDING = 8;
+
 export class NotebookEditorToolbar extends Disposable {
 	// private _editorToolbarContainer!: HTMLElement;
 	private _leftToolbarScrollable!: DomScrollableElement;
@@ -33,6 +40,8 @@ export class NotebookEditorToolbar extends Disposable {
 	private _notebookTopRightToolbarContainer!: HTMLElement;
 	private _notebookGlobalActionsMenu!: IMenu;
 	private _notebookLeftToolbar!: ToolBar;
+	private _primaryActions: IActionModel[];
+	private _secondaryActions: IAction[];
 	private _notebookRightToolbar!: ToolBar;
 	private _useGlobalToolbar: boolean = false;
 
@@ -43,6 +52,7 @@ export class NotebookEditorToolbar extends Disposable {
 		return this._useGlobalToolbar;
 	}
 
+	private _dimension: DOM.Dimension | null = null;
 	private _pendingLayout: IDisposable | undefined;
 
 	constructor(
@@ -59,6 +69,8 @@ export class NotebookEditorToolbar extends Disposable {
 	) {
 		super();
 
+		this._primaryActions = [];
+		this._secondaryActions = [];
 		this._buildBody();
 
 		this._register(this.editorService.onDidActiveEditorChange(() => {
@@ -189,31 +201,102 @@ export class NotebookEditorToolbar extends Disposable {
 
 			this._notebookLeftToolbar.setActions(primaryActions, secondaryActions);
 			this._notebookRightToolbar.setActions(primaryRightActions, []);
-			this._updateScrollbar();
+			this._secondaryActions = secondaryActions;
+			// flush to make sure it can be updated later
+			this._primaryActions = [];
+
+			if (this._dimension && this._dimension.width >= 0 && this._dimension.height >= 0) {
+				this._cacheItemSizes(this._notebookLeftToolbar);
+			}
+
+			this._computeSizes();
 		}
 
 		this._onDidChangeState.fire();
 	}
 
-	layout() {
+	private _cacheItemSizes(toolbar: ToolBar) {
+		let actions: IActionModel[] = [];
+
+		for (let i = 0; i < toolbar.getItemsLength(); i++) {
+			const action = toolbar.getItemAction(i);
+			actions.push({
+				action: action,
+				size: toolbar.getItemWidth(i),
+				visible: true
+			});
+		}
+
+		this._primaryActions = actions;
+	}
+
+	private _canBeVisible(width: number) {
+		let w = 0;
+		for (let i = 0; i < this._primaryActions.length; i++) {
+			w += this._primaryActions[i].size + 8;
+		}
+
+		return w <= width;
+	}
+
+	private _computeSizes() {
+		const toolbar = this._notebookLeftToolbar;
+		const rightToolbar = this._notebookRightToolbar;
+		if (toolbar && rightToolbar && this._dimension && this._dimension.height >= 0 && this._dimension.width >= 0) {
+			// compute size only if it's visible
+			if (this._primaryActions.length === 0 && toolbar.getItemsLength() !== this._primaryActions.length) {
+				this._cacheItemSizes(this._notebookLeftToolbar);
+			}
+
+			if (this._primaryActions.length === 0) {
+				return;
+			}
+
+			const kernelWidth = (rightToolbar.getItemsLength() ? rightToolbar.getItemWidth(0) : 0) + ACTION_PADDING;
+
+			if (this._canBeVisible(this._dimension.width - kernelWidth - ACTION_PADDING /** left margin */)) {
+				this._primaryActions.forEach(action => action.visible = true);
+				toolbar.setActions(this._primaryActions.map(model => model.action), this._secondaryActions);
+				return;
+			}
+
+			const leftToolbarContainerMaxWidth = this._dimension.width - kernelWidth - (TOGGLE_MORE_ACTION_WIDTH + ACTION_PADDING) /** ... */ - ACTION_PADDING /** toolbar left margin */;
+			const lastItemInLeft = this._primaryActions[this._primaryActions.length - 1];
+			const hasToggleMoreAction = lastItemInLeft.action.id === ToggleMenuAction.ID;
+
+			let size = 0;
+			let actions: IActionModel[] = [];
+
+			for (let i = 0; i < this._primaryActions.length - (hasToggleMoreAction ? 1 : 0); i++) {
+				const actionModel = this._primaryActions[i];
+
+				const itemSize = actionModel.size;
+				if (size + itemSize <= leftToolbarContainerMaxWidth) {
+					size += ACTION_PADDING + itemSize;
+					actions.push(actionModel);
+				} else {
+					break;
+				}
+			}
+
+			actions.forEach(action => action.visible = true);
+			this._primaryActions.slice(actions.length).forEach(action => action.visible = false);
+
+			toolbar.setActions(
+				actions.filter(action => (action.visible)).map(action => action.action),
+				[...this._primaryActions.slice(actions.length).filter(action => !action.visible).map(action => action.action), ...this._secondaryActions]);
+		}
+	}
+
+	layout(dimension: DOM.Dimension) {
+		this._dimension = dimension;
+
 		if (!this._useGlobalToolbar) {
 			this.domNode.style.display = 'none';
 		} else {
 			this.domNode.style.display = 'flex';
 		}
-		this._updateScrollbar();
-	}
-
-	private _updateScrollbar() {
-		this._pendingLayout?.dispose();
-
-		this._pendingLayout = DOM.measure(() => {
-			DOM.measure(() => { // double RAF
-				this._leftToolbarScrollable.setRevealOnScroll(false);
-				this._leftToolbarScrollable.scanDomNode();
-				this._leftToolbarScrollable.setRevealOnScroll(true);
-			});
-		});
+		this._computeSizes();
 	}
 
 	override dispose() {
