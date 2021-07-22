@@ -7455,7 +7455,7 @@ declare module 'vscode' {
 		 * </script>
 		 * ```
 		 *
-		 * To load a resources from the workspace inside a webview, use the `{@link Webview.asWebviewUri asWebviewUri}` method
+		 * To load a resources from the workspace inside a webview, use the {@link Webview.asWebviewUri `asWebviewUri`} method
 		 * and ensure the resource's directory is listed in {@link WebviewOptions.localResourceRoots `WebviewOptions.localResourceRoots`}.
 		 *
 		 * Keep in mind that even though webviews are sandboxed, they still allow running scripts and loading arbitrary content,
