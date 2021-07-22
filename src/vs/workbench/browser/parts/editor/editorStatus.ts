@@ -56,6 +56,7 @@ import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { ILanguageStatus, ILanguageStatusService } from 'vs/editor/common/services/languageStatusService';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
+import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetection';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
@@ -1141,7 +1142,8 @@ export class ChangeModeAction extends Action {
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILanguageDetectionService private readonly languageDetectionService: ILanguageDetectionService,
 	) {
 		super(actionId, actionLabel);
 	}
@@ -1189,9 +1191,7 @@ export class ChangeModeAction extends Action {
 			};
 		});
 
-		if (hasLanguageSupport) {
-			picks.unshift({ type: 'separator', label: localize('languagesPicks', "languages (identifier)") });
-		}
+		picks.unshift({ type: 'separator', label: localize('languagesPicks', "languages (identifier)") });
 
 		// Offer action to configure via settings
 		let configureModeAssociations: IQuickPickItem | undefined;
@@ -1218,6 +1218,28 @@ export class ChangeModeAction extends Action {
 
 		if (hasLanguageSupport) {
 			picks.unshift(autoDetectMode);
+		} else if (resource) {
+			// Handle language detection
+			const detectedLanguages = await this.languageDetectionService.detectLanguages(resource);
+			if (detectedLanguages) {
+				for (const modeId of detectedLanguages.reverse()) {
+					const lang = this.modeService.getLanguageName(modeId) || 'unknown';
+					let description: string;
+					if (currentLanguageId === lang) {
+						description = localize('languageDescriptionCurrent', "({0}) - Current Language", modeId);
+					} else {
+						description = localize('languageDescriptionConfigured', "({0})", modeId);
+					}
+
+					picks.unshift({
+						label: lang,
+						iconClasses: getIconClassesForModeId(modeId),
+						description
+					});
+				}
+
+				picks.unshift({ type: 'separator', label: localize('detectedLanguagesPicks', "detected languages (identifier)") });
+			}
 		}
 
 		const pick = await this.quickInputService.pick(picks, { placeHolder: localize('pickLanguage', "Select Language Mode"), matchOnDescription: true });
