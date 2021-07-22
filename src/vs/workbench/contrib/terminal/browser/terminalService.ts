@@ -627,16 +627,11 @@ export class TerminalService implements ITerminalService {
 	async splitInstance(instanceToSplit: ITerminalInstance, options?: ICreateTerminalOptions): Promise<ITerminalInstance | null> {
 		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(options, options?.cwd);
 
-		if (this._isContributedProfile(shellLaunchConfig)) {
-			const key = await this._getPlatformKey();
-			const defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${key}`);
-			const defaultProfile = this._terminalContributionService.terminalProfiles.find(p => p.id === defaultProfileName);
-			if (defaultProfile) {
-				await this.createContributedTerminalProfile(defaultProfile.extensionIdentifier, defaultProfile.id, { isSplitTerminal: true, icon: defaultProfile.icon });
-				return this._terminalGroupService.instances[this._terminalGroupService.instances.length - 1];
-			}
+		const contributedDefaultProfile = await this._getContributedDefaultProfile(shellLaunchConfig);
+		if (contributedDefaultProfile) {
+			await this.createContributedTerminalProfile(contributedDefaultProfile.extensionIdentifier, contributedDefaultProfile.id, { isSplitTerminal: true, icon: contributedDefaultProfile.icon });
+			return this._terminalGroupService.instances[this._terminalGroupService.instances.length - 1];
 		}
-
 
 		// Use the URI from the base instance if it exists, this will correctly split local terminals
 		if (typeof shellLaunchConfig.cwd !== 'object' && typeof instanceToSplit.shellLaunchConfig.cwd === 'object') {
@@ -1101,23 +1096,25 @@ export class TerminalService implements ITerminalService {
 		return {};
 	}
 
-	private _isContributedProfile(shellLaunchConfig: IShellLaunchConfig): boolean {
+	private async _getContributedDefaultProfile(shellLaunchConfig: IShellLaunchConfig): Promise<IExtensionTerminalProfile | undefined> {
 		// prevents recursion with the MainThreadTerminalService call to create terminal
 		// and defers to the provided launch config when an executable is provided
-		return shellLaunchConfig && !shellLaunchConfig.extHostTerminalId && !('executable' in shellLaunchConfig);
+		if (shellLaunchConfig && !shellLaunchConfig.extHostTerminalId && !('executable' in shellLaunchConfig)) {
+			const key = await this._getPlatformKey();
+			const defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${key}`);
+			const contributedDefaultProfile = this._terminalContributionService.terminalProfiles.find(p => p.id === defaultProfileName);
+			return contributedDefaultProfile;
+		}
+		return undefined;
 	}
 
 	async createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance> {
 		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(options?.config || options);
 
-		if (this._isContributedProfile(shellLaunchConfig)) {
-			const key = await this._getPlatformKey();
-			const defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${key}`);
-			const defaultProfile = this._terminalContributionService.terminalProfiles.find(p => p.id === defaultProfileName);
-			if (defaultProfile) {
-				await this.createContributedTerminalProfile(defaultProfile.extensionIdentifier, defaultProfile.id, { isSplitTerminal: defaultProfile.isSplitTerminal, icon: defaultProfile.icon });
-				return this._terminalGroupService.instances[this._terminalGroupService.instances.length - 1];
-			}
+		const contributedDefaultProfile = await this._getContributedDefaultProfile(shellLaunchConfig);
+		if (contributedDefaultProfile) {
+			await this.createContributedTerminalProfile(contributedDefaultProfile.extensionIdentifier, contributedDefaultProfile.id, { isSplitTerminal: contributedDefaultProfile.isSplitTerminal, icon: contributedDefaultProfile.icon });
+			return this._terminalGroupService.instances[this._terminalGroupService.instances.length - 1];
 		}
 
 		if (options?.cwd) {
