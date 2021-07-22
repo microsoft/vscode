@@ -16,11 +16,11 @@ suite('Preferences Validation', () => {
 			this.validator = createValidator(settings)!;
 		}
 
-		public accepts(input: string | Record<string, unknown>) {
+		public accepts(input: any) {
 			assert.strictEqual(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to accept \`${JSON.stringify(input)}\`. Got ${this.validator(input)}.`);
 		}
 
-		public rejects(input: string | Record<string, unknown>) {
+		public rejects(input: any) {
 			assert.notStrictEqual(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to reject \`${JSON.stringify(input)}\`.`);
 			return {
 				withMessage:
@@ -33,7 +33,6 @@ suite('Preferences Validation', () => {
 			};
 		}
 
-
 		public validatesNumeric() {
 			this.accepts('3');
 			this.accepts('3.');
@@ -42,16 +41,24 @@ suite('Preferences Validation', () => {
 			this.accepts(' 3.0');
 			this.accepts(' 3.0  ');
 			this.rejects('3f');
+			this.accepts(3);
+			this.rejects('test');
 		}
 
 		public validatesNullableNumeric() {
 			this.validatesNumeric();
+			this.accepts(0);
 			this.accepts('');
+			this.accepts(null);
+			this.accepts(undefined);
 		}
 
 		public validatesNonNullableNumeric() {
 			this.validatesNumeric();
+			this.accepts(0);
 			this.rejects('');
+			this.rejects(null);
+			this.rejects(undefined);
 		}
 
 		public validatesString() {
@@ -64,6 +71,7 @@ suite('Preferences Validation', () => {
 			this.accepts('');
 			this.accepts('3f');
 			this.accepts('hello');
+			this.rejects(6);
 		}
 	}
 
@@ -231,18 +239,32 @@ suite('Preferences Validation', () => {
 			obj.rejects({ 'a': 'string' });
 			obj.accepts({ 'a': 'st' });
 			obj.rejects({ 'a': null });
+			obj.rejects({ 'a': 7 });
 			obj.accepts({});
+			obj.rejects('test');
+			obj.rejects(7);
+			obj.rejects([1, 2, 3]);
 		}
 		{
 			const pattern = new Tester({ type: 'object', patternProperties: { '^a[a-z]$': { type: 'string', minLength: 2 } }, additionalProperties: false });
 			pattern.accepts({ 'ab': 'string' });
 			pattern.accepts({ 'ab': 'string', 'ac': 'hmm' });
 			pattern.rejects({ 'ab': 'string', 'ac': 'h' });
+			pattern.rejects({ 'ab': 'string', 'ac': 99999 });
 			pattern.rejects({ 'abc': 'string' });
 			pattern.rejects({ 'a0': 'string' });
 			pattern.rejects({ 'ab': 'string', 'bc': 'hmm' });
 			pattern.rejects({ 'be': 'string' });
 			pattern.rejects({ 'be': 'a' });
+			pattern.accepts({});
+		}
+		{
+			const pattern = new Tester({ type: 'object', patternProperties: { '^#': { type: 'string', minLength: 3 } }, additionalProperties: { type: 'string', maxLength: 3 } });
+			pattern.accepts({ '#ab': 'string' });
+			pattern.accepts({ 'ab': 'str' });
+			pattern.rejects({ '#ab': 's' });
+			pattern.rejects({ 'ab': 99999 });
+			pattern.rejects({ '#ab': 99999 });
 			pattern.accepts({});
 		}
 	});
@@ -284,7 +306,7 @@ suite('Preferences Validation', () => {
 			assert.strictEqual(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to accept \`${JSON.stringify(input)}\`. Got ${this.validator(input)}.`);
 		}
 
-		public rejects(input: any[]) {
+		public rejects(input: any) {
 			assert.notStrictEqual(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to reject \`${JSON.stringify(input)}\`.`);
 			return {
 				withMessage:
@@ -304,6 +326,8 @@ suite('Preferences Validation', () => {
 			arr.accepts([]);
 			arr.accepts(['foo']);
 			arr.accepts(['foo', 'bar']);
+			arr.rejects(76);
+			arr.rejects([6, '3', 7]);
 		}
 	});
 

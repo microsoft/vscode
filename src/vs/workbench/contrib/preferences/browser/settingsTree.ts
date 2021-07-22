@@ -516,7 +516,6 @@ interface ISettingObjectItemTemplate extends ISettingItemTemplate<Record<string,
 	objectDropdownWidget?: ObjectSettingDropdownWidget,
 	objectCheckboxWidget?: ObjectSettingCheckboxWidget;
 	validationErrorMessageElement: HTMLElement;
-	renderValidations?: (value: Record<string, unknown> | undefined) => void;
 }
 
 interface ISettingNewExtensionsTemplate extends IDisposableTemplate {
@@ -1219,20 +1218,14 @@ abstract class AbstractSettingObjectRenderer extends AbstractSettingRenderer imp
 
 			const newObject = Object.keys(newValue).length === 0 ? undefined : newValue;
 
-			this._onDidChangeSetting.fire({
-				key: template.context.setting.key,
-				value: newObject,
-				type: template.context.valueType
-			});
-
 			if (template.objectCheckboxWidget) {
 				template.objectCheckboxWidget.setValue(newItems);
 			} else {
 				template.objectDropdownWidget!.setValue(newItems);
 			}
 
-			if (template.renderValidations) {
-				template.renderValidations(newObject);
+			if (template.onChange) {
+				template.onChange(newObject);
 			}
 		}
 	}
@@ -1268,7 +1261,8 @@ export class SettingObjectRenderer extends AbstractSettingObjectRenderer impleme
 		});
 
 		template.context = dataElement;
-		template.renderValidations = (v: Record<string, unknown> | undefined) => {
+		template.onChange = (v: Record<string, unknown> | undefined) => {
+			onChange(v);
 			renderArrayValidations(dataElement, template, v, false);
 		};
 		renderArrayValidations(dataElement, template, dataElement.value, true);
@@ -1304,6 +1298,9 @@ export class SettingBoolObjectRenderer extends AbstractSettingObjectRenderer imp
 		});
 
 		template.context = dataElement;
+		template.onChange = (v: Record<string, unknown> | undefined) => {
+			onChange(v);
+		};
 	}
 }
 
