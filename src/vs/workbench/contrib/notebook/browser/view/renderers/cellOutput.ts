@@ -379,7 +379,7 @@ export class CellOutputElement extends Disposable {
 		picker.items = items;
 		picker.activeItems = items.filter(item => !!item.picked);
 		picker.placeholder = items.length !== mimeTypes.length
-			? nls.localize('promptChooseMimeTypeInSecure.placeHolder', "Select mimetype to render for current output. Rich mimetypes are available only when the notebook is trusted")
+			? nls.localize('promptChooseMimeTypeInSecure.placeHolder', "Select mimetype to render for current output")
 			: nls.localize('promptChooseMimeType.placeHolder', "Select mimetype to render for current output");
 
 		const pick = await new Promise<IMimeTypeRenderer | undefined>(resolve => {
