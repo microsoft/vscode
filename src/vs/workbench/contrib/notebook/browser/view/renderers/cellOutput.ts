@@ -21,15 +21,17 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSION_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { CodeCellRenderTemplate, ICellOutputViewModel, ICellViewModel, IInsetRenderOutput, INotebookEditor, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { mimetypeIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { BUILTIN_RENDERER_ID, CellUri, IOrderedMimeType, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { BUILTIN_RENDERER_ID, CellUri, IOrderedMimeType, NotebookCellOutputsSplice, RENDERER_NOT_AVAILABLE } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
 
 interface IMimeTypeRenderer extends IQuickPickItem {
@@ -86,6 +88,7 @@ export class CellOutputElement extends Disposable {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextKeyService parentContextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService,
+		@IViewletService private readonly viewletService: IViewletService,
 	) {
 		super();
 
@@ -375,6 +378,14 @@ export class CellOutputElement extends Disposable {
 			}
 		});
 
+		if (mimeTypes.some(m => m.rendererId === RENDERER_NOT_AVAILABLE && JUPYTER_RENDERER_MIMETYPES.includes(m.mimeType))) {
+			items.unshift({
+				label: nls.localize('installJupyterPrompt', "Install additional renderers from the marketplace"),
+				id: 'installRenderers',
+				index: mimeTypes.length
+			});
+		}
+
 		const picker = this.quickInputService.createQuickPick();
 		picker.items = items;
 		picker.activeItems = items.filter(item => !!item.picked);
@@ -391,6 +402,11 @@ export class CellOutputElement extends Disposable {
 		});
 
 		if (pick === undefined || pick.index === currIndex) {
+			return;
+		}
+
+		if (pick.id === 'installRenderers') {
+			this._showJupyterExtension();
 			return;
 		}
 
@@ -413,6 +429,12 @@ export class CellOutputElement extends Disposable {
 		this._relayoutCell();
 	}
 
+	private async _showJupyterExtension() {
+		const viewlet = await this.viewletService.openViewlet(EXTENSION_VIEWLET_ID, true);
+		const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
+		view?.search('@id:ms-toolsai.jupyter');
+	}
+
 	private _generateRendererInfo(renderId: string | undefined): string {
 		if (renderId === undefined || renderId === BUILTIN_RENDERER_ID) {
 			return nls.localize('builtinRenderInfo', "built-in");
@@ -425,7 +447,7 @@ export class CellOutputElement extends Disposable {
 			return `${displayName} (${renderInfo.extensionId.value})`;
 		}
 
-		return nls.localize('builtinRenderInfo', "built-in");
+		return nls.localize('unavailableRenderInfo', "not available");
 	}
 
 	private _outputHeightTimer: any = null;
@@ -801,3 +823,24 @@ export class CellOutputContainer extends Disposable {
 		super.dispose();
 	}
 }
+
+const JUPYTER_RENDERER_MIMETYPES = [
+	'application/geo+json',
+	'application/vdom.v1+json',
+	'application/vnd.dataresource+json',
+	'application/vnd.plotly.v1+json',
+	'application/vnd.vega.v2+json',
+	'application/vnd.vega.v3+json',
+	'application/vnd.vega.v4+json',
+	'application/vnd.vega.v5+json',
+	'application/vnd.vegalite.v1+json',
+	'application/vnd.vegalite.v2+json',
+	'application/vnd.vegalite.v3+json',
+	'application/vnd.vegalite.v4+json',
+	'application/x-nteract-model-debug+json',
+	'image/svg+xml',
+	'text/latex',
+	'text/vnd.plotly.v1+html',
+	'application/vnd.jupyter.widget-view+json',
+	'application/vnd.code.notebook.error'
+];
