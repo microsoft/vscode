@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { JSONSchemaType } from 'vs/base/common/jsonSchema';
 import { Color } from 'vs/base/common/color';
-import { isArray, isObject } from 'vs/base/common/types';
+import { isArray, isObject, isUndefinedOrNull, isString, isStringArray } from 'vs/base/common/types';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 
 type Validator<T> = { enabled: boolean, isValid: (value: T) => boolean; message: string };
@@ -15,12 +15,12 @@ function canBeType(propTypes: (string | undefined)[], ...types: JSONSchemaType[]
 	return types.some(t => propTypes.includes(t));
 }
 
-function isNullValue(value: unknown): boolean {
-	return value === '' || value === null || value === undefined;
+function isNullOrEmpty(value: unknown): boolean {
+	return value === '' || isUndefinedOrNull(value);
 }
 
 export function createValidator(prop: IConfigurationPropertySchema): (value: any) => (string | null) {
-	const type: (string | undefined)[] = Array.isArray(prop.type) ? prop.type : [prop.type];
+	const type: (string | undefined)[] = isArray(prop.type) ? prop.type : [prop.type];
 	const isNullable = canBeType(type, 'null');
 	const isNumeric = (canBeType(type, 'number') || canBeType(type, 'integer')) && (type.length === 1 || type.length === 2 && isNullable);
 
@@ -30,7 +30,7 @@ export function createValidator(prop: IConfigurationPropertySchema): (value: any
 	const objectValidator = getObjectValidator(prop);
 
 	return value => {
-		if (isNullable && isNullValue(value)) { return ''; }
+		if (isNullable && isNullOrEmpty(value)) { return ''; }
 
 		const errors: string[] = [];
 		if (stringArrayValidator) {
@@ -48,7 +48,7 @@ export function createValidator(prop: IConfigurationPropertySchema): (value: any
 		}
 
 		if (isNumeric) {
-			if (isNullValue(value) || isNaN(+value)) {
+			if (isNullOrEmpty(value) || isNaN(+value)) {
 				errors.push(nls.localize('validations.expectedNumeric', "Value must be a number."));
 			} else {
 				errors.push(...numericValidations.filter(validator => !validator.isValid(+value)).map(validator => validator.message));
@@ -56,7 +56,7 @@ export function createValidator(prop: IConfigurationPropertySchema): (value: any
 		}
 
 		if (prop.type === 'string') {
-			if (typeof value !== 'string') {
+			if (!isString(value)) {
 				errors.push(nls.localize('validations.incorrectType', 'Incorrect type. Expected "string".'));
 			} else {
 				errors.push(...stringValidations.filter(validator => !validator.isValid(value)).map(validator => validator.message));
@@ -79,7 +79,7 @@ export function getInvalidTypeError(value: any, type: undefined | string | strin
 		return;
 	}
 
-	const typeArr = Array.isArray(type) ? type : [type];
+	const typeArr = isArray(type) ? type : [type];
 	if (!typeArr.some(_type => valueValidatesAsType(value, _type))) {
 		return nls.localize('invalidTypeError', "Setting has an invalid type, expected {0}. Fix in JSON.", JSON.stringify(type));
 	}
@@ -92,11 +92,11 @@ function valueValidatesAsType(value: any, type: string): boolean {
 	if (type === 'boolean') {
 		return valueType === 'boolean';
 	} else if (type === 'object') {
-		return value && !Array.isArray(value) && valueType === 'object';
+		return value && !isArray(value) && valueType === 'object';
 	} else if (type === 'null') {
 		return value === null;
 	} else if (type === 'array') {
-		return Array.isArray(value);
+		return isArray(value);
 	} else if (type === 'string') {
 		return valueType === 'string';
 	} else if (type === 'number' || type === 'integer') {
@@ -164,7 +164,7 @@ function getStringValidators(prop: IConfigurationPropertySchema) {
 }
 
 function getNumericValidators(prop: IConfigurationPropertySchema): Validator<number>[] {
-	const type: (string | undefined)[] = Array.isArray(prop.type) ? prop.type : [prop.type];
+	const type: (string | undefined)[] = isArray(prop.type) ? prop.type : [prop.type];
 
 	const isNullable = canBeType(type, 'null');
 	const isIntegral = (canBeType(type, 'integer')) && (type.length === 1 || type.length === 2 && isNullable);
@@ -235,19 +235,13 @@ function getArrayOfStringValidator(prop: IConfigurationPropertySchema): ((value:
 
 				let message = '';
 
-				if (!isArray(value)) {
+				if (!isStringArray(value)) {
 					message += nls.localize('validations.stringArrayIncorrectType', 'Incorrect type. Expected a string array.');
 					message += '\n';
 					return message;
 				}
 
-				if (!value.every(val => typeof val === 'string')) {
-					message += nls.localize('validations.stringArrayIncorrectElementType', 'Incorrect element type. Expected all elements to be strings.');
-					message += '\n';
-					return message;
-				}
-
-				const stringArrayValue = value as string[];
+				const stringArrayValue = value;
 
 				if (prop.uniqueItems) {
 					if (new Set(stringArrayValue).size < stringArrayValue.length) {
