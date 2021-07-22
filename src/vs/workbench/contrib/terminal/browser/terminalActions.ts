@@ -139,15 +139,23 @@ export function registerTerminalActions() {
 				description: {
 					description: 'workbench.action.terminal.newWithProfile',
 					args: [{
-						name: 'profile',
+						name: 'args',
 						schema: {
-							type: 'object'
+							type: 'object',
+							required: ['profileName'],
+							properties: {
+								profileName: {
+									description: localize('workbench.action.terminal.newWithProfile.profileName', "The name of the profile to create"),
+									type: 'string',
+									minLength: 1
+								}
+							}
 						}
 					}]
 				},
 			});
 		}
-		async run(accessor: ServicesAccessor, eventOrOptionsOrProfile: MouseEvent | ICreateTerminalOptions | ITerminalProfile | undefined, profile?: ITerminalProfile) {
+		async run(accessor: ServicesAccessor, eventOrOptionsOrProfile: MouseEvent | ICreateTerminalOptions | ITerminalProfile | { profileName: string } | undefined, profile?: ITerminalProfile) {
 			const terminalService = accessor.get(ITerminalService);
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
@@ -155,7 +163,9 @@ export function registerTerminalActions() {
 
 			let event: MouseEvent | PointerEvent | KeyboardEvent | undefined;
 			let options: ICreateTerminalOptions | undefined;
-			if (eventOrOptionsOrProfile instanceof MouseEvent || eventOrOptionsOrProfile instanceof PointerEvent || eventOrOptionsOrProfile instanceof KeyboardEvent) {
+			if (typeof eventOrOptionsOrProfile === 'object' && eventOrOptionsOrProfile && 'profileName' in eventOrOptionsOrProfile) {
+				options = { config: terminalService.availableProfiles.find(profile => profile.profileName === eventOrOptionsOrProfile.profileName) };
+			} else if (eventOrOptionsOrProfile instanceof MouseEvent || eventOrOptionsOrProfile instanceof PointerEvent || eventOrOptionsOrProfile instanceof KeyboardEvent) {
 				event = eventOrOptionsOrProfile;
 				options = profile ? { config: profile } : undefined;
 			} else {
