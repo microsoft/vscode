@@ -627,12 +627,12 @@ export class TerminalService implements ITerminalService {
 	async splitInstance(instanceToSplit: ITerminalInstance, options?: ICreateTerminalOptions): Promise<ITerminalInstance | null> {
 		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(options, options?.cwd);
 
-		if (shellLaunchConfig && !shellLaunchConfig.extHostTerminalId) {
+		if (this._isContributedProfile(shellLaunchConfig)) {
 			const key = await this._getPlatformKey();
 			const defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${key}`);
 			const defaultProfile = this._terminalContributionService.terminalProfiles.find(p => p.id === defaultProfileName);
 			if (defaultProfile) {
-				await this.createContributedTerminalProfile(defaultProfile.extensionIdentifier, defaultProfile.id, { isSplitTerminal: defaultProfile.isSplitTerminal, icon: defaultProfile.icon });
+				await this.createContributedTerminalProfile(defaultProfile.extensionIdentifier, defaultProfile.id, { isSplitTerminal: true, icon: defaultProfile.icon });
 				return this._terminalGroupService.instances[this._terminalGroupService.instances.length - 1];
 			}
 		}
@@ -1073,11 +1073,6 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private _convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile | IExtensionTerminalProfile, cwd?: string | URI): IShellLaunchConfig {
-		// Profile was provided
-		if (shellLaunchConfigOrProfile && 'isExtensionTerminal' in shellLaunchConfigOrProfile) {
-			// shouldn't happen
-			return shellLaunchConfigOrProfile;
-		}
 		if (shellLaunchConfigOrProfile && 'profileName' in shellLaunchConfigOrProfile) {
 			const profile = shellLaunchConfigOrProfile;
 			if (!profile.path) {
@@ -1106,10 +1101,16 @@ export class TerminalService implements ITerminalService {
 		return {};
 	}
 
+	private _isContributedProfile(shellLaunchConfig: IShellLaunchConfig): boolean {
+		// prevents recursion with the MainThreadTerminalService call to create terminal
+		// and defers to the provided launch config when an executable is provided
+		return shellLaunchConfig && !shellLaunchConfig.extHostTerminalId && !('executable' in shellLaunchConfig);
+	}
+
 	async createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance> {
 		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(options?.config || options);
 
-		if (shellLaunchConfig && !shellLaunchConfig.extHostTerminalId) {
+		if (this._isContributedProfile(shellLaunchConfig)) {
 			const key = await this._getPlatformKey();
 			const defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${key}`);
 			const defaultProfile = this._terminalContributionService.terminalProfiles.find(p => p.id === defaultProfileName);
