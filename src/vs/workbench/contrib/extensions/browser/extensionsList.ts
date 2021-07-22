@@ -13,7 +13,7 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { Event } from 'vs/base/common/event';
 import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { UpdateAction, ManageExtensionAction, ReloadAction, ExtensionStatusLabelAction, RemoteInstallAction, ExtensionStatusAction, ExtensionToolTipAction, LocalInstallAction, ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction, WebInstallAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { UpdateAction, ManageExtensionAction, ReloadAction, ExtensionStatusLabelAction, RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction, WebInstallAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget, ExtensionHoverWidget, ExtensionActivationStatusWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
@@ -125,8 +125,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			extensionStatusIconAction,
 			this.instantiationService.createInstance(ManageExtensionAction)
 		];
-		const extensionTooltipAction = this.instantiationService.createInstance(ExtensionToolTipAction, extensionStatusIconAction, reloadAction);
-		const extensionHoverWidget = this.instantiationService.createInstance(ExtensionHoverWidget, { target: root, position: this.options.hoverOptions.position }, extensionStatusIconAction, extensionTooltipAction);
+		const extensionHoverWidget = this.instantiationService.createInstance(ExtensionHoverWidget, { target: root, position: this.options.hoverOptions.position }, extensionStatusIconAction, reloadAction);
 
 		const widgets = [
 			recommendationWidget,
@@ -139,10 +138,10 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			this.instantiationService.createInstance(InstallCountWidget, installCount, true),
 			this.instantiationService.createInstance(RatingsWidget, ratings, true),
 		];
-		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets, extensionTooltipAction]);
+		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets]);
 
 		actionbar.push(actions, actionOptions);
-		const disposable = combinedDisposable(...actions, ...widgets, actionbar, extensionContainers, extensionTooltipAction);
+		const disposable = combinedDisposable(...actions, ...widgets, actionbar, extensionContainers);
 
 		return {
 			root, element, icon, name, installCount, ratings, description, author, disposables: [disposable], actionbar,
