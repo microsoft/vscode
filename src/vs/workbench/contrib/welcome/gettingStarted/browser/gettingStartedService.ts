@@ -32,6 +32,7 @@ import { IViewsService } from 'vs/workbench/common/views';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { isLinux, isMacintosh, isWindows, OperatingSystem as OS } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export const WorkspacePlatform = new RawContextKey<'mac' | 'linux' | 'windows' | undefined>('workspacePlatform', undefined, localize('workspacePlatform', "The platform of the current workspace, which in remote contexts may be different from the platform of the UI"));
 export const HasMultipleNewFileEntries = new RawContextKey<boolean>('hasMultipleNewFileEntries', false);
@@ -214,6 +215,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		@IHostService private readonly hostService: IHostService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
 	) {
 		super();
@@ -530,6 +532,13 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		this.triggerInstalledExtensionsRegistered();
 
 		if (sectionToOpen && this.configurationService.getValue<string>('workbench.welcomePage.walkthroughs.openOnInstall')) {
+			type EditorActionInvokedClassification = {
+				id: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight', };
+			};
+			type EditorActionInvokedEvent = {
+				id: string;
+			};
+			this.telemetryService.publicLog2<EditorActionInvokedEvent, EditorActionInvokedClassification>('gettingStarted.didAutoOpenWalktrhough', { id: sectionToOpen });
 			this.commandService.executeCommand('workbench.action.openWalkthrough', sectionToOpen);
 		}
 	}
