@@ -167,12 +167,11 @@
 	width: calc(100% - 48px);
 	margin-left: 24px;
 }
-
+.settings-editor.mid-width > .settings-body > .settings-tree-container .settings-editor-tree > .monaco-scrollable-element > .shadow.top.top-left-corner {
+	width: 24px;
+	margin-left: 0px;
+}
 .settings-editor > .settings-body > .settings-tree-container .settings-editor-tree > .monaco-scrollable-element > .shadow.top {
-	left: 50%;
-	max-width: 952px;
-	/* 1000 - 24*2 padding */
-	margin-left: -476px;
 	z-index: 11;
 }
 
