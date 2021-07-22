@@ -14,7 +14,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { MainThreadTestCollection } from 'vs/workbench/contrib/testing/common/mainThreadTestCollection';
 import { ITestIdWithSrc, ResolvedTestRunRequest, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestConfigurationService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
+import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
 import { TestExclusions } from 'vs/workbench/contrib/testing/common/testExclusions';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
@@ -57,7 +57,7 @@ export class TestService extends Disposable implements ITestService {
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ITestConfigurationService private readonly testConfigurationService: ITestConfigurationService,
+		@ITestProfileService private readonly testProfiles: ITestProfileService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITestResultService private readonly testResults: ITestResultService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
@@ -95,33 +95,32 @@ export class TestService extends Disposable implements ITestService {
 	public async runTests(req: AmbiguousRunTestsRequest, token = CancellationToken.None): Promise<ITestResult> {
 		const resolved: ResolvedTestRunRequest = { targets: [], exclude: req.exclude, isAutoRun: req.isAutoRun };
 
-		// First, try to run the tests using the default run configurations...
-		const defaultConfigs = this.testConfigurationService.getGroupDefaultConfigurations(req.group);
-		for (const config of defaultConfigs) {
-			const testIds = req.tests.filter(t => t.controllerId === config.controllerId).map(t => t.testId);
+		// First, try to run the tests using the default run profiles...
+		for (const profile of this.testProfiles.getGroupDefaultProfiles(req.group)) {
+			const testIds = req.tests.filter(t => t.controllerId === profile.controllerId).map(t => t.testId);
 			if (testIds.length) {
 				resolved.targets.push({
 					testIds: testIds,
-					profileGroup: config.group,
-					profileId: config.profileId,
-					controllerId: config.controllerId,
+					profileGroup: profile.group,
+					profileId: profile.profileId,
+					controllerId: profile.controllerId,
 				});
 			}
 		}
 
 		// If no tests are covered by the defaults, just use whatever the defaults
 		// for their controller are. This can happen if the user chose specific
-		// configs for the run button, but then asked to run a single test from the
+		// profiles for the run button, but then asked to run a single test from the
 		// explorer or decoration. We shouldn't no-op.
 		if (resolved.targets.length === 0) {
 			for (const byController of groupBy(req.tests, (a, b) => a.controllerId === b.controllerId ? 0 : 1)) {
-				const configs = this.testConfigurationService.getControllerGroupConfigurations(byController[0].controllerId, req.group);
-				if (configs.length) {
+				const profiles = this.testProfiles.getControllerGroupProfiles(byController[0].controllerId, req.group);
+				if (profiles.length) {
 					resolved.targets.push({
 						testIds: byController.map(t => t.testId),
 						profileGroup: req.group,
-						profileId: configs[0].profileId,
-						controllerId: configs[0].controllerId,
+						profileId: profiles[0].profileId,
+						controllerId: profiles[0].controllerId,
 					});
 				}
 			}
@@ -156,8 +155,10 @@ export class TestService extends Disposable implements ITestService {
 				group => this.testControllers.get(group.controllerId)?.runTests(
 					{
 						runId: result.id,
-						excludeExtIds: req.exclude!.filter(t => t.controllerId === group.controllerId).map(t => t.testId),
-						configId: group.profileId,
+						excludeExtIds: req.exclude!
+							.filter(t => t.controllerId === group.controllerId && !group.testIds.includes(t.testId))
+							.map(t => t.testId),
+						profileId: group.profileId,
 						controllerId: group.controllerId,
 						testIds: group.testIds,
 					},

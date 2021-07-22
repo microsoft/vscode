@@ -163,6 +163,10 @@ export class MockSession implements IDebugSession {
 		return undefined;
 	}
 
+	get isSimpleUI(): boolean {
+		return false;
+	}
+
 	stepInTargets(frameId: number): Promise<{ id: number; label: string; }[]> {
 		throw new Error('Method not implemented.');
 	}

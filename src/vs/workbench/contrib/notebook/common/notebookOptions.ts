@@ -138,7 +138,7 @@ export class NotebookOptions {
 			editorTopPadding: EDITOR_TOP_PADDING,
 			editorBottomPadding: 4,
 			editorBottomPaddingWithoutStatusBar: 12,
-			collapsedIndicatorHeight: 24,
+			collapsedIndicatorHeight: 28,
 			showCellStatusBar,
 			globalToolbar,
 			consolidatedOutputButton,

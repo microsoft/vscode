@@ -412,7 +412,7 @@ async function handleRoot(req, res) {
 
 	if (args.verbose) {
 		fancyLog(`${ansiColors.magenta('BuiltIn extensions')}: ${dedupedBuiltInExtensions.map(e => path.basename(e.extensionPath)).join(', ')}`);
-		fancyLog(`${ansiColors.magenta('Additional extensions')}: ${additionalBuiltinExtensions.map(e => path.basename(e.extensionLocation.path)).join(', ') || 'None'}`);
+		fancyLog(`${ansiColors.magenta('Additional extensions')}: ${additionalBuiltinExtensions.map(e => typeof e === 'string' ? e : path.basename(e.path)).join(', ') || 'None'}`);
 	}
 
 	const secondaryHost = (

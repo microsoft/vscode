@@ -944,17 +944,14 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 		if (this.workspaceTrustManagementService.canSetParentFolderTrust()) {
 			const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceService.getWorkspace()) as ISingleFolderWorkspaceIdentifier;
-			const { parentPath } = splitName(workspaceIdentifier.uri.fsPath);
-			const { name } = splitName(parentPath);
+			const { name } = splitName(splitName(workspaceIdentifier.uri.fsPath).parentPath);
 
 			const trustMessageElement = append(parent, $('.trust-message-box'));
 			trustMessageElement.innerText = localize('trustMessage', "Trust the authors of all files in the current folder or its parent '{0}'.", name);
 
-			if (parentPath) {
-				trustActions.push(new Action('workspace.trust.button.action.grantParent', localize('trustParentButton', "Trust Parent"), undefined, true, async () => {
-					await this.workspaceTrustManagementService.setUrisTrust([URI.file(parentPath)], true);
-				}));
-			}
+			trustActions.push(new Action('workspace.trust.button.action.grantParent', localize('trustParentButton', "Trust Parent"), undefined, true, async () => {
+				await this.workspaceTrustManagementService.setParentFolderTrust(true);
+			}));
 		}
 
 		this.createButtonRow(parent, trustActions);

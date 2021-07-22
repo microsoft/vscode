@@ -191,7 +191,7 @@ export interface IPtyService {
 
 	restartPtyHost?(): Promise<void>;
 	shutdownAll?(): Promise<void>;
-	acceptPtyHostResolvedVariables?(id: number, resolved: string[]): Promise<void>;
+	acceptPtyHostResolvedVariables?(requestId: number, resolved: string[]): Promise<void>;
 
 	createProcess(
 		shellLaunchConfig: IShellLaunchConfig,
@@ -234,11 +234,11 @@ export interface IPtyService {
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;
 	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined>;
-	acceptDetachedInstance(requestId: number, process: number): Promise<IProcessDetails | undefined>;
+	acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void>;
 }
 
 export interface IRequestResolveVariablesEvent {
-	id: number;
+	requestId: number;
 	workspaceId: string;
 	originalText: string[];
 }
@@ -401,6 +401,11 @@ export interface ICreateTerminalOptions {
 	 * Where to create the terminal, when not specified the default target will be used.
 	 */
 	target?: TerminalLocation;
+
+	/**
+	 * The terminal's resource, passed when the terminal has moved windows.
+	 */
+	resource?: URI;
 }
 
 export interface ICreateContributedTerminalProfileOptions {

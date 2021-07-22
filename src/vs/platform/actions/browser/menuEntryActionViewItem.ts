@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./menuEntryActionViewItem';
-import { addDisposableListener, asCSSUrl, ModifierKeyEmitter, append, EventType, $ } from 'vs/base/browser/dom';
+import { addDisposableListener, asCSSUrl, ModifierKeyEmitter, append, EventType, $, prepend } from 'vs/base/browser/dom';
 import { IAction, IRunEvent, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { IDisposable, toDisposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
@@ -361,7 +361,7 @@ class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 		this._defaultAction = this._instaService.createInstance(MenuEntryActionViewItem, lastAction, undefined);
 
 		if (this._container) {
-			this.render(this._container);
+			this._defaultAction.render(prepend(this._container, $('.action-container')));
 		}
 	}
 

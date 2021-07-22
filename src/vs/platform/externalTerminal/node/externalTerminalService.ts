@@ -20,8 +20,11 @@ abstract class ExternalTerminalService {
 	public _serviceBrand: undefined;
 
 	async getDefaultTerminalForPlatforms(): Promise<ITerminalForPlatform> {
-		const linuxTerminal = await LinuxExternalTerminalService.getDefaultTerminalLinuxReady();
-		return { windows: WindowsExternalTerminalService.getDefaultTerminalWindows(), linux: linuxTerminal, osx: 'xterm' };
+		return {
+			windows: WindowsExternalTerminalService.getDefaultTerminalWindows(),
+			linux: await LinuxExternalTerminalService.getDefaultTerminalLinuxReady(),
+			osx: 'xterm'
+		};
 	}
 }
 

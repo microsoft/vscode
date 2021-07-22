@@ -8,53 +8,55 @@ import { MarshalledId } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { TestMessageSeverity, TestResultState } from 'vs/workbench/api/common/extHostTypes';
-
-export { TestResultState } from 'vs/workbench/api/common/extHostTypes';
+import { TestMessageSeverity } from 'vs/workbench/api/common/extHostTypes';
 
 export interface ITestIdWithSrc {
 	testId: string;
 	controllerId: string;
 }
 
+export const enum TestResultState {
+	Unset = 0,
+	Queued = 1,
+	Running = 2,
+	Passed = 3,
+	Failed = 4,
+	Skipped = 5,
+	Errored = 6
+}
+
 export const identifyTest = (test: { controllerId: string, item: { extId: string } }): ITestIdWithSrc =>
 	({ testId: test.item.extId, controllerId: test.controllerId });
 
-export const enum TestRunConfigurationBitset {
+export const enum TestRunProfileBitset {
 	Run = 1 << 1,
 	Debug = 1 << 2,
 	Coverage = 1 << 3,
-	HasNonDefaultConfig = 1 << 4,
+	HasNonDefaultProfile = 1 << 4,
 	HasConfigurable = 1 << 5,
 }
 
 /**
- * List of all test run configuration bitset values.
+ * List of all test run profile bitset values.
  */
-export const testRunConfigurationBitsetList = [
-	TestRunConfigurationBitset.Run,
-	TestRunConfigurationBitset.Debug,
-	TestRunConfigurationBitset.Coverage,
-	TestRunConfigurationBitset.HasNonDefaultConfig,
+export const testRunProfileBitsetList = [
+	TestRunProfileBitset.Run,
+	TestRunProfileBitset.Debug,
+	TestRunProfileBitset.Coverage,
+	TestRunProfileBitset.HasNonDefaultProfile,
 ];
 
 /**
- * DTO for a controller's run configurations.
+ * DTO for a controller's run profiles.
  */
-export interface ITestRunConfiguration {
+export interface ITestRunProfile {
 	controllerId: string;
 	profileId: number;
 	label: string;
-	group: TestRunConfigurationBitset;
+	group: TestRunProfileBitset;
 	isDefault: boolean;
 	hasConfigurationHandler: boolean;
 }
-
-/**
- * Defines the path to a test, as a list of test IDs. The last element of the
- * array is the test ID, and the predecessors are its parents, in order.
- */
-export type TestIdPath = string[];
 
 /**
  * A fully-resolved request to run tests, passsed between the main thread
@@ -64,7 +66,7 @@ export interface ResolvedTestRunRequest {
 	targets: {
 		testIds: string[];
 		controllerId: string;
-		profileGroup: TestRunConfigurationBitset;
+		profileGroup: TestRunProfileBitset;
 		profileId: number;
 	}[]
 	exclude?: ITestIdWithSrc[];
@@ -79,7 +81,7 @@ export interface ExtensionRunTestsRequest {
 	include: string[];
 	exclude: string[];
 	controllerId: string;
-	config?: { group: TestRunConfigurationBitset, id: number };
+	profile?: { group: TestRunProfileBitset, id: number };
 	persist: boolean;
 }
 
@@ -89,7 +91,7 @@ export interface ExtensionRunTestsRequest {
 export interface RunTestForControllerRequest {
 	runId: string;
 	controllerId: string;
-	configId: number;
+	profileId: number;
 	excludeExtIds: string[];
 	testIds: string[];
 }
@@ -104,6 +106,7 @@ export interface IRichLocation {
 
 export interface ITestMessage {
 	message: string | IMarkdownString;
+	/** @deprecated */
 	severity: TestMessageSeverity;
 	expectedOutput: string | undefined;
 	actualOutput: string | undefined;
@@ -148,9 +151,13 @@ export const enum TestItemExpandState {
  * TestItem-like shape, butm with an ID and children as strings.
  */
 export interface InternalTestItem {
+	/** Controller ID from whence this test came */
 	controllerId: string;
+	/** Expandability state */
 	expand: TestItemExpandState;
+	/** Parent ID, if any */
 	parent: string | null;
+	/** Raw test item properties */
 	item: ITestItem;
 }
 
@@ -175,11 +182,7 @@ export const applyTestItemUpdate = (internal: InternalTestItem | ITestItemUpdate
 /**
  * Test result item used in the main thread.
  */
-export interface TestResultItem {
-	/** Parent ID, if any */
-	parent: string | null;
-	/** Raw test item properties */
-	item: ITestItem;
+export interface TestResultItem extends InternalTestItem {
 	/** State of this test in various tasks */
 	tasks: ITestTaskState[];
 	/** State of this test as a computation of its tasks */
@@ -190,8 +193,6 @@ export interface TestResultItem {
 	retired: boolean;
 	/** Max duration of the item's tasks (if run directly) */
 	ownDuration?: number;
-	/** Controller ID from whence this test came */
-	controllerId: string;
 }
 
 export type SerializedTestResultItem = Omit<TestResultItem, 'children' | 'expandable' | 'retired'>

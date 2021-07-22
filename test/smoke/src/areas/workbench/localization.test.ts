@@ -10,7 +10,7 @@ import { afterSuite, beforeSuite } from '../../utils';
 export function setup(opts: minimist.ParsedArgs) {
 	describe('Localization', () => {
 		beforeSuite(opts);
-		afterSuite();
+		afterSuite(opts);
 
 		it(`starts with 'DE' locale and verifies title and viewlets text is in German`, async function () {
 			const app = this.app as Application;

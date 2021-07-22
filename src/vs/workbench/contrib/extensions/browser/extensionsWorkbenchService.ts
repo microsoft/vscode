@@ -474,7 +474,7 @@ class Extensions extends Disposable {
 				}
 			}
 			this._onChange.fire(!local || !extension ? undefined : { extension, operation: event.operation });
-			if (extension && !extension.gallery) {
+			if (extension && extension.local && !extension.gallery) {
 				this.syncInstalledExtensionWithGallery(extension);
 			}
 		}
@@ -1230,7 +1230,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			if (i === extension) {
 				return false;
 			}
-			if (!(i.enablementState === EnablementState.EnabledWorkspace || i.enablementState === EnablementState.EnabledGlobally)) {
+			if (!this.extensionEnablementService.isEnabledEnablementState(i.enablementState)) {
 				return false;
 			}
 			if (extensionsToDisable.indexOf(i) !== -1) {

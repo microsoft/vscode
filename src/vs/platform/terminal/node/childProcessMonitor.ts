@@ -25,7 +25,9 @@ const enum Constants {
 const ignoreProcessNames = [
 	// Popular prompt programs, these should not count as child processes
 	'starship',
-	'oh-my-posh'
+	'oh-my-posh',
+	// Git bash may runs a subprocess of itself (bin\bash.exe -> usr\bin\bash.exe)
+	'bash',
 ];
 
 /**

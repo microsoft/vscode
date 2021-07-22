@@ -968,7 +968,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			if (URI.isUri(resourceOrEditor)) {
 				resourceEditorInput = {
 					resource: resourceOrEditor,
-					options
+					options: editorOptions
 				};
 			} else {
 				resourceEditorInput = {

@@ -14,7 +14,7 @@ import { IStringDictionary, values } from 'vs/base/common/collections';
 import { LinkedMap, Touch } from 'vs/base/common/map';
 import Severity from 'vs/base/common/severity';
 import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { isUNC } from 'vs/base/common/extpath';
 
 import { IFileService } from 'vs/platform/files/common/files';
@@ -765,6 +765,62 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 	}
 
+	private setupBackgroundTaskOnLineData(terminal: ITerminalInstance, watchingProblemMatcher: WatchingProblemCollector, task: CustomTask | ContributedTask): IDisposable {
+		let delayer: Async.Delayer<any> | undefined = undefined;
+		let skipLine: boolean = (!!task.command.presentation && task.command.presentation.echo);
+		let lastEventTime = new Date().getTime();
+		let lineQueue: string[] = [];
+		let doneDebouncing = false;
+		// If "enough" time (3 seconds) has passed without more line data, start processing and stop debouncing.
+		let interval: Async.IntervalTimer = new Async.IntervalTimer();
+		interval.cancelAndSet(() => {
+			if (doneDebouncing) {
+				interval.dispose();
+				return;
+			}
+			if ((new Date().getTime() - lastEventTime) < 3000) {
+				return;
+			}
+			interval.dispose();
+			doneDebouncing = true;
+			for (const queuedLine of lineQueue) {
+				watchingProblemMatcher.processLine(queuedLine);
+			}
+			lineQueue = [];
+		}, 3000);
+		return terminal.onLineData((line) => {
+			if (skipLine) {
+				skipLine = false;
+				return;
+			}
+			const currentTime = new Date().getTime();
+			if (!doneDebouncing && ((currentTime - lastEventTime) < 1500)) {
+				if (lineQueue.length > 300) {
+					lineQueue = lineQueue.slice(100, lineQueue.length);
+				}
+				lineQueue.push(line);
+				lastEventTime = new Date().getTime();
+				return;
+			} else if (!doneDebouncing) {
+				doneDebouncing = true;
+				interval.dispose();
+				for (const queuedLine of lineQueue) {
+					watchingProblemMatcher.processLine(queuedLine);
+				}
+				lineQueue = [];
+			}
+
+			watchingProblemMatcher.processLine(line);
+			if (!delayer) {
+				delayer = new Async.Delayer(3000);
+			}
+			delayer.trigger(() => {
+				watchingProblemMatcher.forceDelivery();
+				delayer = undefined;
+			});
+		});
+	}
+
 	private async executeInTerminal(task: CustomTask | ContributedTask, trigger: string, resolver: VariableResolver, workspaceFolder: IWorkspaceFolder | undefined): Promise<ITaskSummary> {
 		let terminal: ITerminalInstance | undefined = undefined;
 		let executedCommand: string | undefined = undefined;
@@ -807,7 +863,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				}
 			}));
 			watchingProblemMatcher.aboutToStart();
-			let delayer: Async.Delayer<any> | undefined = undefined;
 			[terminal, executedCommand, error] = await this.createTerminal(task, resolver, workspaceFolder);
 
 			if (error) {
@@ -828,21 +883,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				this.logService.error('Task terminal process never got ready');
 			});
 			this.fireTaskEvent(TaskEvent.create(TaskEventKind.Start, task, terminal.instanceId));
-			let skipLine: boolean = (!!task.command.presentation && task.command.presentation.echo);
-			const onData = terminal.onLineData((line) => {
-				if (skipLine) {
-					skipLine = false;
-					return;
-				}
-				watchingProblemMatcher.processLine(line);
-				if (!delayer) {
-					delayer = new Async.Delayer(3000);
-				}
-				delayer.trigger(() => {
-					watchingProblemMatcher.forceDelivery();
-					delayer = undefined;
-				});
-			});
+			const onData = this.setupBackgroundTaskOnLineData(terminal, watchingProblemMatcher, task);
 			promise = new Promise<ITaskSummary>((resolve, reject) => {
 				const onExit = terminal!.onExit((exitCode) => {
 					onData.dispose();

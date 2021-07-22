@@ -365,23 +365,21 @@ export interface CommandConfiguration {
 }
 
 export namespace TaskGroup {
-	export const Clean: TaskGroup = { _id: 'clean', isDefault: false };
+	export const Clean: 'clean' = 'clean';
 
-	export const Build: TaskGroup = { _id: 'build', isDefault: false };
+	export const Build: 'build' = 'build';
 
-	export const Rebuild: TaskGroup = { _id: 'rebuild', isDefault: false };
+	export const Rebuild: 'rebuild' = 'rebuild';
 
-	export const Test: TaskGroup = { _id: 'test', isDefault: false };
+	export const Test: 'test' = 'test';
 
-	export function is(value: any): value is TaskGroup {
-		return value === Clean._id || value === Build._id || value === Rebuild._id || value === Test._id;
+	export function is(value: string): value is string {
+		return value === Clean || value === Build || value === Rebuild || value === Test;
 	}
 }
 
-export interface TaskGroup {
-	_id: string;
-	isDefault?: boolean;
-}
+export type TaskGroup = 'clean' | 'build' | 'rebuild' | 'test';
+
 
 export const enum TaskScope {
 	Global = 1,
@@ -491,9 +489,9 @@ export interface ConfigurationProperties {
 	identifier?: string;
 
 	/**
-	 * The task's group;
+	 * the task's group;
 	 */
-	group?: TaskGroup;
+	group?: string;
 
 	/**
 	 * The group type
@@ -561,7 +559,7 @@ export abstract class CommonTask {
 	/**
 	 * The task's internal id
 	 */
-	_id: string;
+	readonly _id: string;
 
 	/**
 	 * The cached label.
@@ -1078,7 +1076,7 @@ export interface TaskEvent {
 	taskId?: string;
 	taskName?: string;
 	runType?: TaskRunType;
-	group?: TaskGroup;
+	group?: string;
 	processId?: number;
 	exitCode?: number;
 	terminalId?: number;

@@ -148,7 +148,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 					return configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, t);
 				});
 				const result = await Promise.all(resolveCalls);
-				channel.acceptPtyHostResolvedVariables(e.id, result);
+				channel.acceptPtyHostResolvedVariables(e.requestId, result);
 			}));
 		} else {
 			this._remoteTerminalChannel = null;
@@ -162,13 +162,16 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		return this._remoteTerminalChannel.requestDetachInstance(workspaceId, instanceId);
 	}
 
-	async acceptDetachedInstance(requestId: number, persistentProcessId: number): Promise<IProcessDetails | undefined> {
+	async acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void> {
 		if (!this._remoteTerminalChannel) {
 			throw new Error(`Cannot accept detached instance when there is no remote!`);
+		} else if (!persistentProcessId) {
+			this._logService.warn('Cannot attach to feature terminals, custom pty terminals, or those without a persistentProcessId');
+			return;
 		}
-		return this._remoteTerminalChannel.acceptDetachedInstance(requestId, persistentProcessId);
-	}
 
+		return this._remoteTerminalChannel.acceptDetachInstanceReply(requestId, persistentProcessId);
+	}
 
 	async createProcess(shellLaunchConfig: IShellLaunchConfig, configuration: ICompleteTerminalConfiguration, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper): Promise<ITerminalChildProcess> {
 		if (!this._remoteTerminalChannel) {

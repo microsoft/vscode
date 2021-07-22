@@ -37,7 +37,7 @@ import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorE
 import { ConfigurationChangedEvent, IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { deepClone } from 'vs/base/common/objects';
+import { deepClone, equals } from 'vs/base/common/objects';
 import { ICodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Schemas } from 'vs/base/common/network';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
@@ -50,10 +50,12 @@ import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessi
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IMarker, IMarkerService, MarkerSeverity, IMarkerData } from 'vs/platform/markers/common/markers';
-import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ERROR_ITEM_FOREGROUND, STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND, STATUS_BAR_WARNING_ITEM_BACKGROUND, STATUS_BAR_WARNING_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
+import { ThemeColor, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
+import { ILanguageStatus, ILanguageStatusService } from 'vs/editor/common/services/languageStatusService';
+import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
@@ -142,6 +144,7 @@ class StateChange {
 	indentation: boolean = false;
 	selectionStatus: boolean = false;
 	mode: boolean = false;
+	languageStatus: boolean = false;
 	encoding: boolean = false;
 	EOL: boolean = false;
 	tabFocusMode: boolean = false;
@@ -153,6 +156,7 @@ class StateChange {
 		this.indentation = this.indentation || other.indentation;
 		this.selectionStatus = this.selectionStatus || other.selectionStatus;
 		this.mode = this.mode || other.mode;
+		this.languageStatus = this.languageStatus || other.languageStatus;
 		this.encoding = this.encoding || other.encoding;
 		this.EOL = this.EOL || other.EOL;
 		this.tabFocusMode = this.tabFocusMode || other.tabFocusMode;
@@ -165,6 +169,7 @@ class StateChange {
 		return this.indentation
 			|| this.selectionStatus
 			|| this.mode
+			|| this.languageStatus
 			|| this.encoding
 			|| this.EOL
 			|| this.tabFocusMode
@@ -177,6 +182,7 @@ class StateChange {
 type StateDelta = (
 	{ type: 'selectionStatus'; selectionStatus: string | undefined; }
 	| { type: 'mode'; mode: string | undefined; }
+	| { type: 'languageStatus'; status: ILanguageStatus[] | undefined; }
 	| { type: 'encoding'; encoding: string | undefined; }
 	| { type: 'EOL'; EOL: string | undefined; }
 	| { type: 'indentation'; indentation: string | undefined; }
@@ -193,6 +199,9 @@ class State {
 
 	private _mode: string | undefined;
 	get mode(): string | undefined { return this._mode; }
+
+	private _status: ILanguageStatus[] | undefined;
+	get status(): ILanguageStatus[] | undefined { return this._status; }
 
 	private _encoding: string | undefined;
 	get encoding(): string | undefined { return this._encoding; }
@@ -236,6 +245,13 @@ class State {
 			if (this._mode !== update.mode) {
 				this._mode = update.mode;
 				change.mode = true;
+			}
+		}
+
+		if (update.type === 'languageStatus') {
+			if (!equals(this._status, update.status)) {
+				this._status = update.status;
+				change.languageStatus = true;
 			}
 		}
 
@@ -302,6 +318,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	private readonly encodingElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly eolElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly modeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+	private readonly statusElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly metadataElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly currentProblemStatus: ShowCurrentMarkerInStatusbarContribution = this._register(this.instantiationService.createInstance(ShowCurrentMarkerInStatusbarContribution));
 
@@ -313,6 +330,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	private promptedScreenReader: boolean = false;
 
 	constructor(
+		@ILanguageStatusService private readonly languageStatusService: ILanguageStatusService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IModeService private readonly modeService: IModeService,
@@ -322,6 +340,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IUntitledTextEditorService private readonly untitledEditorService: IUntitledTextEditorService,
 	) {
 		super();
 
@@ -541,6 +560,36 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this.updateElement(this.modeElement, props, 'status.editor.mode', StatusbarAlignment.RIGHT, 100.1);
 	}
 
+	private updateStatusElement(status: ILanguageStatus[] | undefined): void {
+		if (!status || status.length === 0) {
+			this.statusElement.clear();
+			return;
+		}
+
+		const [first] = status;
+
+		let backgroundColor: ThemeColor | undefined;
+		let color: ThemeColor | undefined;
+		if (first.severity === Severity.Error) {
+			backgroundColor = themeColorFromId(STATUS_BAR_ERROR_ITEM_BACKGROUND);
+			color = themeColorFromId(STATUS_BAR_ERROR_ITEM_FOREGROUND);
+		} else if (first.severity === Severity.Warning) {
+			backgroundColor = themeColorFromId(STATUS_BAR_WARNING_ITEM_BACKGROUND);
+			color = themeColorFromId(STATUS_BAR_WARNING_ITEM_FOREGROUND);
+		}
+
+		const props: IStatusbarEntry = {
+			name: localize('status.editor.status', "Language Status"),
+			text: first.text,
+			ariaLabel: first.text,
+			tooltip: first.message,
+			backgroundColor,
+			color
+		};
+
+		this.updateElement(this.statusElement, props, 'status.editor.status', StatusbarAlignment.RIGHT, 100.05);
+	}
+
 	private updateMetadataElement(text: string | undefined): void {
 		if (!text) {
 			this.metadataElement.clear();
@@ -597,6 +646,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this.updateEncodingElement(this.state.encoding);
 		this.updateEOLElement(this.state.EOL ? this.state.EOL === '\r\n' ? nlsEOLCRLF : nlsEOLLF : undefined);
 		this.updateModeElement(this.state.mode);
+		this.updateStatusElement(this.state.status);
 		this.updateMetadataElement(this.state.metadata);
 	}
 
@@ -634,6 +684,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this.onScreenReaderModeChange(activeCodeEditor);
 		this.onSelectionChange(activeCodeEditor);
 		this.onModeChange(activeCodeEditor, activeInput);
+		this.onLanguageStatusChange(activeCodeEditor);
 		this.onEOLChange(activeCodeEditor);
 		this.onEncodingChange(activeEditorPane, activeCodeEditor);
 		this.onIndentationChange(activeCodeEditor);
@@ -665,6 +716,10 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			// Hook Listener for mode changes
 			this.activeEditorListeners.add(activeCodeEditor.onDidChangeModelLanguage((event: IModelLanguageChangedEvent) => {
 				this.onModeChange(activeCodeEditor, activeInput);
+			}));
+
+			this.activeEditorListeners.add(this.languageStatusService.onDidChange(() => {
+				this.onLanguageStatusChange(activeCodeEditor);
 			}));
 
 			// Hook Listener for content changes
@@ -727,10 +782,22 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			if (textModel) {
 				const modeId = textModel.getLanguageIdentifier().language;
 				info.mode = withNullAsUndefined(this.modeService.getLanguageName(modeId));
+				const untitledTextEditorModel = this.untitledEditorService.get(textModel.uri);
+				if (untitledTextEditorModel) {
+					info.mode += untitledTextEditorModel.hasModeSetExplicitly ? '' : localize('languageModeAuto', " (Auto)");
+				}
 			}
 		}
 
 		this.updateState(info);
+	}
+
+	private async onLanguageStatusChange(editorWidget: ICodeEditor | undefined): Promise<void> {
+		const update: StateDelta = { type: 'languageStatus', status: undefined };
+		if (editorWidget?.hasModel()) {
+			update.status = await this.languageStatusService.getLanguageStatus(editorWidget.getModel());
+		}
+		this.updateState(update);
 	}
 
 	private onIndentationChange(editorWidget: ICodeEditor | undefined): void {

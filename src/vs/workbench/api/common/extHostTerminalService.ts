@@ -10,7 +10,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { URI } from 'vs/base/common/uri';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
-import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType, ThemeColor } from './extHostTypes';
+import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType } from './extHostTypes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { localize } from 'vs/nls';
 import { NotSupportedError } from 'vs/base/common/errors';
@@ -20,7 +20,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { withNullAsUndefined } from 'vs/base/common/types';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, IDisposable {
@@ -135,6 +135,7 @@ export class ExtHostTerminal {
 			cwd: withNullAsUndefined(options.cwd),
 			env: withNullAsUndefined(options.env),
 			icon: withNullAsUndefined(asTerminalIcon(options.iconPath)),
+			color: ThemeColor.isThemeColor(options.color) ? options.color.id : undefined,
 			initialText: withNullAsUndefined(options.message),
 			strictEnv: withNullAsUndefined(options.strictEnv),
 			hideFromUser: withNullAsUndefined(options.hideFromUser),

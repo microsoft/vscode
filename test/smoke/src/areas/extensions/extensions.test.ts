@@ -10,7 +10,7 @@ import { afterSuite, beforeSuite } from '../../utils';
 export function setup(opts: minimist.ParsedArgs) {
 	describe('Extensions', () => {
 		beforeSuite(opts);
-		afterSuite();
+		afterSuite(opts);
 
 		it(`install and enable vscode-smoketest-check extension`, async function () {
 			const app = this.app as Application;

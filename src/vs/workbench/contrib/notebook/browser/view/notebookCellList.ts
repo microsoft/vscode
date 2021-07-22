@@ -736,6 +736,15 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this._revealInView(startIndex);
 	}
 
+	scrollToBottom() {
+		const scrollHeight = this.view.scrollHeight;
+		const scrollTop = this.getViewScrollTop();
+		const wrapperBottom = this.getViewScrollBottom();
+		const topInsertToolbarHeight = this._viewContext.notebookOptions.computeTopInserToolbarHeight(this.viewModel?.viewType);
+
+		this.view.setScrollTop(scrollHeight - (wrapperBottom - scrollTop) - topInsertToolbarHeight);
+	}
+
 	revealElementInView(cell: ICellViewModel) {
 		const index = this._getViewIndexUpperBound(cell);
 

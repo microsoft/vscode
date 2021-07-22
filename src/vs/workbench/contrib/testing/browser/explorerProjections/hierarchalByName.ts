@@ -137,6 +137,6 @@ export class HierarchicalByNameProjection extends HierarchicalByLocationProjecti
 	 * @override
 	 */
 	protected override getRevealDepth(element: ByLocationTestItemElement) {
-		return element.depth === 1 ? Infinity : undefined;
+		return element.depth === 0 ? Infinity : undefined;
 	}
 }

@@ -49,10 +49,10 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		super();
 
 		if (!!productService.enableTelemetry) {
-			const telemetryProvider = environmentService.options && environmentService.options.telemetryAppender || { log: remoteAgentService.logTelemetry, flush: remoteAgentService.flushTelemetry };
+			const telemetryProvider: ITelemetryAppender = environmentService.options && environmentService.options.telemetryAppender || { log: remoteAgentService.logTelemetry.bind(remoteAgentService), flush: remoteAgentService.flushTelemetry.bind(remoteAgentService) };
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(new WebTelemetryAppender(telemetryProvider), new TelemetryLogAppender(loggerService, environmentService)),
-				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, environmentService.remoteAuthority, environmentService.options && environmentService.options.resolveCommonTelemetryProperties),
+				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, environmentService.remoteAuthority, telemetryProvider.productIdentifier, environmentService.options && environmentService.options.resolveCommonTelemetryProperties),
 				sendErrorTelemetry: false,
 			};
 

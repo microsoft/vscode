@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { TestIdPathParts } from 'vs/workbench/contrib/testing/common/testId';
 import * as vscode from 'vscode';
 
 export const enum ExtHostTestItemEventOp {
@@ -45,26 +46,25 @@ export type ExtHostTestItemEvent =
 	| ITestItemBulkReplace;
 
 export interface IExtHostTestItemApi {
+	controllerId: string;
 	parent?: TestItemImpl;
 	listener?: (evt: ExtHostTestItemEvent) => void;
 }
 
 const eventPrivateApis = new WeakMap<TestItemImpl, IExtHostTestItemApi>();
 
+export const createPrivateApiFor = (impl: TestItemImpl, controllerId: string) => {
+	const api: IExtHostTestItemApi = { controllerId };
+	eventPrivateApis.set(impl, api);
+	return api;
+};
+
 /**
  * Gets the private API for a test item implementation. This implementation
  * is a managed object, but we keep a weakmap to avoid exposing any of the
  * internals to extensions.
  */
-export const getPrivateApiFor = (impl: TestItemImpl) => {
-	let api = eventPrivateApis.get(impl);
-	if (!api) {
-		api = {};
-		eventPrivateApis.set(impl, api);
-	}
-
-	return api;
-};
+export const getPrivateApiFor = (impl: TestItemImpl) => eventPrivateApis.get(impl)!;
 
 const testItemPropAccessor = <K extends keyof vscode.TestItem>(
 	api: IExtHostTestItemApi,
@@ -144,24 +144,34 @@ export class InvalidTestItemError extends Error {
 	}
 }
 
-export const createTestItemCollection = (owningItem: TestItemImpl):
-	vscode.TestItemCollection & { toJSON(): readonly vscode.TestItem[] } => {
+export class MixedTestItemController extends Error {
+	constructor(id: string, ctrlA: string, ctrlB: string) {
+		super(`TestItem with ID "${id}" is from controller "${ctrlA}" and cannot be added as a child of an item from controller "${ctrlB}".`);
+	}
+}
+
+
+export type TestItemCollectionImpl = vscode.TestItemCollection & { toJSON(): readonly TestItemImpl[] } & Iterable<TestItemImpl>;
+
+const createTestItemCollection = (owningItem: TestItemImpl): TestItemCollectionImpl => {
 	const api = getPrivateApiFor(owningItem);
-	let all: readonly TestItemImpl[] | undefined;
 	let mapped = new Map<string, TestItemImpl>();
 
 	return {
 		/** @inheritdoc */
-		get all() {
-			if (!all) {
-				all = Object.freeze([...mapped.values()]);
-			}
-
-			return all;
+		get size() {
+			return mapped.size;
 		},
 
 		/** @inheritdoc */
-		set all(items: readonly vscode.TestItem[]) {
+		forEach(callback: (item: vscode.TestItem, collection: vscode.TestItemCollection) => unknown, thisArg?: unknown) {
+			for (const item of mapped.values()) {
+				callback.call(thisArg, item, this);
+			}
+		},
+
+		/** @inheritdoc */
+		replace(items: Iterable<vscode.TestItem>) {
 			const newMapped = new Map<string, TestItemImpl>();
 			const toDelete = new Set(mapped.keys());
 			const bulk: ITestItemBulkReplace = { op: ExtHostTestItemEventOp.Bulk, ops: [] };
@@ -169,6 +179,11 @@ export const createTestItemCollection = (owningItem: TestItemImpl):
 			for (const item of items) {
 				if (!(item instanceof TestItemImpl)) {
 					throw new InvalidTestItemError(item.id);
+				}
+
+				const itemController = getPrivateApiFor(item).controllerId;
+				if (itemController !== api.controllerId) {
+					throw new MixedTestItemController(item.id, itemController, api.controllerId);
 				}
 
 				if (newMapped.has(item.id)) {
@@ -189,7 +204,6 @@ export const createTestItemCollection = (owningItem: TestItemImpl):
 			// important mutations come after firing, so if an error happens no
 			// changes will be "saved":
 			mapped = newMapped;
-			all = undefined;
 		},
 
 
@@ -200,14 +214,12 @@ export const createTestItemCollection = (owningItem: TestItemImpl):
 			}
 
 			mapped.set(item.id, item);
-			all = undefined;
 			api.listener?.({ op: ExtHostTestItemEventOp.Upsert, item });
 		},
 
 		/** @inheritdoc */
-		remove(id: string) {
+		delete(id: string) {
 			if (mapped.delete(id)) {
-				all = undefined;
 				api.listener?.({ op: ExtHostTestItemEventOp.RemoveChild, id });
 			}
 		},
@@ -219,7 +231,12 @@ export const createTestItemCollection = (owningItem: TestItemImpl):
 
 		/** JSON serialization function. */
 		toJSON() {
-			return this.all;
+			return Array.from(mapped.values());
+		},
+
+		/** @inheritdoc */
+		[Symbol.iterator]() {
+			return mapped.values();
 		},
 	};
 };
@@ -227,7 +244,7 @@ export const createTestItemCollection = (owningItem: TestItemImpl):
 export class TestItemImpl implements vscode.TestItem {
 	public readonly id!: string;
 	public readonly uri!: vscode.Uri | undefined;
-	public readonly children!: vscode.TestItemCollection;
+	public readonly children!: TestItemCollectionImpl;
 	public readonly parent!: TestItemImpl | undefined;
 
 	public range!: vscode.Range | undefined;
@@ -240,9 +257,12 @@ export class TestItemImpl implements vscode.TestItem {
 	/**
 	 * Note that data is deprecated and here for back-compat only
 	 */
-	constructor(id: string, label: string, uri: vscode.Uri | undefined) {
-		const api = getPrivateApiFor(this);
+	constructor(controllerId: string, id: string, label: string, uri: vscode.Uri | undefined) {
+		if (id.includes(TestIdPathParts.Delimiter)) {
+			throw new Error(`Test IDs may not include the ${JSON.stringify(id)} symbol`);
+		}
 
+		const api = createPrivateApiFor(this, controllerId);
 		Object.defineProperties(this, {
 			id: {
 				value: id,
@@ -256,7 +276,9 @@ export class TestItemImpl implements vscode.TestItem {
 			},
 			parent: {
 				enumerable: false,
-				get() { return api.parent; },
+				get() {
+					return api.parent instanceof TestItemRootImpl ? undefined : api.parent;
+				},
 			},
 			children: {
 				value: createTestItemCollection(this),
@@ -270,5 +292,11 @@ export class TestItemImpl implements vscode.TestItem {
 	/** @deprecated back compat */
 	public invalidateResults() {
 		getPrivateApiFor(this).listener?.({ op: ExtHostTestItemEventOp.Invalidated });
+	}
+}
+
+export class TestItemRootImpl extends TestItemImpl {
+	constructor(controllerId: string, label: string) {
+		super(controllerId, controllerId, label, undefined);
 	}
 }

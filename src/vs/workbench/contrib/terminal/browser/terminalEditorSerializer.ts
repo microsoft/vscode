@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalIcon, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IEditorSerializer } from 'vs/workbench/common/editor';
@@ -29,6 +30,7 @@ export class TerminalInputSerializer implements IEditorSerializer {
 
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined {
 		const terminalInstance = JSON.parse(serializedEditorInput);
+		terminalInstance.resource = URI.parse(terminalInstance.resource);
 		const editor = this._terminalEditorService.getOrCreateEditorInput(terminalInstance);
 		return editor;
 	}
@@ -41,12 +43,13 @@ export class TerminalInputSerializer implements IEditorSerializer {
 			titleSource: instance.titleSource,
 			cwd: '',
 			icon: instance.icon,
-			color: instance.color
+			color: instance.color,
+			resource: instance.resource.toString()
 		};
 	}
 }
 
-export interface SerializedTerminalEditorInput {
+interface TerminalEditorInputObject {
 	readonly id: number;
 	readonly pid: number;
 	readonly title: string;
@@ -54,4 +57,12 @@ export interface SerializedTerminalEditorInput {
 	readonly cwd: string;
 	readonly icon: TerminalIcon | undefined;
 	readonly color: string | undefined;
+}
+
+export interface SerializedTerminalEditorInput extends TerminalEditorInputObject {
+	readonly resource: string
+}
+
+export interface DeserializedTerminalEditorInput extends TerminalEditorInputObject {
+	readonly resource: URI
 }

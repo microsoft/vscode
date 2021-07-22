@@ -11,7 +11,7 @@ jobs:
         run: |
           $splat = @{
             ErrorAction = 'Stop'
-            Uri = 'https://api.github.com/vscs_internal/user/TylerLeonhardt/codespaces/prebuild'
+            Uri = 'https://api.github.com/vscs_internal/user/vscode-prebuilds-bot/codespaces/prebuild'
             Method = 'POST'   
             Headers = @{
               'Content-Type' = 'application/json; charset=utf-8'
@@ -21,7 +21,6 @@ jobs:
               ref = 'main'
               repository_id = 41881900
               location = 'WestUs2'
-              vscs_target = 'production'
             } | ConvertTo-Json
           }
 

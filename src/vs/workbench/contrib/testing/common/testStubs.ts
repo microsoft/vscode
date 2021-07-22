@@ -26,18 +26,17 @@ export const testStubs = {
 	nested: (idPrefix = 'id-') => {
 		const collection = new TestSingleUseCollection('ctrlId');
 		collection.root.label = 'root';
-		collection.root.canResolveChildren = true;
 		collection.resolveHandler = item => {
-			if (item === collection.root) {
-				const a = new TestItemImpl(idPrefix + 'a', 'a', URI.file('/'));
+			if (item === undefined) {
+				const a = new TestItemImpl('ctrlId', idPrefix + 'a', 'a', URI.file('/'));
 				a.canResolveChildren = true;
-				const b = new TestItemImpl(idPrefix + 'b', 'b', URI.file('/'));
-				item.children.all = [a, b];
+				const b = new TestItemImpl('ctrlId', idPrefix + 'b', 'b', URI.file('/'));
+				collection.root.children.replace([a, b]);
 			} else if (item.id === idPrefix + 'a') {
-				item.children.all = [
-					new TestItemImpl(idPrefix + 'aa', 'aa', URI.file('/')),
-					new TestItemImpl(idPrefix + 'ab', 'ab', URI.file('/')),
-				];
+				item.children.replace([
+					new TestItemImpl('ctrlId', idPrefix + 'aa', 'aa', URI.file('/')),
+					new TestItemImpl('ctrlId', idPrefix + 'ab', 'ab', URI.file('/')),
+				]);
 			}
 		};
 

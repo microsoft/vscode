@@ -346,7 +346,7 @@ export class ExtensionPackCountWidget extends ExtensionWidget {
 
 	render(): void {
 		this.clear();
-		if (!this.extension || !this.extension.extensionPack.length) {
+		if (!this.extension || !(this.extension.categories?.some(category => category.toLowerCase() === 'extension packs')) || !this.extension.extensionPack.length) {
 			return;
 		}
 		this.element = append(this.parent, $('.extension-badge.extension-pack-badge'));
@@ -438,6 +438,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		private readonly recommendationWidget: RecommendationWidget,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 	}
@@ -446,7 +447,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		this.hover.value = undefined;
 		if (this.extension) {
 			this.hover.value = setupCustomHover({
-				delay: 500,
+				delay: this.configurationService.getValue<number>('workbench.hover.delay'),
 				showHover: (options) => {
 					return this.hoverService.showHover({
 						...options,

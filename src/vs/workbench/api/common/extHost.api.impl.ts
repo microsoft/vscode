@@ -226,6 +226,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		const authentication: typeof vscode.authentication = {
 			getSession(providerId: string, scopes: readonly string[], options?: vscode.AuthenticationGetSessionOptions) {
+				if (options?.forceRecreate) {
+					checkProposedApiEnabled(extension);
+				}
 				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
 			},
 			get onDidChangeSessions(): Event<vscode.AuthenticationSessionsChangeEvent> {
@@ -341,14 +344,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			? extHostTypes.ExtensionKind.Workspace
 			: extHostTypes.ExtensionKind.UI;
 
-		const test: typeof vscode.test = {
+		const tests: typeof vscode.tests = {
 			createTestController(provider, label) {
 				checkProposedApiEnabled(extension);
 				return extHostTesting.createTestController(provider, label);
-			},
-			createTestItem(id, label, uri) {
-				checkProposedApiEnabled(extension);
-				return extHostTesting.createTestItem(id, label, uri);
 			},
 			createTestObserver() {
 				checkProposedApiEnabled(extension);
@@ -507,6 +506,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerTypeHierarchyProvider(selector: vscode.DocumentSelector, provider: vscode.TypeHierarchyProvider): vscode.Disposable {
 				checkProposedApiEnabled(extension);
 				return extHostLanguageFeatures.registerTypeHierarchyProvider(extension, selector, provider);
+			},
+			createLanguageStatusItem(selector: vscode.DocumentSelector): vscode.LanguageStatusItem {
+				checkProposedApiEnabled(extension);
+				return extHostLanguages.createLanguageStatusItem(selector);
 			}
 		};
 
@@ -639,6 +642,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			createTerminal(nameOrOptions?: vscode.TerminalOptions | vscode.ExtensionTerminalOptions | string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
 				if (typeof nameOrOptions === 'object') {
+					if (nameOrOptions.color) {
+						checkProposedApiEnabled(extension);
+					}
 					if ('pty' in nameOrOptions) {
 						return extHostTerminalService.createExtensionTerminal(nameOrOptions);
 					}
@@ -1083,8 +1089,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostNotebookEditors.createNotebookEditorDecorationType(options);
 			},
 			createRendererMessaging(rendererId) {
-				checkProposedApiEnabled(extension);
-				return extHostNotebookRenderers.createRendererMessaging(rendererId);
+				return extHostNotebookRenderers.createRendererMessaging(extension, rendererId);
 			},
 			onDidChangeNotebookDocumentMetadata(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension);
@@ -1125,7 +1130,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			notebooks,
 			scm,
 			tasks,
-			test,
+			tests,
 			window,
 			workspace,
 			// types
@@ -1223,9 +1228,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			SymbolKind: extHostTypes.SymbolKind,
 			SymbolTag: extHostTypes.SymbolTag,
 			Task: extHostTypes.Task,
-			Task2: extHostTypes.Task,
 			TaskGroup: extHostTypes.TaskGroup,
-			TaskGroup2: extHostTypes.TaskGroup,
 			TaskPanelKind: extHostTypes.TaskPanelKind,
 			TaskRevealKind: extHostTypes.TaskRevealKind,
 			TaskScope: extHostTypes.TaskScope,
@@ -1272,7 +1275,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TestResultState: extHostTypes.TestResultState,
 			TestRunRequest: extHostTypes.TestRunRequest,
 			TestMessage: extHostTypes.TestMessage,
-			TestRunConfigurationGroup: extHostTypes.TestRunConfigurationGroup,
+			TestRunProfileKind: extHostTypes.TestRunProfileKind,
 			TextSearchCompleteMessageType: TextSearchCompleteMessageType,
 			TestMessageSeverity: extHostTypes.TestMessageSeverity,
 			CoveredCount: extHostTypes.CoveredCount,
@@ -1280,7 +1283,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			StatementCoverage: extHostTypes.StatementCoverage,
 			BranchCoverage: extHostTypes.BranchCoverage,
 			FunctionCoverage: extHostTypes.FunctionCoverage,
-			WorkspaceTrustState: extHostTypes.WorkspaceTrustState
+			WorkspaceTrustState: extHostTypes.WorkspaceTrustState,
+			LanguageStatusSeverity: extHostTypes.LanguageStatusSeverity,
 		};
 	};
 }

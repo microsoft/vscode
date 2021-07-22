@@ -1280,6 +1280,13 @@ export class CallHierarchyOutgoingCall {
 	}
 }
 
+export enum LanguageStatusSeverity {
+	Information = 0,
+	Warning = 1,
+	Error = 2
+}
+
+
 @es5ClassCompat
 export class CodeLens {
 
@@ -1755,9 +1762,8 @@ export enum TaskPanelKind {
 }
 
 @es5ClassCompat
-export class TaskGroup implements vscode.TaskGroup2 {
+export class TaskGroup implements vscode.TaskGroup {
 
-	isDefault?: boolean;
 	private _id: string;
 
 	public static Clean: TaskGroup = new TaskGroup('clean', 'Clean');
@@ -3287,7 +3293,6 @@ export class PortAttributes {
 
 //#region Testing
 export enum TestResultState {
-	Unset = 0,
 	Queued = 1,
 	Running = 2,
 	Passed = 3,
@@ -3303,7 +3308,7 @@ export enum TestMessageSeverity {
 	Hint = 3
 }
 
-export enum TestRunConfigurationGroup {
+export enum TestRunProfileKind {
 	Run = 1,
 	Debug = 2,
 	Coverage = 3,
@@ -3314,13 +3319,12 @@ export class TestRunRequest implements vscode.TestRunRequest {
 	constructor(
 		public readonly include?: vscode.TestItem[],
 		public readonly exclude?: vscode.TestItem[] | undefined,
-		public readonly configuration?: vscode.TestRunConfiguration,
+		public readonly profile?: vscode.TestRunProfile,
 	) { }
 }
 
 @es5ClassCompat
 export class TestMessage implements vscode.TestMessage {
-	public severity = TestMessageSeverity.Error;
 	public expectedOutput?: string;
 	public actualOutput?: string;
 

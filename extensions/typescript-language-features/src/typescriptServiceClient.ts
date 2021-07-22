@@ -634,10 +634,25 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				this._isPromptingAfterCrash = false;
 
 				if (item === reportIssueItem) {
-					const args = previousState.type === ServerState.Type.Errored && previousState.error instanceof TypeScriptServerError
-						? getReportIssueArgsForError(previousState.error, previousState.tsServerLogFile)
-						: undefined;
-					vscode.commands.executeCommand('workbench.action.openIssueReporter', args);
+					const minModernTsVersion = this.versionProvider.bundledVersion.apiVersion;
+
+					if (minModernTsVersion && this.apiVersion.lt(minModernTsVersion)) {
+						vscode.window.showWarningMessage(
+							localize('usingOldTsVersion.title', 'Please update your TypeScript version'),
+							{
+								modal: true,
+								detail: localize(
+									'usingOldTsVersion.detail',
+									'The workspace is using an old version of TypeScript ({0}).\n\nBefore reporting an issue, please update the workspace to use the latest stable TypeScript release to make sure the bug has not already been fixed.',
+									previousState.type === ServerState.Type.Errored && previousState.error instanceof TypeScriptServerError ? previousState.error.version.apiVersion?.displayName : undefined),
+								useCustom: true
+							});
+					} else {
+						const args = previousState.type === ServerState.Type.Errored && previousState.error instanceof TypeScriptServerError
+							? getReportIssueArgsForError(previousState.error, previousState.tsServerLogFile)
+							: undefined;
+						vscode.commands.executeCommand('workbench.action.openIssueReporter', args);
+					}
 				}
 			});
 

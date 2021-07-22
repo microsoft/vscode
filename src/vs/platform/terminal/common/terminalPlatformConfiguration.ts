@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { localize } from 'vs/nls';
-import { ITerminalProfile, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { iconRegistry } from 'vs/base/common/codicons';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { localize } from 'vs/nls';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { ITerminalProfile, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { createProfileSchemaEnums } from 'vs/platform/terminal/common/terminalProfiles';
 
 const terminalProfileBaseProperties: IJSONSchemaMap = {
 	args: {
@@ -326,17 +326,9 @@ export function registerTerminalDefaultProfileConfiguration(detectedProfiles?: {
 	if (lastDefaultProfilesConfiguration) {
 		registry.deregisterConfigurations([lastDefaultProfilesConfiguration]);
 	}
-	let enumValues: string[] | undefined = undefined;
-	let enumDescriptions: string[] | undefined = undefined;
+	let profileEnum;
 	if (detectedProfiles) {
-		const result = detectedProfiles.profiles.map(e => {
-			return {
-				name: e.profileName,
-				description: createProfileDescription(e)
-			};
-		});
-		enumValues = result.map(e => e.name);
-		enumDescriptions = result.map(e => e.description);
+		profileEnum = createProfileSchemaEnums(detectedProfiles?.profiles);
 	}
 	lastDefaultProfilesConfiguration = {
 		id: 'terminal',
@@ -349,47 +341,26 @@ export function registerTerminalDefaultProfileConfiguration(detectedProfiles?: {
 				markdownDescription: localize('terminal.integrated.defaultProfile.linux', "The default profile used on Linux. This setting will currently be ignored if either {0} or {1} are set.", '`terminal.integrated.shell.linux`', '`terminal.integrated.shellArgs.linux`'),
 				type: ['string', 'null'],
 				default: null,
-				enum: detectedProfiles?.os === OperatingSystem.Linux ? enumValues : undefined,
-				markdownEnumDescriptions: detectedProfiles?.os === OperatingSystem.Linux ? enumDescriptions : undefined
+				enum: detectedProfiles?.os === OperatingSystem.Linux ? profileEnum?.values : undefined,
+				markdownEnumDescriptions: detectedProfiles?.os === OperatingSystem.Linux ? profileEnum?.markdownDescriptions : undefined
 			},
 			[TerminalSettingId.DefaultProfileMacOs]: {
 				restricted: true,
 				markdownDescription: localize('terminal.integrated.defaultProfile.osx', "The default profile used on macOS. This setting will currently be ignored if either {0} or {1} are set.", '`terminal.integrated.shell.osx`', '`terminal.integrated.shellArgs.osx`'),
 				type: ['string', 'null'],
 				default: null,
-				enum: detectedProfiles?.os === OperatingSystem.Macintosh ? enumValues : undefined,
-				markdownEnumDescriptions: detectedProfiles?.os === OperatingSystem.Macintosh ? enumDescriptions : undefined
+				enum: detectedProfiles?.os === OperatingSystem.Macintosh ? profileEnum?.values : undefined,
+				markdownEnumDescriptions: detectedProfiles?.os === OperatingSystem.Macintosh ? profileEnum?.markdownDescriptions : undefined
 			},
 			[TerminalSettingId.DefaultProfileWindows]: {
 				restricted: true,
 				markdownDescription: localize('terminal.integrated.defaultProfile.windows', "The default profile used on Windows. This setting will currently be ignored if either {0} or {1} are set.", '`terminal.integrated.shell.windows`', '`terminal.integrated.shellArgs.windows`'),
 				type: ['string', 'null'],
 				default: null,
-				enum: detectedProfiles?.os === OperatingSystem.Windows ? enumValues : undefined,
-				markdownEnumDescriptions: detectedProfiles?.os === OperatingSystem.Windows ? enumDescriptions : undefined
+				enum: detectedProfiles?.os === OperatingSystem.Windows ? profileEnum?.values : undefined,
+				markdownEnumDescriptions: detectedProfiles?.os === OperatingSystem.Windows ? profileEnum?.markdownDescriptions : undefined
 			},
 		}
 	};
 	registry.registerConfiguration(lastDefaultProfilesConfiguration);
-}
-
-function createProfileDescription(profile: ITerminalProfile): string {
-	let description = `$(${ThemeIcon.isThemeIcon(profile.icon) ? profile.icon.id : profile.icon ? profile.icon : Codicon.terminal.id}) ${profile.profileName}\n- path: ${profile.path}`;
-	if (profile.args) {
-		if (typeof profile.args === 'string') {
-			description += `\n- args: "${profile.args}"`;
-		} else {
-			description += `\n- args: [${profile.args.length === 0 ? '' : profile.args.join(`','`)}]`;
-		}
-	}
-	if (profile.overrideName !== undefined) {
-		description += `\n- overrideName: ${profile.overrideName}`;
-	}
-	if (profile.color) {
-		description += `\n- color: ${profile.color}`;
-	}
-	if (profile.env) {
-		description += `\n- env: ${JSON.stringify(profile.env)}`;
-	}
-	return description;
 }

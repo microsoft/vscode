@@ -121,7 +121,7 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 					return configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, t);
 				});
 				const result = await Promise.all(resolveCalls);
-				this._localPtyService.acceptPtyHostResolvedVariables?.(e.id, result);
+				this._localPtyService.acceptPtyHostResolvedVariables?.(e.requestId, result);
 			}));
 		}
 	}
@@ -130,8 +130,12 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		return this._localPtyService.requestDetachInstance(workspaceId, instanceId);
 	}
 
-	async acceptDetachedInstance(requestId: number, persistentProcessId: number): Promise<IProcessDetails | undefined> {
-		return this._localPtyService.acceptDetachedInstance(requestId, persistentProcessId);
+	async acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void> {
+		if (!persistentProcessId) {
+			this._logService.warn('Cannot attach to feature terminals, custom pty terminals, or those without a persistentProcessId');
+			return;
+		}
+		return this._localPtyService.acceptDetachInstanceReply(requestId, persistentProcessId);
 	}
 
 	async updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void> {

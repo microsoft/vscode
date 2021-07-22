@@ -6,6 +6,7 @@
 import * as fs from 'fs';
 import * as cp from 'child_process';
 import * as path from 'path';
+import * as os from 'os';
 import * as minimist from 'minimist';
 import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
@@ -13,15 +14,7 @@ import * as mkdirp from 'mkdirp';
 import { ncp } from 'ncp';
 import * as vscodetest from 'vscode-test';
 import fetch from 'node-fetch';
-import {
-	Application,
-	Quality,
-	ApplicationOptions,
-	MultiLogger,
-	Logger,
-	ConsoleLogger,
-	FileLogger,
-} from '../../automation';
+import { Quality, ApplicationOptions, MultiLogger, Logger, ConsoleLogger, FileLogger } from '../../automation';
 
 import { setup as setupDataMigrationTests } from './areas/workbench/data-migration.test';
 import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
@@ -255,7 +248,11 @@ async function ensureStableCode(): Promise<void> {
 
 		console.log(`*** Found VS Code v${version}, downloading previous VS Code version ${previousVersion.version}...`);
 
-		const stableCodeExecutable = await vscodetest.downloadAndUnzipVSCode(previousVersion.version);
+		const stableCodeExecutable = await vscodetest.download({
+			cachePath: path.join(os.tmpdir(), 'vscode-test'),
+			version: previousVersion.version
+		});
+
 		if (process.platform === 'darwin') {
 			// Visual Studio Code.app/Contents/MacOS/Electron
 			stableCodePath = path.dirname(path.dirname(path.dirname(stableCodeExecutable)));
@@ -335,45 +332,22 @@ after(async function () {
 	await new Promise((c, e) => rimraf(testDataPath, { maxBusyTries: 10 }, err => err ? e(err) : c(undefined)));
 });
 
-describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
-	if (screenshotsPath) {
-		afterEach(async function () {
-			if (this.currentTest!.state !== 'failed') {
-				return;
-			}
-			const app = this.app as Application;
-			const name = this.currentTest!.fullTitle().replace(/[^a-z0-9\-]/ig, '_');
-
-			await app.captureScreenshot(name);
-		});
-	}
-
-	if (opts.log) {
-		beforeEach(async function () {
-			const app = this.app as Application;
-			const title = this.currentTest!.fullTitle();
-
-			app.logger.log('*** Test start:', title);
-		});
-	}
-
-	if (!opts.web && opts['build'] && !opts['remote']) {
-		describe(`Stable vs Insiders Smoke Tests: This test MUST run before releasing`, () => {
-			setupDataMigrationTests(opts, testDataPath);
-		});
-	}
-
-	describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
-		if (!opts.web) { setupDataLossTests(opts); }
-		if (!opts.web) { setupDataPreferencesTests(opts); }
-		setupDataSearchTests(opts);
-		setupDataNotebookTests(opts);
-		setupDataLanguagesTests(opts);
-		setupDataEditorTests(opts);
-		setupDataStatusbarTests(opts);
-		setupDataExtensionTests(opts);
-		if (!opts.web) { setupDataMultirootTests(opts); }
-		if (!opts.web) { setupDataLocalizationTests(opts); }
-		if (!opts.web) { setupLaunchTests(); }
+if (!opts.web && opts['build'] && !opts['remote']) {
+	describe(`Stable vs Insiders Smoke Tests: This test MUST run before releasing`, () => {
+		setupDataMigrationTests(opts, testDataPath);
 	});
+}
+
+describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
+	if (!opts.web) { setupDataLossTests(opts); }
+	if (!opts.web) { setupDataPreferencesTests(opts); }
+	setupDataSearchTests(opts);
+	setupDataNotebookTests(opts);
+	setupDataLanguagesTests(opts);
+	setupDataEditorTests(opts);
+	setupDataStatusbarTests(opts);
+	setupDataExtensionTests(opts);
+	if (!opts.web) { setupDataMultirootTests(opts); }
+	if (!opts.web) { setupDataLocalizationTests(opts); }
+	if (!opts.web) { setupLaunchTests(); }
 });

@@ -164,7 +164,16 @@ const tokenColorSchema: IJSONSchema = {
 			markdownDeprecationMessage: nls.localize('editorColors.semanticHighlighting.deprecationMessageMarkdown', 'Use `enabled` in `#editor.semanticTokenColorCustomizations#` setting instead.'),
 			type: 'boolean'
 		}
-	}
+	},
+	patternProperties: {
+		'^\\[[^\\]]*(\\]\\s*\\[[^\\]]*)*\\]$': {
+			type: 'object'
+		},
+		'^[^\\[\\]]*$': {
+			type: 'object'
+		}
+	},
+	additionalProperties: false
 };
 
 const tokenColorCustomizationSchema: IConfigurationPropertySchema = {
@@ -327,7 +336,7 @@ export class ThemeConfiguration {
 	}
 
 	private async writeConfiguration(key: string, value: any, settingsTarget: ThemeSettingTarget): Promise<void> {
-		if (settingsTarget === undefined) {
+		if (settingsTarget === undefined || settingsTarget === 'preview') {
 			return;
 		}
 

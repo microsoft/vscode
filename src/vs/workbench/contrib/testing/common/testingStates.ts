@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
-
-export { TestResultState } from 'vs/workbench/api/common/extHostTypes';
+import { TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export type TreeStateNode = { statusNode: true; state: TestResultState; priority: number };
 

@@ -6,9 +6,10 @@
 import * as assert from 'assert';
 import { range } from 'vs/base/common/arrays';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestResult, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { InMemoryResultStorage, RETAIN_MAX_RESULTS } from 'vs/workbench/contrib/testing/common/testResultStorage';
-import { Convert, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
+import { Convert, TestItemImpl, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
 import { emptyOutputController } from 'vs/workbench/contrib/testing/test/common/testResultService.test';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
@@ -26,14 +27,14 @@ suite('Workbench - Test Result Storage', () => {
 		t.addTask({ id: 't', name: undefined, running: true });
 		const tests = testStubs.nested();
 		tests.expand(tests.root.id, Infinity);
-		t.addTestChainToRun('ctrl', [
+		t.addTestChainToRun('ctrlId', [
 			Convert.TestItem.from(tests.root),
-			Convert.TestItem.from(tests.root.children.get('id-a')!),
-			Convert.TestItem.from(tests.root.children.get('id-a')!.children.get('id-aa')!),
+			Convert.TestItem.from(tests.root.children.get('id-a') as TestItemImpl),
+			Convert.TestItem.from(tests.root.children.get('id-a')!.children.get('id-aa') as TestItemImpl),
 		]);
 
 		if (addMessage) {
-			t.appendMessage('id-a', 't', {
+			t.appendMessage(new TestId(['ctrlId', 'id-a']).toString(), 't', {
 				message: addMessage,
 				actualOutput: undefined,
 				expectedOutput: undefined,
@@ -75,7 +76,8 @@ suite('Workbench - Test Result Storage', () => {
 	test('limits stored result by budget', async () => {
 		const r = range(100).map(() => makeResult('a'.repeat(2048)));
 		await storage.persist(r);
-		assert.strictEqual(true, (await storage.read()).length < 50);
+		const length = (await storage.read()).length;
+		assert.strictEqual(true, length < 50);
 	});
 
 	test('always stores the min number of results', async () => {

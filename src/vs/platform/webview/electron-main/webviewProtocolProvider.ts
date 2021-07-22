@@ -26,7 +26,7 @@ export class WebviewProtocolProvider extends Disposable {
 		protocol.registerFileProtocol(Schemas.vscodeWebview, webviewHandler);
 	}
 
-	private async handleWebviewRequest(
+	private handleWebviewRequest(
 		request: Electron.ProtocolRequest,
 		callback: (response: string | Electron.ProtocolResponse) => void
 	) {
@@ -37,10 +37,12 @@ export class WebviewProtocolProvider extends Disposable {
 				const relativeResourcePath = `vs/workbench/contrib/webview/browser/pre/${entry}`;
 				const url = FileAccess.asFileUri(relativeResourcePath, require);
 				return callback(decodeURIComponent(url.fsPath));
+			} else {
+				return callback({ error: -10 /* ACCESS_DENIED - https://cs.chromium.org/chromium/src/net/base/net_error_list.h?l=32 */ });
 			}
 		} catch {
 			// noop
 		}
-		callback({ error: -10 /* ACCESS_DENIED - https://cs.chromium.org/chromium/src/net/base/net_error_list.h?l=32 */ });
+		return callback({ error: -2 /* FAILED - https://cs.chromium.org/chromium/src/net/base/net_error_list.h?l=32 */ });
 	}
 }
