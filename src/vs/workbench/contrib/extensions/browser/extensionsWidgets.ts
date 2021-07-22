@@ -31,7 +31,6 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import Severity from 'vs/base/common/severity';
 import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { Color } from 'vs/base/common/color';
-import { isString } from 'vs/base/common/types';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension | null = null;
@@ -448,11 +447,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 				if (extensionStatus.icon) {
 					markdown.appendMarkdown(`$(${extensionStatus.icon.id})&nbsp;`);
 				}
-				if (isString(extensionStatus.message)) {
-					markdown.appendText(extensionStatus.message);
-				} else {
-					markdown.appendMarkdown(extensionStatus.message.value);
-				}
+				markdown.appendMarkdown(extensionStatus.message.value);
 				if (this.extension.enablementState === EnablementState.DisabledByExtensionDependency && this.extension.local) {
 					markdown.appendMarkdown(`&nbsp;[${localize('dependencies', "Show Dependencies")}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.Dependencies]))}`)})`);
 				}

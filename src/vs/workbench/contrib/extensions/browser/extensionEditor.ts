@@ -49,7 +49,7 @@ import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { getDefaultValue } from 'vs/platform/configuration/common/configurationRegistry';
-import { isString, isUndefined } from 'vs/base/common/types';
+import { isUndefined } from 'vs/base/common/types';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IWebviewService, Webview, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -464,11 +464,7 @@ export class ExtensionEditor extends EditorPane {
 				if (status.icon) {
 					markdown.appendMarkdown(`$(${status.icon.id})&nbsp;`);
 				}
-				if (isString(status.message)) {
-					markdown.appendText(status.message);
-				} else {
-					markdown.appendMarkdown(status.message.value);
-				}
+				markdown.appendMarkdown(status.message.value);
 				append(template.status, renderMarkdown(markdown));
 			}
 		};

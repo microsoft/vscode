@@ -62,7 +62,7 @@ import { isIOS, isWeb } from 'vs/base/common/platform';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 
 function getRelativeDateLabel(date: Date): string {
 	const delta = new Date().getTime() - date.getTime();
@@ -1958,7 +1958,7 @@ export class ToggleSyncExtensionAction extends ExtensionDropDownAction {
 	}
 }
 
-export type ExtensionStatus = { readonly message: IMarkdownString | string, readonly icon?: ThemeIcon };
+export type ExtensionStatus = { readonly message: IMarkdownString, readonly icon?: ThemeIcon };
 
 export class ExtensionStatusAction extends ExtensionAction {
 
@@ -2007,7 +2007,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 
 		if (this.extension.state === ExtensionState.Uninstalled && !this.extensionsWorkbenchService.canInstall(this.extension) && this.extension.gallery) {
 			if (this.extension.isMalicious) {
-				this.updateStatus({ icon: warningIcon, message: localize('malicious tooltip', "This extension was reported to be problematic.") }, true);
+				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('malicious tooltip', "This extension was reported to be problematic.")) }, true);
 				return;
 			}
 
@@ -2016,7 +2016,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 				const productName = isWeb ? localize({ key: 'vscode web', comment: ['VS Code Web is the name of the product'] }, "VS Code Web") : this.productService.nameLong;
 				let message;
 				if (this.extension.gallery.webExtension) {
-					message = localize('user disabled', "You have configured the '{0}' extension to be disabled in {1}. To enable it, please open user settings and remove it from `remote.extensionKind` setting.", this.extension.displayName || this.extension.identifier.id, productName);
+					message = new MarkdownString(localize('user disabled', "You have configured the '{0}' extension to be disabled in {1}. To enable it, please open user settings and remove it from `remote.extensionKind` setting.", this.extension.displayName || this.extension.identifier.id, productName));
 				} else {
 					message = new MarkdownString(`${localize('not web tooltip', "The '{0}' extension is not available in {1}. Click {2} to learn more.", this.extension.displayName || this.extension.identifier.id, productName, `[${localize('more info', "More Information")}](https://aka.ms/vscode-remote-codespaces#_why-is-an-extension-not-installable-in-the-browser)`)}`);
 				}
@@ -2035,20 +2035,20 @@ export class ExtensionStatusAction extends ExtensionAction {
 
 		// Extension is disabled by environment
 		if (this.extension.enablementState === EnablementState.DisabledByEnvironment) {
-			this.updateStatus({ message: localize('disabled by environment', "This extension is disabled by the environment.") }, true);
+			this.updateStatus({ message: new MarkdownString(localize('disabled by environment', "This extension is disabled by the environment.")) }, true);
 			return;
 		}
 
 		// Extension is enabled by environment
 		if (this.extension.enablementState === EnablementState.EnabledByEnvironment) {
-			this.updateStatus({ message: localize('enabled by environment', "This extension is enabled because it is required in the current environment.") }, true);
+			this.updateStatus({ message: new MarkdownString(localize('enabled by environment', "This extension is enabled because it is required in the current environment.")) }, true);
 			return;
 		}
 
 		// Extension is disabled by virtual workspace
 		if (this.extension.enablementState === EnablementState.DisabledByVirtualWorkspace) {
 			const details = getWorkspaceSupportTypeMessage(this.extension.local.manifest.capabilities?.virtualWorkspaces);
-			this.updateStatus({ icon: infoIcon, message: details || localize('disabled because of virtual workspace', "This extension has been disabled because it does not support virtual workspaces.") }, true);
+			this.updateStatus({ icon: infoIcon, message: new MarkdownString(details ? escapeMarkdownSyntaxTokens(details) : localize('disabled because of virtual workspace', "This extension has been disabled because it does not support virtual workspaces.")) }, true);
 			return;
 		}
 
@@ -2057,7 +2057,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 			const virtualSupportType = this.extensionManifestPropertiesService.getExtensionVirtualWorkspaceSupportType(this.extension.local.manifest);
 			const details = getWorkspaceSupportTypeMessage(this.extension.local.manifest.capabilities?.virtualWorkspaces);
 			if (virtualSupportType === 'limited' || details) {
-				this.updateStatus({ icon: infoIcon, message: details || localize('extension limited because of virtual workspace', "This extension has limited features because the current workspace is virtual.") }, true);
+				this.updateStatus({ icon: infoIcon, message: new MarkdownString(details ? escapeMarkdownSyntaxTokens(details) : localize('extension limited because of virtual workspace', "This extension has limited features because the current workspace is virtual.")) }, true);
 				return;
 			}
 		}
@@ -2068,7 +2068,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 			(this.extension.enablementState === EnablementState.DisabledByExtensionDependency && this.workbenchExtensionEnablementService.getDependenciesEnablementStates(this.extension.local).every(([, enablementState]) => this.workbenchExtensionEnablementService.isEnabledEnablementState(enablementState) || enablementState === EnablementState.DisabledByTrustRequirement))) {
 			this.enabled = true;
 			const untrustedDetails = getWorkspaceSupportTypeMessage(this.extension.local.manifest.capabilities?.untrustedWorkspaces);
-			this.updateStatus({ icon: trustIcon, message: untrustedDetails || localize('extension disabled because of trust requirement', "This extension has been disabled because the current workspace is not trusted.") }, true);
+			this.updateStatus({ icon: trustIcon, message: new MarkdownString(untrustedDetails ? escapeMarkdownSyntaxTokens(untrustedDetails) : localize('extension disabled because of trust requirement', "This extension has been disabled because the current workspace is not trusted.")) }, true);
 			return;
 		}
 
@@ -2078,7 +2078,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 			const untrustedDetails = getWorkspaceSupportTypeMessage(this.extension.local.manifest.capabilities?.untrustedWorkspaces);
 			if (untrustedSupportType === 'limited' || untrustedDetails) {
 				this.enabled = true;
-				this.updateStatus({ icon: trustIcon, message: untrustedDetails || localize('extension limited because of trust requirement', "This extension has limited features because the current workspace is not trusted.") }, true);
+				this.updateStatus({ icon: trustIcon, message: new MarkdownString(untrustedDetails ? escapeMarkdownSyntaxTokens(untrustedDetails) : localize('extension limited because of trust requirement', "This extension has limited features because the current workspace is not trusted.")) }, true);
 				return;
 			}
 		}
@@ -2089,9 +2089,9 @@ export class ExtensionStatusAction extends ExtensionAction {
 				const server = this.extensionManagementServerService.localExtensionManagementServer === this.extension.server ? this.extensionManagementServerService.remoteExtensionManagementServer : this.extensionManagementServerService.localExtensionManagementServer;
 				let message;
 				if (server) {
-					message = localize('Install in other server to enable', "Install the extension on '{0}' to enable.", server.label);
+					message = new MarkdownString(localize('Install in other server to enable', "Install the extension on '{0}' to enable.", server.label));
 				} else {
-					message = localize('disabled because of extension kind', "This extension has defined that it cannot run on the remote server");
+					message = new MarkdownString(localize('disabled because of extension kind', "This extension has defined that it cannot run on the remote server"));
 				}
 				this.updateStatus({ icon: warningIcon, message }, true);
 				return;
@@ -2103,8 +2103,8 @@ export class ExtensionStatusAction extends ExtensionAction {
 			if (isLanguagePackExtension(this.extension.local.manifest)) {
 				if (!this.extensionsWorkbenchService.installed.some(e => areSameExtensions(e.identifier, this.extension!.identifier) && e.server !== this.extension!.server)) {
 					const message = this.extension.server === this.extensionManagementServerService.localExtensionManagementServer
-						? localize('Install language pack also in remote server', "Install the language pack extension on '{0}' to enable it there also.", this.extensionManagementServerService.remoteExtensionManagementServer.label)
-						: localize('Install language pack also locally', "Install the language pack extension locally to enable it there also.");
+						? new MarkdownString(localize('Install language pack also in remote server', "Install the language pack extension on '{0}' to enable it there also.", this.extensionManagementServerService.remoteExtensionManagementServer.label))
+						: new MarkdownString(localize('Install language pack also locally', "Install the language pack extension locally to enable it there also."));
 					this.updateStatus({ icon: infoIcon, message }, true);
 				}
 				return;
@@ -2114,14 +2114,14 @@ export class ExtensionStatusAction extends ExtensionAction {
 			const runningExtensionServer = runningExtension ? this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension)) : null;
 			if (this.extension.server === this.extensionManagementServerService.localExtensionManagementServer && runningExtensionServer === this.extensionManagementServerService.remoteExtensionManagementServer) {
 				if (this.extensionManifestPropertiesService.prefersExecuteOnWorkspace(this.extension.local!.manifest)) {
-					this.updateStatus({ icon: infoIcon, message: localize('disabled locally', "Extension is enabled on '{0}' and disabled locally.", this.extensionManagementServerService.remoteExtensionManagementServer.label) }, true);
+					this.updateStatus({ icon: infoIcon, message: new MarkdownString(localize('disabled locally', "Extension is enabled on '{0}' and disabled locally.", this.extensionManagementServerService.remoteExtensionManagementServer.label)) }, true);
 				}
 				return;
 			}
 
 			if (this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer && runningExtensionServer === this.extensionManagementServerService.localExtensionManagementServer) {
 				if (this.extensionManifestPropertiesService.prefersExecuteOnUI(this.extension.local!.manifest)) {
-					this.updateStatus({ icon: infoIcon, message: localize('disabled remotely', "Extension is enabled locally and disabled on '{0}'.", this.extensionManagementServerService.remoteExtensionManagementServer.label) }, true);
+					this.updateStatus({ icon: infoIcon, message: new MarkdownString(localize('disabled remotely', "Extension is enabled locally and disabled on '{0}'.", this.extensionManagementServerService.remoteExtensionManagementServer.label)) }, true);
 				}
 				return;
 			}
@@ -2129,7 +2129,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 
 		// Extension is disabled by its dependency
 		if (this.extension.enablementState === EnablementState.DisabledByExtensionDependency) {
-			this.updateStatus({ icon: warningIcon, message: localize('extension disabled because of dependency', "This extension has been disabled because it depends on an extension that is disabled.") }, true);
+			this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('extension disabled because of dependency', "This extension has been disabled because it depends on an extension that is disabled.")) }, true);
 			return;
 		}
 
@@ -2139,27 +2139,27 @@ export class ExtensionStatusAction extends ExtensionAction {
 		if (isEnabled && isRunning) {
 			if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
 				if (this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer) {
-					this.updateStatus({ message: localize('extension enabled on remote', "Extension is enabled on '{0}'", this.extension.server.label) }, true);
+					this.updateStatus({ message: new MarkdownString(localize('extension enabled on remote', "Extension is enabled on '{0}'", this.extension.server.label)) }, true);
 					return;
 				}
 			}
 			if (this.extension.enablementState === EnablementState.EnabledGlobally) {
-				this.updateStatus({ message: localize('globally enabled', "This extension is enabled globally.") }, true);
+				this.updateStatus({ message: new MarkdownString(localize('globally enabled', "This extension is enabled globally.")) }, true);
 				return;
 			}
 			if (this.extension.enablementState === EnablementState.EnabledWorkspace) {
-				this.updateStatus({ message: localize('workspace enabled', "This extension is enabled for this workspace by the user.") }, true);
+				this.updateStatus({ message: new MarkdownString(localize('workspace enabled', "This extension is enabled for this workspace by the user.")) }, true);
 				return;
 			}
 		}
 
 		if (!isEnabled && !isRunning) {
 			if (this.extension.enablementState === EnablementState.DisabledGlobally) {
-				this.updateStatus({ message: localize('globally disabled', "This extension is disabled globally by the user.") }, true);
+				this.updateStatus({ message: new MarkdownString(localize('globally disabled', "This extension is disabled globally by the user.")) }, true);
 				return;
 			}
 			if (this.extension.enablementState === EnablementState.DisabledWorkspace) {
-				this.updateStatus({ message: localize('workspace disabled', "This extension is disabled for this workspace by the user.") }, true);
+				this.updateStatus({ message: new MarkdownString(localize('workspace disabled', "This extension is disabled for this workspace by the user.")) }, true);
 				return;
 			}
 		}
