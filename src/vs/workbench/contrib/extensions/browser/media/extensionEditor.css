@@ -376,6 +376,7 @@
 
 .extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info  > .more-info-entry code {
 	background-color: transparent;
+	padding: 0px;
 }
 
 .extension-editor > .body > .content  > .details > .readme-container > .extension-pack-readme {
