@@ -373,8 +373,21 @@ export namespace TaskGroup {
 
 	export const Test: TaskGroup = { _id: 'test', isDefault: false };
 
-	export function is(value: any): value is TaskGroup {
+	export function is(value: any): value is string {
 		return value === Clean._id || value === Build._id || value === Rebuild._id || value === Test._id;
+	}
+
+	export function from(value: string | TaskGroup | undefined): TaskGroup | undefined {
+		if (value === undefined) {
+			return undefined;
+		} else if (Types.isString(value)) {
+			if (is(value)) {
+				return { _id: value, isDefault: false };
+			}
+			return undefined;
+		} else {
+			return value as TaskGroup;
+		}
 	}
 }
 
@@ -468,11 +481,6 @@ export interface TaskDependency {
 	task: string | KeyedTaskIdentifier | undefined;
 }
 
-export const enum GroupType {
-	default = 'default',
-	user = 'user'
-}
-
 export const enum DependsOrder {
 	parallel = 'parallel',
 	sequence = 'sequence'
@@ -493,12 +501,7 @@ export interface ConfigurationProperties {
 	/**
 	 * The task's group;
 	 */
-	group?: TaskGroup;
-
-	/**
-	 * The group type
-	 */
-	groupType?: GroupType;
+	group?: string | TaskGroup;
 
 	/**
 	 * The presentation options
@@ -1078,7 +1081,7 @@ export interface TaskEvent {
 	taskId?: string;
 	taskName?: string;
 	runType?: TaskRunType;
-	group?: TaskGroup;
+	group?: string | TaskGroup;
 	processId?: number;
 	exitCode?: number;
 	terminalId?: number;
