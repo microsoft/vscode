@@ -104,6 +104,9 @@ export class FoldingModel {
 		let initRange = (index: number, isCollapsed: boolean) => {
 			const startLineNumber = newRegions.getStartLineNumber(index);
 			const endLineNumber = newRegions.getEndLineNumber(index);
+			if (!isCollapsed) {
+				isCollapsed = newRegions.isCollapsed(index);
+			}
 			if (isCollapsed && isBlocked(startLineNumber, endLineNumber)) {
 				isCollapsed = false;
 			}
