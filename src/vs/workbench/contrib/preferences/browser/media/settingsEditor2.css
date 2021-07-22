@@ -281,12 +281,15 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents {
-	max-width: min(100%, 1000px);
+	max-width: 1000px;
 	margin: auto;
 	box-sizing: border-box;
 	padding-left: 221px;
 	padding-right: 24px;
 	overflow: visible;
+}
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents.group-title {
+	max-width: min(100%, 1000px); /* Cut off title if too long for window */
 }
 
 .settings-editor > .settings-body > .settings-tree-container .settings-group-title-label,

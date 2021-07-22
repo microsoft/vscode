@@ -383,9 +383,9 @@ export async function resolveExtensionsSettings(extensionService: IExtensionServ
 		let sectionOrder = 0;
 		const extensionConfiguration = extension?.contributes?.configuration;
 		if (Array.isArray(extensionConfiguration)) {
-			const currentSection = extensionConfiguration.find((config) => (config as any)?.id === group.id);
+			const currentSection = extensionConfiguration.find((config) => config.id === group.id);
 			if (currentSection) {
-				sectionOrder = (currentSection as any)?.order ?? 0;
+				sectionOrder = currentSection.order ?? 0;
 			}
 		}
 
