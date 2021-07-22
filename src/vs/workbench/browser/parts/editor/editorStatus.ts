@@ -55,6 +55,7 @@ import { ThemeColor, themeColorFromId } from 'vs/platform/theme/common/themeServ
 import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { ILanguageStatus, ILanguageStatusService } from 'vs/editor/common/services/languageStatusService';
+import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
@@ -339,6 +340,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IUntitledTextEditorService private readonly untitledEditorService: IUntitledTextEditorService,
 	) {
 		super();
 
@@ -780,6 +782,10 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			if (textModel) {
 				const modeId = textModel.getLanguageIdentifier().language;
 				info.mode = withNullAsUndefined(this.modeService.getLanguageName(modeId));
+				const untitledTextEditorModel = this.untitledEditorService.get(textModel.uri);
+				if (untitledTextEditorModel) {
+					info.mode += untitledTextEditorModel.hasModeSetExplicitly ? '' : localize('languageModeAuto', " (Auto)");
+				}
 			}
 		}
 

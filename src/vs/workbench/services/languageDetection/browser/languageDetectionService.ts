@@ -13,6 +13,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { URI } from 'vs/base/common/uri';
 import { isWeb } from 'vs/base/common/platform';
+import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -27,24 +29,27 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 	constructor(
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IModeService private readonly _modeService: IModeService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService) {
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IUntitledTextEditorService private readonly _untitledTextEditorService: IUntitledTextEditorService) {
 		super();
 
-		this._register(untitledTextEditorService.onDidChangeContent(async e => {
-			if (!configurationService.getValue<boolean>('workbench.editor.untitled.languageDetection', { overrideIdentifier: e.getMode() })) {
-				return;
-			}
-
-			const value = untitledTextEditorService.getValue(e.resource);
-			if (!value) { return; }
-			const lang = await this.detectLanguage(value);
-			if (!lang) { return; }
-			e.setMode(lang);
-		}));
+		this._register(_untitledTextEditorService.onDidChangeContent(e => this.handleChangeEvent(e)));
 	}
 
-	async getModelOperations(): Promise<ModelOperations> {
+	private async handleChangeEvent(e: IUntitledTextEditorModel) {
+		const settingValue = this._configurationService.getValue<boolean>('workbench.editor.untitled.languageDetection', { overrideIdentifier: e.getMode() });
+		if (!settingValue || e.hasModeSetExplicitly) {
+			return;
+		}
+
+		const value = this._untitledTextEditorService.getValue(e.resource);
+		if (!value) { return; }
+		const lang = await this.detectLanguage(value);
+		if (!lang) { return; }
+		e.setMode(lang, false);
+	}
+
+	private async getModelOperations(): Promise<ModelOperations> {
 		if (this._modelOperations) {
 			return this._modelOperations;
 		}
@@ -135,3 +140,4 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench)
 	.registerWorkbenchContribution(LanguageDetectionService, LifecyclePhase.Eventually);
+registerSingleton(ILanguageDetectionService, LanguageDetectionService);
