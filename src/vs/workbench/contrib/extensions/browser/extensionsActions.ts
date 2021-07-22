@@ -1965,7 +1965,7 @@ export class ExtensionToolTipAction extends ExtensionAction {
 	private _runningExtensions: IExtensionDescription[] | null = null;
 
 	constructor(
-		private readonly extensionStatusIconAction: ExtensionStatusIconAction,
+		private readonly extensionStatusIconAction: ExtensionStatusAction,
 		private readonly reloadAction: ReloadAction,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IExtensionService private readonly extensionService: IExtensionService,
@@ -2034,9 +2034,9 @@ export class ExtensionToolTipAction extends ExtensionAction {
 	}
 }
 
-export class ExtensionStatusIconAction extends ExtensionAction {
+export class ExtensionStatusAction extends ExtensionAction {
 
-	private static readonly CLASS = `${ExtensionAction.ICON_ACTION_CLASS} extension-status-icon`;
+	private static readonly CLASS = `${ExtensionAction.ICON_ACTION_CLASS} extension-status`;
 
 	updateWhenCounterExtensionChanges: boolean = true;
 	private _runningExtensions: IExtensionDescription[] | null = null;
@@ -2060,7 +2060,7 @@ export class ExtensionStatusIconAction extends ExtensionAction {
 		@IProductService private readonly productService: IProductService,
 		@IWorkbenchExtensionEnablementService private readonly workbenchExtensionEnablementService: IWorkbenchExtensionEnablementService,
 	) {
-		super('extensions.install', '', `${ExtensionStatusIconAction.CLASS} hide`, false);
+		super('extensions.install', '', `${ExtensionStatusAction.CLASS} hide`, false);
 		this._register(this.labelService.onDidChangeFormatters(() => this.update(), this));
 		this._register(this.extensionService.onDidChangeExtensions(this.updateRunningExtensions, this));
 		this.updateRunningExtensions();
@@ -2072,7 +2072,7 @@ export class ExtensionStatusIconAction extends ExtensionAction {
 	}
 
 	update(): void {
-		this.class = `${ExtensionStatusIconAction.CLASS} hide`;
+		this.class = `${ExtensionStatusAction.CLASS} hide`;
 		this._statusIcon = undefined;
 		this.updateStatusMessage('');
 		this.enabled = false;
@@ -2220,16 +2220,16 @@ export class ExtensionStatusIconAction extends ExtensionAction {
 	private updateStatusIcon(statusIcon: ThemeIcon): void {
 		this._statusIcon = statusIcon;
 		if (this.statusIcon === errorIcon) {
-			this.class = `${ExtensionStatusIconAction.CLASS} extension-status-icon-error ${ThemeIcon.asClassName(errorIcon)}`;
+			this.class = `${ExtensionStatusAction.CLASS} extension-status-error ${ThemeIcon.asClassName(errorIcon)}`;
 		}
 		if (this.statusIcon === warningIcon) {
-			this.class = `${ExtensionStatusIconAction.CLASS} extension-status-icon-warning ${ThemeIcon.asClassName(warningIcon)}`;
+			this.class = `${ExtensionStatusAction.CLASS} extension-status-warning ${ThemeIcon.asClassName(warningIcon)}`;
 		}
 		if (this.statusIcon === infoIcon) {
-			this.class = `${ExtensionStatusIconAction.CLASS} extension-status-icon-info ${ThemeIcon.asClassName(infoIcon)}`;
+			this.class = `${ExtensionStatusAction.CLASS} extension-status-info ${ThemeIcon.asClassName(infoIcon)}`;
 		}
 		if (this.statusIcon === trustIcon) {
-			this.class = `${ExtensionStatusIconAction.CLASS} ${ThemeIcon.asClassName(trustIcon)}`;
+			this.class = `${ExtensionStatusAction.CLASS} ${ThemeIcon.asClassName(trustIcon)}`;
 		}
 	}
 
@@ -2244,66 +2244,6 @@ export class ExtensionStatusIconAction extends ExtensionAction {
 		}
 	}
 }
-
-export class ExtensionRuntimeStatusIconAction extends ExtensionAction {
-
-	private static readonly CLASS = `${ExtensionAction.ICON_ACTION_CLASS} extension-status-icon`;
-
-	constructor(
-		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@IWorkbenchExtensionEnablementService private readonly workbenchExtensionEnablementService: IWorkbenchExtensionEnablementService,
-	) {
-		super('extensions.runtimeStatusIconAction', '', `${ExtensionRuntimeStatusIconAction.CLASS} hide`, false);
-		this._register(this.extensionService.onDidChangeExtensionsStatus(extensions => {
-			if (this.extension && extensions.some(e => areSameExtensions({ id: e.value }, this.extension!.identifier))) {
-				this.update();
-			}
-		}));
-		this.update();
-	}
-
-	update(): void {
-		this.class = `${ExtensionRuntimeStatusIconAction.CLASS} hide`;
-		this.enabled = false;
-
-		if (!this.extension?.local) {
-			return;
-		}
-
-		// Extension is enabled
-		if (this.workbenchExtensionEnablementService.isEnabled(this.extension.local)) {
-			const extensionStatus = this.extensionsWorkbenchService.getExtensionStatus(this.extension);
-			if (extensionStatus?.runtimeErrors.length) {
-				this.updateStatusIcon(errorIcon);
-				return;
-			}
-			if (extensionStatus?.messages.length) {
-				const hasErrors = extensionStatus.messages.some(message => message.type === Severity.Error);
-				const hasWarnings = extensionStatus.messages.some(message => message.type === Severity.Warning);
-				if (hasErrors || hasWarnings) {
-					this.updateStatusIcon(hasErrors ? errorIcon : warningIcon);
-				}
-				return;
-			}
-		}
-	}
-
-	private updateStatusIcon(statusIcon: ThemeIcon): void {
-		if (statusIcon === errorIcon) {
-			this.class = `${ExtensionRuntimeStatusIconAction.CLASS} extension-status-icon-error ${ThemeIcon.asClassName(errorIcon)}`;
-		}
-		if (statusIcon === warningIcon) {
-			this.class = `${ExtensionRuntimeStatusIconAction.CLASS} extension-status-icon-warning ${ThemeIcon.asClassName(warningIcon)}`;
-		}
-		if (statusIcon === infoIcon) {
-			this.class = `${ExtensionRuntimeStatusIconAction.CLASS} extension-status-icon-info ${ThemeIcon.asClassName(infoIcon)}`;
-		}
-	}
-
-	override async run(): Promise<any> { }
-}
-
 
 export class ReinstallAction extends Action {
 
@@ -2744,24 +2684,24 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 
 	const errorColor = theme.getColor(editorErrorForeground);
 	if (errorColor) {
-		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.extension-status-icon-error { color: ${errorColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.extension-status-icon-error { color: ${errorColor}; }`);
+		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.extension-status-error { color: ${errorColor}; }`);
+		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.extension-status-error { color: ${errorColor}; }`);
 		collector.addRule(`.extension-editor .body .subcontent .runtime-status ${ThemeIcon.asCSSSelector(errorIcon)} { color: ${errorColor}; }`);
 		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(errorIcon)} { color: ${errorColor}; }`);
 	}
 
 	const warningColor = theme.getColor(editorWarningForeground);
 	if (warningColor) {
-		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.extension-status-icon-warning { color: ${warningColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.extension-status-icon-warning { color: ${warningColor}; }`);
+		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.extension-status-warning { color: ${warningColor}; }`);
+		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.extension-status-warning { color: ${warningColor}; }`);
 		collector.addRule(`.extension-editor .body .subcontent .runtime-status ${ThemeIcon.asCSSSelector(warningIcon)} { color: ${warningColor}; }`);
 		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(warningIcon)} { color: ${warningColor}; }`);
 	}
 
 	const infoColor = theme.getColor(editorInfoForeground);
 	if (infoColor) {
-		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.extension-status-icon-info { color: ${infoColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.extension-status-icon-info { color: ${infoColor}; }`);
+		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.extension-status-info { color: ${infoColor}; }`);
+		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.extension-status-info { color: ${infoColor}; }`);
 		collector.addRule(`.extension-editor .body .subcontent .runtime-status ${ThemeIcon.asCSSSelector(infoIcon)} { color: ${infoColor}; }`);
 		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(infoIcon)} { color: ${infoColor}; }`);
 	}

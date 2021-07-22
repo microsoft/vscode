@@ -12,7 +12,7 @@ import { localize } from 'vs/nls';
 import { EnablementState, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { extensionButtonProminentBackground, extensionButtonProminentForeground, ExtensionStatusIconAction, ExtensionToolTipAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { extensionButtonProminentBackground, extensionButtonProminentForeground, ExtensionStatusAction, ExtensionToolTipAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IThemeService, IColorTheme, ThemeIcon, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EXTENSION_BADGE_REMOTE_BACKGROUND, EXTENSION_BADGE_REMOTE_FOREGROUND } from 'vs/workbench/common/theme';
 import { Event } from 'vs/base/common/event';
@@ -389,7 +389,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 
 	constructor(
 		private readonly options: ExtensionHoverOptions,
-		private readonly extensionStatusIconAction: ExtensionStatusIconAction,
+		private readonly extensionStatusIconAction: ExtensionStatusAction,
 		private readonly tooltipAction: ExtensionToolTipAction,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IHoverService private readonly hoverService: IHoverService,

@@ -194,7 +194,7 @@
 	max-width: 300px;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label.extension-status-icon {
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label.extension-status {
 	margin-right: 0;
 }
 

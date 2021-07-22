@@ -28,7 +28,7 @@ import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import {
 	UpdateAction, ReloadAction, EnableDropDownAction, DisableDropDownAction, ExtensionStatusLabelAction, SetFileIconThemeAction, SetColorThemeAction,
-	RemoteInstallAction, ExtensionToolTipAction, ExtensionStatusIconAction, LocalInstallAction, ToggleSyncExtensionAction, SetProductIconThemeAction,
+	RemoteInstallAction, ExtensionToolTipAction, ExtensionStatusAction, LocalInstallAction, ToggleSyncExtensionAction, SetProductIconThemeAction,
 	ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, UninstallAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction,
 	InstallAnotherVersionAction, ExtensionEditorManageExtensionAction, WebInstallAction
 } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
@@ -381,7 +381,7 @@ export class ExtensionEditor extends EditorPane {
 		];
 		const reloadAction = this.instantiationService.createInstance(ReloadAction);
 		const combinedInstallAction = this.instantiationService.createInstance(InstallDropdownAction);
-		const systemDisabledWarningAction = this.instantiationService.createInstance(ExtensionStatusIconAction);
+		const systemDisabledWarningAction = this.instantiationService.createInstance(ExtensionStatusAction);
 		const actions = [
 			reloadAction,
 			this.instantiationService.createInstance(ExtensionStatusLabelAction),
