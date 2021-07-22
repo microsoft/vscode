@@ -1158,11 +1158,6 @@ export class ChangeModeAction extends Action {
 		const textModel = activeTextEditorControl.getModel();
 		const resource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
-		let hasLanguageSupport = !!resource;
-		if (resource?.scheme === Schemas.untitled && !this.textFileService.untitled.get(resource)?.hasAssociatedFilePath) {
-			hasLanguageSupport = false; // no configuration for untitled resources (e.g. "Untitled-1")
-		}
-
 		// Compute mode
 		let currentLanguageId: string | undefined;
 		let currentModeId: string | undefined;
@@ -1171,25 +1166,38 @@ export class ChangeModeAction extends Action {
 			currentLanguageId = withNullAsUndefined(this.modeService.getLanguageName(currentModeId));
 		}
 
+		let hasLanguageSupport = !!resource;
+		let detectedLanguages: string[] = [];
+		if (resource?.scheme === Schemas.untitled && !this.textFileService.untitled.get(resource)?.hasAssociatedFilePath) {
+			hasLanguageSupport = false; // no configuration for untitled resources (e.g. "Untitled-1")
+
+			// Detect languages since we are in an untitled file
+			detectedLanguages = await this.languageDetectionService.detectLanguages(resource);
+		}
+
 		// All languages are valid picks
 		const languages = this.modeService.getRegisteredLanguageNames();
-		const picks: QuickPickInput[] = languages.sort().map(lang => {
-			const modeId = this.modeService.getModeIdForLanguageName(lang.toLowerCase()) || 'unknown';
-			const extensions = this.modeService.getExtensions(lang).join(' ');
-			let description: string;
-			if (currentLanguageId === lang) {
-				description = localize('languageDescription', "({0}) - Configured Language", modeId);
-			} else {
-				description = localize('languageDescriptionConfigured', "({0})", modeId);
-			}
+		const picks: QuickPickInput[] = languages.sort()
+			.filter(lang => {
+				const modeId = this.modeService.getModeIdForLanguageName(lang.toLowerCase()) || 'unknown';
+				return (detectedLanguages.indexOf(modeId) === -1);
+			}).map(lang => {
+				const modeId = this.modeService.getModeIdForLanguageName(lang.toLowerCase()) || 'unknown';
+				const extensions = this.modeService.getExtensions(lang).join(' ');
+				let description: string;
+				if (currentLanguageId === lang) {
+					description = localize('languageDescription', "({0}) - Configured Language", modeId);
+				} else {
+					description = localize('languageDescriptionConfigured', "({0})", modeId);
+				}
 
-			return {
-				label: lang,
-				meta: extensions,
-				iconClasses: getIconClassesForModeId(modeId),
-				description
-			};
-		});
+				return {
+					label: lang,
+					meta: extensions,
+					iconClasses: getIconClassesForModeId(modeId),
+					description
+				};
+			});
 
 		picks.unshift({ type: 'separator', label: localize('languagesPicks', "languages (identifier)") });
 
@@ -1218,28 +1226,25 @@ export class ChangeModeAction extends Action {
 
 		if (hasLanguageSupport) {
 			picks.unshift(autoDetectMode);
-		} else if (resource) {
-			// Handle language detection
-			const detectedLanguages = await this.languageDetectionService.detectLanguages(resource);
-			if (detectedLanguages) {
-				for (const modeId of detectedLanguages.reverse()) {
-					const lang = this.modeService.getLanguageName(modeId) || 'unknown';
-					let description: string;
-					if (currentLanguageId === lang) {
-						description = localize('languageDescriptionCurrent', "({0}) - Current Language", modeId);
-					} else {
-						description = localize('languageDescriptionConfigured', "({0})", modeId);
-					}
-
-					picks.unshift({
-						label: lang,
-						iconClasses: getIconClassesForModeId(modeId),
-						description
-					});
+		} else if (detectedLanguages) {
+			// Add untitled detected languages
+			for (const modeId of detectedLanguages.reverse()) {
+				const lang = this.modeService.getLanguageName(modeId) || 'unknown';
+				let description: string;
+				if (currentLanguageId === lang) {
+					description = localize('languageDescriptionCurrent', "({0}) - Current Language", modeId);
+				} else {
+					description = localize('languageDescriptionConfigured', "({0})", modeId);
 				}
 
-				picks.unshift({ type: 'separator', label: localize('detectedLanguagesPicks', "detected languages (identifier)") });
+				picks.unshift({
+					label: lang,
+					iconClasses: getIconClassesForModeId(modeId),
+					description
+				});
 			}
+
+			picks.unshift({ type: 'separator', label: localize('detectedLanguagesPicks', "detected languages (identifier)") });
 		}
 
 		const pick = await this.quickInputService.pick(picks, { placeHolder: localize('pickLanguage', "Select Language Mode"), matchOnDescription: true });
