@@ -48,7 +48,7 @@ CommandsRegistry.registerCommand({
 			if (useIntegratedTerminal) {
 				// TODO: Use uri for cwd in createterminal
 				const opened: { [path: string]: boolean } = {};
-				targets.map(({ stat }) => {
+				const cwds = targets.map(({ stat }) => {
 					const resource = stat!.resource;
 					if (stat!.isDirectory) {
 						return resource;
@@ -60,7 +60,8 @@ CommandsRegistry.registerCommand({
 						query: resource.query,
 						path: dirname(resource.path)
 					});
-				}).forEach(async cwd => {
+				});
+				for (const cwd of cwds) {
 					if (opened[cwd.path]) {
 						return;
 					}
@@ -70,7 +71,7 @@ CommandsRegistry.registerCommand({
 						integratedTerminalService.setActiveInstance(instance);
 						terminalGroupService.showPanel(true);
 					}
-				});
+				}
 			} else {
 				distinct(targets.map(({ stat }) => stat!.isDirectory ? stat!.resource.fsPath : dirname(stat!.resource.fsPath))).forEach(cwd => {
 					terminalService!.openTerminal(config.terminal.external, cwd);

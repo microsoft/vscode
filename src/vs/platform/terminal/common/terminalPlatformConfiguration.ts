@@ -9,7 +9,7 @@ import { OperatingSystem } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ITerminalProfile, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { IExtensionTerminalProfile, ITerminalProfile, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { createProfileSchemaEnums } from 'vs/platform/terminal/common/terminalProfiles';
 
 const terminalProfileBaseProperties: IJSONSchemaMap = {
@@ -210,6 +210,25 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 							...terminalProfileBaseProperties
 						}
 					},
+					{
+						type: 'object',
+						required: ['extensionIdentifier', 'id', 'title'],
+						properties: {
+							extensionIdentifier: {
+								description: localize('terminalProfile.windowsExtensionIdentifier', 'The extension that contributed this profile.'),
+								type: 'string'
+							},
+							id: {
+								description: localize('terminalProfile.windowsExtensionId', 'The id of the extension terminal'),
+								type: 'string'
+							},
+							title: {
+								description: localize('terminalProfile.windowsExtensionTitle', 'The name of the extension terminal'),
+								type: 'string'
+							},
+							...terminalProfileBaseProperties
+						}
+					},
 					{ type: 'null' },
 					terminalProfileSchema
 				]
@@ -250,6 +269,25 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			},
 			additionalProperties: {
 				'anyOf': [
+					{
+						type: 'object',
+						required: ['extensionIdentifier', 'id', 'title'],
+						properties: {
+							extensionIdentifier: {
+								description: localize('terminalProfile.osxExtensionIdentifier', 'The extension that contributed this profile.'),
+								type: 'string'
+							},
+							id: {
+								description: localize('terminalProfile.osxExtensionId', 'The id of the extension terminal'),
+								type: 'string'
+							},
+							title: {
+								description: localize('terminalProfile.osxExtensionTitle', 'The name of the extension terminal'),
+								type: 'string'
+							},
+							...terminalProfileBaseProperties
+						}
+					},
 					{ type: 'null' },
 					terminalProfileSchema
 				]
@@ -287,6 +325,25 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			},
 			additionalProperties: {
 				'anyOf': [
+					{
+						type: 'object',
+						required: ['extensionIdentifier', 'id', 'title'],
+						properties: {
+							extensionIdentifier: {
+								description: localize('terminalProfile.linuxExtensionIdentifier', 'The extension that contributed this profile.'),
+								type: 'string'
+							},
+							id: {
+								description: localize('terminalProfile.linuxExtensionId', 'The id of the extension terminal'),
+								type: 'string'
+							},
+							title: {
+								description: localize('terminalProfile.linuxExtensionTitle', 'The name of the extension terminal'),
+								type: 'string'
+							},
+							...terminalProfileBaseProperties
+						}
+					},
 					{ type: 'null' },
 					terminalProfileSchema
 				]
@@ -321,14 +378,14 @@ export function registerTerminalPlatformConfiguration() {
 }
 
 let lastDefaultProfilesConfiguration: IConfigurationNode | undefined;
-export function registerTerminalDefaultProfileConfiguration(detectedProfiles?: { os: OperatingSystem, profiles: ITerminalProfile[] }) {
+export function registerTerminalDefaultProfileConfiguration(detectedProfiles?: { os: OperatingSystem, profiles: ITerminalProfile[] }, extensionContributedProfiles?: readonly IExtensionTerminalProfile[]) {
 	const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	if (lastDefaultProfilesConfiguration) {
 		registry.deregisterConfigurations([lastDefaultProfilesConfiguration]);
 	}
 	let profileEnum;
 	if (detectedProfiles) {
-		profileEnum = createProfileSchemaEnums(detectedProfiles?.profiles);
+		profileEnum = createProfileSchemaEnums(detectedProfiles?.profiles, extensionContributedProfiles);
 	}
 	lastDefaultProfilesConfiguration = {
 		id: 'terminal',

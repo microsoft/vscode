@@ -164,7 +164,7 @@ export function registerTerminalActions() {
 			const commandService = accessor.get(ICommandService);
 
 			let event: MouseEvent | PointerEvent | KeyboardEvent | undefined;
-			let options: ICreateTerminalOptions = {};
+			let options: ICreateTerminalOptions | undefined;
 			if (typeof eventOrOptionsOrProfile === 'object' && eventOrOptionsOrProfile && 'profileName' in eventOrOptionsOrProfile) {
 				const config = terminalService.availableProfiles.find(profile => profile.profileName === eventOrOptionsOrProfile.profileName);
 				if (!config) {
@@ -173,9 +173,9 @@ export function registerTerminalActions() {
 				options = { config };
 			} else if (eventOrOptionsOrProfile instanceof MouseEvent || eventOrOptionsOrProfile instanceof PointerEvent || eventOrOptionsOrProfile instanceof KeyboardEvent) {
 				event = eventOrOptionsOrProfile;
-				options = profile ? { config: profile } : options;
+				options = profile ? { config: profile } : undefined;
 			} else {
-				options = convertOptionsOrProfileToOptions(eventOrOptionsOrProfile || {});
+				options = convertOptionsOrProfileToOptions(eventOrOptionsOrProfile);
 			}
 
 			const folders = workspaceContextService.getWorkspace().folders;
@@ -183,8 +183,7 @@ export function registerTerminalActions() {
 				const activeInstance = terminalService.activeInstance;
 				if (activeInstance) {
 					const cwd = await getCwdForSplit(terminalService.configHelper, activeInstance);
-					options.cwd = cwd;
-					await terminalService.splitInstance(activeInstance, options);
+					await terminalService.splitInstance(activeInstance, options?.config, cwd);
 					return;
 				}
 			}
@@ -1511,7 +1510,7 @@ export function registerTerminalActions() {
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 			const terminalService = accessor.get(ITerminalService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
-			const options = convertOptionsOrProfileToOptions(optionsOrProfile || {});
+			const options = convertOptionsOrProfileToOptions(optionsOrProfile);
 			const activeInstance = terminalService.getInstanceHost(options?.target).activeInstance;
 			if (!activeInstance) {
 				return;
@@ -1520,8 +1519,7 @@ export function registerTerminalActions() {
 			if (cwd === undefined) {
 				return undefined;
 			}
-			options.cwd = cwd;
-			const instance = await terminalService.splitInstance(activeInstance, options);
+			const instance = await terminalService.splitInstance(activeInstance, options?.config, cwd);
 			if (instance) {
 				if (instance.target === TerminalLocation.Editor) {
 					instance.focusWhenReady();
@@ -1559,7 +1557,7 @@ export function registerTerminalActions() {
 					terminalService.setActiveInstance(t);
 					terminalService.doWithActiveInstance(async instance => {
 						const cwd = await getCwdForSplit(terminalService.configHelper, instance);
-						terminalService.splitInstance(instance, { cwd });
+						await terminalService.splitInstance(instance, { cwd });
 						await terminalGroupService.showPanel(true);
 					});
 				}
@@ -1701,7 +1699,7 @@ export function registerTerminalActions() {
 				const activeInstance = terminalService.activeInstance;
 				if (activeInstance) {
 					const cwd = await getCwdForSplit(terminalService.configHelper, activeInstance);
-					terminalService.splitInstance(activeInstance, { cwd });
+					await terminalService.splitInstance(activeInstance, { cwd });
 					return;
 				}
 			}
@@ -2050,7 +2048,7 @@ export function validateTerminalName(name: string): { content: string, severity:
 	return null;
 }
 
-function convertOptionsOrProfileToOptions(optionsOrProfile: ICreateTerminalOptions | ITerminalProfile): ICreateTerminalOptions {
+function convertOptionsOrProfileToOptions(optionsOrProfile?: ICreateTerminalOptions | ITerminalProfile): ICreateTerminalOptions | undefined {
 	if (typeof optionsOrProfile === 'object' && 'profileName' in optionsOrProfile) {
 		return { config: optionsOrProfile as ITerminalProfile };
 	}
@@ -2106,7 +2104,7 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 				event = eventOrOptionsOrProfile;
 				options = profile ? { config: profile } : undefined;
 			} else {
-				options = convertOptionsOrProfileToOptions(eventOrOptionsOrProfile || {});
+				options = convertOptionsOrProfileToOptions(eventOrOptionsOrProfile);
 			}
 
 			const folders = workspaceContextService.getWorkspace().folders;
@@ -2114,7 +2112,7 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 				const activeInstance = terminalService.activeInstance;
 				if (activeInstance) {
 					const cwd = await getCwdForSplit(terminalService.configHelper, activeInstance);
-					terminalService.splitInstance(activeInstance, { config: options?.config, cwd });
+					await terminalService.splitInstance(activeInstance, options?.config, cwd);
 					return;
 				}
 			}

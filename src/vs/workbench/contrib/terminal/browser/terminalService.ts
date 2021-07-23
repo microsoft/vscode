@@ -23,7 +23,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ICreateContributedTerminalProfileOptions, ICreateTerminalOptions, IExtensionTerminalProfile, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalProfileQuickpickObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, ICreateTerminalOptions, IExtensionTerminalProfile, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
 import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IconDefinition } from 'vs/platform/theme/common/iconRegistry';
@@ -403,7 +403,7 @@ export class TerminalService implements ITerminalService {
 							}
 						} else {
 							// add split terminals to this group
-							this.splitInstance(terminalInstance, { config: { attachPersistentProcess: terminalLayout.terminal! } });
+							this.splitInstance(terminalInstance, { attachPersistentProcess: terminalLayout.terminal! });
 						}
 					});
 					const activeInstance = this.instances.find(t => {
@@ -485,7 +485,7 @@ export class TerminalService implements ITerminalService {
 
 	private async _refreshPlatformConfig(profiles: ITerminalProfile[]) {
 		const env = await this._remoteAgentService.getEnvironment();
-		registerTerminalDefaultProfileConfiguration({ os: env?.os || OS, profiles });
+		registerTerminalDefaultProfileConfiguration({ os: env?.os || OS, profiles }, this._terminalContributionService.terminalProfiles);
 		refreshTerminalActions(profiles);
 	}
 
@@ -623,12 +623,12 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
-	async splitInstance(instanceToSplit: ITerminalInstance, options?: ICreateTerminalOptions): Promise<ITerminalInstance | null> {
-		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(options, options?.cwd);
+	async splitInstance(instanceToSplit: ITerminalInstance, shell?: IShellLaunchConfig, cwd?: string | URI): Promise<ITerminalInstance | null> {
+		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(shell);
 
 		const contributedDefaultProfile = await this._getContributedDefaultProfile(shellLaunchConfig);
 		if (contributedDefaultProfile) {
-			await this.createContributedTerminalProfile(contributedDefaultProfile.extensionIdentifier, contributedDefaultProfile.id, { isSplitTerminal: true, icon: contributedDefaultProfile.icon });
+			await this.createContributedTerminalProfile(contributedDefaultProfile.extensionIdentifier, contributedDefaultProfile.id, { isSplitTerminal: true, icon: contributedDefaultProfile.icon, color: contributedDefaultProfile.color });
 			return this._terminalGroupService.instances[this._terminalGroupService.instances.length - 1];
 		}
 
@@ -911,10 +911,10 @@ export class TerminalService implements ITerminalService {
 				label: `$(${icon.id}) ${contributed.title}`,
 				profile: {
 					extensionIdentifier: contributed.extensionIdentifier,
-					title: contributed.id,
+					title: contributed.title,
 					icon: contributed.icon,
 					id: contributed.id,
-					isSplitTerminal: contributed.isSplitTerminal
+					color: contributed.color
 				}
 			});
 		}
@@ -941,7 +941,7 @@ export class TerminalService implements ITerminalService {
 			} else {
 				if (keyMods?.alt && activeInstance) {
 					// create split, only valid if there's an active instance
-					instance = await this.splitInstance(activeInstance, { config: value.profile, cwd });
+					instance = await this.splitInstance(activeInstance, value.profile, cwd);
 				} else {
 					instance = await this.createTerminal({ target: this.configHelper.config.defaultLocation, config: value.profile, cwd });
 				}
@@ -957,10 +957,11 @@ export class TerminalService implements ITerminalService {
 				return; // Should never happen
 			} else if ('id' in value.profile) {
 				// extension contributed profile
-				await this._configurationService.updateValue(`terminal.integrated.defaultProfile.${platformKey}`, value.profile.id, ConfigurationTarget.USER);
+				console.log(value.profile.title);
+				await this._configurationService.updateValue(`terminal.integrated.defaultProfile.${platformKey}`, value.profile.title, ConfigurationTarget.USER);
 
-				this._registerContributedProfile(value.profile.extensionIdentifier, value.profile.id, {
-					isSplitTerminal: value.profile.isSplitTerminal,
+				this._registerContributedProfile(value.profile.extensionIdentifier, value.profile.id, value.profile.title, {
+					color: value.profile.color,
 					icon: value.profile.icon
 				});
 				return;
@@ -1026,7 +1027,7 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
-	private async _registerContributedProfile(extensionIdentifierentifier: string, id: string, options: ICreateContributedTerminalProfileOptions): Promise<void> {
+	private async _registerContributedProfile(extensionIdentifierentifier: string, id: string, title: string, options: ICreateContributedTerminalProfileOptions): Promise<void> {
 		const platformKey = await this._getPlatformKey();
 		const profilesConfig = await this._configurationService.getValue(`terminal.integrated.profiles.${platformKey}`);
 		if (typeof profilesConfig === 'object') {
@@ -1034,11 +1035,11 @@ export class TerminalService implements ITerminalService {
 				extensionIdentifier: extensionIdentifierentifier,
 				icon: options.icon,
 				id,
-				title: id,
-				isSplitTerminal: options.isSplitTerminal
+				title: title,
+				color: options.color
 			};
 
-			(profilesConfig as { [key: string]: ITerminalProfileObject })[id] = newProfile;
+			(profilesConfig as { [key: string]: ITerminalProfileObject })[title] = newProfile;
 		}
 		await this._configurationService.updateValue(`terminal.integrated.profiles.${platformKey}`, profilesConfig, ConfigurationTarget.USER);
 		return;
@@ -1101,7 +1102,7 @@ export class TerminalService implements ITerminalService {
 		if (shellLaunchConfig && !shellLaunchConfig.extHostTerminalId && !('executable' in shellLaunchConfig)) {
 			const key = await this._getPlatformKey();
 			const defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${key}`);
-			const contributedDefaultProfile = this._terminalContributionService.terminalProfiles.find(p => p.id === defaultProfileName);
+			const contributedDefaultProfile = this._terminalContributionService.terminalProfiles.find(p => p.title === defaultProfileName);
 			return contributedDefaultProfile;
 		}
 		return undefined;
@@ -1112,7 +1113,7 @@ export class TerminalService implements ITerminalService {
 
 		const contributedDefaultProfile = await this._getContributedDefaultProfile(shellLaunchConfig);
 		if (contributedDefaultProfile) {
-			await this.createContributedTerminalProfile(contributedDefaultProfile.extensionIdentifier, contributedDefaultProfile.id, { isSplitTerminal: contributedDefaultProfile.isSplitTerminal, icon: contributedDefaultProfile.icon });
+			await this.createContributedTerminalProfile(contributedDefaultProfile.extensionIdentifier, contributedDefaultProfile.id, { isSplitTerminal: false, icon: contributedDefaultProfile.icon });
 			return this._terminalGroupService.instances[this._terminalGroupService.instances.length - 1];
 		}
 
@@ -1188,7 +1189,7 @@ export class TerminalService implements ITerminalService {
 }
 
 interface IProfileQuickPickItem extends IQuickPickItem {
-	profile: ITerminalProfileQuickpickObject
+	profile: ITerminalProfile | IExtensionTerminalProfile
 }
 
 class TerminalEditorStyle extends Themable {

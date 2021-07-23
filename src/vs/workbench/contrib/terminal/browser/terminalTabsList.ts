@@ -144,9 +144,9 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 
 		// on left click, if focus mode = single click, focus the element
 		// unless multi-selection is in progress
-		this.onMouseClick(e => {
+		this.onMouseClick(async e => {
 			if (e.browserEvent.altKey && e.element) {
-				this._terminalService.splitInstance(e.element);
+				await this._terminalService.splitInstance(e.element);
 			} else if (this._getFocusMode() === 'singleClick') {
 				if (this.getSelection().length <= 1) {
 					e.element?.focus(true);

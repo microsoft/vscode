@@ -412,9 +412,10 @@ export interface ICreateTerminalOptions {
 }
 
 export interface ICreateContributedTerminalProfileOptions {
-	isSplitTerminal: boolean;
 	target?: TerminalLocation;
 	icon?: string;
+	color?: string;
+	isSplitTerminal?: boolean;
 }
 
 export const enum TerminalLocation {
@@ -613,6 +614,7 @@ export interface ITerminalProfileSource extends IBaseUnresolvedTerminalProfile {
 	source: ProfileSource;
 }
 
+
 export interface ITerminalContributions {
 	profiles?: ITerminalProfileContribution[];
 }
@@ -621,7 +623,7 @@ export interface ITerminalProfileContribution {
 	title: string;
 	id: string;
 	icon?: string;
-	isSplitTerminal: boolean;
+	color?: string;
 }
 
 export interface IExtensionTerminalProfile extends ITerminalProfileContribution {
