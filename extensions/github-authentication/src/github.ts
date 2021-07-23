@@ -66,10 +66,14 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	}
 
 	async getSessions(scopes?: string[]): Promise<vscode.AuthenticationSession[]> {
+		Logger.info(`Getting sessions for ${scopes?.join(',') || 'all scopes'}...`);
 		const sessions = await this._sessionsPromise;
-		return scopes
+		const finalSessions = scopes
 			? sessions.filter(session => arrayEquals([...session.scopes].sort(), scopes.sort()))
 			: sessions;
+
+		Logger.info(`Got ${finalSessions.length} sessions for ${scopes?.join(',') || 'all scopes'}...`);
+		return finalSessions;
 	}
 
 	private async afterTokenLoad(token: string): Promise<void> {
@@ -115,10 +119,12 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	private async readAndVerifySessions(force: boolean): Promise<vscode.AuthenticationSession[]> {
 		let sessionData: SessionData[];
 		try {
+			Logger.info('Reading sessions from keychain...');
 			const storedSessions = await this._keychain.getToken() || await this._keychain.tryMigrate();
 			if (!storedSessions) {
 				return [];
 			}
+			Logger.info('Got stored sessions!');
 
 			try {
 				sessionData = JSON.parse(storedSessions);
@@ -165,6 +171,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			.map(p => (p as PromiseFulfilledResult<vscode.AuthenticationSession | undefined>).value)
 			.filter(<T>(p?: T): p is T => Boolean(p));
 
+		Logger.info(`Got ${verifiedSessions.length} verified sessions.`);
 		if (verifiedSessions.length !== sessionData.length) {
 			await this.storeSessions(verifiedSessions);
 		}
@@ -173,8 +180,10 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	}
 
 	private async storeSessions(sessions: vscode.AuthenticationSession[]): Promise<void> {
+		Logger.info(`Storing ${sessions.length} sessions...`);
 		this._sessionsPromise = Promise.resolve(sessions);
 		await this._keychain.setToken(JSON.stringify(sessions));
+		Logger.info(`Stored ${sessions.length} sessions!`);
 	}
 
 	public async createSession(scopes: string[]): Promise<vscode.AuthenticationSession> {
