@@ -215,7 +215,6 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		this._editorInputs.set(inputKey, input);
 		this._instanceDisposables.set(inputKey, [
 			instance.onDidFocus(this._onDidFocusInstance.fire, this._onDidFocusInstance),
-			toDisposable(() => this._editorInputs.delete(inputKey)),
 			instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance)
 		]);
 		this.instances.push(instance);
