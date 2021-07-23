@@ -258,7 +258,7 @@ export class TerminalViewPane extends ViewPane {
 					id: contributed.id,
 					title: contributed.title.replace(/[\n\r\t]/g, '')
 				},
-				isSplitTerminal: false
+				forceSplit: false
 			})));
 			submenuActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title.replace(/[\n\r\t]/g, ''), undefined, true, () => this._terminalService.createTerminal({
 				config: {
@@ -266,7 +266,7 @@ export class TerminalViewPane extends ViewPane {
 					id: contributed.id,
 					title: contributed.title.replace(/[\n\r\t]/g, '')
 				},
-				isSplitTerminal: true
+				forceSplit: true
 			})));
 		}
 

@@ -256,7 +256,7 @@ export function registerTerminalActions() {
 			const terminalService = accessor.get(ITerminalService);
 			const instance = await terminalService.createTerminal({
 				target: TerminalLocation.Editor,
-				sideGroup: true
+				forceSplit: true
 			});
 			instance.focusWhenReady();
 		}

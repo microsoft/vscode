@@ -253,7 +253,7 @@ export class TerminalEditor extends EditorPane {
 					id: contributed.id,
 					title: contributed.title.replace(/[\n\r\t]/g, '')
 				},
-				isSplitTerminal: true,
+				forceSplit: true,
 				target: TerminalLocation.Editor
 			})));
 		}

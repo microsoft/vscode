@@ -141,7 +141,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 
 
 	getActiveOrCreateInstance(): Promise<ITerminalInstance>;
-	splitInstance(instance: ITerminalInstance, shell?: ITerminalProfile | IShellLaunchConfig | IExtensionTerminalProfile | undefined, cwd?: string | URI): Promise<ITerminalInstance | null>;
+	splitInstance(instance: ITerminalInstance, shell?: ITerminalProfile | IShellLaunchConfig | IExtensionTerminalProfile | undefined, cwd?: string | URI): Promise<ITerminalInstance>;
 	moveToEditor(source: ITerminalInstance): void;
 	moveToTerminalView(source?: ITerminalInstance | URI): Promise<void>;
 	getOffProcessTerminalService(): IOffProcessTerminalService | undefined;
