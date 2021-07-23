@@ -130,6 +130,15 @@ export class ComplexCustomWorkingCopyEditorHandler extends Disposable implements
 		this._register(this._workingCopyEditorService.registerHandler({
 			handles: workingCopy => workingCopy.resource.scheme === Schemas.vscodeCustomEditor,
 			isOpen: (workingCopy, editor) => {
+				if (workingCopy.resource.authority === 'jupyter-notebook-ipynb' && editor instanceof NotebookEditorInput) {
+					try {
+						const data = JSON.parse(workingCopy.resource.query);
+						const workingCopyResource = URI.from(data);
+						return isEqual(workingCopyResource, editor.resource);
+					} catch {
+						return false;
+					}
+				}
 				if (!(editor instanceof CustomEditorInput)) {
 					return false;
 				}
@@ -155,7 +164,7 @@ export class ComplexCustomWorkingCopyEditorHandler extends Disposable implements
 
 				const backupData = backup.meta;
 				if (backupData.viewType === 'jupyter.notebook.ipynb') {
-					return NotebookEditorInput.create(this._instantiationService, URI.revive(backupData.editorResource), 'jupyter-notebook', { _backupId: backupData.backupId }) as any;
+					return NotebookEditorInput.create(this._instantiationService, URI.revive(backupData.editorResource), 'jupyter-notebook', { _backupId: backupData.backupId, _workingCopy: workingCopy }) as any;
 				}
 
 				const id = backupData.webview.id;

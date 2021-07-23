@@ -21,6 +21,8 @@ import { AbstractResourceEditorInput } from 'vs/workbench/common/editor/resource
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 
 interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -28,6 +30,7 @@ interface NotebookEditorInputOptions {
 	 * backupId for webview
 	 */
 	_backupId?: string;
+	_workingCopy?: IWorkingCopyIdentifier;
 }
 
 export class NotebookEditorInput extends AbstractResourceEditorInput {
@@ -50,6 +53,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
 		@ILabelService labelService: ILabelService,
 		@IFileService fileService: IFileService
 	) {
@@ -245,6 +249,10 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 
 			const data = await info.serializer.dataToNotebook(VSBuffer.fromString(JSON.stringify({ __webview_backup: this.options._backupId })));
 			this._editorModelReference.object.notebook._initialize(data.cells, true);
+
+			if (this.options._workingCopy) {
+				await this.workingCopyBackupService.discardBackup(this.options._workingCopy);
+			}
 		}
 
 		return this._editorModelReference.object;
