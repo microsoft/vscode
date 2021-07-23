@@ -229,8 +229,9 @@ export class TerminalService implements ITerminalService {
 		lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
 
 		this._configurationService.onDidChangeConfiguration(async e => {
-			if (e.affectsConfiguration(TerminalSettingPrefix.DefaultProfile + this._getPlatformKey()) ||
-				e.affectsConfiguration(TerminalSettingPrefix.Profiles + this._getPlatformKey()) ||
+			const platformKey = await this._getPlatformKey();
+			if (e.affectsConfiguration(TerminalSettingPrefix.DefaultProfile + platformKey) ||
+				e.affectsConfiguration(TerminalSettingPrefix.Profiles + platformKey) ||
 				e.affectsConfiguration(TerminalSettingId.UseWslProfiles)) {
 				this._refreshAvailableProfiles();
 			}
@@ -957,7 +958,6 @@ export class TerminalService implements ITerminalService {
 				return; // Should never happen
 			} else if ('id' in value.profile) {
 				// extension contributed profile
-				console.log(value.profile.title);
 				await this._configurationService.updateValue(`terminal.integrated.defaultProfile.${platformKey}`, value.profile.title, ConfigurationTarget.USER);
 
 				this._registerContributedProfile(value.profile.extensionIdentifier, value.profile.id, value.profile.title, {
@@ -1067,7 +1067,7 @@ export class TerminalService implements ITerminalService {
 		return { label, description: profile.path, profile, buttons };
 	}
 
-	private _convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile | IExtensionTerminalProfile, cwd?: string | URI): IShellLaunchConfig {
+	private _convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig {
 		if (shellLaunchConfigOrProfile && 'profileName' in shellLaunchConfigOrProfile) {
 			const profile = shellLaunchConfigOrProfile;
 			if (!profile.path) {
@@ -1084,8 +1084,8 @@ export class TerminalService implements ITerminalService {
 			};
 		}
 
-		// Shell launch config was provided
-		if (shellLaunchConfigOrProfile && 'cwd' in shellLaunchConfigOrProfile) {
+		// A shell launch config was provided
+		if (shellLaunchConfigOrProfile) {
 			if (cwd) {
 				shellLaunchConfigOrProfile.cwd = cwd;
 			}
@@ -1109,11 +1109,27 @@ export class TerminalService implements ITerminalService {
 	}
 
 	async createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance> {
-		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(options?.config || options);
+		const config = options?.config;
+		const shellLaunchConfig = config && 'extensionIdentifier' in config
+			? {}
+			: this._convertProfileToShellLaunchConfig(config || {});
 
-		const contributedDefaultProfile = await this._getContributedDefaultProfile(shellLaunchConfig);
-		if (contributedDefaultProfile) {
-			await this.createContributedTerminalProfile(contributedDefaultProfile.extensionIdentifier, contributedDefaultProfile.id, { isSplitTerminal: false, icon: contributedDefaultProfile.icon });
+		// Get the contributed profile if it was provided
+		let contributedProfile = config && 'extensionIdentifier' in config ? config : undefined;
+
+		// Get the default profile as a contributed profile if it exists
+		if (!contributedProfile && !options) {
+			contributedProfile = await this._getContributedDefaultProfile(shellLaunchConfig);
+		}
+
+		// Launch the contributed profile
+		if (contributedProfile) {
+			// TODO: createContributedTerminalProfile should be private if we want all terminal creation to go through createTerminal
+			await this.createContributedTerminalProfile(contributedProfile.extensionIdentifier, contributedProfile.id, {
+				isSplitTerminal: false,
+				icon: contributedProfile.icon
+			});
+			// TODO: The extension terminal may be created in the editor area
 			return this._terminalGroupService.instances[this._terminalGroupService.instances.length - 1];
 		}
 

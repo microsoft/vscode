@@ -618,7 +618,7 @@ export interface ITerminalInstance {
 	 * required to run a command in the terminal. The character(s) added are \n or \r\n
 	 * depending on the platform. This defaults to `true`.
 	 */
-	sendText(text: string, addNewLine: boolean): void;
+	sendText(text: string, addNewLine: boolean): Promise<void>;
 
 	/** Scroll the terminal buffer down 1 line. */
 	scrollDownLine(): void;

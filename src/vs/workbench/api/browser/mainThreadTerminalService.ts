@@ -30,7 +30,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	 * to a numeric terminal id (an id generated on the renderer side)
 	 * This comes in play only when dealing with terminals created on the extension host side
 	 */
-	private _extHostTerminalIds = new Map<string, number>();
+	private _extHostTerminals = new Map<string, Promise<ITerminalInstance>>();
 	private readonly _toDispose = new DisposableStore();
 	private readonly _terminalProcessProxies = new Map<number, ITerminalProcessExtHostProxy>();
 	private readonly _profileProviders = new Map<string, IDisposable>();
@@ -109,19 +109,11 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._proxy.$acceptDefaultProfile(...await Promise.all([defaultProfile, defaultAutomationProfile]));
 	}
 
-	private _getTerminalId(id: TerminalIdentifier): number | undefined {
-		if (typeof id === 'number') {
-			return id;
+	private async _getTerminalInstance(id: TerminalIdentifier): Promise<ITerminalInstance | undefined> {
+		if (typeof id === 'string') {
+			return this._extHostTerminals.get(id);
 		}
-		return this._extHostTerminalIds.get(id);
-	}
-
-	private _getTerminalInstance(id: TerminalIdentifier): ITerminalInstance | undefined {
-		const rendererId = this._getTerminalId(id);
-		if (typeof rendererId === 'number') {
-			return this._terminalService.getInstanceFromId(rendererId);
-		}
-		return undefined;
+		return this._terminalService.getInstanceFromId(id);
 	}
 
 	public async $createTerminal(extHostTerminalId: string, launchConfig: TerminalLaunchConfig): Promise<void> {
@@ -141,29 +133,31 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			customPtyImplementation: launchConfig.isExtensionCustomPtyTerminal
 				? (id, cols, rows) => new TerminalProcessExtHostProxy(id, cols, rows, this._terminalService)
 				: undefined,
-			extHostTerminalId: extHostTerminalId,
+			extHostTerminalId,
 			isFeatureTerminal: launchConfig.isFeatureTerminal,
 			isExtensionOwnedTerminal: launchConfig.isExtensionOwnedTerminal,
 			useShellEnvironment: launchConfig.useShellEnvironment
 		};
-		let terminal: ITerminalInstance | undefined;
-		if (launchConfig.isSplitTerminal) {
-			const activeInstance = this._terminalService.getInstanceHost(launchConfig.target).activeInstance;
-			if (activeInstance) {
-				terminal = withNullAsUndefined(await this._terminalService.splitInstance(activeInstance, shellLaunchConfig));
+		this._extHostTerminals.set(extHostTerminalId, new Promise(async r => {
+			let terminal: ITerminalInstance | undefined;
+			if (launchConfig.isSplitTerminal) {
+				const activeInstance = this._terminalService.getInstanceHost(launchConfig.target).activeInstance;
+				if (activeInstance) {
+					terminal = withNullAsUndefined(await this._terminalService.splitInstance(activeInstance, shellLaunchConfig));
+				}
 			}
-		}
-		if (!terminal) {
-			terminal = await this._terminalService.createTerminal({
-				config: shellLaunchConfig,
-				target: launchConfig.target
-			});
-		}
-		this._extHostTerminalIds.set(extHostTerminalId, terminal.instanceId);
+			if (!terminal) {
+				terminal = await this._terminalService.createTerminal({
+					config: shellLaunchConfig,
+					target: launchConfig.target
+				});
+			}
+			r(terminal);
+		}));
 	}
 
-	public $show(id: TerminalIdentifier, preserveFocus: boolean): void {
-		const terminalInstance = this._getTerminalInstance(id);
+	public async $show(id: TerminalIdentifier, preserveFocus: boolean): Promise<void> {
+		const terminalInstance = await this._getTerminalInstance(id);
 		if (terminalInstance) {
 			this._terminalService.setActiveInstance(terminalInstance);
 			if (terminalInstance.target === TerminalLocation.Editor) {
@@ -174,20 +168,21 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		}
 	}
 
-	public $hide(id: TerminalIdentifier): void {
-		const rendererId = this._getTerminalId(id);
-		const instance = this._terminalService.activeInstance;
-		if (instance && instance.instanceId === rendererId && instance.target !== TerminalLocation.Editor) {
+	public async $hide(id: TerminalIdentifier): Promise<void> {
+		const instanceToHide = await this._getTerminalInstance(id);
+		const activeInstance = this._terminalService.activeInstance;
+		if (activeInstance && activeInstance.instanceId === instanceToHide?.instanceId && activeInstance.target !== TerminalLocation.Editor) {
 			this._terminalGroupService.hidePanel();
 		}
 	}
 
-	public $dispose(id: TerminalIdentifier): void {
-		this._getTerminalInstance(id)?.dispose();
+	public async $dispose(id: TerminalIdentifier): Promise<void> {
+		(await this._getTerminalInstance(id))?.dispose();
 	}
 
-	public $sendText(id: TerminalIdentifier, text: string, addNewLine: boolean): void {
-		this._getTerminalInstance(id)?.sendText(text, addNewLine);
+	public async $sendText(id: TerminalIdentifier, text: string, addNewLine: boolean): Promise<void> {
+		const instance = await this._getTerminalInstance(id);
+		await instance?.sendText(text, addNewLine);
 	}
 
 	public $startSendingDataEvents(): void {
