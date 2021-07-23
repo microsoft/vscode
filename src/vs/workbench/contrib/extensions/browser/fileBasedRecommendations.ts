@@ -153,7 +153,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 
 	private onModelAdded(model: ITextModel): void {
 		const uri = model.uri;
-		const supportedSchemes = [Schemas.untitled, Schemas.file, Schemas.vscodeRemote];
+		const supportedSchemes = [Schemas.untitled, Schemas.file, Schemas.vscodeRemote, Schemas.vscodeNotebookCell];
 		if (!uri || !supportedSchemes.includes(uri.scheme)) {
 			return;
 		}
@@ -193,7 +193,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			if (!extensionIds.length) {
 				continue;
 			}
-			if (!match(pattern, uri.toString())) {
+			if (!match(pattern, uri.with({ fragment: '' }).toString())) {
 				continue;
 			}
 			for (const extensionId of extensionIds) {
