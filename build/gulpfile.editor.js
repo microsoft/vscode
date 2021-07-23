@@ -230,7 +230,13 @@ function toExternalDTS(contents) {
 		}
 
 		if (line.indexOf('declare let MonacoEnvironment') === 0) {
-			lines[i] = `declare global {\n    let MonacoEnvironment: Environment | undefined;\n}`;
+			lines[i] = `declare global {
+		let MonacoEnvironment: Environment | undefined;
+
+		interface Window {
+			MonacoEnvironment?: monaco.Environment | undefined;
+		}
+}`;
 			// lines[i] = line.replace('declare namespace monaco.', 'export namespace ');
 		}
 	}
