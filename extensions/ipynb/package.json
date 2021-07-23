@@ -12,7 +12,6 @@
 		"onNotebook:jupyter-notebook"
 	],
 	"extensionKind": [
-		"web",
 		"workspace",
 		"ui"
 	],

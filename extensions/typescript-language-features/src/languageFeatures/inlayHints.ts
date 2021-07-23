@@ -117,10 +117,10 @@ class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHin
 			return [];
 		}
 
-		await this.fileConfigurationManager.ensureConfigurationForDocument(model, token);
-
 		const start = model.offsetAt(range.start);
 		const length = model.offsetAt(range.end) - start;
+
+		await this.fileConfigurationManager.ensureConfigurationForDocument(model, token);
 
 		const response = await (this.client as ExperimentalProto.IExtendedTypeScriptServiceClient).execute('provideInlayHints', { file: filepath, start, length }, token);
 		if (response.type !== 'response' || !response.success || !response.body) {

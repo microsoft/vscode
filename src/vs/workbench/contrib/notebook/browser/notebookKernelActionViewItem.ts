@@ -71,12 +71,6 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 
 	private _updateActionFromKernelInfo(info: INotebookKernelMatchResult): void {
 
-		if (info.all.length === 0) {
-			// should not happen - means "bad" context keys
-			this._resetAction();
-			return;
-		}
-
 		this._action.enabled = true;
 		const selectedOrSuggested = info.selected ?? info.suggested;
 		if (selectedOrSuggested) {
@@ -88,7 +82,7 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 			}
 
 		} else {
-			// many kernels
+			// many kernels or no kernels
 			this._action.label = localize('select', "Select Kernel");
 			this._action.tooltip = '';
 		}

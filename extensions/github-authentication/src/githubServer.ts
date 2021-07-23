@@ -45,7 +45,7 @@ export class GitHubServer {
 	constructor(private type: AuthProviderType, private readonly telemetryReporter: ExperimentationTelemetry) { }
 
 	private isTestEnvironment(url: vscode.Uri): boolean {
-		return this.type === AuthProviderType['github-enterprise'] || /\.azurewebsites\.net$/.test(url.authority) || url.authority.startsWith('localhost:');
+		return this.type === AuthProviderType.githubEnterprise || /\.azurewebsites\.net$/.test(url.authority) || url.authority.startsWith('localhost:');
 	}
 
 	// TODO@joaomoreno TODO@RMacfarlane
@@ -169,14 +169,14 @@ export class GitHubServer {
 		};
 
 	private getServerUri(path?: string) {
-		const apiUri = this.type === AuthProviderType['github-enterprise']
+		const apiUri = this.type === AuthProviderType.githubEnterprise
 			? vscode.Uri.parse(vscode.workspace.getConfiguration('github-enterprise').get<string>('uri') || '', true)
 			: vscode.Uri.parse('https://api.github.com');
 
 		if (!path) {
 			path = '';
 		}
-		if (this.type === AuthProviderType['github-enterprise']) {
+		if (this.type === AuthProviderType.githubEnterprise) {
 			path = '/api/v3' + path;
 		}
 

@@ -571,16 +571,6 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.toggleMaximizedPanel'
 ];
 
-export interface ITerminalContributions {
-	profiles?: ITerminalProfileContribution[];
-}
-
-export interface ITerminalProfileContribution {
-	title: string;
-	id: string;
-	icon?: string;
-}
-
 export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
 	extensionPoint: 'terminal',
 	defaultExtensionKind: ['workspace'],

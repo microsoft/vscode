@@ -2018,7 +2018,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 				if (this.extension.gallery.webExtension) {
 					message = new MarkdownString(localize('user disabled', "You have configured the '{0}' extension to be disabled in {1}. To enable it, please open user settings and remove it from `remote.extensionKind` setting.", this.extension.displayName || this.extension.identifier.id, productName));
 				} else {
-					message = new MarkdownString(`${localize('not web tooltip', "The '{0}' extension is not available in {1}. Click {2} to learn more.", this.extension.displayName || this.extension.identifier.id, productName, `[${localize('more info', "More Information")}](https://aka.ms/vscode-remote-codespaces#_why-is-an-extension-not-installable-in-the-browser)`)}`);
+					message = new MarkdownString(`${localize('not web tooltip', "The '{0}' extension is not available in {1}", this.extension.displayName || this.extension.identifier.id, productName)} ([${localize('learn more', "learn more")}](https://aka.ms/vscode-remote-codespaces#_why-is-an-extension-not-installable-in-the-browser)).`);
 				}
 				this.updateStatus({ icon: infoIcon, message }, true);
 				return;

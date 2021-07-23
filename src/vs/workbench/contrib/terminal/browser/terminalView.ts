@@ -180,10 +180,10 @@ export class TerminalViewPane extends ViewPane {
 					label: action.label,
 					dispose: action.dispose.bind(action),
 					tooltip: action.tooltip,
-					run: () => {
+					run: async () => {
 						const instance = this._terminalGroupService.activeInstance;
 						if (instance) {
-							const newInstance = this._terminalService.splitInstance(instance);
+							const newInstance = await this._terminalService.splitInstance(instance);
 							return newInstance?.focusWhenReady();
 						}
 						return;
@@ -252,8 +252,22 @@ export class TerminalViewPane extends ViewPane {
 		}
 
 		for (const contributed of this._terminalContributionService.terminalProfiles) {
-			dropdownActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title.replace(/[\n\r\t]/g, ''), undefined, true, () => this._terminalService.createContributedTerminalProfile(contributed.extensionIdentifier, contributed.id, { isSplitTerminal: false })));
-			submenuActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title.replace(/[\n\r\t]/g, ''), undefined, true, () => this._terminalService.createContributedTerminalProfile(contributed.extensionIdentifier, contributed.id, { isSplitTerminal: true })));
+			dropdownActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title.replace(/[\n\r\t]/g, ''), undefined, true, () => this._terminalService.createTerminal({
+				config: {
+					extensionIdentifier: contributed.extensionIdentifier,
+					id: contributed.id,
+					title: contributed.title.replace(/[\n\r\t]/g, '')
+				},
+				isSplitTerminal: false
+			})));
+			submenuActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title.replace(/[\n\r\t]/g, ''), undefined, true, () => this._terminalService.createTerminal({
+				config: {
+					extensionIdentifier: contributed.extensionIdentifier,
+					id: contributed.id,
+					title: contributed.title.replace(/[\n\r\t]/g, '')
+				},
+				isSplitTerminal: true
+			})));
 		}
 
 		if (dropdownActions.length > 0) {

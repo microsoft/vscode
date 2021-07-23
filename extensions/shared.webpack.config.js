@@ -116,10 +116,10 @@ function withBrowserDefaults(/**@type WebpackConfig*/extConfig, /** @type Additi
 					// * enable sources maps for end-to-end source maps
 					loader: 'ts-loader',
 					options: {
-						configFile: additionalOptions.configFile,
 						compilerOptions: {
 							'sourceMap': true,
-						}
+						},
+						...(additionalOptions ? {} : { configFile: additionalOptions.configFile })
 					}
 				}]
 			}]
