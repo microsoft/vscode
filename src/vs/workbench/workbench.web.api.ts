@@ -357,6 +357,12 @@ interface IWorkbenchConstructionOptions {
 	readonly _enableBuiltinExtensions?: boolean;
 
 	/**
+	 * Additional domains allowed to open from the workbench without the
+	 * link protection popup.
+	 */
+	readonly additionalTrustedDomains?: string[];
+
+	/**
 	 * Support for URL callbacks.
 	 */
 	readonly urlCallbackProvider?: IURLCallbackProvider;
