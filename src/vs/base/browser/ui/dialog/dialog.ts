@@ -219,7 +219,7 @@ export class Dialog extends Disposable {
 				}));
 			});
 
-			// Handle keyboard events gloably: Tab, Arrow-Left/Right
+			// Handle keyboard events globally: Tab, Arrow-Left/Right
 			this._register(addDisposableListener(window, 'keydown', e => {
 				const evt = new StandardKeyboardEvent(e);
 

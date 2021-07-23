@@ -408,7 +408,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		} else {
 			if (anchorIndex !== null && anchorIndex > index && anchorIndex <= lastRenderRange.end) {
 				// anchor in viewport
-				// resized elemnet in viewport and above the anchor
+				// resized element in viewport and above the anchor
 				heightDiff = size - this.items[index].size;
 			} else {
 				heightDiff = 0;
