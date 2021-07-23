@@ -224,7 +224,7 @@ export class InteractiveEditor extends EditorPane {
 		// there currently is a widget which we still own so
 		// we need to hide it before getting a new widget
 		if (this.#notebookWidget.value) {
-			this.#notebookWidget.value.onWillHide();
+			this.#notebookWidget.value.setVisible(false);
 		}
 
 		if (this.#codeEditorWidget) {
@@ -309,6 +309,7 @@ export class InteractiveEditor extends EditorPane {
 				this.layout(this.#dimension);
 			}
 		}));
+		this.#notebookWidget.value!.setVisible(true);
 
 		const editorModel = input.resolveInput(this.#notebookWidget.value?.activeKernel?.supportedLanguages[0] ?? 'plaintext');
 		this.#codeEditorWidget.setModel(editorModel);
@@ -557,16 +558,12 @@ export class InteractiveEditor extends EditorPane {
 	override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		super.setEditorVisible(visible, group);
 
-		if (!visible) {
-			if (this.input && this.#notebookWidget.value) {
-				this.#notebookWidget.value.onWillHide();
-			}
-		}
+		this.#notebookWidget.value?.setVisible(visible);
 	}
 
 	override clearInput() {
 		if (this.#notebookWidget.value) {
-			this.#notebookWidget.value.onWillHide();
+			this.#notebookWidget.value.setVisible(false);
 		}
 
 		if (this.#codeEditorWidget) {
