@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from 'vs/base/common/codicons';
-import { ITerminalProfile } from 'vs/platform/terminal/common/terminal';
+import { IExtensionTerminalProfile, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
-export function createProfileSchemaEnums(detectedProfiles: ITerminalProfile[]): {
+export function createProfileSchemaEnums(detectedProfiles: ITerminalProfile[], extensionProfiles?: readonly IExtensionTerminalProfile[]): {
 	values: string[] | undefined,
 	markdownDescriptions: string[] | undefined
 } {
@@ -17,6 +17,15 @@ export function createProfileSchemaEnums(detectedProfiles: ITerminalProfile[]): 
 			description: createProfileDescription(e)
 		};
 	});
+	if (extensionProfiles) {
+		console.log(extensionProfiles);
+		result.push(...extensionProfiles.map(extensionProfile => {
+			return {
+				name: extensionProfile.title,
+				description: createExtensionProfileDescription(extensionProfile)
+			};
+		}));
+	}
 	return {
 		values: result.map(e => e.name),
 		markdownDescriptions: result.map(e => e.description)
@@ -41,5 +50,10 @@ function createProfileDescription(profile: ITerminalProfile): string {
 	if (profile.env) {
 		description += `\n- env: ${JSON.stringify(profile.env)}`;
 	}
+	return description;
+}
+
+function createExtensionProfileDescription(profile: IExtensionTerminalProfile): string {
+	let description = `$(${ThemeIcon.isThemeIcon(profile.icon) ? profile.icon.id : profile.icon ? profile.icon : Codicon.terminal.id}) ${profile.title}\n- extensionIdenfifier: ${profile.extensionIdentifier}`;
 	return description;
 }

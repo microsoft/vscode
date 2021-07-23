@@ -20,7 +20,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
-import { ThemeIcon, ThemeColor } from 'vs/platform/theme/common/themeService';
+import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { withNullAsUndefined } from 'vs/base/common/types';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, IDisposable {
@@ -147,7 +147,7 @@ export class ExtHostTerminal {
 		});
 	}
 
-	public async createExtensionTerminal(isSplitTerminal?: boolean, target?: TerminalLocation, iconPath?: URI | { light: URI; dark: URI } | ThemeIcon): Promise<number> {
+	public async createExtensionTerminal(isSplitTerminal?: boolean, target?: TerminalLocation, iconPath?: TerminalIcon): Promise<number> {
 		if (typeof this._id !== 'string') {
 			throw new Error('Terminal has already been created');
 		}

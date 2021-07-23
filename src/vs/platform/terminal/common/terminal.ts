@@ -391,7 +391,7 @@ export interface ICreateTerminalOptions {
 	 * The shell launch config or profile to launch with, when not specified the default terminal
 	 * profile will be used.
 	 */
-	config?: IShellLaunchConfig | ITerminalProfile;
+	config?: IShellLaunchConfig | ITerminalProfile | IExtensionTerminalProfile;
 	/**
 	 * The current working directory to start with, this will override IShellLaunchConfig.cwd if
 	 * specified.
@@ -412,9 +412,10 @@ export interface ICreateTerminalOptions {
 }
 
 export interface ICreateContributedTerminalProfileOptions {
-	isSplitTerminal: boolean;
 	target?: TerminalLocation;
 	icon?: string;
+	color?: string;
+	isSplitTerminal?: boolean;
 }
 
 export const enum TerminalLocation {
@@ -613,4 +614,21 @@ export interface ITerminalProfileSource extends IBaseUnresolvedTerminalProfile {
 	source: ProfileSource;
 }
 
-export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | null;
+
+export interface ITerminalContributions {
+	profiles?: ITerminalProfileContribution[];
+}
+
+export interface ITerminalProfileContribution {
+	title: string;
+	id: string;
+	icon?: string;
+	color?: string;
+}
+
+export interface IExtensionTerminalProfile extends ITerminalProfileContribution {
+	extensionIdentifier: string;
+}
+
+export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | IExtensionTerminalProfile | null;
+export type ITerminalProfileQuickpickObject = ITerminalProfile | IExtensionTerminalProfile;
