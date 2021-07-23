@@ -21,6 +21,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 
 export class LanguageDetectionService extends Disposable implements ILanguageDetectionService {
 	private static readonly expectedRelativeConfidence = 0.2;
+	static readonly enablementSettingKey = 'workbench.editor.untitled.experimentalLanguageDetection';
 
 	private _loadFailed = false;
 	private _modelOperations: ModelOperations | undefined;
@@ -37,8 +38,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 	}
 
 	private async handleChangeEvent(e: IUntitledTextEditorModel) {
-		const settingValue = this._configurationService.getValue<boolean>('workbench.editor.untitled.languageDetection', { overrideIdentifier: e.getMode() });
-		if (!settingValue || e.hasModeSetExplicitly) {
+		if (!this.isEnabledForMode(e.getMode()) || e.hasModeSetExplicitly) {
 			return;
 		}
 
@@ -78,6 +78,10 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		);
 
 		return this._register(this._modelOperations);
+	}
+
+	private isEnabledForMode(modeId: string | undefined): boolean {
+		return !!modeId && this._configurationService.getValue<boolean>(LanguageDetectionService.enablementSettingKey, { overrideIdentifier: modeId });
 	}
 
 	async detectLanguage(contentOrResource: string | URI): Promise<string | undefined> {
