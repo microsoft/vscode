@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { v4 as uuid } from 'uuid';
 import { Keychain } from './common/keychain';
-import { GitHubServer, uriHandler, NETWORK_ERROR } from './githubServer';
+import { GitHubServer, uriHandler } from './githubServer';
 import Logger from './common/logger';
 import { arrayEquals } from './common/utils';
 import { ExperimentationTelemetry } from './experimentationService';
