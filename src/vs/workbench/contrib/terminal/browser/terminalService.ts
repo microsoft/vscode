@@ -1113,7 +1113,7 @@ export class TerminalService implements ITerminalService {
 		} else if (Object.entries(options).length > 2) {
 			return false;
 		}
-		return Array.from(Object.keys(options)).filter(k => k !== 'target' && k !== 'isSplitTerminal').length === 0;
+		return Array.from(Object.keys(options)).filter(k => k !== 'target' && k !== 'forceSplit').length === 0;
 	}
 
 	async createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance> {
