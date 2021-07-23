@@ -45,6 +45,7 @@ export interface ICommandAction {
 	category?: string | ILocalizedString;
 	tooltip?: string;
 	icon?: Icon;
+	source?: string;
 	precondition?: ContextKeyExpression;
 	toggled?: ContextKeyExpression | { condition: ContextKeyExpression, icon?: Icon, tooltip?: string, title?: string | ILocalizedString };
 }
