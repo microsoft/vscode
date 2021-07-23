@@ -5,7 +5,7 @@
 
 import * as glob from 'vs/base/common/glob';
 import { IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorInputCapabilities, Verbosity, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
 import { isEqual, joinPath } from 'vs/base/common/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -20,9 +20,14 @@ import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/
 import { AbstractResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 interface NotebookEditorInputOptions {
 	startDirty?: boolean;
+	/**
+	 * backupId for webview
+	 */
+	_backupId?: string;
 }
 
 export class NotebookEditorInput extends AbstractResourceEditorInput {
@@ -230,6 +235,16 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			}
 		} else {
 			this._editorModelReference.object.load();
+		}
+
+		if (this.options._backupId) {
+			const info = await this._notebookService.withNotebookDataProvider(this._editorModelReference.object.notebook.uri, this._editorModelReference.object.notebook.viewType);
+			if (!(info instanceof SimpleNotebookProviderInfo)) {
+				throw new Error('CANNOT open file notebook with this provider');
+			}
+
+			const data = await info.serializer.dataToNotebook(VSBuffer.fromString(JSON.stringify({ __webview_backup: this.options._backupId })));
+			this._editorModelReference.object.notebook._initialize(data.cells, true);
 		}
 
 		return this._editorModelReference.object;
