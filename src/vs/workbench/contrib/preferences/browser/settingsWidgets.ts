@@ -176,6 +176,12 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 
 type EditKey = 'none' | 'create' | number;
 
+type RowElementGroup = {
+	rowElement: HTMLElement;
+	keyElement: HTMLElement;
+	valueElement?: HTMLElement;
+};
+
 type IListViewItem<TDataItem extends object> = TDataItem & {
 	editing?: boolean;
 	selected?: boolean;
@@ -313,10 +319,10 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 	protected abstract getEmptyItem(): TDataItem;
 	protected abstract getContainerClasses(): string[];
 	protected abstract getActionsForItem(item: TDataItem, idx: number): IAction[];
-	protected abstract renderItem(item: TDataItem, idx: number): HTMLElement;
+	protected abstract renderItem(item: TDataItem, idx: number): RowElementGroup;
 	protected abstract renderEdit(item: TDataItem, idx: number): HTMLElement;
 	protected abstract isItemNew(item: TDataItem): boolean;
-	protected abstract getLocalizedRowTitle(item: TDataItem): string;
+	protected abstract addTooltipsToRow(rowElement: RowElementGroup, item: TDataItem): void;
 	protected abstract getLocalizedStrings(): {
 		deleteActionTooltip: string
 		editActionTooltip: string
@@ -405,7 +411,8 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 	}
 
 	private renderDataItem(item: IListViewItem<TDataItem>, idx: number, listFocused: boolean): HTMLElement {
-		const rowElement = this.renderItem(item, idx);
+		const rowElementGroup = this.renderItem(item, idx);
+		const rowElement = rowElementGroup.rowElement;
 
 		rowElement.setAttribute('data-index', idx + '');
 		rowElement.setAttribute('tabindex', item.selected ? '0' : '-1');
@@ -415,8 +422,7 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 		this.listDisposables.add(actionBar);
 
 		actionBar.push(this.getActionsForItem(item, idx), { icon: true, label: true });
-		rowElement.title = this.getLocalizedRowTitle(item);
-		rowElement.setAttribute('aria-label', rowElement.title);
+		this.addTooltipsToRow(rowElementGroup, item);
 
 		if (item.selected && listFocused) {
 			this.listDisposables.add(disposableTimeout(() => rowElement.focus()));
@@ -586,7 +592,7 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 		return dragImage;
 	}
 
-	protected renderItem(item: IListDataItem, idx: number): HTMLElement {
+	protected renderItem(item: IListDataItem, idx: number): RowElementGroup {
 		const rowElement = $('.setting-list-row');
 		const valueElement = DOM.append(rowElement, $('.setting-list-value'));
 		const siblingElement = DOM.append(rowElement, $('.setting-list-sibling'));
@@ -595,7 +601,7 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 		siblingElement.textContent = item.sibling ? `when: ${item.sibling}` : null;
 
 		this.addDragAndDrop(rowElement, item, idx);
-		return rowElement;
+		return { rowElement, keyElement: valueElement, valueElement: siblingElement };
 	}
 
 	protected addDragAndDrop(rowElement: HTMLElement, item: IListDataItem, idx: number) {
@@ -801,10 +807,14 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 		return item.value.data === '';
 	}
 
-	protected getLocalizedRowTitle({ value, sibling }: IListDataItem): string {
-		return isUndefinedOrNull(sibling)
+	protected addTooltipsToRow(rowElementGroup: RowElementGroup, { value, sibling }: IListDataItem) {
+		const title = isUndefinedOrNull(sibling)
 			? localize('listValueHintLabel', "List item `{0}`", value.data)
 			: localize('listSiblingHintLabel', "List item `{0}` with sibling `${1}`", value.data, sibling);
+
+		const { rowElement } = rowElementGroup;
+		rowElement.title = title;
+		rowElement.setAttribute('aria-label', rowElement.title);
 	}
 
 	protected getLocalizedStrings() {
@@ -857,10 +867,14 @@ export class ExcludeSettingWidget extends ListSettingWidget {
 		return;
 	}
 
-	protected override getLocalizedRowTitle({ value, sibling }: IListDataItem): string {
-		return isUndefinedOrNull(sibling)
+	protected override addTooltipsToRow(rowElementGroup: RowElementGroup, { value, sibling }: IListDataItem): void {
+		const title = isUndefinedOrNull(sibling)
 			? localize('excludePatternHintLabel', "Exclude files matching `{0}`", value.data)
 			: localize('excludeSiblingHintLabel', "Exclude files matching `{0}`, only when a file matching `{1}` is present", value.data, sibling);
+
+		const { rowElement } = rowElementGroup;
+		rowElement.title = title;
+		rowElement.setAttribute('aria-label', rowElement.title);
 	}
 
 	protected override getLocalizedStrings() {
@@ -893,7 +907,6 @@ interface IObjectEnumData {
 interface IObjectBoolData {
 	type: 'boolean';
 	data: boolean;
-	description?: string;
 }
 
 type ObjectKey = IObjectStringData | IObjectEnumData;
@@ -903,6 +916,7 @@ type ObjectWidget = InputBox | SelectBox;
 export interface IObjectDataItem {
 	key: ObjectKey;
 	value: ObjectValue;
+	keyDescription?: string;
 	removable: boolean;
 }
 
@@ -1013,7 +1027,7 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 		return header;
 	}
 
-	protected renderItem(item: IObjectDataItem, idx: number): HTMLElement {
+	protected renderItem(item: IObjectDataItem, idx: number): RowElementGroup {
 		const rowElement = $('.setting-list-row');
 		rowElement.classList.add('setting-list-object-row');
 
@@ -1023,7 +1037,7 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 		keyElement.textContent = item.key.data;
 		valueElement.textContent = item.value.data.toString();
 
-		return rowElement;
+		return { rowElement, keyElement, valueElement };
 	}
 
 	protected renderEdit(item: IObjectDataItem, idx: number): HTMLElement {
@@ -1251,20 +1265,24 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 		return true;
 	}
 
-	protected getLocalizedRowTitle(item: IObjectDataItem): string {
-		let enumDescription = item.key.type === 'enum'
-			? item.key.options.find(({ value }) => item.key.data === value)?.description
+	protected addTooltipsToRow(rowElementGroup: RowElementGroup, item: IObjectDataItem): void {
+		const { keyElement, valueElement, rowElement } = rowElementGroup;
+		const accessibleDescription = localize('objectPairHintLabel', "The property `{0}` is set to `{1}`.", item.key.data, item.value.data);
+
+		const keyDescription = this.getEnumDescription(item.key) ?? item.keyDescription ?? accessibleDescription;
+		keyElement.title = keyDescription;
+
+		const valueDescription = this.getEnumDescription(item.value) ?? accessibleDescription;
+		valueElement!.title = valueDescription;
+
+		rowElement.setAttribute('aria-label', accessibleDescription);
+	}
+
+	private getEnumDescription(keyOrValue: ObjectKey | ObjectValue): string | undefined {
+		const enumDescription = keyOrValue.type === 'enum'
+			? keyOrValue.options.find(({ value }) => keyOrValue.data === value)?.description
 			: undefined;
-
-		// avoid rendering double '.'
-		if (isDefined(enumDescription)) {
-			if (enumDescription.endsWith('.')) {
-				enumDescription = enumDescription.slice(0, enumDescription.length - 1);
-			}
-			return `${enumDescription}. Currently set to ${item.value.data}.`;
-		}
-
-		return localize('objectPairHintLabel', "The property `{0}` is set to `{1}`.", item.key.data, item.value.data);
+		return enumDescription;
 	}
 
 	protected getLocalizedStrings() {
@@ -1330,10 +1348,11 @@ export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IObje
 		return rowElement;
 	}
 
-	protected renderItem(item: IObjectDataItem, idx: number): HTMLElement {
-		// return empty object, since we always render in edit mode
-		const rowElement = $('.setting-list-row');
-		return rowElement;
+	protected renderItem(item: IObjectDataItem, idx: number): RowElementGroup {
+		// Return just the containers, since we always render in edit mode anyway
+		const rowElement = $('.blank-row');
+		const keyElement = $('.blank-row-key');
+		return { rowElement, keyElement };
 	}
 
 	protected renderEdit(item: IObjectDataItem, idx: number): HTMLElement {
@@ -1349,7 +1368,12 @@ export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IObje
 
 		const valueElement = DOM.append(rowElement, $('.setting-list-object-value'));
 		valueElement.textContent = changedItem.key.data;
-		valueElement.setAttribute('title', this.getLocalizedRowTitle(changedItem));
+
+		// We add the tooltips here, because the method is not called by default
+		// for widgets in edit mode
+		const rowElementGroup = { rowElement, keyElement: valueElement, valueElement: checkbox.domNode };
+		this.addTooltipsToRow(rowElementGroup, item);
+
 		this._register(DOM.addDisposableListener(valueElement, DOM.EventType.MOUSE_DOWN, e => {
 			const targetElement = <HTMLElement>e.target;
 			if (targetElement.tagName.toLowerCase() !== 'a') {
@@ -1392,13 +1416,14 @@ export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IObje
 		return { widget: checkbox, element: wrapper };
 	}
 
-	protected getLocalizedRowTitle(item: IObjectDataItem): string {
-		const description = (item.value as IObjectBoolData).description;
-		if (description) {
-			return description;
-		} else {
-			return localize('objectPairHintLabel', "The property `{0}` is set to `{1}`.", item.key.data, item.value.data);
-		}
+	protected addTooltipsToRow(rowElementGroup: RowElementGroup, item: IObjectDataItem): void {
+		const accessibleDescription = localize('objectPairHintLabel', "The property `{0}` is set to `{1}`.", item.key.data, item.value.data);
+		const title = item.keyDescription ?? accessibleDescription;
+		const { rowElement, keyElement, valueElement } = rowElementGroup;
+
+		keyElement.title = title;
+		valueElement!.setAttribute('aria-label', accessibleDescription);
+		rowElement.setAttribute('aria-label', accessibleDescription);
 	}
 
 	protected getLocalizedStrings() {
