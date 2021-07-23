@@ -381,17 +381,17 @@ export class TerminalService implements ITerminalService {
 		this._attachProcessLayoutListeners();
 	}
 
-	private _recreateTerminalGroups(layoutInfo?: ITerminalsLayoutInfo): number {
+	private async _recreateTerminalGroups(layoutInfo?: ITerminalsLayoutInfo): Promise<number> {
 		let reconnectCounter = 0;
 		let activeGroup: ITerminalGroup | undefined;
 		if (layoutInfo) {
-			layoutInfo.tabs.forEach(groupLayout => {
+			for (const groupLayout of layoutInfo.tabs) {
 				const terminalLayouts = groupLayout.terminals.filter(t => t.terminal && t.terminal.isOrphan);
 				if (terminalLayouts.length) {
 					reconnectCounter += terminalLayouts.length;
 					let terminalInstance: ITerminalInstance | undefined;
 					let group: ITerminalGroup | undefined;
-					terminalLayouts.forEach(async (terminalLayout) => {
+					for (const terminalLayout of terminalLayouts) {
 						if (!terminalInstance) {
 							// create group and terminal
 							terminalInstance = await this.createTerminal({
@@ -404,9 +404,9 @@ export class TerminalService implements ITerminalService {
 							}
 						} else {
 							// add split terminals to this group
-							this.splitInstance(terminalInstance, { attachPersistentProcess: terminalLayout.terminal! });
+							await this.splitInstance(terminalInstance, { attachPersistentProcess: terminalLayout.terminal! });
 						}
-					});
+					}
 					const activeInstance = this.instances.find(t => {
 						return t.shellLaunchConfig.attachPersistentProcess?.id === groupLayout.activePersistentProcessId;
 					});
@@ -415,7 +415,7 @@ export class TerminalService implements ITerminalService {
 					}
 					group?.resizePanes(groupLayout.terminals.map(terminal => terminal.relativeSize));
 				}
-			});
+			}
 			if (layoutInfo.tabs.length) {
 				this._terminalGroupService.activeGroup = activeGroup;
 			}
