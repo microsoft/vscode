@@ -383,7 +383,7 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 		this.renderList();
 	}
 
-	protected cancelEdit(): void {
+	public cancelEdit(): void {
 		this.model.setEditKey('none');
 		this.renderList();
 	}
