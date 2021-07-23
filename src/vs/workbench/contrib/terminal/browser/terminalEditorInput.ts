@@ -30,6 +30,7 @@ export class TerminalEditorInput extends EditorInput {
 
 	private _isDetached = false;
 	private _isShuttingDown = false;
+	private _isReverted = false;
 	private _copyInstance?: ITerminalInstance;
 	private _terminalEditorFocusContextKey: IContextKey<boolean>;
 
@@ -89,11 +90,19 @@ export class TerminalEditorInput extends EditorInput {
 	}
 
 	override isDirty(): boolean {
+		if (this._isReverted) {
+			return false;
+		}
 		const confirmOnKill = this._configurationService.getValue<ConfirmOnKill>(TerminalSettingId.ConfirmOnKill);
 		if (confirmOnKill === 'editor' || confirmOnKill === 'always') {
 			return this._terminalInstance?.hasChildProcesses || false;
 		}
 		return false;
+	}
+
+	override async revert(): Promise<void> {
+		// On revert just treat the terminal as permanently non-dirty
+		this._isReverted = true;
 	}
 
 	constructor(
