@@ -1023,7 +1023,6 @@ export class TerminalService implements ITerminalService {
 			await this.activeInstance?.focusWhenReady();
 		} catch (e) {
 			this._notificationService.error(e.message);
-			throw new Error('nope');
 		}
 	}
 
