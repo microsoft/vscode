@@ -455,7 +455,7 @@ export class CellOutputElement extends Disposable {
 			return `${displayName} (${renderInfo.extensionId.value})`;
 		}
 
-		return nls.localize('unavailableRenderInfo', "not available");
+		return nls.localize('unavailableRenderInfo', "renderer not available");
 	}
 
 	private _outputHeightTimer: any = null;
