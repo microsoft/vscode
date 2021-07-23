@@ -256,7 +256,7 @@ export class NotebookEditorToolbar extends Disposable {
 
 			if (this._canBeVisible(this._dimension.width - kernelWidth - ACTION_PADDING /** left margin */)) {
 				this._primaryActions.forEach(action => action.visible = true);
-				toolbar.setActions(this._primaryActions.map(model => model.action), this._secondaryActions);
+				toolbar.setActions(this._primaryActions.filter(action => action.action.id !== ToggleMenuAction.ID).map(model => model.action), this._secondaryActions);
 				return;
 			}
 
@@ -283,8 +283,8 @@ export class NotebookEditorToolbar extends Disposable {
 			this._primaryActions.slice(actions.length).forEach(action => action.visible = false);
 
 			toolbar.setActions(
-				actions.filter(action => (action.visible)).map(action => action.action),
-				[...this._primaryActions.slice(actions.length).filter(action => !action.visible).map(action => action.action), ...this._secondaryActions]);
+				actions.filter(action => (action.visible && action.action.id !== ToggleMenuAction.ID)).map(action => action.action),
+				[...this._primaryActions.slice(actions.length).filter(action => !action.visible && action.action.id !== ToggleMenuAction.ID).map(action => action.action), ...this._secondaryActions]);
 		}
 	}
 
