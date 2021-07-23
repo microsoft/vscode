@@ -10,7 +10,7 @@ import TelemetryReporter from 'vscode-extension-telemetry';
 export const DEFAULT_SCOPES = 'https://management.core.windows.net/.default offline_access';
 
 export async function activate(context: vscode.ExtensionContext) {
-	const { name, version, aiKey } = require('../package.json') as { name: string, version: string, aiKey: string };
+	const { name, version, aiKey } = context.extension.packageJSON as { name: string, version: string, aiKey: string };
 	const telemetryReporter = new TelemetryReporter(name, version, aiKey);
 
 	const loginService = new AzureActiveDirectoryService(context);

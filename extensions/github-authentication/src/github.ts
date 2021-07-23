@@ -38,7 +38,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	private _disposable: vscode.Disposable;
 
 	constructor(private context: vscode.ExtensionContext, private type: AuthProviderType) {
-		const { name, version, aiKey } = require('../package.json') as { name: string, version: string, aiKey: string };
+		const { name, version, aiKey } = context.extension.packageJSON as { name: string, version: string, aiKey: string };
 		this._telemetryReporter = new ExperimentationTelemetry(context, new TelemetryReporter(name, version, aiKey));
 
 		this._keychain = new Keychain(context, `${type}.auth`);
