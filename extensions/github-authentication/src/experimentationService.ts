@@ -9,10 +9,18 @@ import { getExperimentationService, IExperimentationService, IExperimentationTel
 
 export class ExperimentationTelemetry implements IExperimentationTelemetry {
 	private sharedProperties: Record<string, string> = {};
+	private experimentationService: IExperimentationService | undefined;
 
-	constructor(private baseReporter: TelemetryReporter) { }
+	constructor(private readonly context: vscode.ExtensionContext, private baseReporter: TelemetryReporter) { }
 
-	sendTelemetryEvent(eventName: string, properties?: Record<string, string>, measurements?: Record<string, number>) {
+	/**
+	 * @returns A promise that you shouldn't need to await because this is just telemetry.
+	 */
+	async sendTelemetryEvent(eventName: string, properties?: Record<string, string>, measurements?: Record<string, number>) {
+		if (!this.experimentationService) {
+			this.experimentationService = await createExperimentationService(this.context, this);
+		}
+
 		this.baseReporter.sendTelemetryEvent(
 			eventName,
 			{
@@ -23,11 +31,18 @@ export class ExperimentationTelemetry implements IExperimentationTelemetry {
 		);
 	}
 
-	sendTelemetryErrorEvent(
+	/**
+	 * @returns A promise that you shouldn't need to await because this is just telemetry.
+	 */
+	async sendTelemetryErrorEvent(
 		eventName: string,
 		properties?: Record<string, string>,
-		_measurements?: Record<string, number>,
+		_measurements?: Record<string, number>
 	) {
+		if (!this.experimentationService) {
+			this.experimentationService = await createExperimentationService(this.context, this);
+		}
+
 		this.baseReporter.sendTelemetryErrorEvent(eventName, {
 			...this.sharedProperties,
 			...properties,
@@ -66,8 +81,10 @@ function getTargetPopulation(): TargetPopulation {
 	}
 }
 
-export async function createExperimentationService(context: vscode.ExtensionContext, telemetry: ExperimentationTelemetry): Promise<IExperimentationService> {
+async function createExperimentationService(context: vscode.ExtensionContext, telemetry: ExperimentationTelemetry): Promise<IExperimentationService> {
 	const id = context.extension.id;
 	const version = context.extension.packageJSON.version;
-	return getExperimentationService(id, version, getTargetPopulation(), telemetry, context.globalState);
+	const experimentationService = getExperimentationService(id, version, getTargetPopulation(), telemetry, context.globalState);
+	await experimentationService.initialFetch;
+	return experimentationService;
 }

@@ -5,23 +5,8 @@
 
 import * as vscode from 'vscode';
 import { GitHubAuthenticationProvider, AuthProviderType } from './github';
-import TelemetryReporter from 'vscode-extension-telemetry';
-import { createExperimentationService, ExperimentationTelemetry } from './experimentationService';
 
 export async function activate(context: vscode.ExtensionContext) {
-	const { name, version, aiKey } = require('../package.json') as { name: string, version: string, aiKey: string };
-	const telemetryReporter = new ExperimentationTelemetry(new TelemetryReporter(name, version, aiKey));
-
-	const experimentationService = await createExperimentationService(context, telemetryReporter);
-	await experimentationService.initialFetch;
-
-	[
-		AuthProviderType.github,
-		AuthProviderType['github-enterprise']
-	].forEach(type => {
-		context.subscriptions.push(new GitHubAuthenticationProvider(context, type, telemetryReporter));
-	});
+	context.subscriptions.push(new GitHubAuthenticationProvider(context, AuthProviderType.github));
+	context.subscriptions.push(new GitHubAuthenticationProvider(context, AuthProviderType.githubEnterprise));
 }
-
-// this method is called when your extension is deactivated
-export function deactivate() { }
