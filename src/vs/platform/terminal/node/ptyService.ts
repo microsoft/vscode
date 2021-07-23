@@ -19,7 +19,8 @@ import { execFile } from 'child_process';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { URI } from 'vs/base/common/uri';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
-
+import { Terminal } from 'xterm-headless';
+import { SerializeAddon } from 'vs/platform/terminal/node/serializeAddon';
 type WorkspaceId = string;
 
 export class PtyService extends Disposable implements IPtyService {
@@ -337,6 +338,7 @@ export class PersistentTerminalProcess extends Disposable {
 	private _cwd = '';
 	private _title: string | undefined;
 	private _titleSource: TitleEventSource = TitleEventSource.Process;
+	private _xterm: Terminal;
 
 	get pid(): number { return this._pid; }
 	get title(): string { return this._title || this._terminalProcess.currentTitle; }
@@ -360,7 +362,8 @@ export class PersistentTerminalProcess extends Disposable {
 		readonly workspaceId: string,
 		readonly workspaceName: string,
 		readonly shouldPersistTerminal: boolean,
-		cols: number, rows: number,
+		cols: number,
+		rows: number,
 		reconnectConstants: IReconnectConstants,
 		private readonly _logService: ILogService,
 		private _icon?: TerminalIcon,
@@ -368,6 +371,8 @@ export class PersistentTerminalProcess extends Disposable {
 	) {
 		super();
 		this._logService.trace('persistentTerminalProcess#ctor', _persistentProcessId, arguments);
+
+		this._xterm = new Terminal({ cols, rows });
 		this._recorder = new TerminalRecorder(cols, rows);
 		this._orphanQuestionBarrier = null;
 		this._orphanQuestionReplyTime = 0;
@@ -394,7 +399,10 @@ export class PersistentTerminalProcess extends Disposable {
 		this._register(this._terminalProcess.onProcessExit(() => this._bufferer.stopBuffering(this._persistentProcessId)));
 
 		// Data recording for reconnect
-		this._register(this.onProcessData(e => this._recorder.recordData(e)));
+		this._register(this.onProcessData(e => {
+			this._xterm.write(e);
+			this._recorder.recordData(e);
+		}));
 	}
 
 	attach(): void {
@@ -445,6 +453,7 @@ export class PersistentTerminalProcess extends Disposable {
 		if (this._inReplay) {
 			return;
 		}
+		this._xterm.resize(cols, rows);
 		this._recorder.recordResize(cols, rows);
 
 		// Buffered events should flush when a resize occurs
@@ -475,7 +484,23 @@ export class PersistentTerminalProcess extends Disposable {
 		}
 
 		this._logService.info(`Persistent process "${this._persistentProcessId}": Replaying ${dataLength} chars and ${ev.events.length} size events`);
-		this._onProcessReplay.fire(ev);
+		for (let i = 0; i < this._xterm.getOption('rows'); i++) {
+			this._logService.info(`Restore line: "${this._xterm.buffer.active.getLine(this._xterm.buffer.active.viewportY + i)?.translateToString(true)}"`);
+		}
+		const serialize = new SerializeAddon();
+		this._xterm.loadAddon(serialize);
+		const serialized = serialize.serialize(100);
+		this._logService.info('serialized', serialized);
+		// this._onProcessReplay.fire(ev);
+		this._onProcessReplay.fire({
+			events: [
+				{
+					cols: this._xterm.getOption('cols'),
+					rows: this._xterm.getOption('rows'),
+					data: serialized
+				}
+			]
+		});
 		this._terminalProcess.clearUnacknowledgedChars();
 	}
 
