@@ -205,8 +205,25 @@ interface IDefaultView {
 	readonly id: string;
 }
 
+interface IPosition {
+	readonly line: number;
+	readonly column: number;
+}
+
+interface IRange {
+	/**
+	 * The start position. It is before or equal to end position.
+	 */
+	readonly start: IPosition;
+	/**
+	 * The end position. It is after or equal to start position.
+	 */
+	readonly end: IPosition;
+}
+
 interface IDefaultEditor {
 	readonly uri: UriComponents;
+	readonly selection?: IRange;
 	readonly openOnlyIfExists?: boolean;
 	readonly openWith?: string;
 }
@@ -691,6 +708,8 @@ export {
 	IDefaultView,
 	IDefaultEditor,
 	IDefaultLayout,
+	IPosition,
+	IRange as ISelection,
 
 	// Env
 	IPerformanceMark,
