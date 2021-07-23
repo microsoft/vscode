@@ -18,9 +18,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	[
 		AuthProviderType.github,
 		AuthProviderType['github-enterprise']
-	].forEach(async type => {
-		const loginService = new GitHubAuthenticationProvider(context, type, telemetryReporter);
-		await loginService.initialize();
+	].forEach(type => {
+		context.subscriptions.push(new GitHubAuthenticationProvider(context, type, telemetryReporter));
 	});
 }
 
