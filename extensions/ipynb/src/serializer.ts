@@ -8,9 +8,13 @@ import * as detectIndent from 'detect-indent';
 import * as vscode from 'vscode';
 import { defaultNotebookFormat } from './constants';
 import { createJupyterCellFromNotebookCell, getPreferredLanguage, jupyterNotebookModelToNotebookData, pruneCell } from './helpers';
+import * as fnv from '@enonic/fnv-plus';
 
 export class NotebookSerializer implements vscode.NotebookSerializer {
-	public deserializeNotebook(content: Uint8Array, _token: vscode.CancellationToken): vscode.NotebookData {
+	constructor(readonly context: vscode.ExtensionContext) {
+	}
+
+	public async deserializeNotebook(content: Uint8Array, _token: vscode.CancellationToken): Promise<vscode.NotebookData> {
 		let contents = '';
 		try {
 			contents = new TextDecoder().decode(content);
@@ -20,6 +24,22 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 		let json: Partial<nbformat.INotebookContent>;
 		try {
 			json = contents ? (JSON.parse(contents) as Partial<nbformat.INotebookContent>) : {};
+
+			if (json.__webview_backup) {
+				const backupId = json.__webview_backup;
+				const uri = this.context.globalStorageUri;
+				const folder = uri.with({ path: this.context.globalStorageUri.path.replace('vscode.ipynb', 'ms-toolsai.jupyter') });
+				const fileHash = fnv.fast1a32hex(backupId) as string;
+				const fileName = `${fileHash}.ipynb`;
+				const file = vscode.Uri.joinPath(folder, fileName);
+				const data = await vscode.workspace.fs.readFile(file);
+				json = data ? JSON.parse(data.toString()) : {};
+
+				if (json.contents && typeof json.contents === 'string') {
+					contents = json.contents;
+					json = JSON.parse(contents) as Partial<nbformat.INotebookContent>;
+				}
+			}
 		} catch (e) {
 			console.log(contents);
 			console.log(e);
