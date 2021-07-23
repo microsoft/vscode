@@ -85,9 +85,13 @@ function nodePlugins(context) {
 		new NLSBundlePlugin(id)
 	];
 }
+/**
+ * @typedef {{
+ * 	configFile?: string
+ * }} AdditionalBrowserConfig
+ */
 
-
-function withBrowserDefaults(/**@type WebpackConfig*/extConfig) {
+function withBrowserDefaults(/**@type WebpackConfig*/extConfig, /** @type AdditionalBrowserConfig */ additionalOptions = {}) {
 	/** @type WebpackConfig */
 	let defaultConfig = {
 		mode: 'none', // this leaves the source code as close as possible to the original (when packaging we set this to 'production')
@@ -112,6 +116,7 @@ function withBrowserDefaults(/**@type WebpackConfig*/extConfig) {
 					// * enable sources maps for end-to-end source maps
 					loader: 'ts-loader',
 					options: {
+						configFile: additionalOptions.configFile,
 						compilerOptions: {
 							'sourceMap': true,
 						}
