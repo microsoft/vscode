@@ -624,7 +624,7 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
-	async splitInstance(instanceToSplit: ITerminalInstance, shell?: IShellLaunchConfig, cwd?: string | URI): Promise<ITerminalInstance | null> {
+	async splitInstance(instanceToSplit: ITerminalInstance, shell?: IShellLaunchConfig, cwd?: string | URI): Promise<ITerminalInstance> {
 		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(shell);
 
 		const contributedDefaultProfile = await this._getContributedDefaultProfile(shellLaunchConfig);
@@ -652,7 +652,7 @@ export class TerminalService implements ITerminalService {
 			default:
 				const group = this._terminalGroupService.getGroupForInstance(instanceToSplit);
 				if (!group) {
-					return null;
+					throw new Error(`Cannot split a terminal without a group ${instanceToSplit}`);
 				}
 				instance = group.split(shellLaunchConfig);
 				break;
@@ -1113,7 +1113,7 @@ export class TerminalService implements ITerminalService {
 		} else if (Object.entries(options).length > 2) {
 			return false;
 		}
-		return Array.from(Object.keys(options)).filter(k => k !== 'target' && k !== 'isSplitTerminal').length === 0;
+		return Array.from(Object.keys(options)).filter(k => k !== 'target' && k !== 'forceSplit').length === 0;
 	}
 
 	async createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance> {
@@ -1133,7 +1133,7 @@ export class TerminalService implements ITerminalService {
 		// Launch the contributed profile
 		if (contributedProfile) {
 			await this._createContributedTerminalProfile(contributedProfile.extensionIdentifier, contributedProfile.id, {
-				isSplitTerminal: options?.isSplitTerminal || false,
+				isSplitTerminal: options?.forceSplit || false,
 				icon: contributedProfile.icon,
 				target: options?.target
 			});
@@ -1166,7 +1166,7 @@ export class TerminalService implements ITerminalService {
 		if (target === TerminalLocation.Editor) {
 			instance = this._terminalInstanceService.createInstance(shellLaunchConfig, undefined, options?.resource);
 			instance.target = TerminalLocation.Editor;
-			this._terminalEditorService.openEditor(instance, options?.sideGroup);
+			this._terminalEditorService.openEditor(instance, options?.forceSplit);
 		} else {
 			// TODO: pass resource?
 			const group = this._terminalGroupService.createGroup(shellLaunchConfig);
