@@ -14094,6 +14094,17 @@ declare module 'vscode' {
 		failed(test: TestItem, message: TestMessage | readonly TestMessage[], duration?: number): void;
 
 		/**
+		 * Indicates a test has errored. You should pass one or more
+		 * {@link TestMessage | TestMessages} to describe the failure. This differs
+		 * from the "failed" state in that it indicates a test that couldn't be
+		 * executed at all, from a compilation error for example.
+		 * @param test Test item to update.
+		 * @param messages Messages associated with the test failure.
+		 * @param duration How long the test took to execute, in milliseconds.
+		 */
+		errored(test: TestItem, message: TestMessage | readonly TestMessage[], duration?: number): void;
+
+		/**
 		 * Indicates a test has passed.
 		 * @param test Test item to update.
 		 * @param duration How long the test took to execute, in milliseconds.
