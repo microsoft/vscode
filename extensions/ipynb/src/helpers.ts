@@ -370,7 +370,7 @@ function convertStreamOutput(output: NotebookCellOutput): JupyterOutput {
 	const outputs = output.items
 		.filter((opit) => opit.mime === CellOutputMimeTypes.stderr || opit.mime === CellOutputMimeTypes.stdout)
 		.map((opit) => convertOutputMimeToJupyterOutput(opit.mime, opit.data as Uint8Array) as string)
-		.reduceRight<string[]>((prev, curr) => (Array.isArray(curr) ? prev.concat(...curr) : prev.concat(curr)), []);
+		.reduceRight<string[]>((prev, curr) => prev.concat(curr), []);
 
 	const streamType = getOutputStreamType(output) || 'stdout';
 
