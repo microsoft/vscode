@@ -669,7 +669,7 @@ import { assertNoRpc } from '../utils';
 		});
 
 		suite('environmentVariableCollection', () => {
-			test('should have collection variables apply to terminals immediately after setting', (done) => {
+			test('should have collection variables apply to terminals immediately after setting', async (done) => {
 				// Text to match on before passing the test
 				const expectedText = [
 					'~a2~',
@@ -697,7 +697,7 @@ import { assertNoRpc } from '../utils';
 				collection.replace('A', '~a2~');
 				collection.append('B', '~b2~');
 				collection.prepend('C', '~c2~');
-				const terminal = window.createTerminal({
+				const terminal = await window.createTerminal({
 					env: {
 						A: 'a1',
 						B: 'b1',
@@ -714,7 +714,7 @@ import { assertNoRpc } from '../utils';
 				terminal.sendText('echo $C');
 			});
 
-			test('should have collection variables apply to environment variables that don\'t exist', (done) => {
+			test('should have collection variables apply to environment variables that don\'t exist', async (done) => {
 				// Text to match on before passing the test
 				const expectedText = [
 					'~a2~',
@@ -742,7 +742,7 @@ import { assertNoRpc } from '../utils';
 				collection.replace('A', '~a2~');
 				collection.append('B', '~b2~');
 				collection.prepend('C', '~c2~');
-				const terminal = window.createTerminal({
+				const terminal = await window.createTerminal({
 					env: {
 						A: null,
 						B: null,
@@ -759,7 +759,7 @@ import { assertNoRpc } from '../utils';
 				terminal.sendText('echo $C');
 			});
 
-			test('should respect clearing entries', (done) => {
+			test('should respect clearing entries', async (done) => {
 				// Text to match on before passing the test
 				const expectedText = [
 					'~a1~',
@@ -786,7 +786,7 @@ import { assertNoRpc } from '../utils';
 				collection.replace('A', '~a2~');
 				collection.replace('B', '~a2~');
 				collection.clear();
-				const terminal = window.createTerminal({
+				const terminal = await window.createTerminal({
 					env: {
 						A: '~a1~',
 						B: '~b1~'
@@ -800,7 +800,7 @@ import { assertNoRpc } from '../utils';
 				terminal.sendText('echo $B');
 			});
 
-			test('should respect deleting entries', (done) => {
+			test('should respect deleting entries', async (done) => {
 				// Text to match on before passing the test
 				const expectedText = [
 					'~a1~',
@@ -827,7 +827,7 @@ import { assertNoRpc } from '../utils';
 				collection.replace('A', '~a2~');
 				collection.replace('B', '~b2~');
 				collection.delete('A');
-				const terminal = window.createTerminal({
+				const terminal = await window.createTerminal({
 					env: {
 						A: '~a1~',
 						B: '~b2~'
