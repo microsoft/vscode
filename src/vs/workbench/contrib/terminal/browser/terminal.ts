@@ -133,8 +133,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 */
 	createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance>;
 
-	createContributedTerminalProfile(extensionIdentifier: string, id: string, options: ICreateContributedTerminalProfileOptions): Promise<void>;
-
 	/**
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
 	 */

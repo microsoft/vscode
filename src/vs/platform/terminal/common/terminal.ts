@@ -409,6 +409,11 @@ export interface ICreateTerminalOptions {
 	 * The terminal's resource, passed when the terminal has moved windows.
 	 */
 	resource?: URI;
+
+	/**
+	 * Whether or not this terminal should be a split
+	 */
+	isSplitTerminal?: boolean;
 }
 
 export interface ICreateContributedTerminalProfileOptions {

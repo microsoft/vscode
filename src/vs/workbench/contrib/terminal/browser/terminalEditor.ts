@@ -238,13 +238,21 @@ export class TerminalEditor extends EditorPane {
 			}
 		}
 
-		// TODO: Support contributed profiles with editor target
 		for (const contributed of this._terminalContributionService.terminalProfiles) {
-			dropdownActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title.replace(/[\n\r\t]/g, ''), undefined, true, () => this._terminalService.createContributedTerminalProfile(contributed.extensionIdentifier, contributed.id, {
-				isSplitTerminal: false,
+			dropdownActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title.replace(/[\n\r\t]/g, ''), undefined, true, () => this._terminalService.createTerminal({
+				config: {
+					extensionIdentifier: contributed.extensionIdentifier,
+					id: contributed.id,
+					title: contributed.title.replace(/[\n\r\t]/g, '')
+				},
 				target: TerminalLocation.Editor
 			})));
-			submenuActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title.replace(/[\n\r\t]/g, ''), undefined, true, () => this._terminalService.createContributedTerminalProfile(contributed.extensionIdentifier, contributed.id, {
+			submenuActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title.replace(/[\n\r\t]/g, ''), undefined, true, () => this._terminalService.createTerminal({
+				config: {
+					extensionIdentifier: contributed.extensionIdentifier,
+					id: contributed.id,
+					title: contributed.title.replace(/[\n\r\t]/g, '')
+				},
 				isSplitTerminal: true,
 				target: TerminalLocation.Editor
 			})));
