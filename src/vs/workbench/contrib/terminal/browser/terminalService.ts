@@ -1137,11 +1137,10 @@ export class TerminalService implements ITerminalService {
 				icon: contributedProfile.icon,
 				target: options?.target
 			});
-			if (options?.target === TerminalLocation.Editor) {
-				return this._terminalEditorService.instances[this._terminalEditorService.instances.length - 1];
-			} else {
-				return this._terminalGroupService.instances[this._terminalGroupService.instances.length - 1];
-			}
+			const instanceHost = options?.target === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
+			const instance = instanceHost.instances[instanceHost.instances.length - 1];
+			await instance.focusWhenReady();
+			return instance;
 		}
 
 		if (options?.cwd) {
