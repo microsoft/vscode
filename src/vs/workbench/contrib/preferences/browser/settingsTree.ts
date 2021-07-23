@@ -1537,25 +1537,34 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 	}
 
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingEnumItemTemplate, onChange: (value: string) => void): void {
-		const enumItemLabels = dataElement.setting.enumItemLabels;
-		const enumDescriptions = dataElement.setting.enumDescriptions;
+		// Make shallow copies here so that we don't modify the actual dataElement later
+		const enumItemLabels = dataElement.setting.enumItemLabels ? [...dataElement.setting.enumItemLabels] : [];
+		const enumDescriptions = dataElement.setting.enumDescriptions ? [...dataElement.setting.enumDescriptions] : [];
+		const settingEnum = [...dataElement.setting.enum!];
 		const enumDescriptionsAreMarkdown = dataElement.setting.enumDescriptionsAreMarkdown;
 
 		const disposables = new DisposableStore();
 		template.toDispose.add(disposables);
 
-		if (!dataElement.setting.enum!.includes(dataElement.defaultValue)) {
-			dataElement.setting.enum!.unshift(dataElement.defaultValue ?? '');
+		const defaultOrEmptyString = dataElement.defaultValue ?? '';
+
+		let createdDefault = false;
+		if (!settingEnum.includes(defaultOrEmptyString)) {
+			// Add a new potentially blank default setting
+			settingEnum.unshift(defaultOrEmptyString);
+			enumDescriptions.unshift('');
+			enumItemLabels.unshift('');
+			createdDefault = true;
 		}
 
-		const displayOptions = dataElement.setting.enum!
+		const displayOptions = settingEnum
 			.map(String)
 			.map(escapeInvisibleChars)
 			.map((data, index) => {
-				const description = (enumDescriptions && enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index]));
+				const description = (enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index]));
 				return <ISelectOptionItem>{
-					text: enumItemLabels && enumItemLabels[index] ? enumItemLabels[index] : data,
-					detail: enumItemLabels && enumItemLabels[index] ? data : '',
+					text: enumItemLabels[index] ? enumItemLabels[index] : data,
+					detail: enumItemLabels[index] ? data : '',
 					description,
 					descriptionIsMarkdown: enumDescriptionsAreMarkdown,
 					descriptionMarkdownActionHandler: {
@@ -1564,20 +1573,26 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 						},
 						disposeables: disposables
 					},
-					decoratorRight: (data === dataElement.defaultValue ? localize('settings.Default', "default") : '')
+					decoratorRight: (data === dataElement.defaultValue || createdDefault && index === 0 ? localize('settings.Default', "default") : '')
 				};
 			});
 
 		template.selectBox.setOptions(displayOptions);
 
-		let idx = dataElement.setting.enum!.indexOf(dataElement.value);
+		let idx = settingEnum.indexOf(dataElement.value);
 		if (idx === -1) {
-			idx = dataElement.setting.enum!.indexOf(dataElement.defaultValue);
+			idx = settingEnum.indexOf(defaultOrEmptyString);
 		}
 
 		template.onChange = undefined;
 		template.selectBox.select(idx);
-		template.onChange = idx => onChange(dataElement.setting.enum![idx]);
+		template.onChange = (idx) => {
+			if (createdDefault && idx === 0) {
+				onChange(dataElement.defaultValue);
+			} else {
+				onChange(settingEnum[idx]);
+			}
+		};
 
 		template.enumDescriptionElement.innerText = '';
 	}
