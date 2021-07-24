@@ -188,6 +188,12 @@
           "default": true,
           "description": "%html.autoClosingTags%"
         },
+        "html.doNotAddAttributeQuotes": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%html.doNotAddAttributeQuotes%"
+        },
         "html.hover.documentation": {
           "type": "boolean",
           "scope": "resource",

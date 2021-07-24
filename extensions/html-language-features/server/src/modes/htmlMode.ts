@@ -26,6 +26,10 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 			if (doAutoComplete) {
 				options.hideAutoCompleteProposals = true;
 			}
+			let doNotAddAttributeQuotes = settings && settings.html && settings.html.doNotAddAttributeQuotes;
+			if (doNotAddAttributeQuotes) {
+				options.doNotAddAttributeQuotes = true;
+			}
 
 			const htmlDocument = htmlDocuments.get(document);
 			let completionList = htmlLanguageService.doComplete2(document, position, htmlDocument, documentContext, options);
