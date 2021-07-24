@@ -79,26 +79,18 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 		return data;
 	}
 
-	public serializeNotebookDocument(data: vscode.NotebookDocument): string {
-		return this.serialize(data);
-	}
-
 	public serializeNotebook(data: vscode.NotebookData, _token: vscode.CancellationToken): Uint8Array {
 		return new TextEncoder().encode(this.serialize(data));
 	}
 
-	private serialize(data: vscode.NotebookDocument | vscode.NotebookData): string {
+	private serialize(data: vscode.NotebookData): string {
 		const notebookContent: Partial<nbformat.INotebookContent> = data.metadata?.custom || {};
 		notebookContent.cells = notebookContent.cells || [];
 		notebookContent.nbformat = notebookContent.nbformat || 4;
 		notebookContent.nbformat_minor = notebookContent.nbformat_minor || 2;
 		notebookContent.metadata = notebookContent.metadata || { orig_nbformat: 4 };
 
-		const cells = 'notebookType' in data ?
-			data.getCells() :
-			data.cells;
-
-		notebookContent.cells = cells
+		notebookContent.cells = data.cells
 			.map(cell => createJupyterCellFromNotebookCell(cell))
 			.map(pruneCell);
 
