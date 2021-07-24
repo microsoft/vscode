@@ -309,7 +309,7 @@ export class InteractiveEditor extends EditorPane {
 				this.layout(this.#dimension);
 			}
 		}));
-		this.#notebookWidget.value!.setVisible(true);
+		this.#notebookWidget.value!.setVisible(this.isVisible());
 
 		const editorModel = input.resolveInput(this.#notebookWidget.value?.activeKernel?.supportedLanguages[0] ?? 'plaintext');
 		this.#codeEditorWidget.setModel(editorModel);
