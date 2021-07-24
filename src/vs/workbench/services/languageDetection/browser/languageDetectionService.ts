@@ -7,18 +7,21 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetection';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { FileAccess } from 'vs/base/common/network';
-import type { ModelOperations } from '@vscode/vscode-languagedetection';
+import type { ModelOperations, ModelResult } from '@vscode/vscode-languagedetection';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { URI } from 'vs/base/common/uri';
 import { isWeb } from 'vs/base/common/platform';
+import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export class LanguageDetectionService extends Disposable implements ILanguageDetectionService {
-	private static readonly expectedConfidence = 0.6;
+	private static readonly expectedRelativeConfidence = 0.2;
+	static readonly enablementSettingKey = 'workbench.editor.untitled.experimentalLanguageDetection';
 
 	private _loadFailed = false;
 	private _modelOperations: ModelOperations | undefined;
@@ -27,24 +30,26 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 	constructor(
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IModeService private readonly _modeService: IModeService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService) {
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IUntitledTextEditorService private readonly _untitledTextEditorService: IUntitledTextEditorService) {
 		super();
 
-		this._register(untitledTextEditorService.onDidChangeContent(async e => {
-			if (!configurationService.getValue<boolean>('workbench.editor.untitled.languageDetection', { overrideIdentifier: e.getMode() })) {
-				return;
-			}
-
-			const value = untitledTextEditorService.getValue(e.resource);
-			if (!value) { return; }
-			const lang = await this.detectLanguage(value);
-			if (!lang) { return; }
-			e.setMode(lang);
-		}));
+		this._register(_untitledTextEditorService.onDidChangeContent(e => this.handleChangeEvent(e)));
 	}
 
-	async getModelOperations(): Promise<ModelOperations> {
+	private async handleChangeEvent(e: IUntitledTextEditorModel) {
+		if (!this.isEnabledForMode(e.getMode()) || e.hasModeSetExplicitly) {
+			return;
+		}
+
+		const value = this._untitledTextEditorService.getValue(e.resource);
+		if (!value) { return; }
+		const lang = await this.detectLanguage(value);
+		if (!lang) { return; }
+		e.setMode(lang, false);
+	}
+
+	private async getModelOperations(): Promise<ModelOperations> {
 		if (this._modelOperations) {
 			return this._modelOperations;
 		}
@@ -75,7 +80,34 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		return this._register(this._modelOperations);
 	}
 
-	async detectLanguage(content: string): Promise<string | undefined> {
+	private isEnabledForMode(modeId: string | undefined): boolean {
+		return !!modeId && this._configurationService.getValue<boolean>(LanguageDetectionService.enablementSettingKey, { overrideIdentifier: modeId });
+	}
+
+	async detectLanguage(contentOrResource: string | URI): Promise<string | undefined> {
+		let content: string | undefined = URI.isUri(contentOrResource) ? this._untitledTextEditorService.getValue(contentOrResource) : contentOrResource;
+
+		if (content) {
+			for await (const language of this.detectLanguagesImpl(content)) {
+				return language;
+			}
+		}
+		return undefined;
+	}
+
+	async detectLanguages(contentOrResource: string | URI): Promise<string[]> {
+		let content: string | undefined = URI.isUri(contentOrResource) ? this._untitledTextEditorService.getValue(contentOrResource) : contentOrResource;
+
+		const languages: string[] = [];
+		if (content) {
+			for await (const language of this.detectLanguagesImpl(content)) {
+				languages.push(language);
+			}
+		}
+		return languages;
+	}
+
+	private async * detectLanguagesImpl(content: string) {
 		if (this._loadFailed) {
 			return;
 		}
@@ -93,45 +125,44 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 			return;
 		}
 
-		let { languageId, confidence } = modelResults[0];
-
-		// TODO: this is the place where we can improve the results of the model with know hueristics (popular languages, etc).
-
-		// For ts/js and c/cpp we "add" the confidence of the other language to ensure better results
-		switch (languageId) {
-			case 'ts':
-				if (modelResults[1].languageId === 'js') {
-					confidence += modelResults[1].confidence;
-				}
-				break;
-			case 'js':
-				if (modelResults[1].languageId === 'ts') {
-					confidence += modelResults[1].confidence;
-				}
-				break;
-			case 'c':
-				if (modelResults[1].languageId === 'cpp') {
-					confidence += modelResults[1].confidence;
-				}
-				break;
-			case 'cpp':
-				if (modelResults[1].languageId === 'c') {
-					confidence += modelResults[1].confidence;
-				}
-				break;
-			default:
-				break;
-		}
-
-		if (confidence < LanguageDetectionService.expectedConfidence) {
+		if (modelResults[0].confidence < LanguageDetectionService.expectedRelativeConfidence) {
 			return;
 		}
 
-		// TODO: see if there's a better way to do this.
-		const vscodeLanguageId = this._modeService.getModeIdByFilepathOrFirstLine(URI.file(`file.${languageId}`));
-		return vscodeLanguageId ?? undefined;
+		const possibleLanguages: ModelResult[] = [modelResults[0]];
+
+		for (let current of modelResults) {
+
+			if (current === modelResults[0]) {
+				continue;
+			}
+
+			const currentHighest = possibleLanguages[possibleLanguages.length - 1];
+
+			if (currentHighest.confidence - current.confidence >= LanguageDetectionService.expectedRelativeConfidence) {
+				while (possibleLanguages.length) {
+					// TODO: see if there's a better way to do this.
+					const vscodeLanguageId = this._modeService.getModeIdByFilepathOrFirstLine(URI.file(`file.${possibleLanguages.shift()!.languageId}`));
+					if (vscodeLanguageId) {
+						yield vscodeLanguageId;
+					}
+				}
+				if (current.confidence > LanguageDetectionService.expectedRelativeConfidence) {
+					possibleLanguages.push(current);
+					continue;
+				}
+				return;
+			} else {
+				if (current.confidence > LanguageDetectionService.expectedRelativeConfidence) {
+					possibleLanguages.push(current);
+					continue;
+				}
+				return;
+			}
+		}
 	}
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench)
 	.registerWorkbenchContribution(LanguageDetectionService, LifecyclePhase.Eventually);
+registerSingleton(ILanguageDetectionService, LanguageDetectionService);

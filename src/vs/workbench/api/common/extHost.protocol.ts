@@ -67,6 +67,7 @@ import { createExtHostContextProxyIdentifier as createExtId, createMainContextPr
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import * as search from 'vs/workbench/services/search/common/search';
 import * as statusbar from 'vs/workbench/services/statusbar/common/statusbar';
+import { ILanguageStatus } from 'vs/editor/common/services/languageStatusService';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -424,6 +425,8 @@ export interface MainThreadLanguagesShape extends IDisposable {
 	$getLanguages(): Promise<string[]>;
 	$changeLanguage(resource: UriComponents, languageId: string): Promise<void>;
 	$tokensAtPosition(resource: UriComponents, position: IPosition): Promise<undefined | { type: modes.StandardTokenType, range: IRange }>;
+	$setLanguageStatus(handle: number, status: ILanguageStatus): void;
+	$removeLanguageStatus(handle: number): void;
 }
 
 export interface MainThreadMessageOptions {
@@ -933,7 +936,7 @@ export interface MainThreadNotebookKernelsShape extends IDisposable {
 }
 
 export interface MainThreadNotebookRenderersShape extends IDisposable {
-	$postMessage(editorId: string, rendererId: string, message: unknown): Promise<boolean>;
+	$postMessage(editorId: string | undefined, rendererId: string, message: unknown): Promise<boolean>;
 }
 
 export interface MainThreadInteractiveShape extends IDisposable {
@@ -2144,7 +2147,7 @@ export interface MainThreadTestingShape {
 	/** Updates the state of a test run in the given run. */
 	$updateTestStateInRun(runId: string, taskId: string, testId: string, state: TestResultState, duration?: number): void;
 	/** Appends a message to a test in the run. */
-	$appendTestMessageInRun(runId: string, taskId: string, testId: string, message: ITestMessage): void;
+	$appendTestMessagesInRun(runId: string, taskId: string, testId: string, messages: ITestMessage[]): void;
 	/** Appends raw output to the test run.. */
 	$appendOutputToRun(runId: string, taskId: string, output: VSBuffer): void;
 	/** Triggered when coverage is added to test results. */

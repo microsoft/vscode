@@ -20,6 +20,7 @@ import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
 import { isWeb } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 
 type AutoSyncClassification = {
 	sources: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -562,7 +563,11 @@ class AutoSync extends Disposable {
 
 			// After syncing, get the manifest if it was not available before
 			if (this.manifest === null) {
-				this.manifest = await this.userDataSyncStoreService.manifest(null);
+				try {
+					this.manifest = await this.userDataSyncStoreService.manifest(null);
+				} catch (error) {
+					throw new UserDataAutoSyncError(toErrorMessage(error), error instanceof UserDataSyncError ? error.code : UserDataSyncErrorCode.Unknown);
+				}
 			}
 
 			// Update local session id

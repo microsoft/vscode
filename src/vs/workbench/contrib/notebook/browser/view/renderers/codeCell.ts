@@ -277,7 +277,7 @@ export class CodeCell extends Disposable {
 		DOM.hide(this.templateData.runButtonContainer);
 		DOM.show(this.templateData.collapsedPart);
 		DOM.show(this.templateData.outputContainer);
-		this.templateData.container.classList.toggle('collapsed', true);
+		this.templateData.container.classList.toggle('input-collapsed', true);
 		this._outputContainerRenderer.viewUpdateShowOutputs();
 		this.updateInputCollaseElement();
 
@@ -291,7 +291,7 @@ export class CodeCell extends Disposable {
 		DOM.hide(this.templateData.outputContainer);
 		this.removeInputCollapsePreview();
 		this._outputContainerRenderer.viewUpdateHideOuputs();
-		this.templateData.container.classList.toggle('collapsed', false);
+		this.templateData.container.classList.toggle('input-collapsed', false);
 		this.templateData.container.classList.toggle('output-collapsed', true);
 
 		this.relayoutCell();
@@ -302,7 +302,7 @@ export class CodeCell extends Disposable {
 		DOM.hide(this.templateData.runButtonContainer);
 		DOM.show(this.templateData.collapsedPart);
 		DOM.hide(this.templateData.outputContainer);
-		this.templateData.container.classList.toggle('collapsed', true);
+		this.templateData.container.classList.toggle('input-collapsed', true);
 		this.templateData.container.classList.toggle('output-collapsed', true);
 		this._outputContainerRenderer.viewUpdateHideOuputs();
 		this.updateInputCollaseElement();
@@ -315,7 +315,7 @@ export class CodeCell extends Disposable {
 		DOM.hide(this.templateData.collapsedPart);
 		this.removeInputCollapsePreview();
 		DOM.show(this.templateData.outputContainer);
-		this.templateData.container.classList.toggle('collapsed', false);
+		this.templateData.container.classList.toggle('input-collapsed', false);
 		this.templateData.container.classList.toggle('output-collapsed', false);
 		this._outputContainerRenderer.viewUpdateShowOutputs();
 		this.relayoutCell();

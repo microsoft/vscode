@@ -228,6 +228,7 @@ export const enum UserDataSyncErrorCode {
 	RequestPathNotEscaped = 'RequestPathNotEscaped',
 	RequestHeadersNotObject = 'RequestHeadersNotObject',
 	NoRef = 'NoRef',
+	EmptyResponse = 'EmptyResponse',
 	TurnedOff = 'TurnedOff',
 	SessionExpired = 'SessionExpired',
 	ServiceChanged = 'ServiceChanged',

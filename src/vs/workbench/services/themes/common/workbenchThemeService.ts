@@ -64,7 +64,7 @@ export interface IWorkbenchProductIconTheme extends IWorkbenchTheme {
 	readonly settingsId: string;
 }
 
-export type ThemeSettingTarget = ConfigurationTarget | undefined | 'auto';
+export type ThemeSettingTarget = ConfigurationTarget | undefined | 'auto' | 'preview';
 
 
 export interface IWorkbenchThemeService extends IThemeService {

@@ -89,7 +89,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 		this.useCodeSnippet = completionContext.useCodeSnippetsOnMethodSuggest && (this.kind === vscode.CompletionItemKind.Function || this.kind === vscode.CompletionItemKind.Method);
 
 		this.range = this.getRangeFromReplacementSpan(tsEntry, completionContext);
-		this.commitCharacters = MyCompletionItem.getCommitCharacters(completionContext, tsEntry);
+		this.commitCharacters = MyCompletionItem.getCommitCharacters(completionContext);
 		this.insertText = isSnippet && tsEntry.insertText ? new vscode.SnippetString(tsEntry.insertText) : tsEntry.insertText;
 		this.filterText = this.getFilterText(completionContext.line, tsEntry.insertText);
 
@@ -489,55 +489,20 @@ class MyCompletionItem extends vscode.CompletionItem {
 		}
 	}
 
-	private static getCommitCharacters(context: CompletionContext, entry: Proto.CompletionEntry): string[] | undefined {
+	private static getCommitCharacters(context: CompletionContext): string[] | undefined {
 		if (context.isNewIdentifierLocation || !context.isInValidCommitCharacterContext) {
 			return undefined;
 		}
 
-		const commitCharacters: string[] = [];
-		switch (entry.kind) {
-			case PConst.Kind.memberGetAccessor:
-			case PConst.Kind.memberSetAccessor:
-			case PConst.Kind.constructSignature:
-			case PConst.Kind.callSignature:
-			case PConst.Kind.indexSignature:
-			case PConst.Kind.enum:
-			case PConst.Kind.interface:
-				commitCharacters.push('.', ';');
-				break;
-
-			case PConst.Kind.module:
-			case PConst.Kind.alias:
-			case PConst.Kind.const:
-			case PConst.Kind.let:
-			case PConst.Kind.variable:
-			case PConst.Kind.localVariable:
-			case PConst.Kind.memberVariable:
-			case PConst.Kind.class:
-			case PConst.Kind.function:
-			case PConst.Kind.method:
-			case PConst.Kind.keyword:
-			case PConst.Kind.parameter:
-				commitCharacters.push('.', ',', ';');
-				if (context.enableCallCompletions) {
-					commitCharacters.push('(');
-				}
-				break;
+		const commitCharacters: string[] = ['.', ',', ';'];
+		if (context.enableCallCompletions) {
+			commitCharacters.push('(');
 		}
-		return commitCharacters.length === 0 ? undefined : commitCharacters;
+
+		return commitCharacters;
 	}
 }
 
-class CompositeCommand implements Command {
-	public static readonly ID = '_typescript.composite';
-	public readonly id = CompositeCommand.ID;
-
-	public execute(...commands: vscode.Command[]) {
-		for (const command of commands) {
-			vscode.commands.executeCommand(command.command, ...(command.arguments || []));
-		}
-	}
-}
 
 class CompletionAcceptedCommand implements Command {
 	public static readonly ID = '_typescript.onCompletionAccepted';
@@ -678,7 +643,6 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		onCompletionAccepted: (item: vscode.CompletionItem) => void
 	) {
 		commandManager.register(new ApplyCompletionCodeActionCommand(this.client));
-		commandManager.register(new CompositeCommand());
 		commandManager.register(new CompletionAcceptedCommand(onCompletionAccepted, this.telemetryReporter));
 		commandManager.register(new ApplyCompletionCommand(this.client));
 	}

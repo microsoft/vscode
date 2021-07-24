@@ -30,6 +30,10 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 	_context: unknown;
 	_action: IAction;
 
+	get action() {
+		return this._action;
+	}
+
 	private _actionRunner: IActionRunner | undefined;
 
 	constructor(context: unknown, action: IAction, protected options: IBaseActionViewItemOptions = {}) {

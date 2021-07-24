@@ -84,6 +84,13 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row {
 	display: flex;
 }
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row.draggable {
+	cursor: pointer;
+	user-select: none;
+}
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row.drag-hover * {
+	pointer-events: none;
+}
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row-header {

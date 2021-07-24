@@ -484,17 +484,17 @@
 .monaco-workbench .part.editor>.content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent {
 	max-width: 500px;
 	grid-template-columns: auto;
-	grid-template-rows: 30px max-content minmax(0, max-content) minmax(30%, 1fr);
+	grid-template-rows: 30px max-content minmax(170px, max-content) minmax(30%, 1fr);
 	row-gap: 4px;
 	grid-template-areas: "back" "title" "steps" "media";
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.markdown {
-	grid-template-rows: 30px max-content minmax(0, max-content) minmax(60%, 1fr);
+	grid-template-rows: 30px max-content minmax(170px, max-content) minmax(60%, 1fr);
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer.width-semi-constrained.height-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent {
-	grid-template-rows: 0 max-content minmax(0, max-content) minmax(30%, 1fr);
+	grid-template-rows: 0 max-content minmax(170px, max-content) minmax(30%, 1fr);
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent>.prev-button {

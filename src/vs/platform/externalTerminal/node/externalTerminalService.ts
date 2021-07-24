@@ -313,7 +313,8 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 
 function getSanitizedEnvironment(process: NodeJS.Process) {
 	const env = process.env;
-	sanitizeProcessEnvironment(env);
+	// Refs https://github.com/microsoft/vscode/issues/128745#issuecomment-885981676
+	sanitizeProcessEnvironment(env, 'VSCODE_BROWSER_CODE_LOADING');
 	return env;
 }
 

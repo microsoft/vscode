@@ -24,6 +24,7 @@ exports.dirs = [
 	'extensions/html-language-features',
 	'extensions/html-language-features/server',
 	'extensions/image-preview',
+	'extensions/ipynb',
 	'extensions/jake',
 	'extensions/json-language-features',
 	'extensions/json-language-features/server',

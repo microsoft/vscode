@@ -66,7 +66,7 @@ import { Color } from 'vs/base/common/color';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { getTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
+import { getTerminalResourcesFromDragEvent, getTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -806,6 +806,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				setTimeout(() => this._refreshSelectionContextKey(), 0);
 				listener.dispose();
 			});
+		}));
+		this._register(dom.addDisposableListener(xterm.element, 'touchstart', () => {
+			xterm.focus();
 		}));
 
 		// xterm.js currently drops selection on keyup as we need to handle this case.
@@ -2071,14 +2074,9 @@ class TerminalInstanceDragAndDropController extends Disposable implements IDragA
 			return;
 		}
 
-		const terminalResources = e.dataTransfer.getData(DataTransfers.TERMINALS);
+		const terminalResources = getTerminalResourcesFromDragEvent(e);
 		if (terminalResources) {
-			const json = JSON.parse(terminalResources);
-			for (const entry of json) {
-				const uri = URI.from({
-					scheme: Schemas.vscodeTerminal,
-					path: URI.parse(entry).path
-				});
+			for (const uri of terminalResources) {
 				const side = this._getDropSide(e);
 				this._onDropTerminal.fire({ uri, side });
 			}

@@ -285,17 +285,26 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 
 		const context = await this.request(url, { type: 'GET', headers }, [304], CancellationToken.None);
 
+		let userData: IUserData | null = null;
 		if (context.res.statusCode === 304) {
-			// There is no new value. Hence return the old value.
-			return oldValue!;
+			userData = oldValue;
 		}
 
-		const ref = context.res.headers['etag'];
-		if (!ref) {
-			throw new UserDataSyncStoreError('Server did not return the ref', url, UserDataSyncErrorCode.NoRef, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
+		if (userData === null) {
+			const ref = context.res.headers['etag'];
+			if (!ref) {
+				throw new UserDataSyncStoreError('Server did not return the ref', url, UserDataSyncErrorCode.NoRef, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
+			}
+
+			const content = await asText(context);
+			if (!content && context.res.statusCode === 304) {
+				throw new UserDataSyncStoreError('Empty response', url, UserDataSyncErrorCode.EmptyResponse, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
+			}
+
+			userData = { ref, content };
 		}
-		const content = await asText(context);
-		return { ref, content };
+
+		return userData;
 	}
 
 	async write(resource: ServerResource, data: string, ref: string | null, headers: IHeaders = {}): Promise<string> {
@@ -333,17 +342,27 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 
 		const context = await this.request(url, { type: 'GET', headers }, [304], CancellationToken.None);
 
+		let manifest: IUserDataManifest | null = null;
 		if (context.res.statusCode === 304) {
-			// There is no new value. Hence return the old value.
-			return oldValue!;
+			manifest = oldValue;
 		}
 
-		const ref = context.res.headers['etag'];
-		if (!ref) {
-			throw new UserDataSyncStoreError('Server did not return the ref', url, UserDataSyncErrorCode.NoRef, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
+		if (!manifest) {
+			const ref = context.res.headers['etag'];
+			if (!ref) {
+				throw new UserDataSyncStoreError('Server did not return the ref', url, UserDataSyncErrorCode.NoRef, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
+			}
+
+			const content = await asText(context);
+			if (!content && context.res.statusCode === 304) {
+				throw new UserDataSyncStoreError('Empty response', url, UserDataSyncErrorCode.EmptyResponse, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
+			}
+
+			if (content) {
+				manifest = { ...JSON.parse(content), ref };
+			}
 		}
 
-		const manifest = await asJson<Omit<IUserDataManifest, 'ref'>>(context);
 		const currentSessionId = this.storageService.get(USER_SESSION_ID_KEY, StorageScope.GLOBAL);
 
 		if (currentSessionId && manifest && currentSessionId !== manifest.session) {
@@ -361,7 +380,7 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 			this.storageService.store(USER_SESSION_ID_KEY, manifest.session, StorageScope.GLOBAL, StorageTarget.MACHINE);
 		}
 
-		return manifest ? { ...manifest, ref } : null;
+		return manifest;
 	}
 
 	async clear(): Promise<void> {

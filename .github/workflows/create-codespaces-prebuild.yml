@@ -21,7 +21,6 @@ jobs:
               ref = 'main'
               repository_id = 41881900
               location = 'WestUs2'
-              vscs_target = 'production'
             } | ConvertTo-Json
           }
 

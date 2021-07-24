@@ -159,6 +159,11 @@ const createTestItemCollection = (owningItem: TestItemImpl): TestItemCollectionI
 
 	return {
 		/** @inheritdoc */
+		get size() {
+			return mapped.size;
+		},
+
+		/** @inheritdoc */
 		forEach(callback: (item: vscode.TestItem, collection: vscode.TestItemCollection) => unknown, thisArg?: unknown) {
 			for (const item of mapped.values()) {
 				callback.call(thisArg, item, this);
