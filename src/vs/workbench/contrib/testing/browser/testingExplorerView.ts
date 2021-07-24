@@ -66,7 +66,7 @@ import { TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestCollection, ITestService, testCollectionIsEmpty } from 'vs/workbench/contrib/testing/common/testService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ConfigureTestProfilesAction, DebugAllAction, GoToTest, RunAllAction, SelectDefaultTestProfiles } from './testExplorerActions';
+import { ConfigureTestProfilesAction, DebugAllAction, RunAllAction, SelectDefaultTestProfiles } from './testExplorerActions';
 
 export class TestingExplorerView extends ViewPane {
 	public viewModel!: TestingExplorerViewModel;
