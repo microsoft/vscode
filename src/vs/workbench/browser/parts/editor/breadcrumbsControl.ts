@@ -41,6 +41,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { IOutline } from 'vs/workbench/services/outline/browser/outline';
+import { OS, OperatingSystem } from 'vs/base/common/platform';
 
 class OutlineItem extends BreadcrumbsItem {
 
@@ -183,6 +184,9 @@ export class BreadcrumbsControl {
 	private _breadcrumbsPickerShowing = false;
 	private _breadcrumbsPickerIgnoreOnceItem: BreadcrumbsItem | undefined;
 
+	private readonly _overrideSeparatorText: BreadcrumbsConfig<string> | undefined;
+	private readonly _breadcrumbSeparatorSuggest: BreadcrumbsConfig<string> | undefined;
+
 	constructor(
 		container: HTMLElement,
 		private readonly _options: IBreadcrumbsControlOptions,
@@ -205,6 +209,9 @@ export class BreadcrumbsControl {
 
 		this._cfUseQuickPick = BreadcrumbsConfig.UseQuickPick.bindTo(configurationService);
 		this._cfShowIcons = BreadcrumbsConfig.Icons.bindTo(configurationService);
+		this._cfTitleScrollbarSizing = BreadcrumbsConfig.TitleScrollbarSizing.bindTo(configurationService);
+		this._overrideSeparatorText = BreadcrumbsConfig.OverrideSeparatorText.bindTo(configurationService);
+		this._breadcrumbSeparatorSuggest = BreadcrumbsConfig.SeparatorSuggest.bindTo(configurationService);
 		this._cfTitleScrollbarSizing = BreadcrumbsConfig.TitleScrollbarSizing.bindTo(configurationService);
 
 		const sizing = this._cfTitleScrollbarSizing.getValue() ?? 'default';
@@ -322,6 +329,8 @@ export class BreadcrumbsControl {
 		updateScrollbarSizing();
 		const updateScrollbarSizeListener = this._cfTitleScrollbarSizing.onDidChange(updateScrollbarSizing);
 		this._breadcrumbsDisposables.add(updateScrollbarSizeListener);
+
+		this._getOverrideBreadcrumbSeparatorText().then((val) => this._widget.setOverrideSeparatorText(val));
 
 		// close picker on hide/update
 		this._breadcrumbsDisposables.add({
@@ -458,6 +467,20 @@ export class BreadcrumbsControl {
 				picker.dispose();
 			}
 		});
+	}
+
+	private async _getOverrideBreadcrumbSeparatorText(): Promise<string | undefined> {
+		if (this._overrideSeparatorText?.getValue()) {
+			return this._overrideSeparatorText.getValue();
+		}
+		if (this._breadcrumbSeparatorSuggest?.getValue() === 'os') {
+			return {
+				[OperatingSystem.Windows]: '\\',
+				[OperatingSystem.Linux]: '/',
+				[OperatingSystem.Macintosh]: '/',
+			}[OS];
+		}
+		return undefined;
 	}
 
 	private _updateCkBreadcrumbsActive(): void {

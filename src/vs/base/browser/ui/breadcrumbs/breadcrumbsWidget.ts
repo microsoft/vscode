@@ -68,7 +68,6 @@ export class BreadcrumbsWidget {
 	constructor(
 		container: HTMLElement,
 		horizontalScrollbarSize: number,
-		overrideSeparatorText?: string,
 	) {
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'monaco-breadcrumbs';
@@ -86,8 +85,6 @@ export class BreadcrumbsWidget {
 		container.appendChild(this._scrollable.getDomNode());
 
 		this._styleElement = dom.createStyleSheet(this._domNode);
-
-		this._overrideSeparatorText = overrideSeparatorText;
 
 		const focusTracker = dom.trackFocus(this._domNode);
 		this._disposables.add(focusTracker);
@@ -171,6 +168,10 @@ export class BreadcrumbsWidget {
 	setEnabled(value: boolean) {
 		this._enabled = value;
 		this._domNode.classList.toggle('disabled', !this._enabled);
+	}
+
+	setOverrideSeparatorText(text: string | undefined) {
+		this._overrideSeparatorText = text;
 	}
 
 	domFocus(): void {

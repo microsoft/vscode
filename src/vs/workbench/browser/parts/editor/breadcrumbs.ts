@@ -329,11 +329,15 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			markdownDescription: localize('breadcrumbs.overrideSeparatorText', "Override separator with given text")
 
 		},
-		'breadcrubs.separatorSuggest': {
+		'breadcrumbs.separatorSuggest': {
 			type: 'string',
-			default: 'os',
+			default: 'default',
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('breadcrubs.separatorSuggest', 'Given "os" for use specific operator system separator, Given "default" for ">"')
+			enum: ['default', 'os'],
+			enumDescriptions: [
+				localize('breadcrumbs.separatorSuggest.default', "Use > as a separator"),
+				localize('breadcrumbs.separatorSuggest.os', "Use specific os as a separator"),
+			]
 
 		}
 	}
