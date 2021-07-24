@@ -9,7 +9,7 @@ import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node
 import * as cp from 'child_process';
 import { ILogService } from 'vs/platform/log/common/log';
 import * as pfs from 'vs/base/node/pfs';
-import { ITerminalEnvironment, ITerminalProfile, ITerminalProfileObject, ProfileSource, TerminalIcon, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { ITerminalEnvironment, ITerminalExecutable, ITerminalProfile, ITerminalProfileSource, ProfileSource, TerminalIcon, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -38,7 +38,7 @@ export function detectAvailableProfiles(
 			fsProvider,
 			logService,
 			configurationService.getValue(TerminalSettingId.UseWslProfiles) !== false,
-			profiles && typeof profiles === 'object' ? { ...profiles } : configurationService.getValue<{ [key: string]: ITerminalProfileObject }>(TerminalSettingId.ProfilesWindows),
+			profiles && typeof profiles === 'object' ? { ...profiles } : configurationService.getValue<{ [key: string]: IUnresolvedTerminalProfile }>(TerminalSettingId.ProfilesWindows),
 			typeof defaultProfile === 'string' ? defaultProfile : configurationService.getValue<string>(TerminalSettingId.DefaultProfileWindows),
 			testPwshSourcePaths,
 			variableResolver
@@ -48,7 +48,7 @@ export function detectAvailableProfiles(
 		fsProvider,
 		logService,
 		includeDetectedProfiles,
-		profiles && typeof profiles === 'object' ? { ...profiles } : configurationService.getValue<{ [key: string]: ITerminalProfileObject }>(isLinux ? TerminalSettingId.ProfilesLinux : TerminalSettingId.ProfilesMacOs),
+		profiles && typeof profiles === 'object' ? { ...profiles } : configurationService.getValue<{ [key: string]: IUnresolvedTerminalProfile }>(isLinux ? TerminalSettingId.ProfilesLinux : TerminalSettingId.ProfilesMacOs),
 		typeof defaultProfile === 'string' ? defaultProfile : configurationService.getValue<string>(isLinux ? TerminalSettingId.DefaultProfileLinux : TerminalSettingId.DefaultProfileMacOs),
 		testPwshSourcePaths,
 		variableResolver
@@ -60,7 +60,7 @@ async function detectAvailableWindowsProfiles(
 	fsProvider: IFsProvider,
 	logService?: ILogService,
 	useWslProfiles?: boolean,
-	configProfiles?: { [key: string]: ITerminalProfileObject },
+	configProfiles?: { [key: string]: IUnresolvedTerminalProfile },
 	defaultProfileName?: string,
 	testPwshSourcePaths?: string[],
 	variableResolver?: (text: string[]) => Promise<string[]>
@@ -80,7 +80,7 @@ async function detectAvailableWindowsProfiles(
 
 	await initializeWindowsProfiles(testPwshSourcePaths);
 
-	const detectedProfiles: Map<string, ITerminalProfileObject> = new Map();
+	const detectedProfiles: Map<string, IUnresolvedTerminalProfile> = new Map();
 
 	// Add auto detected profiles
 	if (includeDetectedProfiles) {
@@ -134,7 +134,7 @@ async function detectAvailableWindowsProfiles(
 }
 
 async function transformToTerminalProfiles(
-	entries: IterableIterator<[string, ITerminalProfileObject]>,
+	entries: IterableIterator<[string, IUnresolvedTerminalProfile]>,
 	defaultProfileName: string | undefined,
 	fsProvider: IFsProvider,
 	logService?: ILogService,
@@ -280,12 +280,12 @@ async function detectAvailableUnixProfiles(
 	fsProvider: IFsProvider,
 	logService?: ILogService,
 	includeDetectedProfiles?: boolean,
-	configProfiles?: { [key: string]: ITerminalProfileObject },
+	configProfiles?: { [key: string]: IUnresolvedTerminalProfile },
 	defaultProfileName?: string,
 	testPaths?: string[],
 	variableResolver?: (text: string[]) => Promise<string[]>
 ): Promise<ITerminalProfile[]> {
-	const detectedProfiles: Map<string, ITerminalProfileObject> = new Map();
+	const detectedProfiles: Map<string, IUnresolvedTerminalProfile> = new Map();
 
 	// Add non-quick launch profiles
 	if (includeDetectedProfiles) {
@@ -309,7 +309,7 @@ async function detectAvailableUnixProfiles(
 	return await transformToTerminalProfiles(detectedProfiles.entries(), defaultProfileName, fsProvider, logService, variableResolver);
 }
 
-function applyConfigProfilesToMap(configProfiles: { [key: string]: ITerminalProfileObject } | undefined, profilesMap: Map<string, ITerminalProfileObject>) {
+function applyConfigProfilesToMap(configProfiles: { [key: string]: IUnresolvedTerminalProfile } | undefined, profilesMap: Map<string, IUnresolvedTerminalProfile>) {
 	if (!configProfiles) {
 		return;
 	}
@@ -367,3 +367,5 @@ interface IPotentialTerminalProfile {
 	args?: string[];
 	icon?: ThemeIcon | URI | { light: URI, dark: URI };
 }
+
+export type IUnresolvedTerminalProfile = ITerminalExecutable | ITerminalProfileSource | null;

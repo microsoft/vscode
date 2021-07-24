@@ -37,7 +37,7 @@ import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/a
 import { IFileService } from 'vs/platform/files/common/files';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { coalesce } from 'vs/base/common/arrays';
-import { assertIsDefined } from 'vs/base/common/types';
+import { assertIsDefined, isNumber } from 'vs/base/common/types';
 import { INotificationService, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from 'vs/workbench/common/theme';
@@ -644,7 +644,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			return {
 				filesToOpenOrCreate: defaultLayout.editors.map<IPath>(file => {
-					return { fileUri: URI.revive(file.uri), openOnlyIfExists: file.openOnlyIfExists, editorOverrideId: file.openWith };
+					return {
+						fileUri: URI.revive(file.uri),
+						selection: file.selection && file.selection.start && isNumber(file.selection.start.line) ? {
+							startLineNumber: file.selection.start.line,
+							startColumn: isNumber(file.selection.start.column) ? file.selection.start.column : 1,
+							endLineNumber: isNumber(file.selection.end.line) ? file.selection.end.line : undefined,
+							endColumn: isNumber(file.selection.end.line) ? (isNumber(file.selection.end.column) ? file.selection.end.column : 1) : undefined,
+						} : undefined,
+						openOnlyIfExists: file.openOnlyIfExists,
+						editorOverrideId: file.openWith
+					};
 				})
 			};
 		}

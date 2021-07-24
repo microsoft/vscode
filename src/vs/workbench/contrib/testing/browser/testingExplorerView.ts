@@ -66,7 +66,7 @@ import { TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestCollection, ITestService, testCollectionIsEmpty } from 'vs/workbench/contrib/testing/common/testService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ConfigureTestProfilesAction, DebugAllAction, GoToTest, RunAllAction, SelectDefaultTestProfiles } from './testExplorerActions';
+import { ConfigureTestProfilesAction, DebugAllAction, RunAllAction, SelectDefaultTestProfiles } from './testExplorerActions';
 
 export class TestingExplorerView extends ViewPane {
 	public viewModel!: TestingExplorerViewModel;
@@ -462,7 +462,7 @@ export class TestingExplorerViewModel extends Disposable {
 			}
 		}));
 
-		this._register(filterState.reveal.onDidChange(this.revealById, this));
+		this._register(filterState.reveal.onDidChange(id => this.revealById(id, undefined, false)));
 
 		this._register(onDidChangeVisibility(visible => {
 			if (visible) {
@@ -471,16 +471,14 @@ export class TestingExplorerViewModel extends Disposable {
 		}));
 
 		this._register(this.tree.onDidChangeSelection(async evt => {
-			if (evt.browserEvent instanceof MouseEvent && evt.browserEvent.altKey) {
+			if (evt.browserEvent instanceof MouseEvent && (evt.browserEvent.altKey || evt.browserEvent.shiftKey)) {
 				return; // don't focus when alt-clicking to multi select
 			}
 
 			const selected = evt.elements[0];
 			if (selected && evt.browserEvent && selected instanceof TestItemTreeElement
 				&& selected.children.size === 0 && selected.test.expand === TestItemExpandState.NotExpandable) {
-				if (!(await this.tryPeekError(selected)) && selected?.test) {
-					this.instantiationService.invokeFunction(accessor => new GoToTest().run(accessor, selected, true));
-				}
+				await this.tryPeekError(selected);
 			}
 		}));
 

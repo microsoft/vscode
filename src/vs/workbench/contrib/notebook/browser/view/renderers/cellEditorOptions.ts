@@ -91,8 +91,8 @@ export class CellEditorOptions extends Disposable {
 	}
 
 	private _computeEditorOptions() {
-		const renderLiNumbers = this.configurationService.getValue<'on' | 'off'>('notebook.lineNumbers') === 'on';
-		const lineNumbers: LineNumbersType = renderLiNumbers ? 'on' : 'off';
+		const renderLineNumbers = this.configurationService.getValue<'on' | 'off'>('notebook.lineNumbers') === 'on';
+		const lineNumbers: LineNumbersType = renderLineNumbers ? 'on' : 'off';
 		const editorOptions = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: this.language }));
 		const layoutConfig = this.notebookOptions.getLayoutConfiguration();
 		const editorOptionsOverrideRaw = layoutConfig.editorOptionsCustomizations ?? {};
@@ -105,7 +105,7 @@ export class CellEditorOptions extends Disposable {
 		const computed = {
 			...editorOptions,
 			...CellEditorOptions.fixedEditorOptions,
-			... { lineNumbers },
+			... { lineNumbers, folding: lineNumbers === 'on' },
 			...editorOptionsOverride,
 			...{ padding: { top: 12, bottom: 12 } },
 			readOnly: this.notebookEditor.viewModel?.options.isReadOnly ?? false
@@ -136,8 +136,10 @@ export class CellEditorOptions extends Disposable {
 			const renderLiNumbers = this.configurationService.getValue<'on' | 'off'>('notebook.lineNumbers') === 'on';
 			const lineNumbers: LineNumbersType = renderLiNumbers ? 'on' : 'off';
 			this._value.lineNumbers = lineNumbers;
+			this._value.folding = lineNumbers === 'on';
 		} else {
 			this._value.lineNumbers = lineNumbers as LineNumbersType;
+			this._value.folding = lineNumbers === 'on';
 		}
 		this._onDidChange.fire();
 	}

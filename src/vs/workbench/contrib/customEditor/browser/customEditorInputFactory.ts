@@ -17,6 +17,7 @@ import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/com
 import { ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
+import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 
 export interface CustomDocumentBackupData extends IWorkingCopyBackupMeta {
 	readonly viewType: string;
@@ -88,6 +89,10 @@ export class CustomEditorInputSerializer extends WebviewEditorInputSerializer {
 		serializedEditorInput: string
 	): CustomEditorInput {
 		const data = this.fromJson(JSON.parse(serializedEditorInput));
+		if (data.viewType === 'jupyter.notebook.ipynb') {
+			return NotebookEditorInput.create(this._instantiationService, data.editorResource, 'jupyter-notebook', { _backupId: data.backupId }) as any;
+		}
+
 		const webview = reviveWebview(this._webviewService, data);
 		const customInput = this._instantiationService.createInstance(CustomEditorInput, data.editorResource, data.viewType, data.id, webview, { startsDirty: data.dirty, backupId: data.backupId });
 		if (typeof data.group === 'number') {
@@ -125,6 +130,15 @@ export class ComplexCustomWorkingCopyEditorHandler extends Disposable implements
 		this._register(this._workingCopyEditorService.registerHandler({
 			handles: workingCopy => workingCopy.resource.scheme === Schemas.vscodeCustomEditor,
 			isOpen: (workingCopy, editor) => {
+				if (workingCopy.resource.authority === 'jupyter-notebook-ipynb' && editor instanceof NotebookEditorInput) {
+					try {
+						const data = JSON.parse(workingCopy.resource.query);
+						const workingCopyResource = URI.from(data);
+						return isEqual(workingCopyResource, editor.resource);
+					} catch {
+						return false;
+					}
+				}
 				if (!(editor instanceof CustomEditorInput)) {
 					return false;
 				}
@@ -149,6 +163,10 @@ export class ComplexCustomWorkingCopyEditorHandler extends Disposable implements
 				}
 
 				const backupData = backup.meta;
+				if (backupData.viewType === 'jupyter.notebook.ipynb') {
+					return NotebookEditorInput.create(this._instantiationService, URI.revive(backupData.editorResource), 'jupyter-notebook', { _backupId: backupData.backupId, _workingCopy: workingCopy }) as any;
+				}
+
 				const id = backupData.webview.id;
 				const extension = reviveWebviewExtensionDescription(backupData.extension?.id, backupData.extension?.location);
 				const webview = reviveWebview(this._webviewService, {

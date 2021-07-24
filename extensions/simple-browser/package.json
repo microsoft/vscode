@@ -70,7 +70,6 @@
     "vscode-nls": "^5.0.0"
   },
   "devDependencies": {
-    "@types/node": "14.x",
     "@types/vscode-webview": "^1.57.0",
     "vscode-codicons": "^0.0.14"
   },

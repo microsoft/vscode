@@ -185,7 +185,6 @@
 			"name": "Attach to VS Code",
 			"browserAttachLocation": "workspace",
 			"port": 9222,
-			"trace": true,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			],
@@ -198,7 +197,6 @@
 			"type": "pwa-chrome",
 			"request": "launch",
 			"name": "Launch VS Code Internal",
-			"trace": true,
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat"
 			},

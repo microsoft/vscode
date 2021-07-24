@@ -3,17 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-//@ts-check
+/// <reference types='@types/node'/>
 
-'use strict';
-
-const withBrowserDefaults = require('../shared.webpack.config').browser;
-
-module.exports = withBrowserDefaults({
-	context: __dirname,
-	entry: {
-		extension: './src/extension.ts'
-	}
-}, {
-	configFile: 'tsconfig.browser.json'
-});
+export { basename, dirname, extname, isAbsolute, join } from 'path';

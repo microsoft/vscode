@@ -31,12 +31,12 @@
 }
 
 .monaco-workbench .notebookOverlay .notebook-toolbar-container > .monaco-scrollable-element .notebook-toolbar-left {
-	padding: 0px 8px;
+	padding: 0px 0px 0px 8px;
 }
 
 .monaco-workbench .notebookOverlay .notebook-toolbar-container .notebook-toolbar-right {
 	display: flex;
-	padding: 0px 0px 0px 8px;
+	padding: 0px 0px 0px 0px;
 }
 
 .monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item  .kernel-label {

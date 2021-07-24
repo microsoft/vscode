@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { nbformat } from '@jupyterlab/coreutils';
-import { extensions, NotebookCell, NotebookCellData, NotebookCellExecutionSummary, NotebookCellKind, NotebookCellOutput, NotebookCellOutputItem, NotebookData } from 'vscode';
+import { extensions, NotebookCellData, NotebookCellExecutionSummary, NotebookCellKind, NotebookCellOutput, NotebookCellOutputItem, NotebookData } from 'vscode';
 
 const jupyterLanguageToMonacoLanguageMapping = new Map([
 	['c#', 'csharp'],
@@ -123,15 +123,12 @@ function convertJupyterOutputToBuffer(mime: string, value: unknown): NotebookCel
 }
 
 export function createJupyterCellFromNotebookCell(
-	vscCell: NotebookCell | NotebookCellData
+	vscCell: NotebookCellData
 ): nbformat.IRawCell | nbformat.IMarkdownCell | nbformat.ICodeCell {
 	let cell: nbformat.IRawCell | nbformat.IMarkdownCell | nbformat.ICodeCell;
 	if (vscCell.kind === NotebookCellKind.Markup) {
 		cell = createMarkdownCellFromNotebookCell(vscCell);
-	} else if (
-		('document' in vscCell && vscCell.document.languageId === 'raw') ||
-		('languageId' in vscCell && vscCell.languageId === 'raw')
-	) {
+	} else if (vscCell.languageId === 'raw') {
 		cell = createRawCellFromNotebookCell(vscCell);
 	} else {
 		cell = createCodeCellFromNotebookCell(vscCell);
@@ -139,24 +136,23 @@ export function createJupyterCellFromNotebookCell(
 	return cell;
 }
 
-function createCodeCellFromNotebookCell(cell: NotebookCell | NotebookCellData): nbformat.ICodeCell {
+function createCodeCellFromNotebookCell(cell: NotebookCellData): nbformat.ICodeCell {
 	const cellMetadata = cell.metadata?.custom as CellMetadata | undefined;
-	const code = 'document' in cell ? cell.document.getText() : cell.value;
 	const codeCell: any = {
 		cell_type: 'code',
 		execution_count: cell.executionSummary?.executionOrder ?? null,
-		source: splitMultilineString(code),
+		source: splitMultilineString(cell.value),
 		outputs: (cell.outputs || []).map(translateCellDisplayOutput),
 		metadata: cellMetadata?.metadata || {} // This cannot be empty.
 	};
 	return codeCell;
 }
 
-function createRawCellFromNotebookCell(cell: NotebookCell | NotebookCellData): nbformat.IRawCell {
+function createRawCellFromNotebookCell(cell: NotebookCellData): nbformat.IRawCell {
 	const cellMetadata = cell.metadata?.custom as CellMetadata | undefined;
 	const rawCell: any = {
 		cell_type: 'raw',
-		source: splitMultilineString('document' in cell ? cell.document.getText() : cell.value),
+		source: splitMultilineString(cell.value),
 		metadata: cellMetadata?.metadata || {} // This cannot be empty.
 	};
 	if (cellMetadata?.attachments) {
@@ -407,11 +403,11 @@ function convertOutputMimeToJupyterOutput(mime: string, value: Uint8Array) {
 	}
 }
 
-function createMarkdownCellFromNotebookCell(cell: NotebookCell | NotebookCellData): nbformat.IMarkdownCell {
+function createMarkdownCellFromNotebookCell(cell: NotebookCellData): nbformat.IMarkdownCell {
 	const cellMetadata = cell.metadata?.custom as CellMetadata | undefined;
 	const markdownCell: any = {
 		cell_type: 'markdown',
-		source: splitMultilineString('document' in cell ? cell.document.getText() : cell.value),
+		source: splitMultilineString(cell.value),
 		metadata: cellMetadata?.metadata || {} // This cannot be empty.
 	};
 	if (cellMetadata?.attachments) {

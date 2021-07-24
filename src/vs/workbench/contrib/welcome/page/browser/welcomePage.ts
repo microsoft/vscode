@@ -158,9 +158,8 @@ function isWelcomePageEnabled(configurationService: IConfigurationService, conte
 	}
 	return startupEditor.value === 'welcomePage'
 		|| startupEditor.value === 'legacy_welcomePage'
-		|| startupEditor.userValue === 'readme'
-		|| startupEditor.defaultValue === 'readme'
-		|| (contextService.getWorkbenchState() === WorkbenchState.EMPTY && (startupEditor.value === 'legacy_welcomePageInEmptyWorkbench' || startupEditor.value === 'welcomePageInEmptyWorkbench'));
+		|| startupEditor.value === 'readme' && (startupEditor.userValue === 'readme' || startupEditor.defaultValue === 'readme')
+		|| ((contextService.getWorkbenchState() === WorkbenchState.EMPTY) && (startupEditor.value === 'legacy_welcomePageInEmptyWorkbench' || startupEditor.value === 'welcomePageInEmptyWorkbench'));
 }
 
 export class WelcomePageAction extends Action {

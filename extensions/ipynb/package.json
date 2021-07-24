@@ -12,9 +12,8 @@
 		"onNotebook:jupyter-notebook"
 	],
 	"extensionKind": [
-		"web",
-		"ui",
-		"workspace"
+		"workspace",
+		"ui"
 	],
 	"main": "./out/ipynbMain.js",
 	"browser": "./dist/browser/ipynbMain.js",
@@ -54,6 +53,7 @@
     "watch": "npx gulp watch-extension:ipynb"
   },
 	"dependencies": {
+		"@enonic/fnv-plus": "^1.3.0",
 		"detect-indent": "^6.0.0"
 	},
 	"devDependencies": {

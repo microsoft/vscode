@@ -1940,7 +1940,7 @@ declare module 'vscode' {
 		 * State of the test in each task. In the common case, a test will only
 		 * be executed in a single task and the length of this array will be 1.
 		 */
-		readonly taskStates: ReadonlyArray<TestSnapshoptTaskState>;
+		readonly taskStates: ReadonlyArray<TestSnapshotTaskState>;
 
 		/**
 		 * Optional list of nested tests for this item.
@@ -1948,7 +1948,7 @@ declare module 'vscode' {
 		readonly children: Readonly<TestResultSnapshot>[];
 	}
 
-	export interface TestSnapshoptTaskState {
+	export interface TestSnapshotTaskState {
 		/**
 		 * Current result of the test.
 		 */

@@ -7455,7 +7455,7 @@ declare module 'vscode' {
 		 * </script>
 		 * ```
 		 *
-		 * To load a resources from the workspace inside a webview, use the `{@link Webview.asWebviewUri asWebviewUri}` method
+		 * To load a resources from the workspace inside a webview, use the {@link Webview.asWebviewUri `asWebviewUri`} method
 		 * and ensure the resource's directory is listed in {@link WebviewOptions.localResourceRoots `WebviewOptions.localResourceRoots`}.
 		 *
 		 * Keep in mind that even though webviews are sandboxed, they still allow running scripts and loading arbitrary content,
@@ -11565,12 +11565,13 @@ declare module 'vscode' {
 	 */
 	export interface NotebookRendererMessaging {
 		/**
-		 * Events that fires when a message is received from a renderer.
+		 * An event that fires when a message is received from a renderer.
 		 */
 		readonly onDidReceiveMessage: Event<{ editor: NotebookEditor, message: any }>;
 
 		/**
-		 * Sends a message to the renderer.
+		 * Send a message to one or all renderer.
+		 *
 		 * @param message Message to send
 		 * @param editor Editor to target with the message. If not provided, the
 		 * message is sent to all renderers.
@@ -12316,8 +12317,11 @@ declare module 'vscode' {
 		export function registerNotebookCellStatusBarItemProvider(notebookType: string, provider: NotebookCellStatusBarItemProvider): Disposable;
 
 		/**
-		 * Creates a new messaging instance used to communicate with a specific renderer defined in this extension's package.json. The renderer only
-		 * has access to messaging if `requiresMessaging` is set to `always` or `optional` in its `notebookRenderer ` contribution.
+		 * Creates a new messaging instance used to communicate with a specific renderer.
+		 *
+		 * * *Note 1:* Extensions can only create renderer that they have defined in their `package.json`-file
+		 * * *Note 2:* A renderer only has access to messaging if `requiresMessaging` is set to `always` or `optional` in
+		 * its `notebookRenderer` contribution.
 		 *
 		 * @param rendererId The renderer ID to communicate with
 		 * @returns A new notebook renderer messaging object.
@@ -13811,17 +13815,25 @@ declare module 'vscode' {
 		export function registerAuthenticationProvider(id: string, label: string, provider: AuthenticationProvider, options?: AuthenticationProviderOptions): Disposable;
 	}
 
+	/**
+	 * Namespace for testing functionality. Tests are published by registering
+	 * {@link TestController} instances, then adding {@link TestItem}s.
+	 * Controllers may also describe how to run tests by creating one or more
+	 * {@link TestRunProfile} instances.
+	 */
 	export namespace tests {
 		/**
 		 * Creates a new test controller.
 		 *
 		 * @param id Identifier for the controller, must be globally unique.
+		 * @param label A human-readable label for the controller.
+		 * @returns An instance of the {@link TestController}.
 		*/
 		export function createTestController(id: string, label: string): TestController;
 	}
 
 	/**
-	 * The kind of executions that {@link TestRunProfile | TestRunProfiles} control.
+	 * The kind of executions that {@link TestRunProfile TestRunProfiles} control.
 	 */
 	export enum TestRunProfileKind {
 		Run = 1,
@@ -13873,7 +13885,7 @@ declare module 'vscode' {
 		 * associated with the request should be created before the function returns
 		 * or the returned promise is resolved.
 		 *
-		 * @param request Request information for the test run
+		 * @param request Request information for the test run.
 		 * @param cancellationToken Token that signals the used asked to abort the
 		 * test run. If cancellation is requested on this token, all {@link TestRun}
 		 * instances associated with the request will be
@@ -13895,7 +13907,7 @@ declare module 'vscode' {
 	 */
 	export interface TestController {
 		/**
-		 * The ID of the controller passed in {@link vscode.tests.createTestController}.
+		 * The id of the controller passed in {@link vscode.tests.createTestController}.
 		 * This must be globally unique.
 		 */
 		readonly id: string;
@@ -13922,10 +13934,12 @@ declare module 'vscode' {
 		/**
 		 * Creates a profile used for running tests. Extensions must create
 		 * at least one profile in order for tests to be run.
-		 * @param label Human-readable label for this profile
-		 * @param kind Configures what kind of execution this profile manages
-		 * @param runHandler Function called to start a test run
-		 * @param isDefault Whether this is the default action for its kind
+		 * @param label A human-readable label for this profile.
+		 * @param kind Configures what kind of execution this profile manages.
+		 * @param runHandler Function called to start a test run.
+		 * @param isDefault Whether this is the default action for its kind.
+		 * @returns An instance of a {@link TestRunProfile}, which is automatically
+		 * associated with this controller.
 		 */
 		createRunProfile(label: string, kind: TestRunProfileKind, runHandler: (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void, isDefault?: boolean): TestRunProfile;
 
@@ -13967,6 +13981,8 @@ declare module 'vscode' {
 		 * @param persist Whether the results created by the run should be
 		 * persisted in the editor. This may be false if the results are coming from
 		 * a file already saved externally, such as a coverage information file.
+		 * @returns An instance of the {@link TestRun}. It will be considered "running"
+		 * from the moment this method is invoked until {@link TestRun.end} is called.
 		 */
 		createTestRun(request: TestRunRequest, name?: string, persist?: boolean): TestRun;
 
@@ -14022,7 +14038,7 @@ declare module 'vscode' {
 
 		/**
 		 * @param tests Array of specific tests to run, or undefined to run all tests
-		 * @param exclude Tests to exclude from the run
+		 * @param exclude An array of tests to exclude from the run.
 		 * @param profile The run profile used for this request.
 		 */
 		constructor(include?: readonly TestItem[], exclude?: readonly TestItem[], profile?: TestRunProfile);
@@ -14052,35 +14068,46 @@ declare module 'vscode' {
 
 		/**
 		 * Indicates a test is queued for later execution.
-		 * @param test Test item to update
+		 * @param test Test item to update.
 		 */
 		enqueued(test: TestItem): void;
 
 		/**
 		 * Indicates a test has started running.
-		 * @param test Test item to update
+		 * @param test Test item to update.
 		 */
 		started(test: TestItem): void;
 
 		/**
 		 * Indicates a test has been skipped.
-		 * @param test Test item to update
+		 * @param test Test item to update.
 		 */
 		skipped(test: TestItem): void;
 
 		/**
 		 * Indicates a test has failed. You should pass one or more
 		 * {@link TestMessage | TestMessages} to describe the failure.
-		 * @param test Test item to update
-		 * @param messages Messages associated with the test failure
-		 * @param duration How long the test took to execute, in milliseconds
+		 * @param test Test item to update.
+		 * @param messages Messages associated with the test failure.
+		 * @param duration How long the test took to execute, in milliseconds.
 		 */
 		failed(test: TestItem, message: TestMessage | readonly TestMessage[], duration?: number): void;
 
 		/**
+		 * Indicates a test has errored. You should pass one or more
+		 * {@link TestMessage | TestMessages} to describe the failure. This differs
+		 * from the "failed" state in that it indicates a test that couldn't be
+		 * executed at all, from a compilation error for example.
+		 * @param test Test item to update.
+		 * @param messages Messages associated with the test failure.
+		 * @param duration How long the test took to execute, in milliseconds.
+		 */
+		errored(test: TestItem, message: TestMessage | readonly TestMessage[], duration?: number): void;
+
+		/**
 		 * Indicates a test has passed.
-		 * @param test Test item to update
-		 * @param duration How long the test took to execute, in milliseconds
+		 * @param test Test item to update.
+		 * @param duration How long the test took to execute, in milliseconds.
 		 */
 		passed(test: TestItem, duration?: number): void;
 
@@ -14089,7 +14116,7 @@ declare module 'vscode' {
 		 * output will be displayed in a terminal. ANSI escape sequences,
 		 * such as colors and text styles, are supported.
 		 *
-		 * @param output Output text to append
+		 * @param output Output text to append.
 		 */
 		appendOutput(output: string): void;
 
@@ -14112,7 +14139,7 @@ declare module 'vscode' {
 
 		/**
 		 * Replaces the items stored by the collection.
-		 * @param items Items to store
+		 * @param items Items to store.
 		 */
 		replace(items: readonly TestItem[]): void;
 
@@ -14140,6 +14167,7 @@ declare module 'vscode' {
 		/**
 		 * Efficiently gets a test item by ID, if it exists, in the children.
 		 * @param itemId Item ID to get.
+		 * @returns The found item, or undefined if it does not exist.
 		 */
 		get(itemId: string): TestItem | undefined;
 	}
@@ -14181,7 +14209,7 @@ declare module 'vscode' {
 		 * expanding the item will cause {@link TestController.resolveHandler}
 		 * to be invoked with the item.
 		 *
-		 * Default to false.
+		 * Default to `false`.
 		 */
 		canResolveChildren: boolean;
 
