@@ -330,7 +330,7 @@ export class BreadcrumbsControl {
 		const updateScrollbarSizeListener = this._cfTitleScrollbarSizing.onDidChange(updateScrollbarSizing);
 		this._breadcrumbsDisposables.add(updateScrollbarSizeListener);
 
-		this._getOverrideBreadcrumbSeparatorText().then((val) => this._widget.setOverrideSeparatorText(val));
+		this._getOverrideBreadcrumbSeparatorText(OS).then((val) => this._widget.setOverrideSeparatorText(val));
 
 		// close picker on hide/update
 		this._breadcrumbsDisposables.add({
@@ -469,7 +469,7 @@ export class BreadcrumbsControl {
 		});
 	}
 
-	private async _getOverrideBreadcrumbSeparatorText(): Promise<string | undefined> {
+	private async _getOverrideBreadcrumbSeparatorText(os: OperatingSystem = OperatingSystem.Linux): Promise<string | undefined> {
 		if (this._overrideSeparatorText?.getValue()) {
 			return this._overrideSeparatorText.getValue();
 		}
@@ -478,7 +478,7 @@ export class BreadcrumbsControl {
 				[OperatingSystem.Windows]: '\\',
 				[OperatingSystem.Linux]: '/',
 				[OperatingSystem.Macintosh]: '/',
-			}[OS];
+			}[os];
 		}
 		return undefined;
 	}
