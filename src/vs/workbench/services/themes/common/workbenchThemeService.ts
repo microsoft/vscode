@@ -31,7 +31,6 @@ export enum ThemeSettings {
 	COLOR_CUSTOMIZATIONS = 'workbench.colorCustomizations',
 	TOKEN_COLOR_CUSTOMIZATIONS = 'editor.tokenColorCustomizations',
 	SEMANTIC_TOKEN_COLOR_CUSTOMIZATIONS = 'editor.semanticTokenColorCustomizations',
-	TOKEN_COLOR_CUSTOMIZATIONS_EXPERIMENTAL = 'editor.tokenColorCustomizationsExperimental',
 
 	PREFERRED_DARK_THEME = 'workbench.preferredDarkColorTheme',
 	PREFERRED_LIGHT_THEME = 'workbench.preferredLightColorTheme',
