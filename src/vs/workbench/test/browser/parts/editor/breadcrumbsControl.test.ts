@@ -38,6 +38,7 @@ suite('Breadcrumbs Control', function () {
 			const actual = control._getOverrideBreadcrumbSeparatorText();
 			actual.then((val: string | undefined) => {
 				assert(val === '|||');
+				done();
 			}).catch((err: Error) => {
 				done(err);
 			});
