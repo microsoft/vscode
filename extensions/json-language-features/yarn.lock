@@ -100,10 +100,10 @@ minimatch@^3.0.4:
   dependencies:
     brace-expansion "^1.1.7"
 
-request-light@^0.5.3:
-  version "0.5.3"
-  resolved "https://registry.yarnpkg.com/request-light/-/request-light-0.5.3.tgz#bc5b103b939cde7c0653fff8ab4f43440779a5fb"
-  integrity sha512-wlHI5WbSZ2PcoLW2qE616PKDFCFJWaJjgRg2VaNXF9pa8MJ7+dKveJzw2HhJF8Et5uOmh9nAUJUX4iFI3Mvm/g==
+request-light@^0.5.4:
+  version "0.5.4"
+  resolved "https://registry.yarnpkg.com/request-light/-/request-light-0.5.4.tgz#497a98c6d8ae49536417a5e2d7f383b934f3e38c"
+  integrity sha512-t3566CMweOFlUk7Y1DJMu5OrtpoZEb6aSTsLQVT3wtrIEJ5NhcY9G/Oqxvjllzl4a15zXfFlcr9q40LbLVQJqw==
 
 semver@^5.3.0:
   version "5.5.0"
