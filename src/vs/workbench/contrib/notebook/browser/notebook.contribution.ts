@@ -377,7 +377,13 @@ class CellInfoContentProvider {
 
 		for (const cell of ref.object.notebook.cells) {
 			if (cell.handle === data.handle) {
-				const content = JSON.stringify(cell.outputs);
+				const content = JSON.stringify(cell.outputs.map(output => ({
+					metadata: output.metadata,
+					outputItems: output.outputs.map(opit => ({
+						mimeType: opit.mime,
+						data: new TextDecoder().decode(opit.data)
+					}))
+				})));
 				const edits = format(content, undefined, {});
 				const outputSource = applyEdits(content, edits);
 				result = this._modelService.createModel(
