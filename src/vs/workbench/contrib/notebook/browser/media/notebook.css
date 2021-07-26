@@ -247,6 +247,11 @@
 	word-wrap: break-word;
 }
 
+.monaco-workbench .notebookOverlay .output > div.foreground .output-stream pre,
+.monaco-workbench .notebookOverlay .output > div.foreground .output-plaintext pre {
+	font-family: var(--monaco-monospace-font);
+}
+
 .monaco-workbench .notebookOverlay .output > div.foreground.error .output-stream {
 	color: red; /*TODO@rebornix theme color*/
 }

@@ -20,7 +20,6 @@ import { URI } from 'vs/base/common/uri';
 import { IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 const SIZE_LIMIT = 65535;
-const LINES_LIMIT = 500;
 
 function generateViewMoreElement(notebookUri: URI, cellViewModel: IGenericCellViewModel, outputs: string[], openerService: IOpenerService) {
 	const md: IMarkdownString = {
@@ -46,7 +45,7 @@ function generateViewMoreElement(notebookUri: URI, cellViewModel: IGenericCellVi
 	return element;
 }
 
-export function truncatedArrayOfString(notebookUri: URI, cellViewModel: IGenericCellViewModel, container: HTMLElement, outputs: string[], linkDetector: LinkDetector, openerService: IOpenerService, themeService: IThemeService) {
+export function truncatedArrayOfString(notebookUri: URI, cellViewModel: IGenericCellViewModel, linesLimit: number, container: HTMLElement, outputs: string[], linkDetector: LinkDetector, openerService: IOpenerService, themeService: IThemeService) {
 	const fullLen = outputs.reduce((p, c) => {
 		return p + c.length;
 	}, 0);
@@ -60,7 +59,7 @@ export function truncatedArrayOfString(notebookUri: URI, cellViewModel: IGeneric
 		const factory = bufferBuilder.finish();
 		buffer = factory.create(DefaultEndOfLine.LF).textBuffer;
 		const sizeBufferLimitPosition = buffer.getPositionAt(SIZE_LIMIT);
-		if (sizeBufferLimitPosition.lineNumber < LINES_LIMIT) {
+		if (sizeBufferLimitPosition.lineNumber < linesLimit) {
 			const truncatedText = buffer.getValueInRange(new Range(1, 1, sizeBufferLimitPosition.lineNumber, sizeBufferLimitPosition.column), EndOfLinePreference.TextDefined);
 			container.appendChild(handleANSIOutput(truncatedText, linkDetector, themeService, undefined));
 			// view more ...
@@ -76,7 +75,7 @@ export function truncatedArrayOfString(notebookUri: URI, cellViewModel: IGeneric
 		buffer = factory.create(DefaultEndOfLine.LF).textBuffer;
 	}
 
-	if (buffer.getLineCount() < LINES_LIMIT) {
+	if (buffer.getLineCount() < linesLimit) {
 		const lineCount = buffer.getLineCount();
 		const fullRange = new Range(1, 1, lineCount, Math.max(1, buffer.getLineLastNonWhitespaceColumn(lineCount)));
 		container.appendChild(handleANSIOutput(buffer.getValueInRange(fullRange, EndOfLinePreference.TextDefined), linkDetector, themeService, undefined));
@@ -85,7 +84,7 @@ export function truncatedArrayOfString(notebookUri: URI, cellViewModel: IGeneric
 
 	const pre = DOM.$('pre');
 	container.appendChild(pre);
-	pre.appendChild(handleANSIOutput(buffer.getValueInRange(new Range(1, 1, LINES_LIMIT - 5, buffer.getLineLastNonWhitespaceColumn(LINES_LIMIT - 5)), EndOfLinePreference.TextDefined), linkDetector, themeService, undefined));
+	pre.appendChild(handleANSIOutput(buffer.getValueInRange(new Range(1, 1, linesLimit - 5, buffer.getLineLastNonWhitespaceColumn(linesLimit - 5)), EndOfLinePreference.TextDefined), linkDetector, themeService, undefined));
 
 	// view more ...
 	container.appendChild(generateViewMoreElement(notebookUri, cellViewModel, outputs, openerService));

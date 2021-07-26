@@ -850,6 +850,7 @@ export const DragAndDropEnabled = 'notebook.dragAndDropEnabled';
 export const NotebookCellEditorOptionsCustomizations = 'notebook.editorOptionsCustomizations';
 export const ConsolidatedRunButton = 'notebook.consolidatedRunButton';
 export const OpenGettingStarted = 'notebook.experimental.openGettingStarted';
+export const TextOutputLineLimit = 'notebook.output.textLineLimit';
 
 export const enum CellStatusbarAlignment {
 	Left = 1,
