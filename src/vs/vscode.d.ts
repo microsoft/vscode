@@ -14006,7 +14006,14 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Options given to {@link tests.runTests}.
+	 * A TestRunRequest is a precursor to a {@link TestRun}, which in turn is
+	 * created by passing a request to {@link tests.runTests}. The TestRunRequest
+	 * contains information about which tests should be run, which should not be
+	 * run, and how they are run (via the {@link profile}).
+	 *
+	 * In general, TestRunRequests are created by the editor and pass to
+	 * {@link TestRunProfile.runHandler}, however you can also create test
+	 * requests and runs outside of the `runHandler`.
 	 */
 	export class TestRunRequest {
 		/**
@@ -14018,7 +14025,7 @@ declare module 'vscode' {
 		 * The process of running tests should resolve the children of any test
 		 * items who have not yet been resolved.
 		 */
-		include?: TestItem[];
+		readonly include?: TestItem[];
 
 		/**
 		 * An array of tests the user has marked as excluded from the test included
@@ -14027,14 +14034,14 @@ declare module 'vscode' {
 		 * May be omitted if no exclusions were requested. Test controllers should
 		 * not run excluded tests or any children of excluded tests.
 		 */
-		exclude?: TestItem[];
+		readonly exclude?: TestItem[];
 
 		/**
 		 * The profile used for this request. This will always be defined
 		 * for requests issued from the editor UI, though extensions may
 		 * programmatically create requests not associated with any profile.
 		 */
-		profile?: TestRunProfile;
+		readonly profile?: TestRunProfile;
 
 		/**
 		 * @param tests Array of specific tests to run, or undefined to run all tests

@@ -1898,18 +1898,18 @@ declare module 'vscode' {
 		/**
 		 * Unix milliseconds timestamp at which the test run was completed.
 		 */
-		completedAt: number;
+		readonly completedAt: number;
 
 		/**
 		 * Optional raw output from the test run.
 		 */
-		output?: string;
+		readonly output?: string;
 
 		/**
 		 * List of test results. The items in this array are the items that
 		 * were passed in the {@link tests.runTests} method.
 		 */
-		results: ReadonlyArray<Readonly<TestResultSnapshot>>;
+		readonly results: ReadonlyArray<Readonly<TestResultSnapshot>>;
 	}
 
 	/**
