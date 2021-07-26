@@ -18,6 +18,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { debounce } from 'vs/base/common/decorators';
 
 export class LanguageDetectionService extends Disposable implements ILanguageDetectionService {
 	private static readonly expectedRelativeConfidence = 0.2;
@@ -37,6 +38,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		this._register(_untitledTextEditorService.onDidChangeContent(e => this.handleChangeEvent(e)));
 	}
 
+	@debounce(300)
 	private async handleChangeEvent(e: IUntitledTextEditorModel) {
 		if (!this.isEnabledForMode(e.getMode()) || e.hasModeSetExplicitly) {
 			return;
