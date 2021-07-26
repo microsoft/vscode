@@ -470,7 +470,15 @@ export class ExtensionEditor extends EditorPane {
 					const statusIconActionBar = disposables.add(new ActionBar(template.status, { animated: false }));
 					statusIconActionBar.push(extensionStatus, { icon: true, label: false });
 				}
-				append(append(template.status, $('.status-text')), renderMarkdown(new MarkdownString(status.message.value, { isTrusted: true, supportThemeIcons: true })));
+				append(append(template.status, $('.status-text')),
+					renderMarkdown(new MarkdownString(status.message.value, { isTrusted: true, supportThemeIcons: true }), {
+						actionHandler: {
+							callback: (content) => {
+								this.openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
+							},
+							disposeables: disposables
+						}
+					}));
 			}
 		};
 		updateStatus();
