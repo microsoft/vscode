@@ -14166,7 +14166,7 @@ declare module 'vscode' {
 		add(item: TestItem): void;
 
 		/**
-		 * Removes the a single test item from the collection.
+		 * Removes a single test item from the collection.
 		 * @param itemId Item ID to delete.
 		 */
 		delete(itemId: string): void;
@@ -14174,32 +14174,34 @@ declare module 'vscode' {
 		/**
 		 * Efficiently gets a test item by ID, if it exists, in the children.
 		 * @param itemId Item ID to get.
-		 * @returns The found item, or undefined if it does not exist.
+		 * @returns The found item or undefined if it does not exist.
 		 */
 		get(itemId: string): TestItem | undefined;
 	}
 
 	/**
-	 * A test item is an item shown in the "test explorer" view. It encompasses
-	 * both a suite and a test, since they simiular capabilities.
+	 * An item shown in the "test explorer" view.
+	 *
+	 * A `TestItem` can represent either a test suite or a test itself, since
+	 * they both have similar capabilities.
 	 */
 	export interface TestItem {
 		/**
-		 * Identifier for the TestItem. This is used to correlate
+		 * Identifier for the `TestItem`. This is used to correlate
 		 * test results and tests in the document with those in the workspace
-		 * (test explorer). This cannot change for the lifetime of the TestItem,
+		 * (test explorer). This cannot change for the lifetime of the `TestItem`,
 		 * and must be unique among its parent's direct children.
 		 */
 		readonly id: string;
 
 		/**
-		 * URI this TestItem is associated with. May be a file or directory.
+		 * URI this `TestItem` is associated with. May be a file or directory.
 		 */
 		readonly uri?: Uri;
 
 		/**
 		 * The children of this test item. For a test suite, this may contain the
-		 * individual test cases, or nested suites.
+		 * individual test cases or nested suites.
 		 */
 		readonly children: TestItemCollection;
 
@@ -14212,7 +14214,8 @@ declare module 'vscode' {
 
 		/**
 		 * Indicates whether this test item may have children discovered by resolving.
-		 * If so, it will be shown as expandable in the Test Explorer view, and
+		 *
+		 * If true, this item is shown as expandable in the Test Explorer view and
 		 * expanding the item will cause {@link TestController.resolveHandler}
 		 * to be invoked with the item.
 		 *
@@ -14222,8 +14225,9 @@ declare module 'vscode' {
 
 		/**
 		 * Controls whether the item is shown as "busy" in the Test Explorer view.
-		 * This is useful for showing status while discovering children. Defaults
-		 * to false.
+		 * This is useful for showing status while discovering children.
+		 *
+		 * Defaults to `false`.
 		 */
 		busy: boolean;
 
@@ -14238,15 +14242,17 @@ declare module 'vscode' {
 		description?: string;
 
 		/**
-		 * Location of the test item in its `uri`. This is only meaningful if the
-		 * `uri` points to a file.
+		 * Location of the test item in its {@link uri}.
+		 *
+		 * This is only meaningful if the `uri` points to a file.
 		 */
 		range?: Range;
 
 		/**
-		 * May be set to an error associated with loading the test. Note that this
-		 * is not a test result and should only be used to represent errors in
-		 * discovery, such as syntax errors.
+		 * Optional error encountered while loading the test.
+		 *
+		 * Note that this is not a test result and should only be used to represent errors in
+		 * test discovery, such as syntax errors.
 		 */
 		error?: string | MarkdownString;
 	}
@@ -14262,12 +14268,12 @@ declare module 'vscode' {
 		message: string | MarkdownString;
 
 		/**
-		 * Expected test output. If given with `actualOutput`, a diff view will be shown.
+		 * Expected test output. If given with {@link actualOutput}, a diff view will be shown.
 		 */
 		expectedOutput?: string;
 
 		/**
-		 * Actual test output. If given with `expectedOutput`, a diff view will be shown.
+		 * Actual test output. If given with {@link expectedOutput}, a diff view will be shown.
 		 */
 		actualOutput?: string;
 
