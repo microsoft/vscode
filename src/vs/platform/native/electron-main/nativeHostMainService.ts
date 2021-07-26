@@ -817,9 +817,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	private static readonly PASSWORD_CHUNK_SIZE = NativeHostMainService.MAX_PASSWORD_LENGTH - 100;
 
 	async getPassword(windowId: number | undefined, service: string, account: string): Promise<string | null> {
+		this.logService.info(`Get keyar`);
 		const keytar = await this.withKeytar();
-
+		this.logService.info(`Getting password for ${service}@${account}`);
 		const password = await keytar.getPassword(service, account);
+		this.logService.info(`Got password`);
 		if (password) {
 			try {
 				let { content, hasNextChunk }: ChunkedPassword = JSON.parse(password);

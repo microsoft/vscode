@@ -5,6 +5,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ICommonEncryptionService } from 'vs/platform/encryption/common/encryptionService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export const IEncryptionMainService = createDecorator<IEncryptionMainService>('encryptionMainService');
 
@@ -17,7 +18,8 @@ export interface Encryption {
 export class EncryptionMainService implements ICommonEncryptionService {
 	declare readonly _serviceBrand: undefined;
 	constructor(
-		private machineId: string) {
+		private machineId: string,
+		@ILogService private readonly logService: ILogService,) {
 
 	}
 
@@ -36,9 +38,14 @@ export class EncryptionMainService implements ICommonEncryptionService {
 
 	async decrypt(value: string): Promise<string> {
 		try {
+			this.logService.info('load encryption module');
 			const encryption = await this.encryption();
-			return encryption.decrypt(this.machineId, value);
+			this.logService.info('starting decryption');
+			const a = encryption.decrypt(this.machineId, value);
+			this.logService.info('did decryption');
+			return a;
 		} catch (e) {
+			this.logService.error(e);
 			return value;
 		}
 	}
