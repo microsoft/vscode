@@ -50,7 +50,7 @@ import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/c
 import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, TaskErrors, TaskTerminateResponse, TaskSystemInfo, ITaskExecuteResult } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import {
 	Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskEvent,
-	TaskSet, TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
+	TaskSet, TaskGroup, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
 	TaskSorter, TaskIdentifier, KeyedTaskIdentifier, TASK_RUNNING_STATE, TaskRunSource,
 	KeyedTaskIdentifier as NKeyedTaskIdentifier, TaskDefinition, RuntimeType
 } from 'vs/workbench/contrib/tasks/common/tasks';
@@ -304,11 +304,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this.configurationResolverService.contributeVariable('defaultBuildTask', async (): Promise<string | undefined> => {
 			let tasks = await this.getTasksForGroup(TaskGroup.Build);
 			if (tasks.length > 0) {
-				let { defaults, users } = this.splitPerGroupType(tasks);
+				let { none, defaults } = this.splitPerGroupType(tasks);
 				if (defaults.length === 1) {
 					return defaults[0]._label;
-				} else if (defaults.length + users.length > 0) {
-					tasks = defaults.concat(users);
+				} else if (defaults.length + none.length > 0) {
+					tasks = defaults.concat(none);
 				}
 			}
 
@@ -1100,12 +1100,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return Promise.resolve(task);
 	}
 
-	private getTasksForGroup(group: string): Promise<Task[]> {
+	private getTasksForGroup(group: TaskGroup): Promise<Task[]> {
 		return this.getGroupedTasks().then((groups) => {
 			let result: Task[] = [];
 			groups.forEach((tasks) => {
 				for (let task of tasks) {
-					if (task.configurationProperties.group === group) {
+					let configTaskGroup = TaskGroup.from(task.configurationProperties.group);
+					if (configTaskGroup?._id === group._id) {
 						result.push(task);
 					}
 				}
@@ -2600,20 +2601,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 	}
 
-	private splitPerGroupType(tasks: Task[]): { none: Task[], defaults: Task[], users: Task[] } {
+	private splitPerGroupType(tasks: Task[]): { none: Task[], defaults: Task[] } {
 		let none: Task[] = [];
 		let defaults: Task[] = [];
-		let users: Task[] = [];
 		for (let task of tasks) {
-			if (task.configurationProperties.groupType === GroupType.default) {
+			if ((task.configurationProperties.group as TaskGroup).isDefault) {
 				defaults.push(task);
-			} else if (task.configurationProperties.groupType === GroupType.user) {
-				users.push(task);
 			} else {
 				none.push(task);
 			}
 		}
-		return { none, defaults, users };
+		return { none, defaults };
 	}
 
 	private runBuildCommand(): void {
@@ -2632,9 +2630,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			const buildTasks: ConfiguringTask[] = [];
 			for (const taskSource of tasks) {
 				for (const task in taskSource[1].configurations?.byIdentifier) {
-					if ((taskSource[1].configurations?.byIdentifier[task].configurationProperties.group === TaskGroup.Build) &&
-						(taskSource[1].configurations?.byIdentifier[task].configurationProperties.groupType === GroupType.default)) {
-						buildTasks.push(taskSource[1].configurations.byIdentifier[task]);
+					if (taskSource[1].configurations) {
+						const taskGroup: TaskGroup = taskSource[1].configurations.byIdentifier[task].configurationProperties.group as TaskGroup;
+
+						if (taskGroup && taskGroup._id === TaskGroup.Build._id && taskGroup.isDefault) {
+							buildTasks.push(taskSource[1].configurations.byIdentifier[task]);
+						}
 					}
 				}
 			}
@@ -2649,14 +2650,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 			return this.getTasksForGroup(TaskGroup.Build).then((tasks) => {
 				if (tasks.length > 0) {
-					let { defaults, users } = this.splitPerGroupType(tasks);
+					let { none, defaults } = this.splitPerGroupType(tasks);
 					if (defaults.length === 1) {
 						this.run(defaults[0], undefined, TaskRunSource.User).then(undefined, reason => {
 							// eat the error, it has already been surfaced to the user and we don't care about it here
 						});
 						return;
-					} else if (defaults.length + users.length > 0) {
-						tasks = defaults.concat(users);
+					} else if (defaults.length + none.length > 0) {
+						tasks = defaults.concat(none);
 					}
 				}
 				this.showIgnoredFoldersMessage().then(() => {
@@ -2699,14 +2700,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		};
 		let promise = this.getTasksForGroup(TaskGroup.Test).then((tasks) => {
 			if (tasks.length > 0) {
-				let { defaults, users } = this.splitPerGroupType(tasks);
+				let { none, defaults } = this.splitPerGroupType(tasks);
 				if (defaults.length === 1) {
 					this.run(defaults[0], undefined, TaskRunSource.User).then(undefined, reason => {
 						// eat the error, it has already been surfaced to the user and we don't care about it here
 					});
 					return;
-				} else if (defaults.length + users.length > 0) {
-					tasks = defaults.concat(users);
+				} else if (defaults.length + none.length > 0) {
+					tasks = defaults.concat(none);
 				}
 			}
 			this.showIgnoredFoldersMessage().then(() => {
@@ -3083,7 +3084,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				let selectedTask: Task | undefined;
 				let selectedEntry: TaskQuickPickEntry;
 				for (let task of tasks) {
-					if (task.configurationProperties.group === TaskGroup.Build && task.configurationProperties.groupType === GroupType.default) {
+					let taskGroup: TaskGroup | undefined = TaskGroup.from(task.configurationProperties.group);
+					if (taskGroup && taskGroup.isDefault && taskGroup._id === TaskGroup.Build._id) {
 						selectedTask = task;
 						break;
 					}
@@ -3135,7 +3137,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				let selectedEntry: TaskQuickPickEntry;
 
 				for (let task of tasks) {
-					if (task.configurationProperties.group === TaskGroup.Test && task.configurationProperties.groupType === GroupType.default) {
+					let taskGroup: TaskGroup | undefined = TaskGroup.from(task.configurationProperties.group);
+					if (taskGroup && taskGroup.isDefault && taskGroup._id === TaskGroup.Test._id) {
 						selectedTask = task;
 						break;
 					}
