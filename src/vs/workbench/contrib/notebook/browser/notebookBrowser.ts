@@ -73,7 +73,7 @@ export const NOTEBOOK_CELL_OUTPUT_COLLAPSED = new RawContextKey<boolean>('notebo
 export const NOTEBOOK_KERNEL_COUNT = new RawContextKey<number>('notebookKernelCount', 0);
 export const NOTEBOOK_KERNEL_SELECTED = new RawContextKey<boolean>('notebookKernelSelected', false);
 export const NOTEBOOK_INTERRUPTIBLE_KERNEL = new RawContextKey<boolean>('notebookInterruptibleKernel', false);
-
+export const NOTEBOOK_MISSING_KERNEL_EXTENSION = new RawContextKey<boolean>('notebookMissingKernelExtension', false);
 export const NOTEBOOK_HAS_OUTPUTS = new RawContextKey<boolean>('notebookHasOutputs', false);
 
 //#endregion
@@ -83,6 +83,17 @@ export const EXPAND_CELL_INPUT_COMMAND_ID = 'notebook.cell.expandCellInput';
 export const EXECUTE_CELL_COMMAND_ID = 'notebook.cell.execute';
 export const CHANGE_CELL_LANGUAGE = 'notebook.cell.changeLanguage';
 export const QUIT_EDIT_CELL_COMMAND_ID = 'notebook.cell.quitEdit';
+
+//#endregion
+
+//#region Notebook extensions
+
+// Hardcoding viewType/extension ID for now. TODO these should be replaced once we can
+// look them up in the marketplace dynamically.
+export const JUPYTER_EXTENSION_ID = 'ms-toolsai.jupyter';
+export const KERNEL_EXTENSIONS = new Map<string, string>([
+	['jupyter-notebook', JUPYTER_EXTENSION_ID],
+]);
 
 //#endregion
 
