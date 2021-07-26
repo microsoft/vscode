@@ -347,16 +347,22 @@ export class SingleUseTestCollection extends Disposable {
 		this.pushExpandStateUpdate(internal);
 
 		const barrier = internal.resolveBarrier = new Barrier();
+		const applyError = (err: Error) => {
+			console.error(`Unhandled error in resolveHandler of test controller "${this.controllerId}"`);
+			if (internal.actual !== this.root) {
+				internal.actual.error = err.stack || err.message || String(err);
+			}
+		};
 
 		let r: Thenable<void> | void;
 		try {
 			r = this._resolveHandler(internal.actual === this.root ? undefined : internal.actual);
 		} catch (err) {
-			internal.actual.error = err.stack || err.message;
+			applyError(err);
 		}
 
 		if (isThenable(r)) {
-			r.catch(err => internal.actual.error = err.stack || err.message).then(() => {
+			r.catch(applyError).then(() => {
 				barrier.open();
 				this.updateExpandability(internal);
 			});
