@@ -632,4 +632,4 @@ export interface IExtensionTerminalProfile extends ITerminalProfileContribution 
 }
 
 export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | IExtensionTerminalProfile | null;
-export type ITerminalProfileQuickpickObject = ITerminalProfile | IExtensionTerminalProfile;
+export type ITerminalProfileType = ITerminalProfile | IExtensionTerminalProfile;
