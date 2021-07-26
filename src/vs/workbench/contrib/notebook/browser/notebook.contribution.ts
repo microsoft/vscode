@@ -646,9 +646,9 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['hidden', 'visible', 'visibleAfterExecute'],
 			enumDescriptions: [
-				nls.localize('notebook.showCellStatusbar.hidden.description', "The cell status bar is always hidden."),
-				nls.localize('notebook.showCellStatusbar.visible.description', "The cell status bar is always visible."),
-				nls.localize('notebook.showCellStatusbar.visibleAfterExecute.description', "The cell status bar is hidden until the cell has executed. Then it becomes visible to show the execution status.")],
+				nls.localize('notebook.showCellStatusbar.hidden.description', "The cell Status bar is always hidden."),
+				nls.localize('notebook.showCellStatusbar.visible.description', "The cell Status bar is always visible."),
+				nls.localize('notebook.showCellStatusbar.visibleAfterExecute.description', "The cell Status bar is hidden until the cell has executed. Then it becomes visible to show the execution status.")],
 			default: 'visible',
 			tags: ['notebookLayout']
 		},
@@ -708,7 +708,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout']
 		},
 		[ShowFoldingControls]: {
-			description: nls.localize('notebook.showFoldingControls.description', "Controls when the markdown header folding arrow is shown."),
+			description: nls.localize('notebook.showFoldingControls.description', "Controls when the Markdown header folding arrow is shown."),
 			type: 'string',
 			enum: ['always', 'mouseover'],
 			enumDescriptions: [
