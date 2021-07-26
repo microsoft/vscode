@@ -390,8 +390,8 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'string',
 			enum: ['executable', 'sequence'],
 			markdownEnumDescriptions: [
-				localize('titleMode.executable', "The title is set by the _terminal_, the name of the detected foreground process will be used."),
-				localize('titleMode.sequence', "The title is set by the _process_ via an escape sequence, this is useful if your shell dynamically sets the title.")
+				localize('titleMode.executable', "The title is set by the terminal, the name of the detected foreground process will be used."),
+				localize('titleMode.sequence', "The title is set by the process via an escape sequence, this is useful if your shell dynamically sets the title.")
 			],
 			default: 'executable'
 		},
