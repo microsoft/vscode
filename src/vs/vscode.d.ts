@@ -13817,7 +13817,7 @@ declare module 'vscode' {
 
 	/**
 	 * Namespace for testing functionality. Tests are published by registering
-	 * {@link TestController} instances, then adding {@link TestItem}s.
+	 * {@link TestController} instances, then adding {@link TestItem TestItems}.
 	 * Controllers may also describe how to run tests by creating one or more
 	 * {@link TestRunProfile} instances.
 	 */
@@ -13902,7 +13902,7 @@ declare module 'vscode' {
 	/**
 	 * Entry point to discover and execute tests. It contains {@link items} which
 	 * are used to populate the editor UI, and is associated with
-	 * {@link createRunProfile | run profiles} to allow
+	 * {@link createRunProfile run profiles} to allow
 	 * for tests to be executed.
 	 */
 	export interface TestController {
@@ -13964,7 +13964,7 @@ declare module 'vscode' {
 		resolveHandler?: (item: TestItem | undefined) => Thenable<void> | void;
 
 		/**
-		 * Creates a {@link TestRun<T>}. This should be called by the
+		 * Creates a {@link TestRun}. This should be called by the
 		 * {@link TestRunProfile} when a request is made to execute tests, and may
 		 * also be called if a test run is detected externally. Once created, tests
 		 * that are included in the request will be moved into the queued state.
@@ -14086,7 +14086,7 @@ declare module 'vscode' {
 
 		/**
 		 * Indicates a test has failed. You should pass one or more
-		 * {@link TestMessage | TestMessages} to describe the failure.
+		 * {@link TestMessage TestMessages} to describe the failure.
 		 * @param test Test item to update.
 		 * @param messages Messages associated with the test failure.
 		 * @param duration How long the test took to execute, in milliseconds.
@@ -14095,7 +14095,7 @@ declare module 'vscode' {
 
 		/**
 		 * Indicates a test has errored. You should pass one or more
-		 * {@link TestMessage | TestMessages} to describe the failure. This differs
+		 * {@link TestMessage TestMessages} to describe the failure. This differs
 		 * from the "failed" state in that it indicates a test that couldn't be
 		 * executed at all, from a compilation error for example.
 		 * @param test Test item to update.
