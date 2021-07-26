@@ -139,6 +139,7 @@ export interface IQueryOptions {
 }
 
 export const enum StatisticType {
+	Install = 'install',
 	Uninstall = 'uninstall'
 }
 

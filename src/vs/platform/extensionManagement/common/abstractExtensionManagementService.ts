@@ -33,6 +33,7 @@ import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common
 import { canceled, getErrorMessage } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { Barrier, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { isWeb } from 'vs/base/common/platform';
 
 export const INSTALL_ERROR_VALIDATING = 'validating';
 export const ERROR_UNKNOWN = 'unknown';
@@ -231,6 +232,12 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 						await this.joinAllSettled(this.participants.map(participant => participant.postInstall(local, task.source, options, CancellationToken.None)));
 						if (!URI.isUri(task.source)) {
 							reportTelemetry(this.telemetryService, task.operation === InstallOperation.Update ? 'extensionGallery:update' : 'extensionGallery:install', getGalleryExtensionTelemetryData(task.source), new Date().getTime() - startTime, undefined);
+							// In web, report extension install statistics explicitly. In Desktop, statistics are automatically updated while downloading the VSIX.
+							if (isWeb && task.operation === InstallOperation.Install) {
+								try {
+									await this.galleryService.reportStatistic(local.manifest.publisher, local.manifest.name, local.manifest.version, StatisticType.Install);
+								} catch (error) { /* ignore */ }
+							}
 						}
 						installResults.push({ local, identifier: task.identifier, operation: task.operation, source: task.source });
 					} catch (error) {
