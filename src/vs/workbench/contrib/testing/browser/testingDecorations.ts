@@ -7,7 +7,7 @@ import { renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
@@ -18,13 +18,17 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { overviewRulerError, overviewRulerInfo, overviewRulerWarning } from 'vs/editor/common/view/editorColorRegistry';
 import { localize } from 'vs/nls';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { TestMessageSeverity } from 'vs/workbench/api/common/extHostTypes';
 import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution } from 'vs/workbench/contrib/debug/common/debug';
+import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
 import { testingRunAllIcon, testingRunIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { testMessageSeverityColors } from 'vs/workbench/contrib/testing/browser/theme';
@@ -315,6 +319,8 @@ abstract class RunTestDecoration extends Disposable {
 		@ICommandService protected readonly commandService: ICommandService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@ITestProfileService protected readonly testProfileService: ITestProfileService,
+		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
+		@IMenuService protected readonly menuService: IMenuService,
 	) {
 		super();
 		editorDecoration.options.glyphMarginHoverMessage = new MarkdownString().appendText(this.getGutterLabel());
@@ -355,7 +361,7 @@ abstract class RunTestDecoration extends Disposable {
 	/**
 	 * Called when the decoration is clicked on.
 	 */
-	protected abstract getContextMenuActions(e: IEditorMouseEvent): IAction[];
+	protected abstract getContextMenuActions(e: IEditorMouseEvent): IReference<IAction[]>;
 
 	/**
 	 * Default run action.
@@ -372,18 +378,21 @@ abstract class RunTestDecoration extends Disposable {
 
 		const model = this.editor.getModel();
 		if (model) {
-			actions = Separator.join(
-				actions,
-				this.editor
-					.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID)
-					.getContextMenuActionsAtPosition(this.line, model)
-			);
+			actions = {
+				dispose: actions.dispose,
+				object: Separator.join(
+					actions.object,
+					this.editor
+						.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID)
+						.getContextMenuActionsAtPosition(this.line, model)
+				)
+			};
 		}
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => ({ x: e.event.posx, y: e.event.posy }),
-			getActions: () => actions,
-			onHide: () => dispose(actions),
+			getActions: () => actions.object,
+			onHide: () => actions.dispose,
 		});
 	}
 
@@ -402,7 +411,7 @@ abstract class RunTestDecoration extends Disposable {
 	/**
 	 * Gets context menu actions relevant for a singel test.
 	 */
-	protected getTestContextMenuActions(test: InternalTestItem, resultItem?: TestResultItem) {
+	protected getTestContextMenuActions(test: InternalTestItem, resultItem?: TestResultItem): IReference<IAction[]> {
 		const testActions: IAction[] = [];
 		const capabilities = this.testProfileService.controllerCapabilities(test.controllerId);
 		if (capabilities & TestRunProfileBitset.Run) {
@@ -445,7 +454,21 @@ abstract class RunTestDecoration extends Disposable {
 		testActions.push(new Action('testing.gutter.reveal', localize('reveal test', 'Reveal in Test Explorer'), undefined, undefined,
 			() => this.commandService.executeCommand('vscode.revealTestInExplorer', test.item.extId)));
 
-		return testActions;
+		const contributed = this.getContributedTestActions(test, capabilities);
+		return { object: Separator.join(testActions, contributed.object), dispose: contributed.dispose };
+	}
+
+	private getContributedTestActions(test: InternalTestItem, capabilities: number): IReference<IAction[]> {
+		const contextOverlay = this.contextKeyService.createOverlay(getTestItemContextOverlay(test, capabilities));
+		const menu = this.menuService.createMenu(MenuId.TestItemGutter, contextOverlay);
+
+		try {
+			const target: IAction[] = [];
+			const actionsDisposable = createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, target);
+			return { object: target, dispose: () => actionsDisposable.dispose };
+		} finally {
+			menu.dispose();
+		}
 	}
 }
 
@@ -461,8 +484,10 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITestProfileService testProfiles: ITestProfileService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IMenuService menuService: IMenuService,
 	) {
-		super(createRunTestDecoration(tests.map(t => t.test), tests.map(t => t.resultItem)), editor, testService, contextMenuService, commandService, configurationService, testProfiles);
+		super(createRunTestDecoration(tests.map(t => t.test), tests.map(t => t.resultItem)), editor, testService, contextMenuService, commandService, configurationService, testProfiles, contextKeyService, menuService);
 	}
 
 	public override merge(test: IncrementalTestCollectionItem, resultItem: TestResultItem | undefined): RunTestDecoration {
@@ -481,10 +506,14 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 			allActions.push(new Action('testing.gutter.debugAll', localize('debug all test', 'Debug All Tests'), undefined, undefined, () => this.defaultDebug()));
 		}
 
-		const testSubmenus = this.tests.map(({ test, resultItem }) =>
-			new SubmenuAction(test.item.extId, test.item.label, this.getTestContextMenuActions(test, resultItem)));
+		const disposable = new DisposableStore();
+		const testSubmenus = this.tests.map(({ test, resultItem }) => {
+			const actions = this.getTestContextMenuActions(test, resultItem);
+			disposable.add(actions);
+			return new SubmenuAction(test.item.extId, test.item.label, actions.object);
+		});
 
-		return Separator.join(allActions, testSubmenus);
+		return { object: Separator.join(allActions, testSubmenus), dispose: () => disposable.dispose() };
 	}
 
 	protected override defaultRun() {
@@ -512,15 +541,17 @@ class RunSingleTestDecoration extends RunTestDecoration implements ITestDecorati
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITestProfileService testProfiles: ITestProfileService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IMenuService menuService: IMenuService,
 	) {
-		super(createRunTestDecoration([test], [resultItem]), editor, testService, contextMenuService, commandService, configurationService, testProfiles);
+		super(createRunTestDecoration([test], [resultItem]), editor, testService, contextMenuService, commandService, configurationService, testProfiles, contextKeyService, menuService);
 	}
 
 	public override merge(test: IncrementalTestCollectionItem, resultItem: TestResultItem | undefined): RunTestDecoration {
 		return new MultiRunTestDecoration([
 			{ test: this.test, resultItem: this.resultItem },
 			{ test, resultItem },
-		], this.editor, this.testService, this.commandService, this.contextMenuService, this.configurationService, this.testProfileService);
+		], this.editor, this.testService, this.commandService, this.contextMenuService, this.configurationService, this.testProfileService, this.contextKeyService, this.menuService);
 	}
 
 	protected override getContextMenuActions(e: IEditorMouseEvent) {

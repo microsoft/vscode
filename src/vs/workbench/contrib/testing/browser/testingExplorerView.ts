@@ -1212,7 +1212,6 @@ const getActionableElementActions = (
 	}
 };
 
-
 registerThemingParticipant((theme, collector) => {
 	if (theme.type === 'dark') {
 		const foregroundColor = theme.getColor(foreground);

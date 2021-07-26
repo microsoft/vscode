@@ -130,6 +130,7 @@ export class MenuId {
 	static readonly StatusBarWindowIndicatorMenu = new MenuId('StatusBarWindowIndicatorMenu');
 	static readonly StatusBarRemoteIndicatorMenu = new MenuId('StatusBarRemoteIndicatorMenu');
 	static readonly TestItem = new MenuId('TestItem');
+	static readonly TestItemGutter = new MenuId('TestItemGutter');
 	static readonly TestPeekElement = new MenuId('TestPeekElement');
 	static readonly TestPeekTitle = new MenuId('TestPeekTitle');
 	static readonly TouchBarContext = new MenuId('TouchBarContext');
