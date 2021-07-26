@@ -92,11 +92,11 @@ const defaultOpts = {
 export class InputBox extends Widget {
 	private contextViewProvider?: IContextViewProvider;
 	element: HTMLElement;
-	private input: HTMLInputElement;
+	protected input: HTMLInputElement;
 	private actionbar?: ActionBar;
 	private options: IInputOptions;
 	private message: IMessage | null;
-	private placeholder: string;
+	protected placeholder: string;
 	private tooltip: string;
 	private ariaLabel: string;
 	private validation?: IInputValidator;
@@ -642,8 +642,11 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 
 	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider | undefined, options: IHistoryInputOptions) {
 		const NLS_PLACEHOLDER_HISTORY_HINT = nls.localize({ key: 'history.inputbox.hint', comment: ['Text will be prefixed with \u2195 plus a single space, then used as a hint where input field keeps history'] }, "for history");
-		super(container, contextViewProvider, { ...options, tooltip: options.tooltip ?? options.placeholder, placeholder: options.placeholder ? `${options.placeholder} (\u2195 ${NLS_PLACEHOLDER_HISTORY_HINT})` : undefined });
+		const NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX = ` (\u2195 ${NLS_PLACEHOLDER_HISTORY_HINT})`;
+		super(container, contextViewProvider, options);
 		this.history = new HistoryNavigator<string>(options.history, 100);
+		this.onfocus(this.input, () => { if (!this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX) && this.history.getHistory().length > 0) { this.setPlaceHolder(this.placeholder + NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX); } });
+		this.onblur(this.input, () => { if (this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX)) { this.setPlaceHolder(this.placeholder.slice(0, this.placeholder.length - NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX.length)); } });
 	}
 
 	public addToHistory(): void {
