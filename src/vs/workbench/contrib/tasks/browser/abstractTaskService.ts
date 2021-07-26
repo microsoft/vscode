@@ -2631,7 +2631,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			for (const taskSource of tasks) {
 				for (const task in taskSource[1].configurations?.byIdentifier) {
 					if (taskSource[1].configurations) {
-						let taskGroup: TaskGroup = taskSource[1].configurations.byIdentifier[task].configurationProperties.group as TaskGroup;
+						const taskGroup: TaskGroup = taskSource[1].configurations.byIdentifier[task].configurationProperties.group as TaskGroup;
 
 						if (taskGroup && taskGroup._id === TaskGroup.Build._id && taskGroup.isDefault) {
 							buildTasks.push(taskSource[1].configurations.byIdentifier[task]);

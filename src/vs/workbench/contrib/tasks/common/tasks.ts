@@ -386,7 +386,7 @@ export namespace TaskGroup {
 			}
 			return undefined;
 		} else {
-			return value as TaskGroup;
+			return value;
 		}
 	}
 }

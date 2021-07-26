@@ -425,6 +425,7 @@ export interface BaseTaskRunnerConfiguration {
 	 * The group
 	 */
 	group?: string | GroupKind;
+
 	/**
 	 * Controls the behavior of the used terminal
 	 */
@@ -1319,10 +1320,7 @@ namespace ConfigurationProperties {
 		if (external.promptOnClose !== undefined) {
 			result.promptOnClose = !!external.promptOnClose;
 		}
-		if (external.group !== undefined) {
-			result.group = GroupKind.from(external.group);
-		}
-
+		result.group = GroupKind.from(external.group);
 		if (external.dependsOn !== undefined) {
 			if (Types.isArray(external.dependsOn)) {
 				result.dependsOn = external.dependsOn.reduce((dependencies: Tasks.TaskDependency[], item): Tasks.TaskDependency[] => {
