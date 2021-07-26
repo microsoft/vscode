@@ -480,7 +480,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 
 	private getRecommendationMessage(extension: IExtension): string | undefined {
 		const recommendation = this.extensionRecommendationsService.getAllRecommendationsWithReason()[extension.identifier.id.toLowerCase()];
-		if (recommendation) {
+		if (recommendation?.reasonText) {
 			const bgColor = this.themeService.getColorTheme().getColor(extensionButtonProminentBackground);
 			return `<span style="color:${bgColor ? Color.Format.CSS.formatHex(bgColor) : '#ffffff'};">$(${starEmptyIcon.id})</span>&nbsp;${recommendation.reasonText}`;
 		}
