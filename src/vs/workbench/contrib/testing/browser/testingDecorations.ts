@@ -32,10 +32,10 @@ import { DefaultGutterClickAction, getTestingConfiguration, TestingConfigKeys } 
 import { labelForTestInState } from 'vs/workbench/contrib/testing/common/constants';
 import { identifyTest, IncrementalTestCollectionItem, InternalTestItem, IRichLocation, ITestMessage, ITestRunProfile, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
-import { maxPriority } from 'vs/workbench/contrib/testing/common/testingStates';
+import { isFailedState, maxPriority } from 'vs/workbench/contrib/testing/common/testingStates';
 import { buildTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { IMainThreadTestCollection, ITestService, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
+import { ITestService, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
 
 function isOriginalInDiffEditor(codeEditorService: ICodeEditorService, codeEditor: ICodeEditor): boolean {
 	const diffEditors = codeEditorService.listDiffEditors();
@@ -402,7 +402,7 @@ abstract class RunTestDecoration extends Disposable {
 	/**
 	 * Gets context menu actions relevant for a singel test.
 	 */
-	protected getTestContextMenuActions(collection: IMainThreadTestCollection, test: InternalTestItem) {
+	protected getTestContextMenuActions(test: InternalTestItem, resultItem?: TestResultItem) {
 		const testActions: IAction[] = [];
 		const capabilities = this.testProfileService.controllerCapabilities(test.controllerId);
 		if (capabilities & TestRunProfileBitset.Run) {
@@ -435,6 +435,11 @@ abstract class RunTestDecoration extends Disposable {
 					}]
 				});
 			}));
+		}
+
+		if (resultItem && isFailedState(resultItem.computedState)) {
+			testActions.push(new Action('testing.gutter.peekFailure', localize('peek failure', 'Peek Error'), undefined, undefined,
+				() => this.commandService.executeCommand('vscode.peekTestError', test.item.extId)));
 		}
 
 		testActions.push(new Action('testing.gutter.reveal', localize('reveal test', 'Reveal in Test Explorer'), undefined, undefined,
@@ -476,8 +481,8 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 			allActions.push(new Action('testing.gutter.debugAll', localize('debug all test', 'Debug All Tests'), undefined, undefined, () => this.defaultDebug()));
 		}
 
-		const testSubmenus = this.tests.map(({ test }) =>
-			new SubmenuAction(test.item.extId, test.item.label, this.getTestContextMenuActions(this.testService.collection, test)));
+		const testSubmenus = this.tests.map(({ test, resultItem }) =>
+			new SubmenuAction(test.item.extId, test.item.label, this.getTestContextMenuActions(test, resultItem)));
 
 		return Separator.join(allActions, testSubmenus);
 	}
@@ -519,7 +524,7 @@ class RunSingleTestDecoration extends RunTestDecoration implements ITestDecorati
 	}
 
 	protected override getContextMenuActions(e: IEditorMouseEvent) {
-		return this.getTestContextMenuActions(this.testService.collection, this.test);
+		return this.getTestContextMenuActions(this.test, this.resultItem);
 	}
 
 	protected override defaultRun() {

@@ -30,6 +30,7 @@ import { testingConfiguation } from 'vs/workbench/contrib/testing/common/configu
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { identifyTest, ITestIdWithSrc, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestProfileService, TestProfileService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
+import { TestId, TestPosition } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestingAutoRun, TestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
 import { TestingContentProvider } from 'vs/workbench/contrib/testing/common/testingContentProvider';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
@@ -142,9 +143,23 @@ CommandsRegistry.registerCommand({
 	id: 'vscode.peekTestError',
 	handler: async (accessor: ServicesAccessor, extId: string) => {
 		const lookup = accessor.get(ITestResultService).getStateById(extId);
-		if (lookup) {
-			accessor.get(ITestingPeekOpener).tryPeekFirstError(lookup[0], lookup[1]);
+		if (!lookup) {
+			return false;
 		}
+
+		const [result, ownState] = lookup;
+		const opener = accessor.get(ITestingPeekOpener);
+		if (opener.tryPeekFirstError(result, ownState)) { // fast path
+			return true;
+		}
+
+		for (const test of result.tests) {
+			if (TestId.compare(ownState.item.extId, test.item.extId) === TestPosition.IsChild && opener.tryPeekFirstError(result, test)) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 });
 

@@ -470,7 +470,7 @@ export class TestingExplorerViewModel extends Disposable {
 			}
 		}));
 
-		this._register(this.tree.onDidChangeSelection(async evt => {
+		this._register(this.tree.onDidChangeSelection(evt => {
 			if (evt.browserEvent instanceof MouseEvent && (evt.browserEvent.altKey || evt.browserEvent.shiftKey)) {
 				return; // don't focus when alt-clicking to multi select
 			}
@@ -478,7 +478,7 @@ export class TestingExplorerViewModel extends Disposable {
 			const selected = evt.elements[0];
 			if (selected && evt.browserEvent && selected instanceof TestItemTreeElement
 				&& selected.children.size === 0 && selected.test.expand === TestItemExpandState.NotExpandable) {
-				await this.tryPeekError(selected);
+				this.tryPeekError(selected);
 			}
 		}));
 
@@ -629,7 +629,7 @@ export class TestingExplorerViewModel extends Disposable {
 	/**
 	 * Tries to peek the first test error, if the item is in a failed state.
 	 */
-	private async tryPeekError(item: TestItemTreeElement) {
+	private tryPeekError(item: TestItemTreeElement) {
 		const lookup = item.test && this.testResults.getStateById(item.test.item.extId);
 		return lookup && lookup[1].tasks.some(s => isFailedState(s.state))
 			? this.peekOpener.tryPeekFirstError(lookup[0], lookup[1], { preserveFocus: true })

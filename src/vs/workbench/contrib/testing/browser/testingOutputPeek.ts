@@ -154,14 +154,14 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 	}
 
 	/** @inheritdoc */
-	public async tryPeekFirstError(result: ITestResult, test: TestResultItem, options?: Partial<ITextEditorOptions>) {
+	public tryPeekFirstError(result: ITestResult, test: TestResultItem, options?: Partial<ITextEditorOptions>) {
 		const candidate = this.getFailedCandidateMessage(test);
 		if (!candidate) {
 			return false;
 		}
 
 		const message = candidate.message;
-		return this.showPeekFromUri({
+		this.showPeekFromUri({
 			type: TestUriType.ResultMessage,
 			documentUri: message.location!.uri,
 			taskIndex: candidate.taskId,
@@ -169,6 +169,7 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 			resultId: result.id,
 			testExtId: test.item.extId,
 		}, { selection: message.location!.range, ...options });
+		return true;
 	}
 
 	/** @inheritdoc */
