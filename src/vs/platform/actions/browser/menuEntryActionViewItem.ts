@@ -359,11 +359,11 @@ class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 
 		this._defaultAction.dispose();
 		this._defaultAction = this._instaService.createInstance(MenuEntryActionViewItem, lastAction, undefined);
-		this._defaultAction.actionRunner = new (class ActionRunner2 extends ActionRunner {
+		this._defaultAction.actionRunner = new class extends ActionRunner {
 			override async runAction(action: IAction, context?: unknown): Promise<void> {
 				await action.run(undefined);
 			}
-		})();
+		}();
 
 		if (this._container) {
 			this._defaultAction.render(prepend(this._container, $('.action-container')));
