@@ -56,8 +56,14 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	 * Implements vscode.test.registerTestProvider
 	 */
 	public createTestController(controllerId: string, label: string): vscode.TestController {
+		if (this.controllers.has(controllerId)) {
+			throw new Error(`Attempt to insert a duplicate controller with ID "${controllerId}"`);
+		}
+
 		const disposable = new DisposableStore();
 		const collection = disposable.add(new SingleUseTestCollection(controllerId));
+		collection.root.label = label;
+
 		const profiles = new Map<number, vscode.TestRunProfile>();
 		const proxy = this.proxy;
 
