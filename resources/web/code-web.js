@@ -424,7 +424,7 @@ async function handleRoot(req, res) {
 	);
 	const openFileUrl = args['open-file'] ? url.parse(args['open-file'], true) : undefined;
 	let selection;
-	if (openFileUrl.hash) {
+	if (openFileUrl?.hash) {
 		const rangeMatch = /L(?<startLineNumber>\d+)(?::(?<startColumn>\d+))?((?:-L(?<endLineNumber>\d+))(?::(?<endColumn>\d+))?)?/.exec(openFileUrl.hash);
 		if (rangeMatch?.groups) {
 			const { startLineNumber, startColumn, endLineNumber, endColumn } = rangeMatch.groups;
