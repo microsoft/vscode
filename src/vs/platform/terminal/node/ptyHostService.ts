@@ -9,7 +9,7 @@ import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensions
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { FileAccess } from 'vs/base/common/network';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
+import { IProcessEnvironment, isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { Emitter } from 'vs/base/common/event';
 import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
@@ -18,6 +18,7 @@ import { detectAvailableProfiles } from 'vs/platform/terminal/node/terminalProfi
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
+import { resolveShellEnv } from 'vs/platform/environment/node/shellEnv';
 
 enum Constants {
 	MaxRestarts = 5
@@ -40,6 +41,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 	// ProxyChannel is not used here because events get lost when forwarding across multiple proxies
 	private _proxy: IPtyService;
 
+	private readonly _shellEnv: Promise<typeof process.env>;
 	private readonly _resolveVariablesRequestStore: RequestStore<string[], { workspaceId: string, originalText: string[] }>;
 	private _restartCount = 0;
 	private _isResponsive = true;
@@ -93,6 +95,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 		// Platform configuration is required on the process running the pty host (shared process or
 		// remote server).
 		registerTerminalPlatformConfiguration();
+
+		this._shellEnv = isWindows ? Promise.resolve(process.env) : resolveShellEnv(this._logService, { _: [] }, process.env);
 
 		this._register(toDisposable(() => this._disposePtyHost()));
 
@@ -232,7 +236,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 		return this._proxy.getDefaultSystemShell(osOverride);
 	}
 	async getProfiles(workspaceId: string, profiles: unknown, defaultProfile: unknown, includeDetectedProfiles: boolean = false): Promise<ITerminalProfile[]> {
-		return detectAvailableProfiles(profiles, defaultProfile, includeDetectedProfiles, this._configurationService, undefined, this._logService, this._resolveVariables.bind(this, workspaceId));
+		const shellEnv = await this._shellEnv;
+		return detectAvailableProfiles(profiles, defaultProfile, includeDetectedProfiles, this._configurationService, shellEnv, undefined, this._logService, this._resolveVariables.bind(this, workspaceId));
 	}
 	getEnvironment(): Promise<IProcessEnvironment> {
 		return this._proxy.getEnvironment();
