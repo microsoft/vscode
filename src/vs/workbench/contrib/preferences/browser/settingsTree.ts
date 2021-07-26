@@ -622,9 +622,6 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	protected readonly _onDidFocusSetting = this._register(new Emitter<SettingsTreeSettingElement>());
 	readonly onDidFocusSetting: Event<SettingsTreeSettingElement> = this._onDidFocusSetting.event;
 
-	private readonly _onDidBlurSetting = this._register(new Emitter<SettingsTreeSettingElement>());
-	readonly onDidBlurSetting: Event<SettingsTreeSettingElement> = this._onDidBlurSetting.event;
-
 	private ignoredSettings: string[];
 	private readonly _onDidChangeIgnoredSettings = this._register(new Emitter<void>());
 	readonly onDidChangeIgnoredSettings: Event<void> = this._onDidChangeIgnoredSettings.event;
@@ -724,10 +721,6 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		focusTracker.onDidBlur(() => {
 			if (template.containerElement.classList.contains('focused')) {
 				template.containerElement.classList.remove('focused');
-			}
-
-			if (template.context) {
-				this._onDidBlurSetting.fire(template.context);
 			}
 		});
 
@@ -1053,10 +1046,6 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 			})
 		);
 
-		common.toDispose.add(this.onDidBlurSetting(() => {
-			template.listWidget.cancelEdit();
-		}));
-
 		return template;
 	}
 
@@ -1143,6 +1132,11 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 		};
 
 		renderArrayValidations(dataElement, template, value.map(v => v.value.data.toString()), true);
+	}
+
+	override disposeElement(_element: ITreeNode<SettingsTreeElement>, _index: number, template: IDisposableTemplate, _height: number | undefined) {
+		(template as ISettingListItemTemplate).listWidget.cancelEdit();
+		super.disposeElement(_element, _index, template, _height);
 	}
 }
 
@@ -1254,14 +1248,7 @@ export class SettingObjectRenderer extends AbstractSettingObjectRenderer impleme
 	renderTemplate(container: HTMLElement): ISettingObjectItemTemplate {
 		const common = this.renderCommonTemplate(null, container, 'list');
 		const widget = this._instantiationService.createInstance(ObjectSettingDropdownWidget, common.controlElement);
-
-		const templateWithWidget = this.renderTemplateWithWidget(common, widget);
-
-		common.toDispose.add(this.onDidBlurSetting(() => {
-			templateWithWidget.objectDropdownWidget!.cancelEdit();
-		}));
-
-		return templateWithWidget;
+		return this.renderTemplateWithWidget(common, widget);
 	}
 
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingObjectItemTemplate, onChange: (value: Record<string, unknown> | undefined) => void): void {
@@ -1286,6 +1273,11 @@ export class SettingObjectRenderer extends AbstractSettingObjectRenderer impleme
 			renderArrayValidations(dataElement, template, v, false);
 		};
 		renderArrayValidations(dataElement, template, dataElement.value, true);
+	}
+
+	override disposeElement(_element: ITreeNode<SettingsTreeElement>, _index: number, template: IDisposableTemplate, _height: number | undefined) {
+		(template as ISettingObjectItemTemplate).objectDropdownWidget!.cancelEdit();
+		super.disposeElement(_element, _index, template, _height);
 	}
 }
 
@@ -1343,10 +1335,6 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 
 		common.toDispose.add(excludeWidget.onDidChangeList(e => this.onDidChangeExclude(template, e)));
 
-		common.toDispose.add(this.onDidBlurSetting(() => {
-			template.excludeWidget.cancelEdit();
-		}));
-
 		return template;
 	}
 
@@ -1401,6 +1389,11 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 		const value = getExcludeDisplayValue(dataElement);
 		template.excludeWidget.setValue(value);
 		template.context = dataElement;
+	}
+
+	override disposeElement(_element: ITreeNode<SettingsTreeElement>, _index: number, template: IDisposableTemplate, _height: number | undefined): void {
+		(template as ISettingExcludeItemTemplate).excludeWidget.cancelEdit();
+		super.disposeElement(_element, _index, template, _height);
 	}
 }
 
