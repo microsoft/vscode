@@ -337,7 +337,7 @@ function translateCellErrorOutput(output: NotebookCellOutput): nbformat.IError {
 		};
 	}
 	const originalError: undefined | nbformat.IError = output.metadata?.originalError;
-	const value: Error = JSON.parse(textDecoder.decode(firstItem.data.buffer.slice(firstItem.data.byteOffset)));
+	const value: Error = JSON.parse(textDecoder.decode(firstItem.data));
 	return {
 		output_type: 'error',
 		ename: value.name,
@@ -387,10 +387,10 @@ function convertOutputMimeToJupyterOutput(mime: string, value: Uint8Array) {
 	}
 	try {
 		if (mime === CellOutputMimeTypes.error) {
-			const stringValue = textDecoder.decode(value.buffer.slice(value.byteOffset));
+			const stringValue = textDecoder.decode(value);
 			return JSON.parse(stringValue);
 		} else if (mime.startsWith('text/') || textMimeTypes.includes(mime)) {
-			const stringValue = textDecoder.decode(value.buffer.slice(value.byteOffset));
+			const stringValue = textDecoder.decode(value);
 			return splitMultilineString(stringValue);
 		} else if (mime.startsWith('image/') && mime !== 'image/svg+xml') {
 			// Images in Jupyter are stored in base64 encoded format.
@@ -399,16 +399,16 @@ function convertOutputMimeToJupyterOutput(mime: string, value: Uint8Array) {
 				return Buffer.from(value).toString('base64');
 			} else {
 				// https://developer.mozilla.org/en-US/docs/Glossary/Base64#solution_1_%E2%80%93_escaping_the_string_before_encoding_it
-				const stringValue = textDecoder.decode(value.buffer.slice(value.byteOffset));
+				const stringValue = textDecoder.decode(value);
 				return btoa(encodeURIComponent(stringValue).replace(/%([0-9A-F]{2})/g, function (_match, p1) {
 					return String.fromCharCode(Number.parseInt('0x' + p1));
 				}));
 			}
 		} else if (mime.toLowerCase().includes('json')) {
-			const stringValue = textDecoder.decode(value.buffer.slice(value.byteOffset));
+			const stringValue = textDecoder.decode(value);
 			return stringValue.length > 0 ? JSON.parse(stringValue) : stringValue;
 		} else {
-			const stringValue = textDecoder.decode(value.buffer.slice(value.byteOffset));
+			const stringValue = textDecoder.decode(value);
 			return stringValue;
 		}
 	} catch (ex) {
