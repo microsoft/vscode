@@ -267,6 +267,16 @@ suite('Preferences Validation', () => {
 			pattern.rejects({ '#ab': 99999 });
 			pattern.accepts({});
 		}
+		{
+			const pattern = new Tester({ type: 'object', properties: { 'hello': { type: 'string' } }, additionalProperties: { type: 'boolean' } });
+			pattern.accepts({ 'hello': 'world' });
+			pattern.accepts({ 'hello': 'world', 'bye': false });
+			pattern.rejects({ 'hello': 'world', 'bye': 'false' });
+			pattern.rejects({ 'hello': 'world', 'bye': 1 });
+			pattern.rejects({ 'hello': 'world', 'bye': 'world' });
+			pattern.accepts({ 'hello': 'test' });
+			pattern.accepts({});
+		}
 	});
 
 	test('patterns work', () => {
