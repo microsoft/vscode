@@ -27,6 +27,7 @@ export function getPreferredLanguage(metadata?: nbformat.INotebookMetadata) {
 	return translateKernelLanguageToMonaco(jupyterLanguage || defaultLanguage);
 }
 
+const textDecoder = new TextDecoder();
 function translateKernelLanguageToMonaco(language: string): string {
 	language = language.toLowerCase();
 	if (language.length === 2 && language.endsWith('#')) {
@@ -108,8 +109,12 @@ function convertJupyterOutputToBuffer(mime: string, value: unknown): NotebookCel
 		} else if (mime.startsWith('image/') && typeof value === 'string' && mime !== 'image/svg+xml') {
 			// Images in Jupyter are stored in base64 encoded format.
 			// VS Code expects bytes when rendering images.
-			const data = Uint8Array.from(atob(value), c => c.charCodeAt(0));
-			return new NotebookCellOutputItem(data, mime);
+			if (typeof Buffer !== 'undefined' && typeof Buffer.from === 'function') {
+				return new NotebookCellOutputItem(Buffer.from(value, 'base64'), mime);
+			} else {
+				const data = Uint8Array.from(atob(value), c => c.charCodeAt(0));
+				return new NotebookCellOutputItem(data, mime);
+			}
 		} else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
 			return NotebookCellOutputItem.text(JSON.stringify(value), mime);
 		} else {
@@ -332,7 +337,7 @@ function translateCellErrorOutput(output: NotebookCellOutput): nbformat.IError {
 		};
 	}
 	const originalError: undefined | nbformat.IError = output.metadata?.originalError;
-	const value: Error = JSON.parse(new TextDecoder().decode(firstItem.data.buffer.slice(firstItem.data.byteOffset)));
+	const value: Error = JSON.parse(textDecoder.decode(firstItem.data.buffer.slice(firstItem.data.byteOffset)));
 	return {
 		output_type: 'error',
 		ename: value.name,
@@ -365,7 +370,7 @@ function convertStreamOutput(output: NotebookCellOutput): JupyterOutput {
 	const outputs = output.items
 		.filter((opit) => opit.mime === CellOutputMimeTypes.stderr || opit.mime === CellOutputMimeTypes.stdout)
 		.map((opit) => convertOutputMimeToJupyterOutput(opit.mime, opit.data as Uint8Array) as string)
-		.reduceRight<string[]>((prev, curr) => (Array.isArray(curr) ? prev.concat(...curr) : prev.concat(curr)), []);
+		.reduceRight<string[]>((prev, curr) => prev.concat(curr), []);
 
 	const streamType = getOutputStreamType(output) || 'stdout';
 
@@ -381,21 +386,29 @@ function convertOutputMimeToJupyterOutput(mime: string, value: Uint8Array) {
 		return '';
 	}
 	try {
-		const stringValue = new TextDecoder().decode(value.buffer.slice(value.byteOffset));
 		if (mime === CellOutputMimeTypes.error) {
+			const stringValue = textDecoder.decode(value.buffer.slice(value.byteOffset));
 			return JSON.parse(stringValue);
 		} else if (mime.startsWith('text/') || textMimeTypes.includes(mime)) {
+			const stringValue = textDecoder.decode(value.buffer.slice(value.byteOffset));
 			return splitMultilineString(stringValue);
 		} else if (mime.startsWith('image/') && mime !== 'image/svg+xml') {
 			// Images in Jupyter are stored in base64 encoded format.
 			// VS Code expects bytes when rendering images.
-			// https://developer.mozilla.org/en-US/docs/Glossary/Base64#solution_1_%E2%80%93_escaping_the_string_before_encoding_it
-			return btoa(encodeURIComponent(stringValue).replace(/%([0-9A-F]{2})/g, function (_match, p1) {
-				return String.fromCharCode(Number.parseInt('0x' + p1));
-			}));
+			if (typeof Buffer !== 'undefined' && typeof Buffer.from === 'function') {
+				return Buffer.from(value).toString('base64');
+			} else {
+				// https://developer.mozilla.org/en-US/docs/Glossary/Base64#solution_1_%E2%80%93_escaping_the_string_before_encoding_it
+				const stringValue = textDecoder.decode(value.buffer.slice(value.byteOffset));
+				return btoa(encodeURIComponent(stringValue).replace(/%([0-9A-F]{2})/g, function (_match, p1) {
+					return String.fromCharCode(Number.parseInt('0x' + p1));
+				}));
+			}
 		} else if (mime.toLowerCase().includes('json')) {
+			const stringValue = textDecoder.decode(value.buffer.slice(value.byteOffset));
 			return stringValue.length > 0 ? JSON.parse(stringValue) : stringValue;
 		} else {
+			const stringValue = textDecoder.decode(value.buffer.slice(value.byteOffset));
 			return stringValue;
 		}
 	} catch (ex) {
