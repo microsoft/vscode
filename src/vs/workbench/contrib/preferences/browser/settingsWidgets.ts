@@ -760,7 +760,7 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 			siblingInput.element.classList.add('setting-list-siblingInput');
 			this.listDisposables.add(siblingInput);
 			this.listDisposables.add(attachInputBoxStyler(siblingInput, this.themeService, {
-				inputBackground: settingsSelectBackground,
+				inputBackground: settingsTextInputBackground,
 				inputForeground: settingsTextInputForeground,
 				inputBorder: settingsTextInputBorder
 			}));
@@ -834,7 +834,7 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 
 		valueInput.element.classList.add('setting-list-valueInput');
 		this.listDisposables.add(attachInputBoxStyler(valueInput, this.themeService, {
-			inputBackground: settingsSelectBackground,
+			inputBackground: settingsTextInputBackground,
 			inputForeground: settingsTextInputForeground,
 			inputBorder: settingsTextInputBorder
 		}));
@@ -1174,7 +1174,7 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 		inputBox.element.classList.add('setting-list-object-input');
 
 		this.listDisposables.add(attachInputBoxStyler(inputBox, this.themeService, {
-			inputBackground: settingsSelectBackground,
+			inputBackground: settingsTextInputBackground,
 			inputForeground: settingsTextInputForeground,
 			inputBorder: settingsTextInputBorder
 		}));
