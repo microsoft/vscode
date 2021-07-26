@@ -24,6 +24,9 @@ function processRoot() {
 			rimraf.sync(filePath);
 		}
 	}
+
+	// NOTE@coder: Delete .bin so it doesn't contain broken symlinks that trip up nfpm.
+	rimraf.sync(path.join(__dirname, 'node_modules', '.bin'));
 }
 
 function processLib() {

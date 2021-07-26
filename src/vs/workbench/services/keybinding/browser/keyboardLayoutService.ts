@@ -406,6 +406,9 @@ export class BrowserKeyboardMapperFactoryBase {
 					// }
 
 					// return null;
+				}).catch(() => {
+					// NOTE@coder: It looks like the intention was to catch this error but
+					// a try/catch won't do it when using promises without `await`.
 				});
 			} catch {
 				// getLayoutMap can throw if invoked from a nested browsing context

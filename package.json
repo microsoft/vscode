@@ -57,6 +57,8 @@
     "extensions-ci": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js extensions-ci"
   },
   "dependencies": {
+    "@types/proxy-from-env": "^1.0.1",
+    "@types/tar-stream": "^2.2.1",
     "applicationinsights": "1.0.8",
     "chokidar": "3.5.1",
     "graceful-fs": "4.2.6",
@@ -71,8 +73,11 @@
     "native-watchdog": "1.3.0",
     "node-pty": "0.11.0-beta7",
     "nsfw": "2.1.2",
+    "proxy-agent": "^4.0.1",
+    "proxy-from-env": "^1.1.0",
     "spdlog": "^0.13.0",
     "sudo-prompt": "9.2.1",
+    "tar-stream": "^2.2.0",
     "tas-client-umd": "0.1.4",
     "v8-inspect-profiler": "^0.0.21",
     "vscode-oniguruma": "1.5.1",

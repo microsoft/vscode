@@ -107,6 +107,18 @@ if (typeof navigator === 'object' && !isElectronRenderer) {
 	_isWeb = true;
 	_locale = navigator.language;
 	_language = _locale;
+
+	// NOTE@coder: Make languages work.
+	const el = typeof document !== 'undefined' && document.getElementById('vscode-remote-nls-configuration');
+	const rawNlsConfig = el && el.getAttribute('data-settings');
+	if (rawNlsConfig) {
+		try {
+			const nlsConfig: NLSConfig = JSON.parse(rawNlsConfig);
+			_locale = nlsConfig.locale;
+			_translationsConfigFile = nlsConfig._translationsConfigFile;
+			_language = nlsConfig.availableLanguages['*'] || LANGUAGE_DEFAULT;
+		} catch (error) { /* Oh well. */ }
+	}
 }
 
 // Native environment

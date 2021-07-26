@@ -23,6 +23,7 @@ import { realpath } from 'vs/base/node/extpath';
 import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { boolean } from 'vs/editor/common/config/editorOptions';
+import * as proxyAgent from 'vs/base/node/proxy_agent';
 
 import 'vs/workbench/api/common/extHost.common.services';
 import 'vs/workbench/api/node/extHost.node.services';
@@ -142,8 +143,11 @@ function _createExtHostProtocol(): Promise<PersistentProtocol> {
 
 						// Wait for rich client to reconnect
 						protocol.onSocketClose(() => {
-							// The socket has closed, let's give the renderer a certain amount of time to reconnect
-							disconnectRunner1.schedule();
+							// NOTE@coder: Inform the server so we can manage offline
+							// connections there instead. Our goal is to persist connections
+							// forever (to a reasonable point) to account for things like
+							// hibernating overnight.
+							process.send!({ type: 'VSCODE_EXTHOST_DISCONNECTED' });
 						});
 					}
 				}
@@ -319,6 +323,9 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 }
 
 export async function startExtensionHostProcess(): Promise<void> {
+	// NOTE@coder: add proxy agent patch
+	proxyAgent.monkeyPatch(true);
+
 	performance.mark(`code/extHost/willConnectToRenderer`);
 	const protocol = await createExtHostProtocol();
 	performance.mark(`code/extHost/didConnectToRenderer`);

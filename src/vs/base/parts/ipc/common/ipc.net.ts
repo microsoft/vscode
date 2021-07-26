@@ -792,6 +792,11 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		return this._socket;
 	}
 
+	// NOTE@coder: add setSocket
+	public setSocket(socket: ISocket) {
+		this._socket = socket;
+	}
+
 	public getMillisSinceLastIncomingData(): number {
 		return Date.now() - this._socketReader.lastReadTime;
 	}

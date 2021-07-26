@@ -825,10 +825,12 @@
 				"target": "**/vs/server/**",
 				"restrictions": [
 					"vs/nls",
+					"**/vs/code/**/{common,server,browser,node,electron-sandbox,electron-browser}/**",
 					"**/vs/base/**/{common,node}/**",
 					"**/vs/base/parts/**/{common,node}/**",
 					"**/vs/platform/**/{common,node}/**",
 					"**/vs/workbench/**/{common,node}/**",
+					"**/vs/workbench/workbench.web.api",
 					"**/vs/server/**",
 					"*" // node modules
 				]

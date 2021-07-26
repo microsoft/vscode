@@ -62,12 +62,13 @@ export class MainThreadStorage implements MainThreadStorageShape {
 		return JSON.parse(jsonValue);
 	}
 
-	$setValue(shared: boolean, key: string, value: object): Promise<void> {
+	async $setValue(shared: boolean, key: string, value: object): Promise<void> {
 		let jsonValue: string;
 		try {
 			jsonValue = JSON.stringify(value);
 			// Extension state is synced separately through extensions
-			this._storageService.store(key, jsonValue, shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			// NOTE@coder: Wait for the actual storage write.
+			await this._storageService.store(key, jsonValue, shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		} catch (err) {
 			return Promise.reject(err);
 		}

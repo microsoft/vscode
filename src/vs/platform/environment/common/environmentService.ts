@@ -15,6 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { ExtensionKind } from 'vs/platform/extensions/common/extensions';
 import { env } from 'vs/base/common/process';
 
+
 export interface INativeEnvironmentPaths {
 
 	/**
@@ -155,6 +156,19 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		}
 
 		return joinPath(this.userHome, this.productService.dataFolderName, 'extensions').fsPath;
+	}
+
+	/**
+	 * NOTE@coder: add extraExtensionPaths and extraBuiltinExtensionPaths
+	 */
+	@memoize
+	get extraExtensionPaths(): string[] {
+		return (this._args['extra-extensions-dir'] || []).map((p) => resolve(p));
+	}
+
+	@memoize
+	get extraBuiltinExtensionPaths(): string[] {
+		return (this._args['extra-builtin-extensions-dir'] || []).map((p) => resolve(p));
 	}
 
 	@memoize

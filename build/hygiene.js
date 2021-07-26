@@ -19,6 +19,18 @@ const copyrightHeaderLines = [
 	' *--------------------------------------------------------------------------------------------*/',
 ];
 
+/**
+ * @remark While this helps delineate Coder's additions to the upstream project,
+ * this notice should be examined within the context of the application.
+ * Code from both maintainers often overlaps.
+ */
+const coderCopyrightHeaderLines = [
+	'/*---------------------------------------------------------------------------------------------',
+	' *  Copyright (c) Coder Technologies. All rights reserved.',
+	' *  Licensed under the MIT License. See License.txt in the project root for license information.',
+	' *--------------------------------------------------------------------------------------------*/',
+];
+
 function hygiene(some, linting = true) {
 	const gulpeslint = require('gulp-eslint');
 	const tsfmt = require('typescript-formatter');
@@ -62,7 +74,7 @@ function hygiene(some, linting = true) {
 		const lines = file.__lines;
 
 		for (let i = 0; i < copyrightHeaderLines.length; i++) {
-			if (lines[i] !== copyrightHeaderLines[i]) {
+			if (lines[i] !== copyrightHeaderLines[i] && lines[i] !== coderCopyrightHeaderLines[i]) {
 				console.error(file.relative + ': Missing or bad copyright statement');
 				errorCount++;
 				break;

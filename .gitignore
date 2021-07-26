@@ -7,7 +7,8 @@ node_modules/
 extensions/**/dist/
 /out*/
 /extensions/**/out/
-src/vs/server
+# NOTE@coder: remove to provide our own server
+# src/vs/server
 resources/server
 build/node_modules
 coverage/

@@ -16,6 +16,7 @@ import { ParsedExpression, IExpression, parse } from 'vs/base/common/glob';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { Schemas } from 'vs/base/common/network';
 
 export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 
@@ -75,7 +76,10 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 		if (!ResourceContextKey._uriEquals(this._resourceKey.get(), value)) {
 			this._contextKeyService.bufferChangeEvents(() => {
 				this._resourceKey.set(value);
-				this._schemeKey.set(value ? value.scheme : null);
+				// NOTE@coder: this is to get Git context actions to show up
+				// See issue #1140 / commit 7e4a73ce2d19eee08ceea25113debefeb8ac27e2
+				// TODO@oxy: Codespaces has this working alright without this patch - investigate why we need this and remove it.
+				this._schemeKey.set(value ? (value.scheme === Schemas.vscodeRemote ? Schemas.file : value.scheme) : null);
 				this._filenameKey.set(value ? basename(value) : null);
 				this._dirnameKey.set(value ? dirname(value).fsPath : null);
 				this._pathKey.set(value ? value.fsPath : null);

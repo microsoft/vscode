@@ -11,6 +11,8 @@ import { IWindowOpenable, IOpenWindowOptions } from 'vs/platform/windows/common/
 import { URI } from 'vs/base/common/uri';
 import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
 import { ILogService } from 'vs/platform/log/common/log';
+import { tmpdir } from 'os';
+import { join } from 'vs/base/common/path';
 
 export interface OpenCommandPipeArgs {
 	type: 'open';
@@ -67,6 +69,11 @@ export class CLIServerBase {
 	}
 
 	private async setup(): Promise<string> {
+		// NOTE@coder: Write this out so we can get the most recent path.
+		fs.promises.writeFile(join(tmpdir(), 'vscode-ipc'), this._ipcHandlePath).catch((error) => {
+			this.logService.error(error);
+		});
+
 		try {
 			this._server.listen(this.ipcHandlePath);
 			this._server.on('error', err => this.logService.error(err));

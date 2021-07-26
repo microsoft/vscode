@@ -8,8 +8,8 @@ const path = require("path");
 const fs = require("fs");
 const root = path.dirname(path.dirname(__dirname));
 const yarnrcPath = path.join(root, 'remote', '.yarnrc');
-const yarnrc = fs.readFileSync(yarnrcPath, 'utf8');
-const version = /^target\s+"([^"]+)"$/m.exec(yarnrc)[1];
+// NOTE@coder: Fix version due to .yarnrc removal.
+const version = process.versions.node;
 const platform = process.platform;
 const arch = platform === 'darwin' ? 'x64' : process.arch;
 const node = platform === 'win32' ? 'node.exe' : 'node';

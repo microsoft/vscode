@@ -26,6 +26,7 @@ import { IUserDataAutoSyncEnablementService, IUserDataSyncResourceEnablementServ
 import { Promises } from 'vs/base/common/async';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
+import { isWeb } from 'vs/base/common/platform';
 
 export class ExtensionManagementService extends Disposable implements IWorkbenchExtensionManagementService {
 
@@ -314,6 +315,11 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			if (kind === 'web' && this.extensionManagementServerService.webExtensionManagementServer) {
 				return this.extensionManagementServerService.webExtensionManagementServer;
 			}
+		}
+
+		// NOTE@coder: Fall back to installing on the remote server on web.
+		if (isWeb && this.extensionManagementServerService.remoteExtensionManagementServer) {
+			return this.extensionManagementServerService.remoteExtensionManagementServer;
 		}
 
 		// Local server can accept any extension. So return local server if not compatible server found.

@@ -27,7 +27,7 @@ import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import Severity from 'vs/base/common/severity';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewsRegistry, IViewDescriptor, Extensions, ViewContainer, IViewDescriptorService, IAddedViewDescriptorRef } from 'vs/workbench/common/views';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -59,7 +59,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { isWeb } from 'vs/base/common/platform';
 import { installLocalInRemoteIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
-
+import { textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 const SearchMarketplaceExtensionsContext = new RawContextKey<boolean>('searchMarketplaceExtensions', false);
 const SearchIntalledExtensionsContext = new RawContextKey<boolean>('searchInstalledExtensions', false);
 const SearchOutdatedExtensionsContext = new RawContextKey<boolean>('searchOutdatedExtensions', false);
@@ -523,6 +523,46 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		const overlayBackgroundColor = this.getColor(SIDE_BAR_DRAG_AND_DROP_BACKGROUND) ?? '';
 		overlay.style.backgroundColor = overlayBackgroundColor;
 		hide(overlay);
+
+		// NOTE@coder this UI element helps users understand the extension marketplace divergence
+		const extensionHelperLocalStorageKey = 'coder.extension-help-message';
+
+		if (localStorage.getItem(extensionHelperLocalStorageKey) === null) {
+			const helperHeader = append(this.root, $('.header'));
+			helperHeader.id = 'codeServerMarketplaceHelper';
+			helperHeader.style.height = 'auto';
+			helperHeader.style.fontWeight = '600';
+			helperHeader.style.padding = 'padding: 5px 16px';
+			helperHeader.style.position = 'relative';
+
+			const helperText = append(helperHeader, $('div'));
+
+
+			// We call this function because it gives us access to the current theme
+			// Then we can apply the link color to the links in the helper header
+			registerThemingParticipant((theme) => {
+				const linkColor = theme.getColor(textLinkForeground);
+
+				append(helperText, $('div', { style: 'margin-bottom: 8px;' },
+					$('p', { style: 'margin-bottom: 0; display: flex; align-items: center' },
+						$('span', { class: 'codicon codicon-warning', style: 'margin-right: 2px; color: #C4A103' }),
+						'WARNING'),
+					$('p', { style: 'margin-top: 0; margin-bottom: 4px' },
+						'These extensions are not official. Find additional open-source extensions',
+						$('a', { style: `color: ${linkColor}`, href: 'https://open-vsx.org/', target: '_blank' }, 'here'),
+						'. See ',
+						$('a', { style: `color: ${linkColor}`, href: 'https://github.com/cdr/code-server/blob/master/docs/FAQ.md#differences-compared-to-vs-code', target: '_blank' }, 'docs'),
+						'.'
+					)));
+			});
+
+			const dismiss = append(helperHeader, $('span', { style: `display: 'block'; textAlign: 'right'; cursor: 'pointer';`, tabindex: '0' }, 'Dismiss'));
+
+			dismiss.onclick = () => {
+				helperHeader.remove();
+				localStorage.setItem(extensionHelperLocalStorageKey, 'viewed');
+			};
+		}
 
 		const header = append(this.root, $('.header'));
 		const placeholder = localize('searchExtensions', "Search Extensions in Marketplace");

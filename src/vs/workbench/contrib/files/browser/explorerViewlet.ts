@@ -298,9 +298,15 @@ viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
 	order: 1
 });
 
+// NOTE@coder:
+// We use OpenFolderAction.ID instead of commandId
+// because for some reason, the command openFileFolder
+// does not work as expected and causes the "Open Folder"
+// command to not work
+// See: https://github.com/cdr/code-server/issues/3457
 viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
 	content: localize({ key: 'noFolderHelp', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
-		"You have not yet opened a folder.\n[Open Folder](command:{0})", commandId),
+		"You have not yet opened a folder.\n[Open Folder](command:{0})", OpenFolderAction.ID),
 	when: ContextKeyExpr.or(ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('workspace'), RemoteNameContext.isEqualTo('')), ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('workspace'), IsWebContext)),
 	group: ViewContentGroups.Open,
 	order: 1

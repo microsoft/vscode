@@ -73,7 +73,10 @@
 		function getLanguagePackConfigurations(userDataPath) {
 			const configFile = path.join(userDataPath, 'languagepacks.json');
 			try {
-				return nodeRequire(configFile);
+				// NOTE@coder: Swapped require with readFile since require is cached and
+				// we don't restart the server-side portion of code-server when the
+				// language changes.
+				return JSON.parse(fs.readFileSync(configFile, 'utf8'));
 			} catch (err) {
 				// Do nothing. If we can't read the file we have no
 				// language pack config.

@@ -15,7 +15,8 @@ import { AuthProviderType } from './github';
 const localize = nls.loadMessageBundle();
 
 export const NETWORK_ERROR = 'network error';
-const AUTH_RELAY_SERVER = 'vscode-auth.github.com';
+// NOTE@coder: use our own auth relay (the commented one is microsoft's, not ours)
+const AUTH_RELAY_SERVER = 'auth.code-server.dev';
 // const AUTH_RELAY_STAGING_SERVER = 'client-auth-staging-14a768b.herokuapp.com';
 
 class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {

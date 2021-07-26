@@ -321,7 +321,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 					}
 				}
 			}
-			return true;
+			return false; // NOTE@coder: Don't disable anything by extensionKind.
 		}
 		return false;
 	}

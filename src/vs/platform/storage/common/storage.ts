@@ -105,8 +105,10 @@ export interface IStorageService {
 	 *
 	 * @param target allows to define the target of the storage operation
 	 * to either the current machine or user.
+	 *
+	 * NOTE@coder: Add a promise so extensions can await storage writes.
 	 */
-	store(key: string, value: string | boolean | number | undefined | null, scope: StorageScope, target: StorageTarget): void;
+	store(key: string, value: string | boolean | number | undefined | null, scope: StorageScope, target: StorageTarget): Promise<void> | void;
 
 	/**
 	 * Delete an element stored under the provided key from storage.
@@ -333,46 +335,49 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		return this.getStorage(scope)?.getNumber(key, fallbackValue);
 	}
 
-	store(key: string, value: string | boolean | number | undefined | null, scope: StorageScope, target: StorageTarget): void {
+	// NOTE@coder: Make a promise so extensions can await storage writes.
+	store(key: string, value: string | boolean | number | undefined | null, scope: StorageScope, target: StorageTarget): Promise<void> | void {
 
 		// We remove the key for undefined/null values
 		if (isUndefinedOrNull(value)) {
 			this.remove(key, scope);
-			return;
+			return Promise.resolve();
 		}
 
 		// Update our datastructures but send events only after
-		this.withPausedEmitters(() => {
+		return this.withPausedEmitters(() => {
 
 			// Update key-target map
 			this.updateKeyTarget(key, scope, target);
 
 			// Store actual value
-			this.getStorage(scope)?.set(key, value);
+			return this.getStorage(scope)?.set(key, value);
 		});
 	}
 
-	remove(key: string, scope: StorageScope): void {
+	// NOTE@coder: Make a promise so extensions can await the storage write.
+	remove(key: string, scope: StorageScope): Promise<void> | void {
 
 		// Update our datastructures but send events only after
-		this.withPausedEmitters(() => {
+		return this.withPausedEmitters(() => {
 
 			// Update key-target map
 			this.updateKeyTarget(key, scope, undefined);
 
 			// Remove actual key
-			this.getStorage(scope)?.delete(key);
+			return this.getStorage(scope)?.delete(key);
 		});
 	}
 
-	private withPausedEmitters(fn: Function): void {
+	// NOTE@coder: Return the function's return so extensions can await the storage write.
+	private withPausedEmitters<T>(fn: () => T): T {
 
 		// Pause emitters
 		this._onDidChangeValue.pause();
 		this._onDidChangeTarget.pause();
 
 		try {
-			fn();
+			return fn();
 		} finally {
 
 			// Resume emitters

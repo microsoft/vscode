@@ -128,16 +128,17 @@ class RemoteAuthoritiesImpl {
 		if (host && host.indexOf(':') !== -1) {
 			host = `[${host}]`;
 		}
-		const port = this._ports[authority];
+		// const port = this._ports[authority];
 		const connectionToken = this._connectionTokens[authority];
 		let query = `path=${encodeURIComponent(uri.path)}`;
 		if (typeof connectionToken === 'string') {
 			query += `&tkn=${encodeURIComponent(connectionToken)}`;
 		}
+		// NOTE@coder: Changed this to work against the current path.
 		return URI.from({
 			scheme: platform.isWeb ? this._preferredWebSchema : Schemas.vscodeRemoteResource,
-			authority: `${host}:${port}`,
-			path: `/vscode-remote-resource`,
+			authority: window.location.host,
+			path: `${window.location.pathname.replace(/\/+$/, '')}/vscode-remote-resource`,
 			query
 		});
 	}
