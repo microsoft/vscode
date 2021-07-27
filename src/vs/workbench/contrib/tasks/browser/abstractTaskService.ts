@@ -3185,7 +3185,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		let group: string | undefined;
 		if (activeTasks.length === 1) {
 			this._taskSystem!.revealTask(activeTasks[0]);
-		} else if (activeTasks.every((task) => {
+		} else if (activeTasks.length && activeTasks.every((task) => {
 			if (InMemoryTask.is(task)) {
 				return false;
 			}
