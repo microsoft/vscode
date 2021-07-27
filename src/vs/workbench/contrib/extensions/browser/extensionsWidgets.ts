@@ -417,11 +417,21 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		markdown.appendMarkdown(`**${this.extension.displayName}**&nbsp;_v${this.extension.version}_`);
 		markdown.appendText(`\n`);
 
+		if (this.extension.description) {
+			markdown.appendMarkdown(`${this.extension.description}`);
+			markdown.appendText(`\n`);
+		}
+
 		const extensionRuntimeStatus = this.extensionsWorkbenchService.getExtensionStatus(this.extension);
 		const extensionStatus = this.extensionStatusAction.status;
 		const reloadRequiredMessage = this.reloadAction.enabled ? this.reloadAction.tooltip : '';
+		const recommendationMessage = this.getRecommendationMessage(this.extension);
 
-		if (extensionRuntimeStatus || extensionStatus || reloadRequiredMessage) {
+		if (extensionRuntimeStatus || extensionStatus || reloadRequiredMessage || recommendationMessage) {
+
+			markdown.appendMarkdown(`---`);
+			markdown.appendText(`\n`);
+
 			if (extensionRuntimeStatus) {
 				if (extensionRuntimeStatus.activationTimes) {
 					const activationTime = extensionRuntimeStatus.activationTimes.codeLoadingTime + extensionRuntimeStatus.activationTimes.activateCallTime;
@@ -460,19 +470,10 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 				markdown.appendText(`\n`);
 			}
 
-			markdown.appendMarkdown(`---`);
-			markdown.appendText(`\n`);
-		}
-
-		if (this.extension.description) {
-			markdown.appendMarkdown(`${this.extension.description}`);
-			markdown.appendText(`\n`);
-		}
-
-		const recommendationMessage = this.getRecommendationMessage(this.extension);
-		if (recommendationMessage) {
-			markdown.appendMarkdown(recommendationMessage);
-			markdown.appendText(`\n`);
+			if (recommendationMessage) {
+				markdown.appendMarkdown(recommendationMessage);
+				markdown.appendText(`\n`);
+			}
 		}
 
 		return markdown;
