@@ -154,12 +154,7 @@ export class Menubar {
 		const privacyStatementUrl = this.productService.privacyStatementUrl;
 		if (privacyStatementUrl && licenseUrl) {
 			this.fallbackMenuHandlers['workbench.action.openPrivacyStatementUrl'] = () => {
-				if (language) {
-					const queryArgChar = licenseUrl.indexOf('?') > 0 ? '&' : '?';
-					this.openUrl(`${privacyStatementUrl}${queryArgChar}lang=${language}`, 'openPrivacyStatement');
-				} else {
-					this.openUrl(privacyStatementUrl, 'openPrivacyStatement');
-				}
+				this.openUrl(privacyStatementUrl, 'openPrivacyStatement');
 			};
 		}
 	}
