@@ -258,7 +258,6 @@ export class TerminalViewPane extends ViewPane {
 
 		for (const contributed of this._terminalContributionService.terminalProfiles) {
 			const isDefault = contributed.title === defaultProfileName;
-			console.log(defaultProfileName);
 			const title = isDefault ? nls.localize('defaultTerminalProfile', "{0} (Default)", contributed.title.replace(/[\n\r\t]/g, '')) : contributed.title.replace(/[\n\r\t]/g, '');
 			dropdownActions.push(new Action(TerminalCommandId.NewWithProfile, title, undefined, true, () => this._terminalService.createTerminal({
 				config: {

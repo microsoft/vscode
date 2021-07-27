@@ -219,7 +219,12 @@ export class TerminalEditor extends EditorPane {
 		const dropdownActions: IAction[] = [];
 		const submenuActions: IAction[] = [];
 
-		const defaultProfileName = this._terminalProfileResolverService.defaultProfileName;
+		let defaultProfileName;
+		try {
+			defaultProfileName = this._terminalService.getDefaultProfileName();
+		} catch (e) {
+			defaultProfileName = this._terminalProfileResolverService.defaultProfileName;
+		}
 		for (const p of profiles) {
 			const isDefault = p.profileName === defaultProfileName;
 			const options: IMenuActionOptions = {
@@ -239,19 +244,21 @@ export class TerminalEditor extends EditorPane {
 		}
 
 		for (const contributed of this._terminalContributionService.terminalProfiles) {
-			dropdownActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title.replace(/[\n\r\t]/g, ''), undefined, true, () => this._terminalService.createTerminal({
+			const isDefault = contributed.title === defaultProfileName;
+			const title = isDefault ? localize('defaultTerminalProfile', "{0} (Default)", contributed.title.replace(/[\n\r\t]/g, '')) : contributed.title.replace(/[\n\r\t]/g, '');
+			dropdownActions.push(new Action(TerminalCommandId.NewWithProfile, title, undefined, true, () => this._terminalService.createTerminal({
 				config: {
 					extensionIdentifier: contributed.extensionIdentifier,
 					id: contributed.id,
-					title: contributed.title.replace(/[\n\r\t]/g, '')
+					title
 				},
 				target: TerminalLocation.Editor
 			})));
-			submenuActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title.replace(/[\n\r\t]/g, ''), undefined, true, () => this._terminalService.createTerminal({
+			submenuActions.push(new Action(TerminalCommandId.NewWithProfile, title, undefined, true, () => this._terminalService.createTerminal({
 				config: {
 					extensionIdentifier: contributed.extensionIdentifier,
 					id: contributed.id,
-					title: contributed.title.replace(/[\n\r\t]/g, '')
+					title
 				},
 				forceSplit: true,
 				target: TerminalLocation.Editor
