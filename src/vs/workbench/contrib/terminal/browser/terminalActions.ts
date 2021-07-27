@@ -119,6 +119,7 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
+			const terminalGroupService = accessor.get(ITerminalGroupService);
 			if (terminalService.isProcessSupportRegistered) {
 				const instance = await terminalService.createTerminal({ target: terminalService.configHelper.config.defaultLocation });
 				if (!instance) {
@@ -126,7 +127,7 @@ export function registerTerminalActions() {
 				}
 				terminalService.setActiveInstance(instance);
 			}
-			await accessor.get(ITerminalGroupService).showPanel(true);
+			await terminalGroupService.showPanel(true);
 		}
 	});
 
@@ -1262,6 +1263,7 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor, args?: { cwd?: string }) {
 			const terminalService = accessor.get(ITerminalService);
+			const terminalGroupService = accessor.get(ITerminalGroupService);
 			if (terminalService.isProcessSupportRegistered) {
 				const instance = await terminalService.createTerminal(
 					{
@@ -1274,7 +1276,7 @@ export function registerTerminalActions() {
 				if (instance.target === TerminalLocation.Editor) {
 					await instance.focusWhenReady(true);
 				} else {
-					return accessor.get(ITerminalGroupService).showPanel(true);
+					return terminalGroupService.showPanel(true);
 				}
 			}
 		}
