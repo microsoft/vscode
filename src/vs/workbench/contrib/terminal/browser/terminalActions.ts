@@ -484,12 +484,13 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
+			const terminalGroupService = accessor.get(ITerminalGroupService);
 			const instance = terminalService.activeInstance || await terminalService.createTerminal({ target: TerminalLocation.TerminalView });
 			if (!instance) {
 				return;
 			}
 			terminalService.setActiveInstance(instance);
-			return accessor.get(ITerminalGroupService).showPanel(true);
+			return terminalGroupService.showPanel(true);
 		}
 	});
 	registerAction2(class extends Action2 {
