@@ -460,11 +460,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			if (!this.userDataSyncWorkbenchService.authenticationProviders.length) {
 				throw new Error(localize('no authentication providers', "No authentication providers are available."));
 			}
-			if (!this.storageService.getBoolean('sync.donotAskPreviewConfirmation', StorageScope.GLOBAL, false)) {
-				if (!await this.askForConfirmation()) {
-					return;
-				}
-			}
 			const turnOn = await this.askToConfigure();
 			if (!turnOn) {
 				return;
@@ -517,26 +512,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				this.notificationService.error(localize({ key: 'turn on failed', comment: ['Substitution is for error reason'] }, "Error while turning on Settings Sync. {0}", getErrorMessage(e)));
 			}
 		}
-	}
-
-	private async askForConfirmation(): Promise<boolean> {
-		const result = await this.dialogService.show(
-			Severity.Info,
-			localize('sync preview message', "Synchronizing your settings is a preview feature, please read the documentation before turning it on."),
-			[
-				localize('turn on', "Turn On"),
-				localize('open doc', "Open Documentation"),
-				localize('cancel', "Cancel"),
-			],
-			{
-				cancelId: 2
-			}
-		);
-		switch (result.choice) {
-			case 1: this.openerService.open(URI.parse('https://aka.ms/vscode-settings-sync-help')); return false;
-			case 2: return false;
-		}
-		return true;
 	}
 
 	private async askToConfigure(): Promise<boolean> {
