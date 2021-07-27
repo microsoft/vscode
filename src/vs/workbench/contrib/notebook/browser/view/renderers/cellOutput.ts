@@ -383,7 +383,7 @@ export class CellOutputElement extends Disposable {
 		});
 
 		if (unsupportedItems.some(m => JUPYTER_RENDERER_MIMETYPES.includes(m.id!))) {
-			unsupportedItems.unshift({
+			unsupportedItems.push({
 				label: nls.localize('installJupyterPrompt', "Install additional renderers from the marketplace"),
 				id: 'installRenderers',
 				index: mimeTypes.length
