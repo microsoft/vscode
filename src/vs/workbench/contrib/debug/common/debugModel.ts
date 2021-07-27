@@ -973,7 +973,7 @@ export class DebugModel implements IDebugModel {
 	private breakpoints: Breakpoint[];
 	private functionBreakpoints: FunctionBreakpoint[];
 	private exceptionBreakpoints: ExceptionBreakpoint[];
-	private dataBreakopints: DataBreakpoint[];
+	private dataBreakpoints: DataBreakpoint[];
 	private watchExpressions: Expression[];
 	private instructionBreakpoints: InstructionBreakpoint[];
 
@@ -985,7 +985,7 @@ export class DebugModel implements IDebugModel {
 		this.breakpoints = debugStorage.loadBreakpoints();
 		this.functionBreakpoints = debugStorage.loadFunctionBreakpoints();
 		this.exceptionBreakpoints = debugStorage.loadExceptionBreakpoints();
-		this.dataBreakopints = debugStorage.loadDataBreakpoints();
+		this.dataBreakpoints = debugStorage.loadDataBreakpoints();
 		this.watchExpressions = debugStorage.loadWatchExpressions();
 		this.instructionBreakpoints = [];
 		this.sessions = [];
@@ -1003,7 +1003,7 @@ export class DebugModel implements IDebugModel {
 	}
 
 	getSessions(includeInactive = false): IDebugSession[] {
-		// By default do not return inactive sesions.
+		// By default do not return inactive sessions.
 		// However we are still holding onto inactive sessions due to repl and debug service session revival (eh scenario)
 		return this.sessions.filter(s => includeInactive || s.state !== State.Inactive);
 	}
@@ -1011,7 +1011,7 @@ export class DebugModel implements IDebugModel {
 	addSession(session: IDebugSession): void {
 		this.sessions = this.sessions.filter(s => {
 			if (s.getId() === session.getId()) {
-				// Make sure to de-dupe if a session is re-intialized. In case of EH debugging we are adding a session again after an attach.
+				// Make sure to de-dupe if a session is re-initialized. In case of EH debugging we are adding a session again after an attach.
 				return false;
 			}
 			if (s.state === State.Inactive && s.configuration.name === session.configuration.name) {
@@ -1136,7 +1136,7 @@ export class DebugModel implements IDebugModel {
 	}
 
 	getDataBreakpoints(): IDataBreakpoint[] {
-		return this.dataBreakopints;
+		return this.dataBreakpoints;
 	}
 
 	getExceptionBreakpoints(): IExceptionBreakpoint[] {
@@ -1229,7 +1229,7 @@ export class DebugModel implements IDebugModel {
 				}
 			}
 		});
-		this.dataBreakopints.forEach(dbp => {
+		this.dataBreakpoints.forEach(dbp => {
 			if (!data) {
 				dbp.setSessionData(sessionId, undefined);
 			} else {
@@ -1321,7 +1321,7 @@ export class DebugModel implements IDebugModel {
 			}
 			fbp.enabled = enable;
 		});
-		this.dataBreakopints.forEach(dbp => {
+		this.dataBreakpoints.forEach(dbp => {
 			if (dbp.enabled !== enable) {
 				changed.push(dbp);
 			}
@@ -1379,18 +1379,18 @@ export class DebugModel implements IDebugModel {
 
 	addDataBreakpoint(label: string, dataId: string, canPersist: boolean, accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined, accessType: DebugProtocol.DataBreakpointAccessType): void {
 		const newDataBreakpoint = new DataBreakpoint(label, dataId, canPersist, true, undefined, undefined, undefined, accessTypes, accessType);
-		this.dataBreakopints.push(newDataBreakpoint);
+		this.dataBreakpoints.push(newDataBreakpoint);
 		this._onDidChangeBreakpoints.fire({ added: [newDataBreakpoint], sessionOnly: false });
 	}
 
 	removeDataBreakpoints(id?: string): void {
 		let removed: DataBreakpoint[];
 		if (id) {
-			removed = this.dataBreakopints.filter(fbp => fbp.getId() === id);
-			this.dataBreakopints = this.dataBreakopints.filter(fbp => fbp.getId() !== id);
+			removed = this.dataBreakpoints.filter(fbp => fbp.getId() === id);
+			this.dataBreakpoints = this.dataBreakpoints.filter(fbp => fbp.getId() !== id);
 		} else {
-			removed = this.dataBreakopints;
-			this.dataBreakopints = [];
+			removed = this.dataBreakpoints;
+			this.dataBreakpoints = [];
 		}
 		this._onDidChangeBreakpoints.fire({ removed, sessionOnly: false });
 	}
