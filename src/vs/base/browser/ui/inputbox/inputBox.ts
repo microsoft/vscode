@@ -645,8 +645,22 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 		const NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX = ` (\u2195 ${NLS_PLACEHOLDER_HISTORY_HINT})`;
 		super(container, contextViewProvider, options);
 		this.history = new HistoryNavigator<string>(options.history, 100);
-		this.onfocus(this.input, () => { if (!this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX) && this.history.getHistory().length > 0) { this.setPlaceHolder(this.placeholder + NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX); } });
-		this.onblur(this.input, () => { if (this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX)) { this.setPlaceHolder(this.placeholder.slice(0, this.placeholder.length - NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX.length)); } });
+		this.onfocus(this.input, () => {
+			if (!this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX) && this.history.getHistory().length) {
+				this.setPlaceHolder(this.placeholder + NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX);
+			}
+		});
+		this.onblur(this.input, () => {
+			const revertedPlaceholder = this.placeholder.slice(0, this.placeholder.length - NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX.length);
+			if (this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX)) {
+				if (options.showPlaceholderOnFocus) {
+					this.placeholder = revertedPlaceholder;
+				}
+				else {
+					this.setPlaceHolder(revertedPlaceholder);
+				}
+			}
+		});
 	}
 
 	public addToHistory(): void {
