@@ -350,10 +350,10 @@ export class NotebookOptions {
 		if (insertToolbarPosition === 'betweenCells' || insertToolbarPosition === 'both') {
 			return compactView ? {
 				bottomToolbarGap: 12,
-				bottomToolbarHeight: 18
+				bottomToolbarHeight: 20
 			} : {
-				bottomToolbarGap: 18,
-				bottomToolbarHeight: 18
+				bottomToolbarGap: 20,
+				bottomToolbarHeight: 20
 			};
 		} else {
 			return {
