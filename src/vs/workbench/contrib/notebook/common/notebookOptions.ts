@@ -343,17 +343,17 @@ export class NotebookOptions {
 		if (insertToolbarAlignment === 'left' || cellToolbar !== 'hidden') {
 			return {
 				bottomToolbarGap: 18,
-				bottomToolbarHeight: 22
+				bottomToolbarHeight: 18
 			};
 		}
 
 		if (insertToolbarPosition === 'betweenCells' || insertToolbarPosition === 'both') {
 			return compactView ? {
 				bottomToolbarGap: 12,
-				bottomToolbarHeight: 22
+				bottomToolbarHeight: 18
 			} : {
 				bottomToolbarGap: 18,
-				bottomToolbarHeight: 22
+				bottomToolbarHeight: 18
 			};
 		} else {
 			return {
