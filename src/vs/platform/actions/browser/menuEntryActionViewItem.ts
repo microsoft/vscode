@@ -444,7 +444,8 @@ export function createActionViewItem(instaService: IInstantiationService, action
 	if (action instanceof MenuItemAction) {
 		return instaService.createInstance(MenuEntryActionViewItem, action, undefined);
 	} else if (action instanceof SubmenuItemAction) {
-		if (action.item.rememberDefaultAction) {
+		const allCodicons = !action.actions.some(a => a instanceof MenuItemAction && a.item.icon && !ThemeIcon.isThemeIcon(a.item.icon));
+		if (action.item.rememberDefaultAction && allCodicons) {
 			return instaService.createInstance(DropdownWithDefaultActionViewItem, action);
 		} else {
 			return instaService.createInstance(SubmenuEntryActionViewItem, action);
