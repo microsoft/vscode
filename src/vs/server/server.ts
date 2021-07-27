@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { getMachineId } from 'vs/base/node/id';
 import { ClientConnectionEvent, IPCServer, IServerChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { main } from 'vs/code/node/cliProcessMain';
-import { Query, VscodeOptions, WorkbenchOptions } from 'vs/base/common/ipc';
+import { Query, VscodeInitializationOptions, WorkbenchOptions } from 'vs/base/common/ipc';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
@@ -55,17 +55,20 @@ import { Connection, ExtensionHostConnection, ManagementConnection } from 'vs/se
 import { TelemetryClient } from 'vs/server/insights';
 import { getLocaleFromConfig, getNlsConfiguration } from 'vs/server/nls';
 import { Protocol } from 'vs/server/protocol';
-import { getUriTransformer } from 'vs/server/util';
 import { REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/workbench/services/remote/common/remoteAgentFileSystemChannel';
 import { RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 import { LogsDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/logsDataCleaner';
+import { createServerURITransformer } from 'vs/base/common/uriServer';
 
 const commit = product.commit || 'development';
 const logger = new ConsoleMainLogger();
 
-export class Vscode {
+/**
+ * Handles client connections to a VSCode instance via IPC.
+ */
+export class VscodeServer {
 	public readonly _onDidClientConnect = new Emitter<ClientConnectionEvent>();
 	public readonly onDidClientConnect = this._onDidClientConnect.event;
 	private readonly ipc = new IPCServer<RemoteAgentConnectionContext>(this.onDidClientConnect);
@@ -80,8 +83,8 @@ export class Vscode {
 		return main(args);
 	}
 
-	public async initialize(options: VscodeOptions): Promise<WorkbenchOptions> {
-		const transformer = getUriTransformer(options.remoteAuthority);
+	public async initialize(options: VscodeInitializationOptions): Promise<WorkbenchOptions> {
+		const transformer = createServerURITransformer(options.remoteAuthority);
 		if (!this.servicesPromise) {
 			this.servicesPromise = this.initializeServices(options.args);
 		}
@@ -299,7 +302,7 @@ export class Vscode {
 
 				this.ipc.registerChannel('extensions', new ExtensionManagementChannel(
 					accessor.get(IExtensionManagementService),
-					(context) => getUriTransformer(context.remoteAuthority),
+					(context) => createServerURITransformer(context.remoteAuthority),
 				));
 				this.ipc.registerChannel('remoteextensionsenvironment', new ExtensionEnvironmentChannel(
 					environmentService, logService, telemetryService, '',

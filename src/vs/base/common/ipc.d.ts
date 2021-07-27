@@ -1,11 +1,12 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Coder Technologies. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 /**
  * External interfaces for integration into code-server over IPC.
- * This file exists in two locations:
- * - typings/ipc.d.ts
- * - lib/vscode/src/typings/ipc.d.ts
- * The second is a symlink to the first.
  */
-export interface Options {
+export interface CodeServerConfiguration {
 	authed: boolean
 	base: string
 	csStaticBase: string
@@ -16,7 +17,7 @@ export interface Options {
 export interface InitMessage {
 	type: 'init'
 	id: string
-	options: VscodeOptions
+	options: VscodeInitializationOptions
 }
 
 export type Query = { [key: string]: string | string[] | undefined | Query | Query[] }
@@ -81,13 +82,13 @@ export interface Args {
 	_: string[]
 }
 
-export interface VscodeOptions {
+export interface VscodeInitializationOptions {
 	readonly args: Args
 	readonly remoteAuthority: string
 	readonly startPath?: StartPath
 }
 
-export interface VscodeOptionsMessage extends VscodeOptions {
+export interface VscodeInitializationOptionsMessage extends VscodeInitializationOptions {
 	readonly id: string
 }
 

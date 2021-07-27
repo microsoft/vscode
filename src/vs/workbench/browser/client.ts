@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'vs/base/common/path';
-import { Options } from 'vs/base/common/ipc';
+import { CodeServerConfiguration } from 'vs/base/common/ipc';
 import { localize } from 'vs/nls';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -22,7 +22,7 @@ import 'vs/workbench/services/localizations/browser/localizationsService';
  * possible.
  */
 
-const options = getOptions<Options>();
+const options = getOptions<CodeServerConfiguration>();
 
 /**
  * This is called by vs/workbench/browser/web.main.ts after the workbench has

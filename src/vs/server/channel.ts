@@ -26,7 +26,6 @@ import { IRemoteAgentEnvironment, RemoteAgentConnectionContext } from 'vs/platfo
 import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IShellLaunchConfig, ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
 import { getTranslations } from 'vs/server/nls';
-import { getUriTransformer } from 'vs/server/util';
 import { IFileChangeDto } from 'vs/workbench/api/common/extHost.protocol';
 import { IEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
@@ -36,6 +35,7 @@ import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/termi
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
 import { ExtensionScanner, ExtensionScannerInput } from 'vs/workbench/services/extensions/node/extensionPoints';
 import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
+import { createServerURITransformer } from 'vs/base/common/uriServer';
 
 const logger = new ConsoleLogger();
 
@@ -86,7 +86,7 @@ export class FileProviderChannel implements IServerChannel<RemoteAgentConnection
 			onFirstListenerAdd: () => {
 				const provider = new Watcher(this.logService);
 				this.watchers.set(session, provider);
-				const transformer = getUriTransformer(context.remoteAuthority);
+				const transformer = createServerURITransformer(context.remoteAuthority);
 				provider.onDidChangeFile((events) => {
 					emitter.fire(events.map((event) => ({
 						...event,
@@ -238,12 +238,12 @@ export class ExtensionEnvironmentChannel implements IServerChannel {
 			case 'getEnvironmentData':
 				return transformOutgoingURIs(
 					await this.getEnvironmentData(),
-					getUriTransformer(context.remoteAuthority),
+					createServerURITransformer(context.remoteAuthority),
 				);
 			case 'scanExtensions':
 				return transformOutgoingURIs(
 					await this.scanExtensions(args.language),
-					getUriTransformer(context.remoteAuthority),
+					createServerURITransformer(context.remoteAuthority),
 				);
 			case 'getDiagnosticInfo': return this.getDiagnosticInfo();
 			case 'disableTelemetry': return this.disableTelemetry();
@@ -559,6 +559,6 @@ export class TerminalProviderChannel implements IServerChannel<RemoteAgentConnec
 }
 
 function transformIncoming(remoteAuthority: string, uri: UriComponents | undefined): URI | undefined {
-	const transformer = getUriTransformer(remoteAuthority);
+	const transformer = createServerURITransformer(remoteAuthority);
 	return uri ? URI.revive(transformer.transformIncoming(uri)) : uri;
 }

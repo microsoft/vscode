@@ -7,7 +7,7 @@ import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import * as proxyAgent from 'vs/base/node/proxy_agent';
 import { CodeServerMessage, VscodeMessage } from 'vs/base/common/ipc';
 import { enableCustomMarketplace } from 'vs/server/marketplace';
-import { Vscode } from 'vs/server/server';
+import { VscodeServer } from 'vs/server/server';
 import { ConsoleMainLogger } from 'vs/platform/log/common/log';
 
 const logger = new ConsoleMainLogger();
@@ -41,7 +41,7 @@ if (typeof process.env.CODE_SERVER_PARENT_PID !== 'undefined') {
 	exit(1);
 }
 
-const vscode = new Vscode();
+const vscode = new VscodeServer();
 const send = (message: VscodeMessage): void => {
 	if (!process.send) {
 		throw new Error('not spawned with IPC');
@@ -57,8 +57,9 @@ process.on('message', async (message: CodeServerMessage, socket) => {
 	switch (message.type) {
 		case 'init':
 			try {
-				const options = await vscode.initialize(message.options);
-				send({ type: 'options', id: message.id, options });
+				const workbenchOptions = await vscode.initialize(message.options);
+
+				send({ type: 'options', id: message.id, options: workbenchOptions });
 			} catch (error) {
 				logger.error(error.message);
 				logger.error(error.stack);
