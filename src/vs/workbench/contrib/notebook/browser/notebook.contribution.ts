@@ -667,7 +667,8 @@ configurationRegistry.registerConfiguration({
 		[UndoRedoPerCell]: {
 			description: nls.localize('notebook.undoRedoPerCell.description', "Whether to use separate undo/redo stack for each cell."),
 			type: 'boolean',
-			default: false
+			default: true,
+			tags: ['notebookLayout']
 		},
 		[CompactView]: {
 			description: nls.localize('notebook.compactView.description', "Control whether the notebook editor should be rendered in a compact form. "),
