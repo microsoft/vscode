@@ -235,6 +235,7 @@ export class SearchWidget extends Widget {
 
 	clearHistory(): void {
 		this.searchInput.inputBox.clearHistory();
+		this.replaceInput.inputBox.clearHistory();
 	}
 
 	showNextSearchTerm() {
