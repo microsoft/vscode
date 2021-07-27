@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { CellEditState, CellFocusMode, CellViewModelStateChangeEvent, INotebookEditor, NotebookCellExecutionStateContext, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_FOCUSED, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_TYPE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, CellViewModelStateChangeEvent, INotebookEditor, NotebookCellExecutionStateContext, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_FOCUSED, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_TYPE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -17,6 +17,7 @@ export class CellContextKeyManager extends Disposable {
 	private cellFocused!: IContextKey<boolean>;
 	private cellEditorFocused!: IContextKey<boolean>;
 	private cellRunState!: IContextKey<NotebookCellExecutionStateContext>;
+	private cellExecuting!: IContextKey<boolean>;
 	private cellHasOutputs!: IContextKey<boolean>;
 	private cellContentCollapsed!: IContextKey<boolean>;
 	private cellOutputCollapsed!: IContextKey<boolean>;
@@ -40,6 +41,7 @@ export class CellContextKeyManager extends Disposable {
 			this.cellEditorFocused = NOTEBOOK_CELL_EDITOR_FOCUSED.bindTo(this.contextKeyService);
 			this.markdownEditMode = NOTEBOOK_CELL_MARKDOWN_EDIT_MODE.bindTo(this.contextKeyService);
 			this.cellRunState = NOTEBOOK_CELL_EXECUTION_STATE.bindTo(this.contextKeyService);
+			this.cellExecuting = NOTEBOOK_CELL_EXECUTING.bindTo(this.contextKeyService);
 			this.cellHasOutputs = NOTEBOOK_CELL_HAS_OUTPUTS.bindTo(this.contextKeyService);
 			this.cellContentCollapsed = NOTEBOOK_CELL_INPUT_COLLAPSED.bindTo(this.contextKeyService);
 			this.cellOutputCollapsed = NOTEBOOK_CELL_OUTPUT_COLLAPSED.bindTo(this.contextKeyService);
@@ -121,16 +123,22 @@ export class CellContextKeyManager extends Disposable {
 		const runState = internalMetadata.runState;
 		if (this.element instanceof MarkupCellViewModel) {
 			this.cellRunState.reset();
+			this.cellExecuting.reset();
 		} else if (runState === NotebookCellExecutionState.Executing) {
 			this.cellRunState.set('executing');
+			this.cellExecuting.set(true);
 		} else if (runState === NotebookCellExecutionState.Pending) {
 			this.cellRunState.set('pending');
+			this.cellExecuting.set(true);
 		} else if (internalMetadata.lastRunSuccess === true) {
 			this.cellRunState.set('succeeded');
+			this.cellExecuting.set(false);
 		} else if (internalMetadata.lastRunSuccess === false) {
 			this.cellRunState.set('failed');
+			this.cellExecuting.set(false);
 		} else {
 			this.cellRunState.set('idle');
+			this.cellExecuting.set(false);
 		}
 	}
 
