@@ -24,7 +24,7 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { isIOS } from 'vs/base/common/platform';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { isArray, isDefined, isUndefinedOrNull } from 'vs/base/common/types';
@@ -1126,17 +1126,16 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 		});
 		template.context = dataElement;
 
+		template.elementDisposables.add(toDisposable(() => {
+			template.listWidget.cancelEdit();
+		}));
+
 		template.onChange = (v) => {
 			onChange(v);
 			renderArrayValidations(dataElement, template, v, false);
 		};
 
 		renderArrayValidations(dataElement, template, value.map(v => v.value.data.toString()), true);
-	}
-
-	override disposeElement(_element: ITreeNode<SettingsTreeElement>, _index: number, template: IDisposableTemplate, _height: number | undefined) {
-		(template as ISettingListItemTemplate).listWidget.cancelEdit();
-		super.disposeElement(_element, _index, template, _height);
 	}
 }
 
@@ -1268,16 +1267,16 @@ export class SettingObjectRenderer extends AbstractSettingObjectRenderer impleme
 		});
 
 		template.context = dataElement;
+
+		template.elementDisposables.add(toDisposable(() => {
+			template.objectDropdownWidget!.cancelEdit();
+		}));
+
 		template.onChange = (v: Record<string, unknown> | undefined) => {
 			onChange(v);
 			renderArrayValidations(dataElement, template, v, false);
 		};
 		renderArrayValidations(dataElement, template, dataElement.value, true);
-	}
-
-	override disposeElement(_element: ITreeNode<SettingsTreeElement>, _index: number, template: IDisposableTemplate, _height: number | undefined) {
-		(template as ISettingObjectItemTemplate).objectDropdownWidget!.cancelEdit();
-		super.disposeElement(_element, _index, template, _height);
 	}
 }
 
@@ -1389,11 +1388,9 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 		const value = getExcludeDisplayValue(dataElement);
 		template.excludeWidget.setValue(value);
 		template.context = dataElement;
-	}
-
-	override disposeElement(_element: ITreeNode<SettingsTreeElement>, _index: number, template: IDisposableTemplate, _height: number | undefined): void {
-		(template as ISettingExcludeItemTemplate).excludeWidget.cancelEdit();
-		super.disposeElement(_element, _index, template, _height);
+		template.elementDisposables.add(toDisposable(() => {
+			template.excludeWidget.cancelEdit();
+		}));
 	}
 }
 
