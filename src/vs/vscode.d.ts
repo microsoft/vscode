@@ -11567,7 +11567,10 @@ declare module 'vscode' {
 		/**
 		 * An event that fires when a message is received from a renderer.
 		 */
-		readonly onDidReceiveMessage: Event<{ editor: NotebookEditor, message: any }>;
+		readonly onDidReceiveMessage: Event<{
+			readonly editor: NotebookEditor;
+			readonly message: any;
+		}>;
 
 		/**
 		 * Send a message to one or all renderer.
