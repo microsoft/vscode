@@ -124,7 +124,8 @@ export class DisassemblyView extends EditorPane {
 				multipleSelectionSupport: false,
 				setRowLineHeight: false,
 				openOnSingleClick: false,
-				accessibilityProvider: new AccessibilityProvider()
+				accessibilityProvider: new AccessibilityProvider(),
+				mouseSupport: false
 			}
 		)) as WorkbenchTable<IDisassembledInstructionEntry>;
 
@@ -241,13 +242,6 @@ export class DisassemblyView extends EditorPane {
 			// Address is not provided or not in the table currently, clear the table
 			// and reload if we are in the state where we can load disassembly.
 			this.reloadDisassembly(address);
-			if (focus) {
-				const newIndex = this.getIndexFromAddress(address);
-				if (newIndex >= 0) {
-					this._disassembledInstructions.domFocus();
-					this._disassembledInstructions.setFocus([newIndex]);
-				}
-			}
 		}
 	}
 
@@ -361,7 +355,12 @@ export class DisassemblyView extends EditorPane {
 			this.loadDisassembledInstructions(targetAddress, -DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 2).then(() => {
 				// on load, set the target instruction in the middle of the page.
 				if (this._disassembledInstructions!.length > 0) {
-					this._disassembledInstructions!.reveal(Math.floor(this._disassembledInstructions!.length / 2), 0.5);
+					const targetIndex = Math.floor(this._disassembledInstructions!.length / 2);
+					this._disassembledInstructions!.reveal(targetIndex, 0.5);
+
+					// Always focus the target address on reload, or arrow key navigation would look terrible
+					this._disassembledInstructions!.domFocus();
+					this._disassembledInstructions!.setFocus([targetIndex]);
 				}
 			});
 		}
