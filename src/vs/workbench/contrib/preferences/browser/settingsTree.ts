@@ -216,7 +216,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 			keyDescription: typeof objectAdditionalProperties === 'object' ? objectAdditionalProperties.description : undefined,
 			removable: true,
 		} as IObjectDataItem;
-	});
+	}).filter(item => !isUndefinedOrNull(item.value.data));
 }
 
 function createArraySuggester(element: SettingsTreeSettingElement): IObjectKeySuggester {
