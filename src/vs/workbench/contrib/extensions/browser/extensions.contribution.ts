@@ -523,10 +523,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				id: MenuId.CommandPalette,
 				when: CONTEXT_HAS_GALLERY
 			},
-			run: async () => {
-				const recommended = await this.tasExperimentService?.getTreatment<boolean>('recommendedLanguages');
-				runAction(this.instantiationService.createInstance(SearchExtensionsAction, recommended ? '@recommended:languages ' : '@category:"programming languages" @sort:installs '));
-			}
+			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@recommended:languages '))
 		});
 
 		this.registerExtensionAction({
