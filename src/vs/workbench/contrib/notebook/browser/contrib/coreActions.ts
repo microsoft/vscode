@@ -1163,8 +1163,7 @@ MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
 	when: ContextKeyExpr.and(
 		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
 		ContextKeyExpr.notEquals('config.notebook.insertToolbarLocation', 'betweenCells'),
-		ContextKeyExpr.notEquals('config.notebook.insertToolbarLocation', 'hidden'),
-		ContextKeyExpr.notEquals(`config.${GlobalToolbarShowLabel}`, false),
+		ContextKeyExpr.notEquals('config.notebook.insertToolbarLocation', 'hidden')
 	)
 });
 
@@ -1255,7 +1254,8 @@ MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
 	when: ContextKeyExpr.and(
 		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
 		ContextKeyExpr.notEquals('config.notebook.insertToolbarLocation', 'betweenCells'),
-		ContextKeyExpr.notEquals('config.notebook.insertToolbarLocation', 'hidden')
+		ContextKeyExpr.notEquals('config.notebook.insertToolbarLocation', 'hidden'),
+		ContextKeyExpr.notEquals(`config.${GlobalToolbarShowLabel}`, false)
 	)
 });
 
