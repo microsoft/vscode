@@ -47,6 +47,7 @@ export const findReplaceIcon = registerIcon('find-replace', Codicon.replace, nls
 export const findReplaceAllIcon = registerIcon('find-replace-all', Codicon.replaceAll, nls.localize('findReplaceAllIcon', 'Icon for \'Replace All\' in the editor find widget.'));
 export const findPreviousMatchIcon = registerIcon('find-previous-match', Codicon.arrowUp, nls.localize('findPreviousMatchIcon', 'Icon for \'Find Previous\' in the editor find widget.'));
 export const findNextMatchIcon = registerIcon('find-next-match', Codicon.arrowDown, nls.localize('findNextMatchIcon', 'Icon for \'Find Next\' in the editor find widget.'));
+export const findAllMatchesIcon = registerIcon('find-all-in-current-file', Codicon.search, nls.localize('findAllMatchesIcon', 'Icon for \'Find All in Current File\' in the editor find widget.'));
 
 export interface IFindController {
 	replace(): void;
@@ -65,6 +66,7 @@ const NLS_REPLACE_INPUT_PLACEHOLDER = nls.localize('placeholder.replace', "Repla
 const NLS_REPLACE_BTN_LABEL = nls.localize('label.replaceButton', "Replace");
 const NLS_REPLACE_ALL_BTN_LABEL = nls.localize('label.replaceAllButton', "Replace All");
 const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace mode");
+const NLS_FIND_ALL_BTN_LABEL = nls.localize('label.findAllInCurrentFile', "Find all in the current file");
 const NLS_MATCHES_COUNT_LIMIT_TITLE = nls.localize('title.matchesCountLimit', "Only the first {0} results are highlighted, but all find operations work on the entire text.", MATCHES_LIMIT);
 export const NLS_MATCHES_LOCATION = nls.localize('label.matchesLocation', "{0} of {1}");
 export const NLS_NO_RESULTS = nls.localize('label.noResults', "No results");
@@ -132,6 +134,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	private _matchesCount!: HTMLElement;
 	private _prevBtn!: SimpleButton;
 	private _nextBtn!: SimpleButton;
+	private _findAllBtn!: SimpleButton;
 	private _toggleSelectionFind!: Checkbox;
 	private _closeBtn!: SimpleButton;
 	private _replaceBtn!: SimpleButton;
@@ -474,6 +477,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		let matchesCount = this._state.matchesCount ? true : false;
 		this._prevBtn.setEnabled(this._isVisible && findInputIsNonEmpty && matchesCount && this._state.canNavigateBack());
 		this._nextBtn.setEnabled(this._isVisible && findInputIsNonEmpty && matchesCount && this._state.canNavigateForward());
+		this._findAllBtn.setEnabled(this._isVisible && findInputIsNonEmpty);
 		this._replaceBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
 		this._replaceAllBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
 
@@ -1032,6 +1036,15 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			}
 		}));
 
+		// Find all in current file button
+		this._findAllBtn = this._register(new SimpleButton({
+			label: NLS_FIND_ALL_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.FindAllInCurrentFileAction),
+			icon: findAllMatchesIcon,
+			onTrigger: () => {
+				this._codeEditor.getAction(FIND_IDS.FindAllInCurrentFileAction).run().then(undefined, onUnexpectedError);
+			}
+		}));
+
 		let findPart = document.createElement('div');
 		findPart.className = 'find-part';
 		findPart.appendChild(this._findInput.domNode);
@@ -1041,6 +1054,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		actionsContainer.appendChild(this._matchesCount);
 		actionsContainer.appendChild(this._prevBtn.domNode);
 		actionsContainer.appendChild(this._nextBtn.domNode);
+		actionsContainer.appendChild(this._findAllBtn.domNode);
 
 		// Toggle selection button
 		this._toggleSelectionFind = this._register(new Checkbox({
@@ -1128,6 +1142,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 					this._prevBtn.focus();
 				} else if (this._nextBtn.isEnabled()) {
 					this._nextBtn.focus();
+				} else if (this._findAllBtn.isEnabled()) {
+					this._findAllBtn.focus();
 				} else if (this._toggleSelectionFind.enabled) {
 					this._toggleSelectionFind.focus();
 				} else if (this._closeBtn.isEnabled()) {

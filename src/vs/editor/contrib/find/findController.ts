@@ -26,6 +26,9 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { FindInFilesCommand, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
+import { resolveResourcesForSearchIncludes } from 'vs/workbench/contrib/search/common/queryBuilder';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 const SEARCH_STRING_MAX_LENGTH = 524288;
 
@@ -770,6 +773,46 @@ StartFindReplaceAction.addImplementation(0, (accessor: ServicesAccessor, editor:
 	});
 });
 
+export class FindAllInCurrentFileAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: FIND_IDS.FindAllInCurrentFileAction,
+			label: nls.localize('findAllInCurrentFile', "Find All in Current File"),
+			alias: 'Find All in Current File',
+			precondition: ContextKeyExpr.or(EditorContextKeys.focus, ContextKeyExpr.has('editorIsOpen'), CONTEXT_FIND_WIDGET_VISIBLE),
+			kbOpts: {
+				kbExpr: EditorContextKeys.focus,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KEY_F,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_F
+				},
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor | null, editor: ICodeEditor): void {
+		const model = editor.getModel();
+		if (accessor && model !== null) {
+			// Get query from selection or find widget if open
+			let query = getSelectionSearchString(editor, "single") || "";
+			if (CONTEXT_FIND_WIDGET_VISIBLE.getValue(accessor.get(IContextKeyService))) {
+				let controller = CommonFindController.get(editor);
+				if (controller)
+					query = controller.getState().searchString
+			}
+
+			// Open find in files scoped to resource
+			let opts: IFindInFilesArgs = {
+				query: query,
+				filesToInclude: resolveResourcesForSearchIncludes([model.uri], accessor.get(IWorkspaceContextService))[0]
+			};
+			FindInFilesCommand(accessor, opts);
+		}
+	}
+}
+
 registerEditorContribution(CommonFindController.ID, FindController);
 
 registerEditorAction(StartFindWithSelectionAction);
@@ -777,6 +820,7 @@ registerEditorAction(NextMatchFindAction);
 registerEditorAction(PreviousMatchFindAction);
 registerEditorAction(NextSelectionMatchFindAction);
 registerEditorAction(PreviousSelectionMatchFindAction);
+registerEditorAction(FindAllInCurrentFileAction);
 
 const FindCommand = EditorCommand.bindToContribution<CommonFindController>(CommonFindController.get);
 
