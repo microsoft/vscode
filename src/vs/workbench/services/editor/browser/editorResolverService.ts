@@ -164,7 +164,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 		// If it's the currently active editor we shouldn't do anything
 		const activeEditor = group.activeEditor;
-		const isActive = activeEditor ? activeEditor.editorId === selectedEditor.editorInfo.id && isEqual(activeEditor.resource, resource) : false;
+		const isActive = activeEditor ? activeEditor.matches(untypedEditor) : false;
 		if (activeEditor && isActive) {
 			return { editor: activeEditor, options, group };
 		}
