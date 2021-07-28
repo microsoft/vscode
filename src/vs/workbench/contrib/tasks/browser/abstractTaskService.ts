@@ -1223,7 +1223,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				toCustomize.problemMatcher = task.configurationProperties.problemMatchers;
 			}
 			if (task.configurationProperties.group) {
-				toCustomize.group = task.configurationProperties.group;
+				toCustomize.group = TaskConfig.GroupKind.to(task.configurationProperties.group);
 			}
 		}
 		if (!toCustomize) {

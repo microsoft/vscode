@@ -1230,7 +1230,7 @@ const partialSource: Partial<Tasks.TaskSource> = {
 	config: undefined
 };
 
-namespace GroupKind {
+export namespace GroupKind {
 	export function from(this: void, external: string | GroupKind | undefined): Tasks.TaskGroup | undefined {
 		if (external === undefined) {
 			return undefined;
@@ -1243,6 +1243,18 @@ namespace GroupKind {
 			return { _id: group, isDefault };
 		}
 		return undefined;
+	}
+
+	export function to(group: Tasks.TaskGroup | string): GroupKind | string {
+		if (Types.isString(group)) {
+			return group;
+		} else if (!group.isDefault) {
+			return group._id;
+		}
+		return {
+			kind: group._id,
+			isDefault: group.isDefault
+		};
 	}
 }
 
