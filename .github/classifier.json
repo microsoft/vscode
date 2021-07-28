@@ -5,7 +5,7 @@
 		"JacksonKearl": {"accuracy": 0.5}
 	},
 	"labels": {
-		"L10N": {"assign": ["TylerLeonhardt", "v-mholloway"]},
+		"L10N": {"assign": ["TylerLeonhardt", "csigs"]},
 		"VIM": {"assign": []},
 		"accessibility": { "assign": ["isidorn", "sana-ajani"]},
 		"api": {"assign": ["jrieken"]},
