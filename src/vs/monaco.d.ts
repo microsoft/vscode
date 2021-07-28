@@ -3439,7 +3439,7 @@ declare namespace monaco.editor {
 		/**
 		 * Controls if we seed search string in the Find Widget with editor selection.
 		 */
-		seedSearchStringFromSelection?: 'never' | 'always' | 'selectionOnly';
+		seedSearchStringFromSelection?: 'never' | 'always' | 'selection';
 		/**
 		 * Controls if Find in Selection flag is turned on in the editor.
 		 */

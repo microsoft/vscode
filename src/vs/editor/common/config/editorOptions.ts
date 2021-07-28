@@ -1356,7 +1356,7 @@ export interface IEditorFindOptions {
 	/**
 	 * Controls if we seed search string in the Find Widget with editor selection.
 	 */
-	seedSearchStringFromSelection?: 'never' | 'always' | 'selectionOnly';
+	seedSearchStringFromSelection?: 'never' | 'always' | 'selection';
 	/**
 	 * Controls if Find in Selection flag is turned on in the editor.
 	 */
@@ -1399,12 +1399,12 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 				},
 				'editor.find.seedSearchStringFromSelection': {
 					type: 'string',
-					enum: ['never', 'always', 'selectionOnly'],
+					enum: ['never', 'always', 'selection'],
 					default: defaults.seedSearchStringFromSelection,
 					enumDescriptions: [
 						nls.localize('editor.find.seedSearchStringFromSelection.never', 'Never seed search string from the editor selection.'),
 						nls.localize('editor.find.seedSearchStringFromSelection.always', 'Always seed search string from the editor selection, including word at cursor position.'),
-						nls.localize('editor.find.seedSearchStringFromSelection.selectionOnly', 'Only seed search string from the editor selection.')
+						nls.localize('editor.find.seedSearchStringFromSelection.selection', 'Only seed search string from the editor selection.')
 					],
 					description: nls.localize('find.seedSearchStringFromSelection', "Controls whether the search string in the Find Widget is seeded from the editor selection.")
 				},
@@ -1447,7 +1447,9 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 		const input = _input as IEditorFindOptions;
 		return {
 			cursorMoveOnType: boolean(input.cursorMoveOnType, this.defaultValue.cursorMoveOnType),
-			seedSearchStringFromSelection: stringSet<'never' | 'always' | 'selectionOnly'>(input.seedSearchStringFromSelection, this.defaultValue.seedSearchStringFromSelection, ['never', 'always', 'selectionOnly']),
+			seedSearchStringFromSelection: typeof _input.seedSearchStringFromSelection === 'boolean'
+				? (_input.seedSearchStringFromSelection ? 'always' : 'never')
+				: stringSet<'never' | 'always' | 'selection'>(input.seedSearchStringFromSelection, this.defaultValue.seedSearchStringFromSelection, ['never', 'always', 'selection']),
 			autoFindInSelection: typeof _input.autoFindInSelection === 'boolean'
 				? (_input.autoFindInSelection ? 'always' : 'never')
 				: stringSet<'never' | 'always' | 'multiline'>(input.autoFindInSelection, this.defaultValue.autoFindInSelection, ['never', 'always', 'multiline']),
