@@ -199,9 +199,6 @@ import 'vs/workbench/contrib/sash/browser/sash.contribution';
 // SCM
 import 'vs/workbench/contrib/scm/browser/scm.contribution';
 
-// THIRD PANEL
-import 'vs/workbench/contrib/thirdPanel/browser/thirdPanel.contribution';
-
 // Debug
 import 'vs/workbench/contrib/debug/browser/debug.contribution';
 import 'vs/workbench/contrib/debug/browser/debugEditorContribution';

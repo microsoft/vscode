@@ -27,7 +27,7 @@ import { Viewlet, ViewletRegistry, Extensions as ViewletExtensions, ViewletDescr
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { SIDE_BAR_BACKGROUND, SIDE_BAR_BORDER, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_FOREGROUND, SIDE_BAR_TITLE_FOREGROUND } from 'vs/workbench/common/theme';
 import { IViewlet, ThirdPanelFocusContext } from 'vs/workbench/common/viewlet';
-import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ISecondViewletService, IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -114,7 +114,9 @@ export class ThirdPanelPart extends CompositePart<Viewlet> implements IViewletSe
 			themeService,
 			Registry.as<ViewletRegistry>(ViewletExtensions.ThirdPanelViewlets),
 			ThirdPanelPart.activeViewletSettingsKey,
-			viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.ThirdPanel)!.id,
+			'',
+			// third panel do not have default view container,
+			// but start the last opened view container
 			'thirdPanel',
 			'viewlet',
 			SIDE_BAR_TITLE_FOREGROUND,

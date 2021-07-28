@@ -62,6 +62,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 					return;
 				}
 
+				// TODO: some error with third panel here
 				this.viewDescriptorService.moveViewContainerToLocation(currentContainer, this.targetContainerLocation, this.getTargetIndex(targetCompositeId, before));
 			}
 		}
@@ -74,6 +75,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 
 				const newContainer = this.viewDescriptorService.getViewContainerByViewId(viewToMove.id)!;
 
+				// TODO: some error with third panel here
 				if (targetCompositeId) {
 					this.moveComposite(newContainer.id, targetCompositeId, before);
 				}

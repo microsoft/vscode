@@ -360,6 +360,7 @@ export class OutletPart extends Part implements IActivityBarService {
 				order: container.order,
 				pinned: container.pinned
 			}));
+		// .filter(container => container.id !== THIRD_PANEL_VIEWLET_ID);
 
 		return this._register(this.instantiationService.createInstance(CompositeBar, cachedItems, {
 			icon: false,

@@ -50,6 +50,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { ILogService } from 'vs/platform/log/common/log';
 import { Promises } from 'vs/base/common/async';
 import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
+import { ThirdPanelPart } from 'vs/workbench/browser/parts/thirdpanel/thirdpanelPart';
 
 export enum Settings {
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',
@@ -248,6 +249,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			hidden: false,
 			position: Position.RIGHT,
 			width: 300,
+			viewletToRestore: undefined as string | undefined
 		},
 
 		outlet: {
@@ -477,7 +479,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		} else {
 			this.workbenchGrid.moveViewTo(this.sideBarPartView, [2, 6]);
 			this.workbenchGrid.moveViewTo(this.activityBarPartView, [2, 5]);
-			this.workbenchGrid.moveViewTo(this.thirdPanelPartView, [2, 1]);
+			this.workbenchGrid.moveViewTo(this.thirdPanelPartView, [2, 0]);
 			this.workbenchGrid.moveViewTo(this.outletBarPartView, [2, 0]);
 		}
 
@@ -558,6 +560,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.state.sideBar.viewletToRestore = viewletToRestore;
 			} else {
 				this.state.sideBar.hidden = true; // we hide sidebar if there is no viewlet to restore
+			}
+		}
+
+		// Third panel viewlet
+		if (!this.state.thirdPanel.hidden) {
+
+			// Always restore viewlet in third panel
+			const viewletToRestore = this.storageService.get(ThirdPanelPart.activeViewletSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.ThirdPanel)?.id);
+			if (viewletToRestore) {
+				this.state.thirdPanel.viewletToRestore = viewletToRestore;
+			} else {
+				this.state.thirdPanel.hidden = true;
 			}
 		}
 
@@ -840,7 +854,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			mark('code/didRestoreViewlet');
 
-			this.secondViewletService.openViewlet(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.ThirdPanel)?.id);
+			this.secondViewletService.openViewlet(this.state.thirdPanel.viewletToRestore);
 		})());
 
 		// Restore Panel
