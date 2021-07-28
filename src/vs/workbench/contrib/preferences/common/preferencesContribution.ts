@@ -66,7 +66,9 @@ export class PreferencesContribution implements IWorkbenchContribution {
 					label: nls.localize('splitSettingsEditorLabel', "Split Settings Editor"),
 					priority: RegisteredEditorPriority.builtin,
 				},
-				{},
+				{
+					canHandleDiff: false,
+				},
 				({ resource, options }): IEditorInputWithOptions => {
 					// Global User Settings File
 					if (isEqual(resource, this.environmentService.settingsResource)) {
