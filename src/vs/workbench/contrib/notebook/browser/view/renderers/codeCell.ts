@@ -60,7 +60,11 @@ export class CodeCell extends Disposable {
 				templateData.editor.setModel(model);
 				viewCell.attachTextEditor(templateData.editor);
 				const focusEditorIfNeeded = () => {
-					if (notebookEditor.getActiveCell() === viewCell && viewCell.focusMode === CellFocusMode.Editor && this.notebookEditor.hasEditorFocus()) {
+					if (
+						notebookEditor.getActiveCell() === viewCell &&
+						viewCell.focusMode === CellFocusMode.Editor &&
+						(this.notebookEditor.hasEditorFocus() || document.activeElement === document.body)) // Don't steal focus from other workbench parts, but if body has focus, we can take it
+					{
 						templateData.editor?.focus();
 					}
 				};
