@@ -215,6 +215,10 @@
 	transform: translate3d(0px, 0px, 0px);
 	cursor: auto;
 	box-sizing: border-box;
+	z-index: 27; /* Over drag handle */
+}
+
+.monaco-workbench .notebookOverlay .output .cell-output-toolbar {
 	z-index: 30; /* Over drag handle and bottom toolbar */
 }
 
