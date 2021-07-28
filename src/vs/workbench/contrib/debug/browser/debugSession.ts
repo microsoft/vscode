@@ -877,7 +877,6 @@ export class DebugSession implements IDebugSession {
 				// Second retrieves the rest of the call stack. For performance reasons #25605
 				const promises = this.model.fetchCallStack(<Thread>thread);
 				const focus = async () => {
-					// Don't switch view when DisassemblyView is in focus.
 					if (!event.body.preserveFocusHint && thread.getCallStack().length) {
 						await this.debugService.focusStackFrame(undefined, thread);
 						if (thread.stoppedDetails) {
