@@ -13,12 +13,13 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { URI } from 'vs/base/common/uri';
 import { isWeb } from 'vs/base/common/platform';
-import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { debounce } from 'vs/base/common/decorators';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 export class LanguageDetectionService extends Disposable implements ILanguageDetectionService {
 	private static readonly expectedRelativeConfidence = 0.2;
@@ -32,15 +33,19 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IModeService private readonly _modeService: IModeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IUntitledTextEditorService private readonly _untitledTextEditorService: IUntitledTextEditorService) {
+		@IUntitledTextEditorService private readonly _untitledTextEditorService: IUntitledTextEditorService,
+		@IWorkingCopyService _workingCopyService: IWorkingCopyService) {
 		super();
 
-		this._register(_untitledTextEditorService.onDidChangeContent(e => this.handleChangeEvent(e)));
+		this._register(_workingCopyService.onDidChangeContent(e => this.handleChangeEvent(e)));
 	}
 
-	@debounce(300)
-	private async handleChangeEvent(e: IUntitledTextEditorModel) {
-		if (!this.isEnabledForMode(e.getMode()) || e.hasModeSetExplicitly) {
+	@debounce(600)
+	private async handleChangeEvent(e: IWorkingCopy) {
+		const untitledEditorModel = this._untitledTextEditorService.get(e.resource);
+		if (!untitledEditorModel
+			|| !this.isEnabledForMode(untitledEditorModel.getMode())
+			|| untitledEditorModel.hasModeSetExplicitly) {
 			return;
 		}
 
@@ -48,7 +53,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		if (!value) { return; }
 		const lang = await this.detectLanguage(value);
 		if (!lang) { return; }
-		e.setMode(lang, false);
+		untitledEditorModel.setMode(lang, false);
 	}
 
 	private async getModelOperations(): Promise<ModelOperations> {
