@@ -44,7 +44,8 @@ export class TerminalInputSerializer implements IEditorSerializer {
 			cwd: '',
 			icon: instance.icon,
 			color: instance.color,
-			resource: instance.resource.toString()
+			resource: instance.resource.toString(),
+			hasChildProcesses: instance.hasChildProcesses
 		};
 	}
 }
@@ -57,6 +58,7 @@ interface TerminalEditorInputObject {
 	readonly cwd: string;
 	readonly icon: TerminalIcon | undefined;
 	readonly color: string | undefined;
+	readonly hasChildProcesses?: boolean;
 }
 
 export interface SerializedTerminalEditorInput extends TerminalEditorInputObject {
