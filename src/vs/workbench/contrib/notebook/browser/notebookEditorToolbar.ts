@@ -149,8 +149,29 @@ export class NotebookEditorToolbar extends Disposable {
 		this._notebookRightToolbar.context = context;
 
 		this._showNotebookActionsinEditorToolbar();
+		let dropdownIsVisible = false;
+		let deferredUpdate: (() => void) | undefined;
+
 		this._register(this._notebookGlobalActionsMenu.onDidChange(() => {
+			if (dropdownIsVisible) {
+				deferredUpdate = () => this._showNotebookActionsinEditorToolbar();
+				return;
+			}
+
 			this._showNotebookActionsinEditorToolbar();
+		}));
+
+		this._register(this._notebookLeftToolbar.onDidChangeDropdownVisibility(visible => {
+			dropdownIsVisible = visible;
+
+			if (deferredUpdate && !visible) {
+				setTimeout(() => {
+					if (deferredUpdate) {
+						deferredUpdate();
+					}
+				}, 0);
+				deferredUpdate = undefined;
+			}
 		}));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -195,7 +216,6 @@ export class NotebookEditorToolbar extends Disposable {
 		if (!this._useGlobalToolbar) {
 			this.domNode.style.display = 'none';
 		} else {
-			this._notebookLeftToolbar.setActions([], []);
 			const groups = this._notebookGlobalActionsMenu.getActions({ shouldForwardArgs: true, renderShortTitle: true });
 			this.domNode.style.display = 'flex';
 			const primaryLeftGroups = groups.filter(group => /^navigation/.test(group[0]));
@@ -219,6 +239,8 @@ export class NotebookEditorToolbar extends Disposable {
 			const primaryRightGroup = groups.find(group => /^status/.test(group[0]));
 			const primaryRightActions = primaryRightGroup ? primaryRightGroup[1] : [];
 			const secondaryActions = groups.filter(group => !/^navigation/.test(group[0]) && !/^status/.test(group[0])).reduce((prev: (MenuItemAction | SubmenuItemAction)[], curr) => { prev.push(...curr[1]); return prev; }, []);
+
+			this._notebookLeftToolbar.setActions([], []);
 
 			this._notebookLeftToolbar.setActions(primaryActions, secondaryActions);
 			this._notebookRightToolbar.setActions(primaryRightActions, []);
