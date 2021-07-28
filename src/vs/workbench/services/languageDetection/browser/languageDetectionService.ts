@@ -123,11 +123,9 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		}
 
 		const modelResults = await modelOperations.runModel(content);
-		if (!modelResults) {
-			return;
-		}
-
-		if (modelResults[0].confidence < LanguageDetectionService.expectedRelativeConfidence) {
+		if (!modelResults
+			|| modelResults.length === 0
+			|| modelResults[0].confidence < LanguageDetectionService.expectedRelativeConfidence) {
 			return;
 		}
 
