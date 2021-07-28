@@ -177,7 +177,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private async initializeSyncAfterInitializationContext(): Promise<void> {
 		const requiresInitialization = await this.userDataInitializationService.requiresInitialization();
-		if (requiresInitialization) {
+		if (requiresInitialization && !this.userDataAutoSyncEnablementService.isEnabled()) {
 			this.updateSyncAfterInitializationContext(true);
 		} else {
 			this.updateSyncAfterInitializationContext(this.storageService.getBoolean(CONTEXT_SYNC_AFTER_INITIALIZATION.key, StorageScope.GLOBAL, false));
@@ -461,7 +461,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			badge = new ProgressBadge(() => localize('turning on syncing', "Turning on Settings Sync..."));
 			clazz = 'progress-badge';
 			priority = 1;
-		} else if (this.userDataSyncWorkbenchService.accountStatus === AccountStatus.Available && this.syncAfterInitializationContext.get()) {
+		} else if (this.userDataSyncWorkbenchService.accountStatus === AccountStatus.Available && this.syncAfterInitializationContext.get() && !this.userDataAutoSyncEnablementService.isEnabled()) {
 			badge = new NumberBadge(1, () => localize('settings sync is off', "Settings Sync is Off", SYNC_TITLE));
 		}
 

@@ -447,6 +447,9 @@ async function handleRoot(req, res) {
 				},
 				selection,
 			}]
+		} : undefined,
+		settingsSyncOptions: args['enable-sync'] ? {
+			enabled: true
 		} : undefined
 	};
 	if (args['wrap-iframe']) {
