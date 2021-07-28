@@ -562,16 +562,10 @@ class AccessibilityProvider implements IListAccessibilityProvider<IDisassembledI
 	getAriaLabel(element: IDisassembledInstructionEntry): string | null {
 		let label = '';
 
-		if (element.isBreakpointSet) {
-			label += localize('breakpointIsSet', "Breakpoint is set");
-		} else if (element.allowBreakpoint) {
-			label += localize('breakpointAllowed', "Can set breakpoint");
-		}
-
 		const instruction = element.instruction;
-		label += `, ${localize('instructionAddress', "Instruction address")}: ${instruction.address}`;
+		label += `${localize('instructionAddress', "Address")}: ${instruction.address}`;
 		if (instruction.instructionBytes) {
-			label += `, ${localize('instructionBytes', "Instruction bytes")}: ${instruction.instructionBytes}`;
+			label += `, ${localize('instructionBytes', "Bytes")}: ${instruction.instructionBytes}`;
 		}
 		label += `, ${localize(`instructionText`, "Instruction")}: ${instruction.instruction}`;
 
