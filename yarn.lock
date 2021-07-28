@@ -765,10 +765,10 @@
   resolved "https://registry.yarnpkg.com/@ungap/promise-all-settled/-/promise-all-settled-1.1.2.tgz#aa58042711d6e3275dd37dc597e5d31e8c290a44"
   integrity sha512-sL/cEvJWAnClXw0wHk85/2L0G6Sj8UB0Ctc1TEMbKSsmpRosqhwj9gWgFRZSrBr2f9tiXISwNhCPmlfqUqyb9Q==
 
-"@vscode/vscode-languagedetection@1.0.14":
-  version "1.0.14"
-  resolved "https://registry.yarnpkg.com/@vscode/vscode-languagedetection/-/vscode-languagedetection-1.0.14.tgz#fa968d1cc628a064ed24ee7f1e07a62fd25b97b8"
-  integrity sha512-S/CqET7DjqeOQcBRCcZn05a95l05vz1HOJo2HnVNSIpbh72y6yCYVycJhQnT1Auq271Mf9lgnio3P7FSDjDiVQ==
+"@vscode/vscode-languagedetection@1.0.15":
+  version "1.0.15"
+  resolved "https://registry.yarnpkg.com/@vscode/vscode-languagedetection/-/vscode-languagedetection-1.0.15.tgz#8ca6ce5f033b92ac8f75b276a06dd262d7c6e50d"
+  integrity sha512-ur1eZdkSLUm2dJp3XRfPN85kzknl2cHRMnJof7ESQdBGWnDMVv3VtBDTZaBEyxOvOKsevG4t5490OiyQe3Q7NQ==
 
 "@webassemblyjs/ast@1.11.0":
   version "1.11.0"
