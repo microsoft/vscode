@@ -381,7 +381,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		]);
 
 		if (packageJSONResult.status === 'rejected') {
-			throw new Error(`Cannot find the package.json from the location '${extensionLocation.toString()}'`);
+			throw new Error(`Cannot find the package.json from the location '${extensionLocation.toString()}'. ${getErrorMessage(packageJSONResult.reason)}`);
 		}
 
 		const content = packageJSONResult.value;
