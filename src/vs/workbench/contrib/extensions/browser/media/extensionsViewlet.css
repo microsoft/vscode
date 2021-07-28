@@ -44,10 +44,6 @@
 	margin-right: 4px;
 }
 
-.extensions-viewlet > .extensions .extension-list-item .monaco-action-bar .action-label.icon {
-	padding: 1px 2px;
-}
-
 .extensions-viewlet > .extensions .extension-view-header .monaco-action-bar .action-item > .action-label.icon.codicon {
 	vertical-align: middle;
 	line-height: 22px;
