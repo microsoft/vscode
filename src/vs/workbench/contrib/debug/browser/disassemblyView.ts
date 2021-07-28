@@ -124,7 +124,8 @@ export class DisassemblyView extends EditorPane {
 				multipleSelectionSupport: false,
 				setRowLineHeight: false,
 				openOnSingleClick: false,
-				accessibilityProvider: new AccessibilityProvider()
+				accessibilityProvider: new AccessibilityProvider(),
+				mouseSupport: false
 			}
 		)) as WorkbenchTable<IDisassembledInstructionEntry>;
 
@@ -203,7 +204,7 @@ export class DisassemblyView extends EditorPane {
 	/**
 	 * Go to the address provided. If no address is provided, reveal the address of the currently focused stack frame.
 	 */
-	goToAddress(address?: string): void {
+	goToAddress(address?: string, focus?: boolean): void {
 		if (!this._disassembledInstructions) {
 			return;
 		}
@@ -222,21 +223,25 @@ export class DisassemblyView extends EditorPane {
 			const bottomElement = Math.floor((this._disassembledInstructions.scrollTop + this._disassembledInstructions.renderHeight) / this.fontInfo.lineHeight);
 			if (index > topElement && index < bottomElement) {
 				// Inside the viewport, don't do anything here
-				return;
 			} else if (index <= topElement && index > topElement - 5) {
 				// Not too far from top, review it at the top
-				return this._disassembledInstructions.reveal(index, 0);
+				this._disassembledInstructions.reveal(index, 0);
 			} else if (index >= bottomElement && index < bottomElement + 5) {
 				// Not too far from bottom, review it at the bottom
-				return this._disassembledInstructions.reveal(index, 1);
+				this._disassembledInstructions.reveal(index, 1);
 			} else {
 				// Far from the current viewport, reveal it
-				return this._disassembledInstructions.reveal(index, 0.5);
+				this._disassembledInstructions.reveal(index, 0.5);
+			}
+
+			if (focus) {
+				this._disassembledInstructions.domFocus();
+				this._disassembledInstructions.setFocus([index]);
 			}
 		} else if (this._debugService.state === State.Stopped) {
 			// Address is not provided or not in the table currently, clear the table
 			// and reload if we are in the state where we can load disassembly.
-			return this.reloadDisassembly(address);
+			this.reloadDisassembly(address);
 		}
 	}
 
@@ -350,7 +355,12 @@ export class DisassemblyView extends EditorPane {
 			this.loadDisassembledInstructions(targetAddress, -DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 2).then(() => {
 				// on load, set the target instruction in the middle of the page.
 				if (this._disassembledInstructions!.length > 0) {
-					this._disassembledInstructions!.reveal(Math.floor(this._disassembledInstructions!.length / 2), 0.5);
+					const targetIndex = Math.floor(this._disassembledInstructions!.length / 2);
+					this._disassembledInstructions!.reveal(targetIndex, 0.5);
+
+					// Always focus the target address on reload, or arrow key navigation would look terrible
+					this._disassembledInstructions!.domFocus();
+					this._disassembledInstructions!.setFocus([targetIndex]);
 				}
 			});
 		}
