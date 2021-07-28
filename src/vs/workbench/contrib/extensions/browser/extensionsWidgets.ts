@@ -400,6 +400,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 					return this.hoverService.showHover({
 						...options,
 						hoverPosition: this.options.position(),
+						forcePosition: true,
 						additionalClasses: ['extension-hover']
 					});
 				},
