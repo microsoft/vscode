@@ -90,7 +90,7 @@ export class CustomEditorInputSerializer extends WebviewEditorInputSerializer {
 	): CustomEditorInput {
 		const data = this.fromJson(JSON.parse(serializedEditorInput));
 		if (data.viewType === 'jupyter.notebook.ipynb') {
-			return NotebookEditorInput.create(this._instantiationService, data.editorResource, 'jupyter-notebook', { _backupId: data.backupId }) as any;
+			return NotebookEditorInput.create(this._instantiationService, data.editorResource, 'jupyter-notebook', { _backupId: data.backupId, startDirty: data.dirty }) as any;
 		}
 
 		const webview = reviveWebview(this._webviewService, data);
@@ -164,7 +164,7 @@ export class ComplexCustomWorkingCopyEditorHandler extends Disposable implements
 
 				const backupData = backup.meta;
 				if (backupData.viewType === 'jupyter.notebook.ipynb') {
-					return NotebookEditorInput.create(this._instantiationService, URI.revive(backupData.editorResource), 'jupyter-notebook', { _backupId: backupData.backupId, _workingCopy: workingCopy }) as any;
+					return NotebookEditorInput.create(this._instantiationService, URI.revive(backupData.editorResource), 'jupyter-notebook', { startDirty: !!backupData.backupId, _backupId: backupData.backupId, _workingCopy: workingCopy }) as any;
 				}
 
 				const id = backupData.webview.id;
