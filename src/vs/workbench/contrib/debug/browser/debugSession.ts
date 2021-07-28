@@ -255,7 +255,8 @@ export class DebugSession implements IDebugSession {
 				supportsRunInTerminalRequest: true, // #10574
 				locale: platform.locale,
 				supportsProgressReporting: true, // #92253
-				supportsInvalidatedEvent: true // #106745
+				supportsInvalidatedEvent: true, // #106745
+				supportsMemoryReferences: true //#129684
 			});
 
 			this.initialized = true;
