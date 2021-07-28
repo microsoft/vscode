@@ -725,6 +725,7 @@ export class DebugSession implements IDebugSession {
 
 			if (removeThreads) {
 				this.threads.clear();
+				this.threadIds = [];
 				ExpressionContainer.allValues.clear();
 			}
 		}
