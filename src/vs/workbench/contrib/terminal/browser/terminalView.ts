@@ -232,7 +232,12 @@ export class TerminalViewPane extends ViewPane {
 		const dropdownActions: IAction[] = [];
 		const submenuActions: IAction[] = [];
 
-		const defaultProfileName = this._terminalProfileResolverService.defaultProfileName;
+		let defaultProfileName;
+		try {
+			defaultProfileName = this._terminalService.getDefaultProfileName();
+		} catch (e) {
+			defaultProfileName = this._terminalProfileResolverService.defaultProfileName;
+		}
 		for (const p of profiles) {
 			const isDefault = p.profileName === defaultProfileName;
 			const options: IMenuActionOptions = {
@@ -252,19 +257,21 @@ export class TerminalViewPane extends ViewPane {
 		}
 
 		for (const contributed of this._terminalContributionService.terminalProfiles) {
-			dropdownActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title.replace(/[\n\r\t]/g, ''), undefined, true, () => this._terminalService.createTerminal({
+			const isDefault = contributed.title === defaultProfileName;
+			const title = isDefault ? nls.localize('defaultTerminalProfile', "{0} (Default)", contributed.title.replace(/[\n\r\t]/g, '')) : contributed.title.replace(/[\n\r\t]/g, '');
+			dropdownActions.push(new Action(TerminalCommandId.NewWithProfile, title, undefined, true, () => this._terminalService.createTerminal({
 				config: {
 					extensionIdentifier: contributed.extensionIdentifier,
 					id: contributed.id,
-					title: contributed.title.replace(/[\n\r\t]/g, '')
+					title
 				},
 				forceSplit: false
 			})));
-			submenuActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title.replace(/[\n\r\t]/g, ''), undefined, true, () => this._terminalService.createTerminal({
+			submenuActions.push(new Action(TerminalCommandId.NewWithProfile, title, undefined, true, () => this._terminalService.createTerminal({
 				config: {
 					extensionIdentifier: contributed.extensionIdentifier,
 					id: contributed.id,
-					title: contributed.title.replace(/[\n\r\t]/g, '')
+					title
 				},
 				forceSplit: true
 			})));
