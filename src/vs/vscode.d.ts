@@ -13903,9 +13903,9 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Entry point to discover and execute tests. It contains {@link items} which
+	 * Entry point to discover and execute tests. It contains {@link TestController.items} which
 	 * are used to populate the editor UI, and is associated with
-	 * {@link createRunProfile run profiles} to allow
+	 * {@link TestController.createRunProfile run profiles} to allow
 	 * for tests to be executed.
 	 */
 	export interface TestController {
