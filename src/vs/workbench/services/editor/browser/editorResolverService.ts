@@ -157,6 +157,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			return ResolvedStatus.NONE;
 		}
 
+		// If no override we take the selected editor id so that matches workes with the isActive check
+		untypedEditor.options = { override: selectedEditor.editorInfo.id, ...untypedEditor.options };
+
 		const handlesDiff = typeof selectedEditor.options?.canHandleDiff === 'function' ? selectedEditor.options.canHandleDiff() : selectedEditor.options?.canHandleDiff;
 		if (handlesDiff === false && isResourceDiffEditorInput(untypedEditor)) {
 			return ResolvedStatus.NONE;
