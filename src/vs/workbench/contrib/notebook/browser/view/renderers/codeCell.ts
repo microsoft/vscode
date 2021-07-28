@@ -217,6 +217,11 @@ export class CodeCell extends Disposable {
 		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData, { limit: 500 });
 		this._outputContainerRenderer.render(editorHeight);
 		// Need to do this after the intial renderOutput
+		if (this.viewCell.metadata.outputCollapsed === undefined && this.viewCell.metadata.outputCollapsed === undefined) {
+			this.viewUpdateExpanded();
+			this.viewCell.layoutChange({});
+		}
+
 		this.updateForCollapseState();
 	}
 
@@ -359,6 +364,7 @@ export class CodeCell extends Disposable {
 
 	override dispose() {
 		this.viewCell.detachTextEditor();
+		this.removeInputCollapsePreview();
 		this._outputContainerRenderer.dispose();
 		this._untrustedStatusItem?.dispose();
 		this.templateData.focusIndicatorLeft.style.height = 'initial';
