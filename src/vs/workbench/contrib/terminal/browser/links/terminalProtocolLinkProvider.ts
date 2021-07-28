@@ -15,6 +15,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { Schemas } from 'vs/base/common/network';
 
 export class TerminalProtocolLinkProvider extends TerminalBaseLinkProvider {
 	private _linkComputerTarget: ILinkComputerTarget | undefined;
@@ -68,8 +69,26 @@ export class TerminalProtocolLinkProvider extends TerminalBaseLinkProvider {
 				continue;
 			}
 
+			const linkText = link.url?.toString() || '';
+
+			// Handle http links
+			if (uri.scheme !== Schemas.file) {
+				result.push(this._instantiationService.createInstance(TerminalLink,
+					this._xterm,
+					bufferRange,
+					linkText,
+					this._xterm.buffer.active.viewportY,
+					this._activateCallback,
+					this._tooltipCallback,
+					true,
+					undefined
+				));
+				continue;
+			}
+
+			// Handle files and folders
 			const validatedLink = await new Promise<TerminalLink | undefined>(r => {
-				this._validationCallback(uri.fsPath, (result) => {
+				this._validationCallback(linkText, (result) => {
 					if (result) {
 						const label = result.isDirectory
 							? (this._isDirectoryInsideWorkspace(result.uri) ? FOLDER_IN_WORKSPACE_LABEL : FOLDER_NOT_IN_WORKSPACE_LABEL)
@@ -78,14 +97,14 @@ export class TerminalProtocolLinkProvider extends TerminalBaseLinkProvider {
 							if (result.isDirectory) {
 								this._handleLocalFolderLink(result.uri);
 							} else {
-								this._activateCallback(event, result.uri.path);
+								this._activateCallback(event, linkText);
 							}
 						});
 						r(this._instantiationService.createInstance(
 							TerminalLink,
 							this._xterm,
 							bufferRange,
-							uri.fsPath,
+							linkText,
 							this._xterm.buffer.active.viewportY,
 							activateCallback,
 							this._tooltipCallback,
