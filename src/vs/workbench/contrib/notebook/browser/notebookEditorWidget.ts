@@ -1655,7 +1655,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		const activeSelection = windowSelection.getRangeAt(0);
-		if (activeSelection.endOffset - activeSelection.startOffset === 0) {
+		if (activeSelection.startContainer === activeSelection.endContainer && activeSelection.endOffset - activeSelection.startOffset === 0) {
 			return false;
 		}
 
