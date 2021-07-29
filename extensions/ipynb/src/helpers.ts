@@ -46,8 +46,8 @@ const orderOfMimeTypes = [
 	'image/gif',
 	'text/latex',
 	'text/markdown',
-	'image/svg+xml',
 	'image/png',
+	'image/svg+xml',
 	'image/jpeg',
 	'application/json',
 	'text/plain'
