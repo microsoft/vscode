@@ -147,7 +147,7 @@ export class ExtHostTerminal {
 		});
 	}
 
-	public async createExtensionTerminal(isSplitTerminal?: boolean, target?: TerminalLocation, iconPath?: TerminalIcon): Promise<number> {
+	public async createExtensionTerminal(isSplitTerminal?: boolean, target?: TerminalLocation, iconPath?: TerminalIcon, color?: ThemeColor): Promise<number> {
 		if (typeof this._id !== 'string') {
 			throw new Error('Terminal has already been created');
 		}
@@ -155,6 +155,7 @@ export class ExtHostTerminal {
 			name: this._name,
 			isExtensionCustomPtyTerminal: true,
 			icon: iconPath,
+			color: ThemeColor.isThemeColor(color) ? color.id : undefined,
 			isSplitTerminal,
 			target
 		});
@@ -373,7 +374,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	public createExtensionTerminal(options: vscode.ExtensionTerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, generateUuid(), options, options.name);
 		const p = new ExtHostPseudoterminal(options.pty);
-		terminal.createExtensionTerminal(internalOptions?.isSplitTerminal, internalOptions?.target, asTerminalIcon(options.iconPath)).then(id => {
+		terminal.createExtensionTerminal(internalOptions?.isSplitTerminal, internalOptions?.target, asTerminalIcon(options.iconPath), asTerminalColor(options.color)).then(id => {
 			const disposable = this._setupExtHostProcessListeners(id, p);
 			this._terminalProcessDisposables[id] = disposable;
 		});
@@ -855,4 +856,8 @@ function asTerminalIcon(iconPath?: vscode.Uri | { light: vscode.Uri; dark: vscod
 		id: iconPath.id,
 		color: iconPath.color as ThemeColor
 	};
+}
+
+function asTerminalColor(color?: vscode.ThemeColor): ThemeColor | undefined {
+	return ThemeColor.isThemeColor(color) ? color as ThemeColor : undefined;
 }
