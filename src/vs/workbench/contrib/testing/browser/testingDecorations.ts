@@ -39,7 +39,7 @@ import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testCon
 import { isFailedState, maxPriority } from 'vs/workbench/contrib/testing/common/testingStates';
 import { buildTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { ITestService, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
+import { getContextForTestItem, ITestService, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
 
 function isOriginalInDiffEditor(codeEditorService: ICodeEditorService, codeEditor: ICodeEditor): boolean {
 	const diffEditors = codeEditorService.listDiffEditors();
@@ -464,7 +464,8 @@ abstract class RunTestDecoration extends Disposable {
 
 		try {
 			const target: IAction[] = [];
-			const actionsDisposable = createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, target);
+			const arg = getContextForTestItem(this.testService.collection, test.item.extId);
+			const actionsDisposable = createAndFillInContextMenuActions(menu, { shouldForwardArgs: true, arg }, target);
 			return { object: target, dispose: () => actionsDisposable.dispose };
 		} finally {
 			menu.dispose();

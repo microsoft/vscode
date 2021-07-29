@@ -566,7 +566,7 @@ export class TestingExplorerViewModel extends Disposable {
 		let expandToLevel = 0;
 		const idPath = [...TestId.fromString(id).idsFromRoot()];
 		for (let i = idPath.length - 1; i >= expandToLevel; i--) {
-			const element = projection.getElementByTestId(idPath[i]);
+			const element = projection.getElementByTestId(idPath[i].toString());
 			// Skip all elements that aren't in the tree.
 			if (!element || !this.tree.hasElement(element)) {
 				continue;

@@ -130,13 +130,8 @@ export class TestId {
 	 * including the current item.
 	 */
 	public *idsFromRoot() {
-		let built = this.path[0];
-		yield built;
-
-		for (let i = 1; i < this.viewEnd; i++) {
-			built += TestIdPathParts.Delimiter;
-			built += this.path[i];
-			yield built;
+		for (let i = 1; i <= this.viewEnd; i++) {
+			yield new TestId(this.path, i);
 		}
 	}
 
