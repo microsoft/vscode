@@ -278,7 +278,6 @@ export class DisassemblyView extends EditorPane {
 	}
 
 	private async loadDisassembledInstructions(instructionOffset: number, instructionCount: number): Promise<boolean> {
-		// if address is null, then use current stack frame.
 		if (!this.currentInstructionAddress) {
 			this.ResetInstructionAddress();
 		}
@@ -286,7 +285,7 @@ export class DisassemblyView extends EditorPane {
 			return false;
 		}
 
-		console.log(`DisassemblyView: loadDisassembledInstructions ${this.currentInstructionAddress}, ${instructionOffset}, ${instructionCount}`);
+		// console.log(`DisassemblyView: loadDisassembledInstructions ${this.currentInstructionAddress}, ${instructionOffset}, ${instructionCount}`);
 		const session = this._debugService.getViewModel().focusedSession;
 		const resultEntries = await session?.disassemble(this.currentInstructionAddress, 0, instructionOffset, instructionCount);
 		if (session && resultEntries && this._disassembledInstructions) {
