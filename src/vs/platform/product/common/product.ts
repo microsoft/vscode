@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FileAccess } from 'vs/base/common/network';
-import { isWeb, globals } from 'vs/base/common/platform';
+import { isWeb, isWindows, globals } from 'vs/base/common/platform';
 import { env } from 'vs/base/common/process';
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { IProductConfiguration } from 'vs/base/common/product';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
+import { getUserDataPath } from 'vs/platform/environment/node/userDataPath';
 
 let product: IProductConfiguration;
 
@@ -31,6 +32,32 @@ else if (typeof require?.__$__nodeRequire === 'function') {
 	product = require.__$__nodeRequire(joinPath(rootPath, 'product.json').fsPath);
 	const pkg = require.__$__nodeRequire(joinPath(rootPath, 'package.json').fsPath) as { version: string; };
 
+	// Merge user-customized product.json
+	try {
+		const merge = (...objects: any[]) =>
+			objects.reduce((result, current) => {
+				Object.keys(current).forEach((key) => {
+					if (Array.isArray(result[key]) && Array.isArray(current[key])) {
+						result[key] = current[key];
+					} else if (typeof result[key] === 'object' && typeof current[key] === 'object') {
+						result[key] = merge(result[key], current[key]);
+					} else {
+						result[key] = current[key];
+					}
+				});
+
+				return result;
+			}, {}) as any;
+
+		const userDataPath = getUserDataPath({} as any);
+		const userProductPath = isWindows ? `file:///${userDataPath}/product.json` : `file://${userDataPath}/product.json`;
+
+		const userProduct = require.__$__nodeRequire(FileAccess.asFileUri(userProductPath, require).fsPath);
+
+		product = merge(product, userProduct);
+	} catch (ex) {
+	}
+
 	// Running out of sources
 	if (env['VSCODE_DEV']) {
 		Object.assign(product, {
@@ -39,6 +66,19 @@ else if (typeof require?.__$__nodeRequire === 'function') {
 			dataFolderName: `${product.dataFolderName}-dev`
 		});
 	}
+
+	// Set user-defined extension gallery
+	const { serviceUrl, cacheUrl, itemUrl, controlUrl, recommendationsUrl } = product.extensionsGallery || {}
+
+	Object.assign(product, {
+		extensionsGallery: {
+			serviceUrl: env['VSCODE_GALLERY_SERVICE_URL'] || serviceUrl,
+			cacheUrl: env['VSCODE_GALLERY_CACHE_URL'] || cacheUrl,
+			itemUrl: env['VSCODE_GALLERY_ITEM_URL'] || itemUrl,
+			controlUrl: env['VSCODE_GALLERY_CONTROL_URL'] || controlUrl,
+			recommendationsUrl: env['VSCODE_GALLERY_RECOMMENDATIONS_URL'] || recommendationsUrl
+		}
+	})
 
 	Object.assign(product, {
 		version: pkg.version
