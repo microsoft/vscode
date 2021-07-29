@@ -481,10 +481,10 @@ uuid@^8.3.0:
   resolved "https://registry.yarnpkg.com/uuid/-/uuid-8.3.2.tgz#80d5b5ced271bb9af6c445f21a1a04c606cefbe2"
   integrity sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==
 
-vscode-extension-telemetry@0.2.2:
-  version "0.2.2"
-  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.2.2.tgz#f33787573bdf552460bbff276dcaa05ef8fbd818"
-  integrity sha512-WiEpeFuguVWB/Ezizq24dFYB/miAuLozATYkhO5/OcLWChqnRQ/rtTvHfAeDoyJX4SFJ4KR9qNpynppi9ZF6Ow==
+vscode-extension-telemetry@0.2.4:
+  version "0.2.4"
+  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.2.4.tgz#6a699b227252a8d5335ba080efc15eb587c6aace"
+  integrity sha512-rq6H+4ImptROvNW7qKPXfXkztj5Zycwz9NN2E82D7JBTpLBIGh3sF2O+AUzBbnofaTGB7qlGoeGGPzqA1x/6OQ==
   dependencies:
     "@microsoft/applicationinsights-web" "^2.6.4"
     applicationinsights "2.1.4"

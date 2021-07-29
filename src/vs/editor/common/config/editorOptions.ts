@@ -4295,7 +4295,7 @@ export const EditorOptions = {
 	)),
 	foldingImportsByDefault: register(new EditorBooleanOption(
 		EditorOption.foldingImportsByDefault, 'foldingImportsByDefault', false,
-		{ description: nls.localize('foldingImportsByDefault', "Controls whether the editor should auto collapse folded ranges or not.") }
+		{ description: nls.localize('foldingImportsByDefault', "Controls whether the editor automatically collapses import ranges.") }
 	)),
 	unfoldOnClickAfterEndOfLine: register(new EditorBooleanOption(
 		EditorOption.unfoldOnClickAfterEndOfLine, 'unfoldOnClickAfterEndOfLine', false,
