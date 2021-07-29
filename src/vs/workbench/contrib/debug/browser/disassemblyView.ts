@@ -352,7 +352,7 @@ export class DisassemblyView extends EditorPane {
 		if (this._disassembledInstructions) {
 			this._disassembledInstructions.splice(0, this._disassembledInstructions.length);
 			this._instructionBpList = this._debugService.getModel().getInstructionBreakpoints();
-			this.loadDisassembledInstructions(targetAddress, -DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 2).then(() => {
+			this.loadDisassembledInstructions(targetAddress, -DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 4, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 8).then(() => {
 				// on load, set the target instruction in the middle of the page.
 				if (this._disassembledInstructions!.length > 0) {
 					const targetIndex = Math.floor(this._disassembledInstructions!.length / 2);
