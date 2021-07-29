@@ -13921,16 +13921,16 @@ declare module 'vscode' {
 		label: string;
 
 		/**
-		 * Available test items. Tests in the workspace should be added in this
-		 * collection. The extension controls when to add these, although the
-		 * editor may request children using the {@link resolveHandler},
-		 * and the extension should add tests for a file when
-		 * {@link vscode.workspace.onDidOpenTextDocument} fires in order for
-		 * decorations for tests within a file to be visible.
+		 * A collection of "top-level" {@link TestItem} instances, which can in
+		 * turn have their own {@link TestItem.children | children} to form the
+		 * "test tree."
 		 *
-		 * Tests in this collection should be watched and updated by the extension
-		 * as files change. See {@link resolveHandler} for details around
-		 * for the lifecycle of watches.
+		 * The extension controls when to add tests. For example, extensions should
+		 * add tests for a file when {@link vscode.workspace.onDidOpenTextDocument}
+		 * fires in order for decorations for tests within a file to be visible.
+		 *
+		 * However, the editor may sometimes explicitly request children using the
+		 * {@link resolveHandler} See the documentation on that method for more details.
 		 */
 		readonly items: TestItemCollection;
 
