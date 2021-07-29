@@ -47,6 +47,10 @@ export class DisassemblyView extends EditorPane {
 	private _onDidChangeStackFrame: Emitter<void>;
 	private _previousDebuggingState: State;
 	private _instructionBpList: readonly IInstructionBreakpoint[] = [];
+	private _upperOffset: number = 0;
+	private _lowerOffset: number = 0;
+	private _currentInstructionAddress: string | undefined;
+	private _loadingLock: boolean = false;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -74,11 +78,16 @@ export class DisassemblyView extends EditorPane {
 
 	get fontInfo() { return this._fontInfo; }
 
-	get currentInstructionAddress() {
-		return this._debugService.getViewModel().focusedStackFrame?.instructionPointerReference;
-	}
+	get currentInstructionAddress() { return this._currentInstructionAddress; }
 
 	get onDidChangeStackFrame() { return this._onDidChangeStackFrame.event; }
+
+	protected ResetInstructionAddress(): string | undefined {
+		this._lowerOffset = 0;
+		this._upperOffset = 0;
+		this._currentInstructionAddress = this._debugService.getViewModel().focusedStackFrame?.instructionPointerReference;
+		return this._currentInstructionAddress;
+	}
 
 	protected createEditor(parent: HTMLElement): void {
 		const lineHeight = this.fontInfo.lineHeight;
@@ -132,15 +141,22 @@ export class DisassemblyView extends EditorPane {
 		this.reloadDisassembly();
 
 		this._register(this._disassembledInstructions.onDidScroll(e => {
+			if (this._loadingLock) {
+				return;
+			}
+
 			if (e.oldScrollTop > e.scrollTop && e.scrollTop < e.height) {
+				this._loadingLock = true;
 				const topElement = Math.floor(e.scrollTop / this.fontInfo.lineHeight) + DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD;
 				this.scrollUp_LoadDisassembledInstructions(DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD).then((success) => {
 					if (success) {
 						this._disassembledInstructions!.reveal(topElement, 0);
 					}
+					this._loadingLock = false;
 				});
 			} else if (e.oldScrollTop < e.scrollTop && e.scrollTop + e.height > e.scrollHeight - e.height) {
-				this.scrollDown_LoadDisassembledInstructions(DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD);
+				this._loadingLock = true;
+				this.scrollDown_LoadDisassembledInstructions(DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD).then(() => { this._loadingLock = false; });
 			}
 		}));
 
@@ -210,7 +226,7 @@ export class DisassemblyView extends EditorPane {
 		}
 
 		if (!address) {
-			address = this.currentInstructionAddress;
+			address = this.ResetInstructionAddress();
 		}
 		if (!address) {
 			return;
@@ -247,8 +263,7 @@ export class DisassemblyView extends EditorPane {
 
 	private async scrollUp_LoadDisassembledInstructions(instructionCount: number): Promise<boolean> {
 		if (this._disassembledInstructions && this._disassembledInstructions.length > 0) {
-			const address: string | undefined = this._disassembledInstructions?.row(0).instruction.address;
-			return this.loadDisassembledInstructions(address, -instructionCount, instructionCount - 1);
+			return this.loadDisassembledInstructions(-this._upperOffset - instructionCount, instructionCount - 1);
 		}
 
 		return false;
@@ -256,25 +271,24 @@ export class DisassemblyView extends EditorPane {
 
 	private async scrollDown_LoadDisassembledInstructions(instructionCount: number): Promise<boolean> {
 		if (this._disassembledInstructions && this._disassembledInstructions.length > 0) {
-			const address: string | undefined = this._disassembledInstructions?.row(this._disassembledInstructions?.length - 1).instruction.address;
-			return this.loadDisassembledInstructions(address, 1, instructionCount);
+			return this.loadDisassembledInstructions(this._lowerOffset, instructionCount);
 		}
 
 		return false;
 	}
 
-	private async loadDisassembledInstructions(address: string | undefined, instructionOffset: number, instructionCount: number): Promise<boolean> {
+	private async loadDisassembledInstructions(instructionOffset: number, instructionCount: number): Promise<boolean> {
 		// if address is null, then use current stack frame.
-		if (!address) {
-			address = this.currentInstructionAddress;
+		if (!this.currentInstructionAddress) {
+			this.ResetInstructionAddress();
 		}
-		if (!address) {
+		if (!this.currentInstructionAddress) {
 			return false;
 		}
 
-		// console.log(`DisassemblyView: loadDisassembledInstructions ${address}, ${instructionOffset}, ${instructionCount}`);
+		console.log(`DisassemblyView: loadDisassembledInstructions ${this.currentInstructionAddress}, ${instructionOffset}, ${instructionCount}`);
 		const session = this._debugService.getViewModel().focusedSession;
-		const resultEntries = await session?.disassemble(address, 0, instructionOffset, instructionCount);
+		const resultEntries = await session?.disassemble(this.currentInstructionAddress, 0, instructionOffset, instructionCount);
 		if (session && resultEntries && this._disassembledInstructions) {
 			const newEntries: IDisassembledInstructionEntry[] = [];
 
@@ -286,8 +300,11 @@ export class DisassemblyView extends EditorPane {
 			// request is either at the start or end
 			if (instructionOffset >= 0) {
 				this._disassembledInstructions.splice(this._disassembledInstructions.length, 0, newEntries);
+				this._lowerOffset += newEntries.length;
 			} else {
 				this._disassembledInstructions.splice(0, 0, newEntries);
+				this._upperOffset = -instructionOffset;
+				this._lowerOffset += Math.max(instructionOffset + newEntries.length, 0);
 			}
 
 			return true;
@@ -352,7 +369,8 @@ export class DisassemblyView extends EditorPane {
 		if (this._disassembledInstructions) {
 			this._disassembledInstructions.splice(0, this._disassembledInstructions.length);
 			this._instructionBpList = this._debugService.getModel().getInstructionBreakpoints();
-			this.loadDisassembledInstructions(targetAddress, -DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 4, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 8).then(() => {
+			this._currentInstructionAddress = targetAddress;
+			this.loadDisassembledInstructions(-DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 4, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 8).then(() => {
 				// on load, set the target instruction in the middle of the page.
 				if (this._disassembledInstructions!.length > 0) {
 					const targetIndex = Math.floor(this._disassembledInstructions!.length / 2);
@@ -365,7 +383,6 @@ export class DisassemblyView extends EditorPane {
 			});
 		}
 	}
-
 }
 
 interface IBreakpointColumnTemplateData {
