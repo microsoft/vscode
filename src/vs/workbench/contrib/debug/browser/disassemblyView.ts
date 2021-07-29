@@ -275,8 +275,8 @@ export class DisassemblyView extends EditorPane {
 	}
 
 	private async loadDisassembledInstructions(address: string | undefined, instructionOffset: number, instructionCount: number): Promise<boolean> {
-		// if address is null, then use current stack frame.
-		if (!address) {
+		// if address is null or a special address, then try to use current stack frame.
+		if (!address || address === '-1') {
 			address = this.currentInstructionAddress;
 		}
 		if (!address) {
