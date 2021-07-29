@@ -914,7 +914,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			if (options.gotoLineMode) {
 				const { path, line, column } = parseLineAndColumnAware(uri.path);
 
-				return { fileUri: uri.with({ path }), lineNumber: line, columnNumber: column, remoteAuthority };
+				return {
+					fileUri: uri.with({ path }),
+					selection: line ? { startLineNumber: line, startColumn: column || 1 } : undefined,
+					remoteAuthority
+				};
 			}
 
 			return { fileUri: uri, remoteAuthority };
@@ -973,7 +977,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				}
 
 				// File
-				return { fileUri: URI.file(path), lineNumber, columnNumber, exists: true };
+				return {
+					fileUri: URI.file(path),
+					selection: lineNumber ? { startLineNumber: lineNumber, startColumn: columnNumber || 1 } : undefined,
+					exists: true
+				};
 			}
 
 			// Folder (we check for isDirectory() because e.g. paths like /dev/null
@@ -1029,7 +1037,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			// file name ends with .code-workspace
 			if (hasWorkspaceFileExtension(path)) {
 				if (options.forceOpenWorkspaceAsFile) {
-					return { fileUri: uri, lineNumber, columnNumber, remoteAuthority: options.remoteAuthority };
+					return {
+						fileUri: uri,
+						selection: lineNumber ? { startLineNumber: lineNumber, startColumn: columnNumber || 1 } : undefined,
+						remoteAuthority: options.remoteAuthority
+					};
 				}
 
 				return { workspace: getWorkspaceIdentifier(uri), remoteAuthority };
@@ -1037,7 +1049,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			// file name starts with a dot or has an file extension
 			else if (options.gotoLineMode || posix.basename(path).indexOf('.') !== -1) {
-				return { fileUri: uri, lineNumber, columnNumber, remoteAuthority };
+				return {
+					fileUri: uri,
+					selection: lineNumber ? { startLineNumber: lineNumber, startColumn: columnNumber || 1 } : undefined,
+					remoteAuthority
+				};
 			}
 		}
 

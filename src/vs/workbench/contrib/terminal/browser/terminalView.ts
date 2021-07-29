@@ -180,10 +180,10 @@ export class TerminalViewPane extends ViewPane {
 					label: action.label,
 					dispose: action.dispose.bind(action),
 					tooltip: action.tooltip,
-					run: () => {
+					run: async () => {
 						const instance = this._terminalGroupService.activeInstance;
 						if (instance) {
-							const newInstance = this._terminalService.splitInstance(instance);
+							const newInstance = await this._terminalService.splitInstance(instance);
 							return newInstance?.focusWhenReady();
 						}
 						return;
@@ -232,7 +232,12 @@ export class TerminalViewPane extends ViewPane {
 		const dropdownActions: IAction[] = [];
 		const submenuActions: IAction[] = [];
 
-		const defaultProfileName = this._terminalProfileResolverService.defaultProfileName;
+		let defaultProfileName;
+		try {
+			defaultProfileName = this._terminalService.getDefaultProfileName();
+		} catch (e) {
+			defaultProfileName = this._terminalProfileResolverService.defaultProfileName;
+		}
 		for (const p of profiles) {
 			const isDefault = p.profileName === defaultProfileName;
 			const options: IMenuActionOptions = {
@@ -252,8 +257,24 @@ export class TerminalViewPane extends ViewPane {
 		}
 
 		for (const contributed of this._terminalContributionService.terminalProfiles) {
-			dropdownActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title.replace(/[\n\r\t]/g, ''), undefined, true, () => this._terminalService.createContributedTerminalProfile(contributed.extensionIdentifier, contributed.id, { isSplitTerminal: false })));
-			submenuActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title.replace(/[\n\r\t]/g, ''), undefined, true, () => this._terminalService.createContributedTerminalProfile(contributed.extensionIdentifier, contributed.id, { isSplitTerminal: true })));
+			const isDefault = contributed.title === defaultProfileName;
+			const title = isDefault ? nls.localize('defaultTerminalProfile', "{0} (Default)", contributed.title.replace(/[\n\r\t]/g, '')) : contributed.title.replace(/[\n\r\t]/g, '');
+			dropdownActions.push(new Action(TerminalCommandId.NewWithProfile, title, undefined, true, () => this._terminalService.createTerminal({
+				config: {
+					extensionIdentifier: contributed.extensionIdentifier,
+					id: contributed.id,
+					title
+				},
+				forceSplit: false
+			})));
+			submenuActions.push(new Action(TerminalCommandId.NewWithProfile, title, undefined, true, () => this._terminalService.createTerminal({
+				config: {
+					extensionIdentifier: contributed.extensionIdentifier,
+					id: contributed.id,
+					title
+				},
+				forceSplit: true
+			})));
 		}
 
 		if (dropdownActions.length > 0) {
@@ -480,7 +501,6 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			this._elementDisposables.push(dom.addDisposableListener(this.element, dom.EventType.DRAG_START, e => {
 				const instance = this._terminalGroupService.activeInstance;
 				if (e.dataTransfer && instance) {
-					e.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify([instance.resource.toString()]));
 					e.dataTransfer.setData(DataTransfers.TERMINALS, JSON.stringify([instance.resource.toString()]));
 				}
 			}));

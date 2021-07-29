@@ -336,7 +336,7 @@ export interface IShellLaunchConfig {
 	/**
 	 * This is a terminal that attaches to an already running terminal.
 	 */
-	attachPersistentProcess?: { id: number; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string };
+	attachPersistentProcess?: { id: number; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string, hasChildProcesses?: boolean };
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in
@@ -391,7 +391,7 @@ export interface ICreateTerminalOptions {
 	 * The shell launch config or profile to launch with, when not specified the default terminal
 	 * profile will be used.
 	 */
-	config?: IShellLaunchConfig | ITerminalProfile;
+	config?: IShellLaunchConfig | ITerminalProfile | IExtensionTerminalProfile;
 	/**
 	 * The current working directory to start with, this will override IShellLaunchConfig.cwd if
 	 * specified.
@@ -401,7 +401,11 @@ export interface ICreateTerminalOptions {
 	 * Where to create the terminal, when not specified the default target will be used.
 	 */
 	target?: TerminalLocation;
-
+	/**
+	 * Creates a split terminal without requiring a terminal instance to split, for example when splitting
+	 * a terminal editor
+	 */
+	forceSplit?: boolean;
 	/**
 	 * The terminal's resource, passed when the terminal has moved windows.
 	 */
@@ -409,9 +413,10 @@ export interface ICreateTerminalOptions {
 }
 
 export interface ICreateContributedTerminalProfileOptions {
-	isSplitTerminal: boolean;
 	target?: TerminalLocation;
 	icon?: string;
+	color?: string;
+	isSplitTerminal?: boolean;
 }
 
 export const enum TerminalLocation {
@@ -610,4 +615,21 @@ export interface ITerminalProfileSource extends IBaseUnresolvedTerminalProfile {
 	source: ProfileSource;
 }
 
-export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | null;
+
+export interface ITerminalContributions {
+	profiles?: ITerminalProfileContribution[];
+}
+
+export interface ITerminalProfileContribution {
+	title: string;
+	id: string;
+	icon?: string;
+	color?: string;
+}
+
+export interface IExtensionTerminalProfile extends ITerminalProfileContribution {
+	extensionIdentifier: string;
+}
+
+export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | IExtensionTerminalProfile | null;
+export type ITerminalProfileType = ITerminalProfile | IExtensionTerminalProfile;

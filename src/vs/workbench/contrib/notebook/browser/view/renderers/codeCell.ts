@@ -60,7 +60,11 @@ export class CodeCell extends Disposable {
 				templateData.editor.setModel(model);
 				viewCell.attachTextEditor(templateData.editor);
 				const focusEditorIfNeeded = () => {
-					if (notebookEditor.getActiveCell() === viewCell && viewCell.focusMode === CellFocusMode.Editor && this.notebookEditor.hasEditorFocus()) {
+					if (
+						notebookEditor.getActiveCell() === viewCell &&
+						viewCell.focusMode === CellFocusMode.Editor &&
+						(this.notebookEditor.hasEditorFocus() || document.activeElement === document.body)) // Don't steal focus from other workbench parts, but if body has focus, we can take it
+					{
 						templateData.editor?.focus();
 					}
 				};
@@ -217,6 +221,11 @@ export class CodeCell extends Disposable {
 		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData, { limit: 500 });
 		this._outputContainerRenderer.render(editorHeight);
 		// Need to do this after the intial renderOutput
+		if (this.viewCell.metadata.outputCollapsed === undefined && this.viewCell.metadata.outputCollapsed === undefined) {
+			this.viewUpdateExpanded();
+			this.viewCell.layoutChange({});
+		}
+
 		this.updateForCollapseState();
 	}
 
@@ -277,7 +286,7 @@ export class CodeCell extends Disposable {
 		DOM.hide(this.templateData.runButtonContainer);
 		DOM.show(this.templateData.collapsedPart);
 		DOM.show(this.templateData.outputContainer);
-		this.templateData.container.classList.toggle('collapsed', true);
+		this.templateData.container.classList.toggle('input-collapsed', true);
 		this._outputContainerRenderer.viewUpdateShowOutputs();
 		this.updateInputCollaseElement();
 
@@ -291,7 +300,7 @@ export class CodeCell extends Disposable {
 		DOM.hide(this.templateData.outputContainer);
 		this.removeInputCollapsePreview();
 		this._outputContainerRenderer.viewUpdateHideOuputs();
-		this.templateData.container.classList.toggle('collapsed', false);
+		this.templateData.container.classList.toggle('input-collapsed', false);
 		this.templateData.container.classList.toggle('output-collapsed', true);
 
 		this.relayoutCell();
@@ -302,7 +311,7 @@ export class CodeCell extends Disposable {
 		DOM.hide(this.templateData.runButtonContainer);
 		DOM.show(this.templateData.collapsedPart);
 		DOM.hide(this.templateData.outputContainer);
-		this.templateData.container.classList.toggle('collapsed', true);
+		this.templateData.container.classList.toggle('input-collapsed', true);
 		this.templateData.container.classList.toggle('output-collapsed', true);
 		this._outputContainerRenderer.viewUpdateHideOuputs();
 		this.updateInputCollaseElement();
@@ -315,7 +324,7 @@ export class CodeCell extends Disposable {
 		DOM.hide(this.templateData.collapsedPart);
 		this.removeInputCollapsePreview();
 		DOM.show(this.templateData.outputContainer);
-		this.templateData.container.classList.toggle('collapsed', false);
+		this.templateData.container.classList.toggle('input-collapsed', false);
 		this.templateData.container.classList.toggle('output-collapsed', false);
 		this._outputContainerRenderer.viewUpdateShowOutputs();
 		this.relayoutCell();
@@ -359,6 +368,7 @@ export class CodeCell extends Disposable {
 
 	override dispose() {
 		this.viewCell.detachTextEditor();
+		this.removeInputCollapsePreview();
 		this._outputContainerRenderer.dispose();
 		this._untrustedStatusItem?.dispose();
 		this.templateData.focusIndicatorLeft.style.height = 'initial';

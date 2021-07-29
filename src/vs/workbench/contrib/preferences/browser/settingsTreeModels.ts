@@ -597,7 +597,7 @@ function isObjectSetting({
 	}
 
 	// object additional properties allow it to have any shape
-	if (objectAdditionalProperties === true) {
+	if (objectAdditionalProperties === true || objectAdditionalProperties === undefined) {
 		return false;
 	}
 

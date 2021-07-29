@@ -846,10 +846,10 @@
   resolved "https://registry.yarnpkg.com/@ungap/promise-all-settled/-/promise-all-settled-1.1.2.tgz#aa58042711d6e3275dd37dc597e5d31e8c290a44"
   integrity sha512-sL/cEvJWAnClXw0wHk85/2L0G6Sj8UB0Ctc1TEMbKSsmpRosqhwj9gWgFRZSrBr2f9tiXISwNhCPmlfqUqyb9Q==
 
-"@vscode/vscode-languagedetection@1.0.12":
-  version "1.0.12"
-  resolved "https://registry.yarnpkg.com/@vscode/vscode-languagedetection/-/vscode-languagedetection-1.0.12.tgz#884c080257298b078fdd6dd75c35f8bd42ba83fa"
-  integrity sha512-tiHV6eev2TKgSdpsnVF0wD1Dtk2KqwFdk2TpPDsYdBvP5kjw2KsfSK3l6cPBWqbSdSOSkHk37XvOAhNRKzdlZg==
+"@vscode/vscode-languagedetection@1.0.15":
+  version "1.0.15"
+  resolved "https://registry.yarnpkg.com/@vscode/vscode-languagedetection/-/vscode-languagedetection-1.0.15.tgz#8ca6ce5f033b92ac8f75b276a06dd262d7c6e50d"
+  integrity sha512-ur1eZdkSLUm2dJp3XRfPN85kzknl2cHRMnJof7ESQdBGWnDMVv3VtBDTZaBEyxOvOKsevG4t5490OiyQe3Q7NQ==
 
 "@webassemblyjs/ast@1.11.0":
   version "1.11.0"
@@ -10623,10 +10623,10 @@ vm-browserify@^1.0.1:
   resolved "https://registry.yarnpkg.com/vm-browserify/-/vm-browserify-1.1.2.tgz#78641c488b8e6ca91a75f511e7a3b32a86e5dda0"
   integrity sha512-2ham8XPWTONajOR0ohOKOHXkm3+gaBmGut3SRuu75xLd/RRaY6vqgh8NBYYk7+RW3u5AtzPQZG8F10LHkl0lAQ==
 
-vscode-debugprotocol@1.48.0-pre.0:
-  version "1.48.0-pre.0"
-  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.48.0-pre.0.tgz#954e6a034da879d39ed5ef749a063d15eba14f10"
-  integrity sha512-iPaDd/5CWaYfOdfaMALvCADfWAU9j563IpvxXryg09hx9Cy7ydsulvbdRAini6tTKXdYndNBZgDIJ3PmlJoRgQ==
+vscode-debugprotocol@1.48.0:
+  version "1.48.0"
+  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.48.0.tgz#6af8e3726572ff1716308e8fe50775882074ab12"
+  integrity sha512-l2jtStdGHAca+B/ZmGAeYZtx7NHT9SY9LL6g0QeImKZjQ9P7S6wB2lcBwz1LSkgFltwLw197yFULnCr36OkLKA==
 
 vscode-nls-dev@^3.3.1:
   version "3.3.1"

@@ -180,7 +180,7 @@ export class StatefulMarkdownCell extends Disposable {
 		DOM.hide(this.editorPart);
 		this.markdownAccessibilityContainer.ariaHidden = 'true';
 
-		this.templateData.container.classList.toggle('collapsed', true);
+		this.templateData.container.classList.toggle('input-collapsed', true);
 		this.viewCell.renderedMarkdownHeight = 0;
 		this.viewCell.layoutChange({});
 	}
@@ -195,7 +195,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 		this.notebookEditor.hideMarkupPreviews([this.viewCell]);
 
-		this.templateData.container.classList.toggle('collapsed', false);
+		this.templateData.container.classList.toggle('input-collapsed', false);
 		this.templateData.container.classList.toggle('markdown-cell-edit-mode', true);
 
 		if (this.editor && this.editor.hasModel()) {
@@ -296,7 +296,9 @@ export class StatefulMarkdownCell extends Disposable {
 	}
 
 	private focusEditorIfNeeded() {
-		if (this.viewCell.focusMode === CellFocusMode.Editor && this.notebookEditor.hasEditorFocus()) {
+		if (
+			this.viewCell.focusMode === CellFocusMode.Editor &&
+			(this.notebookEditor.hasEditorFocus() || document.activeElement === document.body)) { // Don't steal focus from other workbench parts, but if body has focus, we can take it
 			this.editor?.focus();
 		}
 	}

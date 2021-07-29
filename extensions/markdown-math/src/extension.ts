@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
 
+declare function require(path: string): any;
+
 const enabledSetting = 'markdown.math.enabled';
 
 export function activate(context: vscode.ExtensionContext) {

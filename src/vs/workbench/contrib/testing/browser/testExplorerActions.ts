@@ -20,6 +20,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 import { FocusedViewContext } from 'vs/workbench/common/views';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
@@ -41,7 +42,7 @@ import { expandAndGetTestById, IMainThreadTestCollection, ITestService, testsInF
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
-const category = localize('testing.category', 'Test');
+const category = CATEGORIES.Test;
 
 const enum ActionOrder {
 	// Navigation:
@@ -53,6 +54,7 @@ const enum ActionOrder {
 
 	// Submenu:
 	Collapse,
+	ClearResults,
 	DisplayMode,
 	Sort,
 	GoToTest,
@@ -592,7 +594,7 @@ export class CollapseAllAction extends ViewAction<TestingExplorerView> {
 			menu: {
 				id: MenuId.ViewTitle,
 				order: ActionOrder.Collapse,
-				group: 'cikkaose',
+				group: 'displayAction',
 				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
 			}
 		});
@@ -619,7 +621,12 @@ export class ClearTestResultsAction extends Action2 {
 			}, {
 				id: MenuId.CommandPalette,
 				when: TestingContextKeys.hasAnyResults.isEqualTo(true),
-			},],
+			}, {
+				id: MenuId.ViewTitle,
+				order: ActionOrder.ClearResults,
+				group: 'displayAction',
+				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
+			}],
 		});
 	}
 
@@ -637,10 +644,12 @@ export class GoToTest extends Action2 {
 		super({
 			id: GoToTest.ID,
 			title: localize('testing.editFocusedTest', "Go to Test"),
+			icon: Codicon.goToFile,
 			menu: {
 				id: MenuId.TestItem,
 				when: TestingContextKeys.testItemHasUri.isEqualTo(true),
 				order: ActionOrder.GoToTest,
+				group: 'inline',
 			},
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib - 10,
@@ -651,41 +660,9 @@ export class GoToTest extends Action2 {
 	}
 
 	public override async run(accessor: ServicesAccessor, element?: IActionableTestTreeElement, preserveFocus?: boolean) {
-		if (!element || !(element instanceof TestItemTreeElement) || !element.test.item.uri) {
-			return;
+		if (element && element instanceof TestItemTreeElement) {
+			accessor.get(ICommandService).executeCommand('vscode.revealTest', element.test.item.extId, preserveFocus);
 		}
-
-		const commandService = accessor.get(ICommandService);
-		const fileService = accessor.get(IFileService);
-		const editorService = accessor.get(IEditorService);
-		const { range, uri, extId } = element.test.item;
-
-		accessor.get(ITestExplorerFilterState).reveal.value = extId;
-		accessor.get(ITestingPeekOpener).closeAllPeeks();
-
-		let isFile = true;
-		try {
-			if (!(await fileService.resolve(uri)).isFile) {
-				isFile = false;
-			}
-		} catch {
-			// ignored
-		}
-
-		if (!isFile) {
-			await commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, uri);
-			return;
-		}
-
-		await editorService.openEditor({
-			resource: uri,
-			options: {
-				selection: range
-					? { startColumn: range.startColumn, startLineNumber: range.startLineNumber }
-					: undefined,
-				preserveFocus: preserveFocus === true,
-			},
-		});
 	}
 
 	/**
@@ -1150,8 +1127,9 @@ export class OpenOutputPeek extends Action2 {
 }
 
 export const allTestActions = [
-	AutoRunOffAction,
-	AutoRunOnAction,
+	// todo: these are disabled until we figure out how we want autorun to work
+	// AutoRunOffAction,
+	// AutoRunOnAction,
 	CancelTestRunAction,
 	ClearTestResultsAction,
 	CollapseAllAction,

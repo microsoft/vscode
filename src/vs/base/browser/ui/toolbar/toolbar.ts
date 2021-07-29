@@ -148,6 +148,18 @@ export class ToolBar extends Disposable {
 		return itemsWidth;
 	}
 
+	getItemAction(index: number) {
+		return this.actionBar.getAction(index);
+	}
+
+	getItemWidth(index: number): number {
+		return this.actionBar.getWidth(index);
+	}
+
+	getItemsLength(): number {
+		return this.actionBar.length();
+	}
+
 	setAriaLabel(label: string): void {
 		this.actionBar.setAriaLabel(label);
 	}
@@ -187,7 +199,7 @@ export class ToolBar extends Disposable {
 	}
 }
 
-class ToggleMenuAction extends Action {
+export class ToggleMenuAction extends Action {
 
 	static readonly ID = 'toolbar.toggle.more';
 

@@ -312,7 +312,7 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 }
 
 function getSanitizedEnvironment(process: NodeJS.Process) {
-	const env = process.env;
+	const env = { ...process.env };
 	sanitizeProcessEnvironment(env);
 	return env;
 }

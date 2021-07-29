@@ -9,6 +9,7 @@ import { localize } from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { OpenGettingStarted } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 
 const setupIcon = registerIcon('getting-started-setup', Codicon.zap, localize('getting-started-setup-icon', "Icon used for the setup category of welcome page"));
@@ -79,7 +80,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 		title: localize('gettingStarted.openMac.title', "Open..."),
 		description: localize('gettingStarted.openMac.description', "Open a file or folder to start working"),
 		icon: Codicon.folderOpened,
-		when: 'isMac',
+		when: '!isWeb && isMac',
 		content: {
 			type: 'startEntry',
 			command: 'workbench.action.files.openFileFolder',
@@ -90,7 +91,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 		title: localize('gettingStarted.openFile.title', "Open File..."),
 		description: localize('gettingStarted.openFile.description', "Open a file to start working"),
 		icon: Codicon.goToFile,
-		when: '!isMac',
+		when: '!isWeb && !isMac',
 		content: {
 			type: 'startEntry',
 			command: 'workbench.action.files.openFile',
@@ -101,7 +102,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 		title: localize('gettingStarted.openFolder.title', "Open Folder..."),
 		description: localize('gettingStarted.openFolder.description', "Open a folder to start working"),
 		icon: Codicon.folderOpened,
-		when: '!isMac',
+		when: '!isWeb && !isMac',
 		content: {
 			type: 'startEntry',
 			command: 'workbench.action.files.openFolder',
@@ -338,7 +339,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		description: '',
 		icon: setupIcon,
 		isFeatured: false,
-		when: 'config.notebook.experimental.gettingStarted && userHasOpenedNotebook',
+		when: `config.${OpenGettingStarted} && userHasOpenedNotebook`,
 		content: {
 			type: 'steps',
 			steps: [

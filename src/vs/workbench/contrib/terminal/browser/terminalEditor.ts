@@ -95,6 +95,7 @@ export class TerminalEditor extends EditorPane {
 			// panel and the editors, this is needed so that the active instance gets set
 			// when focus changes between them.
 			this._register(this._editorInput.terminalInstance.onDidFocus(() => this._setActiveInstance()));
+			this._editorInput.setCopyLaunchConfig(this._editorInput.terminalInstance.shellLaunchConfig);
 		}
 	}
 
@@ -219,7 +220,12 @@ export class TerminalEditor extends EditorPane {
 		const dropdownActions: IAction[] = [];
 		const submenuActions: IAction[] = [];
 
-		const defaultProfileName = this._terminalProfileResolverService.defaultProfileName;
+		let defaultProfileName;
+		try {
+			defaultProfileName = this._terminalService.getDefaultProfileName();
+		} catch (e) {
+			defaultProfileName = this._terminalProfileResolverService.defaultProfileName;
+		}
 		for (const p of profiles) {
 			const isDefault = p.profileName === defaultProfileName;
 			const options: IMenuActionOptions = {
@@ -238,14 +244,24 @@ export class TerminalEditor extends EditorPane {
 			}
 		}
 
-		// TODO: Support contributed profiles with editor target
 		for (const contributed of this._terminalContributionService.terminalProfiles) {
-			dropdownActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title.replace(/[\n\r\t]/g, ''), undefined, true, () => this._terminalService.createContributedTerminalProfile(contributed.extensionIdentifier, contributed.id, {
-				isSplitTerminal: false,
+			const isDefault = contributed.title === defaultProfileName;
+			const title = isDefault ? localize('defaultTerminalProfile', "{0} (Default)", contributed.title.replace(/[\n\r\t]/g, '')) : contributed.title.replace(/[\n\r\t]/g, '');
+			dropdownActions.push(new Action(TerminalCommandId.NewWithProfile, title, undefined, true, () => this._terminalService.createTerminal({
+				config: {
+					extensionIdentifier: contributed.extensionIdentifier,
+					id: contributed.id,
+					title
+				},
 				target: TerminalLocation.Editor
 			})));
-			submenuActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title.replace(/[\n\r\t]/g, ''), undefined, true, () => this._terminalService.createContributedTerminalProfile(contributed.extensionIdentifier, contributed.id, {
-				isSplitTerminal: true,
+			submenuActions.push(new Action(TerminalCommandId.NewWithProfile, title, undefined, true, () => this._terminalService.createTerminal({
+				config: {
+					extensionIdentifier: contributed.extensionIdentifier,
+					id: contributed.id,
+					title
+				},
+				forceSplit: true,
 				target: TerminalLocation.Editor
 			})));
 		}

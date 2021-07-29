@@ -20,7 +20,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
@@ -33,7 +33,9 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { Range } from 'vs/editor/common/core/range';
+import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { getOuterEditor, IPeekViewService, peekViewResultsBackground, peekViewResultsMatchForeground, peekViewResultsSelectionBackground, peekViewResultsSelectionForeground, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground, PeekViewWidget } from 'vs/editor/contrib/peekView/peekView';
 import { localize } from 'vs/nls';
@@ -41,7 +43,7 @@ import { createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/pla
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyAndExpr, ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -50,10 +52,12 @@ import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listSe
 import { textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { flatTestItemDelimiter } from 'vs/workbench/contrib/testing/browser/explorerProjections/display';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
+import { ITestExplorerFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
 import { testingPeekBorder } from 'vs/workbench/contrib/testing/browser/theme';
 import { AutoOpenPeekViewWhen, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
@@ -67,17 +71,17 @@ import { buildTestUri, ParsedTestUri, parseTestUri, TestUriType } from 'vs/workb
 import { ITestResult, maxCountPriority, resultItemParents, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService, ResultChangeEvent } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 class TestDto {
-	test: ITestItem;
-	messageIndex: number;
-	messages: ITestMessage[];
-	expectedUri: URI;
-	actualUri: URI;
-	messageUri: URI;
+	public readonly test: ITestItem;
+	public readonly messages: ITestMessage[];
+	public readonly expectedUri: URI;
+	public readonly actualUri: URI;
+	public readonly messageUri: URI;
+	public readonly revealLocation: IRichLocation | undefined;
 
-	constructor(resultId: string, test: TestResultItem, taskIndex: number, messageIndex: number) {
+	constructor(public readonly resultId: string, test: TestResultItem, public readonly taskIndex: number, public readonly messageIndex: number) {
 		this.test = test.item;
 		this.messages = test.tasks[taskIndex].messages;
 		this.messageIndex = messageIndex;
@@ -86,6 +90,22 @@ class TestDto {
 		this.expectedUri = buildTestUri({ ...parts, type: TestUriType.ResultExpectedOutput });
 		this.actualUri = buildTestUri({ ...parts, type: TestUriType.ResultActualOutput });
 		this.messageUri = buildTestUri({ ...parts, type: TestUriType.ResultMessage });
+
+		const message = this.messages[this.messageIndex];
+		this.revealLocation = message.location ?? (test.item.uri && test.item.range ? { uri: test.item.uri, range: Range.lift(test.item.range) } : undefined);
+	}
+}
+
+/** Iterates through every message in every result */
+function* allMessages(results: readonly ITestResult[]) {
+	for (const result of results) {
+		for (const test of result.tests) {
+			for (let taskIndex = 0; taskIndex < test.tasks.length; taskIndex++) {
+				for (let messageIndex = 0; messageIndex < test.tasks[taskIndex].messages.length; messageIndex++) {
+					yield { result, test, taskIndex, messageIndex };
+				}
+			}
+		}
 	}
 }
 
@@ -134,14 +154,14 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 	}
 
 	/** @inheritdoc */
-	public async tryPeekFirstError(result: ITestResult, test: TestResultItem, options?: Partial<ITextEditorOptions>) {
+	public tryPeekFirstError(result: ITestResult, test: TestResultItem, options?: Partial<ITextEditorOptions>) {
 		const candidate = this.getFailedCandidateMessage(test);
 		if (!candidate) {
 			return false;
 		}
 
 		const message = candidate.message;
-		return this.showPeekFromUri({
+		this.showPeekFromUri({
 			type: TestUriType.ResultMessage,
 			documentUri: message.location!.uri,
 			taskIndex: candidate.taskId,
@@ -149,6 +169,7 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 			resultId: result.id,
 			testExtId: test.item.extId,
 		}, { selection: message.location!.range, ...options });
+		return true;
 	}
 
 	/** @inheritdoc */
@@ -343,6 +364,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 
 	constructor(
 		private readonly editor: ICodeEditor,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITestResultService private readonly testResults: ITestResultService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -366,7 +388,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 	}
 
 	/**
-	 * Shows a peek for the message in th editor.
+	 * Shows a peek for the message in the editor.
 	 */
 	public async show(uri: URI) {
 		const dto = this.retrieveTest(uri);
@@ -375,11 +397,6 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		}
 
 		const message = dto.messages[dto.messageIndex];
-		if (!message?.location) {
-			return;
-		}
-
-
 		if (!this.peek.value) {
 			this.peek.value = this.instantiationService.createInstance(TestingOutputPeek, this.editor);
 			this.peek.value.onDidClose(() => {
@@ -397,6 +414,27 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		this.currentPeekUri = uri;
 	}
 
+	public async openAndShow(uri: URI) {
+		const dto = this.retrieveTest(uri);
+		if (!dto) {
+			return;
+		}
+
+		if (!dto.revealLocation || dto.revealLocation.uri.toString() === this.editor.getModel()?.uri.toString()) {
+			return this.show(uri);
+		}
+
+		const otherEditor = await this.codeEditorService.openCodeEditor({
+			resource: dto.revealLocation.uri,
+			options: { pinned: false, revealIfOpened: true }
+		}, this.editor);
+
+		if (otherEditor) {
+			TestingOutputPeekController.get(otherEditor).removePeek();
+			return TestingOutputPeekController.get(otherEditor).show(uri);
+		}
+	}
+
 	/**
 	 * Disposes the peek view, if any.
 	 */
@@ -405,10 +443,66 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 	}
 
 	/**
+	 * Shows the next message in the peek, if possible.
+	 */
+	public next() {
+		const dto = this.peek.value?.current;
+		if (!dto) {
+			return;
+		}
+
+		let found = false;
+		for (const { messageIndex, taskIndex, result, test } of allMessages(this.testResults.results)) {
+			if (found) {
+				this.openAndShow(buildTestUri({
+					type: TestUriType.ResultMessage,
+					messageIndex,
+					taskIndex,
+					resultId: result.id,
+					testExtId: test.item.extId
+				}));
+				return;
+			} else if (dto.test.extId === test.item.extId && dto.messageIndex === messageIndex && dto.taskIndex === taskIndex && dto.resultId === result.id) {
+				found = true;
+			}
+		}
+	}
+
+	/**
+	 * Shows the previous message in the peek, if possible.
+	 */
+	public previous() {
+		const dto = this.peek.value?.current;
+		if (!dto) {
+			return;
+		}
+
+		let previous: { messageIndex: number, taskIndex: number, result: ITestResult, test: TestResultItem } | undefined;
+		for (const m of allMessages(this.testResults.results)) {
+			if (dto.test.extId === m.test.item.extId && dto.messageIndex === m.messageIndex && dto.taskIndex === m.taskIndex && dto.resultId === m.result.id) {
+				if (!previous) {
+					return;
+				}
+
+				this.openAndShow(buildTestUri({
+					type: TestUriType.ResultMessage,
+					messageIndex: previous.messageIndex,
+					taskIndex: previous.taskIndex,
+					resultId: previous.result.id,
+					testExtId: previous.test.item.extId
+				}));
+				return;
+			}
+
+			previous = m;
+		}
+	}
+
+	/**
 	 * Removes the peek view if it's being displayed on the given test ID.
 	 */
 	public removeIfPeekingForTest(testId: string) {
-		if (this.peek.value?.currentTest?.extId === testId) {
+		if (this.peek.value?.current?.test.extId === testId) {
 			this.peek.clear();
 		}
 	}
@@ -458,7 +552,7 @@ class TestingOutputPeek extends PeekViewWidget {
 	private splitView!: SplitView;
 	private contentProviders!: IPeekOutputRenderer[];
 
-	public currentTest?: ITestItem;
+	public current?: TestDto;
 
 	constructor(
 		editor: ICodeEditor,
@@ -512,6 +606,7 @@ class TestingOutputPeek extends PeekViewWidget {
 		const treeContainer = dom.append(containerElement, dom.$('.test-output-peek-tree'));
 		const tree = this._disposables.add(this.instantiationService.createInstance(
 			OutputPeekTree,
+			this.editor,
 			treeContainer,
 			this.visibilityChange.event,
 			this.didReveal.event,
@@ -549,12 +644,21 @@ class TestingOutputPeek extends PeekViewWidget {
 	 */
 	public setModel(dto: TestDto): Promise<void> {
 		const message = dto.messages[dto.messageIndex];
-		if (!message?.location) {
+		const previous = this.current;
+
+		if (!dto.revealLocation && !previous) {
 			return Promise.resolve();
 		}
 
-		this.currentTest = dto.test;
-		this.show(message.location.range, hintDiffPeekHeight(message));
+		this.current = dto;
+		if (!dto.revealLocation) {
+			return this.showInPlace(dto);
+		}
+
+		this.show(dto.revealLocation.range, hintDiffPeekHeight(message));
+		this.editor.revealPositionNearTop(dto.revealLocation.range.getStartPosition(), ScrollType.Smooth);
+		this.editor.focus();
+
 		return this.showInPlace(dto);
 	}
 
@@ -970,6 +1074,7 @@ class OutputPeekTree extends Disposable {
 	private readonly treeActions: TreeActionsProvider;
 
 	constructor(
+		editor: ICodeEditor,
 		container: HTMLElement,
 		onDidChangeVisibility: Event<boolean>,
 		onDidReveal: Event<TestDto>,
@@ -977,7 +1082,7 @@ class OutputPeekTree extends Disposable {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ITestResultService results: ITestResultService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IEditorService editorService: IEditorService,
+		@ITestExplorerFilterState explorerFilter: ITestExplorerFilterState,
 	) {
 		super();
 
@@ -1121,24 +1226,20 @@ class OutputPeekTree extends Disposable {
 				return;
 			}
 
-			const location = e.element.location;
-			if (!location) {
-				peekController.showInPlace(new TestDto(e.element.result.id, e.element.test, e.element.taskIndex, e.element.messageIndex));
-				return;
+			const dto = new TestDto(e.element.result.id, e.element.test, e.element.taskIndex, e.element.messageIndex);
+			if (!dto.revealLocation) {
+				peekController.showInPlace(dto);
+			} else {
+				TestingOutputPeekController.get(editor).openAndShow(dto.messageUri);
 			}
+		}));
 
-			const pane = await editorService.openEditor({
-				resource: location.uri,
-				options: {
-					pinned: e.editorOptions.pinned,
-					selection: location.range,
-					preserveFocus: e.editorOptions.preserveFocus,
-				},
-			}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
-
-			const control = pane?.getControl();
-			if (isCodeEditor(control)) {
-				TestingOutputPeekController.get(control).show(e.element.uri);
+		this._register(this.tree.onDidChangeSelection(evt => {
+			for (const element of evt.elements) {
+				if (element && 'test' in element) {
+					explorerFilter.reveal.value = element.test.item.extId;
+					break;
+				}
 			}
 		}));
 
@@ -1310,6 +1411,14 @@ class TreeActionsProvider {
 			if (element instanceof TestCaseElement || element instanceof TestTaskElement) {
 				const extId = element.test.item.extId;
 				primary.push(new Action(
+					'testing.outputPeek.goToFile',
+					localize('testing.goToFile', "Go to File"),
+					Codicon.goToFile.classNames,
+					undefined,
+					() => this.commandService.executeCommand('vscode.revealTest', extId),
+				));
+
+				secondary.push(new Action(
 					'testing.outputPeek.revealInExplorer',
 					localize('testing.revealInExplorer', "Reveal in Test Explorer"),
 					Codicon.listTree.classNames,
@@ -1378,3 +1487,68 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor .test-output-peek .test-output-peek-message-container a :hover { color: ${textLinkActiveForegroundColor}; }`);
 	}
 });
+
+const navWhen = ContextKeyAndExpr.create([
+	EditorContextKeys.focus,
+	TestingContextKeys.isPeekVisible,
+]);
+
+export class GoToNextMessageAction extends EditorAction2 {
+	public static readonly ID = 'testing.goToNextMessage';
+	constructor() {
+		super({
+			id: GoToNextMessageAction.ID,
+			f1: true,
+			title: localize('testing.goToNextMessage', "Go to Next Test Failure"),
+			icon: Codicon.chevronDown,
+			category: CATEGORIES.Test,
+			keybinding: {
+				primary: KeyMod.Alt | KeyCode.F8,
+				weight: KeybindingWeight.EditorContrib + 1,
+				when: navWhen,
+			},
+			menu: [{
+				id: MenuId.TestPeekTitle,
+				group: 'navigation',
+				order: 2,
+			}, {
+				id: MenuId.CommandPalette,
+				when: navWhen
+			}],
+		});
+	}
+
+	public runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor): any {
+		TestingOutputPeekController.get(editor).next();
+	}
+}
+
+export class GoToPreviousMessageAction extends EditorAction2 {
+	public static readonly ID = 'testing.goToPreviousMessage';
+	constructor() {
+		super({
+			id: GoToPreviousMessageAction.ID,
+			f1: true,
+			title: localize('testing.goToPreviousMessage', "Go to Previous Test Failure"),
+			icon: Codicon.chevronUp,
+			category: CATEGORIES.Test,
+			keybinding: {
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F8,
+				weight: KeybindingWeight.EditorContrib + 1,
+				when: navWhen
+			},
+			menu: [{
+				id: MenuId.TestPeekTitle,
+				group: 'navigation',
+				order: 1,
+			}, {
+				id: MenuId.CommandPalette,
+				when: navWhen
+			}],
+		});
+	}
+
+	public runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor): any {
+		TestingOutputPeekController.get(editor).previous();
+	}
+}

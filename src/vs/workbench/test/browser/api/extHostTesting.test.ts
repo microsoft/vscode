@@ -456,7 +456,8 @@ suite('ExtHost Testing', () => {
 			assert.strictEqual(tracker.isRunning, true);
 
 			task1.appendOutput('hello');
-			assert.deepStrictEqual([['run-id', (task1 as any).taskId, VSBuffer.fromString('hello')]], proxy.$appendOutputToRun.args);
+			const taskId = proxy.$appendOutputToRun.args[0]?.[1];
+			assert.deepStrictEqual([['run-id', taskId, VSBuffer.fromString('hello')]], proxy.$appendOutputToRun.args);
 			task1.end();
 
 			assert.strictEqual(proxy.$finishedExtensionTestRun.called, false);
@@ -504,7 +505,7 @@ suite('ExtHost Testing', () => {
 			const expectedArgs: unknown[][] = [];
 			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
 
-			task1.setState(single.root.children.get('id-a')!.children.get('id-aa')!, TestResultState.Passed);
+			task1.passed(single.root.children.get('id-a')!.children.get('id-aa')!);
 			expectedArgs.push([
 				'ctrl',
 				tracker.id,
@@ -517,7 +518,7 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
 
 
-			task1.setState(single.root.children.get('id-a')!.children.get('id-ab')!, TestResultState.Queued);
+			task1.enqueued(single.root.children.get('id-a')!.children.get('id-ab')!);
 			expectedArgs.push([
 				'ctrl',
 				tracker.id,
@@ -528,7 +529,7 @@ suite('ExtHost Testing', () => {
 			]);
 			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
 
-			task1.setState(single.root.children.get('id-a')!.children.get('id-ab')!, TestResultState.Passed);
+			task1.passed(single.root.children.get('id-a')!.children.get('id-ab')!);
 			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
 		});
 
@@ -536,13 +537,12 @@ suite('ExtHost Testing', () => {
 			const task = c.createTestRun('ctrl', single, req, 'hello world', false);
 			task.end();
 
-			task.setState(single.root, TestResultState.Passed);
-			task.appendMessage(single.root, new TestMessage('some message'));
+			task.failed(single.root, new TestMessage('some message'));
 			task.appendOutput('output');
 
 			assert.strictEqual(proxy.$addTestsToRun.called, false);
 			assert.strictEqual(proxy.$appendOutputToRun.called, false);
-			assert.strictEqual(proxy.$appendTestMessageInRun.called, false);
+			assert.strictEqual(proxy.$appendTestMessagesInRun.called, false);
 		});
 
 		test('excludes tests outside tree or explicitly excluded', () => {
@@ -552,8 +552,8 @@ suite('ExtHost Testing', () => {
 				exclude: [single.root.children.get('id-a')!.children.get('id-aa')!],
 			}, 'hello world', false);
 
-			task.setState(single.root.children.get('id-a')!.children.get('id-aa')!, TestResultState.Passed);
-			task.setState(single.root.children.get('id-a')!.children.get('id-ab')!, TestResultState.Passed);
+			task.passed(single.root.children.get('id-a')!.children.get('id-aa')!);
+			task.passed(single.root.children.get('id-a')!.children.get('id-ab')!);
 
 			assert.deepStrictEqual(proxy.$updateTestStateInRun.args.length, 1);
 			const args = proxy.$updateTestStateInRun.args[0];

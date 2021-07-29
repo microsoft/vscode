@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.59.0",
-  "distro": "0d542a1b757fe6c24fad8a5121da82af1e5be5fd",
+  "distro": "3b178e90461e217e4b51870f136c316327a58f66",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -59,7 +59,7 @@
   },
   "dependencies": {
     "@microsoft/applicationinsights-web": "^2.6.4",
-    "@vscode/vscode-languagedetection": "1.0.12",
+    "@vscode/vscode-languagedetection": "1.0.15",
     "applicationinsights": "1.0.8",
     "chokidar": "3.5.1",
     "eslint-plugin-header": "3.1.1",
@@ -202,7 +202,7 @@
     "util": "^0.12.4",
     "vinyl": "^2.0.0",
     "vinyl-fs": "^3.0.0",
-    "vscode-debugprotocol": "1.48.0-pre.0",
+    "vscode-debugprotocol": "1.48.0",
     "vscode-nls-dev": "^3.3.1",
     "vscode-telemetry-extractor": "^1.8.0",
     "webpack": "^5.42.0",

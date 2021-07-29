@@ -157,6 +157,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			return ResolvedStatus.NONE;
 		}
 
+		// If no override we take the selected editor id so that matches workes with the isActive check
+		untypedEditor.options = { override: selectedEditor.editorInfo.id, ...untypedEditor.options };
+
 		const handlesDiff = typeof selectedEditor.options?.canHandleDiff === 'function' ? selectedEditor.options.canHandleDiff() : selectedEditor.options?.canHandleDiff;
 		if (handlesDiff === false && isResourceDiffEditorInput(untypedEditor)) {
 			return ResolvedStatus.NONE;
@@ -164,7 +167,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 		// If it's the currently active editor we shouldn't do anything
 		const activeEditor = group.activeEditor;
-		const isActive = activeEditor ? activeEditor.editorId === selectedEditor.editorInfo.id && isEqual(activeEditor.resource, resource) : false;
+		const isActive = activeEditor ? activeEditor.matches(untypedEditor) : false;
 		if (activeEditor && isActive) {
 			return { editor: activeEditor, options, group };
 		}

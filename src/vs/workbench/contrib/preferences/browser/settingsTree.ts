@@ -24,7 +24,7 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { isIOS } from 'vs/base/common/platform';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { isArray, isDefined, isUndefinedOrNull } from 'vs/base/common/types';
@@ -145,12 +145,6 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 			schema
 		}));
 
-	const additionalValueEnums = getEnumOptionsFromSchema(
-		typeof objectAdditionalProperties === 'boolean'
-			? {}
-			: objectAdditionalProperties ?? {}
-	);
-
 	const wellDefinedKeyEnumOptions = Object.entries(objectProperties ?? {}).map(
 		([key, schema]) => ({ value: key, description: schema.description })
 	);
@@ -167,15 +161,14 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 					},
 					value: {
 						type: 'boolean',
-						data: data[key],
-						description: objectProperties[key].description
+						data: data[key]
 					},
+					keyDescription: objectProperties[key].description,
 					removable: false
 				} as IObjectDataItem;
 			}
 
 			const valueEnumOptions = getEnumOptionsFromSchema(objectProperties[key]);
-
 			return {
 				key: {
 					type: 'enum',
@@ -187,6 +180,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 					data: data[key],
 					options: valueEnumOptions,
 				},
+				keyDescription: objectProperties[key].description,
 				removable: isUndefinedOrNull(defaultValue),
 			} as IObjectDataItem;
 		}
@@ -201,9 +195,16 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 					data: data[key],
 					options: valueEnumOptions,
 				},
+				keyDescription: schema.description,
 				removable: true,
 			} as IObjectDataItem;
 		}
+
+		const additionalValueEnums = getEnumOptionsFromSchema(
+			typeof objectAdditionalProperties === 'boolean'
+				? {}
+				: objectAdditionalProperties ?? {}
+		);
 
 		return {
 			key: { type: 'string', data: key },
@@ -212,19 +213,23 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 				data: data[key],
 				options: additionalValueEnums,
 			},
+			keyDescription: typeof objectAdditionalProperties === 'object' ? objectAdditionalProperties.description : undefined,
 			removable: true,
 		} as IObjectDataItem;
-	});
+	}).filter(item => !isUndefinedOrNull(item.value.data));
 }
 
 function createArraySuggester(element: SettingsTreeSettingElement): IObjectKeySuggester {
-	return keys => {
+	return (keys, idx) => {
 		const enumOptions: IObjectEnumOption[] = [];
 
 		if (element.setting.enum) {
-			element.setting.enum.forEach((staticKey, i) => {
-				const description = element.setting.enumDescriptions?.[i];
-				enumOptions.push({ value: staticKey, description });
+			element.setting.enum.forEach((key, i) => {
+				// include the currently selected value, even if uniqueItems is true
+				if (!element.setting.uniqueItems || (idx !== undefined && key === keys[idx]) || !keys.includes(key)) {
+					const description = element.setting.enumDescriptions?.[i];
+					enumOptions.push({ value: key, description });
+				}
 			});
 		}
 
@@ -509,9 +514,10 @@ interface ISettingExcludeItemTemplate extends ISettingItemTemplate<void> {
 	excludeWidget: ListSettingWidget;
 }
 
-interface ISettingObjectItemTemplate extends ISettingItemTemplate<void> {
+interface ISettingObjectItemTemplate extends ISettingItemTemplate<Record<string, unknown> | undefined> {
 	objectDropdownWidget?: ObjectSettingDropdownWidget,
 	objectCheckboxWidget?: ObjectSettingCheckboxWidget;
+	validationErrorMessageElement: HTMLElement;
 }
 
 interface ISettingNewExtensionsTemplate extends IDisposableTemplate {
@@ -1064,7 +1070,14 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 				newValue = [...template.context.value];
 			}
 
-			if (e.targetIndex !== undefined) {
+			if (e.sourceIndex !== undefined) {
+				// A drag and drop occurred
+				const sourceIndex = e.sourceIndex;
+				const targetIndex = e.targetIndex!;
+				const splicedElem = newValue.splice(sourceIndex, 1)[0];
+				newValue.splice(targetIndex, 0, splicedElem);
+			} else if (e.targetIndex !== undefined) {
+				const itemValueData = e.item?.value.data.toString() ?? '';
 				// Delete value
 				if (!e.item?.value.data && e.originalItem.value.data && e.targetIndex > -1) {
 					newValue.splice(e.targetIndex, 1);
@@ -1072,19 +1085,20 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 				// Update value
 				else if (e.item?.value.data && e.originalItem.value.data) {
 					if (e.targetIndex > -1) {
-						newValue[e.targetIndex] = e.item.value.data.toString();
+						newValue[e.targetIndex] = itemValueData;
 					}
 					// For some reason, we are updating and cannot find original value
 					// Just append the value in this case
 					else {
-						newValue.push(e.item.value.data.toString());
+						newValue.push(itemValueData);
 					}
 				}
 				// Add value
 				else if (e.item?.value.data && !e.originalItem.value.data && e.targetIndex >= newValue.length) {
-					newValue.push(e.item.value.data.toString());
+					newValue.push(itemValueData);
 				}
 			}
+
 			if (
 				template.context.defaultValue &&
 				isArray(template.context.defaultValue) &&
@@ -1093,7 +1107,6 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 			) {
 				return undefined;
 			}
-
 			return newValue;
 		}
 
@@ -1113,6 +1126,10 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 		});
 		template.context = dataElement;
 
+		template.elementDisposables.add(toDisposable(() => {
+			template.listWidget.cancelEdit();
+		}));
+
 		template.onChange = (v) => {
 			onChange(v);
 			renderArrayValidations(dataElement, template, v, false);
@@ -1128,8 +1145,13 @@ abstract class AbstractSettingObjectRenderer extends AbstractSettingRenderer imp
 		widget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
 		common.toDispose.add(widget);
 
+		const descriptionElement = common.containerElement.querySelector('.setting-item-description')!;
+		const validationErrorMessageElement = $('.setting-item-validation-message');
+		descriptionElement.after(validationErrorMessageElement);
+
 		const template: ISettingObjectItemTemplate = {
-			...common
+			...common,
+			validationErrorMessageElement
 		};
 		if (widget instanceof ObjectSettingCheckboxWidget) {
 			template.objectCheckboxWidget = widget;
@@ -1139,7 +1161,9 @@ abstract class AbstractSettingObjectRenderer extends AbstractSettingRenderer imp
 
 		this.addSettingElementFocusHandler(template);
 
-		common.toDispose.add(widget.onDidChangeList(e => this.onDidChangeObject(template, e)));
+		common.toDispose.add(widget.onDidChangeList(e => {
+			this.onDidChangeObject(template, e);
+		}));
 
 		return template;
 	}
@@ -1198,16 +1222,16 @@ abstract class AbstractSettingObjectRenderer extends AbstractSettingRenderer imp
 				}
 			});
 
-			this._onDidChangeSetting.fire({
-				key: template.context.setting.key,
-				value: Object.keys(newValue).length === 0 ? undefined : newValue,
-				type: template.context.valueType
-			});
+			const newObject = Object.keys(newValue).length === 0 ? undefined : newValue;
 
 			if (template.objectCheckboxWidget) {
 				template.objectCheckboxWidget.setValue(newItems);
 			} else {
 				template.objectDropdownWidget!.setValue(newItems);
+			}
+
+			if (template.onChange) {
+				template.onChange(newObject);
 			}
 		}
 	}
@@ -1226,7 +1250,7 @@ export class SettingObjectRenderer extends AbstractSettingObjectRenderer impleme
 		return this.renderTemplateWithWidget(common, widget);
 	}
 
-	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingObjectItemTemplate, onChange: (value: string) => void): void {
+	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingObjectItemTemplate, onChange: (value: Record<string, unknown> | undefined) => void): void {
 		const items = getObjectDisplayValue(dataElement);
 		const { key, objectProperties, objectPatternProperties, objectAdditionalProperties } = dataElement.setting;
 
@@ -1243,6 +1267,16 @@ export class SettingObjectRenderer extends AbstractSettingObjectRenderer impleme
 		});
 
 		template.context = dataElement;
+
+		template.elementDisposables.add(toDisposable(() => {
+			template.objectDropdownWidget!.cancelEdit();
+		}));
+
+		template.onChange = (v: Record<string, unknown> | undefined) => {
+			onChange(v);
+			renderArrayValidations(dataElement, template, v, false);
+		};
+		renderArrayValidations(dataElement, template, dataElement.value, true);
 	}
 }
 
@@ -1266,7 +1300,7 @@ export class SettingBoolObjectRenderer extends AbstractSettingObjectRenderer imp
 		}
 	}
 
-	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingObjectItemTemplate, onChange: (value: string) => void): void {
+	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingObjectItemTemplate, onChange: (value: Record<string, unknown> | undefined) => void): void {
 		const items = getObjectDisplayValue(dataElement);
 		const { key } = dataElement.setting;
 
@@ -1275,6 +1309,9 @@ export class SettingBoolObjectRenderer extends AbstractSettingObjectRenderer imp
 		});
 
 		template.context = dataElement;
+		template.onChange = (v: Record<string, unknown> | undefined) => {
+			onChange(v);
+		};
 	}
 }
 
@@ -1351,6 +1388,9 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 		const value = getExcludeDisplayValue(dataElement);
 		template.excludeWidget.setValue(value);
 		template.context = dataElement;
+		template.elementDisposables.add(toDisposable(() => {
+			template.excludeWidget.cancelEdit();
+		}));
 	}
 }
 
@@ -1443,7 +1483,7 @@ export class SettingMultilineTextRenderer extends AbstractSettingTextRenderer im
 			onChange(value);
 		};
 		super.renderValue(dataElement, template, onChangeOverride);
-		template.toDispose.add(
+		template.elementDisposables.add(
 			template.inputBox.onDidHeightChange(e => {
 				const height = template.containerElement.clientHeight;
 				// Don't fire event if height is reported as 0,
@@ -1509,25 +1549,34 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 	}
 
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingEnumItemTemplate, onChange: (value: string) => void): void {
-		const enumItemLabels = dataElement.setting.enumItemLabels;
-		const enumDescriptions = dataElement.setting.enumDescriptions;
+		// Make shallow copies here so that we don't modify the actual dataElement later
+		const enumItemLabels = dataElement.setting.enumItemLabels ? [...dataElement.setting.enumItemLabels] : [];
+		const enumDescriptions = dataElement.setting.enumDescriptions ? [...dataElement.setting.enumDescriptions] : [];
+		const settingEnum = [...dataElement.setting.enum!];
 		const enumDescriptionsAreMarkdown = dataElement.setting.enumDescriptionsAreMarkdown;
 
 		const disposables = new DisposableStore();
 		template.toDispose.add(disposables);
 
-		if (!dataElement.setting.enum!.includes(dataElement.defaultValue)) {
-			dataElement.setting.enum!.unshift(dataElement.defaultValue ?? '');
+		const defaultOrEmptyString = dataElement.defaultValue ?? '';
+
+		let createdDefault = false;
+		if (!settingEnum.includes(defaultOrEmptyString)) {
+			// Add a new potentially blank default setting
+			settingEnum.unshift(defaultOrEmptyString);
+			enumDescriptions.unshift('');
+			enumItemLabels.unshift('');
+			createdDefault = true;
 		}
 
-		const displayOptions = dataElement.setting.enum!
+		const displayOptions = settingEnum
 			.map(String)
 			.map(escapeInvisibleChars)
 			.map((data, index) => {
-				const description = (enumDescriptions && enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index]));
+				const description = (enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index]));
 				return <ISelectOptionItem>{
-					text: enumItemLabels && enumItemLabels[index] ? enumItemLabels[index] : data,
-					detail: enumItemLabels && enumItemLabels[index] ? data : '',
+					text: enumItemLabels[index] ? enumItemLabels[index] : data,
+					detail: enumItemLabels[index] ? data : '',
 					description,
 					descriptionIsMarkdown: enumDescriptionsAreMarkdown,
 					descriptionMarkdownActionHandler: {
@@ -1536,20 +1585,26 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 						},
 						disposeables: disposables
 					},
-					decoratorRight: (data === dataElement.defaultValue ? localize('settings.Default', "default") : '')
+					decoratorRight: (data === dataElement.defaultValue || createdDefault && index === 0 ? localize('settings.Default', "default") : '')
 				};
 			});
 
 		template.selectBox.setOptions(displayOptions);
 
-		let idx = dataElement.setting.enum!.indexOf(dataElement.value);
+		let idx = settingEnum.indexOf(dataElement.value);
 		if (idx === -1) {
-			idx = dataElement.setting.enum!.indexOf(dataElement.defaultValue);
+			idx = settingEnum.indexOf(defaultOrEmptyString);
 		}
 
 		template.onChange = undefined;
 		template.selectBox.select(idx);
-		template.onChange = idx => onChange(dataElement.setting.enum![idx]);
+		template.onChange = (idx) => {
+			if (createdDefault && idx === 0) {
+				onChange(dataElement.defaultValue);
+			} else {
+				onChange(settingEnum[idx]);
+			}
+		};
 
 		template.enumDescriptionElement.innerText = '';
 	}
@@ -1883,8 +1938,8 @@ function renderValidations(dataElement: SettingsTreeSettingElement, template: IS
 
 function renderArrayValidations(
 	dataElement: SettingsTreeSettingElement,
-	template: ISettingListItemTemplate,
-	value: string[] | undefined,
+	template: ISettingListItemTemplate | ISettingObjectItemTemplate,
+	value: string[] | Record<string, unknown> | undefined,
 	calledOnStartup: boolean
 ) {
 	template.containerElement.classList.add('invalid-input');

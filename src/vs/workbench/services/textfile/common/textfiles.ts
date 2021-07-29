@@ -468,7 +468,7 @@ export interface IModeSupport {
 	/**
 	 * Sets the language mode of the object.
 	 */
-	setMode(mode: string): void;
+	setMode(mode: string, setExplicitly?: boolean): void;
 }
 
 export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport, IModeSupport, IWorkingCopy {

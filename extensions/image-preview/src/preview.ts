@@ -12,7 +12,6 @@ import { BinarySizeStatusBarEntry } from './binarySizeStatusBarEntry';
 
 const localize = nls.loadMessageBundle();
 
-
 export class PreviewManager implements vscode.CustomReadonlyEditorProvider {
 
 	public static readonly viewType = 'imagePreview.previewEditor';
@@ -261,6 +260,8 @@ class Preview extends Disposable {
 		}));
 	}
 }
+
+declare const process: undefined | { readonly platform: string };
 
 function isMac(): boolean {
 	if (typeof process === 'undefined') {

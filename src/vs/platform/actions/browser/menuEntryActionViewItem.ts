@@ -5,7 +5,7 @@
 
 import 'vs/css!./menuEntryActionViewItem';
 import { addDisposableListener, asCSSUrl, ModifierKeyEmitter, append, EventType, $, prepend } from 'vs/base/browser/dom';
-import { IAction, IRunEvent, Separator, SubmenuAction } from 'vs/base/common/actions';
+import { ActionRunner, IAction, IRunEvent, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { IDisposable, toDisposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { ICommandAction, IMenu, IMenuActionOptions, MenuItemAction, SubmenuItemAction, Icon, IMenuService } from 'vs/platform/actions/common/actions';
@@ -359,6 +359,11 @@ class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 
 		this._defaultAction.dispose();
 		this._defaultAction = this._instaService.createInstance(MenuEntryActionViewItem, lastAction, undefined);
+		this._defaultAction.actionRunner = new class extends ActionRunner {
+			override async runAction(action: IAction, context?: unknown): Promise<void> {
+				await action.run(undefined);
+			}
+		}();
 
 		if (this._container) {
 			this._defaultAction.render(prepend(this._container, $('.action-container')));
@@ -439,7 +444,8 @@ export function createActionViewItem(instaService: IInstantiationService, action
 	if (action instanceof MenuItemAction) {
 		return instaService.createInstance(MenuEntryActionViewItem, action, undefined);
 	} else if (action instanceof SubmenuItemAction) {
-		if (action.item.rememberDefaultAction) {
+		const allCodicons = !action.actions.some(a => a instanceof MenuItemAction && a.item.icon && !ThemeIcon.isThemeIcon(a.item.icon));
+		if (action.item.rememberDefaultAction && allCodicons) {
 			return instaService.createInstance(DropdownWithDefaultActionViewItem, action);
 		} else {
 			return instaService.createInstance(SubmenuEntryActionViewItem, action);

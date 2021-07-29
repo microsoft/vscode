@@ -157,8 +157,10 @@ export class InlayHintsController implements IEditorContribution {
 				const marginBefore = whitespaceBefore ? (fontSize / 3) | 0 : 0;
 				const marginAfter = whitespaceAfter ? (fontSize / 3) | 0 : 0;
 
+				const massagedText = fixSpace(text);
+
 				const before: IContentDecorationRenderOptions = {
-					contentText: text,
+					contentText: massagedText,
 					backgroundColor: `${backgroundColor}`,
 					color: `${fontColor}`,
 					margin: `0px ${marginAfter}px 0px ${marginBefore}px`,
@@ -205,6 +207,11 @@ export class InlayHintsController implements IEditorContribution {
 		this._decorationsTypeIds.forEach(this._codeEditorService.removeDecorationType, this._codeEditorService);
 		this._decorationsTypeIds = [];
 	}
+}
+
+function fixSpace(str: string): string {
+	const noBreakWhitespace = '\xa0';
+	return str.replace(/[ \t]/g, noBreakWhitespace);
 }
 
 registerEditorContribution(InlayHintsController.ID, InlayHintsController);

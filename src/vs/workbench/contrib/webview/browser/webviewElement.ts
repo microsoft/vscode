@@ -246,7 +246,13 @@ export class IFrameWebview extends Disposable implements Webview {
 				const uri = URI.from({
 					scheme: entry.scheme,
 					authority: entry.authority,
-					path: decodeURIComponent(entry.path), // This gets re-encoded
+					// This gets re-encoded
+					path: decodeURIComponent(
+						entry.path
+							// Make sure we don't transform encoded slash or percent into a real slash/percent
+							.replace(/%2f/ig, '%252f')
+							.replace(/%25/ig, '%2525')
+					),
 					query: entry.query ? decodeURIComponent(entry.query) : entry.query,
 				});
 				this.loadResource(entry.id, uri, entry.ifNoneMatch);

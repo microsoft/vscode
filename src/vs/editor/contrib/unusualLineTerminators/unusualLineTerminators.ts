@@ -24,7 +24,7 @@ function readIgnoreState(codeEditorService: ICodeEditorService, model: ITextMode
 	return codeEditorService.getModelProperty(model.uri, ignoreUnusualLineTerminators);
 }
 
-class UnusualLineTerminatorsDetector extends Disposable implements IEditorContribution {
+export class UnusualLineTerminatorsDetector extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.unusualLineTerminatorsDetector';
 

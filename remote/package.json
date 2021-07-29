@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "dependencies": {
-    "@vscode/vscode-languagedetection": "1.0.12",
+    "@vscode/vscode-languagedetection": "1.0.15",
     "applicationinsights": "1.0.8",
     "chokidar": "3.5.1",
     "cookie": "^0.4.0",

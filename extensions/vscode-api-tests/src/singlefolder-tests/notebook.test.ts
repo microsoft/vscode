@@ -171,7 +171,7 @@ suite('Notebook API tests', function () {
 		await saveAllFilesAndCloseAll();
 	});
 
-	test('correct cell selection on undo/redo of cell creation', async function () {
+	test.skip('correct cell selection on undo/redo of cell creation', async function () {
 		const notebook = await openRandomNotebookDocument();
 		await vscode.window.showNotebookDocument(notebook);
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');

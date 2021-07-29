@@ -30,7 +30,7 @@ interface IConfigurationPickerOptions {
 
 function buildPicker(accessor: ServicesAccessor, {
 	onlyGroup,
-	showConfigureButtons,
+	showConfigureButtons = true,
 	onlyControllerId,
 	onlyConfigurable,
 	placeholder = localize('testConfigurationUi.pick', 'Pick a test profile to use'),
