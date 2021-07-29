@@ -161,18 +161,18 @@ export const getAllTestsInHierarchy = async (collection: IMainThreadTestCollecti
  * in strictly descending order.
  */
 export const testsInFile = async function* (collection: IMainThreadTestCollection, uri: URI): AsyncIterable<IncrementalTestCollectionItem> {
-	const demandUriStr = uri.toString();
+	const demandFsPath = uri.fsPath;
 	for (const test of collection.all) {
 		if (!test.item.uri) {
 			continue;
 		}
 
-		const itemUriStr = test.item.uri.toString();
-		if (itemUriStr === demandUriStr) {
+		const itemFsPath = test.item.uri.fsPath;
+		if (itemFsPath === demandFsPath) {
 			yield test;
 		}
 
-		if (extpath.isEqualOrParent(demandUriStr, itemUriStr) && test.expand === TestItemExpandState.Expandable) {
+		if (extpath.isEqualOrParent(demandFsPath, itemFsPath) && test.expand === TestItemExpandState.Expandable) {
 			await collection.expand(test.item.extId, 1);
 		}
 	}
