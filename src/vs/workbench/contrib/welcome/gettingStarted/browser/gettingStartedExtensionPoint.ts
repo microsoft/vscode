@@ -159,12 +159,12 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 											body: 'onContext:${2:key}'
 										},
 										{
-											label: 'extensionInstalled',
+											label: 'onExtensionInstalled',
 											description: localize('walkthroughs.steps.completionEvents.extensionInstalled', 'Check off step when an extension with the given id is installed. If the extension is already installed, the step will start off checked.'),
 											body: 'extensionInstalled:${3:extensionId}'
 										},
 										{
-											label: 'stepSelected',
+											label: 'onStepSelected',
 											description: localize('walkthroughs.steps.completionEvents.stepSelected', 'Check off step as soon as it is selected.'),
 											body: 'stepSelected'
 										},
