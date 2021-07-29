@@ -1556,6 +1556,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			};
 		}
 
+		if (this._shadowElementViewInfo && this._shadowElementViewInfo.width <= 0 && this._shadowElementViewInfo.height <= 0) {
+			this.onWillHide();
+			return;
+		}
+
 		const topInserToolbarHeight = this._notebookOptions.computeTopInserToolbarHeight(this.viewModel?.viewType);
 
 		this._dimension = new DOM.Dimension(dimension.width, dimension.height);
