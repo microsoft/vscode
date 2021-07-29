@@ -37,6 +37,17 @@ interface IDisassembledInstructionEntry {
 	instructionAddress?: bigint;
 }
 
+// Special entry as a placeholer when disassembly is not available
+const disassemblyNotAvailable: IDisassembledInstructionEntry = {
+	allowBreakpoint: false,
+	isBreakpointSet: false,
+	instruction: {
+		address: '-1',
+		instruction: localize('instructionNotAvailable', "Disassembly not available.")
+	},
+	instructionAddress: BigInt(-1)
+};
+
 export class DisassemblyView extends EditorPane {
 
 	private static readonly NUM_INSTRUCTIONS_TO_LOAD = 50;
@@ -189,7 +200,7 @@ export class DisassemblyView extends EditorPane {
 			if ((e === State.Running || e === State.Stopped) &&
 				(this._previousDebuggingState !== State.Running && this._previousDebuggingState !== State.Stopped)) {
 				// Just started debugging, clear the view
-				this._disassembledInstructions?.splice(0, this._disassembledInstructions.length);
+				this._disassembledInstructions?.splice(0, this._disassembledInstructions.length, [disassemblyNotAvailable]);
 			}
 			this._previousDebuggingState = e;
 		}));
@@ -283,11 +294,13 @@ export class DisassemblyView extends EditorPane {
 				newEntries.push({ allowBreakpoint: true, isBreakpointSet: found !== undefined, instruction: resultEntries[i] });
 			}
 
+			const specialEntriesToRemove = this._disassembledInstructions.length === 1 ? 1 : 0;
+
 			// request is either at the start or end
 			if (instructionOffset >= 0) {
-				this._disassembledInstructions.splice(this._disassembledInstructions.length, 0, newEntries);
+				this._disassembledInstructions.splice(this._disassembledInstructions.length, specialEntriesToRemove, newEntries);
 			} else {
-				this._disassembledInstructions.splice(0, 0, newEntries);
+				this._disassembledInstructions.splice(0, specialEntriesToRemove, newEntries);
 			}
 
 			return true;
@@ -350,7 +363,7 @@ export class DisassemblyView extends EditorPane {
 	 */
 	private reloadDisassembly(targetAddress?: string) {
 		if (this._disassembledInstructions) {
-			this._disassembledInstructions.splice(0, this._disassembledInstructions.length);
+			this._disassembledInstructions.splice(0, this._disassembledInstructions.length, [disassemblyNotAvailable]);
 			this._instructionBpList = this._debugService.getModel().getInstructionBreakpoints();
 			this.loadDisassembledInstructions(targetAddress, -DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 4, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 8).then(() => {
 				// on load, set the target instruction in the middle of the page.
@@ -497,14 +510,16 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 	renderElement(element: IDisassembledInstructionEntry, index: number, templateData: IInstructionColumnTemplateData, height: number | undefined): void {
 		const instruction = element.instruction;
 		const sb = createStringBuilder(10000);
-
-		sb.appendASCIIString(instruction.address);
 		let spacesToAppend = 10;
-		if (instruction.address.length < InstructionRenderer.INSTRUCTION_ADDR_MIN_LENGTH) {
-			spacesToAppend = InstructionRenderer.INSTRUCTION_ADDR_MIN_LENGTH - instruction.address.length;
-		}
-		for (let i = 0; i < spacesToAppend; i++) {
-			sb.appendASCII(0x00A0);
+
+		if (instruction.address !== '-1') {
+			sb.appendASCIIString(instruction.address);
+			if (instruction.address.length < InstructionRenderer.INSTRUCTION_ADDR_MIN_LENGTH) {
+				spacesToAppend = InstructionRenderer.INSTRUCTION_ADDR_MIN_LENGTH - instruction.address.length;
+			}
+			for (let i = 0; i < spacesToAppend; i++) {
+				sb.appendASCII(0x00A0);
+			}
 		}
 
 		if (instruction.instructionBytes) {
