@@ -4,82 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as Proto from '../protocol';
-import { DocumentSelector } from '../utils/documentSelector';
-import { ClientCapability, ITypeScriptServiceClient, ServerResponse, ExecConfig } from '../typescriptService';
+import type * as Proto from '../protocol';
+import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
+import API from '../utils/api';
 import { Condition, conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
+import { Disposable } from '../utils/dispose';
+import { DocumentSelector } from '../utils/documentSelector';
 import { Position } from '../utils/typeConverters';
 import FileConfigurationManager, { getInlayHintsPreferences, InlayHintSettingNames } from './fileConfigurationManager';
-import API from '../utils/api';
-import { Disposable } from '../utils/dispose';
 
-namespace ExperimentalProto {
-	export const enum CommandTypes {
-		ProvideInlineHints = 'ProvideInlayHints'
-	}
-
-	export interface InlayHintsArgs extends Proto.FileRequestArgs {
-		/**
-		 * Start position of the span.
-		 */
-		start: number;
-		/**
-		 * Length of the span.
-		 */
-		length: number;
-	}
-
-	export interface InlineHintsRequest extends Proto.Request {
-		command: CommandTypes.ProvideInlineHints;
-		arguments: InlayHintsArgs;
-	}
-
-	export enum InlayHintKind {
-		Type = 'Type',
-		Parameter = 'Parameter',
-		Enum = 'Enum'
-	}
-
-	interface InlayHintItem {
-		text: string;
-		position: Proto.Location;
-		kind?: InlayHintKind;
-		whitespaceBefore?: boolean;
-		whitespaceAfter?: boolean;
-	}
-
-	export interface InlayHintsResponse extends Proto.Response {
-		body?: InlayHintItem[];
-	}
-
-	export interface IExtendedTypeScriptServiceClient {
-		execute<K extends keyof ExtendedTsServerRequests>(
-			command: K,
-			args: ExtendedTsServerRequests[K][0],
-			token: vscode.CancellationToken,
-			config?: ExecConfig
-		): Promise<ServerResponse.Response<ExtendedTsServerRequests[K][1]>>;
-	}
-
-	export interface ExtendedTsServerRequests {
-		'provideInlayHints': [InlayHintsArgs, InlayHintsResponse];
-	}
-
-	export namespace InlayHintKind {
-		export function fromProtocolInlayHintKind(kind: InlayHintKind): vscode.InlayHintKind {
-			switch (kind) {
-				case InlayHintKind.Parameter:
-					return vscode.InlayHintKind.Parameter;
-				case InlayHintKind.Type:
-					return vscode.InlayHintKind.Type;
-				case InlayHintKind.Enum:
-					return vscode.InlayHintKind.Other;
-				default:
-					return vscode.InlayHintKind.Other;
-			}
-		}
-	}
-}
 
 const inlayHintSettingNames = [
 	InlayHintSettingNames.parameterNamesSuppressWhenArgumentMatchesName,
@@ -122,7 +55,7 @@ class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHin
 
 		await this.fileConfigurationManager.ensureConfigurationForDocument(model, token);
 
-		const response = await (this.client as ExperimentalProto.IExtendedTypeScriptServiceClient).execute('provideInlayHints', { file: filepath, start, length }, token);
+		const response = await this.client.execute('provideInlayHints', { file: filepath, start, length }, token);
 		if (response.type !== 'response' || !response.success || !response.body) {
 			return [];
 		}
@@ -131,12 +64,22 @@ class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHin
 			const result = new vscode.InlayHint(
 				hint.text,
 				Position.fromLocation(hint.position),
-				hint.kind && ExperimentalProto.InlayHintKind.fromProtocolInlayHintKind(hint.kind)
+				hint.kind && fromProtocolInlayHintKind(hint.kind)
 			);
 			result.whitespaceBefore = hint.whitespaceBefore;
 			result.whitespaceAfter = hint.whitespaceAfter;
 			return result;
 		});
+	}
+}
+
+
+function fromProtocolInlayHintKind(kind: Proto.InlayHintKind): vscode.InlayHintKind {
+	switch (kind) {
+		case 'Parameter': return vscode.InlayHintKind.Parameter;
+		case 'Type': return vscode.InlayHintKind.Type;
+		case 'Enum': return vscode.InlayHintKind.Other;
+		default: return vscode.InlayHintKind.Other;
 	}
 }
 
