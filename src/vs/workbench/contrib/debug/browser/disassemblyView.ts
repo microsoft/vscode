@@ -370,7 +370,6 @@ export class DisassemblyView extends EditorPane {
 
 interface IBreakpointColumnTemplateData {
 	currentElement: { element?: IDisassembledInstructionEntry };
-	container: HTMLElement;
 	icon: HTMLElement;
 	disposables: IDisposable[];
 }
@@ -428,7 +427,17 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 			})
 		];
 
-		return { currentElement, container, icon, disposables };
+		return { currentElement, icon, disposables };
+	}
+
+	renderElement(element: IDisassembledInstructionEntry, index: number, templateData: IBreakpointColumnTemplateData, height: number | undefined): void {
+		templateData.currentElement.element = element;
+		this.rerenderDebugStackframe(templateData.icon, element);
+	}
+
+	disposeTemplate(templateData: IBreakpointColumnTemplateData): void {
+		dispose(templateData.disposables);
+		templateData.disposables = [];
 	}
 
 	private rerenderDebugStackframe(icon: HTMLElement, element?: IDisassembledInstructionEntry) {
@@ -445,16 +454,6 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 		} else {
 			icon.classList.remove(this._breakpointIcon);
 		}
-	}
-
-	renderElement(element: IDisassembledInstructionEntry, index: number, templateData: IBreakpointColumnTemplateData, height: number | undefined): void {
-		templateData.currentElement.element = element;
-		this.rerenderDebugStackframe(templateData.icon, element);
-	}
-
-	disposeTemplate(templateData: IBreakpointColumnTemplateData): void {
-		dispose(templateData.disposables);
-		templateData.disposables = [];
 	}
 
 }
@@ -506,14 +505,6 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 		return { currentElement, instruction, disposables };
 	}
 
-	private rerenderBackground(instruction: HTMLElement, element?: IDisassembledInstructionEntry) {
-		if (element?.instruction.address === this._disassemblyView.currentInstructionAddress) {
-			instruction.style.background = this._topStackFrameColor?.toString() || 'transparent';
-		} else {
-			instruction.style.background = 'transparent';
-		}
-	}
-
 	renderElement(element: IDisassembledInstructionEntry, index: number, templateData: IInstructionColumnTemplateData, height: number | undefined): void {
 		templateData.currentElement.element = element;
 
@@ -551,6 +542,14 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 	disposeTemplate(templateData: IInstructionColumnTemplateData): void {
 		dispose(templateData.disposables);
 		templateData.disposables = [];
+	}
+
+	private rerenderBackground(instruction: HTMLElement, element?: IDisassembledInstructionEntry) {
+		if (element?.instruction.address === this._disassemblyView.currentInstructionAddress) {
+			instruction.style.background = this._topStackFrameColor?.toString() || 'transparent';
+		} else {
+			instruction.style.background = 'transparent';
+		}
 	}
 
 	private applyFontInfo(element: HTMLElement) {
