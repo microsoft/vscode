@@ -53,6 +53,6 @@
     "npmCheckJs": "tsc --noEmit"
   },
   "dependencies": {
-    "@azure/cosmos": "^3.4.0"
+    "@azure/cosmos": "^3.12.0"
   }
 }
