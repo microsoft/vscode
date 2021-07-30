@@ -54,7 +54,7 @@ else {
 	// Running out of sources
 	if (Object.keys(product).length === 0) {
 		Object.assign(product, {
-			version: '1.60.0-dev',
+			version: '1.59.0-dev',
 			nameShort: isWeb ? 'Code Web - OSS Dev' : 'Code - OSS Dev',
 			nameLong: isWeb ? 'Code Web - OSS Dev' : 'Code - OSS Dev',
 			applicationName: 'code-oss',
