@@ -117,5 +117,6 @@ var CSSLoaderPlugin;
         return CSSPlugin;
     }());
     CSSLoaderPlugin.CSSPlugin = CSSPlugin;
+	// Define a new CSSPlugin()
     define('vs/css', new CSSPlugin());
 })(CSSLoaderPlugin || (CSSLoaderPlugin = {}));
