@@ -2,10 +2,10 @@
 # yarn lockfile v1
 
 
-vscode-extension-telemetry@0.2.5:
-  version "0.2.5"
-  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.2.5.tgz#2036fe2bb1426cc59980076d1a41ab937d8a7aa5"
-  integrity sha512-6JX5h9WHEEnER7xTELub/yQ0X32seCY1HMlxVU0uFOrWRHsFfK+qmFnhpXrZh+QSxJNJe+toSkjjuKfEbtjfqg==
+vscode-extension-telemetry@0.2.6:
+  version "0.2.6"
+  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.2.6.tgz#fa40b711e2fde2d10813df372192ae7d494d6428"
+  integrity sha512-wQ8EEr3tQnAB5K3CyLScOEmiEVR3NNOtaOnf6XuJdOJFZnCPFT8Adc3mYPIzcTJwE720pL0ybt+Peigz197nTQ==
 
 vscode-nls@^5.0.0:
   version "5.0.0"
