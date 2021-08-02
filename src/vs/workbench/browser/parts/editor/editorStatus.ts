@@ -55,7 +55,7 @@ import { ThemeColor, themeColorFromId } from 'vs/platform/theme/common/themeServ
 import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { ILanguageStatus, ILanguageStatusService } from 'vs/editor/common/services/languageStatusService';
-import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetection';
+import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
