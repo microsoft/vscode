@@ -5,7 +5,6 @@
 
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { FileAccess } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -13,12 +12,6 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { URI } from 'vs/base/common/uri';
 import { isWeb } from 'vs/base/common/platform';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { debounce } from 'vs/base/common/decorators';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { LanguageDetectionSimpleWorker } from 'vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker';
 import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -36,14 +29,14 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IModeService private readonly _modeService: IModeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IUntitledTextEditorService private readonly _untitledTextEditorService: IUntitledTextEditorService,
 		@IModelService modelService: IModelService,
-		@IWorkingCopyService workingCopyService: IWorkingCopyService) {
+	) {
 		super();
 
 		this._languageDetectionWorkerClient = new LanguageDetectionWorkerClient(
 			modelService,
 			'languageDetectionWorkerService',
+			// TODO: See if it's possible to bundle vscode-languagedetection
 			FileAccess.asBrowserUri('../../../../../../node_modules/@vscode/vscode-languagedetection/dist/lib/index.js', require).toString(true),
 			this._environmentService.isBuilt && !isWeb
 				? FileAccess.asBrowserUri('../../../../../../node_modules.asar.unpacked/@vscode/vscode-languagedetection/model/model.json', require).toString(true)
@@ -51,24 +44,9 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 			this._environmentService.isBuilt && !isWeb
 				? FileAccess.asBrowserUri('../../../../../../node_modules.asar.unpacked/@vscode/vscode-languagedetection/model/group1-shard1of1.bin', require).toString(true)
 				: FileAccess.asBrowserUri('../../../../../../node_modules/@vscode/vscode-languagedetection/model/group1-shard1of1.bin', require).toString(true));
-		this._register(workingCopyService.onDidChangeContent(e => this.handleChangeEvent(e)));
 	}
 
-	@debounce(600)
-	private async handleChangeEvent(e: IWorkingCopy) {
-		const untitledEditorModel = this._untitledTextEditorService.get(e.resource);
-		if (!untitledEditorModel
-			|| !this.isEnabledForMode(untitledEditorModel.getMode())
-			|| untitledEditorModel.hasModeSetExplicitly) {
-			return;
-		}
-
-		const lang = await this.detectLanguage(e.resource);
-		if (!lang) { return; }
-		untitledEditorModel.setMode(lang, false);
-	}
-
-	private isEnabledForMode(modeId: string | undefined): boolean {
+	public isEnabledForMode(modeId: string): boolean {
 		return !!modeId && this._configurationService.getValue<boolean>(LanguageDetectionService.enablementSettingKey, { overrideIdentifier: modeId });
 	}
 
@@ -273,6 +251,4 @@ export class LanguageDetectionWorkerClient extends Disposable {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench)
-	.registerWorkbenchContribution(LanguageDetectionService, LifecyclePhase.Eventually);
 registerSingleton(ILanguageDetectionService, LanguageDetectionService);

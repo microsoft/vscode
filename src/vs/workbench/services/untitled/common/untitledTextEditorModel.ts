@@ -26,6 +26,8 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { getCharContainingOffset } from 'vs/base/common/strings';
 import { UTF8 } from 'vs/workbench/services/textfile/common/encoding';
 import { bufferToStream, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
+import { debounce } from 'vs/base/common/decorators';
 
 export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport, IEncodingSupport, IWorkingCopy {
 
@@ -126,7 +128,8 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@ILanguageDetectionService private readonly languageDetectionService: ILanguageDetectionService
 	) {
 		super(modelService, modeService);
 
@@ -178,11 +181,15 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	private _hasModeSetExplicitly: boolean = false;
 	get hasModeSetExplicitly(): boolean { return this._hasModeSetExplicitly; }
 
-	override setMode(mode: string, setExplicitly = true): void {
+	override setMode(mode: string): void {
 
 		// Remember that an explicit mode was set
-		this._hasModeSetExplicitly = setExplicitly;
+		this._hasModeSetExplicitly = true;
 
+		this.setModeInternal(mode);
+	}
+
+	private setModeInternal(mode: string): void {
 		let actualMode: string | undefined = undefined;
 		if (mode === '${activeEditorLanguage}') {
 			// support the special '${activeEditorLanguage}' mode by
@@ -368,6 +375,19 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 		// Emit as general content change event
 		this._onDidChangeContent.fire();
+
+		this.detectLanguageIfEnabled();
+	}
+
+	@debounce(600)
+	private async detectLanguageIfEnabled() {
+		if (this.hasModeSetExplicitly || !this.languageDetectionService.isEnabledForMode(this.getMode() ?? '')) {
+			return;
+		}
+
+		const lang = await this.languageDetectionService.detectLanguage(this.resource);
+		if (!lang) { return; }
+		this.setModeInternal(lang);
 	}
 
 	private updateNameFromFirstLine(textEditorModel: ITextModel): void {
