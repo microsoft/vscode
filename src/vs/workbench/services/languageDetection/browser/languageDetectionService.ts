@@ -168,6 +168,11 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench)
-	.registerWorkbenchContribution(LanguageDetectionService, LifecyclePhase.Eventually);
+export class LanguageDetectionWorkbenchContribution {
+
+	constructor(@ILanguageDetectionService _: ILanguageDetectionService) { }
+}
+
 registerSingleton(ILanguageDetectionService, LanguageDetectionService);
+Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench)
+	.registerWorkbenchContribution(LanguageDetectionWorkbenchContribution, LifecyclePhase.Eventually);
