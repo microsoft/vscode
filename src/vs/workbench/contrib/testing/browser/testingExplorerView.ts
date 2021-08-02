@@ -748,14 +748,17 @@ const hasNodeInOrParentOfUri = (collection: IMainThreadTestCollection, testUri: 
 				continue;
 			}
 
-			if (!node.item.uri) {
-				queue.push(node.children);
+			if (!node.item.uri || !extpath.isEqualOrParent(fsPath, node.item.uri.fsPath)) {
 				continue;
 			}
 
-			if (extpath.isEqualOrParent(fsPath, node.item.uri.fsPath)) {
+			// Only show nodes that can be expanded (and might have a child with
+			// a range) or ones that have a physical location.
+			if (node.item.range || node.expand === TestItemExpandState.Expandable) {
 				return true;
 			}
+
+			queue.push(node.children);
 		}
 	}
 
