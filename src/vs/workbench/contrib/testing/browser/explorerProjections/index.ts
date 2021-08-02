@@ -162,7 +162,7 @@ export class TestItemTreeElement implements IActionableTestTreeElement {
 			tests: [this.test],
 		};
 
-		for (let p = this.parent; p; p = p.parent) {
+		for (let p = this.parent; p && p.depth > 0; p = p.parent) {
 			context.tests.unshift(p.test);
 		}
 

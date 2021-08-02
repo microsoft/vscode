@@ -609,14 +609,14 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 					}
 					break;
 				}
-				case 'stepSelected':
-					event = eventType + ':' + step.id;
+				case 'onStepSelected': case 'stepSelected':
+					event = 'stepSelected:' + step.id;
 					break;
 				case 'onCommand':
 					event = eventType + ':' + argument.replace(/^toSide:/, '');
 					break;
-				case 'extensionInstalled':
-					event = eventType + ':' + argument.toLowerCase();
+				case 'onExtensionInstalled': case 'extensionInstalled':
+					event = 'extensionInstalled:' + argument.toLowerCase();
 					break;
 				default:
 					console.error(`Unknown completionEvent ${event} when registering step ${step.id}`);

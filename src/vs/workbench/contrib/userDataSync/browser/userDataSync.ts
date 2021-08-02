@@ -57,6 +57,7 @@ import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneCont
 import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
 
@@ -488,13 +489,20 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		this.updateSyncAfterInitializationContext(false);
 		const result = await this.dialogService.show(
 			Severity.Info,
-			localize('turnon sync after initialization message', "Your settings, keybindings, extensions, snippets and UI State were initialized but are not getting synced. Do you want to turn on Settings Sync?"),
+			localize('settings sync is off', "Settings Sync is Off"),
 			[
 				localize('turn on settings sync', "Turn On Settings Sync"),
 				localize('cancel', "Cancel"),
 			],
 			{
-				cancelId: 1
+				cancelId: 1,
+				custom: {
+					markdownDetails: [{
+						markdown: new MarkdownString(`${localize('turnon sync after initialization message', "Your settings, keybindings, extensions, snippets and UI State were initialized but are not getting synced. Do you want to turn on Settings Sync?")}`, { isTrusted: true })
+					}, {
+						markdown: new MarkdownString(`${localize({ key: 'change later', comment: ['Context here is that user can change (turn on/off) settings sync later.'] }, "You can always change this later.")} [${localize('learn more', "Learn More")}](https://aka.ms/vscode-settings-sync-help).`, { isTrusted: true })
+					}]
+				}
 			}
 		);
 		if (result.choice === 0) {

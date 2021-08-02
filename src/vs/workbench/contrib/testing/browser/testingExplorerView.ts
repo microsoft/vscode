@@ -566,7 +566,7 @@ export class TestingExplorerViewModel extends Disposable {
 		let expandToLevel = 0;
 		const idPath = [...TestId.fromString(id).idsFromRoot()];
 		for (let i = idPath.length - 1; i >= expandToLevel; i--) {
-			const element = projection.getElementByTestId(idPath[i]);
+			const element = projection.getElementByTestId(idPath[i].toString());
 			// Skip all elements that aren't in the tree.
 			if (!element || !this.tree.hasElement(element)) {
 				continue;
@@ -737,8 +737,8 @@ const enum FilterResult {
 	Include,
 }
 
-const hasNodeInOrParentOfUri = (collection: IMainThreadTestCollection, testUri: URI | string, fromNode?: string) => {
-	testUri = testUri.toString();
+const hasNodeInOrParentOfUri = (collection: IMainThreadTestCollection, testUri: URI, fromNode?: string) => {
+	const fsPath = testUri.fsPath;
 
 	const queue: Iterable<string>[] = [fromNode ? [fromNode] : collection.rootIds];
 	while (queue.length) {
@@ -753,7 +753,7 @@ const hasNodeInOrParentOfUri = (collection: IMainThreadTestCollection, testUri: 
 				continue;
 			}
 
-			if (extpath.isEqualOrParent(testUri, node.item.uri.toString())) {
+			if (extpath.isEqualOrParent(fsPath, node.item.uri.fsPath)) {
 				return true;
 			}
 		}
@@ -765,7 +765,7 @@ const hasNodeInOrParentOfUri = (collection: IMainThreadTestCollection, testUri: 
 class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 	private lastText?: string;
 	private filters: [include: boolean, value: string][] | undefined;
-	private documentUri: string | undefined;
+	private documentUri: URI | undefined;
 
 	constructor(
 		private readonly collection: IMainThreadTestCollection,
@@ -826,7 +826,7 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 	}
 
 	public filterToDocumentUri(uri: URI | undefined) {
-		this.documentUri = uri?.toString();
+		this.documentUri = uri;
 	}
 
 	private testState(element: TestItemTreeElement): FilterResult {
