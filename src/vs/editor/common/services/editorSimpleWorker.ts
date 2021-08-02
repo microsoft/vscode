@@ -76,7 +76,7 @@ export interface ICommonModel extends ILinkComputerTarget, IMirrorModel {
  * Range of a word inside a model.
  * @internal
  */
-interface IWordRange {
+export interface IWordRange {
 	/**
 	 * The index where the word starts.
 	 */
@@ -90,7 +90,7 @@ interface IWordRange {
 /**
  * @internal
  */
-class MirrorModel extends BaseMirrorModel implements ICommonModel {
+export class MirrorModel extends BaseMirrorModel implements ICommonModel {
 
 	public get uri(): URI {
 		return this._uri;
