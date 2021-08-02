@@ -1021,14 +1021,18 @@ export class DebugService implements IDebugService {
 
 	private async sendBreakpoints(modelUri: uri, sourceModified = false, session?: IDebugSession): Promise<void> {
 		const breakpointsToSend = this.model.getBreakpoints({ uri: modelUri, enabledOnly: true });
-		await sendToOneOrAllSessions(this.model, session, s => s.sendBreakpoints(modelUri, breakpointsToSend, sourceModified));
+		await sendToOneOrAllSessions(this.model, session, async s => {
+			if (!s.configuration.noDebug) {
+				await s.sendBreakpoints(modelUri, breakpointsToSend, sourceModified);
+			}
+		});
 	}
 
 	private async sendFunctionBreakpoints(session?: IDebugSession): Promise<void> {
 		const breakpointsToSend = this.model.getFunctionBreakpoints().filter(fbp => fbp.enabled && this.model.areBreakpointsActivated());
 
 		await sendToOneOrAllSessions(this.model, session, async s => {
-			if (s.capabilities.supportsFunctionBreakpoints) {
+			if (s.capabilities.supportsFunctionBreakpoints && !s.configuration.noDebug) {
 				await s.sendFunctionBreakpoints(breakpointsToSend);
 			}
 		});
@@ -1038,7 +1042,7 @@ export class DebugService implements IDebugService {
 		const breakpointsToSend = this.model.getDataBreakpoints().filter(fbp => fbp.enabled && this.model.areBreakpointsActivated());
 
 		await sendToOneOrAllSessions(this.model, session, async s => {
-			if (s.capabilities.supportsDataBreakpoints) {
+			if (s.capabilities.supportsDataBreakpoints && !s.configuration.noDebug) {
 				await s.sendDataBreakpoints(breakpointsToSend);
 			}
 		});
@@ -1048,7 +1052,7 @@ export class DebugService implements IDebugService {
 		const breakpointsToSend = this.model.getInstructionBreakpoints().filter(fbp => fbp.enabled && this.model.areBreakpointsActivated());
 
 		await sendToOneOrAllSessions(this.model, session, async s => {
-			if (s.capabilities.supportsInstructionBreakpoints) {
+			if (s.capabilities.supportsInstructionBreakpoints && !s.configuration.noDebug) {
 				await s.sendInstructionBreakpoints(breakpointsToSend);
 			}
 		});
@@ -1062,7 +1066,9 @@ export class DebugService implements IDebugService {
 				// Only call `setExceptionBreakpoints` as specified in dap protocol #90001
 				return;
 			}
-			await s.sendExceptionBreakpoints(enabledExceptionBps);
+			if (!s.configuration.noDebug) {
+				await s.sendExceptionBreakpoints(enabledExceptionBps);
+			}
 		});
 	}
 
