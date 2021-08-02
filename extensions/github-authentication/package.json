@@ -39,7 +39,6 @@
         "command": "github-enterprise.provide-token",
         "title": "Manually Provide Token",
         "category": "GitHub Enterprise"
-
       }
     ],
     "menus": {
@@ -67,7 +66,7 @@
     "configuration": {
       "title": "GitHub Enterprise Authentication Provider",
       "properties": {
-        "github-enterprise.uri" : {
+        "github-enterprise.uri": {
           "type": "string",
           "description": "URI of your GitHub Enterprise Instance"
         }
@@ -87,7 +86,7 @@
   "dependencies": {
     "node-fetch": "2.6.1",
     "uuid": "8.1.0",
-    "vscode-extension-telemetry": "0.2.4",
+    "vscode-extension-telemetry": "0.2.5",
     "vscode-nls": "^5.0.0",
     "vscode-tas-client": "^0.1.22"
   },
