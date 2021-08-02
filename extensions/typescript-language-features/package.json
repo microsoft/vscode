@@ -139,11 +139,7 @@
       "order": 20,
       "properties": {
         "typescript.tsdk": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null,
+          "type": "string",
           "markdownDescription": "%typescript.tsdk.desc%",
           "scope": "window"
         },
@@ -163,11 +159,7 @@
           "scope": "window"
         },
         "typescript.npm": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null,
+          "type": "string",
           "markdownDescription": "%typescript.npm%",
           "scope": "machine"
         },
@@ -751,10 +743,7 @@
           "scope": "resource"
         },
         "typescript.locale": {
-          "type": [
-            "string",
-            "null"
-          ],
+          "type": "string",
           "enum": [
             "de",
             "es",
@@ -765,10 +754,8 @@
             "ko",
             "ru",
             "zh-CN",
-            "zh-TW",
-            null
+            "zh-TW"
           ],
-          "default": null,
           "markdownDescription": "%typescript.locale%",
           "scope": "window"
         },
