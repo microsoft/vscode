@@ -184,7 +184,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		}
 
 		// Terminal from a different window
-		if (URI.isUri(instanceOrUri)) {
+		if (URI.isUri(instanceOrUri) && !this._launchConfigs.get(inputKey)) {
 			const terminalIdentifier = parseTerminalUri(instanceOrUri);
 			if (terminalIdentifier.instanceId) {
 				this._primaryOffProcessTerminalService.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId).then(attachPersistentProcess => {
@@ -198,6 +198,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 						input.group
 					);
 					this._registerInstance(inputKey, input, instance);
+					this._launchConfigs.delete(inputKey);
 					return instanceOrUri;
 				});
 			}
