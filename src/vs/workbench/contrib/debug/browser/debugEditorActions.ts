@@ -9,7 +9,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorAction, EditorAction, IActionOptions, EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE, State, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, IBreakpoint, BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, REPL_VIEW_ID, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, WATCH_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_EXCEPTION_WIDGET_VISIBLE, CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE, State, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, IBreakpoint, BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, REPL_VIEW_ID, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, WATCH_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_EXCEPTION_WIDGET_VISIBLE, CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE, CONTEXT_CALLSTACK_ITEM_TYPE } from 'vs/workbench/contrib/debug/common/debug';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { openBreakpointSource } from 'vs/workbench/contrib/debug/browser/breakpointsView';
@@ -135,25 +135,41 @@ class LogPointAction extends EditorAction2 {
 	}
 }
 
-class OpenDisassemblyViewAction extends EditorAction {
+class OpenDisassemblyViewAction extends EditorAction2 {
 
 	public static readonly ID = 'editor.debug.action.openDisassemblyView';
-	public static readonly LABEL = nls.localize('openDisassemblyView', "Open Disassembly View");
 
 	constructor() {
 		super({
 			id: OpenDisassemblyViewAction.ID,
-			label: OpenDisassemblyViewAction.LABEL,
-			alias: 'Debug: Go to Disassembly',
-			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, PanelFocusContext.toNegated(), CONTEXT_DEBUG_STATE.isEqualTo('stopped'), EditorContextKeys.editorTextFocus, CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST),
-			contextMenuOpts: {
-				group: 'debug',
-				order: 5
-			}
+			title: {
+				value: nls.localize('openDisassemblyView', "Open Disassembly View"),
+				original: 'Open Disassembly View',
+				mnemonicTitle: nls.localize({ key: 'miDisassemblyView', comment: ['&& denotes a mnemonic'] }, "&&DisassemblyView")
+			},
+			precondition: CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE,
+			menu: [
+				{
+					id: MenuId.EditorContext,
+					group: 'debug',
+					order: 5,
+					when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, PanelFocusContext.toNegated(), CONTEXT_DEBUG_STATE.isEqualTo('stopped'), EditorContextKeys.editorTextFocus, CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST)
+				},
+				{
+					id: MenuId.DebugCallStackContext,
+					group: 'z_commands',
+					order: 50,
+					when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped'), CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('stackFrame'), CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED)
+				},
+				{
+					id: MenuId.CommandPalette,
+					when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped'), CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED)
+				}
+			]
 		});
 	}
 
-	async run(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]): Promise<void> {
+	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]): void {
 		if (editor.hasModel()) {
 			const editorService = accessor.get(IEditorService);
 			editorService.openEditor(DisassemblyViewInput.instance, { pinned: true });
@@ -532,7 +548,7 @@ class CloseExceptionWidgetAction extends EditorAction {
 registerAction2(ToggleBreakpointAction);
 registerAction2(ConditionalBreakpointAction);
 registerAction2(LogPointAction);
-registerEditorAction(OpenDisassemblyViewAction);
+registerAction2(OpenDisassemblyViewAction);
 registerEditorAction(RunToCursorAction);
 registerEditorAction(StepIntoTargetsAction);
 registerEditorAction(SelectionToReplAction);

@@ -152,7 +152,11 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 						+ bottomToolbarGap
 						+ this.viewContext.notebookOptions.computeStatusBarHeight());
 				} else {
-					this._updateTotalHeight(this._previewHeight + bottomToolbarGap);
+					// @rebornix
+					// On file open, the previewHeight + bottomToolbarGap for a cell out of viewport can be 0
+					// When it's 0, the list view will never try to render it anymore even if we scroll the cell into view.
+					// Thus we make sure it's greater than 0
+					this._updateTotalHeight(Math.max(1, this._previewHeight + bottomToolbarGap));
 				}
 			}
 		}));

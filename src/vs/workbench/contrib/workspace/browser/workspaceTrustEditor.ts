@@ -52,6 +52,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { getExtensionDependencies } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { EnablementState, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 
 export const shieldIcon = registerCodicon('workspace-trust-icon', Codicon.shield);
 
@@ -610,6 +611,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService
 	) { super(WorkspaceTrustEditor.ID, telemetryService, themeService, storageService); }
 
 	protected createEditor(parent: HTMLElement): void {
@@ -806,6 +808,12 @@ export class WorkspaceTrustEditor extends EditorPane {
 		const localExtensions = this.extensionWorkbenchService.local.filter(ext => ext.local).map(ext => ext.local!);
 
 		for (const extension of localExtensions) {
+			const enablementState = this.extensionEnablementService.getEnablementState(extension);
+			if (enablementState !== EnablementState.EnabledGlobally && enablementState !== EnablementState.EnabledWorkspace &&
+				enablementState !== EnablementState.DisabledByTrustRequirement && enablementState !== EnablementState.DisabledByExtensionDependency) {
+				continue;
+			}
+
 			if (inVirtualWorkspace && this.extensionManifestPropertiesService.getExtensionVirtualWorkspaceSupportType(extension.manifest) === false) {
 				continue;
 			}

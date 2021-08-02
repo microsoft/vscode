@@ -1093,11 +1093,13 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 
 	const editors = await Promise.all(paths.map(async path => {
 		const resource = URI.revive(path.fileUri);
-
 		if (!resource) {
 			return;
 		}
 
+		// Since we are possibly the first ones to use the file service
+		// on the resource, we must ensure to activate the provider first
+		// before asking whether the resource can be handled.
 		await fileService.activateProvider(resource.scheme);
 
 		if (!fileService.canHandleResource(resource)) {

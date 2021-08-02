@@ -34,7 +34,7 @@
     "jsonc-parser": "^2.2.1",
     "semver": "5.5.1",
     "typescript-vscode-sh-plugin": "^0.7.3",
-    "vscode-extension-telemetry": "0.2.2",
+    "vscode-extension-telemetry": "0.2.6",
     "vscode-nls": "^5.0.0"
   },
   "devDependencies": {
@@ -304,7 +304,6 @@
           "markdownDescription": "%configuration.inlayHints.variableTypes.enabled%",
           "scope": "resource"
         },
-
         "typescript.inlayHints.propertyDeclarationTypes.enabled": {
           "type": "boolean",
           "default": false,

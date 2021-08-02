@@ -1418,11 +1418,11 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 					enum: ['never', 'always', 'multiline'],
 					default: defaults.autoFindInSelection,
 					enumDescriptions: [
-						nls.localize('editor.find.autoFindInSelection.never', 'Never turn on Find in selection automatically (default).'),
-						nls.localize('editor.find.autoFindInSelection.always', 'Always turn on Find in selection automatically.'),
-						nls.localize('editor.find.autoFindInSelection.multiline', 'Turn on Find in selection automatically when multiple lines of content are selected.')
+						nls.localize('editor.find.autoFindInSelection.never', 'Never turn on Find in Selection automatically (default).'),
+						nls.localize('editor.find.autoFindInSelection.always', 'Always turn on Find in Selection automatically.'),
+						nls.localize('editor.find.autoFindInSelection.multiline', 'Turn on Find in Selection automatically when multiple lines of content are selected.')
 					],
-					description: nls.localize('find.autoFindInSelection', "Controls the condition for turning on find in selection automatically.")
+					description: nls.localize('find.autoFindInSelection', "Controls the condition for turning on Find in Selection automatically.")
 				},
 				'editor.find.globalFindClipboard': {
 					type: 'boolean',
@@ -4295,7 +4295,7 @@ export const EditorOptions = {
 	)),
 	foldingImportsByDefault: register(new EditorBooleanOption(
 		EditorOption.foldingImportsByDefault, 'foldingImportsByDefault', false,
-		{ description: nls.localize('foldingImportsByDefault', "Controls whether the editor should auto collapse folded ranges or not.") }
+		{ description: nls.localize('foldingImportsByDefault', "Controls whether the editor automatically collapses import ranges.") }
 	)),
 	unfoldOnClickAfterEndOfLine: register(new EditorBooleanOption(
 		EditorOption.unfoldOnClickAfterEndOfLine, 'unfoldOnClickAfterEndOfLine', false,

@@ -192,4 +192,34 @@ suite('Notebook Find', () => {
 				assert.strictEqual(model.currentMatch, 1);
 			});
 	});
+
+	test('Reset when match not found, #127198', async function () {
+		await withTestNotebook(
+			[
+				['# header 1', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 1', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
+			],
+			async (editor, viewModel, accessor) => {
+				accessor.stub(IConfigurationService, configurationService);
+				const state = new FindReplaceState();
+				const model = new FindModel(editor, state, accessor.get(IConfigurationService));
+				state.change({ isRevealed: true }, true);
+				state.change({ searchString: '1' }, true);
+				assert.strictEqual(model.findMatches.length, 2);
+				assert.strictEqual(model.currentMatch, -1);
+				model.find(false);
+				assert.strictEqual(model.currentMatch, 0);
+				model.find(false);
+				assert.strictEqual(model.currentMatch, 1);
+				model.find(false);
+				assert.strictEqual(model.currentMatch, 0);
+
+				assert.strictEqual(editor.textModel.length, 3);
+
+				state.change({ searchString: '3' }, true);
+				assert.strictEqual(model.currentMatch, -1);
+				assert.strictEqual(model.findMatches.length, 0);
+			});
+	});
 });

@@ -13,6 +13,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isWeb } from 'vs/base/common/platform';
+import { ILogService } from 'vs/platform/log/common/log';
 
 class ExtensionResourceLoaderService implements IExtensionResourceLoaderService {
 
@@ -25,6 +26,7 @@ class ExtensionResourceLoaderService implements IExtensionResourceLoaderService 
 		@IProductService private readonly _productService: IProductService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		if (_productService.extensionsGallery) {
 			this._extensionGalleryResourceAuthority = this._getExtensionResourceAuthority(URI.parse(_productService.extensionsGallery.resourceUrlTemplate));
@@ -55,6 +57,7 @@ class ExtensionResourceLoaderService implements IExtensionResourceLoaderService 
 
 		const response = await fetch(uri.toString(true), requestInit);
 		if (response.status !== 200) {
+			this._logService.info(`Request to '${uri.toString(true)}' failed with status code ${response.status}`);
 			throw new Error(response.statusText);
 		}
 		return response.text();
