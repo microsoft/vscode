@@ -10,7 +10,7 @@ import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IShellLaunchConfig, TerminalLocation } from 'vs/platform/terminal/common/terminal';
-import { IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
+import { IEditorInput } from 'vs/workbench/common/editor';
 import { IRemoteTerminalService, ITerminalEditorService, ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
@@ -159,20 +159,26 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	}
 
 	async openEditor(instance: ITerminalInstance, sideGroup: boolean = false): Promise<void> {
-		const input = this.getOrCreateEditorInput(instance);
-		const editorPane: IEditorPane | undefined = await this._editorService.openEditor(input, {
-			pinned: true,
-			forceReload: true
-		}, sideGroup ? SIDE_GROUP : input.group);
-		input.setGroup(editorPane?.group);
+		const resource = this.getOrCreateEditorResource(instance);
+		if (resource) {
+			await this._editorService.openEditor({
+				resource: URI.revive(resource),
+				options:
+				{
+					pinned: true,
+					forceReload: true
+				}
+			},
+				sideGroup ? SIDE_GROUP : undefined);
+		}
 	}
 
-	getOrCreateEditorInput(instanceOrUri: ITerminalInstance | DeserializedTerminalEditorInput | URI, isFutureSplit: boolean = false): TerminalEditorInput {
+	getOrCreateEditorResource(instanceOrUri: ITerminalInstance | DeserializedTerminalEditorInput | URI, isFutureSplit: boolean = false): URI {
 		const resource: URI = URI.isUri(instanceOrUri) ? instanceOrUri : instanceOrUri.resource;
 		const inputKey = resource.path;
 		const cachedEditor = this._editorInputs.get(inputKey);
 		if (cachedEditor) {
-			return cachedEditor;
+			return cachedEditor.resource;
 		}
 
 		if ('pid' in instanceOrUri) {
@@ -208,7 +214,11 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			input = this._instantiationService.createInstance(TerminalEditorInput, instanceOrUri, undefined);
 			this._editorInputs.set(inputKey, input);
 		}
-		return input;
+		return input.resource;
+	}
+
+	getInputFromResource(resource: URI): TerminalEditorInput | undefined {
+		return this._editorInputs.get(resource.path);
 	}
 
 	private _registerInstance(inputKey: string, input: TerminalEditorInput, instance: ITerminalInstance): void {
@@ -234,7 +244,18 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			}
 		}
 		const instance = this._terminalInstanceService.createInstance(shellLaunchConfig, TerminalLocation.Editor);
-		this._editorService.openEditor(this.getOrCreateEditorInput(instance), undefined, SIDE_GROUP);
+		const resource = this.getOrCreateEditorResource(instance);
+		if (resource) {
+			this._editorService.openEditor({
+				resource: URI.revive(resource),
+				options:
+				{
+					pinned: true,
+					forceReload: true
+				}
+			},
+				SIDE_GROUP);
+		}
 		return instance;
 	}
 
