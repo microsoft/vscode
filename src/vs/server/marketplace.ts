@@ -161,6 +161,7 @@ const extractTar = async (tarPath: string, targetPath: string, options: vszip.IE
 export const enableCustomMarketplace = (): void => {
 	const extensionsGallery: IProductConfiguration['extensionsGallery'] = {
 		serviceUrl: process.env.SERVICE_URL || 'https://extensions.coder.com/api',
+		resourceUrlTemplate: '',
 		itemUrl: process.env.ITEM_URL || '',
 		controlUrl: '',
 		recommendationsUrl: '',

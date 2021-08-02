@@ -548,7 +548,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 						$('span', { class: 'codicon codicon-warning', style: 'margin-right: 2px; color: #C4A103' }),
 						'WARNING'),
 					$('p', { style: 'margin-top: 0; margin-bottom: 4px' },
-						'These extensions are not official. Find additional open-source extensions',
+						'These extensions are not official. Find additional open-source extensions ',
 						$('a', { style: `color: ${linkColor}`, href: 'https://open-vsx.org/', target: '_blank' }, 'here'),
 						'. See ',
 						$('a', { style: `color: ${linkColor}`, href: 'https://github.com/cdr/code-server/blob/master/docs/FAQ.md#differences-compared-to-vs-code', target: '_blank' }, 'docs'),
