@@ -198,20 +198,17 @@ export class TerminalService implements ITerminalService {
 						sourceGroup.removeInstance(instance);
 					}
 				}
-				const r = this._terminalEditorService.getOrCreateEditorResource(instance || resource);
-				if (!r) {
-					throw new Error('no r');
-				}
+				const resolvedResource = this._terminalEditorService.resolveResource(instance || resource);
+				let editor = this._terminalEditorService.getInputFromResource(resolvedResource) || { editor: URI.revive(resolvedResource) };
 				return {
-					editor: this._terminalEditorService.getInputFromResource(r)!,
+					editor,
 					options: {
 						...options,
 						pinned: true,
 						forceReload: true
 					}
 				};
-			}
-		);
+			});
 
 		this._forwardInstanceHostEvents(this._terminalGroupService);
 		this._forwardInstanceHostEvents(this._terminalEditorService);

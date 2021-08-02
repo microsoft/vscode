@@ -81,6 +81,7 @@ export class TerminalEditor extends EditorPane {
 	}
 
 	override async setInput(newInput: TerminalEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
+		console.log(this._terminalEditorService.getShellConfig(newInput.resource));
 		this._editorInput?.terminalInstance?.detachFromElement();
 		this._editorInput = newInput;
 		await super.setInput(newInput, options, context, token);
