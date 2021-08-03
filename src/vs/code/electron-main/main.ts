@@ -112,6 +112,11 @@ class CodeMain {
 				// instance of VS Code running and so we would quit.
 				const mainProcessNodeIpcServer = await this.claimInstance(logService, environmentMainService, lifecycleMainService, instantiationService, productService, true);
 
+				// Write a lockfile to indicate an instance is running (https://github.com/microsoft/vscode/issues/127861#issuecomment-877417451)
+				FSPromises.writeFile(environmentMainService.mainLockfile, String(process.pid)).catch(err => {
+					logService.warn(`Error writing main lockfile: ${err.stack}`);
+				});
+
 				// Delay creation of spdlog for perf reasons (https://github.com/microsoft/vscode/issues/72906)
 				bufferLogService.logger = new SpdLogLogger('main', join(environmentMainService.logsPath, 'main.log'), true, bufferLogService.getLevel());
 
@@ -119,6 +124,7 @@ class CodeMain {
 				once(lifecycleMainService.onWillShutdown)(() => {
 					fileService.dispose();
 					configurationService.dispose();
+					try { unlinkSync(environmentMainService.mainLockfile); } catch { }
 				});
 
 				return instantiationService.createInstance(CodeApplication, mainProcessNodeIpcServer, instanceEnvironment).startup();
@@ -339,8 +345,6 @@ class CodeMain {
 			throw new ExpectedError('Sent env to running instance. Terminating...');
 		}
 
-		this.createLockfile(logService, lifecycleMainService, environmentMainService);
-
 		// Print --status usage info
 		if (environmentMainService.args.status) {
 			logService.warn('Warning: The --status argument can only be used if Code is already running. Please run it again after Code has started.');
@@ -419,21 +423,6 @@ class CodeMain {
 		}
 
 		lifecycleMainService.kill(exitCode);
-	}
-
-	private async createLockfile(logService: ILogService, lifecycle: ILifecycleMainService, env: IEnvironmentMainService) {
-		FSPromises.writeFile(env.mainLockfile, String(process.pid)).catch(err => {
-			logService.warn(`Error writing main lockfile: ${err.stack}`);
-		});
-
-
-		once(lifecycle.onWillShutdown)(() => {
-			try {
-				unlinkSync(env.mainLockfile);
-			} catch {
-				// ignored
-			}
-		});
 	}
 
 	//#region Command line arguments utilities
