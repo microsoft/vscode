@@ -133,9 +133,10 @@ export class TestingExplorerView extends ViewPane {
 		const messagesContainer = dom.append(this.treeHeader, dom.$('.test-explorer-messages'));
 		this._register(this.testProgressService.onTextChange(text => {
 			const hadText = !!messagesContainer.innerText;
+			const hasText = !!text;
 			messagesContainer.innerText = text;
 
-			if (!hadText) {
+			if (hadText !== hasText) {
 				this.layoutBody();
 			}
 		}));
