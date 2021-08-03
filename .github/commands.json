@@ -71,6 +71,11 @@
 		"assign": ["rebornix"]
 	},
 	{
+		"type": "label",
+		"name": "L10N",
+		"assign": ["csigs", "TylerLeonhardt"]
+	},
+	{
 		"type": "comment",
 		"name": "duplicate",
 		"allowUsers": [
