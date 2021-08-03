@@ -43,8 +43,12 @@ function buildDriver(browser: playwright.Browser, context: playwright.BrowserCon
 		capturePage: () => Promise.resolve(''),
 		reloadWindow: (windowId) => Promise.resolve(),
 		exitApplication: async () => {
-			await context.tracing.stop({ path: join(logsPath, `playwright-trace-${traceCounter++}.zip`) });
-			await browser.close();
+			try {
+				await context.tracing.stop({ path: join(logsPath, `playwright-trace-${traceCounter++}.zip`) });
+				await browser.close();
+			} catch (error) {
+				console.error(error); // do not fail the build when this fails
+			}
 			await teardown();
 		},
 		dispatchKeybinding: async (windowId, keybinding) => {
