@@ -1355,6 +1355,7 @@ export class Repository {
 		if (opts.amend && !message) {
 			args.push('--amend', '--no-edit');
 		} else {
+			args.push('--cleanup', 'strip');
 			args.push('--file', '-');
 		}
 
