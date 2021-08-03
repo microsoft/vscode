@@ -196,131 +196,25 @@ export class RunToCursorAction extends EditorAction {
 	}
 
 	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		const debugService = accessor.get(IDebugService);
-		const focusedSession = debugService.getViewModel().focusedSession;
-		if (debugService.state !== State.Stopped || !focusedSession) {
-			return;
-		}
-
 		const position = editor.getPosition();
 		if (!(editor.hasModel() && position)) {
 			return;
 		}
-
 		const uri = editor.getModel().uri;
-		const bpExists = !!(debugService.getModel().getBreakpoints({ column: position.column, lineNumber: position.lineNumber, uri }).length);
 
-		let breakpointToRemove: IBreakpoint | undefined;
-		let threadToContinue = debugService.getViewModel().focusedThread;
-		if (!bpExists) {
-			const addResult = await this.addBreakpoints(accessor, uri, position);
-			if (addResult.thread) {
-				threadToContinue = addResult.thread;
-			}
-
-			if (addResult.breakpoint) {
-				breakpointToRemove = addResult.breakpoint;
-			}
-		}
-
-		if (!threadToContinue) {
-			return;
-		}
-
-		const oneTimeListener = threadToContinue.session.onDidChangeState(() => {
-			const state = focusedSession.state;
-			if (state === State.Stopped || state === State.Inactive) {
-				if (breakpointToRemove) {
-					debugService.removeBreakpoints(breakpointToRemove.getId());
-				}
-				oneTimeListener.dispose();
-			}
-		});
-
-		await threadToContinue.continue();
-	}
-
-	private async addBreakpoints(accessor: ServicesAccessor, uri: URI, position: Position) {
 		const debugService = accessor.get(IDebugService);
-		const debugModel = debugService.getModel();
 		const viewModel = debugService.getViewModel();
 		const uriIdentityService = accessor.get(IUriIdentityService);
 
-		let column = 0;
+		let column: number | undefined = undefined;
 		const focusedStackFrame = viewModel.focusedStackFrame;
 		if (focusedStackFrame && uriIdentityService.extUri.isEqual(focusedStackFrame.source.uri, uri) && focusedStackFrame.range.startLineNumber === position.lineNumber) {
-			// If the cursor is on a line different than the one the debugger is currently paused on, then send the breakpoint at column 0 on the line
+			// If the cursor is on a line different than the one the debugger is currently paused on, then send the breakpoint on the line without a column
 			// otherwise set it at the precise column #102199
 			column = position.column;
 		}
 
-		const breakpoints = await debugService.addBreakpoints(uri, [{ lineNumber: position.lineNumber, column }], false);
-		const breakpoint = breakpoints?.[0];
-		if (!breakpoint) {
-			return { breakpoint: undefined, thread: viewModel.focusedThread };
-		}
-
-		// If the breakpoint was not initially verified, wait up to 2s for it to become so.
-		// Inherently racey if multiple sessions can verify async, but not solvable...
-		if (!breakpoint.verified) {
-			let listener: IDisposable;
-			await raceTimeout(new Promise<void>(resolve => {
-				listener = debugModel.onDidChangeBreakpoints(() => {
-					if (breakpoint.verified) {
-						resolve();
-					}
-				});
-			}), 2000);
-			listener!.dispose();
-		}
-
-		// Look at paused threads for sessions that verified this bp. Prefer, in order:
-		const enum Score {
-			/** The focused thread */
-			Focused,
-			/** Any other stopped thread of a session that verified the bp */
-			Verified,
-			/** Any thread that verified and paused in the same file */
-			VerifiedAndPausedInFile,
-			/** The focused thread if it verified the breakpoint */
-			VerifiedAndFocused,
-		}
-
-		let bestThread = viewModel.focusedThread;
-		let bestScore = Score.Focused;
-		for (const sessionId of breakpoint.sessionsThatVerified) {
-			const session = debugModel.getSession(sessionId);
-			if (!session) {
-				continue;
-			}
-
-			const threads = session.getAllThreads().filter(t => t.stopped);
-			if (bestScore < Score.VerifiedAndFocused) {
-				if (viewModel.focusedThread && threads.includes(viewModel.focusedThread)) {
-					bestThread = viewModel.focusedThread;
-					bestScore = Score.VerifiedAndFocused;
-				}
-			}
-
-			if (bestScore < Score.VerifiedAndPausedInFile) {
-				const pausedInThisFile = threads.find(t => {
-					const top = t.getTopStackFrame();
-					return top && uriIdentityService.extUri.isEqual(top.source.uri, uri);
-				});
-
-				if (pausedInThisFile) {
-					bestThread = pausedInThisFile;
-					bestScore = Score.VerifiedAndPausedInFile;
-				}
-			}
-
-			if (bestScore < Score.Verified) {
-				bestThread = threads[0];
-				bestScore = Score.VerifiedAndPausedInFile;
-			}
-		}
-
-		return { thread: bestThread, breakpoint };
+		await debugService.runTo(uri, position.lineNumber, column);
 	}
 }
 

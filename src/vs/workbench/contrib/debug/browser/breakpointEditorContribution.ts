@@ -8,7 +8,7 @@ import * as env from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
 import { URI } from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
-import { IAction, Action, SubmenuAction } from 'vs/base/common/actions';
+import { IAction, Action, SubmenuAction, Separator } from 'vs/base/common/actions';
 import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType, IContentWidget, IActiveCodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness, ITextModel, OverviewRulerLane, IModelDecorationOverviewRulerOptions } from 'vs/editor/common/model';
@@ -35,6 +35,7 @@ import { registerThemingParticipant, themeColorFromId, ThemeIcon } from 'vs/plat
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 const $ = dom.$;
 
@@ -319,6 +320,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 
 	private getContextMenuActions(breakpoints: ReadonlyArray<IBreakpoint>, uri: URI, lineNumber: number, column?: number): IAction[] {
 		const actions: IAction[] = [];
+
 		if (breakpoints.length === 1) {
 			const breakpointType = breakpoints[0].logMessage ? nls.localize('logPoint', "Logpoint") : nls.localize('breakpoint', "Breakpoint");
 			actions.push(new Action('debug.removeBreakpoint', nls.localize('removeBreakpoint', "Remove {0}", breakpointType), undefined, true, async () => {
@@ -389,6 +391,16 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 				() => Promise.resolve(this.showBreakpointWidget(lineNumber, column, BreakpointWidgetContext.LOG_MESSAGE))
 			));
 		}
+
+		actions.push(new Separator());
+
+		actions.push(new Action(
+			'runToLine',
+			nls.localize('runToLine', "Run to Line"),
+			undefined,
+			true,
+			() => this.debugService.runTo(uri, lineNumber).catch(onUnexpectedError)
+		));
 
 		return actions;
 	}
