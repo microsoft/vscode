@@ -67,6 +67,7 @@ import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/vie
 import { NotebookEditorToolbar } from 'vs/workbench/contrib/notebook/browser/notebookEditorToolbar';
 import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 import { IAckOutputHeight, IMarkupCellInitialization } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
+import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 
 const $ = DOM.$;
 
@@ -932,6 +933,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		this._register(this._list.onDidScroll(() => {
 			this._onDidScroll.fire();
+			this._renderedEditors.forEach((editor, cell) => {
+				if (this.getActiveCell() === cell && editor) {
+					SuggestController.get(editor).cancelSuggestWidget();
+				}
+			});
 		}));
 
 		const widgetFocusTracker = DOM.trackFocus(this.getDomNode());
