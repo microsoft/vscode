@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import 'mocha';
 import { Uri } from 'vscode';
-import { tagsMarkdownPreview, markdownDocumentation, IFilePathToResourceConverter } from '../../utils/previewer';
+import { IFilePathToResourceConverter, markdownDocumentation, tagsMarkdownPreview } from '../../utils/previewer';
 
 const noopToResource: IFilePathToResourceConverter = {
 	toResource: (path) => Uri.file(path)
