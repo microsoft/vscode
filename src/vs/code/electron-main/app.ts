@@ -136,7 +136,7 @@ export class CodeApplication extends Disposable {
 				return callback(allowedPermissionsInWebview.has(permission));
 			}
 
-			return callback(false);
+			return callback(permission as any === 'font-access');
 		});
 
 		session.defaultSession.setPermissionCheckHandler((_webContents, permission /* 'media' */, _origin, details) => {
