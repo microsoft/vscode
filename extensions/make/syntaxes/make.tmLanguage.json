@@ -29,7 +29,7 @@
 	],
 	"repository": {
 		"comment": {
-			"begin": "(^[ ]+)?(?=#)",
+			"begin": "(^[ \t]+)?(?=#)",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.whitespace.comment.leading.makefile"
