@@ -237,15 +237,19 @@ export class CodeCell extends Disposable {
 
 		this.viewCell.layoutChange({});
 
-		if (this.viewCell.metadata.inputCollapsed && this.viewCell.metadata.outputCollapsed) {
-			this.viewUpdateAllCollapsed();
-		} else if (this.viewCell.metadata.inputCollapsed) {
-			this.viewUpdateInputCollapsed();
-		} else if (this.viewCell.metadata.outputCollapsed && this.viewCell.outputsViewModels.length) {
-			this.viewUpdateOutputCollapsed();
+		if (this.viewCell.metadata.inputCollapsed) {
+			this._collapseInput();
 		} else {
-			this.viewUpdateExpanded();
+			this._showInput();
 		}
+
+		if (this.viewCell.metadata.outputCollapsed) {
+			this._collapseOutput();
+		} else {
+			this._showOutput();
+		}
+
+		this.relayoutCell();
 
 		this._renderedOutputCollapseState = this.viewCell.metadata.outputCollapsed;
 		this._renderedInputCollapseState = this.viewCell.metadata.inputCollapsed;
@@ -253,77 +257,69 @@ export class CodeCell extends Disposable {
 		return true;
 	}
 
-	private getRichText(buffer: IReadonlyTextBuffer, language: string) {
-		return tokenizeToString(buffer.getLineContent(1), TokenizationRegistry.get(language)!);
-	}
+	private _collapseInput() {
+		// hide the editor and execution label, keep the run button
+		DOM.hide(this.templateData.editorPart);
+		DOM.hide(this.templateData.executionOrderLabel);
+		this.templateData.container.classList.toggle('input-collapsed', true);
 
-	private removeInputCollapsePreview() {
-		const children = this.templateData.collapsedPart.children;
-		let collapsePreviewElements = [];
+		// remove input preview
+		this._removeInputCollapsePreview();
 
-		for (let i = 0; i < children.length; i++) {
-			if (children[i].classList.contains('cell-collapse-preview')) {
-				collapsePreviewElements.push(children[i]);
-			}
-		}
-
-		collapsePreviewElements.forEach(element => {
-			element.parentElement?.removeChild(element);
-		});
-	}
-
-	private updateInputCollaseElement(): void {
-		this.removeInputCollapsePreview();
-		const richEditorText = this.getRichText(this.viewCell.textBuffer, this.viewCell.language);
+		// update preview
+		const richEditorText = this._getRichText(this.viewCell.textBuffer, this.viewCell.language);
 		const element = DOM.$('div');
 		element.classList.add('cell-collapse-preview');
 		DOM.safeInnerHtml(element, richEditorText);
-		this.templateData.collapsedPart.appendChild(element);
+		this.templateData.cellInputCollapsedContainer.appendChild(element);
+
+		DOM.show(this.templateData.cellInputCollapsedContainer);
 	}
 
-	private viewUpdateInputCollapsed(): void {
-		DOM.hide(this.templateData.cellContainer);
-		DOM.hide(this.templateData.runButtonContainer);
-		DOM.show(this.templateData.collapsedPart);
-		DOM.show(this.templateData.outputContainer);
-		this.templateData.container.classList.toggle('input-collapsed', true);
+	private _showInput() {
+		DOM.show(this.templateData.editorPart);
+		DOM.show(this.templateData.executionOrderLabel);
+		DOM.hide(this.templateData.cellInputCollapsedContainer);
+	}
+
+	private _getRichText(buffer: IReadonlyTextBuffer, language: string) {
+		return tokenizeToString(buffer.getLineContent(1), TokenizationRegistry.get(language)!);
+	}
+
+	private _removeInputCollapsePreview() {
+		DOM.clearNode(this.templateData.cellInputCollapsedContainer);
+	}
+
+	private _updateOutputInnertContainer(hide: boolean) {
+		const children = this.templateData.outputContainer.children;
+		for (let i = 0; i < children.length; i++) {
+			if (children[i].classList.contains('output-inner-container')) {
+				if (hide) {
+					DOM.hide(children[i] as HTMLElement);
+				} else {
+					DOM.show(children[i] as HTMLElement);
+				}
+			}
+		}
+	}
+
+	private _collapseOutput() {
+		this.templateData.container.classList.toggle('output-collapsed', true);
+		DOM.show(this.templateData.cellOutputCollapsedContainer);
+		this._updateOutputInnertContainer(true);
+		this._outputContainerRenderer.viewUpdateHideOuputs();
+	}
+
+	private _showOutput() {
+		this.templateData.container.classList.toggle('output-collapsed', false);
+		DOM.hide(this.templateData.cellOutputCollapsedContainer);
+		this._updateOutputInnertContainer(false);
 		this._outputContainerRenderer.viewUpdateShowOutputs();
-		this.updateInputCollaseElement();
-
-		this.relayoutCell();
-	}
-
-	private viewUpdateOutputCollapsed(): void {
-		DOM.show(this.templateData.cellContainer);
-		DOM.show(this.templateData.runButtonContainer);
-		DOM.show(this.templateData.collapsedPart);
-		DOM.hide(this.templateData.outputContainer);
-		this.removeInputCollapsePreview();
-		this._outputContainerRenderer.viewUpdateHideOuputs();
-		this.templateData.container.classList.toggle('input-collapsed', false);
-		this.templateData.container.classList.toggle('output-collapsed', true);
-
-		this.relayoutCell();
-	}
-
-	private viewUpdateAllCollapsed(): void {
-		DOM.hide(this.templateData.cellContainer);
-		DOM.hide(this.templateData.runButtonContainer);
-		DOM.show(this.templateData.collapsedPart);
-		DOM.hide(this.templateData.outputContainer);
-		this.templateData.container.classList.toggle('input-collapsed', true);
-		this.templateData.container.classList.toggle('output-collapsed', true);
-		this._outputContainerRenderer.viewUpdateHideOuputs();
-		this.updateInputCollaseElement();
-		this.relayoutCell();
 	}
 
 	private viewUpdateExpanded(): void {
-		DOM.show(this.templateData.cellContainer);
-		DOM.show(this.templateData.runButtonContainer);
-		DOM.hide(this.templateData.collapsedPart);
-		this.removeInputCollapsePreview();
-		DOM.show(this.templateData.outputContainer);
+		this._showInput();
+		this._showOutput();
 		this.templateData.container.classList.toggle('input-collapsed', false);
 		this.templateData.container.classList.toggle('output-collapsed', false);
 		this._outputContainerRenderer.viewUpdateShowOutputs();
@@ -368,7 +364,7 @@ export class CodeCell extends Disposable {
 
 	override dispose() {
 		this.viewCell.detachTextEditor();
-		this.removeInputCollapsePreview();
+		this._removeInputCollapsePreview();
 		this._outputContainerRenderer.dispose();
 		this._untrustedStatusItem?.dispose();
 		this.templateData.focusIndicatorLeft.style.height = 'initial';
