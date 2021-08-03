@@ -14,7 +14,7 @@ import { pathsToEditors } from 'vs/workbench/common/editor';
 import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IModifierKeyStatus, ModifierKeyEmitter, trackFocus } from 'vs/base/browser/dom';
+import { ModifierKeyEmitter, trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -31,6 +31,7 @@ import Severity from 'vs/base/common/severity';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DomEmitter } from 'vs/base/browser/event';
 import { isUndefined } from 'vs/base/common/types';
+import { IStorageService, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 
 /**
  * A workspace to open in the workbench can either be:
@@ -107,11 +108,12 @@ export class BrowserHostService extends Disposable implements IHostService {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@ILogService private readonly logService: ILogService,
-		@IDialogService private readonly dialogService: IDialogService
+		@IDialogService private readonly dialogService: IDialogService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
 
-		if (environmentService.options && environmentService.options.workspaceProvider) {
+		if (environmentService.options?.workspaceProvider) {
 			this.workspaceProvider = environmentService.options.workspaceProvider;
 		} else {
 			this.workspaceProvider = new class implements IWorkspaceProvider {
@@ -130,10 +132,18 @@ export class BrowserHostService extends Disposable implements IHostService {
 		this._register(this.lifecycleService.onBeforeShutdown(e => this.onBeforeShutdown(e)));
 
 		// Track modifier keys to detect keybinding usage
-		this._register(ModifierKeyEmitter.getInstance().event(e => this.updateShutdownReasonFromEvent(e)));
+		this._register(ModifierKeyEmitter.getInstance().event(() => this.updateShutdownReasonFromEvent()));
 	}
 
 	private onBeforeShutdown(e: BeforeShutdownEvent): void {
+
+		// Optimistically trigger a UI state flush
+		// without waiting for it. The browser does
+		// not guarantee that this is being executed
+		// but if a dialog opens, we have a chance
+		// to succeed.
+		this.storageService.flush(WillSaveStateReason.SHUTDOWN);
+
 		switch (this.shutdownReason) {
 
 			// Unknown / Keyboard shows veto depending on setting
@@ -154,7 +164,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		this.shutdownReason = HostShutdownReason.Unknown;
 	}
 
-	private updateShutdownReasonFromEvent(e: IModifierKeyStatus): void {
+	private updateShutdownReasonFromEvent(): void {
 		if (this.shutdownReason === HostShutdownReason.Api) {
 			return; // do not overwrite any explicitly set shutdown reason
 		}
@@ -438,22 +448,21 @@ export class BrowserHostService extends Disposable implements IHostService {
 		this.reload();
 	}
 
-	async reload(): Promise<void> {
-		this.withExpectedShutdown(() => {
-			window.location.reload();
-		});
+	reload(): Promise<void> {
+		return this.withExpectedShutdown(() => window.location.reload());
 	}
 
-	async close(): Promise<void> {
-		this.withExpectedShutdown(() => {
-			window.close();
-		});
+	close(): Promise<void> {
+		return this.withExpectedShutdown(() => window.close());
 	}
 
-	private withExpectedShutdown(callback: () => void): void {
+	private async withExpectedShutdown(callback: () => void): Promise<void> {
 
 		// Update shutdown reason in a way that we do not show a dialog
 		this.shutdownReason = HostShutdownReason.Api;
+
+		// Ensure UI state is persisted
+		await this.storageService.flush(WillSaveStateReason.SHUTDOWN);
 
 		callback();
 	}
