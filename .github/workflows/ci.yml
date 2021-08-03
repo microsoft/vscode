@@ -189,11 +189,11 @@ jobs:
       - name: Compile and Download
         run: yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
 
-      - name: Reset login keychain
+      - name: Create temporary keychain
         run: |
-          security list-keychain
-          security lock-keychain /Users/runner/Library/Keychains/login.keychain-db
-          security unlock-keychain /Users/runner/Library/Keychains/login.keychain-db
+          security create-keychain -p pwd $RUNNER_TEMP/buildagent.keychain
+          security default-keychain -s $RUNNER_TEMP/buildagent.keychain
+          security unlock-keychain -p pwd $RUNNER_TEMP/buildagent.keychain
 
       - name: Run Unit Tests (Electron)
         run: DISPLAY=:10 ./scripts/test.sh
