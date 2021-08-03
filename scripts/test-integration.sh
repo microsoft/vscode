@@ -39,6 +39,7 @@ else
 				compile-extension:html-language-features-server \
 				compile-extension:json-language-features-server \
 				compile-extension:git \
+				compile-extension:ipynb \
 				compile-extension-media
 
 	# Configuration for more verbose output
