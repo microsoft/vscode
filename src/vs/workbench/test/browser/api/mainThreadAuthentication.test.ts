@@ -125,7 +125,7 @@ suite('MainThreadAuthentication', () => {
 		const session = await mainThreadAuthentication.$getSession('test', ['foo'], 'testextension', 'test extension', {
 			createIfNone: true,
 			clearSessionPreference: false,
-			forceRecreate: false
+			forceNewSession: false
 		});
 		assert.strictEqual(session?.id, 'test');
 		assert.strictEqual(session?.scopes[0], 'foo');
@@ -135,7 +135,7 @@ suite('MainThreadAuthentication', () => {
 		const session = await mainThreadAuthentication.$getSession('test', ['foo'], 'testextension', 'test extension', {
 			createIfNone: true,
 			clearSessionPreference: false,
-			forceRecreate: false
+			forceNewSession: false
 		});
 
 		assert.strictEqual(session?.id, 'test');
@@ -144,7 +144,7 @@ suite('MainThreadAuthentication', () => {
 		const session2 = await mainThreadAuthentication.$getSession('test', ['foo'], 'testextension', 'test extension', {
 			createIfNone: false,
 			clearSessionPreference: false,
-			forceRecreate: true
+			forceNewSession: true
 		});
 
 		assert.strictEqual(session.id, session2?.id);
@@ -157,7 +157,7 @@ suite('MainThreadAuthentication', () => {
 			await mainThreadAuthentication.$getSession('empty', ['foo'], 'testextension', 'test extension', {
 				createIfNone: false,
 				clearSessionPreference: false,
-				forceRecreate: true
+				forceNewSession: true
 			});
 			assert.fail('should have thrown an Error.');
 		} catch (e) {

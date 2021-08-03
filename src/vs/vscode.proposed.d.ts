@@ -162,7 +162,7 @@ declare module 'vscode' {
 		 *
 		 * Defaults to false.
 		 */
-		forceRecreate?: boolean;
+		forceNewSession?: boolean | { detail: string };
 	}
 
 	export namespace authentication {
@@ -179,7 +179,8 @@ declare module 'vscode' {
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { forceRecreate: true }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { forceNewSession: true }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { forceNewSession: { detail: string } }): Thenable<AuthenticationSession>;
 	}
 
 	export namespace workspace {
