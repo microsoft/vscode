@@ -79,6 +79,7 @@ export class SuggestWidgetAdapterModel extends BaseGhostTextWidgetModel {
 
 		this._register(this.editor.onDidChangeCursorPosition((e) => {
 			if (this.isSuggestionPreviewEnabled()) {
+				this.minReservedLineCount = 0;
 				this.update();
 			}
 		}));
