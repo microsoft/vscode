@@ -2165,7 +2165,7 @@ export class Repository {
 			}
 
 			const raw = await fs.readFile(templatePath, 'utf8');
-			return this.stripCommitMessageComments(raw);
+			return raw;
 		} catch (err) {
 			return '';
 		}
