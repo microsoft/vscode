@@ -420,7 +420,7 @@ registerAction2(class ExecuteAboveCells extends NotebookMultiCellAction<INoteboo
 				},
 				{
 					id: MenuId.NotebookCellTitle,
-					group: 'inline',
+					group: 'inline/cell@1',
 					when: ContextKeyExpr.and(
 						executeCellCondition,
 						ContextKeyExpr.equals('config.notebook.consolidatedRunButton', false))
@@ -463,7 +463,7 @@ registerAction2(class ExecuteCellAndBelow extends NotebookMultiCellAction<INoteb
 				},
 				{
 					id: MenuId.NotebookCellTitle,
-					group: 'inline',
+					group: 'inline/cell@1',
 					when: ContextKeyExpr.and(
 						executeCellCondition,
 						ContextKeyExpr.equals('config.notebook.consolidatedRunButton', false))
