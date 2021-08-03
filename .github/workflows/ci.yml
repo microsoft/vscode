@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - robo/fix_keytar_ci
       - release/*
   pull_request:
     branches:
