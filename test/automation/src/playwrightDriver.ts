@@ -188,6 +188,13 @@ export function connect(options: Options = {}): Promise<{ client: IDisposable, d
 		await context.tracing.start({ screenshots: true, snapshots: true });
 		const page = await context.newPage();
 		await page.setViewportSize({ width, height });
+		page.on('pageerror', async error => console.error(`Playwright ERROR: page error: ${error}`));
+		page.on('crash', page => console.error('Playwright ERROR: page crash'));
+		page.on('response', async response => {
+			if (response.status() >= 400) {
+				console.error(`Playwright ERROR: HTTP status ${response.status()} for ${response.url()}`);
+			}
+		});
 		const payloadParam = `[["enableProposedApi",""],["skipWelcome","true"]]`;
 		await page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${URI.file(workspacePath!).path}&payload=${payloadParam}`);
 		const result = {
