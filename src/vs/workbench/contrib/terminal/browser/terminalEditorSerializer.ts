@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalIcon, TitleEventSource } from 'vs/platform/terminal/common/terminal';
-import { IEditorInputSerializer } from 'vs/workbench/common/editor';
+import { IEditorSerializer } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITerminalEditorService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 
-export class TerminalInputSerializer implements IEditorInputSerializer {
+export class TerminalInputSerializer implements IEditorSerializer {
 	constructor(
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService
 	) { }
@@ -29,8 +30,8 @@ export class TerminalInputSerializer implements IEditorInputSerializer {
 
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined {
 		const terminalInstance = JSON.parse(serializedEditorInput);
+		terminalInstance.resource = URI.parse(terminalInstance.resource);
 		const editor = this._terminalEditorService.getOrCreateEditorInput(terminalInstance);
-		editor.terminalInstance?.onExit(() => editor.dispose());
 		return editor;
 	}
 
@@ -42,12 +43,14 @@ export class TerminalInputSerializer implements IEditorInputSerializer {
 			titleSource: instance.titleSource,
 			cwd: '',
 			icon: instance.icon,
-			color: instance.color
+			color: instance.color,
+			resource: instance.resource.toString(),
+			hasChildProcesses: instance.hasChildProcesses
 		};
 	}
 }
 
-export interface SerializedTerminalEditorInput {
+interface TerminalEditorInputObject {
 	readonly id: number;
 	readonly pid: number;
 	readonly title: string;
@@ -55,4 +58,13 @@ export interface SerializedTerminalEditorInput {
 	readonly cwd: string;
 	readonly icon: TerminalIcon | undefined;
 	readonly color: string | undefined;
+	readonly hasChildProcesses?: boolean;
+}
+
+export interface SerializedTerminalEditorInput extends TerminalEditorInputObject {
+	readonly resource: string
+}
+
+export interface DeserializedTerminalEditorInput extends TerminalEditorInputObject {
+	readonly resource: URI
 }

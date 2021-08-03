@@ -11,9 +11,6 @@ import { IStorage, Storage, IStorageDatabase, IUpdateRequest, InMemoryStorageDat
 import { Promises } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { joinPath } from 'vs/base/common/resources';
 
 export class BrowserStorageService extends AbstractStorageService {
 
@@ -31,9 +28,7 @@ export class BrowserStorageService extends AbstractStorageService {
 
 	constructor(
 		private readonly payload: IWorkspaceInitializationPayload,
-		@ILogService private readonly logService: ILogService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IFileService private readonly fileService: IFileService
+		@ILogService private readonly logService: ILogService
 	) {
 		super({ flushInterval: BrowserStorageService.BROWSER_DEFAULT_FLUSH_INTERVAL });
 	}
@@ -69,7 +64,6 @@ export class BrowserStorageService extends AbstractStorageService {
 		// Check to see if this is the first time we are "opening" the application
 		const firstOpen = this.globalStorage.getBoolean(IS_NEW_KEY);
 		if (firstOpen === undefined) {
-			await this.migrateOldStorage(StorageScope.GLOBAL); // TODO@bpasero remove browser storage migration
 			this.globalStorage.set(IS_NEW_KEY, true);
 		} else if (firstOpen) {
 			this.globalStorage.set(IS_NEW_KEY, false);
@@ -78,40 +72,9 @@ export class BrowserStorageService extends AbstractStorageService {
 		// Check to see if this is the first time we are "opening" this workspace
 		const firstWorkspaceOpen = this.workspaceStorage.getBoolean(IS_NEW_KEY);
 		if (firstWorkspaceOpen === undefined) {
-			await this.migrateOldStorage(StorageScope.WORKSPACE); // TODO@bpasero remove browser storage migration
 			this.workspaceStorage.set(IS_NEW_KEY, true);
 		} else if (firstWorkspaceOpen) {
 			this.workspaceStorage.set(IS_NEW_KEY, false);
-		}
-	}
-
-	private async migrateOldStorage(scope: StorageScope): Promise<void> {
-		try {
-			const stateRoot = joinPath(this.environmentService.userRoamingDataHome, 'state');
-
-			if (scope === StorageScope.GLOBAL) {
-				const globalStorageFile = joinPath(stateRoot, 'global.json');
-				const globalItemsRaw = await this.fileService.readFile(globalStorageFile);
-				const globalItems = new Map<string, string>(JSON.parse(globalItemsRaw.value.toString()));
-
-				for (const [key, value] of globalItems) {
-					this.globalStorage?.set(key, value);
-				}
-
-				await this.fileService.del(globalStorageFile);
-			} else if (scope === StorageScope.WORKSPACE) {
-				const workspaceStorageFile = joinPath(stateRoot, `${this.payload.id}.json`);
-				const workspaceItemsRaw = await this.fileService.readFile(workspaceStorageFile);
-				const workspaceItems = new Map<string, string>(JSON.parse(workspaceItemsRaw.value.toString()));
-
-				for (const [key, value] of workspaceItems) {
-					this.workspaceStorage?.set(key, value);
-				}
-
-				await this.fileService.del(workspaceStorageFile);
-			}
-		} catch (error) {
-			// ignore
 		}
 	}
 

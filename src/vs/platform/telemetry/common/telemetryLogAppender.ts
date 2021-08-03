@@ -14,12 +14,19 @@ export class TelemetryLogAppender extends Disposable implements ITelemetryAppend
 
 	constructor(
 		@ILoggerService loggerService: ILoggerService,
-		@IEnvironmentService environmentService: IEnvironmentService
+		@IEnvironmentService environmentService: IEnvironmentService,
+		private readonly prefix: string = '',
 	) {
 		super();
-		this.logger = this._register(loggerService.createLogger(environmentService.telemetryLogResource));
-		this.logger.info('The below are logs for every telemetry event sent from VS Code once the log level is set to trace.');
-		this.logger.info('===========================================================');
+
+		const logger = loggerService.getLogger(environmentService.telemetryLogResource);
+		if (logger) {
+			this.logger = this._register(logger);
+		} else {
+			this.logger = this._register(loggerService.createLogger(environmentService.telemetryLogResource));
+			this.logger.info('The below are logs for every telemetry event sent from VS Code once the log level is set to trace.');
+			this.logger.info('===========================================================');
+		}
 	}
 
 	flush(): Promise<any> {
@@ -27,7 +34,7 @@ export class TelemetryLogAppender extends Disposable implements ITelemetryAppend
 	}
 
 	log(eventName: string, data: any): void {
-		this.logger.trace(`telemetry/${eventName}`, validateTelemetryData(data));
+		this.logger.trace(`${this.prefix}telemetry/${eventName}`, validateTelemetryData(data));
 	}
 }
 

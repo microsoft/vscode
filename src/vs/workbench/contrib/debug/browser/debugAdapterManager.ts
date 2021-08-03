@@ -273,7 +273,7 @@ export class AdapterManager implements IAdapterManager {
 		let languageLabel: string | null = null;
 		let model: IEditorModel | null = null;
 		if (isCodeEditor(activeTextEditorControl)) {
-			const model = activeTextEditorControl.getModel();
+			model = activeTextEditorControl.getModel();
 			const language = model ? model.getLanguageIdentifier().language : undefined;
 			if (language) {
 				languageLabel = this.modeService.getLanguageName(language);

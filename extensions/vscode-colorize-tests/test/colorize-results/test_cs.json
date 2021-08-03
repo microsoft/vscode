@@ -715,7 +715,29 @@
 		}
 	},
 	{
-		"c": "3.14159",
+		"c": "3",
+		"t": "source.cs constant.numeric.decimal.cs",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.cs constant.numeric.other.separator.decimals.cs",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": "14159",
 		"t": "source.cs constant.numeric.decimal.cs",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",

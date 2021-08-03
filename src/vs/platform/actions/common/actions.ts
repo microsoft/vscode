@@ -45,6 +45,7 @@ export interface ICommandAction {
 	category?: string | ILocalizedString;
 	tooltip?: string;
 	icon?: Icon;
+	source?: string;
 	precondition?: ContextKeyExpression;
 	toggled?: ContextKeyExpression | { condition: ContextKeyExpression, icon?: Icon, tooltip?: string, title?: string | ILocalizedString };
 }
@@ -66,6 +67,7 @@ export interface ISubmenuItem {
 	when?: ContextKeyExpression;
 	group?: 'navigation' | string;
 	order?: number;
+	rememberDefaultAction?: boolean;	// for dropdown menu: if true the last executed action is remembered as the default action
 }
 
 export function isIMenuItem(item: IMenuItem | ISubmenuItem): item is IMenuItem {
@@ -128,6 +130,7 @@ export class MenuId {
 	static readonly StatusBarWindowIndicatorMenu = new MenuId('StatusBarWindowIndicatorMenu');
 	static readonly StatusBarRemoteIndicatorMenu = new MenuId('StatusBarRemoteIndicatorMenu');
 	static readonly TestItem = new MenuId('TestItem');
+	static readonly TestItemGutter = new MenuId('TestItemGutter');
 	static readonly TestPeekElement = new MenuId('TestPeekElement');
 	static readonly TestPeekTitle = new MenuId('TestPeekTitle');
 	static readonly TouchBarContext = new MenuId('TouchBarContext');
@@ -150,6 +153,7 @@ export class MenuId {
 	static readonly InteractiveToolbar = new MenuId('InteractiveToolbar');
 	static readonly InteractiveCellTitle = new MenuId('InteractiveCellTitle');
 	static readonly InteractiveCellExecute = new MenuId('InteractiveCellExecute');
+	static readonly InteractiveInputExecute = new MenuId('InteractiveInputExecute');
 	static readonly NotebookToolbar = new MenuId('NotebookToolbar');
 	static readonly NotebookCellTitle = new MenuId('NotebookCellTitle');
 	static readonly NotebookCellInsert = new MenuId('NotebookCellInsert');
@@ -174,6 +178,7 @@ export class MenuId {
 	static readonly TerminalInlineTabContext = new MenuId('TerminalInlineTabContext');
 	static readonly WebviewContext = new MenuId('WebviewContext');
 	static readonly InlineCompletionsActions = new MenuId('InlineCompletionsActions');
+	static readonly NewFile = new MenuId('NewFile');
 
 	readonly id: number;
 	readonly _debugName: string;

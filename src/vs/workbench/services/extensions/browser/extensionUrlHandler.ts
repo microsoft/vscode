@@ -236,7 +236,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			}
 
 			// Extension is disabled. Enable the extension and reload the window to handle.
-			else {
+			else if (this.extensionEnablementService.canChangeEnablement(extension)) {
 				const result = await this.dialogService.confirm({
 					message: localize('enableAndHandle', "Extension '{0}' is disabled. Would you like to enable the extension and reload the window to open the URL?", extension.manifest.displayName || extension.manifest.name),
 					detail: `${extension.manifest.displayName || extension.manifest.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
@@ -327,7 +327,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	}
 
 	private getConfirmedTrustedExtensionIdsFromConfiguration(): Array<string> {
-		const trustedExtensionIds = this.configurationService.getValue<Array<string>>(USER_TRUSTED_EXTENSIONS_CONFIGURATION_KEY);
+		const trustedExtensionIds = this.configurationService.getValue(USER_TRUSTED_EXTENSIONS_CONFIGURATION_KEY);
 
 		if (!Array.isArray(trustedExtensionIds)) {
 			return [];

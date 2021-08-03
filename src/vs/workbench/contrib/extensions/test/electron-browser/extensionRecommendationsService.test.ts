@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import * as uuid from 'vs/base/common/uuid';
 import {
 	IExtensionGalleryService, IGalleryExtensionAssets, IGalleryExtension, IExtensionManagementService,
-	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, IExtensionTipsService
+	DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, IExtensionTipsService, InstallExtensionResult
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -187,7 +187,7 @@ suite('ExtensionRecommendationsService Test', () => {
 	let testConfigurationService: TestConfigurationService;
 	let testObject: ExtensionRecommendationsService;
 	let installEvent: Emitter<InstallExtensionEvent>,
-		didInstallEvent: Emitter<DidInstallExtensionEvent>,
+		didInstallEvent: Emitter<readonly InstallExtensionResult[]>,
 		uninstallEvent: Emitter<IExtensionIdentifier>,
 		didUninstallEvent: Emitter<DidUninstallExtensionEvent>;
 	let prompted: boolean;
@@ -198,7 +198,7 @@ suite('ExtensionRecommendationsService Test', () => {
 	suiteSetup(() => {
 		instantiationService = new TestInstantiationService();
 		installEvent = new Emitter<InstallExtensionEvent>();
-		didInstallEvent = new Emitter<DidInstallExtensionEvent>();
+		didInstallEvent = new Emitter<readonly InstallExtensionResult[]>();
 		uninstallEvent = new Emitter<IExtensionIdentifier>();
 		didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
@@ -210,7 +210,7 @@ suite('ExtensionRecommendationsService Test', () => {
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IExtensionManagementService, <Partial<IExtensionManagementService>>{
 			onInstallExtension: installEvent.event,
-			onDidInstallExtension: didInstallEvent.event,
+			onDidInstallExtensions: didInstallEvent.event,
 			onUninstallExtension: uninstallEvent.event,
 			onDidUninstallExtension: didUninstallEvent.event,
 			async getInstalled() { return []; },

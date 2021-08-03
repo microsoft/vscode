@@ -17,6 +17,8 @@ import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/com
 import { ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
+import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 
 export interface CustomDocumentBackupData extends IWorkingCopyBackupMeta {
 	readonly viewType: string;
@@ -55,6 +57,7 @@ export class CustomEditorInputSerializer extends WebviewEditorInputSerializer {
 		@IWebviewWorkbenchService webviewWorkbenchService: IWebviewWorkbenchService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
+		@IEditorResolverService private readonly _editorResolverService: IEditorResolverService
 	) {
 		super(webviewWorkbenchService);
 	}
@@ -88,6 +91,13 @@ export class CustomEditorInputSerializer extends WebviewEditorInputSerializer {
 		serializedEditorInput: string
 	): CustomEditorInput {
 		const data = this.fromJson(JSON.parse(serializedEditorInput));
+		if (data.viewType === 'jupyter.notebook.ipynb') {
+			const editorAssociation = this._editorResolverService.getAssociationsForResource(data.editorResource);
+			if (!editorAssociation.find(association => association.viewType === 'jupyter.notebook.ipynb')) {
+				return NotebookEditorInput.create(this._instantiationService, data.editorResource, 'jupyter-notebook', { _backupId: data.backupId, startDirty: data.dirty }) as any;
+			}
+		}
+
 		const webview = reviveWebview(this._webviewService, data);
 		const customInput = this._instantiationService.createInstance(CustomEditorInput, data.editorResource, data.viewType, data.id, webview, { startsDirty: data.dirty, backupId: data.backupId });
 		if (typeof data.group === 'number') {
@@ -113,6 +123,7 @@ export class ComplexCustomWorkingCopyEditorHandler extends Disposable implements
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkingCopyEditorService private readonly _workingCopyEditorService: IWorkingCopyEditorService,
 		@IWorkingCopyBackupService private readonly _workingCopyBackupService: IWorkingCopyBackupService,
+		@IEditorResolverService private readonly _editorResolverService: IEditorResolverService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
 		@ICustomEditorService _customEditorService: ICustomEditorService // DO NOT REMOVE (needed on startup to register overrides properly)
 	) {
@@ -125,6 +136,15 @@ export class ComplexCustomWorkingCopyEditorHandler extends Disposable implements
 		this._register(this._workingCopyEditorService.registerHandler({
 			handles: workingCopy => workingCopy.resource.scheme === Schemas.vscodeCustomEditor,
 			isOpen: (workingCopy, editor) => {
+				if (workingCopy.resource.authority === 'jupyter-notebook-ipynb' && editor instanceof NotebookEditorInput) {
+					try {
+						const data = JSON.parse(workingCopy.resource.query);
+						const workingCopyResource = URI.from(data);
+						return isEqual(workingCopyResource, editor.resource);
+					} catch {
+						return false;
+					}
+				}
 				if (!(editor instanceof CustomEditorInput)) {
 					return false;
 				}
@@ -149,6 +169,13 @@ export class ComplexCustomWorkingCopyEditorHandler extends Disposable implements
 				}
 
 				const backupData = backup.meta;
+				if (backupData.viewType === 'jupyter.notebook.ipynb') {
+					const editorAssociation = this._editorResolverService.getAssociationsForResource(URI.revive(backupData.editorResource));
+					if (!editorAssociation.find(association => association.viewType === 'jupyter.notebook.ipynb')) {
+						return NotebookEditorInput.create(this._instantiationService, URI.revive(backupData.editorResource), 'jupyter-notebook', { startDirty: !!backupData.backupId, _backupId: backupData.backupId, _workingCopy: workingCopy }) as any;
+					}
+				}
+
 				const id = backupData.webview.id;
 				const extension = reviveWebviewExtensionDescription(backupData.extension?.id, backupData.extension?.location);
 				const webview = reviveWebview(this._webviewService, {

@@ -10,7 +10,7 @@ import { afterSuite, beforeSuite } from '../../utils';
 export function setup(opts: minimist.ParsedArgs) {
 	describe('Editor', () => {
 		beforeSuite(opts);
-		afterSuite();
+		afterSuite(opts);
 
 		it('shows correct quick outline', async function () {
 			const app = this.app as Application;

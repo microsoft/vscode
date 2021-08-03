@@ -31,7 +31,7 @@ export interface IStatusbarEntry {
 	/**
 	 * The text to show for the entry. You can embed icons in the text by leveraging the syntax:
 	 *
-	 * `My text ${icon name} contains icons like ${icon name} this one.`
+	 * `My text $(icon name) contains icons like $(icon name) this one.`
 	 */
 	readonly text: string;
 

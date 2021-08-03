@@ -88,7 +88,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 			zoomLevel: getZoomLevel(),
 			enabledExtensions: extensionData,
 			experiments: experiments?.join('\n'),
-			restrictedMode: !this.workspaceTrustManagementService.isWorkpaceTrusted(),
+			restrictedMode: !this.workspaceTrustManagementService.isWorkspaceTrusted(),
 			githubAccessToken,
 		}, dataOverrides);
 		return this.issueService.openReporter(issueReporterData);

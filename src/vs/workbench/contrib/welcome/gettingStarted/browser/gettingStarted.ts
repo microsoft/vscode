@@ -6,7 +6,7 @@
 import 'vs/css!./gettingStarted';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInputSerializer, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { IEditorSerializer, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
 import { $, addDisposableListener, append, clearNode, Dimension, reset } from 'vs/base/browser/dom';
@@ -14,7 +14,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { hiddenEntriesConfigurationKey, IGettingStartedCategory, IGettingStartedCategoryWithProgress, IGettingStartedService } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedService';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { welcomePageBackground, welcomePageProgressBackground, welcomePageProgressForeground, welcomePageTileBackground, welcomePageTileHoverBackground, welcomePageTileShadow } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
+import { welcomePageBackground, welcomePageProgressBackground, welcomePageProgressForeground, welcomePageTileBackground, welcomePageTileHoverBackground, welcomePageTileShadow } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedColors';
 import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, descriptionForeground, focusBorder, foreground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { firstSessionDateStorageKey, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -62,6 +62,7 @@ import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { coalesce, flatten } from 'vs/base/common/arrays';
 import { ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from 'vs/workbench/common/theme';
+import { Codicon } from 'vs/base/common/codicons';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -78,6 +79,7 @@ type GettingStartedActionEvent = {
 	argument: string | undefined;
 };
 
+const REDUCED_MOTION_KEY = 'workbench.welcomePage.preferReducedMotion';
 export class GettingStartedPage extends EditorPane {
 
 	public static readonly ID = 'gettingStartedPage';
@@ -218,6 +220,12 @@ export class GettingStartedPage extends EditorPane {
 				this.hideCategory(category.id);
 			}
 
+			this._register(this.configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(REDUCED_MOTION_KEY)) {
+					this.container.classList.toggle('animatable', this.shouldAnimate());
+				}
+			}));
+
 			ourStep.done = step.done;
 			if (category.id === this.currentCategory?.id) {
 				const badgeelements = assertIsDefined(document.querySelectorAll(`[data-done-step-id="${step.id}"]`));
@@ -240,12 +248,18 @@ export class GettingStartedPage extends EditorPane {
 		this.recentlyOpened = workspacesService.getRecentlyOpened();
 	}
 
+	private shouldAnimate() {
+		return !this.configurationService.getValue(REDUCED_MOTION_KEY);
+	}
+
 	override async setInput(newInput: GettingStartedInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
-		this.container.classList.remove('animationReady');
+		this.container.classList.remove('animatable');
 		this.editorInput = newInput;
 		await super.setInput(newInput, options, context, token);
 		await this.buildCategoriesSlide();
-		setTimeout(() => this.container.classList.add('animationReady'), 0);
+		if (this.shouldAnimate()) {
+			setTimeout(() => this.container.classList.add('animatable'), 0);
+		}
 	}
 
 	async makeCategoryVisibleWhenAvailable(categoryID: string, stepId?: string) {
@@ -307,6 +321,7 @@ export class GettingStartedPage extends EditorPane {
 					this.commandService.executeCommand(selectedCategory.content.command);
 				} else {
 					this.gettingStartedService.markWalkthroughOpened(argument);
+					this.gettingStartedList?.setEntries(this.gettingStartedService.getCategories());
 					this.scrollToCategory(argument);
 				}
 				break;
@@ -384,7 +399,8 @@ export class GettingStartedPage extends EditorPane {
 			id: x.id,
 			label: x.title,
 			detail: x.description,
-		})), { canPickMany: false, title: localize('pickWalkthroughs', "Open a Walkthrough") });
+			description: x.source,
+		})), { canPickMany: false, matchOnDescription: true, matchOnDetail: true, title: localize('pickWalkthroughs', "Open Walkthrough...") });
 		if (selection) {
 			this.runDispatchCommand('selectCategory', selection.id);
 		}
@@ -476,8 +492,8 @@ export class GettingStartedPage extends EditorPane {
 
 		if (stepToExpand.media.type === 'image') {
 
-			this.stepMediaComponent.classList.add('image');
-			this.stepMediaComponent.classList.remove('markdown');
+			this.stepsContent.classList.add('image');
+			this.stepsContent.classList.remove('markdown');
 
 			const media = stepToExpand.media;
 			const mediaElement = $<HTMLImageElement>('img');
@@ -500,8 +516,8 @@ export class GettingStartedPage extends EditorPane {
 
 		}
 		else if (stepToExpand.media.type === 'svg') {
-			this.stepMediaComponent.classList.add('image');
-			this.stepMediaComponent.classList.remove('markdown');
+			this.stepsContent.classList.add('image');
+			this.stepsContent.classList.remove('markdown');
 
 			const media = stepToExpand.media;
 			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement(this.webviewID, {}, {}, undefined));
@@ -530,11 +546,18 @@ export class GettingStartedPage extends EditorPane {
 					}
 				}
 			}));
+
+			this.stepDisposables.add(webview.onDidClickLink(link => {
+				if (matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.http) || (matchesScheme(link, Schemas.command))) {
+					this.openerService.open(link, { allowCommands: true });
+				}
+			}));
+
 		}
 		else if (stepToExpand.media.type === 'markdown') {
 
-			this.stepMediaComponent.classList.remove('image');
-			this.stepMediaComponent.classList.add('markdown');
+			this.stepsContent.classList.remove('image');
+			this.stepsContent.classList.add('markdown');
 
 			const media = stepToExpand.media;
 
@@ -666,13 +689,14 @@ export class GettingStartedPage extends EditorPane {
 					${DEFAULT_MARKDOWN_STYLES}
 					${css}
 					svg {
-						width: 100%;
-						height: 100%;
 						position: fixed;
-						top: 0;
-						left: 0;
-						bottom: 0;
-						right: 0;
+						height: 100%;
+						width: 80%;
+						left: 50%;
+						top: 50%;
+						max-width: 530px;
+						min-width: 350px;
+						transform: translate(-50%,-50%);
 					}
 				</style>
 			</head>
@@ -780,7 +804,7 @@ export class GettingStartedPage extends EditorPane {
 
 		this.categoriesSlide = $('.gettingStartedSlideCategories.gettingStartedSlide');
 
-		const prevButton = $('button.prev-button.button-link', { 'x-dispatch': 'scrollPrev' }, $('span.scroll-button.codicon.codicon-chevron-left'), $('span.moreText', {}, localize('more', "More")));
+		const prevButton = $('button.prev-button.button-link', { 'x-dispatch': 'scrollPrev' }, $('span.scroll-button.codicon.codicon-chevron-left'), $('span.moreText', {}, localize('welcome', "Welcome")));
 		this.stepsSlide = $('.gettingStartedSlideDetails.gettingStartedSlide', {}, prevButton);
 
 		this.stepsContent = $('.gettingStartedDetailsContent', {});
@@ -827,20 +851,19 @@ export class GettingStartedPage extends EditorPane {
 		const recentList = this.buildRecentlyOpenedList();
 		const gettingStartedList = this.buildGettingStartedWalkthroughsList();
 
-		const footer = $('.footer');
+		const footer = $('.footer', $('p.showOnStartup', {}, showOnStartupCheckbox, $('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show welcome page on startup"))));
 
 		const layoutLists = () => {
 			if (gettingStartedList.itemCount) {
+				this.container.classList.remove('noWalkthroughs');
 				reset(leftColumn, startList.getDomElement(), recentList.getDomElement());
 				reset(rightColumn, gettingStartedList.getDomElement());
-				reset(footer, $('p.showOnStartup', {}, showOnStartupCheckbox, $('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show welcome page on startup"))));
 				recentList.setLimit(5);
 			}
 			else {
+				this.container.classList.add('noWalkthroughs');
 				reset(leftColumn, startList.getDomElement());
 				reset(rightColumn, recentList.getDomElement());
-				reset(footer, $('p.showOnStartup', {}, showOnStartupCheckbox, $('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show welcome page on startup"))),
-					$('p.openAWalkthrough', {}, $('button.button-link', { 'x-dispatch': 'seeAllWalkthroughs' }, localize('openAWalkthrough', "Open a Walkthrough"))));
 				recentList.setLimit(10);
 			}
 			setTimeout(() => this.categoriesPageScrollbar?.scanDomNode(), 50);
@@ -974,15 +997,26 @@ export class GettingStartedPage extends EditorPane {
 
 		if (this.startList) { this.startList.dispose(); }
 
+
+		// Handle this a bit specially because it's the only item that hides/shows based on live context...
+		const showWalkthroughsEntry = $('li.showWalkthroughsEntry',
+			{},
+			$('button.button-link',
+				{},
+				this.iconWidgetFor({ icon: { type: 'icon', icon: Codicon.checklist } }),
+				$('span', {}, localize('showAllWalkthroughs', "Open a Walkthrough..."))));
+
 		const startList = this.startList = new GettingStartedIndexList(
 			localize('start', "Start"),
 			'start-container',
 			10,
 			undefined,
 			undefined,
-			undefined,
+			showWalkthroughsEntry,
 			renderStartEntry,
 		);
+
+		startList.register(addDisposableListener(showWalkthroughsEntry, 'click', () => this.commandService.executeCommand('welcome.showAllWalkthroughs')));
 
 		startList.setEntries(this.gettingStartedCategories);
 		startList.onDidChange(() => this.registerDispatchListeners());
@@ -998,6 +1032,7 @@ export class GettingStartedPage extends EditorPane {
 				return undefined;
 			}
 
+			const renderNewBadge = category.content.accolades === 'newCategory' || category.content.accolades === 'newContent';
 			const newBadge = $('.new-badge', {});
 			if (category.content.accolades === 'newCategory') {
 				reset(newBadge, $('.new-category', {}, localize('new', "New")));
@@ -1023,7 +1058,7 @@ export class GettingStartedPage extends EditorPane {
 				$('.main-content', {},
 					this.iconWidgetFor(category),
 					$('h3.category-title.max-lines-3', { 'x-category-title-for': category.id }, category.title,),
-					newBadge,
+					renderNewBadge ? newBadge : $('.no-badge'),
 					$('a.codicon.codicon-close.hide-category-button', {
 						'x-dispatch': 'hideCategory:' + category.id,
 						'title': localize('close', "Hide"),
@@ -1038,12 +1073,12 @@ export class GettingStartedPage extends EditorPane {
 		if (this.gettingStartedList) { this.gettingStartedList.dispose(); }
 
 		const gettingStartedList = this.gettingStartedList = new GettingStartedIndexList(
-			localize('gettingStarted', "Getting Started"),
+			localize('walkthroughs', "Walkthroughs"),
 			'getting-started',
 			5,
 			undefined,
 			undefined,
-			$('button.button-link.see-all-walkthroughs', { 'tabindex': '0', 'x-dispatch': 'seeAllWalkthroughs' }, localize('seeMore', "See More")),
+			$('button.button-link.see-all-walkthroughs', { 'tabindex': '0', 'x-dispatch': 'seeAllWalkthroughs' }, localize('showAll', "More...")),
 			renderGetttingStaredWalkthrough);
 
 		gettingStartedList.onDidChange(() => {
@@ -1119,7 +1154,7 @@ export class GettingStartedPage extends EditorPane {
 		});
 	}
 
-	private iconWidgetFor(category: IGettingStartedCategory) {
+	private iconWidgetFor(category: IGettingStartedCategory | { icon: { type: 'icon', icon: ThemeIcon } }) {
 		const widget = category.icon.type === 'icon' ? $(ThemeIcon.asCSSSelector(category.icon.icon)) : $('img.category-icon', { src: category.icon.path });
 		widget.classList.add('icon-widget');
 		return widget;
@@ -1211,6 +1246,11 @@ export class GettingStartedPage extends EditorPane {
 
 	private buildCategorySlide(categoryID: string, selectedStep?: string) {
 		if (this.detailsScrollbar) { this.detailsScrollbar.dispose(); }
+
+		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
+			// Remove internal extension id specifier from exposed id's
+			this.extensionService.activateByEvent(`onWalkthrough:${categoryID.replace(/[^#]+#/, '')}`);
+		});
 
 		this.detailsPageDisposables.clear();
 
@@ -1368,7 +1408,7 @@ export class GettingStartedPage extends EditorPane {
 	}
 }
 
-export class GettingStartedInputSerializer implements IEditorInputSerializer {
+export class GettingStartedInputSerializer implements IEditorSerializer {
 	public canSerialize(editorInput: GettingStartedInput): boolean {
 		return true;
 	}
@@ -1545,14 +1585,14 @@ registerThemingParticipant((theme, collector) => {
 
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer a:not(.codicon-close) { color: ${link}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer a:not(.hide-category-button) { color: ${link}; }`);
 		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .button-link { color: ${link}; }`);
 		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .button-link .codicon { color: ${link}; }`);
 	}
 	const activeLink = theme.getColor(textLinkActiveForeground);
 	if (activeLink) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer a:hover { color: ${activeLink}; }`);
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer a:active { color: ${activeLink}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer a:not(.hide-category-button):hover { color: ${activeLink}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer a:not(.hide-category-button):active { color: ${activeLink}; }`);
 		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer button.button-link:hover { color: ${activeLink}; }`);
 		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer button.button-link:hover .codicon { color: ${activeLink}; }`);
 	}

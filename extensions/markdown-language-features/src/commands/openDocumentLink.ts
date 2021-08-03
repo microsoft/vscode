@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { extname } from 'path';
-
 import { Command } from '../commandManager';
 import { MarkdownEngine } from '../markdownEngine';
 import { TableOfContentsProvider } from '../tableOfContentsProvider';
 import { isMarkdownFile } from '../util/file';
+import { extname } from '../util/path';
 
 
 type UriComponents = {

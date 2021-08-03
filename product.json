@@ -34,7 +34,7 @@
 	"builtInExtensions": [
 		{
 			"name": "ms-vscode.node-debug",
-			"version": "1.44.28",
+			"version": "1.44.32",
 			"repo": "https://github.com/microsoft/vscode-node-debug",
 			"metadata": {
 				"id": "b6ded8fb-a0a0-4c1c-acbd-ab2a3bc995a6",
@@ -49,7 +49,7 @@
 		},
 		{
 			"name": "ms-vscode.node-debug2",
-			"version": "1.42.7",
+			"version": "1.42.10",
 			"repo": "https://github.com/microsoft/vscode-node-debug2",
 			"metadata": {
 				"id": "36d19e17-7569-4841-a001-947eb18602b2",
@@ -79,7 +79,7 @@
 		},
 		{
 			"name": "ms-vscode.js-debug-companion",
-			"version": "1.0.13",
+			"version": "1.0.14",
 			"repo": "https://github.com/microsoft/vscode-js-debug-companion",
 			"metadata": {
 				"id": "99cb0b7f-7354-4278-b8da-6cc79972169d",
@@ -94,7 +94,7 @@
 		},
 		{
 			"name": "ms-vscode.js-debug",
-			"version": "1.58.1",
+			"version": "1.59.0",
 			"repo": "https://github.com/microsoft/vscode-js-debug",
 			"metadata": {
 				"id": "25629058-ddac-4e17-abba-74678e126c5d",

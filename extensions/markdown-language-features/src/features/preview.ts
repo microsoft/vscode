@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { OpenDocumentLinkCommand, resolveLinkToMarkdownFile } from '../commands/openDocumentLink';
@@ -17,6 +16,7 @@ import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { MarkdownContentProvider, MarkdownContentProviderOutput } from './previewContentProvider';
 import { MarkdownEngine } from '../markdownEngine';
 import { urlToUri } from '../util/url';
+import * as path from '../util/path';
 
 const localize = nls.loadMessageBundle();
 
@@ -152,7 +152,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		}
 
 		this._register(_contributionProvider.onContributionsChanged(() => {
-			setImmediate(() => this.refresh());
+			setTimeout(() => this.refresh(), 0);
 		}));
 
 		this._register(vscode.workspace.onDidChangeTextDocument(event => {

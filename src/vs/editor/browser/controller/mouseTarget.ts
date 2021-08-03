@@ -14,10 +14,11 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
 import { HorizontalPosition } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { InjectedText, IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 import * as dom from 'vs/base/browser/dom';
 import { AtomicTabMoveOperations, Direction } from 'vs/editor/common/controller/cursorAtomicMoveOperations';
+import { PositionAffinity } from 'vs/editor/common/model';
 
 export interface IViewZoneData {
 	viewZoneId: string;
@@ -60,7 +61,8 @@ class ContentHitTestResult {
 	readonly type = HitTestResultType.Content;
 	constructor(
 		readonly position: Position,
-		readonly spanNode: HTMLElement
+		readonly spanNode: HTMLElement,
+		readonly injectedText: InjectedText | null,
 	) { }
 }
 
@@ -70,7 +72,7 @@ namespace HitTestResult {
 	export function createFromDOMInfo(ctx: HitTestContext, spanNode: HTMLElement, offset: number): HitTestResult {
 		const position = ctx.getPositionFromDOMInfo(spanNode, offset);
 		if (position) {
-			return new ContentHitTestResult(position, spanNode);
+			return new ContentHitTestResult(position, spanNode, null);
 		}
 		return new UnknownHitTestResult(spanNode);
 	}
@@ -504,7 +506,7 @@ export class MouseTargetFactory {
 			const hitTestResult = MouseTargetFactory._doHitTest(ctx, request);
 
 			if (hitTestResult.type === HitTestResultType.Content) {
-				return MouseTargetFactory.createMouseTargetFromHitTestPosition(ctx, request, hitTestResult.spanNode, hitTestResult.position);
+				return MouseTargetFactory.createMouseTargetFromHitTestPosition(ctx, request, hitTestResult.spanNode, hitTestResult.position, hitTestResult.injectedText);
 			}
 
 			return this._createMouseTarget(ctx, request.withTarget(hitTestResult.hitTarget), true);
@@ -701,7 +703,7 @@ export class MouseTargetFactory {
 		const hitTestResult = MouseTargetFactory._doHitTest(ctx, request);
 
 		if (hitTestResult.type === HitTestResultType.Content) {
-			return MouseTargetFactory.createMouseTargetFromHitTestPosition(ctx, request, hitTestResult.spanNode, hitTestResult.position);
+			return MouseTargetFactory.createMouseTargetFromHitTestPosition(ctx, request, hitTestResult.spanNode, hitTestResult.position, hitTestResult.injectedText);
 		}
 
 		return this._createMouseTarget(ctx, request.withTarget(hitTestResult.hitTarget), true);
@@ -757,7 +759,7 @@ export class MouseTargetFactory {
 		return (chars + 1);
 	}
 
-	private static createMouseTargetFromHitTestPosition(ctx: HitTestContext, request: HitTestRequest, spanNode: HTMLElement, pos: Position): MouseTarget {
+	private static createMouseTargetFromHitTestPosition(ctx: HitTestContext, request: HitTestRequest, spanNode: HTMLElement, pos: Position, injectedText: InjectedText | null): MouseTarget {
 		const lineNumber = pos.lineNumber;
 		const column = pos.column;
 
@@ -777,7 +779,7 @@ export class MouseTargetFactory {
 		const columnHorizontalOffset = visibleRange.left;
 
 		if (request.mouseContentHorizontalOffset === columnHorizontalOffset) {
-			return request.fulfill(MouseTargetType.CONTENT_TEXT, pos, null, { mightBeForeignElement: false });
+			return request.fulfill(MouseTargetType.CONTENT_TEXT, pos, null, { mightBeForeignElement: !!injectedText });
 		}
 
 		// Let's define a, b, c and check if the offset is in between them...
@@ -810,10 +812,10 @@ export class MouseTargetFactory {
 			const curr = points[i];
 			if (prev.offset <= request.mouseContentHorizontalOffset && request.mouseContentHorizontalOffset <= curr.offset) {
 				const rng = new EditorRange(lineNumber, prev.column, lineNumber, curr.column);
-				return request.fulfill(MouseTargetType.CONTENT_TEXT, pos, rng, { mightBeForeignElement: !mouseIsOverSpanNode });
+				return request.fulfill(MouseTargetType.CONTENT_TEXT, pos, rng, { mightBeForeignElement: !mouseIsOverSpanNode || !!injectedText });
 			}
 		}
-		return request.fulfill(MouseTargetType.CONTENT_TEXT, pos, null, { mightBeForeignElement: !mouseIsOverSpanNode });
+		return request.fulfill(MouseTargetType.CONTENT_TEXT, pos, null, { mightBeForeignElement: !mouseIsOverSpanNode || !!injectedText });
 	}
 
 	/**
@@ -850,13 +852,13 @@ export class MouseTargetFactory {
 		const shadowRoot = dom.getShadowRoot(ctx.viewDomNode);
 		let range: Range;
 		if (shadowRoot) {
-			if (typeof shadowRoot.caretRangeFromPoint === 'undefined') {
+			if (typeof (<any>shadowRoot).caretRangeFromPoint === 'undefined') {
 				range = shadowCaretRangeFromPoint(shadowRoot, coords.clientX, coords.clientY);
 			} else {
-				range = shadowRoot.caretRangeFromPoint(coords.clientX, coords.clientY);
+				range = (<any>shadowRoot).caretRangeFromPoint(coords.clientX, coords.clientY);
 			}
 		} else {
-			range = document.caretRangeFromPoint(coords.clientX, coords.clientY);
+			range = (<any>document).caretRangeFromPoint(coords.clientX, coords.clientY);
 		}
 
 		if (!range || !range.startContainer) {
@@ -950,14 +952,22 @@ export class MouseTargetFactory {
 	private static _doHitTest(ctx: HitTestContext, request: BareHitTestRequest): HitTestResult {
 
 		let result: HitTestResult = new UnknownHitTestResult();
-		if (typeof document.caretRangeFromPoint === 'function') {
+		if (typeof (<any>document).caretRangeFromPoint === 'function') {
 			result = this._doHitTestWithCaretRangeFromPoint(ctx, request);
 		} else if ((<any>document).caretPositionFromPoint) {
 			result = this._doHitTestWithCaretPositionFromPoint(ctx, request.pos.toClientCoordinates());
 		}
+		if (result.type === HitTestResultType.Content) {
+			const injectedText = ctx.model.getInjectedTextAt(result.position);
+
+			const normalizedPosition = ctx.model.normalizePosition(result.position, PositionAffinity.None);
+			if (injectedText || !normalizedPosition.equals(result.position)) {
+				result = new ContentHitTestResult(normalizedPosition, result.spanNode, injectedText);
+			}
+		}
 		// Snap to the nearest soft tab boundary if atomic soft tabs are enabled.
 		if (result.type === HitTestResultType.Content && ctx.stickyTabStops) {
-			result = new ContentHitTestResult(this._snapToSoftTabBoundary(result.position, ctx.model), result.spanNode);
+			result = new ContentHitTestResult(this._snapToSoftTabBoundary(result.position, ctx.model), result.spanNode, result.injectedText);
 		}
 		return result;
 	}
@@ -967,7 +977,7 @@ export function shadowCaretRangeFromPoint(shadowRoot: ShadowRoot, x: number, y: 
 	const range = document.createRange();
 
 	// Get the element under the point
-	let el: Element | null = shadowRoot.elementFromPoint(x, y);
+	let el: Element | null = (<any>shadowRoot).elementFromPoint(x, y);
 
 	if (el !== null) {
 		// Get the last child of the element until its firstChild is a text node

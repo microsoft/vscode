@@ -14,6 +14,7 @@ import { Emitter } from 'vs/base/common/event';
 import { IActionViewItemOptions, ActionViewItem, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export interface IActionViewItem extends IDisposable {
+	action: IAction;
 	actionRunner: IActionRunner;
 	setActionContext(context: unknown): void;
 	render(element: HTMLElement): void;
@@ -290,6 +291,10 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	hasAction(action: IAction): boolean {
 		return this._actionIds.includes(action.id);
+	}
+
+	getAction(index: number): IAction {
+		return this.viewItems[index].action;
 	}
 
 	push(arg: IAction | ReadonlyArray<IAction>, options: IActionOptions = {}): void {

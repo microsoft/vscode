@@ -288,8 +288,6 @@ export abstract class AbstractScrollableElement extends Widget {
 
 	/**
 	 * Update configuration options for the scrollbar.
-	 * Really this is Editor.IEditorScrollbarOptions, but base shouldn't
-	 * depend on Editor.
 	 */
 	public updateOptions(newOptions: ScrollableElementChangeOptions): void {
 		if (typeof newOptions.handleMouseWheel !== 'undefined') {
@@ -305,9 +303,23 @@ export abstract class AbstractScrollableElement extends Widget {
 		if (typeof newOptions.scrollPredominantAxis !== 'undefined') {
 			this._options.scrollPredominantAxis = newOptions.scrollPredominantAxis;
 		}
-		if (typeof newOptions.horizontalScrollbarSize !== 'undefined') {
-			this._horizontalScrollbar.updateScrollbarSize(newOptions.horizontalScrollbarSize);
+		if (typeof newOptions.horizontal !== 'undefined') {
+			this._options.horizontal = newOptions.horizontal;
 		}
+		if (typeof newOptions.vertical !== 'undefined') {
+			this._options.vertical = newOptions.vertical;
+		}
+		if (typeof newOptions.horizontalScrollbarSize !== 'undefined') {
+			this._options.horizontalScrollbarSize = newOptions.horizontalScrollbarSize;
+		}
+		if (typeof newOptions.verticalScrollbarSize !== 'undefined') {
+			this._options.verticalScrollbarSize = newOptions.verticalScrollbarSize;
+		}
+		if (typeof newOptions.scrollByPage !== 'undefined') {
+			this._options.scrollByPage = newOptions.scrollByPage;
+		}
+		this._horizontalScrollbar.updateOptions(this._options);
+		this._verticalScrollbar.updateOptions(this._options);
 
 		if (!this._options.lazyRender) {
 			this._render();

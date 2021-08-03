@@ -14,7 +14,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService, IConfigurationOverrides, keyFromOverrideIdentifier } from 'vs/platform/configuration/common/configuration';
-import { FOLDER_SETTINGS_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY, USER_STANDALONE_CONFIGURATIONS, TASKS_DEFAULT } from 'vs/workbench/services/configuration/common/configuration';
+import { FOLDER_SETTINGS_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY, USER_STANDALONE_CONFIGURATIONS, TASKS_DEFAULT, FOLDER_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
 import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { OVERRIDE_PROPERTY_PATTERN, IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -476,6 +476,9 @@ export class ConfigurationEditingService {
 
 	private async validate(target: EditableConfigurationTarget, operation: IConfigurationEditOperation, checkDirty: boolean, overrides: IConfigurationOverrides): Promise<void> {
 
+		const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
+		const configurationScope = configurationProperties[operation.key]?.scope;
+
 		// Any key must be a known setting from the registry (unless this is a standalone config)
 		if (!operation.workspaceStandAloneConfigurationKey) {
 			const validKeys = this.configurationService.keys().default;
@@ -498,11 +501,10 @@ export class ConfigurationEditingService {
 
 		if (target === EditableConfigurationTarget.WORKSPACE) {
 			if (!operation.workspaceStandAloneConfigurationKey && !OVERRIDE_PROPERTY_PATTERN.test(operation.key)) {
-				const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-				if (configurationProperties[operation.key].scope === ConfigurationScope.APPLICATION) {
+				if (configurationScope === ConfigurationScope.APPLICATION) {
 					throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION, target, operation);
 				}
-				if (configurationProperties[operation.key].scope === ConfigurationScope.MACHINE) {
+				if (configurationScope === ConfigurationScope.MACHINE) {
 					throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_MACHINE, target, operation);
 				}
 			}
@@ -514,8 +516,7 @@ export class ConfigurationEditingService {
 			}
 
 			if (!operation.workspaceStandAloneConfigurationKey && !OVERRIDE_PROPERTY_PATTERN.test(operation.key)) {
-				const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-				if (!(configurationProperties[operation.key].scope === ConfigurationScope.RESOURCE || configurationProperties[operation.key].scope === ConfigurationScope.LANGUAGE_OVERRIDABLE)) {
+				if (configurationScope && !FOLDER_SCOPES.includes(configurationScope)) {
 					throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_INVALID_FOLDER_CONFIGURATION, target, operation);
 				}
 			}

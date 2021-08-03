@@ -17,14 +17,14 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { CodeWindow } from 'vs/platform/windows/electron-main/window';
 import { app, BrowserWindow, MessageBoxOptions, nativeTheme, WebContents } from 'electron';
-import { ILifecycleMainService, UnloadReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowSettings, IPath, isFileToOpen, isWorkspaceToOpen, isFolderToOpen, IWindowOpenable, IOpenEmptyWindowOptions, IAddFoldersRequest, IPathsToWaitFor, INativeWindowConfiguration, INativeOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { findWindowOnFile, findWindowOnWorkspaceOrFolder, findWindowOnExtensionDevelopmentPath } from 'vs/platform/windows/electron-main/windowsFinder';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICodeWindow, IOpenEmptyConfiguration, OpenContext } from 'vs/platform/windows/electron-main/windows';
+import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICodeWindow, IOpenEmptyConfiguration, OpenContext, UnloadReason } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier, hasWorkspaceFileExtension, IRecent, isWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
@@ -914,7 +914,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			if (options.gotoLineMode) {
 				const { path, line, column } = parseLineAndColumnAware(uri.path);
 
-				return { fileUri: uri.with({ path }), lineNumber: line, columnNumber: column, remoteAuthority };
+				return {
+					fileUri: uri.with({ path }),
+					selection: line ? { startLineNumber: line, startColumn: column || 1 } : undefined,
+					remoteAuthority
+				};
 			}
 
 			return { fileUri: uri, remoteAuthority };
@@ -973,7 +977,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				}
 
 				// File
-				return { fileUri: URI.file(path), lineNumber, columnNumber, exists: true };
+				return {
+					fileUri: URI.file(path),
+					selection: lineNumber ? { startLineNumber: lineNumber, startColumn: columnNumber || 1 } : undefined,
+					exists: true
+				};
 			}
 
 			// Folder (we check for isDirectory() because e.g. paths like /dev/null
@@ -1029,7 +1037,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			// file name ends with .code-workspace
 			if (hasWorkspaceFileExtension(path)) {
 				if (options.forceOpenWorkspaceAsFile) {
-					return { fileUri: uri, lineNumber, columnNumber, remoteAuthority: options.remoteAuthority };
+					return {
+						fileUri: uri,
+						selection: lineNumber ? { startLineNumber: lineNumber, startColumn: columnNumber || 1 } : undefined,
+						remoteAuthority: options.remoteAuthority
+					};
 				}
 
 				return { workspace: getWorkspaceIdentifier(uri), remoteAuthority };
@@ -1037,7 +1049,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			// file name starts with a dot or has an file extension
 			else if (options.gotoLineMode || posix.basename(path).indexOf('.') !== -1) {
-				return { fileUri: uri, lineNumber, columnNumber, remoteAuthority };
+				return {
+					fileUri: uri,
+					selection: lineNumber ? { startLineNumber: lineNumber, startColumn: columnNumber || 1 } : undefined,
+					remoteAuthority
+				};
 			}
 		}
 

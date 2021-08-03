@@ -365,7 +365,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 	}
 
 	private async trustWorkspaceConfiguration(configPathURI: URI): Promise<void> {
-		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.workspaceTrustManagementService.isWorkpaceTrusted()) {
+		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.workspaceTrustManagementService.isWorkspaceTrusted()) {
 			await this.workspaceTrustManagementService.setUrisTrust([configPathURI], true);
 		}
 	}

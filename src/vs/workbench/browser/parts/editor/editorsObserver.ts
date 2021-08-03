@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorInput, IEditorInputFactoryRegistry, IEditorIdentifier, GroupIdentifier, EditorExtensions, IEditorPartOptionsChangeEvent, EditorsOrder } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorFactoryRegistry, IEditorIdentifier, GroupIdentifier, EditorExtensions, IEditorPartOptionsChangeEvent, EditorsOrder } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -400,7 +400,7 @@ export class EditorsObserver extends Disposable {
 	}
 
 	private serialize(): ISerializedEditorsList {
-		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories);
+		const registry = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory);
 
 		const entries = [...this.mostRecentEditorsMap.values()];
 		const mapGroupToSerializableEditorsOfGroup = new Map<IEditorGroup, IEditorInput[]>();
@@ -418,7 +418,7 @@ export class EditorsObserver extends Disposable {
 				let serializableEditorsOfGroup = mapGroupToSerializableEditorsOfGroup.get(group);
 				if (!serializableEditorsOfGroup) {
 					serializableEditorsOfGroup = group.getEditors(EditorsOrder.SEQUENTIAL).filter(editor => {
-						const editorSerializer = registry.getEditorInputSerializer(editor);
+						const editorSerializer = registry.getEditorSerializer(editor);
 
 						return editorSerializer?.canSerialize(editor);
 					});

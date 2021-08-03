@@ -11,7 +11,7 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import * as perf from 'vs/base/common/performance';
 import { isEqualOrParent } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { EnablementState, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWebExtensionsScannerService, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -221,12 +221,15 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			this._handleDeltaExtensions(new DeltaExtensionsQueueItem(toAdd, toRemove));
 		}));
 
-		this._register(this._extensionManagementService.onDidInstallExtension((event) => {
-			if (event.local) {
-				if (this._safeInvokeIsEnabled(event.local)) {
-					// an extension has been installed
-					this._handleDeltaExtensions(new DeltaExtensionsQueueItem([event.local], []));
+		this._register(this._extensionManagementService.onDidInstallExtensions((result) => {
+			const extensions: IExtension[] = [];
+			for (const { local } of result) {
+				if (local && this._safeInvokeIsEnabled(local)) {
+					extensions.push(local);
 				}
+			}
+			if (extensions.length) {
+				this._handleDeltaExtensions(new DeltaExtensionsQueueItem(extensions, []));
 			}
 		}));
 
@@ -794,9 +797,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			}
 		}
 
-		const enablementStates = this._extensionEnablementService.getEnablementStates(mappedExtensions);
+		const enablementStates = this._extensionEnablementService.getEnablementStates(mappedExtensions, ignoreWorkspaceTrust ? { trusted: true } : undefined);
 		for (let index = 0; index < enablementStates.length; index++) {
-			if (enablementStates[index] === EnablementState.EnabledGlobally || enablementStates[index] === EnablementState.EnabledWorkspace || (ignoreWorkspaceTrust && enablementStates[index] === EnablementState.DisabledByTrustRequirement)) {
+			if (this._extensionEnablementService.isEnabledEnablementState(enablementStates[index])) {
 				enabledExtensions.push(extensionsToCheck[index]);
 			}
 		}
@@ -939,7 +942,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	public _onDidActivateExtensionError(extensionId: ExtensionIdentifier, error: Error): void {
 		type ExtensionActivationErrorClassification = {
 			extensionId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-			error: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+			error: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
 		};
 		type ExtensionActivationErrorEvent = {
 			extensionId: string;

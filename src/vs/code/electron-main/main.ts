@@ -339,6 +339,8 @@ class CodeMain {
 			throw new ExpectedError('Sent env to running instance. Terminating...');
 		}
 
+		this.createLockfile(logService, lifecycleMainService, environmentMainService);
+
 		// Print --status usage info
 		if (environmentMainService.args.status) {
 			logService.warn('Warning: The --status argument can only be used if Code is already running. Please run it again after Code has started.');
@@ -417,6 +419,21 @@ class CodeMain {
 		}
 
 		lifecycleMainService.kill(exitCode);
+	}
+
+	private async createLockfile(logService: ILogService, lifecycle: ILifecycleMainService, env: IEnvironmentMainService) {
+		FSPromises.writeFile(env.mainLockfile, String(process.pid)).catch(err => {
+			logService.warn(`Error writing main lockfile: ${err.stack}`);
+		});
+
+
+		once(lifecycle.onWillShutdown)(() => {
+			try {
+				unlinkSync(env.mainLockfile);
+			} catch {
+				// ignored
+			}
+		});
 	}
 
 	//#region Command line arguments utilities

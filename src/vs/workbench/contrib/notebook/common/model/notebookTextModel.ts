@@ -285,7 +285,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		);
 	}
 
-	private _initialize(cells: ICellDto2[]) {
+	_initialize(cells: ICellDto2[], triggerDirty?: boolean) {
 		this._cells = [];
 		this._versionId = 0;
 		this._notebookSpecificAlternativeId = 0;
@@ -306,6 +306,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		this._cells.splice(0, 0, ...mainCells);
 		this._alternativeVersionId = this._generateAlternativeId();
+
+		if (triggerDirty) {
+			this._eventEmitter.emit({ kind: NotebookCellsChangeType.Unknown, transient: false }, true);
+		}
 	}
 
 	private _bindCellContentHandler(cell: NotebookCellTextModel, e: 'content' | 'language' | 'mime') {
@@ -857,6 +861,15 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	private _spliceNotebookCellOutputs2(cell: NotebookCellTextModel, outputs: ICellOutput[], computeUndoRedo: boolean): void {
+		if (outputs.length === 0 && cell.outputs.length === 0) {
+			return;
+		}
+
+		if (outputs.length <= 1) {
+			this._spliceNotebookCellOutputs(cell, { start: 0, deleteCount: cell.outputs.length, newOutputs: outputs }, false, computeUndoRedo);
+			return;
+		}
+
 		const diff = new LcsDiff(new OutputSequence(cell.outputs), new OutputSequence(outputs));
 		const diffResult = diff.ComputeDiff(false);
 		const splices: NotebookCellOutputsSplice[] = diffResult.changes.map(change => ({ start: change.originalStart, deleteCount: change.originalLength, newOutputs: outputs.slice(change.modifiedStart, change.modifiedStart + change.modifiedLength) }));
@@ -947,7 +960,10 @@ class OutputSequence implements ISequence {
 
 	getElements(): Int32Array | number[] | string[] {
 		return this.outputs.map(output => {
-			return hash(output.outputs);
+			return hash(output.outputs.map(output => ({
+				mime: output.mime,
+				data: Array.from(output.data)
+			})));
 		});
 	}
 

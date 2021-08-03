@@ -17,7 +17,7 @@ const fancyLog = require("fancy-log");
 const ansiColors = require("ansi-colors");
 const os = require("os");
 const watch = require('./watch');
-const reporter = reporter_1.createReporter();
+const reporter = (0, reporter_1.createReporter)();
 function getTypeScriptCompilerOptions(src) {
     const rootDir = path.join(__dirname, `../../${src}`);
     let options = {};

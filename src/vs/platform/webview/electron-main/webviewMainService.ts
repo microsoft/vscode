@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { session, WebContents, webContents, WebFrameMain } from 'electron';
+import { WebContents, webContents, WebFrameMain } from 'electron';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { FindInFrameOptions, FoundInFrameResult, IWebviewManagerService, webviewPartitionId, WebviewWebContentsId, WebviewWindowId } from 'vs/platform/webview/common/webviewManagerService';
+import { FindInFrameOptions, FoundInFrameResult, IWebviewManagerService, WebviewWebContentsId, WebviewWindowId } from 'vs/platform/webview/common/webviewManagerService';
 import { WebviewProtocolProvider } from 'vs/platform/webview/electron-main/webviewProtocolProvider';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 
@@ -19,24 +18,10 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 	public onFoundInFrame = this._onFoundInFrame.event;
 
 	constructor(
-		@ITunnelService tunnelService: ITunnelService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 	) {
 		super();
 		this._register(new WebviewProtocolProvider());
-
-		const sess = session.fromPartition(webviewPartitionId);
-		sess.setPermissionRequestHandler((_webContents, permission, callback) => {
-			if (permission === 'clipboard-read') {
-				return callback(true);
-			}
-
-			return callback(false);
-		});
-
-		sess.setPermissionCheckHandler((_webContents, permission /* 'media' */) => {
-			return permission === 'clipboard-read';
-		});
 	}
 
 	public async setIgnoreMenuShortcuts(id: WebviewWebContentsId | WebviewWindowId, enabled: boolean): Promise<void> {

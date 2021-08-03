@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
+import { TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export const enum Testing {
 	// marked as "extension" so that any existing test extensions are assigned to it.
@@ -22,7 +22,7 @@ export const enum TestExplorerViewMode {
 
 export const enum TestExplorerViewSorting {
 	ByLocation = 'location',
-	ByName = 'name',
+	ByStatus = 'status',
 }
 
 export const enum TestExplorerStateFilter {
@@ -45,3 +45,9 @@ export const labelForTestInState = (label: string, state: TestResultState) => lo
 	key: 'testing.treeElementLabel',
 	comment: ['label then the unit tests state, for example "Addition Tests (Running)"'],
 }, '{0} ({1})', label, testStateNames[state]);
+
+export const testConfigurationGroupNames: { [K in TestRunProfileBitset]: string } = {
+	[TestRunProfileBitset.Debug]: localize('testGroup.debug', 'Debug'),
+	[TestRunProfileBitset.Run]: localize('testGroup.run', 'Run'),
+	[TestRunProfileBitset.Coverage]: localize('testGroup.coverage', 'Coverage'),
+};

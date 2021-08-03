@@ -14,7 +14,7 @@ import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsServi
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IOutputChannelRegistry, Extensions as OutputExtensions } from 'vs/workbench/services/output/common/output';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, DefaultViewsContext, ExtensionsSortByContext, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
+import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, DefaultViewsContext, ExtensionsSortByContext, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, ExtensionEditorTab } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ReinstallAction, InstallSpecificVersionOfExtensionAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, PromptExtensionInstallFailureAction, SearchExtensionsAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
@@ -23,10 +23,10 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import * as jsonContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { IInstantiationService, ServicesAccessor, optional } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeymapExtensions } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtensionActivationProgress } from 'vs/workbench/contrib/extensions/browser/extensionsActivationProgress';
@@ -73,7 +73,6 @@ import { Promises } from 'vs/base/common/async';
 import { EditorExtensions } from 'vs/workbench/common/editor';
 import { WORKSPACE_TRUST_EXTENSION_SUPPORT } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { ExtensionsCompletionItemsProvider } from 'vs/workbench/contrib/extensions/browser/extensionsCompletionItemsProvider';
-import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Event } from 'vs/base/common/event';
 
@@ -94,8 +93,8 @@ Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessPro
 });
 
 // Editor
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
 		ExtensionEditor,
 		ExtensionEditor.ID,
 		localize('extension', "Extension")
@@ -197,7 +196,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			[WORKSPACE_TRUST_EXTENSION_SUPPORT]: {
 				type: 'object',
 				scope: ConfigurationScope.APPLICATION,
-				markdownDescription: localize('extensions.supportUntrustedWorkspaces', "Override the untrusted workpace support of an extension. Extensions using `true` will always be enabled. Extensions using `limited` will always be enabled, and the extension will hide functionality that requires trust. Extensions using `false` will only be enabled only when the workspace is trusted."),
+				markdownDescription: localize('extensions.supportUntrustedWorkspaces', "Override the untrusted workspace support of an extension. Extensions using `true` will always be enabled. Extensions using `limited` will always be enabled, and the extension will hide functionality that requires trust. Extensions using `false` will only be enabled only when the workspace is trusted."),
 				patternProperties: {
 					'([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$': {
 						type: 'object',
@@ -227,24 +226,24 @@ const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registr
 jsonRegistry.registerSchema(ExtensionsConfigurationSchemaId, ExtensionsConfigurationSchema);
 
 // Register Commands
-CommandsRegistry.registerCommand('_extensions.manage', (accessor: ServicesAccessor, extensionId: string) => {
+CommandsRegistry.registerCommand('_extensions.manage', (accessor: ServicesAccessor, extensionId: string, tab?: ExtensionEditorTab) => {
 	const extensionService = accessor.get(IExtensionsWorkbenchService);
 	const extension = extensionService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }));
 	if (extension.length === 1) {
-		extensionService.open(extension[0]);
+		extensionService.open(extension[0], { tab });
 	}
 });
 
-CommandsRegistry.registerCommand('extension.open', (accessor: ServicesAccessor, extensionId: string) => {
+CommandsRegistry.registerCommand('extension.open', async (accessor: ServicesAccessor, extensionId: string, tab?: ExtensionEditorTab) => {
 	const extensionService = accessor.get(IExtensionsWorkbenchService);
+	const commandService = accessor.get(ICommandService);
 
-	return extensionService.queryGallery({ names: [extensionId], pageSize: 1 }, CancellationToken.None).then(pager => {
-		if (pager.total !== 1) {
-			return;
-		}
+	const pager = await extensionService.queryGallery({ names: [extensionId], pageSize: 1 }, CancellationToken.None);
+	if (pager.total === 1) {
+		return extensionService.open(pager.firstPage[0], { tab });
+	}
 
-		extensionService.open(pager.firstPage[0]);
-	});
+	return commandService.executeCommand('_extensions.manage', extensionId, tab);
 });
 
 CommandsRegistry.registerCommand({
@@ -396,8 +395,6 @@ interface IExtensionActionOptions extends IAction2Options {
 
 class ExtensionsContributions extends Disposable implements IWorkbenchContribution {
 
-	private tasExperimentService?: ITASExperimentService;
-
 	constructor(
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
@@ -408,7 +405,6 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ICommandService private readonly commandService: ICommandService,
-		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
 	) {
 		super();
 		const hasGalleryContext = CONTEXT_HAS_GALLERY.bindTo(contextKeyService);
@@ -431,7 +427,6 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			hasWebServerContext.set(true);
 		}
 
-		this.tasExperimentService = tasExperimentService;
 		this.registerGlobalActions();
 		this.registerContextMenuActions();
 		this.registerQuickAccessProvider();
@@ -461,7 +456,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 					title: localize({ key: 'miPreferencesExtensions', comment: ['&& denotes a mnemonic'] }, "&&Extensions")
 				},
 				group: '1_settings',
-				order: 3
+				order: 4
 			}
 		}, {
 			id: MenuId.GlobalActivity,
@@ -523,10 +518,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				id: MenuId.CommandPalette,
 				when: CONTEXT_HAS_GALLERY
 			},
-			run: async () => {
-				const recommended = await this.tasExperimentService?.getTreatment<boolean>('recommendedLanguages');
-				runAction(this.instantiationService.createInstance(SearchExtensionsAction, recommended ? '@recommended:languages ' : '@category:"programming languages" @sort:installs '));
-			}
+			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@recommended:languages '))
 		});
 
 		this.registerExtensionAction({

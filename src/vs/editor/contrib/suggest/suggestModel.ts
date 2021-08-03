@@ -99,15 +99,15 @@ export const enum State {
 
 function shouldPreventQuickSuggest(contextKeyService: IContextKeyService, configurationService: IConfigurationService): boolean {
 	return (
-		Boolean(contextKeyService.getContextKeyValue<boolean>('inlineSuggestionVisible'))
-		&& !Boolean(configurationService.getValue<boolean>('editor.inlineSuggest.allowQuickSuggestions'))
+		Boolean(contextKeyService.getContextKeyValue('inlineSuggestionVisible'))
+		&& !Boolean(configurationService.getValue('editor.inlineSuggest.allowQuickSuggestions'))
 	);
 }
 
 function shouldPreventSuggestOnTriggerCharacters(contextKeyService: IContextKeyService, configurationService: IConfigurationService): boolean {
 	return (
-		Boolean(contextKeyService.getContextKeyValue<boolean>('inlineSuggestionVisible'))
-		&& !Boolean(configurationService.getValue<boolean>('editor.inlineSuggest.allowSuggestOnTriggerCharacters'))
+		Boolean(contextKeyService.getContextKeyValue('inlineSuggestionVisible'))
+		&& !Boolean(configurationService.getValue('editor.inlineSuggest.allowSuggestOnTriggerCharacters'))
 	);
 }
 
@@ -232,6 +232,11 @@ export class SuggestModel implements IDisposable {
 		const checkTriggerCharacter = (text?: string) => {
 
 			if (shouldPreventSuggestOnTriggerCharacters(this._contextKeyService, this._configurationService)) {
+				return;
+			}
+
+			if (LineContext.shouldAutoTrigger(this._editor)) {
+				// don't trigger by trigger characters when this is a case for quick suggest
 				return;
 			}
 

@@ -5,7 +5,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { DidInstallExtensionEvent, DidUninstallExtensionEvent, IExtensionManagementService, ILocalExtension, InstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { DidUninstallExtensionEvent, IExtensionManagementService, ILocalExtension, InstallExtensionEvent, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { FileChangeType, FileSystemProviderCapabilities, IFileChange, IFileService } from 'vs/platform/files/common/files';
@@ -35,7 +35,7 @@ export class ExtensionsWatcher extends Disposable {
 			this.startTimestamp = Date.now();
 		});
 		this._register(extensionsManagementService.onInstallExtension(e => this.onInstallExtension(e)));
-		this._register(extensionsManagementService.onDidInstallExtension(e => this.onDidInstallExtension(e)));
+		this._register(extensionsManagementService.onDidInstallExtensions(e => this.onDidInstallExtensions(e)));
 		this._register(extensionsManagementService.onDidUninstallExtension(e => this.onDidUninstallExtension(e)));
 
 		const extensionsResource = URI.file(environmentService.extensionsPath);
@@ -72,10 +72,12 @@ export class ExtensionsWatcher extends Disposable {
 		this.addInstallingExtension(e.identifier);
 	}
 
-	private onDidInstallExtension(e: DidInstallExtensionEvent): void {
-		this.removeInstallingExtension(e.identifier);
-		if (!e.error) {
-			this.addInstalledExtension(e.identifier);
+	private onDidInstallExtensions(results: readonly InstallExtensionResult[]): void {
+		for (const e of results) {
+			this.removeInstallingExtension(e.identifier);
+			if (e.local) {
+				this.addInstalledExtension(e.identifier);
+			}
 		}
 	}
 

@@ -238,7 +238,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				}
 
 				// Run Extension Host as fork of current process
-				this._extensionHostProcess = fork(FileAccess.asFileUri('bootstrap-fork', require).fsPath, ['--type=extensionHost'], opts);
+				this._extensionHostProcess = fork(FileAccess.asFileUri('bootstrap-fork', require).fsPath, ['--type=extensionHost', '--skipWorkspaceStorageLock'], opts);
 
 				// Catch all output coming from the extension host process
 				type Output = { data: string, format: string[] };

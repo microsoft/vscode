@@ -705,6 +705,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 						isCaseSensitive: { 'type': 'boolean' },
 						matchWholeWord: { 'type': 'boolean' },
 						useExcludeSettingsAndIgnoreFiles: { 'type': 'boolean' },
+						onlyOpenEditors: { 'type': 'boolean' },
 					}
 				}
 			},

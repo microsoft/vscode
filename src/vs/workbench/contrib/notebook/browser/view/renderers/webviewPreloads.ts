@@ -158,48 +158,6 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		};
 	};
 
-	const runRenderScript = async (url: string, rendererId: string): Promise<ScriptModule> => {
-		const text = await loadScriptSource(url);
-		// TODO: Support both the new module based renderers and the old style global renderers
-		const isModule = !text.includes('acquireNotebookRendererApi');
-		if (isModule) {
-			return __import(url);
-		} else {
-			return createBackCompatModule(rendererId, url, text);
-		}
-	};
-
-	const createBackCompatModule = (rendererId: string, scriptUrl: string, scriptText: string): ScriptModule => ({
-		activate: (): RendererApi => {
-			const onDidCreateOutput = createEmitter<IOutputItem>();
-			const onWillDestroyOutput = createEmitter<undefined | IDestroyCellInfo>();
-
-			const globals = {
-				scriptUrl,
-				acquireNotebookRendererApi: <T>(): GlobalNotebookRendererApi<T> => ({
-					onDidCreateOutput: onDidCreateOutput.event,
-					onWillDestroyOutput: onWillDestroyOutput.event,
-					setState: newState => vscode.setState({ ...vscode.getState(), [rendererId]: newState }),
-					getState: () => {
-						const state = vscode.getState();
-						return typeof state === 'object' && state ? state[rendererId] as T : undefined;
-					},
-				}),
-			};
-
-			invokeSourceWithGlobals(scriptText, globals);
-
-			return {
-				renderOutputItem(outputItem) {
-					onDidCreateOutput.fire({ ...outputItem, outputId: outputItem.id });
-				},
-				disposeOutputItem(id) {
-					onWillDestroyOutput.fire(id ? { outputId: id } : undefined);
-				}
-			};
-		}
-	});
-
 	const dimensionUpdater = new class {
 		private readonly pending = new Map<string, webviewMessages.DimensionUpdate>();
 
@@ -477,19 +435,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		bytes(): Uint8Array;
 	}
 
-	interface IDestroyCellInfo {
-		outputId: string;
-	}
-
 	const onDidReceiveKernelMessage = createEmitter<unknown>();
-
-	/** @deprecated */
-	interface GlobalNotebookRendererApi<T> {
-		setState: (newState: T) => void;
-		getState(): T | undefined;
-		readonly onWillDestroyOutput: Event<undefined | IDestroyCellInfo>;
-		readonly onDidCreateOutput: Event<IOutputItem>;
-	}
 
 	const kernelPreloadGlobals = {
 		acquireVsCodeApi,
@@ -766,7 +712,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 		/** Inner function cached in the _loadPromise(). */
 		private async _load(): Promise<RendererApi | undefined> {
-			const module = await runRenderScript(this.data.entrypoint, this.data.id);
+			const module = await __import(this.data.entrypoint);
 			if (!module) {
 				return;
 			}
@@ -1163,20 +1109,47 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 			await renderers.render(this, this.element);
 
-			if (!hasPostedRenderedMathTelemetry) {
-				const hasRenderedMath = this.element.querySelector('.katex');
-				if (hasRenderedMath) {
-					hasPostedRenderedMathTelemetry = true;
-					postNotebookMessage<webviewMessages.ITelemetryFoundRenderedMarkdownMath>('telemetryFoundRenderedMarkdownMath', {});
+			if (this.mime === 'text/markdown') {
+				const root = this.element.shadowRoot;
+				if (root) {
+					if (!hasPostedRenderedMathTelemetry) {
+						const hasRenderedMath = root.querySelector('.katex');
+						if (hasRenderedMath) {
+							hasPostedRenderedMathTelemetry = true;
+							postNotebookMessage<webviewMessages.ITelemetryFoundRenderedMarkdownMath>('telemetryFoundRenderedMarkdownMath', {});
+						}
+					}
+
+					const innerText = root.querySelector<HTMLElement>('#preview')?.innerText;
+					const matches = innerText?.match(unsupportedKatexTermsRegex);
+					if (matches) {
+						postNotebookMessage<webviewMessages.ITelemetryFoundUnrenderedMarkdownMath>('telemetryFoundUnrenderedMarkdownMath', {
+							latexDirective: matches[0],
+						});
+					}
 				}
 			}
 
-			const matches = this.element.innerText.match(unsupportedKatexTermsRegex);
-			if (matches) {
-				postNotebookMessage<webviewMessages.ITelemetryFoundUnrenderedMarkdownMath>('telemetryFoundUnrenderedMarkdownMath', {
-					latexDirective: matches[0],
-				});
+			const root = (this.element.shadowRoot ?? this.element);
+			const html = [];
+			for (const child of root.children) {
+				switch (child.tagName) {
+					case 'LINK':
+					case 'SCRIPT':
+					case 'STYLE':
+						// not worth sending over since it will be stripped before rendering
+						break;
+
+					default:
+						html.push(child.outerHTML);
+						break;
+				}
 			}
+
+			postNotebookMessage<webviewMessages.IRenderedMarkupMessage>('renderedMarkup', {
+				cellId: this.id,
+				html: html.join(''),
+			});
 
 			dimensionUpdater.updateHeight(this.id, this.element.offsetHeight, {
 				isOutput: false
@@ -1413,8 +1386,9 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		updateDrag(e: DragEvent, cellId: string) {
 			if (cellId !== this.currentDrag?.cellId) {
 				this.currentDrag = undefined;
+			} else {
+				this.currentDrag = { cellId, clientY: e.clientY };
 			}
-			this.currentDrag = { cellId, clientY: e.clientY };
 		}
 
 		endDrag(e: DragEvent, cellId: string) {
