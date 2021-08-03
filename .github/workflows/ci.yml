@@ -188,6 +188,9 @@ jobs:
       - name: Compile and Download
         run: yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
 
+      - name: Reset login keychain
+        run: security list-keychain
+
       - name: Run Unit Tests (Electron)
         run: DISPLAY=:10 ./scripts/test.sh
 
