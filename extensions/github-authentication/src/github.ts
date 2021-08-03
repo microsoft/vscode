@@ -45,7 +45,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		this._githubServer = new GitHubServer(type, this._telemetryReporter);
 
 		// Contains the current state of the sessions we have available.
-		this._sessionsPromise = this.readAndVerifySessions(true);
+		this._sessionsPromise = this.readSessions();
 
 		const friendlyName = this.type === AuthProviderType.github ? 'GitHub' : 'GitHub Enterprise';
 		this._disposable = vscode.Disposable.from(
@@ -87,7 +87,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 	private async checkForUpdates() {
 		const previousSessions = await this._sessionsPromise;
-		this._sessionsPromise = this.readAndVerifySessions(false);
+		this._sessionsPromise = this.readSessions();
 		const storedSessions = await this._sessionsPromise;
 
 		const added: vscode.AuthenticationSession[] = [];
@@ -116,7 +116,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		}
 	}
 
-	private async readAndVerifySessions(force: boolean): Promise<vscode.AuthenticationSession[]> {
+	private async readSessions(): Promise<vscode.AuthenticationSession[]> {
 		let sessionData: SessionData[];
 		try {
 			Logger.info('Reading sessions from keychain...');
@@ -139,7 +139,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 		const sessionPromises = sessionData.map(async (session: SessionData) => {
 			let userInfo: { id: string, accountName: string } | undefined;
-			if (force || !session.account) {
+			if (!session.account) {
 				try {
 					userInfo = await this._githubServer.getUserInfo(session.accessToken);
 					setTimeout(() => this.afterTokenLoad(session.accessToken), 1000);
@@ -151,6 +151,8 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 					}
 				}
 			}
+
+			setTimeout(() => this.afterTokenLoad(session.accessToken), 1000);
 
 			Logger.trace(`Read the following session from the keychain with the following scopes: ${session.scopes}`);
 			return {
