@@ -188,6 +188,8 @@ jobs:
       - name: Compile and Download
         run: yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
 
+      # This is required for keytar unittests, otherwise we hit
+      # https://github.com/atom/node-keytar/issues/76
       - name: Create temporary keychain
         run: |
           security create-keychain -p pwd $RUNNER_TEMP/buildagent.keychain
