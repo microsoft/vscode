@@ -2274,9 +2274,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			throw new Error('Editor is not initalized successfully');
 		}
 
+		if (!this._fontInfo) {
+			this._generateFontInfo();
+		}
+
 		return {
-			width: this._dimension!.width,
-			height: this._dimension!.height,
+			width: this._dimension?.width ?? 0,
+			height: this._dimension?.height ?? 0,
 			fontInfo: this._fontInfo!
 		};
 	}
@@ -2286,9 +2290,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			throw new Error('Editor is not initalized successfully');
 		}
 
+		if (!this._fontInfo) {
+			this._generateFontInfo();
+		}
+
 		return {
-			width: this._dimension!.width,
-			height: this._dimension!.height,
+			width: this._dimension?.width ?? 0,
+			height: this._dimension?.height ?? 0,
 			fontInfo: this._fontInfo!
 		};
 	}
