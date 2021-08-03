@@ -176,7 +176,7 @@ export class BrowserWindow extends Disposable {
 				// but make sure to signal this as an expected unload and disable unload
 				// handling explicitly to prevent the workbench from going down.
 				else {
-					this.lifecycleService.withExpectedUnload({ disableUnloadHandling: true }, () => window.location.href = href);
+					this.lifecycleService.withExpectedShutdown({ disableShutdownHandling: true }, () => window.location.href = href);
 				}
 
 				return true;

@@ -51,16 +51,16 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 		});
 	}
 
-	withExpectedUnload(reason: ShutdownReason): void;
-	withExpectedUnload(reason: { disableUnloadHandling: true }, callback: Function): void;
-	withExpectedUnload(reason: ShutdownReason | { disableUnloadHandling: true }, callback?: Function): void {
+	withExpectedShutdown(reason: ShutdownReason): void;
+	withExpectedShutdown(reason: { disableShutdownHandling: true }, callback: Function): void;
+	withExpectedShutdown(reason: ShutdownReason | { disableShutdownHandling: true }, callback?: Function): void {
 
-		// Standard unload
+		// Standard shutdown
 		if (typeof reason === 'number') {
 			this.shutdownReason = reason;
 		}
 
-		// Unload handling disabled for duration of callback
+		// Shutdown handling disabled for duration of callback
 		else {
 			this.disableUnloadHandling = true;
 			try {

@@ -469,7 +469,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		this.shutdownReason = HostShutdownReason.Api;
 
 		// Signal shutdown reason to lifecycle
-		this.lifecycleService.withExpectedUnload(reason);
+		this.lifecycleService.withExpectedShutdown(reason);
 
 		// Ensure UI state is persisted
 		await this.storageService.flush(WillSaveStateReason.SHUTDOWN);
