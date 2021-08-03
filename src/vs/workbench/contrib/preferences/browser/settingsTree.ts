@@ -5,7 +5,6 @@
 
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import * as DOM from 'vs/base/browser/dom';
-import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { alert as ariaAlert } from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
@@ -60,6 +59,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { settingsMoreActionIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
+import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 
 const $ = DOM.$;
 
@@ -629,6 +629,8 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	protected readonly _onDidChangeSettingHeight = this._register(new Emitter<HeightChangeParams>());
 	readonly onDidChangeSettingHeight: Event<HeightChangeParams> = this._onDidChangeSettingHeight.event;
 
+	private readonly markdownRenderer: MarkdownRenderer;
+
 	constructor(
 		private readonly settingActions: IAction[],
 		private readonly disposableActionFactory: (setting: ISetting) => IAction[],
@@ -642,6 +644,8 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		@IConfigurationService protected readonly _configService: IConfigurationService,
 	) {
 		super();
+
+		this.markdownRenderer = _instantiationService.createInstance(MarkdownRenderer, {});
 
 		this.ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), this._configService);
 		this._register(this._configService.onDidChangeConfiguration(e => {
@@ -773,7 +777,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		if (element.setting.descriptionIsMarkdown) {
 			const disposables = new DisposableStore();
 			template.toDispose.add(disposables);
-			const renderedDescription = this.renderSettingMarkdown(element, element.description, disposables);
+			const renderedDescription = this.renderSettingMarkdown(element, template.containerElement, element.description, disposables);
 			template.descriptionElement.appendChild(renderedDescription);
 		} else {
 			template.descriptionElement.innerText = element.description;
@@ -817,7 +821,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 			const disposables = new DisposableStore();
 			template.elementDisposables.add(disposables);
 			template.deprecationWarningElement.innerText = '';
-			template.deprecationWarningElement.appendChild(this.renderSettingMarkdown(element, element.setting.deprecationMessage!, template.elementDisposables));
+			template.deprecationWarningElement.appendChild(this.renderSettingMarkdown(element, template.containerElement, element.setting.deprecationMessage!, template.elementDisposables));
 		} else {
 			template.deprecationWarningElement.innerText = deprecationText;
 		}
@@ -847,11 +851,11 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		}
 	}
 
-	private renderSettingMarkdown(element: SettingsTreeSettingElement, text: string, disposeables: DisposableStore): HTMLElement {
+	private renderSettingMarkdown(element: SettingsTreeSettingElement, container: HTMLElement, text: string, disposeables: DisposableStore): HTMLElement {
 		// Rewrite `#editor.fontSize#` to link format
 		text = fixSettingLinks(text);
 
-		const renderedMarkdown = renderMarkdown({ value: text, isTrusted: true }, {
+		const renderedMarkdown = this.markdownRenderer.render({ value: text, isTrusted: true }, {
 			actionHandler: {
 				callback: (content: string) => {
 					if (content.startsWith('#')) {
@@ -865,12 +869,19 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 					}
 				},
 				disposeables
-			}
+			},
+			asyncRenderCallback: () => {
+				const height = container.clientHeight;
+				if (height) {
+					this._onDidChangeSettingHeight.fire({ element, height });
+				}
+			},
 		});
+		disposeables.add(renderedMarkdown);
 
-		renderedMarkdown.classList.add('setting-item-markdown');
-		cleanRenderedMarkdown(renderedMarkdown);
-		return renderedMarkdown;
+		renderedMarkdown.element.classList.add('setting-item-markdown');
+		cleanRenderedMarkdown(renderedMarkdown.element);
+		return renderedMarkdown.element;
 	}
 
 	protected abstract renderValue(dataElement: SettingsTreeSettingElement, template: ISettingItemTemplate, onChange: (value: any) => void): void;
