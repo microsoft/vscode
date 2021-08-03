@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { NotebookSerializer } from './serializer';
+import { NotebookSerializer } from './notebookSerializer';
 
 export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.workspace.registerNotebookSerializer('jupyter-notebook', new NotebookSerializer(context), {

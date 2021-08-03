@@ -7,7 +7,8 @@ import type { nbformat } from '@jupyterlab/coreutils';
 import * as detectIndent from 'detect-indent';
 import * as vscode from 'vscode';
 import { defaultNotebookFormat } from './constants';
-import { createJupyterCellFromNotebookCell, getPreferredLanguage, jupyterNotebookModelToNotebookData, pruneCell } from './helpers';
+import { getPreferredLanguage, jupyterNotebookModelToNotebookData } from './deserializers';
+import { createJupyterCellFromNotebookCell, pruneCell } from './serializers';
 import * as fnv from '@enonic/fnv-plus';
 
 export class NotebookSerializer implements vscode.NotebookSerializer {
