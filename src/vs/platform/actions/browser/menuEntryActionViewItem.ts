@@ -345,7 +345,8 @@ class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 
 		this._dropdown = new DropdownMenuActionViewItem(submenuAction, submenuAction.actions, this._contextMenuService, {
 			menuAsChild: true,
-			classNames: ['codicon', 'codicon-chevron-down']
+			classNames: ['codicon', 'codicon-chevron-down'],
+			actionRunner: new ActionRunner()
 		});
 		this._dropdown.actionRunner.onDidRun((e: IRunEvent) => {
 			if (e.action instanceof MenuItemAction) {
