@@ -453,13 +453,13 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 			return;
 		}
 
+		e.preventDefault();
+		e.stopImmediatePropagation();
 		if (this.model.getSelected() === targetIdx) {
 			return;
 		}
 
 		this.selectRow(targetIdx);
-		e.preventDefault();
-		e.stopPropagation();
 	}
 
 	private onListDoubleClick(e: MouseEvent): void {
