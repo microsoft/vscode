@@ -27,13 +27,13 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { ICreateTerminalOptions, ITerminalProfile, TerminalLocation, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { ITerminalProfile, TerminalLocation, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { FindInFilesCommand, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
-import { Direction, IRemoteTerminalService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { Direction, ICreateTerminalOptions, IRemoteTerminalService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
 import { ILocalTerminalService, IRemoteTerminalAttachTarget, ITerminalConfigHelper, TerminalCommandId, TERMINAL_ACTION_CATEGORY } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
@@ -1433,7 +1433,7 @@ export function registerTerminalActions() {
 			if (cwd === undefined) {
 				return undefined;
 			}
-			const instance = await terminalService.splitInstance(activeInstance, options?.config, cwd);
+			const instance = await terminalService.createTerminal({ instanceToSplit: activeInstance, config: options?.config, cwd });
 			if (instance) {
 				if (instance.target === TerminalLocation.Editor) {
 					instance.focusWhenReady();
@@ -1471,7 +1471,7 @@ export function registerTerminalActions() {
 					terminalService.setActiveInstance(t);
 					terminalService.doWithActiveInstance(async instance => {
 						const cwd = await getCwdForSplit(terminalService.configHelper, instance);
-						await terminalService.splitInstance(instance, { cwd });
+						await terminalService.createTerminal({ instanceToSplit: instance, cwd });
 						await terminalGroupService.showPanel(true);
 					});
 				}
@@ -1546,7 +1546,7 @@ export function registerTerminalActions() {
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 			await terminalService.doWithActiveInstance(async t => {
 				const cwd = await getCwdForSplit(terminalService.configHelper, t);
-				const instance = await terminalService.splitInstance(t, { cwd });
+				const instance = await terminalService.createTerminal({ instanceToSplit: t, cwd });
 				if (instance?.target !== TerminalLocation.Editor) {
 					await terminalGroupService.showPanel(true);
 				}
@@ -1613,7 +1613,7 @@ export function registerTerminalActions() {
 				const activeInstance = terminalService.activeInstance;
 				if (activeInstance) {
 					const cwd = await getCwdForSplit(terminalService.configHelper, activeInstance);
-					await terminalService.splitInstance(activeInstance, { cwd });
+					await terminalService.createTerminal({ instanceToSplit: activeInstance, cwd });
 					return;
 				}
 			}
@@ -2029,7 +2029,7 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 				const activeInstance = terminalService.activeInstance;
 				if (activeInstance) {
 					const cwd = await getCwdForSplit(terminalService.configHelper, activeInstance);
-					await terminalService.splitInstance(activeInstance, options?.config, cwd);
+					await terminalService.createTerminal({ instanceToSplit: activeInstance, config: options?.config, cwd });
 					return;
 				}
 			}

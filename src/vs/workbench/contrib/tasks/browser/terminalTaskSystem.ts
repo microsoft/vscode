@@ -1302,7 +1302,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				if (terminal.group === group) {
 					const originalInstance = terminal.terminal;
 					await originalInstance.waitForTitle();
-					result = await this.terminalService.splitInstance(originalInstance, launchConfigs);
+					result = await this.terminalService.createTerminal({ instanceToSplit: originalInstance, config: launchConfigs });
 					if (result) {
 						break;
 					}
