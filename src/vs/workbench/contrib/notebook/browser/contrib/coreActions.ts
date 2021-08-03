@@ -420,7 +420,8 @@ registerAction2(class ExecuteAboveCells extends NotebookMultiCellAction<INoteboo
 				},
 				{
 					id: MenuId.NotebookCellTitle,
-					group: 'inline/cell@1',
+					order: CellToolbarOrder.SplitCell,
+					group: CELL_TITLE_CELL_GROUP_ID,
 					when: ContextKeyExpr.and(
 						executeCellCondition,
 						ContextKeyExpr.equals('config.notebook.consolidatedRunButton', false))
@@ -463,7 +464,8 @@ registerAction2(class ExecuteCellAndBelow extends NotebookMultiCellAction<INoteb
 				},
 				{
 					id: MenuId.NotebookCellTitle,
-					group: 'inline/cell@1',
+					order: CellToolbarOrder.SplitCell,
+					group: CELL_TITLE_CELL_GROUP_ID,
 					when: ContextKeyExpr.and(
 						executeCellCondition,
 						ContextKeyExpr.equals('config.notebook.consolidatedRunButton', false))
