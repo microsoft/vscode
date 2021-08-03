@@ -931,13 +931,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this._onDidChangeVisibleRanges.fire();
 		}));
 
-		this._register(this._list.onDidScroll(() => {
+		this._register(this._list.onDidScroll((e) => {
 			this._onDidScroll.fire();
-			this._renderedEditors.forEach((editor, cell) => {
-				if (this.getActiveCell() === cell && editor) {
-					SuggestController.get(editor).cancelSuggestWidget();
-				}
-			});
+
+			if (e.scrollTop !== e.oldScrollTop) {
+				this._renderedEditors.forEach((editor, cell) => {
+					if (this.getActiveCell() === cell && editor) {
+						SuggestController.get(editor).cancelSuggestWidget();
+					}
+				});
+			}
 		}));
 
 		const widgetFocusTracker = DOM.trackFocus(this.getDomNode());
