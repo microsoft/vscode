@@ -769,6 +769,8 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 			this.listDisposables.add(
 				DOM.addStandardDisposableListener(siblingInput.inputElement, DOM.EventType.KEY_DOWN, onKeyDown)
 			);
+		} else if (valueInput instanceof InputBox) {
+			valueInput.element.classList.add('no-sibling');
 		}
 
 		const okButton = this._register(new Button(rowElement));
@@ -794,8 +796,8 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 		this.listDisposables.add(
 			disposableTimeout(() => {
 				valueInput.focus();
-				if (item.value.type === 'string') {
-					(valueInput as InputBox).select();
+				if (valueInput instanceof InputBox) {
+					valueInput.select();
 				}
 			})
 		);
