@@ -23,7 +23,8 @@ import { parseLineAndColumnAware } from 'vs/base/common/extpath';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { BeforeShutdownEvent, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILifecycleService, BeforeShutdownEvent, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { BrowserLifecycleService } from 'vs/workbench/services/lifecycle/browser/lifecycleService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
 import { localize } from 'vs/nls';
@@ -106,7 +107,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		@ILabelService private readonly labelService: ILabelService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@ILifecycleService private readonly lifecycleService: BrowserLifecycleService,
 		@ILogService private readonly logService: ILogService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IStorageService private readonly storageService: IStorageService
@@ -392,9 +393,9 @@ export class BrowserHostService extends Disposable implements IHostService {
 	private async doOpen(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<void> {
 
 		// We know that `workspaceProvider.open` will trigger a shutdown
-		// with `options.reuse` so we update `shutdownReason` to reflect that
+		// with `options.reuse` so we handle this expected shutdown
 		if (options?.reuse) {
-			this.shutdownReason = HostShutdownReason.Api;
+			await this.handleExpectedShutdown(ShutdownReason.LOAD);
 		}
 
 		const opened = await this.workspaceProvider.open(workspace, options);
@@ -448,23 +449,30 @@ export class BrowserHostService extends Disposable implements IHostService {
 		this.reload();
 	}
 
-	reload(): Promise<void> {
-		return this.withExpectedShutdown(() => window.location.reload());
+	async reload(): Promise<void> {
+		await this.handleExpectedShutdown(ShutdownReason.RELOAD);
+
+		window.location.reload();
 	}
 
-	close(): Promise<void> {
-		return this.withExpectedShutdown(() => window.close());
+	async close(): Promise<void> {
+		await this.handleExpectedShutdown(ShutdownReason.CLOSE);
+
+		window.close();
 	}
 
-	private async withExpectedShutdown(callback: () => void): Promise<void> {
+	private async handleExpectedShutdown(reason: ShutdownReason): Promise<void> {
 
-		// Update shutdown reason in a way that we do not show a dialog
+		// Update shutdown reason in a way that we do
+		// not show a dialog because this is a expected
+		// shutdown.
 		this.shutdownReason = HostShutdownReason.Api;
+
+		// Signal shutdown reason to lifecycle
+		this.lifecycleService.withExpectedUnload(reason);
 
 		// Ensure UI state is persisted
 		await this.storageService.flush(WillSaveStateReason.SHUTDOWN);
-
-		callback();
 	}
 
 	//#endregion

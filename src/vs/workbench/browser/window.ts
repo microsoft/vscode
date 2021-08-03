@@ -143,6 +143,8 @@ export class BrowserWindow extends Disposable {
 		// will trigger the `beforeunload`.
 		this.openerService.setDefaultExternalOpener({
 			openExternal: async (href: string) => {
+
+				// HTTP(s): open in new window and deal with potential popup blockers
 				if (matchesScheme(href, Schemas.http) || matchesScheme(href, Schemas.https)) {
 					const opened = windowOpenNoOpenerWithSuccess(href);
 					if (!opened) {
@@ -168,8 +170,13 @@ export class BrowserWindow extends Disposable {
 							await this.openerService.open(URI.parse('https://aka.ms/allow-vscode-popup'));
 						}
 					}
-				} else {
-					this.lifecycleService.withExpectedUnload(() => window.location.href = href);
+				}
+
+				// Anything else: set location to trigger protocol handler in the browser
+				// but make sure to signal this as an expected unload and disable unload
+				// handling explicitly to prevent the workbench from going down.
+				else {
+					this.lifecycleService.withExpectedUnload({ disableUnloadHandling: true }, () => window.location.href = href);
 				}
 
 				return true;
