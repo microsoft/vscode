@@ -28,7 +28,7 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 
 	private readonly utf8Decoder = new TextDecoder('utf-8');
 
-  /**
+	/**
 	 * Reads and parses all .md documents in the workspace.
 	 * Files are processed in batches, to keep the number of open files small.
 	 *
