@@ -394,13 +394,15 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 
 		actions.push(new Separator());
 
-		actions.push(new Action(
-			'runToLine',
-			nls.localize('runToLine', "Run to Line"),
-			undefined,
-			true,
-			() => this.debugService.runTo(uri, lineNumber).catch(onUnexpectedError)
-		));
+		if (this.debugService.state === State.Stopped) {
+			actions.push(new Action(
+				'runToLine',
+				nls.localize('runToLine', "Run to Line"),
+				undefined,
+				true,
+				() => this.debugService.runTo(uri, lineNumber).catch(onUnexpectedError)
+			));
+		}
 
 		return actions;
 	}
