@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { getMachineId } from 'vs/base/node/id';
 import { ClientConnectionEvent, IPCServer, IServerChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { main } from 'vs/code/node/cliProcessMain';
-import { Query, VscodeInitializationOptions, WorkbenchOptions } from 'vs/base/common/ipc';
+import { Query, StartPath, WorkbenchOptions } from 'vs/base/common/ipc';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
@@ -61,9 +61,12 @@ import { RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/
 import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 import { LogsDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/logsDataCleaner';
 import { createServerURITransformer } from 'vs/base/common/uriServer';
+import { Complete } from 'vs/base/common/types';
 
 const commit = product.commit || 'development';
 const logger = new ConsoleMainLogger();
+
+export type VscodeServerArgs = NativeParsedArgs & Complete<Pick<NativeParsedArgs, 'remote'>>;
 
 /**
  * Handles client connections to a VSCode instance via IPC.
@@ -83,14 +86,13 @@ export class VscodeServer {
 		return main(args);
 	}
 
-	public async initialize(options: VscodeInitializationOptions): Promise<WorkbenchOptions> {
-		const transformer = createServerURITransformer(options.remoteAuthority);
+	public async initialize(startPath: StartPath, args: VscodeServerArgs): Promise<WorkbenchOptions> {
+		const transformer = createServerURITransformer(args.remote);
 		if (!this.servicesPromise) {
-			this.servicesPromise = this.initializeServices(options.args);
+			this.servicesPromise = this.initializeServices(args);
 		}
 		await this.servicesPromise;
 		const environment = this.services.get(IEnvironmentService) as INativeEnvironmentService;
-		const startPath = options.startPath;
 		const parseUrl = (url: string): URI => {
 			// This might be a fully-specified URL or just a path.
 			try {
@@ -98,7 +100,7 @@ export class VscodeServer {
 			} catch (error) {
 				return URI.from({
 					scheme: Schemas.vscodeRemote,
-					authority: options.remoteAuthority,
+					authority: args.remote,
 					path: url,
 				});
 			}
@@ -107,12 +109,12 @@ export class VscodeServer {
 			workbenchWebConfiguration: {
 				workspaceUri: startPath && startPath.workspace ? parseUrl(startPath.url) : undefined,
 				folderUri: startPath && !startPath.workspace ? parseUrl(startPath.url) : undefined,
-				remoteAuthority: options.remoteAuthority,
+				remoteAuthority: args.remote,
 				logLevel: getLogLevel(environment),
 				workspaceProvider: {
 					payload: [
 						['userDataPath', environment.userDataPath],
-						['enableProposedApi', JSON.stringify(options.args['enable-proposed-api'] || [])]
+						['enableProposedApi', JSON.stringify(args['enable-proposed-api'] || [])]
 					],
 				},
 			},

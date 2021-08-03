@@ -54,6 +54,13 @@ export async function main(argv: string[]): Promise<any> {
 		console.log(buildVersionMessage(product.version, product.commit));
 	}
 
+	else if (args.server) {
+		const server = await new Promise<IMainCli>((resolve, reject) => require(['vs/server/entry'], resolve, reject));
+		await server.main(args);
+
+		return;
+	}
+
 	// Extensions Management
 	else if (shouldSpawnCliProcess(args)) {
 		const cli = await new Promise<IMainCli>((resolve, reject) => require(['vs/code/node/cliProcessMain'], resolve, reject));

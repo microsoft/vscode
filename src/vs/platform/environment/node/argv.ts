@@ -51,10 +51,12 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 
 	'extensions-dir': { type: 'string', deprecates: 'extensionHomePath', cat: 'e', args: 'dir', description: localize('extensionHomePath', "Set the root path for extensions.") },
 	'extensions-download-dir': { type: 'string' },
+	/** @coder: BEGIN */
 	'builtin-extensions-dir': { type: 'string' },
-	// NOTE@coder: add extra-extensions-dir and extra-builtin-extensions-dir
-	'extra-extensions-dir': { type: 'string[]', cat: 'o', description: 'Path to an extra user extension directory.' },
-	'extra-builtin-extensions-dir': { type: 'string[]', cat: 'o', description: 'Path to an extra builtin extension directory.' },
+	'extra-extensions-dir': { type: 'string[]', cat: 'o', description: localize('extra-extensions-dir', 'Path to an extra user extension directory.') },
+	'extra-builtin-extensions-dir': { type: 'string[]', cat: 'o', description: localize('extra-builtin-extensions-dir', 'Path to an extra builtin extension directory.') },
+	'ignore-last-opened': { type: 'string', cat: 'o', description: localize('ignore-last-opened', "Ignore last opened.") },
+	/** @coder: END */
 	'list-extensions': { type: 'boolean', cat: 'e', description: localize('listExtensions', "List the installed extensions.") },
 	'show-versions': { type: 'boolean', cat: 'e', description: localize('showVersions', "Show versions of installed extensions, when using --list-extensions.") },
 	'category': { type: 'string', cat: 'e', description: localize('category', "Filters installed extensions by provided category, when using --list-extensions."), args: 'category' },
@@ -81,7 +83,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'max-memory': { type: 'string', cat: 't', description: localize('maxMemory', "Max memory size for a window (in Mbytes)."), args: 'memory' },
 	'telemetry': { type: 'boolean', cat: 't', description: localize('telemetry', "Shows all telemetry events which VS code collects.") },
 
-	'remote': { type: 'string' },
+	'remote': { type: 'string', cat: 'o', description: localize('remote', "Remote authority e.g. http://localhost:8080") },
 	'folder-uri': { type: 'string[]', cat: 'o', args: 'uri' },
 	'file-uri': { type: 'string[]', cat: 'o', args: 'uri' },
 

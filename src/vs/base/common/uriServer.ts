@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Schemas } from 'vs/base/common/network';
 import { IRawURITransformer, UriParts, URITransformer } from 'vs/base/common/uriIpc';
 
 class RawURITransformer implements IRawURITransformer {
@@ -10,8 +11,8 @@ class RawURITransformer implements IRawURITransformer {
 
 	transformIncoming(uri: UriParts): UriParts {
 		switch (uri.scheme) {
-			case 'vscode-remote':
-				return { scheme: 'file', path: uri.path };
+			case Schemas.vscodeRemote:
+				return { scheme: Schemas.file, path: uri.path };
 			default:
 				return uri;
 		}
@@ -19,8 +20,8 @@ class RawURITransformer implements IRawURITransformer {
 
 	transformOutgoing(uri: UriParts): UriParts {
 		switch (uri.scheme) {
-			case 'file':
-				return { scheme: 'vscode-remote', authority: this.authority, path: uri.path };
+			case Schemas.file:
+				return { scheme: Schemas.vscodeRemote, authority: this.authority, path: uri.path };
 			default:
 				return uri;
 		}
@@ -29,7 +30,7 @@ class RawURITransformer implements IRawURITransformer {
 	transformOutgoingScheme(scheme: string): string {
 		switch (scheme) {
 			case 'file':
-				return 'vscode-remote';
+				return Schemas.vscodeRemote;
 			default:
 				return scheme;
 		}

@@ -120,25 +120,36 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	@memoize
 	get logFile(): URI { return joinPath(this.options.logsPath, 'window.log'); }
 
-	// NOTE@coder: Use the same path in // ../../../../platform/environment/node/environmentService.ts
-	// and don't use the user data scheme. This solves two problems:
-	//  1. Extensions running in the browser (like Vim) might use these paths
-	//     directly instead of using the file service and most likely can't write
-	//     to `/User` on disk.
-	//  2. Settings will be stored in the file system instead of in browser
-	//     storage. Using browser storage makes sharing or seeding settings
-	//     between browsers difficult. We may want to revisit this once/if we get
-	//     settings sync.
+	/**
+	 * Local and persistant user data directory.
+	 * @coder Added to allow access
+	 */
 	@memoize
-	get userRoamingDataHome(): URI { return joinPath(URI.file(this.userDataPath).with({ scheme: Schemas.vscodeRemote }), 'User'); }
+	get userDataPath(): string | undefined {
+		// Use the same path in // ../../../../platform/environment/node/environmentService.ts
+		// and don't use the user data scheme. This solves two problems:
+		//  1. Extensions running in the browser (like Vim) might use these paths
+		//     directly instead of using the file service and most likely can't write
+		//     to `/User` on disk.
+		//  2. Settings will be stored in the file system instead of in browser
+		//     storage. Using browser storage makes sharing or seeding settings
+		//     between browsers difficult. We may want to revisit this once/if we get
+		//     settings sync.
+		return this.payload?.get('userDataPath');
+	}
 
+	/**
+	 * Path helper
+	 *
+	 * @coder modified to prefer local user data.
+	 */
 	@memoize
-	get userDataPath(): string {
-		const dataPath = this.payload?.get('userDataPath');
-		if (!dataPath) {
-			throw new Error('userDataPath was not provided to environment service');
+	get userRoamingDataHome(): URI {
+		if (this.userDataPath) {
+			return joinPath(URI.file(this.userDataPath).with({ scheme: Schemas.vscodeRemote }), 'User');
 		}
-		return dataPath;
+
+		return URI.file('/User').with({ scheme: Schemas.userData });
 	}
 
 	@memoize

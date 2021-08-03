@@ -272,6 +272,13 @@ export type Dto<T> = T extends { toJSON(): infer U }
 	? { [k in keyof T]: Dto<T[k]>; }
 	: T;
 
+/**
+ * Marks optional types as required.
+ */
+export type Complete<T> = {
+	[P in keyof Required<T>]: Pick<T, P> extends Required<Pick<T, P>> ? T[P] : (NonNullable<T[P]>);
+};
+
 export function NotImplementedProxy<T>(name: string): { new(): T } {
 	return <any>class {
 		constructor() {

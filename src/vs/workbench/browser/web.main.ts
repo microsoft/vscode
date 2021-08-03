@@ -390,6 +390,7 @@ class BrowserMain extends Disposable {
 
 export function main(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<IWorkbench> {
 	const workbench = new BrowserMain(domElement, options);
+	// options.workspaceProvider?.payload =
 
 	return workbench.open();
 }

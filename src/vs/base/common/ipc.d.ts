@@ -82,16 +82,6 @@ export interface Args {
 	_: string[]
 }
 
-export interface VscodeInitializationOptions {
-	readonly args: Args
-	readonly remoteAuthority: string
-	readonly startPath?: StartPath
-}
-
-export interface VscodeInitializationOptionsMessage extends VscodeInitializationOptions {
-	readonly id: string
-}
-
 export interface UriComponents {
 	readonly scheme: string
 	readonly authority: string

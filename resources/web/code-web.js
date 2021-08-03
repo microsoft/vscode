@@ -31,6 +31,8 @@ const WEB_MAIN = path.join(APP_ROOT, 'src', 'vs', 'code', 'browser', 'workbench'
 
 // This is useful to simulate real world CORS
 const ALLOWED_CORS_ORIGINS = [
+	'http://localhost:8082',
+	'http://127.0.0.1:8082',
 	'http://localhost:8081',
 	'http://127.0.0.1:8081',
 	'http://localhost:8080',
@@ -50,6 +52,7 @@ const args = minimist(process.argv, {
 	string: [
 		'scheme',
 		'host',
+		'remote-authority',
 		'port',
 		'local_port',
 		'extension',
@@ -67,6 +70,7 @@ if (args.help) {
 		' --scheme         Protocol (https or http)\n' +
 		' --host           Remote host\n' +
 		' --port           Remote/Local port\n' +
+		' --remote-authority Remote auth\n' +
 		' --local_port     Local port override\n' +
 		' --secondary-port Secondary port\n' +
 		' --extension      Path of an extension to include\n' +
@@ -86,6 +90,9 @@ const SECONDARY_PORT = args['secondary-port'] || (parseInt(PORT, 10) + 1);
 const SCHEME = args.scheme || process.env.VSCODE_SCHEME || 'http';
 const HOST = args.host || 'localhost';
 const AUTHORITY = process.env.VSCODE_AUTHORITY || `${HOST}:${PORT}`;
+const REMOTE_AUTHORITY = args['remote-authority'] || `${HOST}:${(parseInt(PORT, 10) + 2)}`;
+// TODO: config
+const USER_DATA_PATH = '/Users/teffen/.local/share/code-server';
 
 const exists = (path) => util.promisify(fs.exists)(path);
 const readFile = (path) => util.promisify(fs.readFile)(path);
@@ -396,6 +403,12 @@ async function handleRoot(req, res) {
 		}
 	}
 
+	folderUri = {
+		scheme: 'vscode-remote',
+		authority: REMOTE_AUTHORITY,
+		path: '/Users/teffen/Projects/testing/'
+	};
+
 	const { extensions: builtInExtensions } = await builtInExtensionsPromise;
 	const { extensions: additionalBuiltinExtensions, locations: staticLocations } = await commandlineProvidedExtensionsPromise;
 
@@ -420,9 +433,16 @@ async function handleRoot(req, res) {
 			? req.headers['host'].replace(':' + PORT, ':' + SECONDARY_PORT)
 			: `${HOST}:${SECONDARY_PORT}`
 	);
+
+	console.log('>>>', REMOTE_AUTHORITY);
+
 	const webConfigJSON = {
 		folderUri: folderUri,
+		remoteAuthority: REMOTE_AUTHORITY,
 		additionalBuiltinExtensions,
+		workspaceProvider: {
+			payload: [['userDataPath', USER_DATA_PATH]]
+		},
 		webWorkerExtensionHostIframeSrc: `${SCHEME}://${secondaryHost}/static/out/vs/workbench/services/extensions/worker/httpWebWorkerExtensionHostIframe.html`
 	};
 	if (args['wrap-iframe']) {
