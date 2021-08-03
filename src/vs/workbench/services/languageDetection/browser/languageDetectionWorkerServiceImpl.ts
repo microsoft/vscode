@@ -37,7 +37,9 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 			modelService,
 			'languageDetectionWorkerService',
 			// TODO: See if it's possible to bundle vscode-languagedetection
-			FileAccess.asBrowserUri('../../../../../../node_modules/@vscode/vscode-languagedetection/dist/lib/index.js', require).toString(true),
+			this._environmentService.isBuilt && !isWeb
+				? FileAccess.asBrowserUri('../../../../../../node_modules.asar.unpacked/@vscode/vscode-languagedetection/dist/lib/index.js', require).toString(true)
+				: FileAccess.asBrowserUri('../../../../../../node_modules/@vscode/vscode-languagedetection/dist/lib/index.js', require).toString(true),
 			this._environmentService.isBuilt && !isWeb
 				? FileAccess.asBrowserUri('../../../../../../node_modules.asar.unpacked/@vscode/vscode-languagedetection/model/model.json', require).toString(true)
 				: FileAccess.asBrowserUri('../../../../../../node_modules/@vscode/vscode-languagedetection/model/model.json', require).toString(true),
