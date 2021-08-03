@@ -229,7 +229,6 @@ export interface ICreateTerminalOptions {
 	 * The terminal's resource, passed when the terminal has moved windows.
 	 */
 	resource?: URI;
-
 	/**
 	 * The terminal instance to split
 	 */

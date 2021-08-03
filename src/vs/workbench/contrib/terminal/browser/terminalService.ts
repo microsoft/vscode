@@ -1089,22 +1089,16 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private _optionsAreBasic(options?: ICreateTerminalOptions): boolean {
-		console.log(options?.config);
 		if (!options || !options.config) {
 			return true;
-		} else if (Object.entries(options).length > 3) {
-			return false;
 		}
 
-		console.log(Array.from(Object.keys(options.config)).filter(k => k !== 'target' && k !== 'forceSplit' && k !== 'instanceToSplit'));
 		return Array.from(Object.keys(options.config)).filter(k => k !== 'target' && k !== 'cwd' && k !== 'forceSplit' && k !== 'instanceToSplit').length === 0;
 	}
 
 	async createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance> {
 		const config = options?.config;
-		const shellLaunchConfig = config && 'extensionIdentifier' in config
-			? {}
-			: this._convertProfileToShellLaunchConfig(config || {});
+		const shellLaunchConfig = config && 'extensionIdentifier' in config ? {} : this._convertProfileToShellLaunchConfig(config || {});
 
 		// Get the contributed profile if it was provided
 		let contributedProfile = config && 'extensionIdentifier' in config ? config : undefined;
@@ -1137,31 +1131,6 @@ export class TerminalService implements ITerminalService {
 				scheme: options.instanceToSplit.shellLaunchConfig.cwd.scheme,
 				path: shellLaunchConfig.cwd || options.instanceToSplit.shellLaunchConfig.cwd.path
 			});
-			this._evaluateLocalCwd(shellLaunchConfig);
-		}
-
-		if (options?.instanceToSplit) {
-			// Handle editor terminals
-			let instance: ITerminalInstance;
-			switch (options.instanceToSplit.target) {
-				case TerminalLocation.Editor:
-					instance = this._terminalEditorService.splitInstance(options.instanceToSplit, shellLaunchConfig);
-					break;
-				case TerminalLocation.TerminalView:
-				default:
-					const group = this._terminalGroupService.getGroupForInstance(options.instanceToSplit);
-					if (!group) {
-						throw new Error(`Cannot split a terminal without a group ${options.instanceToSplit}`);
-					}
-					instance = group.split(shellLaunchConfig);
-					break;
-			}
-
-
-			if (options.instanceToSplit.target !== TerminalLocation.Editor) {
-				this._terminalGroupService.groups.forEach((g, i) => g.setVisible(i === this._terminalGroupService.activeGroupIndex));
-			}
-			return instance;
 		}
 
 		if (!shellLaunchConfig.customPtyImplementation && !this.isProcessSupportRegistered) {
@@ -1180,14 +1149,27 @@ export class TerminalService implements ITerminalService {
 
 		let instance: ITerminalInstance;
 		const target = options?.target || this.configHelper.config.defaultLocation;
-		if (target === TerminalLocation.Editor) {
-			instance = this._terminalInstanceService.createInstance(shellLaunchConfig, undefined, options?.resource);
-			instance.target = TerminalLocation.Editor;
-			this._terminalEditorService.openEditor(instance, options?.forceSplit || !!options?.instanceToSplit);
+		if (options?.instanceToSplit) {
+			if (target === TerminalLocation.Editor || options?.instanceToSplit?.target === TerminalLocation.Editor) {
+				instance = this._terminalEditorService.splitInstance(options.instanceToSplit, shellLaunchConfig);
+			} else {
+				const group = this._terminalGroupService.getGroupForInstance(options.instanceToSplit);
+				if (!group) {
+					throw new Error(`Cannot split a terminal without a group ${options.instanceToSplit}`);
+				}
+				instance = group.split(shellLaunchConfig);
+				this._terminalGroupService.groups.forEach((g, i) => g.setVisible(i === this._terminalGroupService.activeGroupIndex));
+			}
 		} else {
-			// TODO: pass resource?
-			const group = this._terminalGroupService.createGroup(shellLaunchConfig);
-			instance = group.terminalInstances[0];
+			if (target === TerminalLocation.Editor) {
+				instance = this._terminalInstanceService.createInstance(shellLaunchConfig, undefined, options?.resource);
+				instance.target = TerminalLocation.Editor;
+				this._terminalEditorService.openEditor(instance, options?.forceSplit || !!options?.instanceToSplit);
+			} else {
+				// TODO: pass resource?
+				const group = this._terminalGroupService.createGroup(shellLaunchConfig);
+				instance = group.terminalInstances[0];
+			}
 		}
 		return instance;
 	}
