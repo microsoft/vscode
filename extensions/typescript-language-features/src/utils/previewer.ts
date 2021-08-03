@@ -127,36 +127,40 @@ function convertLinkTags(
 
 	const out: string[] = [];
 
-	let currentLink: { name?: string, target?: Proto.FileSpan, text?: string } | undefined;
+	let currentLink: { name?: string, target?: Proto.FileSpan, text?: string, readonly linkcode: boolean } | undefined;
 	for (const part of parts) {
 		switch (part.kind) {
 			case 'link':
 				if (currentLink) {
-					const text = currentLink.text ?? currentLink.name;
 					if (currentLink.target) {
 						const link = filePathConverter.toResource(currentLink.target.file)
 							.with({
 								fragment: `L${currentLink.target.start.line},${currentLink.target.start.offset}`
 							});
 
-						out.push(`[${text}](${link.toString()})`);
+						const linkText = currentLink.text ? currentLink.text : escapeMarkdownSyntaxTokensForCode(currentLink.name ?? '');
+						out.push(`[${currentLink.linkcode ? '`' + linkText + '`' : linkText}](${link.toString()})`);
 					} else {
+						const text = currentLink.text ?? currentLink.name;
 						if (text) {
 							if (/^https?:/.test(text)) {
 								const parts = text.split(' ');
 								if (parts.length === 1) {
 									out.push(parts[0]);
 								} else if (parts.length > 1) {
-									out.push(`[${parts.slice(1).join(' ')}](${parts[0]})`);
+									const linkText = escapeMarkdownSyntaxTokensForCode(parts.slice(1).join(' '));
+									out.push(`[${currentLink.linkcode ? '`' + linkText + '`' : linkText}](${parts[0]})`);
 								}
 							} else {
-								out.push(text);
+								out.push(escapeMarkdownSyntaxTokensForCode(text));
 							}
 						}
 					}
 					currentLink = undefined;
 				} else {
-					currentLink = {};
+					currentLink = {
+						linkcode: part.text === '{@linkcode '
+					};
 				}
 				break;
 
@@ -216,4 +220,8 @@ export function addMarkdownDocumentation(
 		}
 	}
 	return out;
+}
+
+function escapeMarkdownSyntaxTokensForCode(text: string): string {
+	return text.replace(/`/g, '\\$&');
 }
