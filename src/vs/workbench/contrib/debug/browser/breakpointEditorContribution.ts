@@ -349,9 +349,9 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 				() => this.debugService.removeBreakpoints(bp.getId())
 			))));
 
-			actions.push(new SubmenuAction('debug.editBReakpoints', nls.localize('editBreakpoints', "Edit Breakpoints"), sorted.map(bp =>
+			actions.push(new SubmenuAction('debug.editBreakpoints', nls.localize('editBreakpoints', "Edit Breakpoints"), sorted.map(bp =>
 				new Action('editBreakpoint',
-					bp.column ? nls.localize('editInlineBreakpointOnColumn', "Edit Inline Breakpoint on Column {0}", bp.column) : nls.localize('editLineBrekapoint', "Edit Line Breakpoint"),
+					bp.column ? nls.localize('editInlineBreakpointOnColumn', "Edit Inline Breakpoint on Column {0}", bp.column) : nls.localize('editLineBreakpoint', "Edit Line Breakpoint"),
 					undefined,
 					true,
 					() => Promise.resolve(this.showBreakpointWidget(bp.lineNumber, bp.column))
