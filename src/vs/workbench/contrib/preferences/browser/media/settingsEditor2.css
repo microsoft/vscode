@@ -448,10 +448,11 @@
 	text-decoration: underline;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown code {
+.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown .code {
 	line-height: 15px;
 	/** For some reason, this is needed, otherwise <code> will take up 20px height */
 	font-family: var(--monaco-monospace-font);
+	white-space: pre;
 }
 
 .settings-editor > .settings-body > .settings-list-container .setting-item-contents .setting-item-markdown hr {
