@@ -220,12 +220,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			'type': 'boolean',
 			'markdownDescription':
 				!product.privacyStatementUrl ?
-					localize('telemetry.enableTelemetry', "Enable usage data and errors to be sent to a Microsoft online service.") :
-					localize('telemetry.enableTelemetryMd', "Enable usage data and errors to be sent to a Microsoft online service. Read our privacy statement [here]({0}).", product.privacyStatementUrl),
+					localize('telemetry.enableTelemetry', "Enable diagnostic data to be collected. This helps us to better understand how {0} is performing and where improvements need to be made.", product.nameLong) :
+					localize('telemetry.enableTelemetryMd', "Enable diagnostic data to be collected. This helps us to better understand how {0} is performing and where improvements need to be made. [Read more]({1}) about what we collect and our privacy statement.", product.nameLong, product.privacyStatementUrl),
 			'default': true,
 			'restricted': true,
 			'scope': ConfigurationScope.APPLICATION,
-			'tags': ['usesOnlineServices']
+			'tags': ['usesOnlineServices', 'telemetry']
 		}
 	}
 });

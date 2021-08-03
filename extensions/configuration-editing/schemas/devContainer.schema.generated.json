@@ -346,8 +346,7 @@
 						"onCreateCommand",
 						"updateContentCommand",
 						"postCreateCommand",
-						"postStartCommand",
-						"postAttachCommand"
+						"postStartCommand"
 					],
 					"description": "The user command to wait for before continuing execution in the background while the UI is starting up. The default is \"updateContentCommand\"."
 				},
@@ -737,8 +736,7 @@
 						"onCreateCommand",
 						"updateContentCommand",
 						"postCreateCommand",
-						"postStartCommand",
-						"postAttachCommand"
+						"postStartCommand"
 					],
 					"description": "The user command to wait for before continuing execution in the background while the UI is starting up. The default is \"updateContentCommand\"."
 				},
@@ -1094,8 +1092,7 @@
 						"onCreateCommand",
 						"updateContentCommand",
 						"postCreateCommand",
-						"postStartCommand",
-						"postAttachCommand"
+						"postStartCommand"
 					],
 					"description": "The user command to wait for before continuing execution in the background while the UI is starting up. The default is \"updateContentCommand\"."
 				},
@@ -1425,8 +1422,7 @@
 						"onCreateCommand",
 						"updateContentCommand",
 						"postCreateCommand",
-						"postStartCommand",
-						"postAttachCommand"
+						"postStartCommand"
 					],
 					"description": "The user command to wait for before continuing execution in the background while the UI is starting up. The default is \"updateContentCommand\"."
 				},
@@ -1721,8 +1717,7 @@
 						"onCreateCommand",
 						"updateContentCommand",
 						"postCreateCommand",
-						"postStartCommand",
-						"postAttachCommand"
+						"postStartCommand"
 					],
 					"description": "The user command to wait for before continuing execution in the background while the UI is starting up. The default is \"updateContentCommand\"."
 				},

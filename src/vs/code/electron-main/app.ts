@@ -124,11 +124,16 @@ export class CodeApplication extends Disposable {
 		// !!! DO NOT CHANGE without consulting the documentation !!!
 		//
 
-		const isUrlFromWebview = (requestingUrl: string) => requestingUrl.startsWith(`${Schemas.vscodeWebview}://`);
+		const isUrlFromWebview = (requestingUrl: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeWebview}://`);
+
+		const allowedPermissionsInWebview = new Set([
+			'clipboard-read',
+			'clipboard-sanitized-write',
+		]);
 
 		session.defaultSession.setPermissionRequestHandler((_webContents, permission /* 'media' | 'geolocation' | 'notifications' | 'midiSysex' | 'pointerLock' | 'fullscreen' | 'openExternal' */, callback, details) => {
 			if (isUrlFromWebview(details.requestingUrl)) {
-				return callback(permission === 'clipboard-read');
+				return callback(allowedPermissionsInWebview.has(permission));
 			}
 
 			return callback(false);
@@ -136,7 +141,7 @@ export class CodeApplication extends Disposable {
 
 		session.defaultSession.setPermissionCheckHandler((_webContents, permission /* 'media' */, _origin, details) => {
 			if (isUrlFromWebview(details.requestingUrl)) {
-				return permission === 'clipboard-read';
+				return allowedPermissionsInWebview.has(permission);
 			}
 
 			return false;

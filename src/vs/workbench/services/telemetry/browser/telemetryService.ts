@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ApplicationInsights } from '@microsoft/applicationinsights-web';
 import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService, combinedAppender, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -18,16 +19,66 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
 
+class WebAppInsightsAppender implements ITelemetryAppender {
+	private _aiClient: ApplicationInsights | undefined;
+
+	constructor(private _eventPrefix: string, aiKey: string) {
+		const endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
+		this._aiClient = new ApplicationInsights({
+			config: {
+				instrumentationKey: aiKey,
+				endpointUrl,
+				disableAjaxTracking: true,
+				disableExceptionTracking: true,
+				disableFetchTracking: true,
+				disableCorrelationHeaders: true,
+				disableCookiesUsage: true,
+				autoTrackPageVisitTime: false,
+				emitLineDelimitedJson: true,
+			},
+		});
+		this._aiClient.loadAppInsights();
+
+		// If we cannot access the endpoint this most likely means it's being blocked
+		// and we should not attempt to send any telemetry.
+		fetch(endpointUrl).catch(() => (this._aiClient = undefined));
+	}
+
+	/**
+	 * Logs a telemetry event with eventName and data
+	 * @param eventName The event name
+	 * @param data The data associated with the events
+	 */
+	public log(eventName: string, data: any): void {
+		if (!this._aiClient) {
+			return;
+		}
+
+		this._aiClient.trackEvent({ name: this._eventPrefix + '/' + eventName }, data);
+	}
+
+	/**
+	 * Flushes all the telemetry data still in the buffer
+	 */
+	public flush(): Promise<any> {
+		if (this._aiClient) {
+			this._aiClient.flush();
+			this._aiClient = undefined;
+		}
+		return Promise.resolve(undefined);
+	}
+}
+
 class WebTelemetryAppender implements ITelemetryAppender {
 
-	constructor(private _appender: IRemoteAgentService) { }
+	constructor(private _appender: ITelemetryAppender) { }
 
 	log(eventName: string, data: any): void {
-		this._appender.logTelemetry(eventName, data);
+		this._appender.log(eventName, data);
 	}
 
 	flush(): Promise<void> {
-		return this._appender.flushTelemetry();
+		return this._appender.flush();
 	}
 }
 
@@ -48,10 +99,12 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 	) {
 		super();
 
-		if (!!productService.enableTelemetry) {
+		if (!!productService.enableTelemetry && productService.aiConfig?.asimovKey && environmentService.isBuilt) {
+			// If remote server is present send telemetry through that, else use the client side appender
+			const telemetryProvider: ITelemetryAppender = remoteAgentService.getConnection() !== null ? { log: remoteAgentService.logTelemetry.bind(remoteAgentService), flush: remoteAgentService.flushTelemetry.bind(remoteAgentService) } : new WebAppInsightsAppender('monacoworkbench', productService.aiConfig?.asimovKey);
 			const config: ITelemetryServiceConfig = {
-				appender: combinedAppender(new WebTelemetryAppender(remoteAgentService), new TelemetryLogAppender(loggerService, environmentService)),
-				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, environmentService.remoteAuthority, environmentService.options && environmentService.options.resolveCommonTelemetryProperties),
+				appender: combinedAppender(new WebTelemetryAppender(telemetryProvider), new TelemetryLogAppender(loggerService, environmentService)),
+				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, environmentService.remoteAuthority, productService.embedderIdentifier, environmentService.options && environmentService.options.resolveCommonTelemetryProperties),
 				sendErrorTelemetry: false,
 			};
 

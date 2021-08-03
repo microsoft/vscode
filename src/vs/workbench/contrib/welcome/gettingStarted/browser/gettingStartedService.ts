@@ -32,6 +32,7 @@ import { IViewsService } from 'vs/workbench/common/views';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { isLinux, isMacintosh, isWindows, OperatingSystem as OS } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export const WorkspacePlatform = new RawContextKey<'mac' | 'linux' | 'windows' | undefined>('workspacePlatform', undefined, localize('workspacePlatform', "The platform of the current workspace, which in remote contexts may be different from the platform of the UI"));
 export const HasMultipleNewFileEntries = new RawContextKey<boolean>('hasMultipleNewFileEntries', false);
@@ -42,6 +43,8 @@ export const hiddenEntriesConfigurationKey = 'workbench.welcomePage.hiddenCatego
 
 export const walkthroughMetadataConfigurationKey = 'workbench.welcomePage.walkthroughMetadata';
 export type WalkthroughMetaDataType = Map<string, { firstSeen: number; stepIDs: string[]; manaullyOpened: boolean }>;
+
+const BUILT_IN_SOURCE = localize('builtin', "Built-In");
 
 export const enum GettingStartedCategory {
 	Beginner = 'Beginner',
@@ -75,6 +78,7 @@ export interface IGettingStartedWalkthroughDescriptor {
 	description: string
 	isFeatured: boolean
 	order: number
+	source: string
 	next?: string
 	icon:
 	| { type: 'icon', icon: ThemeIcon }
@@ -88,6 +92,7 @@ export interface IGettingStartedStartEntryDescriptor {
 	id: GettingStartedCategory | string
 	title: string
 	description: string
+	source: string
 	order: number
 	icon:
 	| { type: 'icon', icon: ThemeIcon }
@@ -103,6 +108,7 @@ export interface IGettingStartedCategory {
 	description: string
 	isFeatured: boolean
 	order: number
+	source: string
 	next?: string
 	icon:
 	| { type: 'icon', icon: ThemeIcon }
@@ -209,6 +215,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		@IHostService private readonly hostService: IHostService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
 	) {
 		super();
@@ -299,6 +306,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				...entry,
 				icon: { type: 'icon', icon: entry.icon },
 				order: index,
+				source: BUILT_IN_SOURCE,
 				when: ContextKeyExpr.deserialize(entry.when) ?? ContextKeyExpr.true()
 			});
 		});
@@ -309,6 +317,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				...category,
 				icon: { type: 'icon', icon: category.icon },
 				order: index,
+				source: BUILT_IN_SOURCE,
 				when: ContextKeyExpr.deserialize(category.when) ?? ContextKeyExpr.true()
 			},
 				category.content.steps.map((step, index) => {
@@ -426,7 +435,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			}
 
 			const override = await Promise.race([
-				this.tasExperimentService?.getTreatment<string>(`gettingStarted.overrideCategory.${categoryID}.when`),
+				this.tasExperimentService?.getTreatment<string>(`gettingStarted.overrideCategory.${extension.identifier.value + '.' + walkthrough.id}.when`),
 				new Promise<string | undefined>(resolve => setTimeout(() => resolve(walkthrough.when), 5000))
 			]);
 
@@ -447,6 +456,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				title: walkthrough.title,
 				id: categoryID,
 				isFeatured: false,
+				source: extension.displayName ?? extension.name,
 				order: Math.min(),
 				icon: {
 					type: 'image',
@@ -522,6 +532,13 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		this.triggerInstalledExtensionsRegistered();
 
 		if (sectionToOpen && this.configurationService.getValue<string>('workbench.welcomePage.walkthroughs.openOnInstall')) {
+			type GettingStartedAutoOpenClassification = {
+				id: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight', };
+			};
+			type GettingStartedAutoOpenEvent = {
+				id: string;
+			};
+			this.telemetryService.publicLog2<GettingStartedAutoOpenEvent, GettingStartedAutoOpenClassification>('gettingStarted.didAutoOpenWalkthrough', { id: sectionToOpen });
 			this.commandService.executeCommand('workbench.action.openWalkthrough', sectionToOpen);
 		}
 	}
@@ -592,14 +609,14 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 					}
 					break;
 				}
-				case 'stepSelected':
-					event = eventType + ':' + step.id;
+				case 'onStepSelected': case 'stepSelected':
+					event = 'stepSelected:' + step.id;
 					break;
 				case 'onCommand':
 					event = eventType + ':' + argument.replace(/^toSide:/, '');
 					break;
-				case 'extensionInstalled':
-					event = eventType + ':' + argument.toLowerCase();
+				case 'onExtensionInstalled': case 'extensionInstalled':
+					event = 'extensionInstalled:' + argument.toLowerCase();
 					break;
 				default:
 					console.error(`Unknown completionEvent ${event} when registering step ${step.id}`);
@@ -815,7 +832,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'resetGettingStartedProgress',
 			category: 'Developer',
-			title: 'Reset Welcome Page Getting Started Progress',
+			title: 'Reset Welcome Page Walkthrough Progress',
 			f1: true
 		});
 	}

@@ -497,6 +497,78 @@ suite('ExtensionEnablementService Test', () => {
 		assert.deepStrictEqual(testObject.getEnablementState(extension), EnablementState.DisabledByEnvironment);
 	});
 
+	test('test extension is enabled globally when enabled in environment', async () => {
+		const extension = aLocalExtension('pub.a');
+		installed.push(extension);
+
+		instantiationService.stub(IWorkbenchEnvironmentService, { enableExtensions: <readonly string[]>['pub.a'] } as IWorkbenchEnvironmentService);
+		testObject = new TestExtensionEnablementService(instantiationService);
+
+		assert.ok(testObject.isEnabled(extension));
+		assert.deepStrictEqual(testObject.getEnablementState(extension), EnablementState.EnabledGlobally);
+	});
+
+	test('test extension is enabled workspace when enabled in environment', async () => {
+		const extension = aLocalExtension('pub.a');
+		installed.push(extension);
+
+		testObject.setEnablement([extension], EnablementState.EnabledWorkspace);
+		instantiationService.stub(IWorkbenchEnvironmentService, { enableExtensions: <readonly string[]>['pub.a'] } as IWorkbenchEnvironmentService);
+		testObject = new TestExtensionEnablementService(instantiationService);
+
+		assert.ok(testObject.isEnabled(extension));
+		assert.deepStrictEqual(testObject.getEnablementState(extension), EnablementState.EnabledWorkspace);
+	});
+
+	test('test extension is enabled by environment when disabled globally', async () => {
+		const extension = aLocalExtension('pub.a');
+		installed.push(extension);
+
+		testObject.setEnablement([extension], EnablementState.DisabledGlobally);
+		instantiationService.stub(IWorkbenchEnvironmentService, { enableExtensions: <readonly string[]>['pub.a'] } as IWorkbenchEnvironmentService);
+		testObject = new TestExtensionEnablementService(instantiationService);
+
+		assert.ok(testObject.isEnabled(extension));
+		assert.deepStrictEqual(testObject.getEnablementState(extension), EnablementState.EnabledByEnvironment);
+	});
+
+	test('test extension is enabled by environment when disabled workspace', async () => {
+		const extension = aLocalExtension('pub.a');
+		installed.push(extension);
+
+		testObject.setEnablement([extension], EnablementState.DisabledWorkspace);
+		instantiationService.stub(IWorkbenchEnvironmentService, { enableExtensions: <readonly string[]>['pub.a'] } as IWorkbenchEnvironmentService);
+		testObject = new TestExtensionEnablementService(instantiationService);
+
+		assert.ok(testObject.isEnabled(extension));
+		assert.deepStrictEqual(testObject.getEnablementState(extension), EnablementState.EnabledByEnvironment);
+	});
+
+	test('test extension is disabled by environment when also enabled in environment', async () => {
+		const extension = aLocalExtension('pub.a');
+		installed.push(extension);
+
+		testObject.setEnablement([extension], EnablementState.DisabledWorkspace);
+		instantiationService.stub(IWorkbenchEnvironmentService, { disableExtensions: true, enableExtensions: <readonly string[]>['pub.a'] } as IWorkbenchEnvironmentService);
+		testObject = new TestExtensionEnablementService(instantiationService);
+
+		assert.ok(!testObject.isEnabled(extension));
+		assert.deepStrictEqual(testObject.getEnablementState(extension), EnablementState.DisabledByEnvironment);
+	});
+
+	test('test canChangeEnablement return false when the extension is enabled in environment', () => {
+		instantiationService.stub(IWorkbenchEnvironmentService, { enableExtensions: <readonly string[]>['pub.a'] } as IWorkbenchEnvironmentService);
+		testObject = new TestExtensionEnablementService(instantiationService);
+		assert.strictEqual(testObject.canChangeEnablement(aLocalExtension('pub.a')), false);
+	});
+
+	test('test canChangeEnablement return false for system extension when extension is disabled in environment', () => {
+		instantiationService.stub(IWorkbenchEnvironmentService, { enableExtensions: <readonly string[]>['pub.a'] } as IWorkbenchEnvironmentService);
+		testObject = new TestExtensionEnablementService(instantiationService);
+		const extension = aLocalExtension('pub.a', undefined, ExtensionType.System);
+		assert.ok(!testObject.canChangeEnablement(extension));
+	});
+
 	test('test extension does not support vitrual workspace is not enabled in virtual workspace', async () => {
 		const extension = aLocalExtension2('pub.a', { capabilities: { virtualWorkspaces: false } });
 		instantiationService.stub(IWorkspaceContextService, 'getWorkspace', <IWorkspace>{ folders: [{ uri: URI.file('worskapceA').with(({ scheme: 'virtual' })) }] });
@@ -613,7 +685,7 @@ suite('ExtensionEnablementService Test', () => {
 		assert.deepStrictEqual(testObject.getEnablementState(localWorkspaceExtension), EnablementState.EnabledGlobally);
 	});
 
-	test('test canChangeEnablement return false when the local workspace extension is disabled by kind', () => {
+	test('test canChangeEnablement return true when the local workspace extension is disabled by kind', () => {
 		instantiationService.stub(IExtensionManagementServerService, aMultiExtensionManagementServerService(instantiationService));
 		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`) });
 		testObject = new TestExtensionEnablementService(instantiationService);
@@ -659,7 +731,7 @@ suite('ExtensionEnablementService Test', () => {
 		assert.deepStrictEqual(testObject.getEnablementState(localWorkspaceExtension), EnablementState.EnabledGlobally);
 	});
 
-	test('test canChangeEnablement return false when the remote ui extension is disabled by kind', () => {
+	test('test canChangeEnablement return true when the remote ui extension is disabled by kind', () => {
 		instantiationService.stub(IExtensionManagementServerService, aMultiExtensionManagementServerService(instantiationService));
 		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		testObject = new TestExtensionEnablementService(instantiationService);
@@ -767,6 +839,21 @@ suite('ExtensionEnablementService Test', () => {
 
 		assert.strictEqual(testObject.getEnablementState(installed[0]), EnablementState.DisabledByTrustRequirement);
 		assert.strictEqual(testObject.getEnablementState(installed[1]), EnablementState.DisabledByExtensionDependency);
+	});
+
+	test('test extension is not disabled by dependency if it has a dependency that is disabled by extension kind', async () => {
+		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(anExtensionManagementServer('vscode-local', instantiationService), anExtensionManagementServer('vscode-remote', instantiationService), null));
+		const localUIExtension = aLocalExtension2('pub.a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`) });
+		const remoteUIExtension = aLocalExtension2('pub.a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+		const remoteWorkspaceExtension = aLocalExtension2('pub.n', { extensionKind: ['workspace'], extensionDependencies: ['pub.a'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+		installed.push(localUIExtension, remoteUIExtension, remoteWorkspaceExtension);
+
+		testObject = new TestExtensionEnablementService(instantiationService);
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+
+		assert.strictEqual(testObject.getEnablementState(localUIExtension), EnablementState.EnabledGlobally);
+		assert.strictEqual(testObject.getEnablementState(remoteUIExtension), EnablementState.DisabledByExtensionKind);
+		assert.strictEqual(testObject.getEnablementState(remoteWorkspaceExtension), EnablementState.EnabledGlobally);
 	});
 
 	test('test canChangeEnablement return true when extension is disabled by dependency if it has a dependency that is disabled by workspace trust', async () => {

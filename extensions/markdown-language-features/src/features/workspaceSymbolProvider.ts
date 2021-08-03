@@ -26,7 +26,9 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 
 	private _watcher: vscode.FileSystemWatcher | undefined;
 
-	/**
+	private readonly utf8Decoder = new TextDecoder('utf-8');
+
+  /**
 	 * Reads and parses all .md documents in the workspace.
 	 * Files are processed in batches, to keep the number of open files small.
 	 *
@@ -101,7 +103,7 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 		const bytes = await vscode.workspace.fs.readFile(resource);
 
 		// We assume that markdown is in UTF-8
-		const text = Buffer.from(bytes).toString('utf-8');
+		const text = this.utf8Decoder.decode(bytes);
 
 		const lines: SkinnyTextLine[] = [];
 		const parts = text.split(/(\r?\n)/);

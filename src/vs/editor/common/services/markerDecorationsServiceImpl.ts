@@ -16,10 +16,8 @@ import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDeco
 import { Schemas } from 'vs/base/common/network';
 import { Emitter, Event } from 'vs/base/common/event';
 import { minimapWarning, minimapError } from 'vs/platform/theme/common/colorRegistry';
+import { ResourceMap } from 'vs/base/common/map';
 
-function MODEL_ID(resource: URI): string {
-	return resource.toString();
-}
 
 class MarkerDecorations extends Disposable {
 
@@ -68,7 +66,7 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 	private readonly _onDidChangeMarker = this._register(new Emitter<ITextModel>());
 	readonly onDidChangeMarker: Event<ITextModel> = this._onDidChangeMarker.event;
 
-	private readonly _markerDecorations = new Map<string, MarkerDecorations>();
+	private readonly _markerDecorations = new ResourceMap<MarkerDecorations>();
 
 	constructor(
 		@IModelService modelService: IModelService,
@@ -88,18 +86,18 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 	}
 
 	getMarker(uri: URI, decoration: IModelDecoration): IMarker | null {
-		const markerDecorations = this._markerDecorations.get(MODEL_ID(uri));
+		const markerDecorations = this._markerDecorations.get(uri);
 		return markerDecorations ? (markerDecorations.getMarker(decoration) || null) : null;
 	}
 
 	getLiveMarkers(uri: URI): [Range, IMarker][] {
-		const markerDecorations = this._markerDecorations.get(MODEL_ID(uri));
+		const markerDecorations = this._markerDecorations.get(uri);
 		return markerDecorations ? markerDecorations.getMarkers() : [];
 	}
 
 	private _handleMarkerChange(changedResources: readonly URI[]): void {
 		changedResources.forEach((resource) => {
-			const markerDecorations = this._markerDecorations.get(MODEL_ID(resource));
+			const markerDecorations = this._markerDecorations.get(resource);
 			if (markerDecorations) {
 				this._updateDecorations(markerDecorations);
 			}
@@ -108,15 +106,15 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 
 	private _onModelAdded(model: ITextModel): void {
 		const markerDecorations = new MarkerDecorations(model);
-		this._markerDecorations.set(MODEL_ID(model.uri), markerDecorations);
+		this._markerDecorations.set(model.uri, markerDecorations);
 		this._updateDecorations(markerDecorations);
 	}
 
 	private _onModelRemoved(model: ITextModel): void {
-		const markerDecorations = this._markerDecorations.get(MODEL_ID(model.uri));
+		const markerDecorations = this._markerDecorations.get(model.uri);
 		if (markerDecorations) {
 			markerDecorations.dispose();
-			this._markerDecorations.delete(MODEL_ID(model.uri));
+			this._markerDecorations.delete(model.uri);
 		}
 
 		// clean up markers for internal, transient models

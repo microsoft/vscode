@@ -34,12 +34,23 @@ export function beforeSuite(opts: minimist.ParsedArgs, optionsTransform?: (opts:
 		const app = new Application({ ...options, userDataDir });
 		await app!.start(opts.web ? false : undefined);
 		this.app = app;
+
+		if (opts.log) {
+			const title = this.currentTest!.fullTitle();
+			app.logger.log('*** Test start:', title);
+		}
 	});
 }
 
-export function afterSuite() {
+export function afterSuite(opts: minimist.ParsedArgs) {
 	after(async function () {
 		const app = this.app as Application;
+
+		if (this.currentTest?.state === 'failed' && opts.screenshots) {
+			const name = this.currentTest!.fullTitle().replace(/[^a-z0-9\-]/ig, '_');
+			await app.captureScreenshot(name);
+		}
+
 		if (app) {
 			await app.stop();
 		}

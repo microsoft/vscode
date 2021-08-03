@@ -1408,17 +1408,7 @@ class CallHierarchyAdapter {
 
 	private _cacheAndConvertItem(sessionId: string, item: vscode.CallHierarchyItem): extHostProtocol.ICallHierarchyItemDto {
 		const map = this._cache.get(sessionId)!;
-		const dto: extHostProtocol.ICallHierarchyItemDto = {
-			_sessionId: sessionId,
-			_itemId: map.size.toString(36),
-			name: item.name,
-			detail: item.detail,
-			kind: typeConvert.SymbolKind.from(item.kind),
-			uri: item.uri,
-			range: typeConvert.Range.from(item.range),
-			selectionRange: typeConvert.Range.from(item.selectionRange),
-			tags: item.tags?.map(typeConvert.SymbolTag.from)
-		};
+		const dto = typeConvert.CallHierarchyItem.from(item, sessionId, map.size.toString(36));
 		map.set(dto._itemId, item);
 		return dto;
 	}
@@ -1429,12 +1419,86 @@ class CallHierarchyAdapter {
 	}
 }
 
+class TypeHierarchyAdapter {
+
+	private readonly _idPool = new IdGenerator('');
+	private readonly _cache = new Map<string, Map<string, vscode.TypeHierarchyItem>>();
+
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.TypeHierarchyProvider
+	) { }
+
+	async prepareSession(uri: URI, position: IPosition, token: CancellationToken): Promise<extHostProtocol.ITypeHierarchyItemDto[] | undefined> {
+		const doc = this._documents.getDocument(uri);
+		const pos = typeConvert.Position.to(position);
+
+		const items = await this._provider.prepareTypeHierarchy(doc, pos, token);
+		if (!items) {
+			return undefined;
+		}
+
+		const sessionId = this._idPool.nextId();
+		this._cache.set(sessionId, new Map());
+
+		if (Array.isArray(items)) {
+			return items.map(item => this._cacheAndConvertItem(sessionId, item));
+		} else {
+			return [this._cacheAndConvertItem(sessionId, items)];
+		}
+	}
+
+	async provideSupertypes(sessionId: string, itemId: string, token: CancellationToken): Promise<extHostProtocol.ITypeHierarchyItemDto[] | undefined> {
+		const item = this._itemFromCache(sessionId, itemId);
+		if (!item) {
+			throw new Error('missing type hierarchy item');
+		}
+		const supertypes = await this._provider.provideTypeHierarchySupertypes(item, token);
+		if (!supertypes) {
+			return undefined;
+		}
+		return supertypes.map(supertype => {
+			return this._cacheAndConvertItem(sessionId, supertype);
+		});
+	}
+
+	async provideSubtypes(sessionId: string, itemId: string, token: CancellationToken): Promise<extHostProtocol.ITypeHierarchyItemDto[] | undefined> {
+		const item = this._itemFromCache(sessionId, itemId);
+		if (!item) {
+			throw new Error('missing type hierarchy item');
+		}
+		const subtypes = await this._provider.provideTypeHierarchySubtypes(item, token);
+		if (!subtypes) {
+			return undefined;
+		}
+		return subtypes.map(subtype => {
+			return this._cacheAndConvertItem(sessionId, subtype);
+		});
+	}
+
+	releaseSession(sessionId: string): void {
+		this._cache.delete(sessionId);
+	}
+
+	private _cacheAndConvertItem(sessionId: string, item: vscode.TypeHierarchyItem): extHostProtocol.ITypeHierarchyItemDto {
+		const map = this._cache.get(sessionId)!;
+		const dto = typeConvert.TypeHierarchyItem.from(item, sessionId, map.size.toString(36));
+		map.set(dto._itemId, item);
+		return dto;
+	}
+
+	private _itemFromCache(sessionId: string, itemId: string): vscode.TypeHierarchyItem | undefined {
+		const map = this._cache.get(sessionId);
+		return map?.get(itemId);
+	}
+}
 type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
 	| DocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
 	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter
 	| TypeDefinitionAdapter | ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter
-	| SelectionRangeAdapter | CallHierarchyAdapter | DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter
+	| SelectionRangeAdapter | CallHierarchyAdapter | TypeHierarchyAdapter
+	| DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter
 	| EvaluatableExpressionAdapter | InlineValuesAdapter
 	| LinkedEditingRangeAdapter | InlayHintsAdapter | InlineCompletionAdapter;
 
@@ -2041,6 +2105,29 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	$releaseCallHierarchy(handle: number, sessionId: string): void {
 		this._withAdapter(handle, CallHierarchyAdapter, adapter => Promise.resolve(adapter.releaseSession(sessionId)), undefined);
+	}
+
+	// --- type hierarchy
+	registerTypeHierarchyProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.TypeHierarchyProvider): vscode.Disposable {
+		const handle = this._addNewAdapter(new TypeHierarchyAdapter(this._documents, provider), extension);
+		this._proxy.$registerTypeHierarchyProvider(handle, this._transformDocumentSelector(selector));
+		return this._createDisposable(handle);
+	}
+
+	$prepareTypeHierarchy(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<extHostProtocol.ITypeHierarchyItemDto[] | undefined> {
+		return this._withAdapter(handle, TypeHierarchyAdapter, adapter => Promise.resolve(adapter.prepareSession(URI.revive(resource), position, token)), undefined);
+	}
+
+	$provideTypeHierarchySupertypes(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<extHostProtocol.ITypeHierarchyItemDto[] | undefined> {
+		return this._withAdapter(handle, TypeHierarchyAdapter, adapter => adapter.provideSupertypes(sessionId, itemId, token), undefined);
+	}
+
+	$provideTypeHierarchySubtypes(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<extHostProtocol.ITypeHierarchyItemDto[] | undefined> {
+		return this._withAdapter(handle, TypeHierarchyAdapter, adapter => adapter.provideSubtypes(sessionId, itemId, token), undefined);
+	}
+
+	$releaseTypeHierarchy(handle: number, sessionId: string): void {
+		this._withAdapter(handle, TypeHierarchyAdapter, adapter => Promise.resolve(adapter.releaseSession(sessionId)), undefined);
 	}
 
 	// --- configuration

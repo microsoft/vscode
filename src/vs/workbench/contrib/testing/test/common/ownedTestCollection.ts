@@ -7,10 +7,6 @@ import { SingleUseTestCollection } from 'vs/workbench/contrib/testing/common/own
 import { TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export class TestSingleUseCollection extends SingleUseTestCollection {
-	public get itemToInternal() {
-		return this.testItemToInternal;
-	}
-
 	public get currentDiff() {
 		return this.diff;
 	}

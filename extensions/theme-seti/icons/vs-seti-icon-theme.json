@@ -550,6 +550,14 @@
 			"fontCharacter": "\\E03E",
 			"fontColor": "#cc3e44"
 		},
+		"_hacklang_light": {
+			"fontCharacter": "\\E03F",
+			"fontColor": "#cc6d2e"
+		},
+		"_hacklang": {
+			"fontCharacter": "\\E03F",
+			"fontColor": "#e37933"
+		},
 		"_haml_light": {
 			"fontCharacter": "\\E040",
 			"fontColor": "#b8383d"
@@ -1126,14 +1134,6 @@
 			"fontCharacter": "\\E07B",
 			"fontColor": "#e37933"
 		},
-		"_react_2_light": {
-			"fontCharacter": "\\E07B",
-			"fontColor": "#b7b73b"
-		},
-		"_react_2": {
-			"fontCharacter": "\\E07B",
-			"fontColor": "#cbcb41"
-		},
 		"_reasonml_light": {
 			"fontCharacter": "\\E07C",
 			"fontColor": "#b8383d"
@@ -1379,11 +1379,11 @@
 		},
 		"_typescript_1_light": {
 			"fontCharacter": "\\E097",
-			"fontColor": "#b7b73b"
+			"fontColor": "#cc6d2e"
 		},
 		"_typescript_1": {
 			"fontCharacter": "\\E097",
-			"fontColor": "#cbcb41"
+			"fontColor": "#e37933"
 		},
 		"_vala_light": {
 			"fontCharacter": "\\E098",
@@ -1567,6 +1567,7 @@
 		"gql": "_graphql",
 		"graphql": "_graphql",
 		"graphqls": "_graphql",
+		"hack": "_hacklang",
 		"haml": "_haml",
 		"hs": "_haskell",
 		"lhs": "_haskell",
@@ -1623,8 +1624,8 @@
 		"spec.jsx": "_react_1",
 		"test.jsx": "_react_1",
 		"cjsx": "_react",
-		"spec.tsx": "_react_2",
-		"test.tsx": "_react_2",
+		"spec.tsx": "_react_1",
+		"test.tsx": "_react_1",
 		"re": "_reasonml",
 		"res": "_rescript",
 		"resi": "_rescript_1",
@@ -1705,9 +1706,11 @@
 		"bowerrc": "_bower",
 		"dockerignore": "_docker_1",
 		"codeclimate.yml": "_code-climate",
+		"eslintrc": "_eslint",
 		"eslintrc.js": "_eslint",
 		"eslintrc.yaml": "_eslint",
 		"eslintrc.yml": "_eslint",
+		"eslintrc.json": "_eslint",
 		"eslintignore": "_eslint_1",
 		"firebaserc": "_firebase",
 		"jshintrc": "_javascript_2",
@@ -1926,6 +1929,7 @@
 			"gql": "_graphql_light",
 			"graphql": "_graphql_light",
 			"graphqls": "_graphql_light",
+			"hack": "_hacklang_light",
 			"haml": "_haml_light",
 			"hs": "_haskell_light",
 			"lhs": "_haskell_light",
@@ -1982,8 +1986,8 @@
 			"spec.jsx": "_react_1_light",
 			"test.jsx": "_react_1_light",
 			"cjsx": "_react_light",
-			"spec.tsx": "_react_2_light",
-			"test.tsx": "_react_2_light",
+			"spec.tsx": "_react_1_light",
+			"test.tsx": "_react_1_light",
 			"re": "_reasonml_light",
 			"res": "_rescript_light",
 			"resi": "_rescript_1_light",
@@ -2064,9 +2068,11 @@
 			"bowerrc": "_bower_light",
 			"dockerignore": "_docker_1_light",
 			"codeclimate.yml": "_code-climate_light",
+			"eslintrc": "_eslint_light",
 			"eslintrc.js": "_eslint_light",
 			"eslintrc.yaml": "_eslint_light",
 			"eslintrc.yml": "_eslint_light",
+			"eslintrc.json": "_eslint_light",
 			"eslintignore": "_eslint_1_light",
 			"firebaserc": "_firebase_light",
 			"jshintrc": "_javascript_2_light",
@@ -2222,5 +2228,5 @@
 			"npm-debug.log": "_npm_ignored_light"
 		}
 	},
-	"version": "https://github.com/jesseweed/seti-ui/commit/e80b920f4268e5daf1f65183dae33297aa4d0d17"
+	"version": "https://github.com/jesseweed/seti-ui/commit/4800f7711c3db865a5076b0cc5d7b184d1e9c7fc"
 }

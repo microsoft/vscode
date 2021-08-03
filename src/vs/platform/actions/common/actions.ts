@@ -45,6 +45,7 @@ export interface ICommandAction {
 	category?: string | ILocalizedString;
 	tooltip?: string;
 	icon?: Icon;
+	source?: string;
 	precondition?: ContextKeyExpression;
 	toggled?: ContextKeyExpression | { condition: ContextKeyExpression, icon?: Icon, tooltip?: string, title?: string | ILocalizedString };
 }
@@ -129,6 +130,7 @@ export class MenuId {
 	static readonly StatusBarWindowIndicatorMenu = new MenuId('StatusBarWindowIndicatorMenu');
 	static readonly StatusBarRemoteIndicatorMenu = new MenuId('StatusBarRemoteIndicatorMenu');
 	static readonly TestItem = new MenuId('TestItem');
+	static readonly TestItemGutter = new MenuId('TestItemGutter');
 	static readonly TestPeekElement = new MenuId('TestPeekElement');
 	static readonly TestPeekTitle = new MenuId('TestPeekTitle');
 	static readonly TouchBarContext = new MenuId('TouchBarContext');
@@ -151,6 +153,7 @@ export class MenuId {
 	static readonly InteractiveToolbar = new MenuId('InteractiveToolbar');
 	static readonly InteractiveCellTitle = new MenuId('InteractiveCellTitle');
 	static readonly InteractiveCellExecute = new MenuId('InteractiveCellExecute');
+	static readonly InteractiveInputExecute = new MenuId('InteractiveInputExecute');
 	static readonly NotebookToolbar = new MenuId('NotebookToolbar');
 	static readonly NotebookCellTitle = new MenuId('NotebookCellTitle');
 	static readonly NotebookCellInsert = new MenuId('NotebookCellInsert');

@@ -127,7 +127,11 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 	}
 
 	isReadonly(): boolean {
-		return false;
+		if (this._fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
+			return true;
+		} else {
+			return false;
+		}
 	}
 
 	isOrphaned(): boolean {

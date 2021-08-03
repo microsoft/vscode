@@ -67,6 +67,7 @@ export const enum TerminalSettingId {
 	RightClickBehavior = 'terminal.integrated.rightClickBehavior',
 	Cwd = 'terminal.integrated.cwd',
 	ConfirmOnExit = 'terminal.integrated.confirmOnExit',
+	ConfirmOnKill = 'terminal.integrated.confirmOnKill',
 	EnableBell = 'terminal.integrated.enableBell',
 	CommandsToSkipShell = 'terminal.integrated.commandsToSkipShell',
 	AllowChords = 'terminal.integrated.allowChords',
@@ -185,10 +186,12 @@ export interface IPtyService {
 	readonly onProcessResolvedShellLaunchConfig: Event<{ id: number, event: IShellLaunchConfig }>;
 	readonly onProcessReplay: Event<{ id: number, event: IPtyHostProcessReplayEvent }>;
 	readonly onProcessOrphanQuestion: Event<{ id: number }>;
+	readonly onDidRequestDetach: Event<{ requestId: number, workspaceId: string, instanceId: number }>;
+	readonly onProcessDidChangeHasChildProcesses: Event<{ id: number, event: boolean }>;
 
 	restartPtyHost?(): Promise<void>;
 	shutdownAll?(): Promise<void>;
-	acceptPtyHostResolvedVariables?(id: number, resolved: string[]): Promise<void>;
+	acceptPtyHostResolvedVariables?(requestId: number, resolved: string[]): Promise<void>;
 
 	createProcess(
 		shellLaunchConfig: IShellLaunchConfig,
@@ -230,10 +233,12 @@ export interface IPtyService {
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void>;
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;
+	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined>;
+	acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void>;
 }
 
 export interface IRequestResolveVariablesEvent {
-	id: number;
+	requestId: number;
 	workspaceId: string;
 	originalText: string[];
 }
@@ -331,7 +336,7 @@ export interface IShellLaunchConfig {
 	/**
 	 * This is a terminal that attaches to an already running terminal.
 	 */
-	attachPersistentProcess?: { id: number; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string };
+	attachPersistentProcess?: { id: number; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string, hasChildProcesses?: boolean };
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in
@@ -386,7 +391,7 @@ export interface ICreateTerminalOptions {
 	 * The shell launch config or profile to launch with, when not specified the default terminal
 	 * profile will be used.
 	 */
-	config?: IShellLaunchConfig | ITerminalProfile;
+	config?: IShellLaunchConfig | ITerminalProfile | IExtensionTerminalProfile;
 	/**
 	 * The current working directory to start with, this will override IShellLaunchConfig.cwd if
 	 * specified.
@@ -396,12 +401,22 @@ export interface ICreateTerminalOptions {
 	 * Where to create the terminal, when not specified the default target will be used.
 	 */
 	target?: TerminalLocation;
+	/**
+	 * Creates a split terminal without requiring a terminal instance to split, for example when splitting
+	 * a terminal editor
+	 */
+	forceSplit?: boolean;
+	/**
+	 * The terminal's resource, passed when the terminal has moved windows.
+	 */
+	resource?: URI;
 }
 
 export interface ICreateContributedTerminalProfileOptions {
-	isSplitTerminal: boolean;
 	target?: TerminalLocation;
 	icon?: string;
+	color?: string;
+	isSplitTerminal?: boolean;
 }
 
 export const enum TerminalLocation {
@@ -457,9 +472,10 @@ export interface ITerminalChildProcess {
 	onProcessExit: Event<number | undefined>;
 	onProcessReady: Event<IProcessReadyEvent>;
 	onProcessTitleChanged: Event<string>;
+	onProcessShellTypeChanged: Event<TerminalShellType>;
 	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined>;
 	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig>;
-	onProcessShellTypeChanged: Event<TerminalShellType>;
+	onDidChangeHasChildProcesses?: Event<boolean>;
 
 	/**
 	 * Starts the process.
@@ -599,4 +615,21 @@ export interface ITerminalProfileSource extends IBaseUnresolvedTerminalProfile {
 	source: ProfileSource;
 }
 
-export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | null;
+
+export interface ITerminalContributions {
+	profiles?: ITerminalProfileContribution[];
+}
+
+export interface ITerminalProfileContribution {
+	title: string;
+	id: string;
+	icon?: string;
+	color?: string;
+}
+
+export interface IExtensionTerminalProfile extends ITerminalProfileContribution {
+	extensionIdentifier: string;
+}
+
+export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | IExtensionTerminalProfile | null;
+export type ITerminalProfileType = ITerminalProfile | IExtensionTerminalProfile;

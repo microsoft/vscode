@@ -87,7 +87,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		this.updateScheduler = this._register(new RunOnceScheduler(() => {
 			const state = this.debugService.state;
 			const toolBarLocation = this.configurationService.getValue<IDebugConfiguration>('debug').toolBarLocation;
-			if (state === State.Inactive || toolBarLocation === 'docked' || toolBarLocation === 'hidden') {
+			if (state === State.Inactive || toolBarLocation === 'docked' || toolBarLocation === 'hidden' || this.debugService.getViewModel().focusedSession?.isSimpleUI || (state === State.Initializing && this.debugService.initializingOptions?.debugUI?.simple)) {
 				return this.hide();
 			}
 
@@ -294,5 +294,5 @@ registerDebugToolBarItem(STEP_INTO_ID, STEP_INTO_LABEL, 30, icons.debugStepInto,
 registerDebugToolBarItem(STEP_OUT_ID, STEP_OUT_LABEL, 40, icons.debugStepOut, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
 registerDebugToolBarItem(RESTART_SESSION_ID, RESTART_LABEL, 60, icons.debugRestart);
 registerDebugToolBarItem(STEP_BACK_ID, localize('stepBackDebug', "Step Back"), 50, icons.debugStepBack, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(REVERSE_CONTINUE_ID, localize('reverseContinue', "Reverse"), 60, icons.debugReverseContinue, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(REVERSE_CONTINUE_ID, localize('reverseContinue', "Reverse"), 55, icons.debugReverseContinue, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
 registerDebugToolBarItem(FOCUS_SESSION_ID, FOCUS_SESSION_LABEL, 100, undefined, CONTEXT_MULTI_SESSION_DEBUG);

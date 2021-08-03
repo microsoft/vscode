@@ -162,6 +162,8 @@ export class ExtensionManagementChannelClient extends Disposable implements IExt
 	getExtensionsReport(): Promise<IReportedExtension[]> {
 		return Promise.resolve(this.channel.call('getExtensionsReport'));
 	}
+
+	registerParticipant() { throw new Error('Not Supported'); }
 }
 
 export class ExtensionTipsChannel implements IServerChannel {

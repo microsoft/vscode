@@ -118,12 +118,12 @@ export class CoordinatesConverter implements ICoordinatesConverter {
 
 	// Model -> View conversion and related methods
 
-	public convertModelPositionToViewPosition(modelPosition: Position): Position {
-		return this._lines.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column);
+	public convertModelPositionToViewPosition(modelPosition: Position, affinity?: PositionAffinity): Position {
+		return this._lines.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column, affinity);
 	}
 
-	public convertModelRangeToViewRange(modelRange: Range): Range {
-		return this._lines.convertModelRangeToViewRange(modelRange);
+	public convertModelRangeToViewRange(modelRange: Range, affinity?: PositionAffinity): Range {
+		return this._lines.convertModelRangeToViewRange(modelRange, affinity);
 	}
 
 	public modelPositionIsVisible(modelPosition: Position): boolean {
@@ -886,9 +886,12 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		return r;
 	}
 
-	public convertModelRangeToViewRange(modelRange: Range): Range {
+	/**
+	 * @param affinity The affinity in case of an empty range. Has no effect for non-empty ranges.
+	*/
+	public convertModelRangeToViewRange(modelRange: Range, affinity: PositionAffinity = PositionAffinity.Left): Range {
 		if (modelRange.isEmpty()) {
-			const start = this.convertModelPositionToViewPosition(modelRange.startLineNumber, modelRange.startColumn, PositionAffinity.Left);
+			const start = this.convertModelPositionToViewPosition(modelRange.startLineNumber, modelRange.startColumn, affinity);
 			return Range.fromPositions(start);
 		} else {
 			const start = this.convertModelPositionToViewPosition(modelRange.startLineNumber, modelRange.startColumn, PositionAffinity.Right);
@@ -1347,13 +1350,13 @@ export class SplitLine implements ISplitLine {
 
 				if (lineStartOffsetInUnwrappedLine < injectedTextEndOffsetInUnwrappedLine) {
 					// Injected text ends after or in this line (but also starts in or before this line).
-					const inlineClassName = injectionOptions![i].inlineClassName;
-					if (inlineClassName) {
+					const options = injectionOptions![i];
+					if (options.inlineClassName) {
 						const offset = (outputLineIndex > 0 ? lineBreakData.wrappedTextIndentLength : 0);
 						const start = offset + Math.max(injectedTextStartOffsetInUnwrappedLine - lineStartOffsetInUnwrappedLine, 0);
 						const end = offset + Math.min(injectedTextEndOffsetInUnwrappedLine - lineStartOffsetInUnwrappedLine, lineEndOffsetInUnwrappedLine);
 						if (start !== end) {
-							inlineDecorations.push(new SingleLineInlineDecoration(start, end, inlineClassName));
+							inlineDecorations.push(new SingleLineInlineDecoration(start, end, options.inlineClassName, options.inlineClassNameAffectsLetterSpacing!));
 						}
 					}
 				}

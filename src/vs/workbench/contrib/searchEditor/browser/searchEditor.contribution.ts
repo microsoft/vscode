@@ -217,6 +217,7 @@ const openArgDescription = {
 				showIncludesExcludes: { type: 'boolean' },
 				triggerSearch: { type: 'boolean' },
 				focusResults: { type: 'boolean' },
+				onlyOpenEditors: { type: 'boolean' },
 			}
 		}
 	}]

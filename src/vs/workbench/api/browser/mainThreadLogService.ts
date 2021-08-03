@@ -40,7 +40,7 @@ export class MainThreadLogService implements MainThreadLogShape {
 		const uri = URI.revive(file);
 		let logger = this._loggers.get(uri.toString());
 		if (!logger) {
-			logger = this._instaService.createInstance(FileLogger, basename(file.path), URI.revive(file), this._logService.getLevel());
+			logger = this._instaService.createInstance(FileLogger, basename(file.path), URI.revive(file), this._logService.getLevel(), false);
 			this._loggers.set(uri.toString(), logger);
 		}
 		logger.log(level, message);

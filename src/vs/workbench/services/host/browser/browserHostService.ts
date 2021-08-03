@@ -30,6 +30,7 @@ import { localize } from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DomEmitter } from 'vs/base/browser/event';
+import { isUndefined } from 'vs/base/common/types';
 
 /**
  * A workspace to open in the workbench can either be:
@@ -286,8 +287,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 								const pathColumnAware = parseLineAndColumnAware(openable.fileUri.path);
 								openables = [{
 									fileUri: openable.fileUri.with({ path: pathColumnAware.path }),
-									lineNumber: pathColumnAware.line,
-									columnNumber: pathColumnAware.column
+									selection: !isUndefined(pathColumnAware.line) ? { startLineNumber: pathColumnAware.line, startColumn: pathColumnAware.column || 1 } : undefined
 								}];
 							} else {
 								openables = [openable];

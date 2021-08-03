@@ -25,6 +25,8 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { HoverAnchor, HoverAnchorType, IEditorHover, IEditorHoverParticipant, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 
 const $ = dom.$;
 
@@ -244,3 +246,15 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		});
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	const linkFg = theme.getColor(textLinkForeground);
+	if (linkFg) {
+		collector.addRule(`.monaco-hover .hover-contents a.code-link span { color: ${linkFg}; }`);
+	}
+	const activeLinkFg = theme.getColor(textLinkActiveForeground);
+	if (activeLinkFg) {
+		collector.addRule(`.monaco-hover .hover-contents a.code-link span:hover { color: ${activeLinkFg}; }`);
+	}
+});
+

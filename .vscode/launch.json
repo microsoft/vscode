@@ -185,7 +185,6 @@
 			"name": "Attach to VS Code",
 			"browserAttachLocation": "workspace",
 			"port": 9222,
-			"trace": true,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			],

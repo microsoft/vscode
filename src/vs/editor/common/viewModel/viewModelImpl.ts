@@ -377,13 +377,11 @@ export class ViewModel extends Disposable implements IViewModel {
 				}
 			}
 
-			if (e instanceof textModelEvents.ModelRawContentChangedEvent) {
-				try {
-					const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
-					this._cursor.onModelContentChanged(eventsCollector, e);
-				} finally {
-					this._eventDispatcher.endEmitViewEvents();
-				}
+			try {
+				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
+				this._cursor.onModelContentChanged(eventsCollector, e);
+			} finally {
+				this._eventDispatcher.endEmitViewEvents();
 			}
 		}));
 

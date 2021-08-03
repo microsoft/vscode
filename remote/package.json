@@ -3,6 +3,8 @@
   "version": "0.0.0",
   "private": true,
   "dependencies": {
+    "@microsoft/applicationinsights-web": "^2.6.4",
+    "@vscode/vscode-languagedetection": "1.0.15",
     "applicationinsights": "1.0.8",
     "chokidar": "3.5.1",
     "cookie": "^0.4.0",
@@ -22,10 +24,10 @@
     "vscode-regexpp": "^3.1.0",
     "vscode-ripgrep": "^1.12.0",
     "vscode-textmate": "5.4.0",
-    "xterm": "4.14.0-beta.5",
+    "xterm": "4.14.0-beta.6",
     "xterm-addon-search": "0.9.0-beta.3",
     "xterm-addon-unicode11": "0.3.0-beta.5",
-    "xterm-addon-webgl": "0.12.0-beta.4",
+    "xterm-addon-webgl": "0.12.0-beta.5",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },

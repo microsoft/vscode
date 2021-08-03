@@ -111,14 +111,21 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		this.element.style.position = 'absolute';
 
 		if (rendererMessaging) {
-			this._register(rendererMessaging.onDidReceiveMessage(evt => {
+			this._register(rendererMessaging);
+			rendererMessaging.receiveMessageHandler = (rendererId, message) => {
+				if (!this.webview || this._disposed) {
+					return Promise.resolve(false);
+				}
+
 				this._sendMessageToWebview({
 					__vscode_notebook_message: true,
 					type: 'customRendererMessage',
-					rendererId: evt.rendererId,
-					message: evt.message
+					rendererId: rendererId,
+					message: message
 				});
-			}));
+
+				return Promise.resolve(true);
+			};
 		}
 	}
 
@@ -580,7 +587,14 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						this.notebookEditor.didEndDragMarkupCell(data.cellId);
 						break;
 					}
-
+				case 'renderedMarkup':
+					{
+						const cell = this.notebookEditor.getCellById(data.cellId);
+						if (cell instanceof MarkupCellViewModel) {
+							cell.renderedHtml = data.html;
+						}
+						break;
+					}
 				case 'telemetryFoundRenderedMarkdownMath':
 					{
 						this.telemetryService.publicLog2<{}, {}>('notebook/markdown/renderedLatex', {});
@@ -890,22 +904,23 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		});
 	}
 
-	async initializeMarkup(cells: readonly IMarkupCellInitialization[]) {
+	async initializeMarkup(cells: readonly IMarkupCellInitialization[]): Promise<void> {
 		if (this._disposed) {
 			return;
 		}
 
 		// TODO: use proper handler
 		const p = new Promise<void>(resolve => {
-			this.webview?.onMessage(e => {
+			const sub = this.webview?.onMessage(e => {
 				if (e.message.type === 'initializedMarkup') {
 					resolve();
+					sub?.dispose();
 				}
 			});
 		});
 
 		for (const cell of cells) {
-			this.markupPreviewMapping.set(cell.cellId, { ...cell, visible: false });
+			this.markupPreviewMapping.set(cell.cellId, cell);
 		}
 
 		this._sendMessageToWebview({

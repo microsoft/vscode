@@ -6,17 +6,13 @@
 import { disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { ICellVisibilityChangeEvent, NotebookVisibleCellObserver } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/notebookVisibleCellObserver';
-import { EXECUTE_CELL_COMMAND_ID, ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { cellStatusIconError, cellStatusIconSuccess } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { getCodeCellExecutionContextKeyService } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellKind, CellStatusbarAlignment, INotebookCellStatusBarItem, NotebookCellExecutionState, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellStatusbarAlignment, INotebookCellStatusBarItem, NotebookCellExecutionState, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class NotebookStatusBarController extends Disposable {
 	private readonly _visibleCells = new Map<number, IDisposable>();
@@ -233,84 +229,6 @@ class TimerCellStatusBarItem extends Disposable {
 
 		return `${seconds}.${tenths}s`;
 	}
-
-	override dispose() {
-		super.dispose();
-
-		this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items: [] }]);
-	}
-}
-
-export class KeybindingPlaceholderStatusBarContrib extends Disposable implements INotebookEditorContribution {
-	static id: string = 'workbench.notebook.statusBar.execKeybindingPlaceholder';
-
-	constructor(
-		notebookEditor: INotebookEditor,
-		@IInstantiationService instantiationService: IInstantiationService
-	) {
-		super();
-		this._register(new NotebookStatusBarController(notebookEditor, (vm, cell) => instantiationService.createInstance(KeybindingPlaceholderStatusBarItem, vm, cell)));
-	}
-}
-registerNotebookContribution(KeybindingPlaceholderStatusBarContrib.id, KeybindingPlaceholderStatusBarContrib);
-
-
-/**
- * Shows a keybinding hint for the execute command
- */
-class KeybindingPlaceholderStatusBarItem extends Disposable {
-	private _currentItemIds: string[] = [];
-	private readonly _codeContextKeyService: IContextKeyService;
-
-	constructor(
-		private readonly _notebookViewModel: NotebookViewModel,
-		private readonly _cell: ICellViewModel,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IContextKeyService _contextKeyService: IContextKeyService,
-	) {
-		super();
-
-		this._codeContextKeyService = this._register(getCodeCellExecutionContextKeyService(_contextKeyService));
-		this._update();
-		this._register(this._cell.model.onDidChangeInternalMetadata(() => this._update()));
-	}
-
-	private async _update() {
-		const items = this._getItemsForCell(this._cell);
-		if (Array.isArray(items)) {
-			this._currentItemIds = this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items }]);
-		}
-	}
-
-	private _getItemsForCell(cell: ICellViewModel): INotebookCellStatusBarItem[] {
-		if (typeof cell.internalMetadata.runState !== 'undefined' || typeof cell.internalMetadata.lastRunSuccess !== 'undefined') {
-			return [];
-		}
-
-		let text: string;
-		if (cell.cellKind === CellKind.Code) {
-			const keybinding = this._keybindingService.lookupKeybinding(EXECUTE_CELL_COMMAND_ID, this._codeContextKeyService)?.getLabel();
-			if (!keybinding) {
-				return [];
-			}
-
-			text = localize('notebook.cell.status.codeExecuteTip', "Press {0} to execute cell", keybinding);
-		} else {
-			text = localize('notebook.cell.status.markdownExecuteTip', "Press Esc to stop editing");
-		}
-
-		const item = <INotebookCellStatusBarItem>{
-			text,
-			tooltip: text,
-			alignment: CellStatusbarAlignment.Left,
-			opacity: '0.7',
-			onlyShowWhenActive: true,
-			priority: 100
-		};
-
-		return [item];
-	}
-
 
 	override dispose() {
 		super.dispose();

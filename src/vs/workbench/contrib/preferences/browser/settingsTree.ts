@@ -24,7 +24,7 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { isIOS } from 'vs/base/common/platform';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { isArray, isDefined, isUndefinedOrNull } from 'vs/base/common/types';
@@ -43,7 +43,7 @@ import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticip
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { inspectSetting, ISettingsEditorViewState, settingKeyToDisplayFormat, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSettingWidget, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground, ObjectSettingWidget, IObjectDataItem, IObjectEnumOption, ObjectValue, IObjectValueSuggester, IObjectKeySuggester, focusedRowBackground, focusedRowBorder, settingsHeaderForeground, rowHoverBackground, BoolObjectSettingWidget, IBoolObjectDataItem } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
+import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSettingWidget, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground, ObjectSettingDropdownWidget, IObjectDataItem, IObjectEnumOption, ObjectValue, IObjectValueSuggester, IObjectKeySuggester, focusedRowBackground, focusedRowBorder, settingsHeaderForeground, rowHoverBackground, ObjectSettingCheckboxWidget } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
@@ -145,12 +145,6 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 			schema
 		}));
 
-	const additionalValueEnums = getEnumOptionsFromSchema(
-		typeof objectAdditionalProperties === 'boolean'
-			? {}
-			: objectAdditionalProperties ?? {}
-	);
-
 	const wellDefinedKeyEnumOptions = Object.entries(objectProperties ?? {}).map(
 		([key, schema]) => ({ value: key, description: schema.description })
 	);
@@ -158,8 +152,23 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 	return Object.keys(data).map(key => {
 		if (isDefined(objectProperties) && key in objectProperties) {
 			const defaultValue = elementDefaultValue[key];
-			const valueEnumOptions = getEnumOptionsFromSchema(objectProperties[key]);
 
+			if (element.setting.allKeysAreBoolean) {
+				return {
+					key: {
+						type: 'string',
+						data: key
+					},
+					value: {
+						type: 'boolean',
+						data: data[key]
+					},
+					keyDescription: objectProperties[key].description,
+					removable: false
+				} as IObjectDataItem;
+			}
+
+			const valueEnumOptions = getEnumOptionsFromSchema(objectProperties[key]);
 			return {
 				key: {
 					type: 'enum',
@@ -171,12 +180,12 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 					data: data[key],
 					options: valueEnumOptions,
 				},
+				keyDescription: objectProperties[key].description,
 				removable: isUndefinedOrNull(defaultValue),
 			} as IObjectDataItem;
 		}
 
 		const schema = patternsAndSchemas.find(({ pattern }) => pattern.test(key))?.schema;
-
 		if (schema) {
 			const valueEnumOptions = getEnumOptionsFromSchema(schema);
 			return {
@@ -186,9 +195,16 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 					data: data[key],
 					options: valueEnumOptions,
 				},
+				keyDescription: schema.description,
 				removable: true,
 			} as IObjectDataItem;
 		}
+
+		const additionalValueEnums = getEnumOptionsFromSchema(
+			typeof objectAdditionalProperties === 'boolean'
+				? {}
+				: objectAdditionalProperties ?? {}
+		);
 
 		return {
 			key: { type: 'string', data: key },
@@ -197,50 +213,23 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 				data: data[key],
 				options: additionalValueEnums,
 			},
+			keyDescription: typeof objectAdditionalProperties === 'object' ? objectAdditionalProperties.description : undefined,
 			removable: true,
 		} as IObjectDataItem;
-	});
-}
-
-function getBoolObjectDisplayValue(element: SettingsTreeSettingElement): IBoolObjectDataItem[] {
-	const elementDefaultValue: Record<string, unknown> = typeof element.defaultValue === 'object'
-		? element.defaultValue ?? {}
-		: {};
-
-	const elementScopeValue: Record<string, unknown> = typeof element.scopeValue === 'object'
-		? element.scopeValue ?? {}
-		: {};
-
-	const data = element.isConfigured ?
-		{ ...elementDefaultValue, ...elementScopeValue } :
-		elementDefaultValue;
-
-	const { objectProperties } = element.setting;
-
-	return Object.keys(data).map(key => {
-		if (objectProperties && key in objectProperties) {
-			return {
-				key,
-				value: data[key],
-				description: objectProperties[key].description
-			} as IBoolObjectDataItem;
-		}
-
-		return {
-			key,
-			value: data[key],
-		} as IBoolObjectDataItem;
-	});
+	}).filter(item => !isUndefinedOrNull(item.value.data));
 }
 
 function createArraySuggester(element: SettingsTreeSettingElement): IObjectKeySuggester {
-	return keys => {
+	return (keys, idx) => {
 		const enumOptions: IObjectEnumOption[] = [];
 
 		if (element.setting.enum) {
-			element.setting.enum.forEach((staticKey, i) => {
-				const description = element.setting.enumDescriptions?.[i];
-				enumOptions.push({ value: staticKey, description });
+			element.setting.enum.forEach((key, i) => {
+				// include the currently selected value, even if uniqueItems is true
+				if (!element.setting.uniqueItems || (idx !== undefined && key === keys[idx]) || !keys.includes(key)) {
+					const description = element.setting.enumDescriptions?.[i];
+					enumOptions.push({ value: key, description });
+				}
 			});
 		}
 
@@ -525,12 +514,10 @@ interface ISettingExcludeItemTemplate extends ISettingItemTemplate<void> {
 	excludeWidget: ListSettingWidget;
 }
 
-interface ISettingObjectItemTemplate extends ISettingItemTemplate<void> {
-	objectWidget: ObjectSettingWidget;
-}
-
-interface ISettingBoolObjectItemTemplate extends ISettingItemTemplate<void> {
-	objectWidget: BoolObjectSettingWidget;
+interface ISettingObjectItemTemplate extends ISettingItemTemplate<Record<string, unknown> | undefined> {
+	objectDropdownWidget?: ObjectSettingDropdownWidget,
+	objectCheckboxWidget?: ObjectSettingCheckboxWidget;
+	validationErrorMessageElement: HTMLElement;
 }
 
 interface ISettingNewExtensionsTemplate extends IDisposableTemplate {
@@ -1083,7 +1070,14 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 				newValue = [...template.context.value];
 			}
 
-			if (e.targetIndex !== undefined) {
+			if (e.sourceIndex !== undefined) {
+				// A drag and drop occurred
+				const sourceIndex = e.sourceIndex;
+				const targetIndex = e.targetIndex!;
+				const splicedElem = newValue.splice(sourceIndex, 1)[0];
+				newValue.splice(targetIndex, 0, splicedElem);
+			} else if (e.targetIndex !== undefined) {
+				const itemValueData = e.item?.value.data.toString() ?? '';
 				// Delete value
 				if (!e.item?.value.data && e.originalItem.value.data && e.targetIndex > -1) {
 					newValue.splice(e.targetIndex, 1);
@@ -1091,19 +1085,20 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 				// Update value
 				else if (e.item?.value.data && e.originalItem.value.data) {
 					if (e.targetIndex > -1) {
-						newValue[e.targetIndex] = e.item.value.data.toString();
+						newValue[e.targetIndex] = itemValueData;
 					}
 					// For some reason, we are updating and cannot find original value
 					// Just append the value in this case
 					else {
-						newValue.push(e.item.value.data.toString());
+						newValue.push(itemValueData);
 					}
 				}
 				// Add value
 				else if (e.item?.value.data && !e.originalItem.value.data && e.targetIndex >= newValue.length) {
-					newValue.push(e.item.value.data.toString());
+					newValue.push(itemValueData);
 				}
 			}
+
 			if (
 				template.context.defaultValue &&
 				isArray(template.context.defaultValue) &&
@@ -1112,7 +1107,6 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 			) {
 				return undefined;
 			}
-
 			return newValue;
 		}
 
@@ -1132,6 +1126,10 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 		});
 		template.context = dataElement;
 
+		template.elementDisposables.add(toDisposable(() => {
+			template.listWidget.cancelEdit();
+		}));
+
 		template.onChange = (v) => {
 			onChange(v);
 			renderArrayValidations(dataElement, template, v, false);
@@ -1141,29 +1139,37 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 	}
 }
 
-export class SettingObjectRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingObjectItemTemplate> {
-	templateId = SETTINGS_OBJECT_TEMPLATE_ID;
+abstract class AbstractSettingObjectRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingObjectItemTemplate> {
 
-	renderTemplate(container: HTMLElement): ISettingObjectItemTemplate {
-		const common = this.renderCommonTemplate(null, container, 'list');
+	protected renderTemplateWithWidget(common: ISettingItemTemplate, widget: ObjectSettingCheckboxWidget | ObjectSettingDropdownWidget): ISettingObjectItemTemplate {
+		widget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
+		common.toDispose.add(widget);
 
-		const objectWidget = this._instantiationService.createInstance(ObjectSettingWidget, common.controlElement);
-		objectWidget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
-		common.toDispose.add(objectWidget);
+		const descriptionElement = common.containerElement.querySelector('.setting-item-description')!;
+		const validationErrorMessageElement = $('.setting-item-validation-message');
+		descriptionElement.after(validationErrorMessageElement);
 
 		const template: ISettingObjectItemTemplate = {
 			...common,
-			objectWidget: objectWidget,
+			validationErrorMessageElement
 		};
+		if (widget instanceof ObjectSettingCheckboxWidget) {
+			template.objectCheckboxWidget = widget;
+		} else {
+			template.objectDropdownWidget = widget;
+		}
 
 		this.addSettingElementFocusHandler(template);
 
-		common.toDispose.add(objectWidget.onDidChangeList(e => this.onDidChangeObject(template, e)));
+		common.toDispose.add(widget.onDidChangeList(e => {
+			this.onDidChangeObject(template, e);
+		}));
 
 		return template;
 	}
 
-	private onDidChangeObject(template: ISettingObjectItemTemplate, e: ISettingListChangeEvent<IObjectDataItem>): void {
+	protected onDidChangeObject(template: ISettingObjectItemTemplate, e: ISettingListChangeEvent<IObjectDataItem>): void {
+		const widget = (template.objectCheckboxWidget ?? template.objectDropdownWidget)!;
 		if (template.context) {
 			const defaultValue: Record<string, unknown> = typeof template.context.defaultValue === 'object'
 				? template.context.defaultValue ?? {}
@@ -1176,7 +1182,7 @@ export class SettingObjectRenderer extends AbstractSettingRenderer implements IT
 			const newValue: Record<string, unknown> = {};
 			const newItems: IObjectDataItem[] = [];
 
-			template.objectWidget.items.forEach((item, idx) => {
+			widget.items.forEach((item, idx) => {
 				// Item was updated
 				if (isDefined(e.item) && e.targetIndex === idx) {
 					newValue[e.item.key.data] = e.item.value.data;
@@ -1204,7 +1210,7 @@ export class SettingObjectRenderer extends AbstractSettingRenderer implements IT
 				}
 			}
 			// New item was added
-			else if (template.objectWidget.isItemNew(e.originalItem) && e.item.key.data !== '') {
+			else if (widget.isItemNew(e.originalItem) && e.item.key.data !== '') {
 				newValue[e.item.key.data] = e.item.value.data;
 				newItems.push(e.item);
 			}
@@ -1216,25 +1222,39 @@ export class SettingObjectRenderer extends AbstractSettingRenderer implements IT
 				}
 			});
 
-			this._onDidChangeSetting.fire({
-				key: template.context.setting.key,
-				value: Object.keys(newValue).length === 0 ? undefined : newValue,
-				type: template.context.valueType
-			});
+			const newObject = Object.keys(newValue).length === 0 ? undefined : newValue;
 
-			template.objectWidget.setValue(newItems);
+			if (template.objectCheckboxWidget) {
+				template.objectCheckboxWidget.setValue(newItems);
+			} else {
+				template.objectDropdownWidget!.setValue(newItems);
+			}
+
+			if (template.onChange) {
+				template.onChange(newObject);
+			}
 		}
 	}
 
 	renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: ISettingObjectItemTemplate): void {
 		super.renderSettingElement(element, index, templateData);
 	}
+}
 
-	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingObjectItemTemplate, onChange: (value: string) => void): void {
+export class SettingObjectRenderer extends AbstractSettingObjectRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingObjectItemTemplate> {
+	override templateId = SETTINGS_OBJECT_TEMPLATE_ID;
+
+	renderTemplate(container: HTMLElement): ISettingObjectItemTemplate {
+		const common = this.renderCommonTemplate(null, container, 'list');
+		const widget = this._instantiationService.createInstance(ObjectSettingDropdownWidget, common.controlElement);
+		return this.renderTemplateWithWidget(common, widget);
+	}
+
+	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingObjectItemTemplate, onChange: (value: Record<string, unknown> | undefined) => void): void {
 		const items = getObjectDisplayValue(dataElement);
 		const { key, objectProperties, objectPatternProperties, objectAdditionalProperties } = dataElement.setting;
 
-		template.objectWidget.setValue(items, {
+		template.objectDropdownWidget!.setValue(items, {
 			settingKey: key,
 			showAddButton: objectAdditionalProperties === false
 				? (
@@ -1247,106 +1267,51 @@ export class SettingObjectRenderer extends AbstractSettingRenderer implements IT
 		});
 
 		template.context = dataElement;
+
+		template.elementDisposables.add(toDisposable(() => {
+			template.objectDropdownWidget!.cancelEdit();
+		}));
+
+		template.onChange = (v: Record<string, unknown> | undefined) => {
+			onChange(v);
+			renderArrayValidations(dataElement, template, v, false);
+		};
+		renderArrayValidations(dataElement, template, dataElement.value, true);
 	}
 }
 
-export class SettingBoolObjectRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingBoolObjectItemTemplate> {
-	templateId = SETTINGS_BOOL_OBJECT_TEMPLATE_ID;
+export class SettingBoolObjectRenderer extends AbstractSettingObjectRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingObjectItemTemplate> {
+	override templateId = SETTINGS_BOOL_OBJECT_TEMPLATE_ID;
 
-	renderTemplate(container: HTMLElement): ISettingBoolObjectItemTemplate {
+	renderTemplate(container: HTMLElement): ISettingObjectItemTemplate {
 		const common = this.renderCommonTemplate(null, container, 'list');
-
-		const objectWidget = this._instantiationService.createInstance(BoolObjectSettingWidget, common.controlElement);
-		objectWidget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
-		common.toDispose.add(objectWidget);
-
-		const template: ISettingBoolObjectItemTemplate = {
-			...common,
-			objectWidget
-		};
-
-		this.addSettingElementFocusHandler(template);
-
-		common.toDispose.add(objectWidget.onDidChangeList(e => this.onDidChangeObject(template, e)));
-
-		return template;
+		const widget = this._instantiationService.createInstance(ObjectSettingCheckboxWidget, common.controlElement);
+		return this.renderTemplateWithWidget(common, widget);
 	}
 
-	private onDidChangeObject(template: ISettingBoolObjectItemTemplate, e: ISettingListChangeEvent<IBoolObjectDataItem>): void {
+	override onDidChangeObject(template: ISettingObjectItemTemplate, e: ISettingListChangeEvent<IObjectDataItem>): void {
 		if (template.context) {
-			const defaultValue: Record<string, boolean> = template.context?.defaultValue ?? {};
-			const scopeValue: Record<string, boolean> = template.context?.scopeValue ?? {};
-			const newValue: Record<string, boolean> = {};
-			const newItems: IBoolObjectDataItem[] = [];
-
-			template.objectWidget.items.forEach((item, idx) => {
-				// Item was updated
-				if (isDefined(e.item) && e.targetIndex === idx) {
-					newValue[e.item.key] = e.item.value;
-					newItems.push(e.item);
-				}
-				// All remaining items, but skip the one that we just updated
-				else if (isUndefinedOrNull(e.item) || e.item.key !== item.key) {
-					newValue[item.key] = item.value;
-					newItems.push(item);
-				}
-			});
-
-			// Item was deleted
-			if (isUndefinedOrNull(e.item)) {
-				delete newValue[e.originalItem.key];
-
-				const itemToDelete = newItems.findIndex(item => item.key === e.originalItem.key);
-				const defaultItemValue = defaultValue[e.originalItem.key];
-
-				// Item does not have a default
-				if (isUndefinedOrNull(defaultValue[e.originalItem.key]) && itemToDelete > -1) {
-					newItems.splice(itemToDelete, 1);
-				} else if (itemToDelete > -1) {
-					newItems[itemToDelete].value = defaultItemValue;
-				}
-			}
-			// New item was added
-			else if (template.objectWidget.isItemNew(e.originalItem) && e.item.key !== '') {
-				newValue[e.item.key] = e.item.value;
-				newItems.push(e.item);
-			}
-
-			Object.entries(newValue).forEach(([key, value]) => {
-				// value from the scope has changed back to the default
-				if (scopeValue[key] !== value && defaultValue[key] === value) {
-					delete newValue[key];
-				}
-			});
-
-			this._onDidChangeSetting.fire({
-				key: template.context.setting.key,
-				value: Object.keys(newValue).length === 0 ? undefined : newValue,
-				type: template.context.valueType
-			});
+			super.onDidChangeObject(template, e);
 
 			// Focus this setting explicitly, in case we were previously
 			// focused on another setting and clicked a checkbox/value container
 			// for this setting.
 			this._onDidFocusSetting.fire(template.context);
-
-			template.objectWidget.setValue(newItems);
 		}
 	}
 
-	renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: ISettingBoolObjectItemTemplate): void {
-		super.renderSettingElement(element, index, templateData);
-	}
-
-	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingBoolObjectItemTemplate, onChange: (value: string) => void): void {
-		const items = getBoolObjectDisplayValue(dataElement);
+	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingObjectItemTemplate, onChange: (value: Record<string, unknown> | undefined) => void): void {
+		const items = getObjectDisplayValue(dataElement);
 		const { key } = dataElement.setting;
 
-		template.objectWidget.setValue(items, {
+		template.objectCheckboxWidget!.setValue(items, {
 			settingKey: key
 		});
 
 		template.context = dataElement;
+		template.onChange = (v: Record<string, unknown> | undefined) => {
+			onChange(v);
+		};
 	}
 }
 
@@ -1423,6 +1388,9 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 		const value = getExcludeDisplayValue(dataElement);
 		template.excludeWidget.setValue(value);
 		template.context = dataElement;
+		template.elementDisposables.add(toDisposable(() => {
+			template.excludeWidget.cancelEdit();
+		}));
 	}
 }
 
@@ -1509,8 +1477,13 @@ export class SettingMultilineTextRenderer extends AbstractSettingTextRenderer im
 	}
 
 	protected override renderValue(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: string) => void) {
-		super.renderValue(dataElement, template, onChange);
-		template.toDispose.add(
+		const onChangeOverride = (value: string) => {
+			// Ensure the model is up to date since a different value will be rendered as different height when probing the height.
+			dataElement.value = value;
+			onChange(value);
+		};
+		super.renderValue(dataElement, template, onChangeOverride);
+		template.elementDisposables.add(
 			template.inputBox.onDidHeightChange(e => {
 				const height = template.containerElement.clientHeight;
 				// Don't fire event if height is reported as 0,
@@ -1576,21 +1549,34 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 	}
 
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingEnumItemTemplate, onChange: (value: string) => void): void {
-		const enumItemLabels = dataElement.setting.enumItemLabels;
-		const enumDescriptions = dataElement.setting.enumDescriptions;
+		// Make shallow copies here so that we don't modify the actual dataElement later
+		const enumItemLabels = dataElement.setting.enumItemLabels ? [...dataElement.setting.enumItemLabels] : [];
+		const enumDescriptions = dataElement.setting.enumDescriptions ? [...dataElement.setting.enumDescriptions] : [];
+		const settingEnum = [...dataElement.setting.enum!];
 		const enumDescriptionsAreMarkdown = dataElement.setting.enumDescriptionsAreMarkdown;
 
 		const disposables = new DisposableStore();
 		template.toDispose.add(disposables);
 
-		const displayOptions = dataElement.setting.enum!
+		const defaultOrEmptyString = dataElement.defaultValue ?? '';
+
+		let createdDefault = false;
+		if (!settingEnum.includes(defaultOrEmptyString)) {
+			// Add a new potentially blank default setting
+			settingEnum.unshift(defaultOrEmptyString);
+			enumDescriptions.unshift('');
+			enumItemLabels.unshift('');
+			createdDefault = true;
+		}
+
+		const displayOptions = settingEnum
 			.map(String)
 			.map(escapeInvisibleChars)
 			.map((data, index) => {
-				const description = (enumDescriptions && enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index]));
+				const description = (enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index]));
 				return <ISelectOptionItem>{
-					text: enumItemLabels && enumItemLabels[index] ? enumItemLabels[index] : data,
-					detail: enumItemLabels && enumItemLabels[index] ? data : '',
+					text: enumItemLabels[index] ? enumItemLabels[index] : data,
+					detail: enumItemLabels[index] ? data : '',
 					description,
 					descriptionIsMarkdown: enumDescriptionsAreMarkdown,
 					descriptionMarkdownActionHandler: {
@@ -1599,23 +1585,26 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 						},
 						disposeables: disposables
 					},
-					decoratorRight: (data === dataElement.defaultValue ? localize('settings.Default', "default") : '')
+					decoratorRight: (data === dataElement.defaultValue || createdDefault && index === 0 ? localize('settings.Default', "default") : '')
 				};
 			});
 
 		template.selectBox.setOptions(displayOptions);
 
-		let idx = dataElement.setting.enum!.indexOf(dataElement.value);
+		let idx = settingEnum.indexOf(dataElement.value);
 		if (idx === -1) {
-			idx = dataElement.setting.enum!.indexOf(dataElement.defaultValue);
-			if (idx === -1) {
-				idx = 0;
-			}
+			idx = settingEnum.indexOf(defaultOrEmptyString);
 		}
 
 		template.onChange = undefined;
 		template.selectBox.select(idx);
-		template.onChange = idx => onChange(dataElement.setting.enum![idx]);
+		template.onChange = (idx) => {
+			if (createdDefault && idx === 0) {
+				onChange(dataElement.defaultValue);
+			} else {
+				onChange(settingEnum[idx]);
+			}
+		};
 
 		template.enumDescriptionElement.innerText = '';
 	}
@@ -1949,8 +1938,8 @@ function renderValidations(dataElement: SettingsTreeSettingElement, template: IS
 
 function renderArrayValidations(
 	dataElement: SettingsTreeSettingElement,
-	template: ISettingListItemTemplate,
-	value: string[] | undefined,
+	template: ISettingListItemTemplate | ISettingObjectItemTemplate,
+	value: string[] | Record<string, unknown> | undefined,
 	calledOnStartup: boolean
 ) {
 	template.containerElement.classList.add('invalid-input');
@@ -2082,7 +2071,10 @@ class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupCh
 				return SETTINGS_BOOL_TEMPLATE_ID;
 			}
 
-			if (element.valueType === SettingValueType.Integer || element.valueType === SettingValueType.Number || element.valueType === SettingValueType.NullableInteger || element.valueType === SettingValueType.NullableNumber) {
+			if (element.valueType === SettingValueType.Integer ||
+				element.valueType === SettingValueType.Number ||
+				element.valueType === SettingValueType.NullableInteger ||
+				element.valueType === SettingValueType.NullableNumber) {
 				return SETTINGS_NUMBER_TEMPLATE_ID;
 			}
 

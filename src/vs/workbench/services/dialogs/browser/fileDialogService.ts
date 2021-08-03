@@ -122,13 +122,24 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return this.showOpenDialogSimplified(schema, options);
 		}
 
-		const handle = await window.showDirectoryPicker();
+		let handleName: string | undefined;
 		const uuid = generateUuid();
-		const uri = URI.from({ scheme: Schemas.file, path: `/${uuid}/${handle.name}` });
-
-		this.fileSystemProvider.registerDirectoryHandle(uuid, handle);
-
-		return [uri];
+		if (options.canSelectFiles) {
+			const handle = await window.showOpenFilePicker({ multiple: false });
+			if (handle.length === 1) {
+				handleName = handle[0].name;
+				this.fileSystemProvider.registerFileHandle(uuid, handle[0]);
+			}
+		} else {
+			const handle = await window.showDirectoryPicker();
+			handleName = handle.name;
+			this.fileSystemProvider.registerDirectoryHandle(uuid, handle);
+		}
+		if (handleName) {
+			const uri = URI.from({ scheme: Schemas.file, path: `/${uuid}/${handleName}` });
+			return [uri];
+		}
+		return undefined;
 	}
 
 	private shouldUseSimplified(scheme: string): boolean {

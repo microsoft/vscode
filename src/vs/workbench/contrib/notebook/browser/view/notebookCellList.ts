@@ -736,6 +736,15 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this._revealInView(startIndex);
 	}
 
+	scrollToBottom() {
+		const scrollHeight = this.view.scrollHeight;
+		const scrollTop = this.getViewScrollTop();
+		const wrapperBottom = this.getViewScrollBottom();
+		const topInsertToolbarHeight = this._viewContext.notebookOptions.computeTopInserToolbarHeight(this.viewModel?.viewType);
+
+		this.view.setScrollTop(scrollHeight - (wrapperBottom - scrollTop) - topInsertToolbarHeight);
+	}
+
 	revealElementInView(cell: ICellViewModel) {
 		const index = this._getViewIndexUpperBound(cell);
 
@@ -874,7 +883,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		// the `element` is in the viewport, it's very often that the height update is triggerred by user interaction (collapse, run cell)
 		// then we should make sure that the `element`'s visual view position doesn't change.
 
-		if (this.view.elementTop(index) > this.view.scrollTop) {
+		if (this.view.elementTop(index) >= this.view.scrollTop) {
 			this.view.updateElementHeight(index, size, index);
 			return;
 		}

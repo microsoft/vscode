@@ -27,10 +27,10 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchCo
 import { IEditorInput, IEditorSerializer, IEditorFactoryRegistry, IEditorInputWithOptions, EditorExtensions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
-import { isCompositeNotebookEditorInput, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { isCompositeNotebookEditorInput, NotebookEditorInput, NotebookEditorInputOptions } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
-import { CellKind, CellToolbarLocation, CellToolbarVisibility, CellUri, DisplayOrderKey, UndoRedoPerCell, ExperimentalUseMarkdownRenderer, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, NotebookWorkingCopyTypeIdentifier, ShowCellStatusBar, CompactView, FocusIndicator, InsertToolbarLocation, GlobalToolbar, ConsolidatedOutputButton, ShowFoldingControls, DragAndDropEnabled, NotebookCellEditorOptionsCustomizations, ConsolidatedRunButton } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellToolbarLocation, CellToolbarVisibility, CellUri, DisplayOrderKey, UndoRedoPerCell, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, NotebookWorkingCopyTypeIdentifier, ShowCellStatusBar, CompactView, FocusIndicator, InsertToolbarLocation, GlobalToolbar, ConsolidatedOutputButton, ShowFoldingControls, DragAndDropEnabled, NotebookCellEditorOptionsCustomizations, ConsolidatedRunButton, TextOutputLineLimit, GlobalToolbarShowLabel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
@@ -151,7 +151,7 @@ class NotebookDiffEditorSerializer implements IEditorSerializer {
 	}
 
 }
-type SerializedNotebookEditorData = { resource: URI, viewType: string };
+type SerializedNotebookEditorData = { resource: URI, viewType: string, options?: NotebookEditorInputOptions };
 class NotebookEditorSerializer implements IEditorSerializer {
 	canSerialize(): boolean {
 		return true;
@@ -160,7 +160,8 @@ class NotebookEditorSerializer implements IEditorSerializer {
 		assertType(input instanceof NotebookEditorInput);
 		const data: SerializedNotebookEditorData = {
 			resource: input.resource,
-			viewType: input.viewType
+			viewType: input.viewType,
+			options: input.options
 		};
 		return JSON.stringify(data);
 	}
@@ -169,12 +170,12 @@ class NotebookEditorSerializer implements IEditorSerializer {
 		if (!data) {
 			return undefined;
 		}
-		const { resource, viewType } = data;
+		const { resource, viewType, options } = data;
 		if (!data || !URI.isUri(resource) || typeof viewType !== 'string') {
 			return undefined;
 		}
 
-		const input = NotebookEditorInput.create(instantiationService, resource, viewType);
+		const input = NotebookEditorInput.create(instantiationService, resource, viewType, options);
 		return input;
 	}
 }
@@ -377,7 +378,13 @@ class CellInfoContentProvider {
 
 		for (const cell of ref.object.notebook.cells) {
 			if (cell.handle === data.handle) {
-				const content = JSON.stringify(cell.outputs);
+				const content = JSON.stringify(cell.outputs.map(output => ({
+					metadata: output.metadata,
+					outputItems: output.outputs.map(opit => ({
+						mimeType: opit.mime,
+						data: new TextDecoder().decode(opit.data)
+					}))
+				})));
 				const edits = format(content, undefined, {});
 				const outputSource = applyEdits(content, edits);
 				result = this._modelService.createModel(
@@ -640,19 +647,14 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['hidden', 'visible', 'visibleAfterExecute'],
 			enumDescriptions: [
-				nls.localize('notebook.showCellStatusbar.hidden.description', "The cell status bar is always hidden."),
-				nls.localize('notebook.showCellStatusbar.visible.description', "The cell status bar is always visible."),
-				nls.localize('notebook.showCellStatusbar.visibleAfterExecute.description', "The cell status bar is hidden until the cell has executed. Then it becomes visible to show the execution status.")],
+				nls.localize('notebook.showCellStatusbar.hidden.description', "The cell Status bar is always hidden."),
+				nls.localize('notebook.showCellStatusbar.visible.description', "The cell Status bar is always visible."),
+				nls.localize('notebook.showCellStatusbar.visibleAfterExecute.description', "The cell Status bar is hidden until the cell has executed. Then it becomes visible to show the execution status.")],
 			default: 'visible',
 			tags: ['notebookLayout']
 		},
 		[NotebookTextDiffEditorPreview]: {
 			description: nls.localize('notebook.diff.enablePreview.description', "Whether to use the enhanced text diff editor for notebook."),
-			type: 'boolean',
-			default: true
-		},
-		[ExperimentalUseMarkdownRenderer]: {
-			description: nls.localize('notebook.experimental.useMarkdownRenderer.description', "Enable/disable using the new extensible markdown renderer."),
 			type: 'boolean',
 			default: true
 		},
@@ -666,7 +668,8 @@ configurationRegistry.registerConfiguration({
 		[UndoRedoPerCell]: {
 			description: nls.localize('notebook.undoRedoPerCell.description', "Whether to use separate undo/redo stack for each cell."),
 			type: 'boolean',
-			default: false
+			default: true,
+			tags: ['notebookLayout']
 		},
 		[CompactView]: {
 			description: nls.localize('notebook.compactView.description', "Control whether the notebook editor should be rendered in a compact form. "),
@@ -707,7 +710,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout']
 		},
 		[ShowFoldingControls]: {
-			description: nls.localize('notebook.showFoldingControls.description', "Controls when the markdown header folding arrow is shown."),
+			description: nls.localize('notebook.showFoldingControls.description', "Controls when the Markdown header folding arrow is shown."),
 			type: 'string',
 			enum: ['always', 'mouseover'],
 			enumDescriptions: [
@@ -728,6 +731,17 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: false,
 			tags: ['notebookLayout']
+		},
+		[GlobalToolbarShowLabel]: {
+			description: nls.localize('notebook.globalToolbarShowLabel', "Control whether the actions on the notebook toolbar should render label or not."),
+			type: 'boolean',
+			default: true,
+			tags: ['notebookLayout']
+		},
+		[TextOutputLineLimit]: {
+			description: nls.localize('notebook.textOutputLineLimit', "Control how many lines of text in a text output is rendered."),
+			type: 'number',
+			default: 30
 		},
 		[NotebookCellEditorOptionsCustomizations]: editorOptionsCustomizationSchema
 	}

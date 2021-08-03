@@ -546,7 +546,8 @@ export class InputBox extends Widget {
 		const value = this.value;
 		const lastCharCode = value.charCodeAt(value.length - 1);
 		const suffix = lastCharCode === 10 ? ' ' : '';
-		const mirrorTextContent = value + suffix;
+		const mirrorTextContent = (value + suffix)
+			.replace(/\u000c/g, ''); // Don't measure with the form feed character, which messes up sizing
 
 		if (mirrorTextContent) {
 			this.mirror.textContent = value + suffix;

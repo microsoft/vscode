@@ -16,14 +16,13 @@ import { CATEGORIES } from 'vs/workbench/common/actions';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Memento } from 'vs/workbench/common/memento';
 import { HAS_OPENED_NOTEBOOK } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { OpenGettingStarted } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 const hasOpenedNotebookKey = 'hasOpenedNotebook';
 const hasShownGettingStartedKey = 'hasShownNotebookGettingStarted';
-
-const showGettingStartedSetting = 'notebook.experimental.openGettingStarted';
 
 /**
  * Sets a context key when a notebook has ever been opened by the user
@@ -46,7 +45,7 @@ export class NotebookGettingStarted extends Disposable implements IWorkbenchCont
 			hasOpenedNotebook.set(true);
 		}
 
-		const needToShowGettingStarted = _configurationService.getValue(showGettingStartedSetting) && !storedValue[hasShownGettingStartedKey];
+		const needToShowGettingStarted = _configurationService.getValue(OpenGettingStarted) && !storedValue[hasShownGettingStartedKey];
 		if (!storedValue[hasOpenedNotebookKey] || needToShowGettingStarted) {
 			const onDidOpenNotebook = () => {
 				hasOpenedNotebook.set(true);
