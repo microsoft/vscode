@@ -13,8 +13,6 @@ import { flakySuite } from 'vs/base/test/common/testUtils';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { Schemas } from 'vs/base/common/network';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { URI } from 'vs/base/common/uri';
 import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 async function createStorageService(): Promise<[DisposableStore, BrowserStorageService]> {
@@ -26,7 +24,7 @@ async function createStorageService(): Promise<[DisposableStore, BrowserStorageS
 	const userDataProvider = disposables.add(new InMemoryFileSystemProvider());
 	disposables.add(fileService.registerProvider(Schemas.userData, userDataProvider));
 
-	const storageService = disposables.add(new BrowserStorageService({ id: 'workspace-storage-test' }, logService, { userRoamingDataHome: URI.file('/User').with({ scheme: Schemas.userData }) } as unknown as IEnvironmentService, fileService));
+	const storageService = disposables.add(new BrowserStorageService({ id: 'workspace-storage-test' }, logService));
 
 	await storageService.initialize();
 
