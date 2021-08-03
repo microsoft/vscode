@@ -23,7 +23,6 @@ const fileService = new TestFileService();
 export const mockUriIdentityService = new UriIdentityService(fileService);
 
 export class MockDebugService implements IDebugService {
-
 	_serviceBrand: undefined;
 
 	get state(): State {
@@ -163,6 +162,10 @@ export class MockDebugService implements IDebugService {
 
 	tryToAutoFocusStackFrame(thread: IThread): Promise<any> {
 		throw new Error('not implemented');
+	}
+
+	runTo(uri: uri, lineNumber: number, column?: number): Promise<void> {
+		throw new Error('Method not implemented.');
 	}
 }
 
