@@ -83,12 +83,12 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 	}
 
 	private _webWorkerExtensionHostIframeSrc(): string | null {
+		const suffix = this._environmentService.debugExtensionHost && this._environmentService.debugRenderer ? '?debugged=1' : '?';
 		if (this._environmentService.options && this._environmentService.options.webWorkerExtensionHostIframeSrc) {
-			return this._environmentService.options.webWorkerExtensionHostIframeSrc;
+			return this._environmentService.options.webWorkerExtensionHostIframeSrc + suffix;
 		}
 
 		const forceHTTPS = (location.protocol === 'https:');
-		const suffix = this._environmentService.debugExtensionHost && this._environmentService.debugRenderer ? '?debugged=1' : '?';
 
 		if (this._environmentService.options && this._environmentService.options.__uniqueWebWorkerExtensionHostOrigin) {
 			const webEndpointUrlTemplate = this._productService.webEndpointUrlTemplate;
