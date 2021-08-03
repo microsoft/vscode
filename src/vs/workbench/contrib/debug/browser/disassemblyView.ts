@@ -22,7 +22,7 @@ import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { dispose, Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
-import { topStackFrameColor } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
+import { topStackFrameColor, focusedStackFrameColor } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
 import { Color } from 'vs/base/common/color';
 import { InstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -74,7 +74,20 @@ export class DisassemblyView extends EditorPane {
 
 	get fontInfo() { return this._fontInfo; }
 
-	get currentInstructionAddress() {
+	get currentInstructionAddresses() {
+		return this._debugService.getModel().getSessions(false).
+			map(session => session.getAllThreads()).
+			reduce((prev, curr) => prev.concat(curr), []).
+			map(thread => thread.getTopStackFrame()).
+			map(frame => frame?.instructionPointerReference);
+	}
+
+	// Instruction address of the top stack frame of the focused stack
+	get focusedCurrentInstructionAddress() {
+		return this._debugService.getViewModel().focusedStackFrame?.thread.getTopStackFrame()?.instructionPointerReference;
+	}
+
+	get focusedInstructionAddress() {
 		return this._debugService.getViewModel().focusedStackFrame?.instructionPointerReference;
 	}
 
@@ -210,7 +223,7 @@ export class DisassemblyView extends EditorPane {
 		}
 
 		if (!address) {
-			address = this.currentInstructionAddress;
+			address = this.focusedInstructionAddress;
 		}
 		if (!address) {
 			return;
@@ -266,7 +279,7 @@ export class DisassemblyView extends EditorPane {
 	private async loadDisassembledInstructions(address: string | undefined, instructionOffset: number, instructionCount: number): Promise<boolean> {
 		// if address is null, then use current stack frame.
 		if (!address) {
-			address = this.currentInstructionAddress;
+			address = this.focusedInstructionAddress;
 		}
 		if (!address) {
 			return false;
@@ -383,7 +396,7 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 	private readonly _breakpointIcon = 'codicon-' + icons.breakpoint.regular.id;
 	private readonly _breakpointHintIcon = 'codicon-' + icons.debugBreakpointHint.id;
 	private readonly _debugStackframe = 'codicon-' + icons.debugStackframe.id;
-	// private readonly _debugStackframeFocused = 'codicon-' + icons.debugStackframeFocused.id;
+	private readonly _debugStackframeFocused = 'codicon-' + icons.debugStackframeFocused.id;
 
 	constructor(
 		private readonly _disassemblyView: DisassemblyView,
@@ -441,10 +454,13 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 	}
 
 	private rerenderDebugStackframe(icon: HTMLElement, element?: IDisassembledInstructionEntry) {
-		if (element?.instruction.address === this._disassemblyView.currentInstructionAddress) {
+		if (element?.instruction.address === this._disassemblyView.focusedCurrentInstructionAddress) {
 			icon.classList.add(this._debugStackframe);
+		} else if (element?.instruction.address === this._disassemblyView.focusedInstructionAddress) {
+			icon.classList.add(this._debugStackframeFocused);
 		} else {
 			icon.classList.remove(this._debugStackframe);
+			icon.classList.remove(this._debugStackframeFocused);
 		}
 
 		icon.classList.remove(this._breakpointHintIcon);
@@ -475,7 +491,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 	templateId: string = InstructionRenderer.TEMPLATE_ID;
 
 	private _topStackFrameColor: Color | undefined;
-	// private _focusedStackFrameColor: Color | undefined;
+	private _focusedStackFrameColor: Color | undefined;
 
 	constructor(
 		private readonly _disassemblyView: DisassemblyView,
@@ -484,11 +500,11 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 		super();
 
 		this._topStackFrameColor = themeService.getColorTheme().getColor(topStackFrameColor);
-		// this._focusedStackFrameColor = themeService.getColorTheme().getColor(focusedStackFrameColor);
+		this._focusedStackFrameColor = themeService.getColorTheme().getColor(focusedStackFrameColor);
 
 		this._register(themeService.onDidColorThemeChange(e => {
 			this._topStackFrameColor = e.getColor(topStackFrameColor);
-			// this._focusedStackFrameColor = e.getColor(focusedStackFrameColor);
+			this._focusedStackFrameColor = e.getColor(focusedStackFrameColor);
 		}));
 	}
 
@@ -545,8 +561,10 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 	}
 
 	private rerenderBackground(instruction: HTMLElement, element?: IDisassembledInstructionEntry) {
-		if (element?.instruction.address === this._disassemblyView.currentInstructionAddress) {
+		if (element && this._disassemblyView.currentInstructionAddresses.includes(element.instruction.address)) {
 			instruction.style.background = this._topStackFrameColor?.toString() || 'transparent';
+		} else if (element?.instruction.address === this._disassemblyView.focusedInstructionAddress) {
+			instruction.style.background = this._focusedStackFrameColor?.toString() || 'transparent';
 		} else {
 			instruction.style.background = 'transparent';
 		}
