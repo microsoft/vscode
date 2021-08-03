@@ -8,11 +8,10 @@ import 'mocha';
 import * as vscode from 'vscode';
 
 suite('ipynb NotebookSerializer', function () {
-	test.only('Can open an ipynb notebook', async () => {
+	test('Can open an ipynb notebook', async () => {
 		assert.ok(vscode.workspace.workspaceFolders);
 		const workspace = vscode.workspace.workspaceFolders[0];
 		const uri = vscode.Uri.joinPath(workspace.uri, 'test.ipynb');
-		console.log(uri);
 		const notebook = await vscode.workspace.openNotebookDocument(uri);
 		await vscode.window.showNotebookDocument(notebook);
 
