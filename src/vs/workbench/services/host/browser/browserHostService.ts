@@ -448,21 +448,22 @@ export class BrowserHostService extends Disposable implements IHostService {
 		this.reload();
 	}
 
-	reload(): Promise<void> {
-		return this.withExpectedShutdown(() => window.location.reload());
+	async reload(): Promise<void> {
+		this.withExpectedShutdown(() => {
+			window.location.reload();
+		});
 	}
 
-	close(): Promise<void> {
-		return this.withExpectedShutdown(() => window.close());
+	async close(): Promise<void> {
+		this.withExpectedShutdown(() => {
+			window.close();
+		});
 	}
 
-	private async withExpectedShutdown(callback: () => void): Promise<void> {
+	private withExpectedShutdown(callback: () => void): void {
 
 		// Update shutdown reason in a way that we do not show a dialog
 		this.shutdownReason = HostShutdownReason.Api;
-
-		// Ensure UI state is persisted
-		await this.storageService.flush(WillSaveStateReason.SHUTDOWN);
 
 		callback();
 	}
