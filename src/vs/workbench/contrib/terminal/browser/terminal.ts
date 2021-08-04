@@ -20,7 +20,6 @@ import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { IEditableData } from 'vs/workbench/common/views';
 import { DeserializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
-import { IEditorInput } from 'vs/workbench/common/editor';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
@@ -199,14 +198,13 @@ export interface ITerminalEditorService extends ITerminalInstanceHost, ITerminal
 	readonly instances: readonly ITerminalInstance[];
 
 	openEditor(instance: ITerminalInstance, sideGroup?: boolean): Promise<void>;
-	resolveResource(instance: ITerminalInstance | DeserializedTerminalEditorInput | URI): URI;
-	getShellConfig(resource: URI): IShellLaunchConfig | undefined;
-	getOrCreateEditorInput(instanceOrUri: ITerminalInstance | DeserializedTerminalEditorInput | URI): TerminalEditorInput;
 	detachActiveEditorInstance(): ITerminalInstance;
 	detachInstance(instance: ITerminalInstance): void;
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
 	revealActiveEditor(preserveFocus?: boolean): void;
-	getInputFromResource(resource: URI): IEditorInput;
+	resolveResource(instance: ITerminalInstance | URI): URI;
+	reviveInput(deserializedInput: DeserializedTerminalEditorInput): TerminalEditorInput;
+	getInputFromResource(resource: URI): TerminalEditorInput;
 }
 
 export interface ICreateTerminalOptions {

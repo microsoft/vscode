@@ -30,7 +30,6 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	private _isShuttingDown = false;
 
 	private _editorInputs: Map</*resource*/string, TerminalEditorInput> = new Map();
-	private _launchConfigs: Map</*resource*/string, IShellLaunchConfig> = new Map();
 	private _instanceDisposables: Map</*resource*/string, IDisposable[]> = new Map();
 
 	private readonly _primaryOffProcessTerminalService: IOffProcessTerminalService;
@@ -174,7 +173,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		}
 	}
 
-	resolveResource(instanceOrUri: ITerminalInstance | DeserializedTerminalEditorInput | URI, isFutureSplit: boolean = false): URI {
+	resolveResource(instanceOrUri: ITerminalInstance | URI, isFutureSplit: boolean = false): URI {
 		const resource: URI = URI.isUri(instanceOrUri) ? instanceOrUri : instanceOrUri.resource;
 		const inputKey = resource.path;
 		const cachedEditor = this._editorInputs.get(inputKey);
@@ -184,13 +183,12 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		}
 
 		// Terminal from a different window
-		if (URI.isUri(instanceOrUri) && !this._launchConfigs.get(inputKey)) {
+		if (URI.isUri(instanceOrUri)) {
 			const terminalIdentifier = parseTerminalUri(instanceOrUri);
 			if (terminalIdentifier.instanceId) {
 				this._primaryOffProcessTerminalService.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId).then(attachPersistentProcess => {
 					const instance = this._terminalInstanceService.createInstance({ attachPersistentProcess }, TerminalLocation.Editor, resource);
 					input = this._instantiationService.createInstance(TerminalEditorInput, resource, instance);
-					this._launchConfigs.set(inputKey, { attachPersistentProcess });
 					this._editorService.openEditor(input, {
 						pinned: true,
 						forceReload: true
@@ -198,14 +196,9 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 						input.group
 					);
 					this._registerInstance(inputKey, input, instance);
-					this._launchConfigs.delete(inputKey);
 					return instanceOrUri;
 				});
 			}
-		}
-
-		if ('pid' in instanceOrUri) {
-			instanceOrUri = this._terminalInstanceService.createInstance({ attachPersistentProcess: instanceOrUri }, TerminalLocation.Editor);
 		}
 
 		let input: TerminalEditorInput;
@@ -214,24 +207,17 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			input = this._instantiationService.createInstance(TerminalEditorInput, resource, instanceOrUri);
 			this._registerInstance(inputKey, input, instanceOrUri);
 			return input.resource;
-		}
-		if (URI.isUri(instanceOrUri)) {
-			return instanceOrUri;
 		} else {
-			throw new Error('should not happen');
+			return instanceOrUri;
 		}
 	}
 
 	getInputFromResource(resource: URI): TerminalEditorInput {
-		let input = this._editorInputs.get(resource.path);
-		const launchConfig = this._launchConfigs.get(resource.path);
-		if (!input && launchConfig) {
-			const instance = this._terminalInstanceService.createInstance(launchConfig);
-			return this._instantiationService.createInstance(TerminalEditorInput, resource, instance);
-		} else if (!input) {
-			throw new Error('no input');
+		const input = this._editorInputs.get(resource.path);
+		if (!input) {
+			throw new Error(`Could not get input from resource: ${resource.path}`);
 		}
-		return input!;
+		return input;
 	}
 
 	private _registerInstance(inputKey: string, input: TerminalEditorInput, instance: ITerminalInstance): void {
@@ -272,52 +258,19 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		return instance;
 	}
 
-	getOrCreateEditorInput(instanceOrUri: ITerminalInstance | DeserializedTerminalEditorInput | URI, isFutureSplit: boolean = false): TerminalEditorInput {
-		const resource: URI = URI.isUri(instanceOrUri) ? instanceOrUri : instanceOrUri.resource;
+	reviveInput(deserializedInput: DeserializedTerminalEditorInput): TerminalEditorInput {
+		const resource: URI = URI.isUri(deserializedInput) ? deserializedInput : deserializedInput.resource;
 		const inputKey = resource.path;
-		const cachedEditor = this._editorInputs.get(inputKey);
-		if (cachedEditor) {
-			return cachedEditor;
-		}
 
-		if ('pid' in instanceOrUri) {
-			instanceOrUri = this._terminalInstanceService.createInstance({ attachPersistentProcess: instanceOrUri }, TerminalLocation.Editor);
-		}
-
-		// Terminal from a different window
-		if (URI.isUri(instanceOrUri)) {
-			const terminalIdentifier = parseTerminalUri(instanceOrUri);
-			if (terminalIdentifier.instanceId) {
-				this._primaryOffProcessTerminalService.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId).then(attachPersistentProcess => {
-					const instance = this._terminalInstanceService.createInstance({ attachPersistentProcess }, TerminalLocation.Editor, resource);
-					input.setTerminalInstance(instance);
-					// trigger setInput on TerminalEditor setInput
-					// which attaches to the element and updates the input
-					this._editorService.openEditor(input, {
-						pinned: true,
-						forceReload: true
-					},
-						input.group
-					);
-					this._registerInstance(inputKey, input, instance);
-				});
-			}
-		}
-
-		let input: TerminalEditorInput;
-		if ('instanceId' in instanceOrUri) {
-			instanceOrUri.target = TerminalLocation.Editor;
-			input = this._instantiationService.createInstance(TerminalEditorInput, resource, instanceOrUri);
-			this._registerInstance(inputKey, input, instanceOrUri);
+		if ('pid' in deserializedInput) {
+			const instance = this._terminalInstanceService.createInstance({ attachPersistentProcess: deserializedInput }, TerminalLocation.Editor);
+			instance.target = TerminalLocation.Editor;
+			const input = this._instantiationService.createInstance(TerminalEditorInput, resource, instance);
+			this._registerInstance(inputKey, input, instance);
+			return input;
 		} else {
-			input = this._instantiationService.createInstance(TerminalEditorInput, instanceOrUri, undefined);
-			this._editorInputs.set(inputKey, input);
+			throw new Error(`Could not revive terminal editor input, ${deserializedInput}`);
 		}
-		return input;
-	}
-
-	getShellConfig(resource: URI): IShellLaunchConfig | undefined {
-		return this._launchConfigs.get(resource.path);
 	}
 
 	detachActiveEditorInstance(): ITerminalInstance {
