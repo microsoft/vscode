@@ -25,8 +25,9 @@ export interface IEnvironmentMainService extends INativeEnvironmentService {
 	backupHome: string;
 	backupWorkspacesPath: string;
 
-	// --- V8 code cache path
-	codeCachePath?: string;
+	// --- V8 code caching
+	codeCachePath: string | undefined;
+	useCodeCache: boolean;
 
 	// --- IPC
 	mainIPCHandle: string;
@@ -70,4 +71,7 @@ export class EnvironmentMainService extends NativeEnvironmentService implements 
 
 	@memoize
 	get codeCachePath(): string | undefined { return process.env['VSCODE_CODE_CACHE_PATH'] || undefined; }
+
+	@memoize
+	get useCodeCache(): boolean { return typeof this.codeCachePath === 'string'; }
 }

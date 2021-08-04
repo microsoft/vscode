@@ -16,7 +16,7 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { WindowMinimumSize, IWindowSettings, MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, zoomLevelToZoomFactor, INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { browserCodeLoadingCacheStrategy, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { defaultWindowState, ICodeWindow, ILoadEvent, IWindowState, LoadReason, WindowError, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
@@ -187,7 +187,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				webPreferences: {
 					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
 					additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
-					v8CacheOptions: browserCodeLoadingCacheStrategy,
+					v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : undefined,
 					enableWebSQL: false,
 					spellcheck: false,
 					nativeWindowOpen: true,
@@ -206,12 +206,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 						}
 				}
 			};
-
-			if (browserCodeLoadingCacheStrategy) {
-				this.logService.info(`window: using vscode-file:// protocol and V8 cache options: ${browserCodeLoadingCacheStrategy}`);
-			} else {
-				this.logService.info(`window: vscode-file:// protocol is explicitly disabled`);
-			}
 
 			// Apply icon to window
 			// Linux: always

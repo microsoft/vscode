@@ -147,7 +147,7 @@ export const RemoteAuthorities = new RemoteAuthoritiesImpl();
 
 class FileAccessImpl {
 
-	private readonly FALLBACK_AUTHORITY = 'vscode-app';
+	private static readonly FALLBACK_AUTHORITY = 'vscode-app';
 
 	/**
 	 * Returns a URI to use in contexts where the browser is responsible
@@ -156,8 +156,8 @@ class FileAccessImpl {
 	 * **Note:** use `dom.ts#asCSSUrl` whenever the URL is to be used in CSS context.
 	 */
 	asBrowserUri(uri: URI): URI;
-	asBrowserUri(moduleId: string, moduleIdToUrl: { toUrl(moduleId: string): string }, __forceCodeFileUri?: boolean): URI;
-	asBrowserUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }, __forceCodeFileUri?: boolean): URI {
+	asBrowserUri(moduleId: string, moduleIdToUrl: { toUrl(moduleId: string): string }): URI;
+	asBrowserUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }): URI {
 		const uri = this.toUri(uriOrModule, moduleIdToUrl);
 
 		// Handle remote URIs via `RemoteAuthorities`
@@ -165,27 +165,24 @@ class FileAccessImpl {
 			return RemoteAuthorities.rewrite(uri);
 		}
 
-		let convertToVSCodeFileResource = false;
-
-		// Only convert the URI if we are in a native context and it has `file:` scheme
-		// and we have explicitly enabled the conversion (sandbox, or VSCODE_BROWSER_CODE_LOADING)
-		if (platform.isNative && (__forceCodeFileUri || platform.isPreferringBrowserCodeLoad) && uri.scheme === Schemas.file) {
-			convertToVSCodeFileResource = true;
-		}
-
-		// Also convert `file:` URIs in the web worker extension host (running in desktop) case
-		if (uri.scheme === Schemas.file && typeof platform.globals.importScripts === 'function' && platform.globals.origin === 'vscode-file://vscode-app') {
-			convertToVSCodeFileResource = true;
-		}
-
-		if (convertToVSCodeFileResource) {
+		// Convert to `vscode-file` resource..
+		if (
+			// ...only ever for `file` resources
+			uri.scheme === Schemas.file &&
+			(
+				// ...and we run in native environments
+				platform.isNative ||
+				// ...or web worker extensions on desktop
+				(typeof platform.globals.importScripts === 'function' && platform.globals.origin === `${Schemas.vscodeFileResource}://${FileAccessImpl.FALLBACK_AUTHORITY}`)
+			)
+		) {
 			return uri.with({
 				scheme: Schemas.vscodeFileResource,
 				// We need to provide an authority here so that it can serve
 				// as origin for network and loading matters in chromium.
 				// If the URI is not coming with an authority already, we
 				// add our own
-				authority: uri.authority || this.FALLBACK_AUTHORITY,
+				authority: uri.authority || FileAccessImpl.FALLBACK_AUTHORITY,
 				query: null,
 				fragment: null
 			});
@@ -210,7 +207,7 @@ class FileAccessImpl {
 				// Only preserve the `authority` if it is different from
 				// our fallback authority. This ensures we properly preserve
 				// Windows UNC paths that come with their own authority.
-				authority: uri.authority !== this.FALLBACK_AUTHORITY ? uri.authority : null,
+				authority: uri.authority !== FileAccessImpl.FALLBACK_AUTHORITY ? uri.authority : null,
 				query: null,
 				fragment: null
 			});
