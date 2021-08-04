@@ -16,9 +16,9 @@ suite('ipynb NotebookSerializer', function () {
 		console.log(`2`);
 		console.log(uri.toString());
 		const stat = await vscode.workspace.fs.stat(uri);
-		console.log(`3`);
-		console.log(stat);
-		console.log(stat.size);
+		console.log(`2a`);
+		console.log('stat', stat);
+		console.log('size:' + stat.size);
 		const notebook = await vscode.workspace.openNotebookDocument(uri);
 		console.log(`3`);
 		await vscode.window.showNotebookDocument(notebook);
