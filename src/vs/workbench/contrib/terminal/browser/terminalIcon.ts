@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
+import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { hash } from 'vs/base/common/hash';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionTerminalProfile } from 'vs/platform/terminal/common/terminal';
@@ -14,7 +14,8 @@ import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/termina
 
 export function getColorClass(colorKey: string): string;
 export function getColorClass(terminal: ITerminalInstance): string | undefined;
-export function getColorClass(terminalOrColorKey: ITerminalInstance | string): string | undefined {
+export function getColorClass(extensionTerminalProfile: IExtensionTerminalProfile): string | undefined;
+export function getColorClass(terminalOrColorKey: ITerminalInstance | IExtensionTerminalProfile | string): string | undefined {
 	let color = undefined;
 	if (typeof terminalOrColorKey === 'string') {
 		color = terminalOrColorKey;
@@ -29,13 +30,22 @@ export function getColorClass(terminalOrColorKey: ITerminalInstance | string): s
 	return undefined;
 }
 
-export function getUriClasses(terminal: ITerminalInstance | IExtensionTerminalProfile, colorScheme: ColorScheme): string[] | undefined {
+export function getUriClasses(terminal: ITerminalInstance | IExtensionTerminalProfile, colorScheme: ColorScheme, extensionContributed?: boolean): string[] | undefined {
 	const icon = terminal.icon;
 	if (!icon) {
 		return undefined;
 	}
 	const iconClasses: string[] = [];
 	let uri = undefined;
+
+	if (extensionContributed) {
+		if (typeof icon === 'string' && (icon.startsWith('$(') || iconRegistry.get(icon))) {
+			return iconClasses;
+		} else if (typeof icon === 'string') {
+			uri = URI.parse(icon);
+		}
+	}
+
 	if (icon instanceof URI) {
 		uri = icon;
 	} else if (icon instanceof Object && 'light' in icon && 'dark' in icon) {
@@ -50,9 +60,9 @@ export function getUriClasses(terminal: ITerminalInstance | IExtensionTerminalPr
 	return iconClasses;
 }
 
-export function getIconId(terminal: ITerminalInstance): string {
+export function getIconId(terminal: ITerminalInstance | IExtensionTerminalProfile): string {
 	if (!terminal.icon || (terminal.icon instanceof Object && !('id' in terminal.icon))) {
 		return Codicon.terminal.id;
 	}
-	return terminal.icon.id;
+	return typeof terminal.icon === 'string' ? terminal.icon : terminal.icon.id;
 }
