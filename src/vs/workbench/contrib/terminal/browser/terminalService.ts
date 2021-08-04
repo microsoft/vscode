@@ -171,6 +171,7 @@ export class TerminalService implements ITerminalService {
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@IThemeService private readonly _themeService: IThemeService,
 		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
 	) {
 		this._localTerminalService = localTerminalService;
@@ -889,16 +890,18 @@ export class TerminalService implements ITerminalService {
 
 		quickPickItems.push({ type: 'separator', label: nls.localize('ICreateContributedTerminalProfileOptions', "contributed") });
 		for (const contributed of this._terminalContributionService.terminalProfiles) {
-			const icon = contributed.icon ? (iconRegistry.get(contributed.icon) || Codicon.terminal) : Codicon.terminal;
+			let icon = typeof contributed.icon === 'string' && iconRegistry.get(contributed.icon) ? iconRegistry.get(contributed.icon) : Codicon.terminal;
+			const uriClasses = getUriClasses(contributed, this._themeService.getColorTheme().type);
 			quickPickItems.push({
-				label: `$(${icon.id}) ${contributed.title}`,
+				label: `$(${icon!.id}) ${contributed.title}`,
 				profile: {
 					extensionIdentifier: contributed.extensionIdentifier,
 					title: contributed.title,
 					icon: contributed.icon,
 					id: contributed.id,
 					color: contributed.color
-				}
+				},
+				iconClasses: uriClasses
 			});
 		}
 

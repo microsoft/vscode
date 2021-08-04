@@ -6,6 +6,7 @@
 import { Codicon } from 'vs/base/common/codicons';
 import { hash } from 'vs/base/common/hash';
 import { URI } from 'vs/base/common/uri';
+import { IExtensionTerminalProfile } from 'vs/platform/terminal/common/terminal';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -28,7 +29,7 @@ export function getColorClass(terminalOrColorKey: ITerminalInstance | string): s
 	return undefined;
 }
 
-export function getUriClasses(terminal: ITerminalInstance, colorScheme: ColorScheme): string[] | undefined {
+export function getUriClasses(terminal: ITerminalInstance | IExtensionTerminalProfile, colorScheme: ColorScheme): string[] | undefined {
 	const icon = terminal.icon;
 	if (!icon) {
 		return undefined;
