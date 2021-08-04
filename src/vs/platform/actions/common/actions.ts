@@ -43,7 +43,7 @@ export interface ICommandAction {
 	title: string | ICommandActionTitle;
 	shortTitle?: string | ICommandActionTitle;
 	category?: string | ILocalizedString;
-	tooltip?: string;
+	tooltip?: string | ILocalizedString;
 	icon?: Icon;
 	source?: string;
 	precondition?: ContextKeyExpression;
@@ -405,7 +405,7 @@ export class MenuItemAction implements IAction {
 		this.label = options?.renderShortTitle && item.shortTitle
 			? (typeof item.shortTitle === 'string' ? item.shortTitle : item.shortTitle.value)
 			: (typeof item.title === 'string' ? item.title : item.title.value);
-		this.tooltip = item.tooltip ?? '';
+		this.tooltip = (typeof item.tooltip === 'string' ? item.tooltip : item.tooltip?.value) ?? '';
 		this.enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
 		this.checked = false;
 

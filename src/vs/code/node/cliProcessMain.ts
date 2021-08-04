@@ -42,7 +42,7 @@ import { ExtensionManagementCLIService } from 'vs/platform/extensionManagement/c
 import { URI } from 'vs/base/common/uri';
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
-import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { cwd } from 'vs/base/common/process';
@@ -189,6 +189,10 @@ class CliMain extends Disposable {
 
 			logService.error(`[uncaught exception in CLI]: ${message}`);
 		});
+
+		// Handle unhandled errors that can occur
+		process.on('uncaughtException', err => onUnexpectedError(err));
+		process.on('unhandledRejection', (reason: unknown) => onUnexpectedError(reason));
 	}
 
 	private async doRun(environmentService: INativeEnvironmentService, extensionManagementCLIService: IExtensionManagementCLIService, fileService: IFileService): Promise<void> {

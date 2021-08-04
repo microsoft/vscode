@@ -984,6 +984,10 @@ export interface IDebugService {
 	 */
 	getViewModel(): IViewModel;
 
+	/**
+	 * Resumes execution and pauses until the given position is reached.
+	 */
+	runTo(uri: uri, lineNumber: number, column?: number): Promise<void>;
 }
 
 // Editor interfaces

@@ -302,7 +302,9 @@ export class DebugSession implements IDebugSession {
 		}
 
 		this.cancelAllRequests();
-		if (this.raw) {
+		if (this._options.lifecycleManagedByParent && this.parentSession) {
+			await this.parentSession.terminate(restart);
+		} else if (this.raw) {
 			if (this.raw.capabilities.supportsTerminateRequest && this._configuration.resolved.request === 'launch') {
 				await this.raw.terminate(restart);
 			} else {
@@ -325,7 +327,9 @@ export class DebugSession implements IDebugSession {
 		}
 
 		this.cancelAllRequests();
-		if (this.raw) {
+		if (this._options.lifecycleManagedByParent && this.parentSession) {
+			await this.parentSession.disconnect(restart);
+		} else if (this.raw) {
 			await this.raw.disconnect({ restart, terminateDebuggee: false });
 		}
 
@@ -343,7 +347,11 @@ export class DebugSession implements IDebugSession {
 		}
 
 		this.cancelAllRequests();
-		await this.raw.restart({ arguments: this.configuration });
+		if (this._options.lifecycleManagedByParent && this.parentSession) {
+			await this.parentSession.restart();
+		} else {
+			await this.raw.restart({ arguments: this.configuration });
+		}
 	}
 
 	async sendBreakpoints(modelUri: URI, breakpointsToSend: IBreakpoint[], sourceModified: boolean): Promise<void> {

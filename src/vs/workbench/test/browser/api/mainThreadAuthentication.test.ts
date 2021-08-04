@@ -7,12 +7,13 @@ import * as assert from 'assert';
 import { AuthenticationProviderInformation } from 'vs/editor/common/modes';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { IQuickInputHideEvent, IQuickInputService, IQuickPickDidAcceptEvent } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { MainThreadAuthentication } from 'vs/workbench/api/browser/mainThreadAuthentication';
 import { IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { IActivityService } from 'vs/workbench/services/activity/common/activity';
@@ -66,28 +67,22 @@ class AuthTestQuickInputService extends TestQuickInputService {
 
 suite('MainThreadAuthentication', () => {
 	let mainThreadAuthentication: MainThreadAuthentication;
+	let instantiationService: TestInstantiationService;
 	suiteSetup(async () => {
+		instantiationService = new TestInstantiationService();
 		// extHostContext: IExtHostContext,
-		const services = new ServiceCollection();
-		const dialogService = new TestDialogService();
-		const storageService = new TestStorageService();
-		const quickInputService = new AuthTestQuickInputService();
-		const extensionService = new TestExtensionService();
+		instantiationService.stub(IDialogService, new TestDialogService());
+		instantiationService.stub(IStorageService, new TestStorageService());
+		instantiationService.stub(IQuickInputService, new AuthTestQuickInputService());
+		instantiationService.stub(IExtensionService, new TestExtensionService());
 
-		const activityService = new TestActivityService();
-		const remoteAgentService = new TestRemoteAgentService();
+		instantiationService.stub(IActivityService, new TestActivityService());
+		instantiationService.stub(IRemoteAgentService, new TestRemoteAgentService());
+		instantiationService.stub(INotificationService, new TestNotificationService());
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
 
-		services.set(IDialogService, dialogService);
-		services.set(IStorageService, storageService);
-		services.set(INotificationService, new TestNotificationService());
-		services.set(IQuickInputService, quickInputService);
-		services.set(IExtensionService, extensionService);
-		services.set(IActivityService, activityService);
-		services.set(IRemoteAgentService, remoteAgentService);
-
-		const instaService = new InstantiationService(services);
-		services.set(IAuthenticationService, instaService.createInstance(AuthenticationService));
-		mainThreadAuthentication = instaService.createInstance(MainThreadAuthentication,
+		instantiationService.stub(IAuthenticationService, instantiationService.createInstance(AuthenticationService));
+		mainThreadAuthentication = instantiationService.createInstance(MainThreadAuthentication,
 			new class implements IExtHostContext {
 				remoteAuthority = '';
 				extensionHostKind = ExtensionHostKind.LocalProcess;
@@ -125,7 +120,7 @@ suite('MainThreadAuthentication', () => {
 		const session = await mainThreadAuthentication.$getSession('test', ['foo'], 'testextension', 'test extension', {
 			createIfNone: true,
 			clearSessionPreference: false,
-			forceRecreate: false
+			forceNewSession: false
 		});
 		assert.strictEqual(session?.id, 'test');
 		assert.strictEqual(session?.scopes[0], 'foo');
@@ -135,7 +130,7 @@ suite('MainThreadAuthentication', () => {
 		const session = await mainThreadAuthentication.$getSession('test', ['foo'], 'testextension', 'test extension', {
 			createIfNone: true,
 			clearSessionPreference: false,
-			forceRecreate: false
+			forceNewSession: false
 		});
 
 		assert.strictEqual(session?.id, 'test');
@@ -144,7 +139,7 @@ suite('MainThreadAuthentication', () => {
 		const session2 = await mainThreadAuthentication.$getSession('test', ['foo'], 'testextension', 'test extension', {
 			createIfNone: false,
 			clearSessionPreference: false,
-			forceRecreate: true
+			forceNewSession: true
 		});
 
 		assert.strictEqual(session.id, session2?.id);
@@ -157,7 +152,7 @@ suite('MainThreadAuthentication', () => {
 			await mainThreadAuthentication.$getSession('empty', ['foo'], 'testextension', 'test extension', {
 				createIfNone: false,
 				clearSessionPreference: false,
-				forceRecreate: true
+				forceNewSession: true
 			});
 			assert.fail('should have thrown an Error.');
 		} catch (e) {

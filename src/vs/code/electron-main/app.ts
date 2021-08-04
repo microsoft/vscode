@@ -175,8 +175,8 @@ export class CodeApplication extends Disposable {
 	private registerListeners(): void {
 
 		// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
-		setUnexpectedErrorHandler(err => this.onUnexpectedError(err));
-		process.on('uncaughtException', err => this.onUnexpectedError(err));
+		setUnexpectedErrorHandler(error => this.onUnexpectedError(error));
+		process.on('uncaughtException', error => onUnexpectedError(error));
 		process.on('unhandledRejection', (reason: unknown) => onUnexpectedError(reason));
 
 		// Dispose on shutdown
@@ -328,22 +328,22 @@ export class CodeApplication extends Disposable {
 		return URI.file(path);
 	}
 
-	private onUnexpectedError(err: Error): void {
-		if (err) {
+	private onUnexpectedError(error: Error): void {
+		if (error) {
 
 			// take only the message and stack property
 			const friendlyError = {
-				message: `[uncaught exception in main]: ${err.message}`,
-				stack: err.stack
+				message: `[uncaught exception in main]: ${error.message}`,
+				stack: error.stack
 			};
 
 			// handle on client side
 			this.windowsMainService?.sendToFocused('vscode:reportError', JSON.stringify(friendlyError));
 		}
 
-		this.logService.error(`[uncaught exception in main]: ${err}`);
-		if (err.stack) {
-			this.logService.error(err.stack);
+		this.logService.error(`[uncaught exception in main]: ${error}`);
+		if (error.stack) {
+			this.logService.error(error.stack);
 		}
 	}
 

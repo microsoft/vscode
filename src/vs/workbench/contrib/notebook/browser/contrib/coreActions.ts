@@ -81,6 +81,8 @@ export const NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT = KeybindingWeight.EditorContr
 
 export const enum CellToolbarOrder {
 	EditCell,
+	ExecuteAboveCells,
+	ExecuteCellAndBelow,
 	SplitCell,
 	SaveCell,
 	ClearCellOutput
@@ -420,7 +422,8 @@ registerAction2(class ExecuteAboveCells extends NotebookMultiCellAction<INoteboo
 				},
 				{
 					id: MenuId.NotebookCellTitle,
-					group: 'inline',
+					order: CellToolbarOrder.ExecuteAboveCells,
+					group: CELL_TITLE_CELL_GROUP_ID,
 					when: ContextKeyExpr.and(
 						executeCellCondition,
 						ContextKeyExpr.equals('config.notebook.consolidatedRunButton', false))
@@ -463,7 +466,8 @@ registerAction2(class ExecuteCellAndBelow extends NotebookMultiCellAction<INoteb
 				},
 				{
 					id: MenuId.NotebookCellTitle,
-					group: 'inline',
+					order: CellToolbarOrder.ExecuteCellAndBelow,
+					group: CELL_TITLE_CELL_GROUP_ID,
 					when: ContextKeyExpr.and(
 						executeCellCondition,
 						ContextKeyExpr.equals('config.notebook.consolidatedRunButton', false))
@@ -1890,6 +1894,7 @@ registerAction2(class NotebookConfigureLayoutAction extends Action2 {
 			id: 'workbench.notebook.layout.select',
 			title: localize('workbench.notebook.layout.select.label', "Select between Notebook Layouts"),
 			f1: true,
+			precondition: ContextKeyExpr.equals(`config.${OpenGettingStarted}`, true),
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			menu: [
 				{

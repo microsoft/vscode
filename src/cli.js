@@ -25,7 +25,7 @@ bootstrap.avoidMonkeyPatchFromAppInsights();
 bootstrapNode.configurePortable(product);
 
 // Enable ASAR support
-bootstrap.enableASARSupport(undefined, false);
+bootstrap.enableASARSupport();
 
 // Signal processes that we got launched as CLI
 process.env['VSCODE_CLI'] = '1';

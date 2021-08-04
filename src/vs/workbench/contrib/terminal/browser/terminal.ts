@@ -8,7 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalIcon, TitleEventSource, TerminalShellType, ICreateContributedTerminalProfileOptions, ICreateTerminalOptions, TerminalLocation, IExtensionTerminalProfile, ITerminalProfileType } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalIcon, TitleEventSource, TerminalShellType, ICreateContributedTerminalProfileOptions, TerminalLocation, IExtensionTerminalProfile, ITerminalProfileType } from 'vs/platform/terminal/common/terminal';
 import { ICommandTracker, INavigationMode, IOffProcessTerminalService, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
@@ -143,7 +143,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 
 
 	getActiveOrCreateInstance(): Promise<ITerminalInstance>;
-	splitInstance(instance: ITerminalInstance, shell?: ITerminalProfile | IShellLaunchConfig | IExtensionTerminalProfile | undefined, cwd?: string | URI): Promise<ITerminalInstance>;
 	moveToEditor(source: ITerminalInstance): void;
 	moveToTerminalView(source?: ITerminalInstance | URI): Promise<void>;
 	getOffProcessTerminalService(): IOffProcessTerminalService | undefined;
@@ -208,6 +207,36 @@ export interface ITerminalEditorService extends ITerminalInstanceHost, ITerminal
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
 	revealActiveEditor(preserveFocus?: boolean): void;
 	getInputFromResource(resource: URI): IEditorInput;
+}
+
+export interface ICreateTerminalOptions {
+	/**
+	 * The shell launch config or profile to launch with, when not specified the default terminal
+	 * profile will be used.
+	 */
+	config?: IShellLaunchConfig | ITerminalProfile | IExtensionTerminalProfile;
+	/**
+	 * The current working directory to start with, this will override IShellLaunchConfig.cwd if
+	 * specified.
+	 */
+	cwd?: string | URI;
+	/**
+	 * Where to create the terminal, when not specified the default target will be used.
+	 */
+	target?: TerminalLocation;
+	/**
+	 * Creates a split terminal without requiring a terminal instance to split, for example when splitting
+	 * a terminal editor
+	 */
+	forceSplit?: boolean;
+	/**
+	 * The terminal's resource, passed when the terminal has moved windows.
+	 */
+	resource?: URI;
+	/**
+	 * The terminal instance to split
+	 */
+	instanceToSplit?: ITerminalInstance;
 }
 
 /**

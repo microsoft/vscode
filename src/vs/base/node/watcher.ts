@@ -7,8 +7,9 @@ import { join, basename } from 'vs/base/common/path';
 import { watch } from 'fs';
 import { isMacintosh } from 'vs/base/common/platform';
 import { normalizeNFC } from 'vs/base/common/normalization';
-import { toDisposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { toDisposable, IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { Promises } from 'vs/base/node/pfs';
+import { isEqualOrParent } from 'vs/base/common/extpath';
 
 export function watchFile(path: string, onChange: (type: 'added' | 'changed' | 'deleted', path: string) => void, onError: (error: string) => void): IDisposable {
 	return doWatchNonRecursive({ path, isDirectory: false }, onChange, onError);
@@ -21,6 +22,17 @@ export function watchFolder(path: string, onChange: (type: 'added' | 'changed' |
 export const CHANGE_BUFFER_DELAY = 100;
 
 function doWatchNonRecursive(file: { path: string, isDirectory: boolean }, onChange: (type: 'added' | 'changed' | 'deleted', path: string) => void, onError: (error: string) => void): IDisposable {
+
+	// macOS: watching samba shares can crash VSCode so we do
+	// a simple check for the file path pointing to /Volumes
+	// (https://github.com/microsoft/vscode/issues/106879)
+	// TODO@electron this needs a revisit when the crash is
+	// fixed or mitigated upstream.
+	if (isMacintosh && isEqualOrParent(file.path, '/Volumes/')) {
+		onError(`Refusing to watch ${file.path} for changes using fs.watch() for possibly being a network share where watching is unreliable and unstable.`);
+		return Disposable.None;
+	}
+
 	const originalFileName = basename(file.path);
 	const mapPathToStatDisposable = new Map<string, IDisposable>();
 

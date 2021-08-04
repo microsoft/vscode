@@ -162,7 +162,7 @@ declare module 'vscode' {
 		 *
 		 * Defaults to false.
 		 */
-		forceRecreate?: boolean;
+		forceNewSession?: boolean | { detail: string };
 	}
 
 	export namespace authentication {
@@ -179,7 +179,8 @@ declare module 'vscode' {
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { forceRecreate: true }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { forceNewSession: true }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { forceNewSession: { detail: string } }): Thenable<AuthenticationSession>;
 	}
 
 	export namespace workspace {
@@ -422,7 +423,7 @@ declare module 'vscode' {
 	export interface TextSearchComplete {
 		/**
 		 * Whether the search hit the limit on the maximum number of search results.
-		 * `maxResults` on {@link TextSearchOptions `TextSearchOptions`} specifies the max number of results.
+		 * `maxResults` on {@linkcode TextSearchOptions} specifies the max number of results.
 		 * - If exactly that number of matches exist, this should be false.
 		 * - If `maxResults` matches are returned and more exist, this should be true.
 		 * - If search hits an internal limit which is less than `maxResults`, this should be true.

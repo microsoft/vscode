@@ -164,9 +164,15 @@
 	max-width: 320px;
 	margin-right: 4px;
 }
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-valueInput.no-sibling,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input {
 	max-width: unset;
 }
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-valueInput.no-sibling {
+	/* Add more width to help with string arrays */
+	width: 100%;
+}
+
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-value-container .setting-list-object-input {
 	margin-right: 0;
 }

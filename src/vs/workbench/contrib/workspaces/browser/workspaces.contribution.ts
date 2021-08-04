@@ -17,6 +17,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
 
 /**
  * A workbench contribution that will look for `.code-workspace` files in the root of the
@@ -39,8 +40,8 @@ export class WorkspacesFinderContribution extends Disposable implements IWorkben
 
 	private async findWorkspaces(): Promise<void> {
 		const folder = this.contextService.getWorkspace().folders[0];
-		if (!folder || this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
-			return; // require a single root folder
+		if (!folder || this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER || isVirtualWorkspace(this.contextService.getWorkspace())) {
+			return; // require a single (non virtual) root folder
 		}
 
 		const rootFileNames = (await this.fileService.resolve(folder.uri)).children?.map(child => child.name);

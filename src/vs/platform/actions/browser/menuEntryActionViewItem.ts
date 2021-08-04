@@ -345,7 +345,8 @@ class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 
 		this._dropdown = new DropdownMenuActionViewItem(submenuAction, submenuAction.actions, this._contextMenuService, {
 			menuAsChild: true,
-			classNames: ['codicon', 'codicon-chevron-down']
+			classNames: ['codicon', 'codicon-chevron-down'],
+			actionRunner: new ActionRunner()
 		});
 		this._dropdown.actionRunner.onDidRun((e: IRunEvent) => {
 			if (e.action instanceof MenuItemAction) {
@@ -380,7 +381,7 @@ class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 		this._container = container;
 		super.render(this._container);
 
-		this._container.classList.add('monaco-dropdown-with-primary');
+		this._container.classList.add('monaco-dropdown-with-default');
 
 		const primaryContainer = $('.action-container');
 		this._defaultAction.render(append(this._container, primaryContainer));
@@ -444,8 +445,7 @@ export function createActionViewItem(instaService: IInstantiationService, action
 	if (action instanceof MenuItemAction) {
 		return instaService.createInstance(MenuEntryActionViewItem, action, undefined);
 	} else if (action instanceof SubmenuItemAction) {
-		const allCodicons = !action.actions.some(a => a instanceof MenuItemAction && a.item.icon && !ThemeIcon.isThemeIcon(a.item.icon));
-		if (action.item.rememberDefaultAction && allCodicons) {
+		if (action.item.rememberDefaultAction) {
 			return instaService.createInstance(DropdownWithDefaultActionViewItem, action);
 		} else {
 			return instaService.createInstance(SubmenuEntryActionViewItem, action);

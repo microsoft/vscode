@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -83,6 +83,7 @@ registerAction2(class NotebookClearNotebookLayoutAction extends Action2 {
 			id: 'workbench.notebook.layout.gettingStarted',
 			title: localize('workbench.notebook.layout.gettingStarted.label', "Reset notebook getting started"),
 			f1: true,
+			precondition: ContextKeyExpr.equals(`config.${OpenGettingStarted}`, true),
 			category: CATEGORIES.Developer,
 		});
 	}
