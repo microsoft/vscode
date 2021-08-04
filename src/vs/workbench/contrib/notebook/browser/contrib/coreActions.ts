@@ -1894,6 +1894,7 @@ registerAction2(class NotebookConfigureLayoutAction extends Action2 {
 			id: 'workbench.notebook.layout.select',
 			title: localize('workbench.notebook.layout.select.label', "Select between Notebook Layouts"),
 			f1: true,
+			precondition: ContextKeyExpr.equals(`config.${OpenGettingStarted}`, true),
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			menu: [
 				{
