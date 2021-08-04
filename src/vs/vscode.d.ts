@@ -10679,9 +10679,10 @@ declare module 'vscode' {
 		 *
 		 * The document is denoted by an {@link Uri}. Depending on the {@link Uri.scheme scheme} the
 		 * following rules apply:
-		 * * `file`-scheme: Open a file on disk, will be rejected if the file does not exist or cannot be loaded.
-		 * * `untitled`-scheme: A new file that should be saved on disk, e.g. `untitled:c:\frodo\new.js`. The language
-		 * will be derived from the file name.
+		 * * `file`-scheme: Open a file on disk (`openTextDocument(Uri.file(path))`). Will be rejected if the file
+		 * does not exist or cannot be loaded.
+		 * * `untitled`-scheme: Open a blank untitled file with associated path (`openTextDocument(Uri.file(path).with({ scheme: 'untitled' }))`).
+		 * The language will be derived from the file name.
 		 * * For all other schemes contributed {@link TextDocumentContentProvider text document content providers} and
 		 * {@link FileSystemProvider file system providers} are consulted.
 		 *
