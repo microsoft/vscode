@@ -53,7 +53,22 @@
 			return;
 		}
 
-		const NODE_MODULES_PATH = appRoot ? path.join(appRoot, 'node_modules') : path.join(__dirname, '../node_modules');
+		let NODE_MODULES_PATH = appRoot ? path.join(appRoot, 'node_modules') : undefined;
+		if (!NODE_MODULES_PATH) {
+			NODE_MODULES_PATH = path.join(__dirname, '../node_modules');
+		} else {
+			// use the drive letter casing of __dirname
+			// if it matches the drive letter of `appRoot`
+			// (https://github.com/microsoft/vscode/issues/128725)
+			if (process.platform === 'win32') {
+				const nodejsDriveLetter = __dirname.substr(0, 1);
+				const vscodeDriveLetter = appRoot.substr(0, 1);
+				if (nodejsDriveLetter.toLowerCase() === vscodeDriveLetter.toLowerCase()) {
+					NODE_MODULES_PATH = nodejsDriveLetter + NODE_MODULES_PATH.substr(1);
+				}
+			}
+		}
+
 		const NODE_MODULES_ASAR_PATH = `${NODE_MODULES_PATH}.asar`;
 
 		// @ts-ignore
@@ -71,21 +86,8 @@
 						break;
 					}
 				}
-
 				if (!asarPathAdded && appRoot) {
 					paths.push(NODE_MODULES_ASAR_PATH);
-
-					if (process.platform === 'win32') {
-						const lowercaseDriveLetterAsarPath = NODE_MODULES_ASAR_PATH.substr(0, 1).toLowerCase() + NODE_MODULES_ASAR_PATH.substr(1);
-						if (lowercaseDriveLetterAsarPath !== NODE_MODULES_ASAR_PATH) {
-							paths.push(lowercaseDriveLetterAsarPath);
-						}
-
-						const uppercaseDriveLetterAsarPath = NODE_MODULES_ASAR_PATH.substr(0, 1).toUpperCase() + NODE_MODULES_ASAR_PATH.substr(1);
-						if (uppercaseDriveLetterAsarPath !== NODE_MODULES_ASAR_PATH) {
-							paths.push(uppercaseDriveLetterAsarPath);
-						}
-					}
 				}
 			}
 
