@@ -143,7 +143,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			if (launchConfig.isSplitTerminal) {
 				const activeInstance = this._terminalService.getInstanceHost(launchConfig.target).activeInstance;
 				if (activeInstance) {
-					terminal = withNullAsUndefined(await this._terminalService.splitInstance(activeInstance, shellLaunchConfig));
+					terminal = withNullAsUndefined(await this._terminalService.createTerminal({ instanceToSplit: activeInstance, config: shellLaunchConfig }));
 				}
 			}
 			if (!terminal) {
