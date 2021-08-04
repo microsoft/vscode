@@ -318,9 +318,8 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'tasks',
 					title: localize('gettingStarted.tasks.title', "Automate your project tasks"),
-					when: 'workspaceFolderCount != 0',
+					when: 'virtualWorkspace != \'vscode-vfs\' && workspaceFolderCount != 0',
 					description: localize('gettingStarted.tasks.description.interpolated', "Create tasks for your common workflows and enjoy the integrated experience of running scripts and automatically checking results.\n{0}", Button(localize('runTasks', "Run Auto-detected Tasks"), 'command:workbench.action.tasks.runTask')),
-					when: 'virtualWorkspace != \'vscode-vfs\'',
 					media: {
 						type: 'svg', altText: 'Task runner.', path: 'runTask.svg',
 					},
