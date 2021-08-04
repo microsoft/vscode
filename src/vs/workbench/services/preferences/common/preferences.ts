@@ -17,7 +17,6 @@ import { EditorResolution, IEditorOptions } from 'vs/platform/editor/common/edit
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 
 export enum SettingValueType {
@@ -214,10 +213,10 @@ export interface IPreferencesService {
 
 	openRawDefaultSettings(): Promise<IEditorPane | undefined>;
 	openSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
-	openUserSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined>;
-	openRemoteSettings(): Promise<IEditorPane | undefined>;
-	openWorkspaceSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined>;
-	openFolderSettings(folder: URI, jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined>;
+	openUserSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
+	openRemoteSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
+	openWorkspaceSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
+	openFolderSettings(folder: URI, options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
 	openGlobalKeybindingSettings(textual: boolean, options?: IKeybindingsEditorOptions): Promise<void>;
 	openDefaultKeybindingsFile(): Promise<IEditorPane | undefined>;
 	getEditableSettingsURI(configurationTarget: ConfigurationTarget, resource?: URI): Promise<URI | null>;

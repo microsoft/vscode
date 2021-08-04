@@ -125,6 +125,13 @@ interface IOpenSettingsActionOptions {
 	query?: string;
 }
 
+function sanitizeOpenSettingsArgs(args: any): IOpenSettingsActionOptions {
+	return {
+		openToSide: args.openToSide,
+		query: args.query
+	};
+}
+
 class PreferencesActionsContribution extends Disposable implements IWorkbenchContribution {
 
 	constructor(
@@ -165,7 +172,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			}
 			run(accessor: ServicesAccessor, args: string | IOpenSettingsActionOptions) {
 				// args takes a string for backcompat
-				const opts = typeof args === 'string' ? { query: args } : args;
+				const opts = typeof args === 'string' ? { query: args } : sanitizeOpenSettingsArgs(args);
 				return accessor.get(IPreferencesService).openSettings(opts);
 			}
 		});
@@ -212,8 +219,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					f1: true,
 				});
 			}
-			run(accessor: ServicesAccessor) {
-				return accessor.get(IPreferencesService).openUserSettings();
+			run(accessor: ServicesAccessor, args: IOpenSettingsActionOptions) {
+				args = sanitizeOpenSettingsArgs(args);
+				return accessor.get(IPreferencesService).openUserSettings(args);
 			}
 		});
 		registerAction2(class extends Action2 {
@@ -243,8 +251,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					}]
 				});
 			}
-			run(accessor: ServicesAccessor) {
-				return accessor.get(IPreferencesService).openUserSettings(false);
+			run(accessor: ServicesAccessor, args: IOpenSettingsActionOptions) {
+				args = sanitizeOpenSettingsArgs(args);
+				return accessor.get(IPreferencesService).openUserSettings({ jsonEditor: false, ...args });
 			}
 		});
 		registerAction2(class extends Action2 {
@@ -311,7 +320,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IPreferencesService).openWorkspaceSettings(true);
+				return accessor.get(IPreferencesService).openWorkspaceSettings({ jsonEditor: true });
 			}
 		});
 		registerAction2(class extends Action2 {
@@ -352,7 +361,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				const preferencesService = accessor.get(IPreferencesService);
 				const workspaceFolder = await commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID);
 				if (workspaceFolder) {
-					await preferencesService.openFolderSettings(workspaceFolder.uri, true);
+					await preferencesService.openFolderSettings(workspaceFolder.uri, { jsonEditor: true });
 				}
 			}
 		});
@@ -463,7 +472,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				accessor.get(IPreferencesService).openWorkspaceSettings(false, { query: `@tag:${REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG}` });
+				accessor.get(IPreferencesService).openWorkspaceSettings({ jsonEditor: false, query: `@tag:${REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG}` });
 			}
 		});
 
@@ -1056,7 +1065,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 	private updatePreferencesEditorMenuItem() {
 		const commandId = '_workbench.openWorkspaceSettingsEditor';
 		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE && !CommandsRegistry.getCommand(commandId)) {
-			CommandsRegistry.registerCommand(commandId, () => this.preferencesService.openWorkspaceSettings(false));
+			CommandsRegistry.registerCommand(commandId, () => this.preferencesService.openWorkspaceSettings({ jsonEditor: false }));
 			MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 				command: {
 					id: commandId,
@@ -1077,9 +1086,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			if (!CommandsRegistry.getCommand(commandId)) {
 				CommandsRegistry.registerCommand(commandId, () => {
 					if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.FOLDER) {
-						return this.preferencesService.openWorkspaceSettings(false);
+						return this.preferencesService.openWorkspaceSettings({ jsonEditor: false });
 					} else {
-						return this.preferencesService.openFolderSettings(folder.uri, false);
+						return this.preferencesService.openFolderSettings(folder.uri, { jsonEditor: false });
 					}
 				});
 				MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
