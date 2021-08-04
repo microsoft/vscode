@@ -195,7 +195,9 @@ export class ExtUri implements IExtUri {
 	}
 
 	extname(resource: URI): string {
-		return paths.posix.extname(resource.path);
+		const resourceExt = paths.posix.extname(resource.path);
+		const queryStringLocation = resourceExt.indexOf('?');
+		return queryStringLocation !== -1 ? resourceExt.substr(0, queryStringLocation) : resourceExt;
 	}
 
 	dirname(resource: URI): URI {
