@@ -167,8 +167,7 @@ function convertLinkTags(
 			case 'linkName':
 				if (currentLink) {
 					currentLink.name = part.text;
-					// TODO: remove cast once we pick up TS 4.3
-					currentLink.target = (part as any as Proto.JSDocLinkDisplayPart).target;
+					currentLink.target = (part as Proto.JSDocLinkDisplayPart).target;
 				}
 				break;
 
