@@ -212,48 +212,22 @@ export class URI implements UriComponents {
 	// ---- modify to new -------------------------
 
 	with(change: { scheme?: string; authority?: string | null; path?: string | null; query?: string | null; fragment?: string | null }): URI {
+		const getOnlySyntax = (initialSyntax: any): object => {
+			const { scheme, authority, path, query, fragment } = initialSyntax;
+			return { scheme, authority, path, query, fragment };
+		};
 
-		if (!change) {
-			return this;
-		}
+		const prevSyntax = getOnlySyntax(this);
+		const mergedSyntax = { ...prevSyntax, ...change };
+		const filteredSyntaxArray = Object.entries(mergedSyntax).map(([_key, syntaxComponent]) => syntaxComponent === null ? [_key, _empty] : [_key, syntaxComponent]);
+		const hasUpdated = Object.entries(prevSyntax).sort().toString() !== filteredSyntaxArray.sort().toString();
 
-		let { scheme, authority, path, query, fragment } = change;
-		if (scheme === undefined) {
-			scheme = this.scheme;
-		} else if (scheme === null) {
-			scheme = _empty;
-		}
-		if (authority === undefined) {
-			authority = this.authority;
-		} else if (authority === null) {
-			authority = _empty;
-		}
-		if (path === undefined) {
-			path = this.path;
-		} else if (path === null) {
-			path = _empty;
-		}
-		if (query === undefined) {
-			query = this.query;
-		} else if (query === null) {
-			query = _empty;
-		}
-		if (fragment === undefined) {
-			fragment = this.fragment;
-		} else if (fragment === null) {
-			fragment = _empty;
+		if (hasUpdated) {
+			const { scheme, authority, path, query, fragment } = Object.fromEntries(filteredSyntaxArray);
+			return new Uri(scheme, authority, path, query, fragment);
 		}
 
-		if (scheme === this.scheme
-			&& authority === this.authority
-			&& path === this.path
-			&& query === this.query
-			&& fragment === this.fragment) {
-
-			return this;
-		}
-
-		return new Uri(scheme, authority, path, query, fragment);
+		return this;
 	}
 
 	// ---- parse & validate ------------------------
