@@ -8278,6 +8278,17 @@ declare module 'vscode' {
 		export const remoteName: string | undefined;
 
 		/**
+		 * The authority part of the current opened `vscode-remote://` URI.
+		 * Defined by extensions, e.g. `ssh-remote+${host}` for remotes using a secure shell.
+		 *
+		 * *Note* that the value is `undefined` when there is no remote extension host but that the
+		 * value is defined in all extension hosts (local and remote) in case a remote extension host
+		 * exists. Use {@link Extension.extensionKind} to know if
+		 * a specific extension runs remote or not.
+		 */
+		 export const remoteAuthority: string | undefined;
+
+		/**
 		 * The detected default shell for the extension host, this is overridden by the
 		 * `terminal.integrated.shell` setting for the extension host's platform. Note that in
 		 * environments that do not support a shell the value is the empty string.
