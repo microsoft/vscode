@@ -235,8 +235,8 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				'**/node-pty/lib/shared/conout.js',
 				'**/*.wasm',
 				// For language detection
-				'**/model.json',
-				'**/group1-shard1of1.bin'
+				// '**/model.json',
+				// '**/group1-shard1of1.bin'
 				// '**/@vscode/vscode-languagedetection/**/*',
 			], 'node_modules.asar'));
 
