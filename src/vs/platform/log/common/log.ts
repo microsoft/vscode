@@ -595,4 +595,3 @@ export function LogLevelToString(logLevel: LogLevel): string {
 		case LogLevel.Off: return 'off';
 	}
 }
-
