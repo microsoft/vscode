@@ -668,7 +668,7 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 export class PauseableEmitter<T> extends Emitter<T> {
 
 	private _isPaused = 0;
-	private _eventQueue = new LinkedList<T>();
+	protected _eventQueue = new LinkedList<T>();
 	private _mergeFn?: (input: T[]) => T;
 
 	constructor(options?: EmitterOptions & { merge?: (input: T[]) => T }) {

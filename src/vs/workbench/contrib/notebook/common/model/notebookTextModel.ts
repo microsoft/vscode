@@ -142,6 +142,20 @@ type TransformedEdit = {
 	originalIndex: number;
 };
 
+export class NotebookEventEmitter extends PauseableEmitter<NotebookTextModelChangedEvent> {
+	isDirtyEvent() {
+		for (let e of this._eventQueue) {
+			for (let i = 0; i < e.rawEvents.length; i++) {
+				if (!e.rawEvents[i].transient) {
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+}
+
 export class NotebookTextModel extends Disposable implements INotebookTextModel {
 
 	private readonly _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
@@ -168,7 +182,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	 */
 	private _alternativeVersionId: string = '1';
 	private _operationManager: NotebookOperationManager;
-	private _pauseableEmitter: PauseableEmitter<NotebookTextModelChangedEvent>;
+	private _pauseableEmitter: NotebookEventEmitter;
 
 	get length() {
 		return this._cells.length;
@@ -217,7 +231,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		};
 		this._register(_modelService.onModelAdded(e => maybeUpdateCellTextModel(e)));
 
-		this._pauseableEmitter = new PauseableEmitter<NotebookTextModelChangedEvent>({
+		this._pauseableEmitter = new NotebookEventEmitter({
 			merge: (events: NotebookTextModelChangedEvent[]) => {
 				let first = events[0];
 
@@ -365,7 +379,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		} finally {
 			// Update selection and versionId after applying edits.
 			const endSelections = endSelectionsComputer();
-			this._increaseVersionId(this._operationManager.isUndoStackEmpty());
+			this._increaseVersionId(this._operationManager.isUndoStackEmpty() && !this._pauseableEmitter.isDirtyEvent());
 
 			// Finalize undo element
 			this.pushStackElement('edit', endSelections, undefined);
@@ -376,7 +390,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 	}
 
-	private _doApplyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, computeUndoRedo: boolean = true): void {
+	private _doApplyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, computeUndoRedo: boolean): void {
 
 		// compress all edits which have no side effects on cell index
 		const edits = this._mergeCellEdits(rawEdits.map((edit, index) => {
@@ -601,9 +615,9 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		});
 	}
 
-	private _increaseVersionId(undoStackEmpty: boolean): void {
+	private _increaseVersionId(transient: boolean): void {
 		this._versionId = this._versionId + 1;
-		if (!undoStackEmpty) {
+		if (!transient) {
 			this._notebookSpecificAlternativeId = this._versionId;
 		}
 		this._alternativeVersionId = this._generateAlternativeId();
