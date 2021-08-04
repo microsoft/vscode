@@ -2311,8 +2311,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this._generateFontInfo();
 		}
 
+		const {
+			cellRunGutter,
+			codeCellLeftMargin,
+			cellRightMargin
+		} = this._notebookOptions.getLayoutConfiguration();
+
+		const width = (this._dimension?.width ?? 0) - (codeCellLeftMargin + cellRunGutter + cellRightMargin) - 8 /** padding */ * 2;
+
 		return {
-			width: this._dimension?.width ?? 0,
+			width: Math.max(width, 0),
 			height: this._dimension?.height ?? 0,
 			fontInfo: this._fontInfo!
 		};
