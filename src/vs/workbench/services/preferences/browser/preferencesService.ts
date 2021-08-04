@@ -206,15 +206,17 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	openSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
-		if (typeof options.jsonEditor !== 'boolean') {
-			options.jsonEditor = this.shouldOpenJsonByDefault();
-		}
+		options = {
+			...options,
+			target: ConfigurationTarget.USER_LOCAL,
+			jsonEditor: options.jsonEditor ?? this.shouldOpenJsonByDefault()
+		};
 
 		if (!options.jsonEditor) {
 			return this.openSettings2(options);
 		}
 
-		return this.openSettingsJson(ConfigurationTarget.USER_LOCAL, this.userSettingsResource, options);
+		return this.openSettingsJson(this.userSettingsResource, options);
 	}
 
 	private async openSettings2(options: IOpenSettingsOptions): Promise<IEditorPane> {
@@ -228,33 +230,39 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	openUserSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
-		if (typeof options.jsonEditor !== 'boolean') {
-			options.jsonEditor = this.shouldOpenJsonByDefault();
-		}
+		options = {
+			...options,
+			target: ConfigurationTarget.USER_LOCAL,
+			jsonEditor: options.jsonEditor ?? this.shouldOpenJsonByDefault()
+		};
 
 		return options.jsonEditor ?
-			this.openSettingsJson(ConfigurationTarget.USER_LOCAL, this.userSettingsResource, options) :
-			this.openOrSwitchSettings2(ConfigurationTarget.USER_LOCAL, undefined, options);
+			this.openSettingsJson(this.userSettingsResource, options) :
+			this.openSettings2(options);
 	}
 
 	async openRemoteSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
 		const environment = await this.remoteAgentService.getEnvironment();
 		if (environment) {
-			if (typeof options.jsonEditor !== 'boolean') {
-				options.jsonEditor = this.shouldOpenJsonByDefault();
-			}
+			options = {
+				...options,
+				target: ConfigurationTarget.USER_REMOTE,
+				jsonEditor: options.jsonEditor ?? this.shouldOpenJsonByDefault()
+			};
 
 			return options.jsonEditor ?
-				this.openSettingsJson(ConfigurationTarget.USER_REMOTE, this.environmentService.settingsResource, options) :
-				this.openOrSwitchSettings2(ConfigurationTarget.USER_REMOTE, undefined, options);
+				this.openSettingsJson(this.environmentService.settingsResource, options) :
+				this.openSettings2(options);
 		}
 		return undefined;
 	}
 
 	openWorkspaceSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
-		if (typeof options.jsonEditor !== 'boolean') {
-			options.jsonEditor = this.shouldOpenJsonByDefault();
-		}
+		options = {
+			...options,
+			target: ConfigurationTarget.WORKSPACE,
+			jsonEditor: options.jsonEditor ?? this.shouldOpenJsonByDefault()
+		};
 
 		if (!this.workspaceSettingsResource) {
 			this.notificationService.info(nls.localize('openFolderFirst', "Open a folder or workspace first to create workspace or folder settings."));
@@ -262,24 +270,30 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		}
 
 		return options.jsonEditor ?
-			this.openSettingsJson(ConfigurationTarget.WORKSPACE, this.workspaceSettingsResource, options) :
-			this.openOrSwitchSettings2(ConfigurationTarget.WORKSPACE, undefined, options);
+			this.openSettingsJson(this.workspaceSettingsResource, options) :
+			this.openSettings2(options);
 	}
 
-	async openFolderSettings(folder: URI, options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
-		if (typeof options.jsonEditor !== 'boolean') {
-			options.jsonEditor = this.shouldOpenJsonByDefault();
+	async openFolderSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
+		options = {
+			...options,
+			target: ConfigurationTarget.WORKSPACE_FOLDER,
+			jsonEditor: options.jsonEditor ?? this.shouldOpenJsonByDefault()
+		};
+
+		if (!options.folderUri) {
+			throw new Error(`Missing folder URI`);
 		}
 
+		const folderSettingsUri = await this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE_FOLDER, options.folderUri);
 		if (options.jsonEditor) {
-			const folderSettingsUri = await this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE_FOLDER, folder);
 			if (folderSettingsUri) {
-				return this.openSettingsJson(ConfigurationTarget.WORKSPACE_FOLDER, folderSettingsUri, options);
+				return this.openSettingsJson(folderSettingsUri, options);
 			}
-			throw new Error(`Invalid folder URI - ${folder.toString()}`);
+			throw new Error(`Invalid folder URI - ${options.folderUri.toString()}`);
 		}
 
-		return this.openOrSwitchSettings2(ConfigurationTarget.WORKSPACE_FOLDER, folder, options);
+		return this.openSettings2(options);
 	}
 
 	async openGlobalKeybindingSettings(textual: boolean, options?: IKeybindingsEditorOptions): Promise<void> {
@@ -320,38 +334,30 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.editorService.openEditor({ resource: this.defaultKeybindingsResource, label: nls.localize('defaultKeybindings', "Default Keybindings") });
 	}
 
-	private async openSettingsJson(configurationTarget: ConfigurationTarget, resource: URI, options?: IOpenSettingsOptions): Promise<IEditorPane | undefined> {
+	private async openSettingsJson(resource: URI, options: IOpenSettingsOptions): Promise<IEditorPane | undefined> {
 		const group = options?.openToSide ? SIDE_GROUP : undefined;
-		const editor = await this.doOpenSettingsJson(configurationTarget, resource, options, group);
+		const editor = await this.doOpenSettingsJson(resource, options, group);
 		if (editor && options?.revealSetting) {
 			await this.revealSetting(options.revealSetting.key, !!options.revealSetting.edit, editor, resource);
 		}
 		return editor;
 	}
 
-	// TODO REMOVE
-	private openOrSwitchSettings2(configurationTarget: ConfigurationTarget, folderUri?: URI, options?: ISettingsEditorOptions): Promise<IEditorPane | undefined> {
-		const settingsOptions: ISettingsEditorOptions = {
-			...options,
-			target: configurationTarget,
-			folderUri
-		};
-		return this.openSettings2(settingsOptions);
-	}
-
-	private async doOpenSettingsJson(configurationTarget: ConfigurationTarget, resource: URI, options?: ISettingsEditorOptions, group?: SIDE_GROUP_TYPE): Promise<IEditorPane | undefined> {
+	private async doOpenSettingsJson(resource: URI, options: ISettingsEditorOptions, group?: SIDE_GROUP_TYPE): Promise<IEditorPane | undefined> {
 		const openSplitJSON = !!this.configurationService.getValue(USE_SPLIT_JSON_SETTING);
 		const openDefaultSettings = !!this.configurationService.getValue(DEFAULT_SETTINGS_EDITOR_SETTING);
 		if (openSplitJSON || openDefaultSettings) {
-			return this.doOpenSplitJSON(configurationTarget, resource, options, group);
+			return this.doOpenSplitJSON(resource, options, group);
 		}
 
+		const configurationTarget = options?.target ?? ConfigurationTarget.USER;
 		const editableSettingsEditorInput = await this.getOrCreateEditableSettingsEditorInput(configurationTarget, resource);
 		options = { ...options, pinned: true };
 		return await this.editorService.openEditor(editableSettingsEditorInput, validateSettingsEditorOptions(options), group);
 	}
 
-	private async doOpenSplitJSON(configurationTarget: ConfigurationTarget, resource: URI, options: ISettingsEditorOptions = {}, group?: SIDE_GROUP_TYPE): Promise<IEditorPane | undefined> {
+	private async doOpenSplitJSON(resource: URI, options: ISettingsEditorOptions = {}, group?: SIDE_GROUP_TYPE): Promise<IEditorPane | undefined> {
+		const configurationTarget = options.target ?? ConfigurationTarget.USER;
 		await this.createSettingsIfNotExists(configurationTarget, resource);
 		const preferencesEditorInput = this.createSplitJsonEditorInput(configurationTarget, resource);
 		options = { ...options, pinned: true };

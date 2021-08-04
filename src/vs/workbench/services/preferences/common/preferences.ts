@@ -216,7 +216,7 @@ export interface IPreferencesService {
 	openUserSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
 	openRemoteSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
 	openWorkspaceSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
-	openFolderSettings(folder: URI, options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
+	openFolderSettings(options: IOpenSettingsOptions & { folderUri: IOpenSettingsOptions['folderUri'] }): Promise<IEditorPane | undefined>;
 	openGlobalKeybindingSettings(textual: boolean, options?: IKeybindingsEditorOptions): Promise<void>;
 	openDefaultKeybindingsFile(): Promise<IEditorPane | undefined>;
 	getEditableSettingsURI(configurationTarget: ConfigurationTarget, resource?: URI): Promise<URI | null>;

@@ -275,7 +275,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				if (editorPane instanceof SettingsEditor2) {
 					return editorPane.switchToSettingsFile();
 				}
-				return Promise.resolve(null);
+				return null;
 			}
 		});
 		registerAction2(class extends Action2 {
@@ -303,8 +303,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					}
 				});
 			}
-			run(accessor: ServicesAccessor) {
-				return accessor.get(IPreferencesService).openWorkspaceSettings();
+			run(accessor: ServicesAccessor, args?: IOpenSettingsActionOptions) {
+				args = sanitizeOpenSettingsArgs(args);
+				return accessor.get(IPreferencesService).openWorkspaceSettings(args);
 			}
 		});
 		registerAction2(class extends Action2 {
@@ -319,8 +320,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					}
 				});
 			}
-			run(accessor: ServicesAccessor) {
-				return accessor.get(IPreferencesService).openWorkspaceSettings({ jsonEditor: true });
+			run(accessor: ServicesAccessor, args?: IOpenSettingsActionOptions) {
+				args = sanitizeOpenSettingsArgs(args);
+				return accessor.get(IPreferencesService).openWorkspaceSettings({ jsonEditor: true, ...args });
 			}
 		});
 		registerAction2(class extends Action2 {
@@ -335,12 +337,13 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					}
 				});
 			}
-			async run(accessor: ServicesAccessor) {
+			async run(accessor: ServicesAccessor, args?: IOpenSettingsActionOptions) {
 				const commandService = accessor.get(ICommandService);
 				const preferencesService = accessor.get(IPreferencesService);
 				const workspaceFolder = await commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID);
 				if (workspaceFolder) {
-					await preferencesService.openFolderSettings(workspaceFolder.uri);
+					args = sanitizeOpenSettingsArgs(args);
+					await preferencesService.openFolderSettings({ folderUri: workspaceFolder.uri, ...args });
 				}
 			}
 		});
@@ -356,12 +359,13 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					}
 				});
 			}
-			async run(accessor: ServicesAccessor) {
+			async run(accessor: ServicesAccessor, args?: IOpenSettingsActionOptions) {
 				const commandService = accessor.get(ICommandService);
 				const preferencesService = accessor.get(IPreferencesService);
 				const workspaceFolder = await commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID);
 				if (workspaceFolder) {
-					await preferencesService.openFolderSettings(workspaceFolder.uri, { jsonEditor: true });
+					args = sanitizeOpenSettingsArgs(args);
+					await preferencesService.openFolderSettings({ folderUri: workspaceFolder.uri, jsonEditor: true, ...args });
 				}
 			}
 		});
@@ -380,7 +384,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				});
 			}
 			run(accessor: ServicesAccessor, resource: URI) {
-				return accessor.get(IPreferencesService).openFolderSettings(resource);
+				return accessor.get(IPreferencesService).openFolderSettings({ folderUri: resource });
 			}
 		});
 		registerAction2(class extends Action2 {
@@ -495,8 +499,27 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 							}
 						});
 					}
-					run(accessor: ServicesAccessor) {
-						return accessor.get(IPreferencesService).openRemoteSettings();
+					run(accessor: ServicesAccessor, args?: IOpenSettingsActionOptions) {
+						args = sanitizeOpenSettingsArgs(args);
+						return accessor.get(IPreferencesService).openRemoteSettings(args);
+					}
+				});
+				const jsonLabel = nls.localize('openRemoteSettingsJSON', "Open Remote Settings (JSON) ({0})", hostLabel);
+				registerAction2(class extends Action2 {
+					constructor() {
+						super({
+							id: 'workbench.action.openRemoteSettingsFile',
+							title: { value: jsonLabel, original: `Open Remote Settings (JSON) (${hostLabel})` },
+							category,
+							menu: {
+								id: MenuId.CommandPalette,
+								when: RemoteNameContext.notEqualsTo('')
+							}
+						});
+					}
+					run(accessor: ServicesAccessor, args?: IOpenSettingsActionOptions) {
+						args = sanitizeOpenSettingsArgs(args);
+						return accessor.get(IPreferencesService).openRemoteSettings(args);
 					}
 				});
 			});
@@ -1088,7 +1111,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 						return this.preferencesService.openWorkspaceSettings({ jsonEditor: false });
 					} else {
-						return this.preferencesService.openFolderSettings(folder.uri, { jsonEditor: false });
+						return this.preferencesService.openFolderSettings({ folderUri: folder.uri, jsonEditor: false });
 					}
 				});
 				MenuRegistry.appendMenuItem(MenuId.EditorTitle, {

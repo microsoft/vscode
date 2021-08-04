@@ -327,7 +327,7 @@ export class ConfigurationEditingService {
 				if (operation.resource) {
 					const workspaceFolder = this.contextService.getWorkspaceFolder(operation.resource);
 					if (workspaceFolder) {
-						this.preferencesService.openFolderSettings(workspaceFolder.uri, { jsonEditor: true });
+						this.preferencesService.openFolderSettings({ folderUri: workspaceFolder.uri, jsonEditor: true });
 					}
 				}
 				break;

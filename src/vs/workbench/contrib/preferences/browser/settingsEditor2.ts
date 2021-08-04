@@ -630,7 +630,7 @@ export class SettingsEditor2 extends EditorPane {
 		} else if (currentSettingsTarget === ConfigurationTarget.WORKSPACE) {
 			return this.preferencesService.openWorkspaceSettings(openOptions);
 		} else if (URI.isUri(currentSettingsTarget)) {
-			return this.preferencesService.openFolderSettings(currentSettingsTarget, openOptions);
+			return this.preferencesService.openFolderSettings({ folderUri: currentSettingsTarget, ...openOptions });
 		}
 
 		return undefined;
