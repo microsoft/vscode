@@ -538,6 +538,7 @@ export interface IDebugConfiguration {
 		closeOnEnd: boolean;
 		collapseIdenticalLines: boolean;
 		historySuggestions: boolean;
+		acceptSuggestionOnEnter: 'off' | 'on';
 	};
 	focusWindowOnBreak: boolean;
 	onTaskErrors: 'debugAnyway' | 'showErrors' | 'prompt' | 'abort';

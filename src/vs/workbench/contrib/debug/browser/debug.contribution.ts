@@ -476,6 +476,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('debug.console.collapseIdenticalLines', "Controls if the debug console should collapse identical lines and show a number of occurrences with a badge."),
 			default: true
 		},
+		'debug.console.acceptSuggestionOnEnter': {
+			enum: ['off', 'on'],
+			description: nls.localize('debug.console.acceptSuggestionOnEnter', "Controls whether suggestions should be accepted on enter in the debug console. enter is also used to evaluate whatever is typed in the debug console."),
+			default: 'off'
+		},
 		'launch': {
 			type: 'object',
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'launch' }, "Global debug launch configuration. Should be used as an alternative to 'launch.json' that is shared across workspaces."),
