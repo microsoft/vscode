@@ -1151,7 +1151,10 @@ export class FileService extends Disposable implements IFileService {
 	override dispose(): void {
 		super.dispose();
 
-		this.activeWatchers.forEach(watcher => dispose(watcher.disposable));
+		for (const [, watcher] of this.activeWatchers) {
+			dispose(watcher.disposable);
+		}
+
 		this.activeWatchers.clear();
 	}
 
