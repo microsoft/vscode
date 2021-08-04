@@ -119,6 +119,16 @@ suite('ExtHostWebview', () => {
 			'Unix basic'
 		);
 	});
+
+	test('asWebviewUri for localhost file paths', () => {
+		const webview = createWebview(rpcProtocol, /* remoteAuthority */ 'localhost:8080');
+
+		assert.strictEqual(
+			(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/file.html')).toString()),
+			`https://vscode-remote%2Blocalhost.vscode-resource.${webviewResourceBaseHost}:8080/Users/codey/file.html`,
+			'Unix should preserve the port in'
+		);
+	});
 });
 
 function createWebview(rpcProtocol: (IExtHostRpcService & IExtHostContext) | undefined, remoteAuthority: string | undefined) {

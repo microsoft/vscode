@@ -55,9 +55,15 @@ export function asWebviewUri(
 		});
 	}
 
+	let authority = `${resource.scheme}+${resource.authority}.${webviewRootResourceAuthority}`;
+	if (resource.authority.includes('localhost')) {
+		const authorityUrl = new URL(`http://${resource.authority}`);
+		authority = `${resource.scheme}+${authorityUrl.hostname}.${webviewRootResourceAuthority}${authorityUrl.port ? (':' + authorityUrl.port) : ''}`;
+	}
+
 	return URI.from({
+		authority,
 		scheme: Schemas.https,
-		authority: `${resource.scheme}+${resource.authority}.${webviewRootResourceAuthority}`,
 		path: resource.path,
 		fragment: resource.fragment,
 		query: resource.query,
