@@ -8,7 +8,7 @@ import 'mocha';
 import * as vscode from 'vscode';
 
 suite('ipynb NotebookSerializer', function () {
-	test('Can open an ipynb notebook', async () => {
+	test.skip('Can open an ipynb notebook', async () => {
 		assert.ok(vscode.workspace.workspaceFolders);
 		const workspace = vscode.workspace.workspaceFolders[0];
 		const uri = vscode.Uri.joinPath(workspace.uri, 'test.ipynb');
