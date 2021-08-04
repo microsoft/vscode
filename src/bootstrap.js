@@ -42,25 +42,18 @@
 	//#region Add support for using node_modules.asar
 
 	/**
-	 * @param {string | undefined} appRoot
-	 * @param {boolean} alwaysAddASARPath
+	 * TODO@sandbox remove the support for passing in `appRoot` once
+	 * sandbox is fully enabled
+	 *
+	 * @param {string=} appRoot
 	 */
-	function enableASARSupport(appRoot, alwaysAddASARPath) {
+	function enableASARSupport(appRoot) {
 		if (!path || !Module || typeof process === 'undefined') {
-			console.warn('enableASARSupport() is only available in node.js environments'); // TODO@sandbox ASAR is currently non-sandboxed only
+			console.warn('enableASARSupport() is only available in node.js environments');
 			return;
 		}
 
-		let NODE_MODULES_PATH = appRoot ? path.join(appRoot, 'node_modules') : undefined;
-		if (!NODE_MODULES_PATH) {
-			NODE_MODULES_PATH = path.join(__dirname, '../node_modules');
-		} else {
-			// use the drive letter casing of __dirname
-			if (process.platform === 'win32') {
-				NODE_MODULES_PATH = __dirname.substr(0, 1) + NODE_MODULES_PATH.substr(1);
-			}
-		}
-
+		const NODE_MODULES_PATH = appRoot ? path.join(appRoot, 'node_modules') : path.join(__dirname, '../node_modules');
 		const NODE_MODULES_ASAR_PATH = `${NODE_MODULES_PATH}.asar`;
 
 		// @ts-ignore
@@ -78,8 +71,21 @@
 						break;
 					}
 				}
-				if (alwaysAddASARPath && !asarPathAdded) {
+
+				if (!asarPathAdded && appRoot) {
 					paths.push(NODE_MODULES_ASAR_PATH);
+
+					if (process.platform === 'win32') {
+						const lowercaseDriveLetterAsarPath = NODE_MODULES_ASAR_PATH.substr(0, 1).toLowerCase() + NODE_MODULES_ASAR_PATH.substr(1);
+						if (lowercaseDriveLetterAsarPath !== NODE_MODULES_ASAR_PATH) {
+							paths.push(lowercaseDriveLetterAsarPath);
+						}
+
+						const uppercaseDriveLetterAsarPath = NODE_MODULES_ASAR_PATH.substr(0, 1).toUpperCase() + NODE_MODULES_ASAR_PATH.substr(1);
+						if (uppercaseDriveLetterAsarPath !== NODE_MODULES_ASAR_PATH) {
+							paths.push(uppercaseDriveLetterAsarPath);
+						}
+					}
 				}
 			}
 
