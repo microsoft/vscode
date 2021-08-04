@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { IStringDictionary } from 'vs/base/common/collections';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { join } from 'vs/base/common/path';
 import { Promises } from 'vs/base/node/pfs';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { ILogService } from 'vs/platform/log/common/log';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 interface IExtensionEntry {
 	version: string;
