@@ -36,7 +36,6 @@ import { filterExceptionsFromTelemetry } from 'vs/workbench/contrib/debug/common
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class DebugSession implements IDebugSession {
 
@@ -86,7 +85,6 @@ export class DebugSession implements IDebugSession {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICustomEndpointTelemetryService private readonly customEndpointTelemetryService: ICustomEndpointTelemetryService,
-		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this._options = options || {};
 		if (this.hasSeparateRepl()) {
