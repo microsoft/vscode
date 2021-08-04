@@ -6,6 +6,7 @@
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
+import { isObject } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/preferences';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -126,6 +127,10 @@ interface IOpenSettingsActionOptions {
 }
 
 function sanitizeOpenSettingsArgs(args: any): IOpenSettingsActionOptions {
+	if (!isObject(args)) {
+		args = {};
+	}
+
 	return {
 		openToSide: args.openToSide,
 		query: args.query
