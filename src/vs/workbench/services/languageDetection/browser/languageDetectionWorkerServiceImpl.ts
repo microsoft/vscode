@@ -17,6 +17,7 @@ import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IntervalTimer } from 'vs/base/common/async';
 import { SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class LanguageDetectionService extends Disposable implements ILanguageDetectionService {
 	static readonly enablementSettingKey = 'workbench.editor.untitled.experimentalLanguageDetection';
@@ -30,11 +31,13 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		@IModeService private readonly _modeService: IModeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IModelService modelService: IModelService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
 
 		this._languageDetectionWorkerClient = new LanguageDetectionWorkerClient(
 			modelService,
+			telemetryService,
 			'languageDetectionWorkerService',
 			// TODO: See if it's possible to bundle vscode-languagedetection
 			this._environmentService.isBuilt && !isWeb
@@ -181,7 +184,12 @@ class LanguageDetectionModelManager extends Disposable {
 }
 
 export class LanguageDetectionWorkerHost {
-	constructor(private _indexJsUri: string, private _modelJsonUri: string, private _weightsUri: string) {
+	constructor(
+		private _indexJsUri: string,
+		private _modelJsonUri: string,
+		private _weightsUri: string,
+		private _telemetryService: ITelemetryService,
+	) {
 	}
 
 	async getIndexJsUri() {
@@ -195,6 +203,21 @@ export class LanguageDetectionWorkerHost {
 	async getWeightsUri() {
 		return this._weightsUri;
 	}
+
+	async sendTelemetryEvent(languages: string[], confidences: number[], timeSpent: number): Promise<void> {
+		type LanguageDetectionStats = { languages: string; confidences: string; timeSpent: number; };
+		type LanguageDetectionStatsClassification = {
+			languages: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			confidences: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			timeSpent: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+		};
+
+		this._telemetryService.publicLog2<LanguageDetectionStats, LanguageDetectionStatsClassification>('automaticlanguagedetection.stats', {
+			languages: languages.join(','),
+			confidences: confidences.join(','),
+			timeSpent
+		});
+	}
 }
 
 export class LanguageDetectionWorkerClient extends Disposable {
@@ -202,7 +225,14 @@ export class LanguageDetectionWorkerClient extends Disposable {
 	private readonly _workerFactory: DefaultWorkerFactory;
 	private _modelManager: LanguageDetectionModelManager | null;
 
-	constructor(private readonly _modelService: IModelService, label: string, public indexJsUri: string, public modelJsonUri: string, public weightsUri: string) {
+	constructor(
+		private readonly _modelService: IModelService,
+		private readonly _telemetryService: ITelemetryService,
+		label: string,
+		public indexJsUri: string,
+		public modelJsonUri: string,
+		public weightsUri: string
+	) {
 		super();
 		this._workerFactory = new DefaultWorkerFactory(label);
 		this._worker = null;
@@ -233,7 +263,8 @@ export class LanguageDetectionWorkerClient extends Disposable {
 				new LanguageDetectionWorkerHost(
 					this.indexJsUri,
 					this.modelJsonUri,
-					this.weightsUri)
+					this.weightsUri,
+					this._telemetryService)
 			));
 		}
 		return this._worker;

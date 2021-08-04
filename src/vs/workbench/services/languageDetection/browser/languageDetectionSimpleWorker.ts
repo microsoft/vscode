@@ -5,6 +5,7 @@
 
 import type { ModelOperations, ModelResult } from '@vscode/vscode-languagedetection';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
 import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
@@ -55,19 +56,26 @@ export class LanguageDetectionSimpleWorker implements IRequestHandler, IDisposab
 	}
 
 	public async detectLanguage(uri: string): Promise<string | undefined> {
+		const stopWatch = new StopWatch(true);
 		for await (const language of this.detectLanguagesImpl(uri)) {
-			return language;
+			stopWatch.stop();
+			this._host.sendTelemetryEvent([language.languageId], [language.confidence], stopWatch.elapsed());
+			return language.languageId;
 		}
 		return undefined;
 	}
 
 	public async detectLanguages(uri: string): Promise<string[]> {
 		const languages: string[] = [];
-
+		const confidences: number[] = [];
+		const stopWatch = new StopWatch(true);
 		for await (const language of this.detectLanguagesImpl(uri)) {
-			languages.push(language);
+			languages.push(language.languageId);
+			confidences.push(language.confidence);
 		}
+		stopWatch.stop();
 
+		this._host.sendTelemetryEvent(languages, confidences, stopWatch.elapsed());
 		return languages;
 	}
 
@@ -99,7 +107,7 @@ export class LanguageDetectionSimpleWorker implements IRequestHandler, IDisposab
 		return this._modelOperations!;
 	}
 
-	private async * detectLanguagesImpl(uri: string) {
+	private async * detectLanguagesImpl(uri: string): AsyncGenerator<ModelResult, void, unknown> {
 		if (this._loadFailed) {
 			return;
 		}
@@ -137,7 +145,7 @@ export class LanguageDetectionSimpleWorker implements IRequestHandler, IDisposab
 
 			if (currentHighest.confidence - current.confidence >= LanguageDetectionSimpleWorker.expectedRelativeConfidence) {
 				while (possibleLanguages.length) {
-					yield possibleLanguages.shift()!.languageId;
+					yield possibleLanguages.shift()!;
 				}
 				if (current.confidence > LanguageDetectionSimpleWorker.expectedRelativeConfidence) {
 					possibleLanguages.push(current);
