@@ -64,6 +64,12 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 				this.skip();
 			}
 
+			// Windows: this test is flaky for yet unknown reasons
+			// https://github.com/microsoft/vscode/issues/129279
+			if (process.platform === 'win32') {
+				this.retries(2);
+			}
+
 			const userDataDir = join(testDataPath, 'd3'); // different data dir from the other tests
 
 			const stableOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
