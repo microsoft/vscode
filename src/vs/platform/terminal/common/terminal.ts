@@ -388,7 +388,7 @@ export interface IShellLaunchConfig {
 
 export interface ICreateContributedTerminalProfileOptions {
 	target?: TerminalLocation;
-	icon?: string;
+	icon?: URI | string | { light: URI, dark: URI };
 	color?: string;
 	isSplitTerminal?: boolean;
 }
@@ -597,7 +597,7 @@ export interface ITerminalContributions {
 export interface ITerminalProfileContribution {
 	title: string;
 	id: string;
-	icon?: string;
+	icon?: URI | { light: URI, dark: URI } | string;
 	color?: string;
 }
 
