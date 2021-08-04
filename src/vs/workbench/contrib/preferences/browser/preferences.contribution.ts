@@ -120,6 +120,11 @@ const OPEN_SETTINGS2_ACTION_TITLE = { value: nls.localize('openSettings2', "Open
 
 const category = { value: nls.localize('preferences', "Preferences"), original: 'Preferences' };
 
+interface IOpenSettingsActionOptions {
+	openToSide?: boolean;
+	query?: string;
+}
+
 class PreferencesActionsContribution extends Disposable implements IWorkbenchContribution {
 
 	constructor(
@@ -158,9 +163,10 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					}
 				});
 			}
-			run(accessor: ServicesAccessor, args: string | undefined) {
-				const query = typeof args === 'string' ? args : undefined;
-				return accessor.get(IPreferencesService).openSettings(query ? false : undefined, query);
+			run(accessor: ServicesAccessor, args: string | IOpenSettingsActionOptions) {
+				// args takes a string for backcompat
+				const opts = typeof args === 'string' ? { query: args } : args;
+				return accessor.get(IPreferencesService).openSettings(opts);
 			}
 		});
 		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
@@ -181,7 +187,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IPreferencesService).openSettings(false, undefined);
+				return accessor.get(IPreferencesService).openSettings({ jsonEditor: false });
 			}
 		});
 		registerAction2(class extends Action2 {
@@ -194,7 +200,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IPreferencesService).openSettings(true, undefined);
+				return accessor.get(IPreferencesService).openSettings({ jsonEditor: true });
 			}
 		});
 		registerAction2(class extends Action2 {
@@ -406,7 +412,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				if (editorPane instanceof SettingsEditor2) {
 					editorPane.focusSearch(`@tag:usesOnlineServices`);
 				} else {
-					accessor.get(IPreferencesService).openSettings(false, '@tag:usesOnlineServices');
+					accessor.get(IPreferencesService).openSettings({ jsonEditor: false, query: '@tag:usesOnlineServices' });
 				}
 			}
 		});
@@ -444,7 +450,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				if (editorPane instanceof SettingsEditor2) {
 					editorPane.focusSearch('@tag:telemetry');
 				} else {
-					accessor.get(IPreferencesService).openSettings(false, '@tag:telemetry');
+					accessor.get(IPreferencesService).openSettings({ jsonEditor: false, query: '@tag:telemetry' });
 				}
 			}
 		});

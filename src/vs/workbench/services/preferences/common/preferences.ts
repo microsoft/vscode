@@ -176,6 +176,11 @@ export interface ISettingsEditorOptions extends IEditorOptions {
 	focusSearch?: boolean;
 }
 
+export interface IOpenSettingsOptions extends ISettingsEditorOptions {
+	jsonEditor?: boolean;
+	openToSide?: boolean;
+}
+
 export function validateSettingsEditorOptions(options: ISettingsEditorOptions): ISettingsEditorOptions {
 	return {
 		// Inherit provided options
@@ -208,7 +213,7 @@ export interface IPreferencesService {
 	createSettings2EditorModel(): Settings2EditorModel; // TODO
 
 	openRawDefaultSettings(): Promise<IEditorPane | undefined>;
-	openSettings(jsonEditor: boolean | undefined, query: string | undefined): Promise<IEditorPane | undefined>;
+	openSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
 	openGlobalSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined>;
 	openRemoteSettings(): Promise<IEditorPane | undefined>;
 	openWorkspaceSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined>;

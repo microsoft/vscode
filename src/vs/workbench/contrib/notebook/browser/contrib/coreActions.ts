@@ -1955,7 +1955,7 @@ registerAction2(class NotebookConfigureLayoutAction extends Action2 {
 		});
 	}
 	run(accessor: ServicesAccessor): void {
-		accessor.get(IPreferencesService).openSettings(false, '@tag:notebookLayout');
+		accessor.get(IPreferencesService).openSettings({ jsonEditor: false, query: '@tag:notebookLayout' });
 	}
 });
 

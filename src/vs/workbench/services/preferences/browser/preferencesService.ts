@@ -37,9 +37,9 @@ import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEdit
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { GroupDirection, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browser/keybindingsEditorInput';
-import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, IKeybindingsEditorOptions, IKeybindingsEditorPane, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorOptions, USE_SPLIT_JSON_SETTING, validateSettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
+import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, IKeybindingsEditorOptions, IKeybindingsEditorPane, IOpenSettingsOptions, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorOptions, USE_SPLIT_JSON_SETTING, validateSettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { defaultKeybindingsContents, DefaultKeybindingsEditorModel, DefaultRawSettingsEditorModel, DefaultSettings, DefaultSettingsEditorModel, Settings2EditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -201,25 +201,29 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.editorService.openEditor({ resource: this.userSettingsResource });
 	}
 
-	openSettings(jsonEditor: boolean | undefined, query: string | undefined): Promise<IEditorPane | undefined> {
-		jsonEditor = typeof jsonEditor === 'undefined' ?
-			this.configurationService.getValue('workbench.settings.editor') === 'json' :
-			jsonEditor;
-
-		if (!jsonEditor) {
-			return this.openSettings2({ query: query });
-		}
-
-		return this.openSettingsJson(ConfigurationTarget.USER_LOCAL, this.userSettingsResource, { query: query });
+	private shouldOpenJsonByDefault(): boolean {
+		return this.configurationService.getValue('workbench.settings.editor') === 'json';
 	}
 
-	private async openSettings2(options?: ISettingsEditorOptions): Promise<IEditorPane> {
+	openSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
+		if (typeof options.jsonEditor !== 'boolean') {
+			options.jsonEditor = this.shouldOpenJsonByDefault();
+		}
+
+		if (!options.jsonEditor) {
+			return this.openSettings2(options);
+		}
+
+		return this.openSettingsJson(ConfigurationTarget.USER_LOCAL, this.userSettingsResource, options);
+	}
+
+	private async openSettings2(options?: IOpenSettingsOptions): Promise<IEditorPane> {
 		const input = this.settingsEditor2Input;
 		options = {
 			...options,
 			focusSearch: true
 		};
-		await this.editorService.openEditor(input, validateSettingsEditorOptions(options));
+		await this.editorService.openEditor(input, validateSettingsEditorOptions(options), options.openToSide ? SIDE_GROUP : undefined);
 		return this.editorGroupService.activeGroup.activeEditorPane!;
 	}
 

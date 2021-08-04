@@ -1789,7 +1789,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			await accessor.get(IPreferencesService).openSettings(false, '@feature:terminal');
+			await accessor.get(IPreferencesService).openSettings({ jsonEditor: false, query: '@feature:terminal' });
 		}
 	});
 
