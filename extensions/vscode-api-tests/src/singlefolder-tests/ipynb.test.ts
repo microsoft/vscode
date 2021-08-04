@@ -14,8 +14,9 @@ suite('ipynb NotebookSerializer', function () {
 		const workspace = vscode.workspace.workspaceFolders[0];
 		const uri = vscode.Uri.joinPath(workspace.uri, 'test.ipynb');
 		console.log(`2`);
-		console.log(uri);
+		console.log(uri.toString());
 		const stat = await vscode.workspace.fs.stat(uri);
+		console.log(`3`);
 		console.log(stat);
 		console.log(stat.size);
 		const notebook = await vscode.workspace.openNotebookDocument(uri);
