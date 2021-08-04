@@ -5,10 +5,10 @@
 
 import * as assert from 'assert';
 import * as async from 'vs/base/common/async';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { URI } from 'vs/base/common/uri';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
 
 suite('Async', () => {
 

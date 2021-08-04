@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as errors from 'vs/base/common/errors';
-import * as uuid from 'vs/base/common/uuid';
 import { networkInterfaces } from 'os';
+import * as errors from 'vs/base/common/errors';
 import { TernarySearchTree } from 'vs/base/common/map';
+import * as uuid from 'vs/base/common/uuid';
 import { getMac } from 'vs/base/node/macAddress';
 
 // http://www.techrepublic.com/blog/data-center/mac-address-scorecard-for-common-virtual-machine-platforms/

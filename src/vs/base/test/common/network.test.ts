@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
 import { FileAccess, Schemas } from 'vs/base/common/network';
-import { isEqual } from 'vs/base/common/resources';
 import { isWeb } from 'vs/base/common/platform';
+import { isEqual } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
 
 suite('network', () => {
 

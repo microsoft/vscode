@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { UriComponents } from 'vs/base/common/uri';
-import { escapeIcons } from 'vs/base/common/iconLabels';
 import { illegalArgument } from 'vs/base/common/errors';
+import { escapeIcons } from 'vs/base/common/iconLabels';
+import { UriComponents } from 'vs/base/common/uri';
 
 export interface IMarkdownString {
 	readonly value: string;

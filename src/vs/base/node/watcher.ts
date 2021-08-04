@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join, basename } from 'vs/base/common/path';
 import { watch } from 'fs';
-import { isMacintosh } from 'vs/base/common/platform';
-import { normalizeNFC } from 'vs/base/common/normalization';
-import { toDisposable, IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { Promises } from 'vs/base/node/pfs';
 import { isEqualOrParent } from 'vs/base/common/extpath';
+import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { normalizeNFC } from 'vs/base/common/normalization';
+import { basename, join } from 'vs/base/common/path';
+import { isMacintosh } from 'vs/base/common/platform';
+import { Promises } from 'vs/base/node/pfs';
 
 export function watchFile(path: string, onChange: (type: 'added' | 'changed' | 'deleted', path: string) => void, onError: (error: string) => void): IDisposable {
 	return doWatchNonRecursive({ path, isDirectory: false }, onChange, onError);

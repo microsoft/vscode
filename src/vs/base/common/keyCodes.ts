@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OperatingSystem } from 'vs/base/common/platform';
 import { illegalArgument } from 'vs/base/common/errors';
+import { OperatingSystem } from 'vs/base/common/platform';
 
 /**
  * Virtual Key Codes, the value does not hold any inherent meaning.

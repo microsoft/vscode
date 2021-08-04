@@ -4,23 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import { DomEmitter } from 'vs/base/browser/event';
 import { createElement, FormattedTextRenderOptions } from 'vs/base/browser/formattedTextRenderer';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { IMarkdownString, parseHrefAndDimensions, removeMarkdownEscapes } from 'vs/base/common/htmlContent';
-import { defaultGenerator } from 'vs/base/common/idGenerator';
-import * as marked from 'vs/base/common/marked/marked';
-import { insane, InsaneOptions } from 'vs/base/common/insane/insane';
-import { parse } from 'vs/base/common/marshalling';
-import { cloneAndChange } from 'vs/base/common/objects';
-import { escape } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { markdownEscapeEscapedIcons } from 'vs/base/common/iconLabels';
-import { resolvePath } from 'vs/base/common/resources';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
-import { DomEmitter } from 'vs/base/browser/event';
+import { IMarkdownString, parseHrefAndDimensions, removeMarkdownEscapes } from 'vs/base/common/htmlContent';
+import { markdownEscapeEscapedIcons } from 'vs/base/common/iconLabels';
+import { defaultGenerator } from 'vs/base/common/idGenerator';
+import { insane, InsaneOptions } from 'vs/base/common/insane/insane';
+import * as marked from 'vs/base/common/marked/marked';
+import { parse } from 'vs/base/common/marshalling';
+import { FileAccess, Schemas } from 'vs/base/common/network';
+import { cloneAndChange } from 'vs/base/common/objects';
+import { resolvePath } from 'vs/base/common/resources';
+import { escape } from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
 
 export interface MarkedOptions extends marked.MarkedOptions {
 	baseUrl?: never;

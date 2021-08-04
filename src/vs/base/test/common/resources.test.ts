@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { dirname, basename, distinctParents, joinPath, normalizePath, isAbsolutePath, relativePath, removeTrailingPathSeparator, hasTrailingPathSeparator, resolvePath, addTrailingPathSeparator, extUri, extUriIgnorePathCase, extname } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { isWindows } from 'vs/base/common/platform';
 import { toSlashes } from 'vs/base/common/extpath';
-import { win32, posix } from 'vs/base/common/path';
+import { posix, win32 } from 'vs/base/common/path';
+import { isWindows } from 'vs/base/common/platform';
+import { addTrailingPathSeparator, basename, dirname, distinctParents, extname, extUri, extUriIgnorePathCase, hasTrailingPathSeparator, isAbsolutePath, joinPath, normalizePath, relativePath, removeTrailingPathSeparator, resolvePath } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
 
 
 suite('Resources', () => {

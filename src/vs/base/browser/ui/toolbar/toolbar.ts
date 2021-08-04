@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./toolbar';
-import * as nls from 'vs/nls';
-import { Action, IActionRunner, IAction, SubmenuAction } from 'vs/base/common/actions';
+import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 import { ActionBar, ActionsOrientation, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { withNullAsUndefined } from 'vs/base/common/types';
+import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
+import { Action, IAction, IActionRunner, SubmenuAction } from 'vs/base/common/actions';
 import { Codicon, CSSIcon, registerCodicon } from 'vs/base/common/codicons';
 import { EventMultiplexer } from 'vs/base/common/event';
-import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
-import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import 'vs/css!./toolbar';
+import * as nls from 'vs/nls';
 
 const toolBarMoreIcon = registerCodicon('toolbar-more', Codicon.more);
 
