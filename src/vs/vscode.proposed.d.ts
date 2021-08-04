@@ -2754,4 +2754,15 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/129053
+
+	export namespace env {
+		/**
+		 * The environment in which the app is embedded in. i.e. Desktop, Codespaces, Web.
+		 */
+		export const embedderIdentifier: string;
+	}
+
+	//#endregion
 }
