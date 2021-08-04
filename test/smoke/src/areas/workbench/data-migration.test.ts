@@ -31,7 +31,7 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 			stableOptions.quality = Quality.Stable;
 
 			const stableApp = new Application(stableOptions);
-			await stableApp!.start();
+			await stableApp.start();
 
 			// Open 3 editors and pin 2 of them
 			await stableApp.workbench.quickaccess.openFile('www');
@@ -48,10 +48,10 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 			insiderOptions.userDataDir = userDataDir;
 
 			const insidersApp = new Application(insiderOptions);
-			await insidersApp!.start(false /* not expecting walkthrough path */);
+			await insidersApp.start();
 
 			// Verify 3 editors are open
-			await insidersApp.workbench.editors.waitForEditorFocus('Untitled-1');
+			await insidersApp.workbench.editors.selectTab('Untitled-1');
 			await insidersApp.workbench.editors.selectTab('app.js');
 			await insidersApp.workbench.editors.selectTab('www');
 
@@ -72,7 +72,7 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 			stableOptions.quality = Quality.Stable;
 
 			const stableApp = new Application(stableOptions);
-			await stableApp!.start();
+			await stableApp.start();
 
 			await stableApp.workbench.editors.newUntitledFile();
 
@@ -91,13 +91,11 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 			insiderOptions.userDataDir = userDataDir;
 
 			const insidersApp = new Application(insiderOptions);
-			await insidersApp!.start(false /* not expecting walkthrough path */);
+			await insidersApp.start();
 
-			await insidersApp.workbench.editors.waitForTab(readmeMd, true);
 			await insidersApp.workbench.editors.selectTab(readmeMd);
 			await insidersApp.workbench.editor.waitForEditorContents(readmeMd, c => c.indexOf(textToType) > -1);
 
-			await insidersApp.workbench.editors.waitForTab(untitled, true);
 			await insidersApp.workbench.editors.selectTab(untitled);
 			await insidersApp.workbench.editor.waitForEditorContents(untitled, c => c.indexOf(textToTypeInUntitled) > -1);
 
