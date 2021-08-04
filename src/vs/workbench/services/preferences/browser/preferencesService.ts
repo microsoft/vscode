@@ -227,7 +227,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.editorGroupService.activeGroup.activeEditorPane!;
 	}
 
-	openGlobalSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined> {
+	openUserSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined> {
 		jsonEditor = typeof jsonEditor === 'undefined' ?
 			this.configurationService.getValue('workbench.settings.editor') === 'json' :
 			jsonEditor;

@@ -1261,7 +1261,7 @@ export class ChangeModeAction extends Action {
 
 		// User decided to configure settings for current language
 		if (pick === configureModeSettings) {
-			this.preferencesService.openGlobalSettings(true, { revealSetting: { key: `[${withUndefinedAsNull(currentModeId)}]`, edit: true } });
+			this.preferencesService.openUserSettings(true, { revealSetting: { key: `[${withUndefinedAsNull(currentModeId)}]`, edit: true } });
 			return;
 		}
 

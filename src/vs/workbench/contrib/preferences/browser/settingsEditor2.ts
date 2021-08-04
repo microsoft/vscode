@@ -623,7 +623,7 @@ export class SettingsEditor2 extends EditorPane {
 		const currentSettingsTarget = this.settingsTargetsWidget.settingsTarget;
 
 		if (currentSettingsTarget === ConfigurationTarget.USER_LOCAL) {
-			return this.preferencesService.openGlobalSettings(true, options);
+			return this.preferencesService.openUserSettings(true, options);
 		} else if (currentSettingsTarget === ConfigurationTarget.USER_REMOTE) {
 			return this.preferencesService.openRemoteSettings();
 		} else if (currentSettingsTarget === ConfigurationTarget.WORKSPACE) {

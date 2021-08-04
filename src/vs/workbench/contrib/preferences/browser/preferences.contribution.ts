@@ -213,7 +213,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IPreferencesService).openGlobalSettings();
+				return accessor.get(IPreferencesService).openUserSettings();
 			}
 		});
 		registerAction2(class extends Action2 {
@@ -244,7 +244,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IPreferencesService).openGlobalSettings(false);
+				return accessor.get(IPreferencesService).openUserSettings(false);
 			}
 		});
 		registerAction2(class extends Action2 {

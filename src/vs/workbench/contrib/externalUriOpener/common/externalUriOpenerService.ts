@@ -230,7 +230,7 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 		if (typeof picked.opener === 'undefined') {
 			return false; // Fallback to default opener
 		} else if (picked.opener === 'configureDefault') {
-			await this.preferencesService.openGlobalSettings(true, {
+			await this.preferencesService.openUserSettings(true, {
 				revealSetting: { key: externalUriOpenersSettingId, edit: true }
 			});
 			return true;

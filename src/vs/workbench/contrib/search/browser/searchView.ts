@@ -1580,7 +1580,7 @@ export class SearchView extends ViewPane {
 		const options: ISettingsEditorOptions = { query };
 		return this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ?
 			this.preferencesService.openWorkspaceSettings(undefined, options) :
-			this.preferencesService.openGlobalSettings(undefined, options);
+			this.preferencesService.openUserSettings(undefined, options);
 	}
 
 	private onLearnMore(): void {

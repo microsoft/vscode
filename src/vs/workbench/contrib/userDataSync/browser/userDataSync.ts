@@ -394,7 +394,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			message: operationId ? `${message} ${operationId}` : message,
 			actions: {
 				primary: [new Action('open sync file', localize('open file', "Open {0} File", getSyncAreaLabel(resource)), undefined, true,
-					() => resource === SyncResource.Settings ? this.preferencesService.openGlobalSettings(true) : this.preferencesService.openGlobalKeybindingSettings(true))]
+					() => resource === SyncResource.Settings ? this.preferencesService.openUserSettings(true) : this.preferencesService.openGlobalKeybindingSettings(true))]
 			}
 		});
 	}
@@ -439,7 +439,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			message: localize('errorInvalidConfiguration', "Unable to sync {0} because the content in the file is not valid. Please open the file and correct it.", errorArea.toLowerCase()),
 			actions: {
 				primary: [new Action('open sync file', localize('open file', "Open {0} File", errorArea), undefined, true,
-					() => source === SyncResource.Settings ? this.preferencesService.openGlobalSettings(true) : this.preferencesService.openGlobalKeybindingSettings(true))]
+					() => source === SyncResource.Settings ? this.preferencesService.openUserSettings(true) : this.preferencesService.openGlobalKeybindingSettings(true))]
 			}
 		});
 		this.invalidContentErrorDisposables.set(source, toDisposable(() => {
@@ -1208,7 +1208,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				});
 			}
 			run(accessor: ServicesAccessor): any {
-				accessor.get(IPreferencesService).openGlobalSettings(false, { query: '@tag:sync' });
+				accessor.get(IPreferencesService).openUserSettings(false, { query: '@tag:sync' });
 			}
 		}));
 	}

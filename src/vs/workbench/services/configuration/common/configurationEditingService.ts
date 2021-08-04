@@ -314,7 +314,7 @@ export class ConfigurationEditingService {
 	private openSettings(operation: IConfigurationEditOperation): void {
 		switch (operation.target) {
 			case EditableConfigurationTarget.USER_LOCAL:
-				this.preferencesService.openGlobalSettings(true);
+				this.preferencesService.openUserSettings(true);
 				break;
 			case EditableConfigurationTarget.USER_REMOTE:
 				this.preferencesService.openRemoteSettings();
