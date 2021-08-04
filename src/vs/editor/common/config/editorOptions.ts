@@ -1766,6 +1766,27 @@ export interface IEditorHoverOptions {
 	 * Defaults to true.
 	 */
 	sticky?: boolean;
+	/**
+	 * The font size for the hover widget.
+	 * Defaults to the editor font size.
+	 */
+	fontSize?: number;
+	/**
+	 * The line height for the hover widget.
+	 * Defaults to the editor line height.
+	 */
+	lineHeight?: number;
+	/**
+	 * The max width for the hover widget.
+	 * Defaults to the editor configuration.
+	 */
+	maxWidth?: number;
+	/**
+	 * The max height for the hover widget.
+	 * Defaults to the editor configuration.
+	 */
+	maxHeight?: number;
+
 }
 
 export type EditorHoverOptions = Readonly<Required<IEditorHoverOptions>>;
@@ -1776,7 +1797,11 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, EditorHoverOption
 		const defaults: EditorHoverOptions = {
 			enabled: true,
 			delay: 300,
-			sticky: true
+			sticky: true,
+			fontSize: 0,
+			lineHeight: 0,
+			maxWidth: 0,
+			maxHeight: 0,
 		};
 		super(
 			EditorOption.hover, 'hover', defaults,
@@ -1796,6 +1821,26 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, EditorHoverOption
 					default: defaults.sticky,
 					description: nls.localize('hover.sticky', "Controls whether the hover should remain visible when mouse is moved over it.")
 				},
+				'editor.hover.fontSize': {
+					type: 'number',
+					default: defaults.fontSize,
+					description: nls.localize('hover.fontSize', "Controls the font size which the hover is shown.")
+				},
+				'editor.hover.lineHeight': {
+					type: 'number',
+					default: defaults.lineHeight,
+					description: nls.localize('hover.lineHeight', "Controls the line height which the hover is shown.")
+				},
+				'editor.hover.maxWidth': {
+					type: 'number',
+					default: defaults.maxWidth,
+					description: nls.localize('hover.maxWidth', "Controls the widget max width which the hover is shown.")
+				},
+				'editor.hover.maxHeight': {
+					type: 'number',
+					default: defaults.maxHeight,
+					description: nls.localize('hover.maxHeight', "Controls widget max height which the hover is shown.")
+				},
 			}
 		);
 	}
@@ -1808,7 +1853,11 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, EditorHoverOption
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			delay: EditorIntOption.clampedInt(input.delay, this.defaultValue.delay, 0, 10000),
-			sticky: boolean(input.sticky, this.defaultValue.sticky)
+			sticky: boolean(input.sticky, this.defaultValue.sticky),
+			fontSize: EditorIntOption.clampedInt(input.fontSize, this.defaultValue.fontSize, 0, 1000),
+			lineHeight: EditorIntOption.clampedInt(input.lineHeight, this.defaultValue.lineHeight, 0, 1000),
+			maxWidth: EditorIntOption.clampedInt(input.maxWidth, this.defaultValue.maxWidth, 0, 10000),
+			maxHeight: EditorIntOption.clampedInt(input.maxHeight, this.defaultValue.maxHeight, 0, 10000),
 		};
 	}
 }
