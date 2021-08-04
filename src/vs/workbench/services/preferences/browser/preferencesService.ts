@@ -116,7 +116,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return folder ? folder.toResource(FOLDER_SETTINGS_PATH) : null;
 	}
 
-	resolveModel(uri: URI): Promise<ITextModel | null> {
+	resolveModel(uri: URI): ITextModel | null {
 		if (this.isDefaultSettingsResource(uri)) {
 
 			const target = this.getConfigurationTargetFromDefaultSettingsResource(uri);
@@ -143,24 +143,24 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				this.modelService.updateModel(model, defaultSettings.getContent(true));
 			}
 
-			return Promise.resolve(model);
+			return model;
 		}
 
 		if (this.defaultSettingsRawResource.toString() === uri.toString()) {
 			const defaultRawSettingsEditorModel = this.instantiationService.createInstance(DefaultRawSettingsEditorModel, this.getDefaultSettings(ConfigurationTarget.USER_LOCAL));
 			const languageSelection = this.modeService.create('jsonc');
 			const model = this._register(this.modelService.createModel(defaultRawSettingsEditorModel.content, languageSelection, uri));
-			return Promise.resolve(model);
+			return model;
 		}
 
 		if (this.defaultKeybindingsResource.toString() === uri.toString()) {
 			const defaultKeybindingsEditorModel = this.instantiationService.createInstance(DefaultKeybindingsEditorModel, uri);
 			const languageSelection = this.modeService.create('jsonc');
 			const model = this._register(this.modelService.createModel(defaultKeybindingsEditorModel.content, languageSelection, uri));
-			return Promise.resolve(model);
+			return model;
 		}
 
-		return Promise.resolve(null);
+		return null;
 	}
 
 	public async createPreferencesEditorModel(uri: URI): Promise<IPreferencesEditorModel<ISetting> | null> {
@@ -213,14 +213,14 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.openSettingsJson(ConfigurationTarget.USER_LOCAL, this.userSettingsResource, { query: query });
 	}
 
-	private openSettings2(options?: ISettingsEditorOptions): Promise<IEditorPane> {
+	private async openSettings2(options?: ISettingsEditorOptions): Promise<IEditorPane> {
 		const input = this.settingsEditor2Input;
 		options = {
 			...options,
 			focusSearch: true
 		};
-		return this.editorService.openEditor(input, validateSettingsEditorOptions(options))
-			.then(() => this.editorGroupService.activeGroup.activeEditorPane!);
+		await this.editorService.openEditor(input, validateSettingsEditorOptions(options));
+		return this.editorGroupService.activeGroup.activeEditorPane!;
 	}
 
 	openGlobalSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined> {
@@ -326,18 +326,16 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.openSettings2(settingsOptions);
 	}
 
-	private doOpenSettingsJson(configurationTarget: ConfigurationTarget, resource: URI, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined> {
+	private async doOpenSettingsJson(configurationTarget: ConfigurationTarget, resource: URI, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined> {
 		const openSplitJSON = !!this.configurationService.getValue(USE_SPLIT_JSON_SETTING);
 		const openDefaultSettings = !!this.configurationService.getValue(DEFAULT_SETTINGS_EDITOR_SETTING);
 		if (openSplitJSON || openDefaultSettings) {
 			return this.doOpenSplitJSON(configurationTarget, resource, options, group);
 		}
 
-		return this.getOrCreateEditableSettingsEditorInput(configurationTarget, resource)
-			.then(editableSettingsEditorInput => {
-				options = { ...options, pinned: true };
-				return this.editorService.openEditor(editableSettingsEditorInput, validateSettingsEditorOptions(options), group);
-			});
+		const editableSettingsEditorInput = await this.getOrCreateEditableSettingsEditorInput(configurationTarget, resource);
+		options = { ...options, pinned: true };
+		return await this.editorService.openEditor(editableSettingsEditorInput, validateSettingsEditorOptions(options), group);
 	}
 
 	private async doOpenSplitJSON(configurationTarget: ConfigurationTarget, resource: URI, options: ISettingsEditorOptions = {}, group?: IEditorGroup): Promise<IEditorPane | undefined> {
@@ -391,27 +389,26 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: `/${this._defaultUserSettingsUriCounter++}/settings.json` });
 	}
 
-	private getOrCreateEditableSettingsEditorInput(target: ConfigurationTarget, resource: URI): Promise<EditorInput> {
-		return this.createSettingsIfNotExists(target, resource)
-			.then(() => <EditorInput>this.editorService.createEditorInput({ resource }));
+	private async getOrCreateEditableSettingsEditorInput(target: ConfigurationTarget, resource: URI): Promise<EditorInput> {
+		await this.createSettingsIfNotExists(target, resource);
+		return <EditorInput>this.editorService.createEditorInput({ resource });
 	}
 
-	private createEditableSettingsEditorModel(configurationTarget: ConfigurationTarget, settingsUri: URI): Promise<SettingsEditorModel> {
+	private async createEditableSettingsEditorModel(configurationTarget: ConfigurationTarget, settingsUri: URI): Promise<SettingsEditorModel> {
 		const workspace = this.contextService.getWorkspace();
 		if (workspace.configuration && workspace.configuration.toString() === settingsUri.toString()) {
-			return this.textModelResolverService.createModelReference(settingsUri)
-				.then(reference => this.instantiationService.createInstance(WorkspaceConfigurationEditorModel, reference, configurationTarget));
+			const reference = await this.textModelResolverService.createModelReference(settingsUri);
+			return this.instantiationService.createInstance(WorkspaceConfigurationEditorModel, reference, configurationTarget);
 		}
-		return this.textModelResolverService.createModelReference(settingsUri)
-			.then(reference => this.instantiationService.createInstance(SettingsEditorModel, reference, configurationTarget));
+
+		const reference = await this.textModelResolverService.createModelReference(settingsUri);
+		return this.instantiationService.createInstance(SettingsEditorModel, reference, configurationTarget);
 	}
 
-	private createDefaultSettingsEditorModel(defaultSettingsUri: URI): Promise<DefaultSettingsEditorModel> {
-		return this.textModelResolverService.createModelReference(defaultSettingsUri)
-			.then(reference => {
-				const target = this.getConfigurationTargetFromDefaultSettingsResource(defaultSettingsUri);
-				return this.instantiationService.createInstance(DefaultSettingsEditorModel, defaultSettingsUri, reference, this.getDefaultSettings(target));
-			});
+	private async createDefaultSettingsEditorModel(defaultSettingsUri: URI): Promise<DefaultSettingsEditorModel> {
+		const reference = await this.textModelResolverService.createModelReference(defaultSettingsUri);
+		const target = this.getConfigurationTargetFromDefaultSettingsResource(defaultSettingsUri);
+		return this.instantiationService.createInstance(DefaultSettingsEditorModel, defaultSettingsUri, reference, this.getDefaultSettings(target));
 	}
 
 	private getDefaultSettings(target: ConfigurationTarget): DefaultSettings {
@@ -455,18 +452,17 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && target === ConfigurationTarget.WORKSPACE) {
 			const workspaceConfig = this.contextService.getWorkspace().configuration;
 			if (!workspaceConfig) {
-				return Promise.resolve(undefined);
+				return;
 			}
 
-			return this.textFileService.read(workspaceConfig)
-				.then(content => {
-					if (Object.keys(parse(content.value)).indexOf('settings') === -1) {
-						return this.jsonEditingService.write(resource, [{ path: ['settings'], value: {} }], true).then(undefined, () => { });
-					}
-					return undefined;
-				});
+			const content = await this.textFileService.read(workspaceConfig);
+			if (Object.keys(parse(content.value)).indexOf('settings') === -1) {
+				await this.jsonEditingService.write(resource, [{ path: ['settings'], value: {} }], true);
+			}
+			return undefined;
 		}
-		await this.createIfNotExists(resource, emptyEditableSettingsContent).then(() => { });
+
+		await this.createIfNotExists(resource, emptyEditableSettingsContent);
 	}
 
 	private async createIfNotExists(resource: URI, contents: string): Promise<void> {

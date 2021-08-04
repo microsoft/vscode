@@ -204,7 +204,7 @@ export interface IPreferencesService {
 	getFolderSettingsResource(resource: URI): URI | null;
 
 	createPreferencesEditorModel(uri: URI): Promise<IPreferencesEditorModel<ISetting> | null>;
-	resolveModel(uri: URI): Promise<ITextModel | null>;
+	resolveModel(uri: URI): ITextModel | null;
 	createSettings2EditorModel(): Settings2EditorModel; // TODO
 
 	openRawDefaultSettings(): Promise<IEditorPane | undefined>;
