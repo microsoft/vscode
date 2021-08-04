@@ -1088,13 +1088,6 @@ export class TerminalService implements ITerminalService {
 		return undefined;
 	}
 
-	private _optionsAreBasic(options?: ICreateTerminalOptions): boolean {
-		if (!options || !options.config) {
-			return true;
-		}
-
-		return Array.from(Object.keys(options.config)).filter(k => k !== 'target' && k !== 'cwd' && k !== 'forceSplit' && k !== 'instanceToSplit').length === 0;
-	}
 
 	async createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance> {
 		const config = options?.config;
@@ -1104,7 +1097,7 @@ export class TerminalService implements ITerminalService {
 		let contributedProfile = config && 'extensionIdentifier' in config ? config : undefined;
 
 		// Get the default profile as a contributed profile if it exists
-		if (!contributedProfile && this._optionsAreBasic(options)) {
+		if (!contributedProfile && (!options || !options.config)) {
 			contributedProfile = await this._getContributedDefaultProfile(shellLaunchConfig);
 		}
 
