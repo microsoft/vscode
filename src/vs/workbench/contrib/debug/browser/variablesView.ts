@@ -164,13 +164,14 @@ export class VariablesView extends ViewPane {
 		}));
 		let horizontalScrolling: boolean | undefined;
 		this._register(this.debugService.getViewModel().onDidSelectExpression(e => {
-			if (e instanceof Variable) {
+			const variable = e?.expression;
+			if (variable instanceof Variable && !e?.settingWatch) {
 				horizontalScrolling = this.tree.options.horizontalScrolling;
 				if (horizontalScrolling) {
 					this.tree.updateOptions({ horizontalScrolling: false });
 				}
 
-				this.tree.rerender(e);
+				this.tree.rerender(variable);
 			} else if (!e && horizontalScrolling !== undefined) {
 				this.tree.updateOptions({ horizontalScrolling: horizontalScrolling });
 				horizontalScrolling = undefined;
@@ -198,7 +199,7 @@ export class VariablesView extends ViewPane {
 	private onMouseDblClick(e: ITreeMouseEvent<IExpression | IScope>): void {
 		const session = this.debugService.getViewModel().focusedSession;
 		if (session && e.element instanceof Variable && session.capabilities.supportsSetVariable) {
-			this.debugService.getViewModel().setSelectedExpression(e.element);
+			this.debugService.getViewModel().setSelectedExpression(e.element, false);
 		}
 	}
 
@@ -374,8 +375,9 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 			},
 			onFinish: (value: string, success: boolean) => {
 				variable.errorMessage = undefined;
-				if (success && variable.value !== value) {
-					variable.setVariable(value)
+				const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+				if (success && variable.value !== value && focusedStackFrame) {
+					variable.setVariable(value, focusedStackFrame)
 						// Need to force watch expressions and variables to update since a variable change can have an effect on both
 						.then(() => {
 							// Do not refresh scopes due to a node limitation #15520
@@ -411,7 +413,7 @@ CommandsRegistry.registerCommand({
 	id: SET_VARIABLE_ID,
 	handler: (accessor: ServicesAccessor) => {
 		const debugService = accessor.get(IDebugService);
-		debugService.getViewModel().setSelectedExpression(variableInternalContext);
+		debugService.getViewModel().setSelectedExpression(variableInternalContext, false);
 	}
 });
 
