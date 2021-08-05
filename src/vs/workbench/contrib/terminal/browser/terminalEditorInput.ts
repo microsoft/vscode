@@ -5,7 +5,7 @@
 
 import { dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -193,5 +193,16 @@ export class TerminalEditorInput extends EditorInput {
 			this._terminalInstance?.detachFromElement();
 			this._isDetached = true;
 		}
+	}
+
+	public override toUntyped(): IUntypedEditorInput {
+		return {
+			resource: this.resource,
+			options: {
+				override: TerminalEditor.ID,
+				pinned: true,
+				forceReload: true
+			}
+		};
 	}
 }

@@ -200,13 +200,14 @@ export class TerminalService implements ITerminalService {
 					}
 				}
 				const resolvedResource = this._terminalEditorService.resolveResource(instance || resource);
-				const editor = this._terminalEditorService.getInputFromResource(resolvedResource) || { editor: URI.revive(resolvedResource) };
+				const editor = this._terminalEditorService.getInputFromResource(resolvedResource) || { editor: resolvedResource };
 				return {
 					editor,
 					options: {
 						...options,
 						pinned: true,
-						forceReload: true
+						forceReload: true,
+						override: TerminalEditor.ID
 					}
 				};
 			});

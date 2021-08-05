@@ -162,7 +162,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		const resource = this.resolveResource(instance);
 		if (resource) {
 			await this._editorService.openEditor({
-				resource: URI.revive(resource),
+				resource,
 				options:
 				{
 					pinned: true,
