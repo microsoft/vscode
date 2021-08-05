@@ -29,6 +29,7 @@ import { Emitter } from 'vs/base/common/event';
 import { coalesce } from 'vs/base/common/arrays';
 import { parse, stringify } from 'vs/base/common/marshalling';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 //#region Editor / Resources DND
 
@@ -152,7 +153,8 @@ export class ResourcesDropHandler {
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService private readonly hostService: IHostService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 	}
 
@@ -177,8 +179,12 @@ export class ResourcesDropHandler {
 		}
 
 		// Add external ones to recently open list unless dropped resource is a workspace
+		// and only for resources that are outside of the currently opened workspace
 		if (externalLocalFiles.length) {
-			this.workspacesService.addRecentlyOpened(externalLocalFiles.map(resource => ({ fileUri: resource })));
+			this.workspacesService.addRecentlyOpened(externalLocalFiles
+				.filter(resource => !this.contextService.isInsideWorkspace(resource))
+				.map(resource => ({ fileUri: resource }))
+			);
 		}
 
 		// Open in Editor
