@@ -278,7 +278,7 @@ async function processResourceRequest(event, requestUrl) {
 
 	const firstHostSegment = requestUrl.hostname.slice(0, requestUrl.hostname.length - (resourceBaseAuthority.length + 1));
 	const scheme = firstHostSegment.split('+', 1)[0];
-	const authority = firstHostSegment.slice(scheme.length + 1); // may be empty
+	const authority = firstHostSegment.slice(scheme.length + 1) + requestUrl.port ? (':' + requestUrl.port) : ''; // may be empty
 
 	for (const parentClient of parentClients) {
 		parentClient.postMessage({
