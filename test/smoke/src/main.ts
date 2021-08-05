@@ -8,7 +8,6 @@ import * as cp from 'child_process';
 import * as path from 'path';
 import * as os from 'os';
 import * as minimist from 'minimist';
-import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
 import * as mkdirp from 'mkdirp';
 import { ncp } from 'ncp';
@@ -29,8 +28,12 @@ import { setup as setupDataMultirootTests } from './areas/multiroot/multiroot.te
 import { setup as setupDataLocalizationTests } from './areas/workbench/localization.test';
 import { setup as setupLaunchTests } from './areas/workbench/launch.test';
 
-const tmpDir = tmp.dirSync({ name: 't' }) as { name: string; removeCallback: Function; };
-const testDataPath = tmpDir.name;
+const testDataPath = path.join(os.tmpdir(), 'vscsmoke');
+if (fs.existsSync(testDataPath)) {
+	rimraf.sync(testDataPath);
+} else {
+	fs.mkdirSync(testDataPath);
+}
 process.once('exit', () => {
 	try {
 		rimraf.sync(testDataPath);

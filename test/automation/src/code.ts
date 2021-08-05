@@ -294,8 +294,8 @@ export class Code {
 	}
 
 	async exit(): Promise<void> {
-		const success = await this.driver.exitApplication();
-		if (success === false) {
+		const veto = await this.driver.exitApplication();
+		if (veto === true) {
 			throw new Error('Code exit was blocked by a veto.');
 		}
 	}
