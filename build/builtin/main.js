@@ -29,7 +29,6 @@ app.once('ready', () => {
 		webPreferences: {
 			nodeIntegration: true,
 			contextIsolation: false,
-			webviewTag: true,
 			enableWebSQL: false,
 			nativeWindowOpen: true
 		}

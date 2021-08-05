@@ -32,6 +32,14 @@ export interface WorkspaceTrustRequestOptions {
 	readonly message?: string;
 }
 
+export const IWorkspaceTrustEnablementService = createDecorator<IWorkspaceTrustEnablementService>('workspaceTrustEnablementService');
+
+export interface IWorkspaceTrustEnablementService {
+	readonly _serviceBrand: undefined;
+
+	isWorkspaceTrustEnabled(): boolean;
+}
+
 export const IWorkspaceTrustManagementService = createDecorator<IWorkspaceTrustManagementService>('workspaceTrustManagementService');
 
 export interface IWorkspaceTrustManagementService {
@@ -40,12 +48,11 @@ export interface IWorkspaceTrustManagementService {
 	onDidChangeTrust: Event<boolean>;
 	onDidChangeTrustedFolders: Event<void>;
 
-	readonly workspaceTrustEnabled: boolean;
 	readonly workspaceResolved: Promise<void>;
 	readonly workspaceTrustInitialized: Promise<void>;
 	acceptsOutOfWorkspaceFiles: boolean;
 
-	isWorkpaceTrusted(): boolean;
+	isWorkspaceTrusted(): boolean;
 	isWorkspaceTrustForced(): boolean;
 
 	canSetParentFolderTrust(): boolean;

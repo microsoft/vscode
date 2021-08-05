@@ -15,6 +15,7 @@ import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 	private _primaryAction: ActionViewItem;
@@ -32,11 +33,12 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		dropdownMenuActions: IAction[],
 		className: string,
 		private readonly _contextMenuProvider: IContextMenuProvider,
-		_keybindingService: IKeybindingService,
-		_notificationService: INotificationService
+		@IKeybindingService _keybindingService: IKeybindingService,
+		@INotificationService _notificationService: INotificationService,
+		@IContextKeyService _contextKeyService: IContextKeyService
 	) {
 		super(null, primaryAction);
-		this._primaryAction = new MenuEntryActionViewItem(primaryAction, _keybindingService, _notificationService);
+		this._primaryAction = new MenuEntryActionViewItem(primaryAction, undefined, _keybindingService, _notificationService, _contextKeyService);
 		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, this._contextMenuProvider, {
 			menuAsChild: true,
 			classNames: ['codicon', 'codicon-chevron-down']

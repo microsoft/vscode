@@ -8,8 +8,8 @@ import { AbstractScrollbar, ISimplifiedMouseEvent, ScrollbarHost } from 'vs/base
 import { ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import { ARROW_IMG_SIZE } from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
 import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
-import { INewScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { Codicon, registerCodicon } from 'vs/base/common/codicons';
+import { INewScrollPosition, Scrollable, ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 
 
 const scrollbarButtonLeftIcon = registerCodicon('scrollbar-button-left', Codicon.triangleLeft);
@@ -106,5 +106,12 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 
 	public writeScrollPosition(target: INewScrollPosition, scrollPosition: number): void {
 		target.scrollLeft = scrollPosition;
+	}
+
+	public updateOptions(options: ScrollableElementResolvedOptions): void {
+		this.updateScrollbarSize(options.horizontal === ScrollbarVisibility.Hidden ? 0 : options.horizontalScrollbarSize);
+		this._scrollbarState.setOppositeScrollbarSize(options.vertical === ScrollbarVisibility.Hidden ? 0 : options.verticalScrollbarSize);
+		this._visibilityController.setVisibility(options.horizontal);
+		this._scrollByPage = options.scrollByPage;
 	}
 }

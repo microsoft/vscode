@@ -311,12 +311,7 @@ class OpenPrivacyStatementUrlAction extends Action2 {
 		const openerService = accessor.get(IOpenerService);
 
 		if (productService.privacyStatementUrl) {
-			if (language) {
-				const queryArgChar = productService.privacyStatementUrl.indexOf('?') > 0 ? '&' : '?';
-				openerService.open(URI.parse(`${productService.privacyStatementUrl}${queryArgChar}lang=${language}`));
-			} else {
-				openerService.open(URI.parse(productService.privacyStatementUrl));
-			}
+			openerService.open(URI.parse(productService.privacyStatementUrl));
 		}
 	}
 }

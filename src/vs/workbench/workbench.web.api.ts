@@ -160,7 +160,7 @@ interface IWindowIndicator {
 	/**
 	 * Triggering this event will cause the window indicator to update.
 	 */
-	onDidChange: Event<void>;
+	readonly onDidChange?: Event<void>;
 
 	/**
 	 * Label of the window indicator may include octicons
@@ -192,20 +192,37 @@ interface IInitialColorTheme {
 	/**
 	 * Initial color theme type.
 	 */
-	themeType: ColorScheme;
+	readonly themeType: ColorScheme;
 
 	/**
 	 * A list of workbench colors to apply initially.
 	 */
-	colors?: { [colorId: string]: string };
+	readonly colors?: { [colorId: string]: string };
 }
 
 interface IDefaultView {
 	readonly id: string;
 }
 
+interface IPosition {
+	readonly line: number;
+	readonly column: number;
+}
+
+interface IRange {
+	/**
+	 * The start position. It is before or equal to end position.
+	 */
+	readonly start: IPosition;
+	/**
+	 * The end position. It is after or equal to start position.
+	 */
+	readonly end: IPosition;
+}
+
 interface IDefaultEditor {
 	readonly uri: UriComponents;
+	readonly selection?: IRange;
 	readonly openOnlyIfExists?: boolean;
 	readonly openWith?: string;
 }
@@ -271,8 +288,16 @@ interface IWorkbenchConstructionOptions {
 
 	/**
 	 * An URL pointing to the web worker extension host <iframe> src.
+	 * @deprecated. This will be removed soon.
 	 */
 	readonly webWorkerExtensionHostIframeSrc?: string;
+
+	/**
+	 * [TEMPORARY]: This will be removed soon.
+	 * Use an unique origin for the web worker extension host.
+	 * Defaults to false.
+	 */
+	readonly __uniqueWebWorkerExtensionHostOrigin?: boolean;
 
 	/**
 	 * A factory for web sockets.
@@ -311,15 +336,6 @@ interface IWorkbenchConstructionOptions {
 	readonly workspaceProvider?: IWorkspaceProvider;
 
 	/**
-	 * Enables Settings Sync by default.
-	 *
-	 * Syncs with the current authenticated user account (provided in [credentialsProvider](#credentialsProvider)) by default.
-	 *
-	 * @deprecated Instead use [settingsSyncOptions](#settingsSyncOptions) to enable/disable settings sync in the workbench.
-	 */
-	readonly enableSyncByDefault?: boolean;
-
-	/**
 	 * Settings sync options
 	 */
 	readonly settingsSyncOptions?: ISettingsSyncOptions;
@@ -344,11 +360,23 @@ interface IWorkbenchConstructionOptions {
 	readonly additionalBuiltinExtensions?: readonly (ExtensionId | UriComponents)[];
 
 	/**
+	 * List of extensions to be enabled if they are installed.
+	 * Note: This will not install extensions if not installed.
+	 */
+	readonly enabledExtensions?: readonly ExtensionId[];
+
+	/**
 	 * [TEMPORARY]: This will be removed soon.
 	 * Enable inlined extensions.
 	 * Defaults to true.
 	 */
 	readonly _enableBuiltinExtensions?: boolean;
+
+	/**
+	 * Additional domains allowed to open from the workbench without the
+	 * link protection popup.
+	 */
+	readonly additionalTrustedDomains?: string[];
 
 	/**
 	 * Support for URL callbacks.
@@ -672,6 +700,8 @@ export {
 	IDefaultView,
 	IDefaultEditor,
 	IDefaultLayout,
+	IPosition,
+	IRange as ISelection,
 
 	// Env
 	IPerformanceMark,

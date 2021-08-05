@@ -205,8 +205,12 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'testing/item/context',
 		id: MenuId.TestItem,
-		description: localize('testing.item.title', "The contributed test item menu"),
-		proposed: true
+		description: localize('testing.item.context', "The contributed test item menu"),
+	},
+	{
+		key: 'testing/item/gutter',
+		id: MenuId.TestItemGutter,
+		description: localize('testing.item.gutter.title', "The menu for a gutter decoration for a test item"),
 	},
 	{
 		key: 'extension/context',
@@ -237,6 +241,12 @@ const apiMenus: IAPIMenu[] = [
 		key: 'ports/item/port/inline',
 		id: MenuId.TunnelPortInline,
 		description: localize('view.tunnelPortInline', "The Ports view item port inline menu")
+	},
+	{
+		key: 'file/newFile',
+		id: MenuId.NewFile,
+		description: localize('file.newFile', "The 'New File...' quick pick, shown on welcome page and File menu."),
+		supportsSubmenus: false,
 	},
 	{
 		key: 'editor/inlineCompletions/actions',
@@ -612,7 +622,9 @@ commandsExtensionPoint.setHandler(extensions => {
 		bucket.push({
 			id: command,
 			title,
+			source: extension.description.displayName ?? extension.description.name,
 			shortTitle: extension.description.enableProposedApi ? shortTitle : undefined,
+			tooltip: extension.description.enableProposedApi ? title : undefined,
 			category,
 			precondition: ContextKeyExpr.deserialize(enablement),
 			icon: absoluteIcon

@@ -116,7 +116,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		this._register(
 			Event.debounce(
 				Event.any<any>(
-					Event.filter(this.extensionManagementService.onDidInstallExtension, (e => !!e.gallery)),
+					Event.filter(this.extensionManagementService.onDidInstallExtensions, (e => e.some(({ local }) => !!local))),
 					Event.filter(this.extensionManagementService.onDidUninstallExtension, (e => !e.error)),
 					this.extensionEnablementService.onDidChangeEnablement,
 					this.extensionsStorageSyncService.onDidChangeExtensionsStorage),
@@ -407,10 +407,15 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 						// Install only if the extension does not exist
 						if (!installedExtension) {
-							this.logService.trace(`${this.syncResourceLogLabel}: Installing extension...`, e.identifier.id, extension.version);
-							await this.extensionManagementService.installFromGallery(extension, { isMachineScoped: false, donotIncludePackAndDependencies: true } /* pass options to prevent install and sync dialog in web */);
-							this.logService.info(`${this.syncResourceLogLabel}: Installed extension.`, e.identifier.id, extension.version);
-							removeFromSkipped.push(extension.identifier);
+							if (await this.extensionManagementService.canInstall(extension)) {
+								this.logService.trace(`${this.syncResourceLogLabel}: Installing extension...`, e.identifier.id, extension.version);
+								await this.extensionManagementService.installFromGallery(extension, { isMachineScoped: false, donotIncludePackAndDependencies: true } /* pass options to prevent install and sync dialog in web */);
+								this.logService.info(`${this.syncResourceLogLabel}: Installed extension.`, e.identifier.id, extension.version);
+								removeFromSkipped.push(extension.identifier);
+							} else {
+								this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing extension because it cannot be installed.`, extension.displayName || extension.identifier.id);
+								addToSkipped.push(e);
+							}
 						}
 					} catch (error) {
 						addToSkipped.push(e);
@@ -418,6 +423,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 						this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing extension`, extension.displayName || extension.identifier.id);
 					}
 				} else {
+					this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing extension because the compatible extension is not found.`, e.identifier.id);
 					addToSkipped.push(e);
 				}
 			}));

@@ -42,12 +42,14 @@
 	//#region Add support for using node_modules.asar
 
 	/**
-	 * @param {string | undefined} appRoot
-	 * @param {boolean} alwaysAddASARPath
+	 * TODO@sandbox remove the support for passing in `appRoot` once
+	 * sandbox is fully enabled
+	 *
+	 * @param {string=} appRoot
 	 */
-	function enableASARSupport(appRoot, alwaysAddASARPath) {
+	function enableASARSupport(appRoot) {
 		if (!path || !Module || typeof process === 'undefined') {
-			console.warn('enableASARSupport() is only available in node.js environments'); // TODO@sandbox ASAR is currently non-sandboxed only
+			console.warn('enableASARSupport() is only available in node.js environments');
 			return;
 		}
 
@@ -56,8 +58,14 @@
 			NODE_MODULES_PATH = path.join(__dirname, '../node_modules');
 		} else {
 			// use the drive letter casing of __dirname
+			// if it matches the drive letter of `appRoot`
+			// (https://github.com/microsoft/vscode/issues/128725)
 			if (process.platform === 'win32') {
-				NODE_MODULES_PATH = __dirname.substr(0, 1) + NODE_MODULES_PATH.substr(1);
+				const nodejsDriveLetter = __dirname.substr(0, 1);
+				const vscodeDriveLetter = appRoot.substr(0, 1);
+				if (nodejsDriveLetter.toLowerCase() === vscodeDriveLetter.toLowerCase()) {
+					NODE_MODULES_PATH = nodejsDriveLetter + NODE_MODULES_PATH.substr(1);
+				}
 			}
 		}
 
@@ -78,7 +86,7 @@
 						break;
 					}
 				}
-				if (alwaysAddASARPath && !asarPathAdded) {
+				if (!asarPathAdded && appRoot) {
 					paths.push(NODE_MODULES_ASAR_PATH);
 				}
 			}

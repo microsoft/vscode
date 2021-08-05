@@ -29,6 +29,7 @@ export interface NativeParsedArgs {
 	'prof-startup-prefix'?: string;
 	'prof-append-timers'?: string;
 	'prof-v8-extensions'?: boolean;
+	'no-cached-data'?: boolean;
 	verbose?: boolean;
 	trace?: boolean;
 	'trace-category-filter'?: string;
@@ -87,6 +88,7 @@ export interface NativeParsedArgs {
 
 	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
 	'no-proxy-server'?: boolean;
+	'no-sandbox'?: boolean;
 	'proxy-server'?: string;
 	'proxy-bypass-list'?: string;
 	'proxy-pac-url'?: string;

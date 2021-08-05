@@ -79,9 +79,14 @@ export interface ILoggerService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Creates a logger
+	 * Creates a logger, or gets one if it already exists.
 	 */
 	createLogger(file: URI, options?: ILoggerOptions): ILogger;
+
+	/**
+	 * Gets an existing logger, if any.
+	 */
+	getLogger(file: URI): ILogger | undefined;
 }
 
 export abstract class AbstractLogger extends Disposable {
@@ -505,6 +510,10 @@ export abstract class AbstractLoggerService extends Disposable implements ILogge
 		}));
 	}
 
+	getLogger(resource: URI) {
+		return this.loggers.get(resource.toString());
+	}
+
 	createLogger(resource: URI, options?: ILoggerOptions): ILogger {
 		let logger = this.loggers.get(resource.toString());
 		if (!logger) {
@@ -586,4 +595,3 @@ export function LogLevelToString(logLevel: LogLevel): string {
 		case LogLevel.Off: return 'off';
 	}
 }
-

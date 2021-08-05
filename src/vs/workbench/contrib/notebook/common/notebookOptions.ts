@@ -59,7 +59,6 @@ export interface NotebookLayoutConfiguration {
 	fontSize: number;
 	focusIndicatorLeftMargin: number;
 	editorOptionsCustomizations: any | undefined;
-	cellBreakpointMarginActive: boolean;
 }
 
 interface NotebookOptionsChangeEvent {
@@ -139,7 +138,7 @@ export class NotebookOptions {
 			editorTopPadding: EDITOR_TOP_PADDING,
 			editorBottomPadding: 4,
 			editorBottomPaddingWithoutStatusBar: 12,
-			collapsedIndicatorHeight: 24,
+			collapsedIndicatorHeight: 28,
 			showCellStatusBar,
 			globalToolbar,
 			consolidatedOutputButton,
@@ -154,7 +153,6 @@ export class NotebookOptions {
 			showFoldingControls,
 			fontSize,
 			editorOptionsCustomizations,
-			cellBreakpointMarginActive: false
 		};
 
 		this._disposables.push(this.configurationService.onDidChangeConfiguration(e => {
@@ -345,17 +343,17 @@ export class NotebookOptions {
 		if (insertToolbarAlignment === 'left' || cellToolbar !== 'hidden') {
 			return {
 				bottomToolbarGap: 18,
-				bottomToolbarHeight: 22
+				bottomToolbarHeight: 18
 			};
 		}
 
 		if (insertToolbarPosition === 'betweenCells' || insertToolbarPosition === 'both') {
 			return compactView ? {
 				bottomToolbarGap: 12,
-				bottomToolbarHeight: 22
+				bottomToolbarHeight: 20
 			} : {
-				bottomToolbarGap: 18,
-				bottomToolbarHeight: 22
+				bottomToolbarGap: 20,
+				bottomToolbarHeight: 20
 			};
 		} else {
 			return {
@@ -485,7 +483,7 @@ export class NotebookOptions {
 	}
 
 	setCellBreakpointMarginActive(active: boolean) {
-		this._layoutConfiguration.cellBreakpointMarginActive = active;
+		this._layoutConfiguration = { ...this._layoutConfiguration, ...{ cellBreakpointMarginActive: active } };
 		this._onDidChangeOptions.fire({ cellBreakpointMargin: true });
 	}
 

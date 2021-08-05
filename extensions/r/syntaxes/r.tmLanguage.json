@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Ikuyadeu/vscode-R/commit/866d7cbe0620d28948a89bca24d99efd6b74b9bb",
+	"version": "https://github.com/Ikuyadeu/vscode-R/commit/f98bd30417c203876969408440f656f56eba80d8",
 	"name": "R",
 	"scopeName": "source.r",
 	"patterns": [
@@ -110,7 +110,7 @@
 					"name": "constant.numeric.integer.hexadecimal.r"
 				},
 				{
-					"match": "\\b(?:[0-9]+\\.?[0-9]*)L\\b",
+					"match": "\\b(?:[0-9]+\\.?[0-9]*)(?:(e|E)(\\+|-)?[0-9]+)?L\\b",
 					"name": "constant.numeric.integer.decimal.r"
 				},
 				{

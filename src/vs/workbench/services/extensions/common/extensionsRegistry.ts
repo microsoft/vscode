@@ -326,8 +326,13 @@ export const schema: IJSONSchema = {
 					},
 					{
 						label: 'onTerminalProfile',
-						body: 'onTerminalProfile:${1:terminalType}',
+						body: 'onTerminalProfile:${1:terminalId}',
 						description: nls.localize('vscode.extension.activationEvents.onTerminalProfile', 'An activation event emitted when a specific terminal profile is launched.'),
+					},
+					{
+						label: 'onWalkthrough',
+						body: 'onWalkthrough:${1:walkthroughID}',
+						description: nls.localize('vscode.extension.activationEvents.onWalkthrough', 'An activation event emitted when a specified walkthrough is opened.'),
 					},
 					{
 						label: '*',

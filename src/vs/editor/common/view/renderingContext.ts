@@ -14,7 +14,7 @@ export interface IViewLines {
 }
 
 export abstract class RestrictedRenderingContext {
-	_restrictedRenderingContextBrand: void;
+	_restrictedRenderingContextBrand: void = undefined;
 
 	public readonly viewportData: ViewportData;
 
@@ -64,7 +64,7 @@ export abstract class RestrictedRenderingContext {
 }
 
 export class RenderingContext extends RestrictedRenderingContext {
-	_renderingContextBrand: void;
+	_renderingContextBrand: void = undefined;
 
 	private readonly _viewLines: IViewLines;
 

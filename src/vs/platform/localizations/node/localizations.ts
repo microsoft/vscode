@@ -13,7 +13,6 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { ILogService } from 'vs/platform/log/common/log';
 import { isValidLocalization, ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { distinct, equals } from 'vs/base/common/arrays';
-import { Event, Emitter } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
 import { join } from 'vs/base/common/path';
 
@@ -32,9 +31,6 @@ export class LocalizationsService extends Disposable implements ILocalizationsSe
 
 	private readonly cache: LanguagePacksCache;
 
-	private readonly _onDidLanguagesChange: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidLanguagesChange: Event<void> = this._onDidLanguagesChange.event;
-
 	constructor(
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
@@ -42,35 +38,36 @@ export class LocalizationsService extends Disposable implements ILocalizationsSe
 	) {
 		super();
 		this.cache = this._register(new LanguagePacksCache(environmentService, logService));
-
-		this._register(extensionManagementService.onDidInstallExtension(({ local }) => this.onDidInstallExtension(local)));
-		this._register(extensionManagementService.onDidUninstallExtension(({ identifier }) => this.onDidUninstallExtension(identifier)));
+		this.extensionManagementService.registerParticipant({
+			postInstall: async (extension: ILocalExtension): Promise<void> => {
+				return this.postInstallExtension(extension);
+			},
+			postUninstall: async (extension: ILocalExtension): Promise<void> => {
+				return this.postUninstallExtension(extension);
+			}
+		});
 	}
 
-	getLanguageIds(): Promise<string[]> {
-		return this.cache.getLanguagePacks()
-			.then(languagePacks => {
-				// Contributed languages are those installed via extension packs, so does not include English
-				const languages = ['en', ...Object.keys(languagePacks)];
-				return distinct(languages);
-			});
+	async getLanguageIds(): Promise<string[]> {
+		const languagePacks = await this.cache.getLanguagePacks();
+		// Contributed languages are those installed via extension packs, so does not include English
+		const languages = ['en', ...Object.keys(languagePacks)];
+		return distinct(languages);
 	}
 
-	private onDidInstallExtension(extension: ILocalExtension | undefined): void {
+	private async postInstallExtension(extension: ILocalExtension): Promise<void> {
 		if (extension && extension.manifest && extension.manifest.contributes && extension.manifest.contributes.localizations && extension.manifest.contributes.localizations.length) {
-			this.logService.debug('Adding language packs from the extension', extension.identifier.id);
-			this.update().then(changed => { if (changed) { this._onDidLanguagesChange.fire(); } });
+			this.logService.info('Adding language packs from the extension', extension.identifier.id);
+			await this.update();
 		}
 	}
 
-	private onDidUninstallExtension(identifier: IExtensionIdentifier): void {
-		this.cache.getLanguagePacks()
-			.then(languagePacks => {
-				if (Object.keys(languagePacks).some(language => languagePacks[language] && languagePacks[language].extensions.some(e => areSameExtensions(e.extensionIdentifier, identifier)))) {
-					this.logService.debug('Removing language packs from the extension', identifier.id);
-					this.update().then(changed => { if (changed) { this._onDidLanguagesChange.fire(); } });
-				}
-			});
+	private async postUninstallExtension(extension: ILocalExtension): Promise<void> {
+		const languagePacks = await this.cache.getLanguagePacks();
+		if (Object.keys(languagePacks).some(language => languagePacks[language] && languagePacks[language].extensions.some(e => areSameExtensions(e.extensionIdentifier, extension.identifier)))) {
+			this.logService.info('Removing language packs from the extension', extension.identifier.id);
+			await this.update();
+		}
 	}
 
 	async update(): Promise<boolean> {

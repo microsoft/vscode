@@ -6,7 +6,7 @@
 				"git": {
 					"name": "atom/language-css",
 					"repositoryUrl": "https://github.com/atom/language-css",
-					"commitHash": "339e9600ce4e024fa97a711d6330e3b5344fcbdc"
+					"commitHash": "033087e8caa1b87ca91ee5b211de118b6b3c311d"
 				}
 			},
 			"licenseDetail": [
@@ -44,7 +44,7 @@
 			],
 			"license": "GitHub License",
 			"description": "The file syntaxes/css.tmLanguage.json was derived from https://github.com/atom/language-css which was originally converted from the TextMate bundle https://github.com/textmate/css.tmbundle.",
-			"version": "0.44.4"
+			"version": "0.44.6"
 		}
 	],
 	"version": 1

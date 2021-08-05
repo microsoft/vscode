@@ -19,7 +19,12 @@ export const WindowMinimumSize = {
 };
 
 export interface IBaseOpenWindowsOptions {
+
+	/**
+	 * Whether to reuse the window or open a new one.
+	 */
 	readonly forceReuseWindow?: boolean;
+
 	/**
 	 * The remote authority to use when windows are opened with either
 	 * - no workspace (empty window)
@@ -161,11 +166,15 @@ export interface IPathData {
 	// the file path to open within the instance
 	readonly fileUri?: UriComponents;
 
-	// the line number in the file path to open
-	readonly lineNumber?: number;
-
-	// the column number in the file path to open
-	readonly columnNumber?: number;
+	/**
+	 * An optional selection to apply in the file
+	 */
+	readonly selection?: {
+		readonly startLineNumber: number;
+		readonly startColumn: number;
+		readonly endLineNumber?: number;
+		readonly endColumn?: number;
+	}
 
 	// a hint that the file exists. if true, the
 	// file exists, if false it does not. with

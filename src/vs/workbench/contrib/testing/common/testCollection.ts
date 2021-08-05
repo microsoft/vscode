@@ -6,30 +6,70 @@
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { MarshalledId } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
+import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { TestMessageSeverity, TestResultState } from 'vs/workbench/api/common/extHostTypes';
+import { TestMessageSeverity } from 'vs/workbench/api/common/extHostTypes';
 
 export interface ITestIdWithSrc {
 	testId: string;
 	controllerId: string;
 }
 
+export const enum TestResultState {
+	Unset = 0,
+	Queued = 1,
+	Running = 2,
+	Passed = 3,
+	Failed = 4,
+	Skipped = 5,
+	Errored = 6
+}
+
 export const identifyTest = (test: { controllerId: string, item: { extId: string } }): ITestIdWithSrc =>
 	({ testId: test.item.extId, controllerId: test.controllerId });
 
-/**
- * Defines the path to a test, as a list of test IDs. The last element of the
- * array is the test ID, and the predecessors are its parents, in order.
- */
-export type TestIdPath = string[];
+export const enum TestRunProfileBitset {
+	Run = 1 << 1,
+	Debug = 1 << 2,
+	Coverage = 1 << 3,
+	HasNonDefaultProfile = 1 << 4,
+	HasConfigurable = 1 << 5,
+}
 
 /**
- * Request to the main thread to run a set of tests.
+ * List of all test run profile bitset values.
  */
-export interface RunTestsRequest {
-	tests: ITestIdWithSrc[];
-	exclude?: string[];
-	debug: boolean;
+export const testRunProfileBitsetList = [
+	TestRunProfileBitset.Run,
+	TestRunProfileBitset.Debug,
+	TestRunProfileBitset.Coverage,
+	TestRunProfileBitset.HasNonDefaultProfile,
+];
+
+/**
+ * DTO for a controller's run profiles.
+ */
+export interface ITestRunProfile {
+	controllerId: string;
+	profileId: number;
+	label: string;
+	group: TestRunProfileBitset;
+	isDefault: boolean;
+	hasConfigurationHandler: boolean;
+}
+
+/**
+ * A fully-resolved request to run tests, passsed between the main thread
+ * and extension host.
+ */
+export interface ResolvedTestRunRequest {
+	targets: {
+		testIds: string[];
+		controllerId: string;
+		profileGroup: TestRunProfileBitset;
+		profileId: number;
+	}[]
+	exclude?: ITestIdWithSrc[];
 	isAutoRun?: boolean;
 }
 
@@ -38,9 +78,10 @@ export interface RunTestsRequest {
  */
 export interface ExtensionRunTestsRequest {
 	id: string;
-	tests: string[];
+	include: string[];
 	exclude: string[];
-	debug: boolean;
+	controllerId: string;
+	profile?: { group: TestRunProfileBitset, id: number };
 	persist: boolean;
 }
 
@@ -50,9 +91,9 @@ export interface ExtensionRunTestsRequest {
 export interface RunTestForControllerRequest {
 	runId: string;
 	controllerId: string;
+	profileId: number;
 	excludeExtIds: string[];
 	testIds: string[];
-	debug: boolean;
 }
 
 /**
@@ -65,6 +106,7 @@ export interface IRichLocation {
 
 export interface ITestMessage {
 	message: string | IMarkdownString;
+	/** @deprecated */
 	severity: TestMessageSeverity;
 	expectedOutput: string | undefined;
 	actualOutput: string | undefined;
@@ -96,8 +138,6 @@ export interface ITestItem {
 	range: IRange | null;
 	description: string | null;
 	error: string | IMarkdownString | null;
-	runnable: boolean;
-	debuggable: boolean;
 }
 
 export const enum TestItemExpandState {
@@ -111,9 +151,13 @@ export const enum TestItemExpandState {
  * TestItem-like shape, butm with an ID and children as strings.
  */
 export interface InternalTestItem {
+	/** Controller ID from whence this test came */
 	controllerId: string;
+	/** Expandability state */
 	expand: TestItemExpandState;
+	/** Parent ID, if any */
 	parent: string | null;
+	/** Raw test item properties */
 	item: ITestItem;
 }
 
@@ -138,11 +182,7 @@ export const applyTestItemUpdate = (internal: InternalTestItem | ITestItemUpdate
 /**
  * Test result item used in the main thread.
  */
-export interface TestResultItem {
-	/** Parent ID, if any */
-	parent: string | null;
-	/** Raw test item properties */
-	item: ITestItem;
+export interface TestResultItem extends InternalTestItem {
 	/** State of this test in various tasks */
 	tasks: ITestTaskState[];
 	/** State of this test as a computation of its tasks */
@@ -153,10 +193,6 @@ export interface TestResultItem {
 	retired: boolean;
 	/** Max duration of the item's tasks (if run directly) */
 	ownDuration?: number;
-	/** True if the test was directly requested by the run (is not a child or parent) */
-	direct?: boolean;
-	/** Controller ID from whence this test came */
-	controllerId: string;
 }
 
 export type SerializedTestResultItem = Omit<TestResultItem, 'children' | 'expandable' | 'retired'>
@@ -178,6 +214,50 @@ export interface ISerializedTestResults {
 	tasks: ITestRunTask[];
 	/** Human-readable name of the test run. */
 	name: string;
+	/** Test trigger informaton */
+	request: ResolvedTestRunRequest;
+}
+
+export interface ITestCoverage {
+	files: IFileCoverage[];
+}
+
+export interface ICoveredCount {
+	covered: number;
+	total: number;
+}
+
+export interface IFileCoverage {
+	uri: URI;
+	statement: ICoveredCount;
+	branch?: ICoveredCount;
+	function?: ICoveredCount;
+	details?: CoverageDetails[];
+}
+
+export const enum DetailType {
+	Function,
+	Statement,
+}
+
+export type CoverageDetails = IFunctionCoverage | IStatementCoverage;
+
+export interface IBranchCoverage {
+	count: number;
+	location?: IRange | IPosition;
+}
+
+export interface IFunctionCoverage {
+	type: DetailType.Function;
+	count: number;
+	location?: IRange | IPosition;
+}
+
+export interface IStatementCoverage {
+	type: DetailType.Statement;
+	count: number;
+	location: IRange | IPosition;
+	branches?: IBranchCoverage[];
 }
 
 export const enum TestDiffOpType {

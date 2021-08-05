@@ -27,6 +27,18 @@
 	margin-left: 4px;
 	min-width: 40%;
 }
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-list-object-input-key-checkbox {
+	margin-left: 4px;
+	height: 24px;
+}
+.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-list-object-input-key-checkbox .setting-value-checkbox {
+	margin-top: 3px;
+}
+.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-list-object-value {
+	cursor: pointer;
+}
+
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input-key {
 	margin-left: 0;
 }
@@ -46,6 +58,7 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-value {
 	display: inline-block;
 	line-height: 24px;
+	min-height: 24px;
 }
 
 /* Use monospace to display glob patterns in exclude widget */
@@ -70,6 +83,13 @@
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row {
 	display: flex;
+}
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row.draggable {
+	cursor: pointer;
+	user-select: none;
+}
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row.drag-hover * {
+	pointer-events: none;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row,
@@ -144,9 +164,15 @@
 	max-width: 320px;
 	margin-right: 4px;
 }
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-valueInput.no-sibling,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input {
 	max-width: unset;
 }
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-valueInput.no-sibling {
+	/* Add more width to help with string arrays */
+	width: 100%;
+}
+
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-value-container .setting-list-object-input {
 	margin-right: 0;
 }
@@ -166,4 +192,11 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input select {
 	width: 100%;
 	height: 24px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-list-widget .setting-list-object-list-row.select-container {
+	width: 320px;
+}
+.settings-editor > .settings-body > .settings-tree-container .setting-list-widget .setting-list-object-list-row.select-container > select {
+	width: inherit;
 }

@@ -7,14 +7,13 @@ import { asArray, coalesceInPlace, equals } from 'vs/base/common/arrays';
 import { illegalArgument } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { MarkdownString as BaseMarkdownString } from 'vs/base/common/htmlContent';
-import { ReadonlyMapView, ResourceMap } from 'vs/base/common/map';
+import { ResourceMap } from 'vs/base/common/map';
 import { Mimes, normalizeMimeType } from 'vs/base/common/mime';
 import { isArray, isStringArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { getPrivateApiFor, ExtHostTestItemEventType, IExtHostTestItemApi } from 'vs/workbench/api/common/extHostTestingPrivateApi';
 import { CellEditType, ICellPartialMetadataEdit, IDocumentMetadataEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as vscode from 'vscode';
 
@@ -1243,6 +1242,7 @@ export class CallHierarchyItem {
 	_itemId?: string;
 
 	kind: SymbolKind;
+	tags?: SymbolTag[];
 	name: string;
 	detail?: string;
 	uri: URI;
@@ -1279,6 +1279,13 @@ export class CallHierarchyOutgoingCall {
 		this.to = item;
 	}
 }
+
+export enum LanguageStatusSeverity {
+	Information = 0,
+	Warning = 1,
+	Error = 2
+}
+
 
 @es5ClassCompat
 export class CodeLens {
@@ -1590,6 +1597,11 @@ export enum TextEditorSelectionChangeKind {
 	Command = 3
 }
 
+export enum TextDocumentChangeReason {
+	Undo = 1,
+	Redo = 2,
+}
+
 /**
  * These values match very carefully the values of `TrackedRangeStickiness`
  */
@@ -1750,8 +1762,9 @@ export enum TaskPanelKind {
 }
 
 @es5ClassCompat
-export class TaskGroup implements vscode.TaskGroup {
+export class TaskGroup implements vscode.TaskGroup2 {
 
+	isDefault?: boolean;
 	private _id: string;
 
 	public static Clean: TaskGroup = new TaskGroup('clean', 'Clean');
@@ -3094,7 +3107,7 @@ export class NotebookCellOutputItem {
 	) {
 		const mimeNormalized = normalizeMimeType(mime, true);
 		if (!mimeNormalized) {
-			throw new Error('INVALID mime type, must not be empty or falsy: ' + mime);
+			throw new Error(`INVALID mime type: ${mime}. Must be in the format "type/subtype[;optionalparameter]"`);
 		}
 		this.mime = mimeNormalized;
 	}
@@ -3281,7 +3294,6 @@ export class PortAttributes {
 
 //#region Testing
 export enum TestResultState {
-	Unset = 0,
 	Queued = 1,
 	Running = 2,
 	Passed = 3,
@@ -3297,131 +3309,23 @@ export enum TestMessageSeverity {
 	Hint = 3
 }
 
-const testItemPropAccessor = <K extends keyof vscode.TestItem>(
-	api: IExtHostTestItemApi,
-	key: K,
-	defaultValue: vscode.TestItem[K],
-	equals: (a: vscode.TestItem[K], b: vscode.TestItem[K]) => boolean
-) => {
-	let value = defaultValue;
-	return {
-		enumerable: true,
-		configurable: false,
-		get() {
-			return value;
-		},
-		set(newValue: vscode.TestItem[K]) {
-			if (!equals(value, newValue)) {
-				value = newValue;
-				api.bus.fire([ExtHostTestItemEventType.SetProp, key, newValue]);
-			}
-		},
-	};
-};
+export enum TestRunProfileKind {
+	Run = 1,
+	Debug = 2,
+	Coverage = 3,
+}
 
-const strictEqualComparator = <T>(a: T, b: T) => a === b;
-const rangeComparator = (a: vscode.Range | undefined, b: vscode.Range | undefined) => {
-	if (a === b) { return true; }
-	if (!a || !b) { return false; }
-	return a.isEqual(b);
-};
-
+@es5ClassCompat
 export class TestRunRequest implements vscode.TestRunRequest {
 	constructor(
-		public readonly tests: vscode.TestItem[],
+		public readonly include?: vscode.TestItem[],
 		public readonly exclude?: vscode.TestItem[] | undefined,
-		public readonly debug = false,
+		public readonly profile?: vscode.TestRunProfile,
 	) { }
 }
 
-export class TestItemImpl implements vscode.TestItem {
-	public readonly id!: string;
-	public readonly uri!: vscode.Uri | undefined;
-	public readonly children!: ReadonlyMap<string, TestItemImpl>;
-	public readonly parent!: TestItemImpl | undefined;
-
-	public range!: vscode.Range | undefined;
-	public description!: string | undefined;
-	public runnable!: boolean;
-	public debuggable!: boolean;
-	public label!: string;
-	public error!: string | vscode.MarkdownString;
-	public busy!: boolean;
-	public canResolveChildren!: boolean;
-
-	/**
-	 * Note that data is deprecated and here for back-compat only
-	 */
-	constructor(id: string, label: string, uri: vscode.Uri | undefined, public data: any, parent: vscode.TestItem | undefined) {
-		const api = getPrivateApiFor(this);
-
-		Object.defineProperties(this, {
-			id: {
-				value: id,
-				enumerable: true,
-				writable: false,
-			},
-			uri: {
-				value: uri,
-				enumerable: true,
-				writable: false,
-			},
-			parent: {
-				enumerable: false,
-				value: parent,
-				writable: false,
-			},
-			children: {
-				value: new ReadonlyMapView(api.children),
-				enumerable: true,
-				writable: false,
-			},
-			range: testItemPropAccessor(api, 'range', undefined, rangeComparator),
-			label: testItemPropAccessor(api, 'label', label, strictEqualComparator),
-			description: testItemPropAccessor(api, 'description', undefined, strictEqualComparator),
-			runnable: testItemPropAccessor(api, 'runnable', true, strictEqualComparator),
-			debuggable: testItemPropAccessor(api, 'debuggable', false, strictEqualComparator),
-			canResolveChildren: testItemPropAccessor(api, 'canResolveChildren', false, strictEqualComparator),
-			busy: testItemPropAccessor(api, 'busy', false, strictEqualComparator),
-			error: testItemPropAccessor(api, 'error', undefined, strictEqualComparator),
-		});
-
-		if (parent) {
-			if (!(parent instanceof TestItemImpl)) {
-				throw new Error(`The "parent" passed in for TestItem ${id} is invalid`);
-			}
-
-			const parentApi = getPrivateApiFor(parent);
-			if (parentApi.children.has(id)) {
-				throw new Error(`Attempted to insert a duplicate test item ID ${id}`);
-			}
-
-			parentApi.children.set(id, this);
-			parentApi.bus.fire([ExtHostTestItemEventType.NewChild, this]);
-		}
-	}
-
-	/** @deprecated back compat */
-	public invalidate() {
-		return this.invalidateResults();
-	}
-
-	public invalidateResults() {
-		getPrivateApiFor(this).bus.fire([ExtHostTestItemEventType.Invalidated]);
-	}
-
-	public dispose() {
-		if (this.parent) {
-			getPrivateApiFor(this.parent).children.delete(this.id);
-		}
-
-		getPrivateApiFor(this).bus.fire([ExtHostTestItemEventType.Disposed]);
-	}
-}
-
-
+@es5ClassCompat
 export class TestMessage implements vscode.TestMessage {
-	public severity = TestMessageSeverity.Error;
 	public expectedOutput?: string;
 	public actualOutput?: string;
 
@@ -3435,6 +3339,82 @@ export class TestMessage implements vscode.TestMessage {
 	constructor(public message: string | vscode.MarkdownString) { }
 }
 
+//#endregion
+
+//#region Test Coverage
+@es5ClassCompat
+export class CoveredCount implements vscode.CoveredCount {
+	constructor(public covered: number, public total: number) { }
+}
+
+@es5ClassCompat
+export class FileCoverage implements vscode.FileCoverage {
+	public static fromDetails(uri: vscode.Uri, details: vscode.DetailedCoverage[]): vscode.FileCoverage {
+		const statements = new CoveredCount(0, 0);
+		const branches = new CoveredCount(0, 0);
+		const fn = new CoveredCount(0, 0);
+
+		for (const detail of details) {
+			if ('branches' in detail) {
+				statements.total += 1;
+				statements.covered += detail.executionCount > 0 ? 1 : 0;
+
+				for (const branch of detail.branches) {
+					branches.total += 1;
+					branches.covered += branch.executionCount > 0 ? 1 : 0;
+				}
+			} else {
+				fn.total += 1;
+				fn.covered += detail.executionCount > 0 ? 1 : 0;
+			}
+		}
+
+		const coverage = new FileCoverage(
+			uri,
+			statements,
+			branches.total > 0 ? branches : undefined,
+			fn.total > 0 ? fn : undefined,
+		);
+
+		coverage.detailedCoverage = details;
+
+		return coverage;
+	}
+
+	detailedCoverage?: vscode.DetailedCoverage[];
+
+	constructor(
+		public readonly uri: vscode.Uri,
+		public statementCoverage: vscode.CoveredCount,
+		public branchCoverage?: vscode.CoveredCount,
+		public functionCoverage?: vscode.CoveredCount,
+	) { }
+}
+
+@es5ClassCompat
+export class StatementCoverage implements vscode.StatementCoverage {
+	constructor(
+		public executionCount: number,
+		public location: Position | Range,
+		public branches: vscode.BranchCoverage[] = [],
+	) { }
+}
+
+@es5ClassCompat
+export class BranchCoverage implements vscode.BranchCoverage {
+	constructor(
+		public executionCount: number,
+		public location: Position | Range,
+	) { }
+}
+
+@es5ClassCompat
+export class FunctionCoverage implements vscode.FunctionCoverage {
+	constructor(
+		public executionCount: number,
+		public location: Position | Range,
+	) { }
+}
 //#endregion
 
 export enum ExternalUriOpenerPriority {
@@ -3457,4 +3437,26 @@ export enum PortAutoForwardAction {
 	Silent = 4,
 	Ignore = 5,
 	OpenBrowserOnce = 6
+}
+
+export class TypeHierarchyItem {
+	_sessionId?: string;
+	_itemId?: string;
+
+	kind: SymbolKind;
+	tags?: SymbolTag[];
+	name: string;
+	detail?: string;
+	uri: URI;
+	range: Range;
+	selectionRange: Range;
+
+	constructor(kind: SymbolKind, name: string, detail: string, uri: URI, range: Range, selectionRange: Range) {
+		this.kind = kind;
+		this.name = name;
+		this.detail = detail;
+		this.uri = uri;
+		this.range = range;
+		this.selectionRange = selectionRange;
+	}
 }

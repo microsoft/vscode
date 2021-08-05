@@ -118,6 +118,11 @@
 	flex: 1;
 }
 
+/** Dialog: File Path */
+.monaco-dialog-box code {
+	font-family: var(--monaco-monospace-font);
+}
+
 /** Dialog: Buttons Row */
 .monaco-dialog-box > .dialog-buttons-row {
 	display: flex;

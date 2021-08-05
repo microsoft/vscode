@@ -9,6 +9,10 @@ import { FileAccess } from 'vs/base/common/network';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { combinedAppender } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ILoggerService } from 'vs/platform/log/common/log';
+import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
 
 export class CustomEndpointTelemetryService implements ICustomEndpointTelemetryService {
 	declare readonly _serviceBrand: undefined;
@@ -17,7 +21,9 @@ export class CustomEndpointTelemetryService implements ICustomEndpointTelemetryS
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILoggerService private readonly loggerService: ILoggerService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 	) { }
 
 	private async getCustomTelemetryService(endpoint: ITelemetryEndpoint): Promise<ITelemetryService> {
@@ -42,7 +48,10 @@ export class CustomEndpointTelemetryService implements ICustomEndpointTelemetryS
 			);
 
 			const channel = client.getChannel('telemetryAppender');
-			const appender = new TelemetryAppenderClient(channel);
+			const appender = combinedAppender(
+				new TelemetryAppenderClient(channel),
+				new TelemetryLogAppender(this.loggerService, this.environmentService, `[${endpoint.id}] `),
+			);
 
 			this.customTelemetryServices.set(endpoint.id, new TelemetryService({
 				appender,

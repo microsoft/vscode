@@ -9,7 +9,7 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchActionRegistry, Extensions, CATEGORIES } from 'vs/workbench/common/actions';
-import { IWorkbenchThemeService, IWorkbenchTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, IWorkbenchTheme, ThemeSettingTarget } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -20,7 +20,6 @@ import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { colorThemeSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { DEFAULT_PRODUCT_ICON_THEME_ID } from 'vs/workbench/services/themes/browser/productIconThemeData';
 
 export class SelectColorThemeAction extends Action {
@@ -59,8 +58,8 @@ export class SelectColorThemeAction extends Action {
 				selectThemeTimeout = window.setTimeout(() => {
 					selectThemeTimeout = undefined;
 					const themeId = theme && theme.id !== undefined ? theme.id : currentTheme.id;
-
-					this.themeService.setColorTheme(themeId, applyTheme ? 'auto' : undefined).then(undefined,
+					console.log(`setColorTheme apply: ` + applyTheme);
+					this.themeService.setColorTheme(themeId, applyTheme ? 'auto' : 'preview').then(undefined,
 						err => {
 							onUnexpectedError(err);
 							this.themeService.setColorTheme(currentTheme.id, undefined);
@@ -119,7 +118,7 @@ abstract class AbstractIconThemeAction extends Action {
 	protected abstract get placeholderMessage(): string;
 	protected abstract get marketplaceTag(): string;
 
-	protected abstract setTheme(id: string, settingsTarget: ConfigurationTarget | undefined | 'auto'): Promise<any>;
+	protected abstract setTheme(id: string, settingsTarget: ThemeSettingTarget): Promise<any>;
 
 	protected pick(themes: IWorkbenchTheme[], currentTheme: IWorkbenchTheme) {
 		let picks: QuickPickInput<ThemeItem>[] = [this.builtInEntry];
@@ -137,7 +136,7 @@ abstract class AbstractIconThemeAction extends Action {
 			selectThemeTimeout = window.setTimeout(() => {
 				selectThemeTimeout = undefined;
 				const themeId = theme && theme.id !== undefined ? theme.id : currentTheme.id;
-				this.setTheme(themeId, applyTheme ? 'auto' : undefined).then(undefined,
+				this.setTheme(themeId, applyTheme ? 'auto' : 'preview').then(undefined,
 					err => {
 						onUnexpectedError(err);
 						this.setTheme(currentTheme.id, undefined);
@@ -199,7 +198,7 @@ class SelectFileIconThemeAction extends AbstractIconThemeAction {
 	protected installMessage = localize('installIconThemes', "Install Additional File Icon Themes...");
 	protected placeholderMessage = localize('themes.selectIconTheme', "Select File Icon Theme");
 	protected marketplaceTag = 'tag:icon-theme';
-	protected setTheme(id: string, settingsTarget: ConfigurationTarget | undefined | 'auto') {
+	protected setTheme(id: string, settingsTarget: ThemeSettingTarget) {
 		return this.themeService.setFileIconTheme(id, settingsTarget);
 	}
 
@@ -230,7 +229,7 @@ class SelectProductIconThemeAction extends AbstractIconThemeAction {
 	protected installMessage = localize('installProductIconThemes', "Install Additional Product Icon Themes...");
 	protected placeholderMessage = localize('themes.selectProductIconTheme', "Select Product Icon Theme");
 	protected marketplaceTag = 'tag:product-icon-theme';
-	protected setTheme(id: string, settingsTarget: ConfigurationTarget | undefined | 'auto') {
+	protected setTheme(id: string, settingsTarget: ThemeSettingTarget) {
 		return this.themeService.setProductIconTheme(id, settingsTarget);
 	}
 
@@ -332,7 +331,7 @@ class GenerateColorThemeAction extends Action {
 		}, null, '\t');
 		contents = contents.replace(/\"__/g, '//"');
 
-		return this.editorService.openEditor({ contents, mode: 'jsonc', options: { pinned: true } });
+		return this.editorService.openEditor({ resource: undefined, contents, mode: 'jsonc', options: { pinned: true } });
 	}
 }
 

@@ -15,7 +15,7 @@ export interface ITestingPeekOpener {
 	 * Tries to peek the first test error, if the item is in a failed state.
 	 * @returns a boolean indicating whether a peek was opened
 	 */
-	tryPeekFirstError(result: ITestResult, test: TestResultItem, options?: Partial<ITextEditorOptions>): Promise<boolean>;
+	tryPeekFirstError(result: ITestResult, test: TestResultItem, options?: Partial<ITextEditorOptions>): boolean;
 
 	/**
 	 * Opens the peek. Shows any available message.

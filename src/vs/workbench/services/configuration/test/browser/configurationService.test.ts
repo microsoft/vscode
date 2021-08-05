@@ -1780,6 +1780,12 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		assert.ok(target.called);
 	});
 
+	test('update machine overridable setting in folder', async () => {
+		const workspace = workspaceContextService.getWorkspace();
+		await testObject.updateValue('configurationService.workspace.machineOverridableSetting', 'workspaceFolderValue', { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER);
+		assert.strictEqual(testObject.getValue('configurationService.workspace.machineOverridableSetting', { resource: workspace.folders[0].uri }), 'workspaceFolderValue');
+	});
+
 	test('update memory configuration', async () => {
 		await testObject.updateValue('configurationService.workspace.testSetting', 'memoryValue', ConfigurationTarget.MEMORY);
 		assert.strictEqual(testObject.getValue('configurationService.workspace.testSetting'), 'memoryValue');

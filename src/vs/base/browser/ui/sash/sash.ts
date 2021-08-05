@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./sash';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { isMacintosh } from 'vs/base/common/platform';
-import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
-import { Event, Emitter } from 'vs/base/common/event';
-import { getElementsByTagName, EventHelper, createStyleSheet, append, $, EventLike } from 'vs/base/browser/dom';
+import { $, append, createStyleSheet, EventHelper, EventLike, getElementsByTagName } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
+import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
 import { Delayer } from 'vs/base/common/async';
 import { memoize } from 'vs/base/common/decorators';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { isMacintosh } from 'vs/base/common/platform';
+import 'vs/css!./sash';
 
 let DEBUG = false;
 // DEBUG = Boolean("true"); // done "weirdly" so that a lint warning prevents you from pushing this
@@ -362,13 +362,7 @@ export class Sash extends Disposable {
 			return;
 		}
 
-		// Select both iframes and webviews; internally Electron nests an iframe
-		// in its <webview> component, but this isn't queryable.
-		const iframes = [
-			...getElementsByTagName('iframe'),
-			...getElementsByTagName('webview'),
-		];
-
+		const iframes = getElementsByTagName('iframe');
 		for (const iframe of iframes) {
 			iframe.style.pointerEvents = 'none'; // disable mouse events on iframes as long as we drag the sash
 		}

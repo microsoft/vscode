@@ -51,7 +51,7 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 							body: {
 								'id': '$1', 'title': '$2', 'description': '$3',
 								'completionEvents': ['$5'],
-								'media': { 'path': '$6', 'type': '$7' }
+								'media': {},
 							}
 						}],
 						properties: {
@@ -73,7 +73,6 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 							media: {
 								type: 'object',
 								description: localize('walkthroughs.steps.media', "Media to show alongside this step, either an image or markdown content."),
-								defaultSnippets: [{ 'body': { 'type': '$1', 'path': '$2' } }],
 								oneOf: [
 									{
 										required: ['image', 'altText'],
@@ -160,14 +159,14 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 											body: 'onContext:${2:key}'
 										},
 										{
-											label: 'extensionInstalled',
+											label: 'onExtensionInstalled',
 											description: localize('walkthroughs.steps.completionEvents.extensionInstalled', 'Check off step when an extension with the given id is installed. If the extension is already installed, the step will start off checked.'),
-											body: 'extensionInstalled:${3:extensionId}'
+											body: 'onExtensionInstalled:${3:extensionId}'
 										},
 										{
-											label: 'stepSelected',
+											label: 'onStepSelected',
 											description: localize('walkthroughs.steps.completionEvents.stepSelected', 'Check off step as soon as it is selected.'),
-											body: 'stepSelected'
+											body: 'onStepSelected'
 										},
 									]
 								}
@@ -197,39 +196,9 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 	}
 });
 
-export const startEntriesExtensionPoint = ExtensionsRegistry.registerExtensionPoint<IStartEntry[]>({
+ExtensionsRegistry.registerExtensionPoint<IStartEntry[]>({
 	extensionPoint: 'startEntries',
 	jsonSchema: {
-		description: localize('startEntries', "Contribute commands to the `Welcome: New...` picker."),
-		type: 'array',
-		items: {
-			type: 'object',
-			required: ['title', 'command'],
-			additionalProperties: false,
-			defaultSnippets: [{ body: { 'title': '$1', 'command': '$3' } }],
-			properties: {
-				title: {
-					type: 'string',
-					description: localize('startEntries.title', "Title of item.")
-				},
-				command: {
-					type: 'string',
-					description: localize('startEntries.command', "Command to run.")
-				},
-				category: {
-					type: 'string',
-					description: localize('startEntries.category', "Category of the new entry."),
-					enum: ['file', 'folder', 'notebook'],
-				},
-				description: {
-					type: 'string',
-					description: localize('startEntries.description', "Description of item. We recommend leaving this blank unless the action significantly nuanced in a way the title can not capture.")
-				},
-				when: {
-					type: 'string',
-					description: localize('startEntries.when', "Context key expression to control the visibility of this item.")
-				},
-			}
-		}
+		deprecationMessage: localize('removed', "Removed, use the menus => file/newFile contribution point instead"),
 	}
 });

@@ -85,7 +85,8 @@
 				async: runnable.async,
 				slow: runnable.slow(),
 				speed: runnable.speed,
-				duration: runnable.duration
+				duration: runnable.duration,
+				currentRetry: runnable.currentRetry(),
 			};
 		}
 		function serializeError(err) {
@@ -113,7 +114,7 @@
 			runner.on('pending', test => window.mocha_report('pending', serializeRunnable(test)));
 		};
 
-		window.loadAndRun = async function loadAndRun(modules, manual = false) {
+		window.loadAndRun = async function loadAndRun({ modules, grep }, manual = false) {
 			// load
 			await Promise.all(modules.map(module => new Promise((resolve, reject) => {
 				require([module], resolve, err => {
@@ -131,6 +132,10 @@
 
 			// run
 			return new Promise((resolve, reject) => {
+				if (grep) {
+					mocha.grep(grep);
+				}
+
 				if (!manual) {
 					mocha.reporter(PlaywrightReporter);
 				}

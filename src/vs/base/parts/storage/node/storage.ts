@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Database, Statement } from 'vscode-sqlite3';
-import { Event } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
+import { Event } from 'vs/base/common/event';
 import { mapToString, setToString } from 'vs/base/common/map';
 import { basename } from 'vs/base/common/path';
 import { Promises } from 'vs/base/node/pfs';
 import { IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest } from 'vs/base/parts/storage/common/storage';
+import type { Database, Statement } from 'vscode-sqlite3';
 
 interface IDatabaseConnection {
 	readonly db: Database;

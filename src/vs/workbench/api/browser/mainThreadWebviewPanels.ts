@@ -9,7 +9,8 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { MainThreadWebviews, reviveWebviewContentOptions, reviveWebviewExtension } from 'vs/workbench/api/browser/mainThreadWebviews';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { EditorGroupColumn, editorGroupToViewColumn, IEditorInput, viewColumnToEditorGroup } from 'vs/workbench/common/editor';
+import { IEditorInput } from 'vs/workbench/common/editor';
+import { EditorGroupColumn, columnToEditorGroup, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
@@ -161,7 +162,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		const mainThreadShowOptions: ICreateWebViewShowOptions = Object.create(null);
 		if (showOptions) {
 			mainThreadShowOptions.preserveFocus = !!showOptions.preserveFocus;
-			mainThreadShowOptions.group = viewColumnToEditorGroup(this._editorGroupService, showOptions.viewColumn);
+			mainThreadShowOptions.group = columnToEditorGroup(this._editorGroupService, showOptions.viewColumn);
 		}
 
 		const extension = reviveWebviewExtension(extensionData);
@@ -202,7 +203,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 			return;
 		}
 
-		const targetGroup = this._editorGroupService.getGroup(viewColumnToEditorGroup(this._editorGroupService, showOptions.viewColumn)) || this._editorGroupService.getGroup(webview.group || 0);
+		const targetGroup = this._editorGroupService.getGroup(columnToEditorGroup(this._editorGroupService, showOptions.viewColumn)) || this._editorGroupService.getGroup(webview.group || 0);
 		if (targetGroup) {
 			this._webviewWorkbenchService.revealWebview(webview, targetGroup, !!showOptions.preserveFocus);
 		}
@@ -243,7 +244,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 						state,
 						panelOptions: webviewInput.webview.options,
 						webviewOptions: webviewInput.webview.contentOptions,
-					}, editorGroupToViewColumn(this._editorGroupService, webviewInput.group || 0));
+					}, editorGroupToColumn(this._editorGroupService, webviewInput.group || 0));
 				} catch (error) {
 					onUnexpectedError(error);
 					webviewInput.webview.html = this._mainThreadWebviews.getWebviewResolvedFailedContent(viewType);
@@ -281,7 +282,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 				viewStates[handle] = {
 					visible: topLevelInput === group.activeEditor,
 					active: editorInput === activeEditorInput,
-					position: editorGroupToViewColumn(this._editorGroupService, group.id),
+					position: editorGroupToColumn(this._editorGroupService, group.id),
 				};
 			}
 		};

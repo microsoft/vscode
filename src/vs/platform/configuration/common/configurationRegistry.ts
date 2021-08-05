@@ -11,6 +11,11 @@ import * as types from 'vs/base/common/types';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IStringDictionary } from 'vs/base/common/collections';
 
+export enum EditPresentationTypes {
+	Multiline = 'multilineText',
+	Singleline = 'singlelineText'
+}
+
 export const Extensions = {
 	Configuration: 'base.contributions.configuration'
 };
@@ -133,6 +138,12 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	disallowSyncIgnore?: boolean;
 
 	enumItemLabels?: string[];
+
+	/**
+	 * When specified, controls the presentation format of string settings.
+	 * Otherwise, the presentation format defaults to `singleline`.
+	 */
+	editPresentation?: EditPresentationTypes;
 }
 
 export interface IConfigurationExtensionInfo {

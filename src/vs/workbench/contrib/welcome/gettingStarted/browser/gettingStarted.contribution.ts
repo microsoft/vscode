@@ -6,24 +6,27 @@
 import { localize } from 'vs/nls';
 import { GettingStartedInputSerializer, GettingStartedPage, inWelcomeContext } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IGettingStartedNewMenuEntryDescriptorCategory, IGettingStartedService } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedService';
+import { IGettingStartedService } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedService';
 import { GettingStartedInput } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorOverride } from 'vs/platform/editor/common/editor';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { EditorResolution } from 'vs/platform/editor/common/editor';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 
 export * as icons from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedIcons';
@@ -68,7 +71,7 @@ registerAction2(class extends Action2 {
 					if (!editor.selectedCategory) {
 						editor.selectedCategory = selectedCategory;
 						editor.selectedStep = selectedStep;
-						editorService.openEditor(editor, { revealIfOpened: true, override: EditorOverride.DISABLED }, groupId);
+						editorService.openEditor(editor, { revealIfOpened: true, override: EditorResolution.DISABLED }, groupId);
 						return;
 					}
 				}
@@ -82,9 +85,9 @@ registerAction2(class extends Action2 {
 	}
 });
 
-Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(GettingStartedInput.ID, GettingStartedInputSerializer);
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(GettingStartedInput.ID, GettingStartedInputSerializer);
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
 		GettingStartedPage,
 		GettingStartedPage.ID,
 		localize('welcome', "Welcome")
@@ -189,79 +192,6 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'welcome.showNewFileEntries',
-			title: localize('welcome.newFile', "New File..."),
-			category,
-			f1: true,
-			keybinding: {
-				primary: KeyMod.Alt + KeyMod.CtrlCmd + KeyMod.WinCtrl + KeyCode.KEY_N,
-				weight: KeybindingWeight.WorkbenchContrib,
-			},
-			menu: {
-				id: MenuId.MenubarFileMenu,
-				group: '1_new',
-				order: 3
-			}
-		});
-	}
-
-	run(accessor: ServicesAccessor) {
-		const gettingStartedService = accessor.get(IGettingStartedService);
-		gettingStartedService.selectNewEntry([
-			IGettingStartedNewMenuEntryDescriptorCategory.file,
-			IGettingStartedNewMenuEntryDescriptorCategory.notebook]);
-	}
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'welcome.showNewFolderEntries',
-			title: localize('welcome.newFolder', "New Folder..."),
-			category,
-			f1: true,
-			keybinding: {
-				primary: KeyMod.Alt + KeyMod.CtrlCmd + KeyMod.WinCtrl + KeyCode.KEY_F,
-				weight: KeybindingWeight.WorkbenchContrib,
-			},
-			menu: {
-				id: MenuId.MenubarFileMenu,
-				group: '1_new',
-				order: 5
-			}
-		});
-	}
-
-	run(accessor: ServicesAccessor) {
-		const gettingStartedService = accessor.get(IGettingStartedService);
-		gettingStartedService.selectNewEntry([IGettingStartedNewMenuEntryDescriptorCategory.folder]);
-	}
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'welcome.showNewEntries',
-			title: localize('welcome.new', "New..."),
-			category,
-			f1: true,
-		});
-	}
-
-	run(accessor: ServicesAccessor, args?: ('file' | 'folder' | 'notebook')[]) {
-		const gettingStartedService = accessor.get(IGettingStartedService);
-		const filters: IGettingStartedNewMenuEntryDescriptorCategory[] = [];
-		(args ?? []).forEach(arg => {
-			if (IGettingStartedNewMenuEntryDescriptorCategory[arg]) { filters.push(IGettingStartedNewMenuEntryDescriptorCategory[arg]); }
-		});
-
-		gettingStartedService.selectNewEntry(filters);
-	}
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
 			id: 'welcome.markStepComplete',
 			title: localize('welcome.markStepComplete', "Mark Step Complete"),
 			category,
@@ -291,12 +221,78 @@ registerAction2(class extends Action2 {
 	}
 });
 
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'welcome.showAllWalkthroughs',
+			title: localize('welcome.showAllWalkthroughs', "Open Walkthrough..."),
+			category,
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const commandService = accessor.get(ICommandService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const gettingStartedService = accessor.get(IGettingStartedService);
+		const categories = gettingStartedService.getCategories().filter(x => x.content.type === 'steps');
+		const selection = await quickInputService.pick(categories.map(x => ({
+			id: x.id,
+			label: x.title,
+			detail: x.description,
+			description: x.source,
+		})), { canPickMany: false, matchOnDescription: true, matchOnDetail: true, title: localize('pickWalkthroughs', "Open Walkthrough...") });
+		if (selection) {
+			commandService.executeCommand('workbench.action.openWalkthrough', selection.id);
+		}
+	}
+});
+
+const prefersReducedMotionConfig = {
+	...workbenchConfigurationNodeBase,
+	'properties': {
+		'workbench.welcomePage.preferReducedMotion': {
+			scope: ConfigurationScope.APPLICATION,
+			type: 'boolean',
+			default: true,
+			description: localize('workbench.welcomePage.preferReducedMotion', "When enabled, reduce motion in welcome page.")
+		}
+	}
+} as const;
+
+const prefersStandardMotionConfig = {
+	...workbenchConfigurationNodeBase,
+	'properties': {
+		'workbench.welcomePage.preferReducedMotion': {
+			scope: ConfigurationScope.APPLICATION,
+			type: 'boolean',
+			default: false,
+			description: localize('workbench.welcomePage.preferReducedMotion', "When enabled, reduce motion in welcome page.")
+		}
+	}
+} as const;
+
 class WorkbenchConfigurationContribution {
 	constructor(
 		@IInstantiationService _instantiationService: IInstantiationService,
 		@IGettingStartedService _gettingStartedService: IGettingStartedService,
+		@IConfigurationService _configurationService: IConfigurationService,
+		@ITASExperimentService _experimentSevice: ITASExperimentService,
 	) {
 		// Init the getting started service via DI.
+		this.registerConfigs(_experimentSevice);
+	}
+
+	private async registerConfigs(_experimentSevice: ITASExperimentService) {
+		const preferReduced = await _experimentSevice.getTreatment('welcomePage.preferReducedMotion').catch(e => false);
+		if (preferReduced) {
+			configurationRegistry.deregisterConfigurations([prefersStandardMotionConfig]);
+			configurationRegistry.registerConfiguration(prefersReducedMotionConfig);
+		}
+		else {
+			configurationRegistry.deregisterConfigurations([prefersReducedMotionConfig]);
+			configurationRegistry.registerConfiguration(prefersStandardMotionConfig);
+		}
 	}
 }
 
@@ -312,7 +308,7 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION,
 			type: 'boolean',
 			default: true,
-			description: localize('workbench.welcomePage.walkthroughs.openOnInstall', "When enabled, an extension's walkthrough will open upon install the extension. Walkthroughs are the items contributed the the 'Getting Started' section of the welcome page")
+			description: localize('workbench.welcomePage.walkthroughs.openOnInstall', "When enabled, an extension's walkthrough will open upon install the extension.")
 		}
 	}
 });

@@ -9,12 +9,11 @@ import { FuzzyScore } from 'vs/base/common/filters';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isDefined } from 'vs/base/common/types';
-import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { ByLocationTestItemElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalNodes';
 import { IActionableTestTreeElement, ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import { NodeChangeList, NodeRenderDirective, NodeRenderFn, peersHaveChildren } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
 import { IComputedStateAndDurationAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
-import { InternalTestItem, TestDiffOpType, TestItemExpandState, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { InternalTestItem, TestDiffOpType, TestItemExpandState, TestResultState, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
@@ -74,38 +73,14 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 
 			for (const inTree of [...this.items.values()].sort((a, b) => b.depth - a.depth)) {
 				const lookup = this.results.getStateById(inTree.test.item.extId)?.[1];
-				let computed = TestResultState.Unset;
-				let ownDuration: number | undefined;
-				let updated = false;
-				if (lookup) {
-					computed = lookup.computedState;
-					ownDuration = lookup.ownDuration;
-				}
-
-				if (lookup) {
-					inTree.ownState = lookup.ownComputedState;
-				}
-
-				if (computed !== inTree.state) {
-					inTree.state = computed;
-					updated = true;
-				}
-
-				if (ownDuration !== inTree.ownDuration) {
-					inTree.ownDuration = ownDuration;
-					updated = true;
-				}
-
-				if (updated) {
-					this.addUpdated(inTree);
-				}
+				inTree.ownDuration = lookup?.ownDuration;
+				refreshComputedState(computedStateAccessor, inTree, lookup?.ownComputedState ?? TestResultState.Unset).forEach(this.addUpdated);
 			}
 
 			this.updateEmitter.fire();
 		}));
 
 		// when test states change, reflect in the tree
-		// todo: optimize this to avoid needing to iterate
 		this._register(results.onTestChanged(({ item: result }) => {
 			if (result.ownComputedState === TestResultState.Unset) {
 				const fallback = results.getStateById(result.item.extId);

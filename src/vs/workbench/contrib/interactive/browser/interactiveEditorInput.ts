@@ -6,15 +6,18 @@
 import * as paths from 'vs/base/common/path';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { ITextModel } from 'vs/editor/common/model';
+import { IModelService } from 'vs/editor/common/services/modelService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
+import { IInteractiveDocumentService } from 'vs/workbench/contrib/interactive/browser/interactiveDocumentService';
 import { IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICompositeNotebookEditorInput, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 
 export class InteractiveEditorInput extends SideBySideEditorInput implements ICompositeNotebookEditorInput {
-	static create(instantiationService: IInstantiationService, resource: URI, inputResource: URI) {
-		return instantiationService.createInstance(InteractiveEditorInput, resource, inputResource);
+	static create(instantiationService: IInstantiationService, resource: URI, inputResource: URI, title?: string) {
+		return instantiationService.createInstance(InteractiveEditorInput, resource, inputResource, title);
 	}
 
 	static override readonly ID: string = 'workbench.input.interactive';
@@ -22,6 +25,8 @@ export class InteractiveEditorInput extends SideBySideEditorInput implements ICo
 	override get typeId(): string {
 		return InteractiveEditorInput.ID;
 	}
+
+	private _initTitle?: string;
 
 	private _notebookEditorInput: NotebookEditorInput;
 	get notebookEditorInput() {
@@ -44,18 +49,35 @@ export class InteractiveEditorInput extends SideBySideEditorInput implements ICo
 	private _inputResolver: Promise<IResolvedNotebookEditorModel | null> | null;
 	private _editorModelReference: IResolvedNotebookEditorModel | null;
 
+	private _inputModel: ITextModel | null;
+
+	get inputModel() {
+		return this._inputModel;
+	}
+
+	private _modelService: IModelService;
+	private _interactiveDocumentService: IInteractiveDocumentService;
+
+
 	constructor(
 		resource: URI,
 		inputResource: URI,
-		@IInstantiationService instantiationService: IInstantiationService
+		title: string | undefined,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IModelService modelService: IModelService,
+		@IInteractiveDocumentService interactiveDocumentService: IInteractiveDocumentService
 	) {
 		const input = NotebookEditorInput.create(instantiationService, resource, 'interactive', {});
 		super(undefined, undefined, input, input);
 		this._notebookEditorInput = input;
 		this._register(this._notebookEditorInput);
+		this._initTitle = title;
 		this._inputResource = inputResource;
 		this._inputResolver = null;
 		this._editorModelReference = null;
+		this._inputModel = null;
+		this._modelService = modelService;
+		this._interactiveDocumentService = interactiveDocumentService;
 	}
 
 	override isDirty() {
@@ -83,6 +105,15 @@ export class InteractiveEditorInput extends SideBySideEditorInput implements ICo
 		return this._inputResolver;
 	}
 
+	resolveInput(language: string) {
+		if (this._inputModel) {
+			return this._inputModel;
+		}
+
+		this._interactiveDocumentService.willCreateInteractiveDocument(this.resource!, this.inputResource, language);
+		this._inputModel = this._modelService.createModel('', null, this.inputResource, false);
+		return this._inputModel;
+	}
 
 	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
 		if (super.matches(otherInput)) {
@@ -95,6 +126,10 @@ export class InteractiveEditorInput extends SideBySideEditorInput implements ICo
 	}
 
 	override getName() {
+		if (this._initTitle) {
+			return this._initTitle;
+		}
+
 		const p = this.primary.resource!.path;
 		const basename = paths.basename(p);
 
@@ -108,6 +143,9 @@ export class InteractiveEditorInput extends SideBySideEditorInput implements ICo
 		this._notebookEditorInput?.dispose();
 		this._editorModelReference?.dispose();
 		this._editorModelReference = null;
+		this._interactiveDocumentService.willRemoveInteractiveDocument(this.resource!, this.inputResource);
+		this._inputModel?.dispose();
+		this._inputModel = null;
 		super.dispose();
 	}
 }

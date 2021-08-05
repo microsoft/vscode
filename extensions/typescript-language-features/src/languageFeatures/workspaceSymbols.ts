@@ -10,8 +10,8 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import * as fileSchemes from '../utils/fileSchemes';
 import { doesResourceLookLikeAJavaScriptFile, doesResourceLookLikeATypeScriptFile } from '../utils/languageDescription';
-import * as typeConverters from '../utils/typeConverters';
 import { parseKindModifier } from '../utils/modifiers';
+import * as typeConverters from '../utils/typeConverters';
 
 function getSymbolKind(item: Proto.NavtoItem): vscode.SymbolKind {
 	switch (item.kind) {

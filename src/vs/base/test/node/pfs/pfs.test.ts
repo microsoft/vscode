@@ -6,14 +6,13 @@
 import * as assert from 'assert';
 import * as fs from 'fs';
 import { tmpdir } from 'os';
+import { timeout } from 'vs/base/common/async';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { join, sep } from 'vs/base/common/path';
+import { isWindows } from 'vs/base/common/platform';
 import { generateUuid } from 'vs/base/common/uuid';
 import { Promises, RimRafMode, rimrafSync, SymlinkSupport, writeFileSync } from 'vs/base/node/pfs';
-import { timeout } from 'vs/base/common/async';
-import { canNormalize } from 'vs/base/common/normalization';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { flakySuite, getRandomTestPath, getPathFromAmdModule } from 'vs/base/test/node/testUtils';
-import { isWindows } from 'vs/base/common/platform';
+import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
 
 flakySuite('PFS', function () {
 
@@ -346,7 +345,7 @@ flakySuite('PFS', function () {
 	});
 
 	test('readdir', async () => {
-		if (canNormalize && typeof process.versions['electron'] !== 'undefined' /* needs electron */) {
+		if (typeof process.versions['electron'] !== 'undefined' /* needs electron */) {
 			const id = generateUuid();
 			const newDir = join(testDir, 'pfs', id, 'öäü');
 
@@ -360,7 +359,7 @@ flakySuite('PFS', function () {
 	});
 
 	test('readdir (with file types)', async () => {
-		if (canNormalize && typeof process.versions['electron'] !== 'undefined' /* needs electron */) {
+		if (typeof process.versions['electron'] !== 'undefined' /* needs electron */) {
 			const newDir = join(testDir, 'öäü');
 			await Promises.mkdir(newDir, { recursive: true });
 

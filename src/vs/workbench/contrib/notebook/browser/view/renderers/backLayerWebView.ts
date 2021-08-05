@@ -72,7 +72,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	private readonly _onMessage = this._register(new Emitter<INotebookWebviewMessage>());
 	private readonly _preloadsCache = new Set<string>();
 	public readonly onMessage: Event<INotebookWebviewMessage> = this._onMessage.event;
-	private _initalized?: Promise<void>;
 	private _disposed = false;
 	private _currentKernel?: INotebookKernel;
 
@@ -112,14 +111,21 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		this.element.style.position = 'absolute';
 
 		if (rendererMessaging) {
-			this._register(rendererMessaging.onDidReceiveMessage(evt => {
+			this._register(rendererMessaging);
+			rendererMessaging.receiveMessageHandler = (rendererId, message) => {
+				if (!this.webview || this._disposed) {
+					return Promise.resolve(false);
+				}
+
 				this._sendMessageToWebview({
 					__vscode_notebook_message: true,
 					type: 'customRendererMessage',
-					rendererId: evt.rendererId,
-					message: evt.message
+					rendererId: rendererId,
+					message: message
 				});
-			}));
+
+				return Promise.resolve(true);
+			};
 		}
 	}
 
@@ -174,7 +180,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		};
 	}
 
-	private generateContent(coreDependencies: string, baseUrl: string) {
+	private generateContent(baseUrl: string) {
 		const renderersData = this.getRendererData();
 		return html`
 		<html lang="en">
@@ -295,10 +301,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				</style>
 			</head>
 			<body style="overflow: hidden;">
-				<script>
-					self.require = {};
-				</script>
-				${coreDependencies}
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
 				<script type="module">${preloadsScriptStr(this.options, { dragAndDropEnabled: this.options.dragAndDropEnabled }, renderersData)}</script>
 			</body>
@@ -344,70 +346,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		return !!this.webview;
 	}
 
-	async createWebview(): Promise<void> {
+	createWebview(): void {
 		const baseUrl = this.asWebviewUri(dirname(this.documentUri), undefined);
-
-		// Python hasn't moved to use a preload to load require support yet.
-		// For all other notebooks, we no longer want to include our loader.
-		if (!this.documentUri.path.toLowerCase().endsWith('.ipynb')) {
-			const htmlContent = this.generateContent('', baseUrl.toString());
-			this._initialize(htmlContent);
-			return;
-		}
-
-		let coreDependencies = '';
-		let resolveFunc: () => void;
-
-		this._initalized = new Promise<void>((resolve, reject) => {
-			resolveFunc = resolve;
-		});
-
-
-		if (!isWeb) {
-			const loaderUri = FileAccess.asFileUri('vs/loader.js', require);
-			const loader = this.asWebviewUri(loaderUri, undefined);
-
-			coreDependencies = `<script src="${loader}"></script><script>
-			var requirejs = (function() {
-				return require;
-			}());
-			</script>`;
-			const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
-			this._initialize(htmlContent);
-			resolveFunc!();
-		} else {
-			const loaderUri = FileAccess.asBrowserUri('vs/loader.js', require);
-
-			fetch(loaderUri.toString(true)).then(async response => {
-				if (response.status !== 200) {
-					throw new Error(response.statusText);
-				}
-
-				const loaderJs = await response.text();
-
-				coreDependencies = `
-<script>
-${loaderJs}
-</script>
-<script>
-var requirejs = (function() {
-	return require;
-}());
-</script>
-`;
-
-				const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
-				this._initialize(htmlContent);
-				resolveFunc!();
-			}, error => {
-				// the fetch request is rejected
-				const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
-				this._initialize(htmlContent);
-				resolveFunc!();
-			});
-		}
-
-		await this._initalized;
+		const htmlContent = this.generateContent(baseUrl.toString());
+		this._initialize(htmlContent);
+		return;
 	}
 
 	private _initialize(content: string) {
@@ -644,7 +587,14 @@ var requirejs = (function() {
 						this.notebookEditor.didEndDragMarkupCell(data.cellId);
 						break;
 					}
-
+				case 'renderedMarkup':
+					{
+						const cell = this.notebookEditor.getCellById(data.cellId);
+						if (cell instanceof MarkupCellViewModel) {
+							cell.renderedHtml = data.html;
+						}
+						break;
+					}
 				case 'telemetryFoundRenderedMarkdownMath':
 					{
 						this.telemetryService.publicLog2<{}, {}>('notebook/markdown/renderedLatex', {});
@@ -954,22 +904,23 @@ var requirejs = (function() {
 		});
 	}
 
-	async initializeMarkup(cells: readonly IMarkupCellInitialization[]) {
+	async initializeMarkup(cells: readonly IMarkupCellInitialization[]): Promise<void> {
 		if (this._disposed) {
 			return;
 		}
 
 		// TODO: use proper handler
 		const p = new Promise<void>(resolve => {
-			this.webview?.onMessage(e => {
+			const sub = this.webview?.onMessage(e => {
 				if (e.message.type === 'initializedMarkup') {
 					resolve();
+					sub?.dispose();
 				}
 			});
 		});
 
 		for (const cell of cells) {
-			this.markupPreviewMapping.set(cell.cellId, { ...cell, visible: false });
+			this.markupPreviewMapping.set(cell.cellId, cell);
 		}
 
 		this._sendMessageToWebview({

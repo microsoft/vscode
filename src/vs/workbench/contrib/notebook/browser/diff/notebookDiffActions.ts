@@ -9,7 +9,8 @@ import { Action2, ICommandActionTitle, MenuId, registerAction2 } from 'vs/platfo
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ActiveEditorContext, viewColumnToEditorGroup } from 'vs/workbench/common/editor';
+import { ActiveEditorContext } from 'vs/workbench/common/editor';
+import { columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { DiffElementViewModelBase } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffEditor';
@@ -19,7 +20,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { EditorOverride } from 'vs/platform/editor/common/editor';
+import { EditorResolution } from 'vs/platform/editor/common/editor';
 
 // ActiveEditorContext.isEqualTo(SearchEditorConstants.SearchEditorID)
 
@@ -48,14 +49,14 @@ registerAction2(class extends Action2 {
 
 			await editorService.openEditor(
 				{
-					originalInput: { resource: diffEditorInput.originalInput.resource },
-					modifiedInput: { resource: diffEditorInput.resource },
+					original: { resource: diffEditorInput.original.resource },
+					modified: { resource: diffEditorInput.resource },
 					label: diffEditorInput.getName(),
 					options: {
 						preserveFocus: false,
-						override: EditorOverride.DISABLED
+						override: EditorResolution.DISABLED
 					}
-				}, viewColumnToEditorGroup(editorGroupService, undefined));
+				}, columnToEditorGroup(editorGroupService, undefined));
 		}
 	}
 });
@@ -229,12 +230,12 @@ class ToggleRenderAction extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 
 		if (this.toggleOutputs !== undefined) {
-			const oldValue = configurationService.getValue<boolean>('notebook.diff.ignoreOutputs');
+			const oldValue = configurationService.getValue('notebook.diff.ignoreOutputs');
 			configurationService.updateValue('notebook.diff.ignoreOutputs', !oldValue);
 		}
 
 		if (this.toggleMetadata !== undefined) {
-			const oldValue = configurationService.getValue<boolean>('notebook.diff.ignoreMetadata');
+			const oldValue = configurationService.getValue('notebook.diff.ignoreMetadata');
 			configurationService.updateValue('notebook.diff.ignoreMetadata', !oldValue);
 		}
 	}

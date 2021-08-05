@@ -311,10 +311,10 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		} catch (e) {
 			this.logService.error(e);
 		}
-		if (!this.syncKeybindingsPerPlatform()) {
-			parsed.all = keybindingsContent;
-		} else {
+		if (this.syncKeybindingsPerPlatform()) {
 			delete parsed.all;
+		} else {
+			parsed.all = keybindingsContent;
 		}
 		switch (OS) {
 			case OperatingSystem.Macintosh:
@@ -331,15 +331,15 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 	}
 
 	private syncKeybindingsPerPlatform(): boolean {
-		let userValue = this.configurationService.inspect<boolean>('settingsSync.keybindingsPerPlatform').userValue;
+		let userValue = !!this.configurationService.inspect('settingsSync.keybindingsPerPlatform').userValue;
 		if (userValue !== undefined) {
 			return userValue;
 		}
-		userValue = this.configurationService.inspect<boolean>('sync.keybindingsPerPlatform').userValue;
+		userValue = !!this.configurationService.inspect('sync.keybindingsPerPlatform').userValue;
 		if (userValue !== undefined) {
 			return userValue;
 		}
-		return this.configurationService.getValue<boolean>('settingsSync.keybindingsPerPlatform');
+		return !!this.configurationService.getValue('settingsSync.keybindingsPerPlatform');
 	}
 
 }

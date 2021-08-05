@@ -125,7 +125,7 @@ export class VariablesView extends ViewPane {
 			new VariablesDataSource(), {
 			accessibilityProvider: new VariablesAccessibilityProvider(),
 			identityProvider: { getId: (element: IExpression | IScope) => element.getId() },
-			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression | IScope) => e },
+			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression | IScope) => e.name },
 			overrideStyles: {
 				listBackground: this.getBackgroundColor()
 			}

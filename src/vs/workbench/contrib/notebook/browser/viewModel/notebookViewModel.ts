@@ -308,14 +308,15 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			for (let i = 0; i < e.rawEvents.length; i++) {
 				const change = e.rawEvents[i];
 				let changes: NotebookCellTextModelSplice<ICell>[] = [];
+				const synchronous = e.synchronous ?? true;
 
 				if (change.kind === NotebookCellsChangeType.ModelChange || change.kind === NotebookCellsChangeType.Initialize) {
 					changes = change.changes;
-					compute(changes, e.synchronous);
+					compute(changes, synchronous);
 					continue;
 				} else if (change.kind === NotebookCellsChangeType.Move) {
-					compute([[change.index, change.length, []]], e.synchronous);
-					compute([[change.newIdx, 0, change.cells]], e.synchronous);
+					compute([[change.index, change.length, []]], synchronous);
+					compute([[change.newIdx, 0, change.cells]], synchronous);
 				} else {
 					continue;
 				}
