@@ -92,7 +92,7 @@ steps:
         export CC=$PWD/.build/CR_Clang/bin/clang
         export CXX=$PWD/.build/CR_Clang/bin/clang++
         export CXXFLAGS="-nostdinc++ -D_LIBCPP_HAS_NO_VENDOR_AVAILABILITY_ANNOTATIONS -isystem$PWD/.build/libcxx_headers/include -isystem$PWD/.build/libcxxabi_headers/include -fPIC"
-        export LDFLAGS="-stdlib=libc++ -fuse-ld=lld -L$PWD/.build/libcxx-objects -lc++abi"
+        export LDFLAGS="-stdlib=libc++ -fuse-ld=lld -flto=thin -fsplit-lto-unit -L$PWD/.build/libcxx-objects -lc++abi"
       fi
 
       if [ "$VSCODE_ARCH" == "x64" ]; then
