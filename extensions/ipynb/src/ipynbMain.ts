@@ -7,7 +7,8 @@ import * as vscode from 'vscode';
 import { NotebookSerializer } from './notebookSerializer';
 
 export function activate(context: vscode.ExtensionContext) {
-	context.subscriptions.push(vscode.workspace.registerNotebookSerializer('jupyter-notebook', new NotebookSerializer(context), {
+	const serializer = new NotebookSerializer(context);
+	context.subscriptions.push(vscode.workspace.registerNotebookSerializer('jupyter-notebook', serializer, {
 		transientOutputs: false,
 		transientCellMetadata: {
 			breakpointMargin: true,
@@ -16,6 +17,16 @@ export function activate(context: vscode.ExtensionContext) {
 			custom: false
 		}
 	}));
+
+	return {
+		exportNotebook: (notebook: vscode.NotebookData): Uint8Array => {
+			return exportNotebook(notebook, serializer);
+		}
+	};
+}
+
+function exportNotebook(notebook: vscode.NotebookData, serializer: NotebookSerializer): Uint8Array {
+	return serializer.serializeNotebook(notebook, new vscode.CancellationTokenSource().token);
 }
 
 export function deactivate() { }
