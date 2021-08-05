@@ -52,7 +52,7 @@ export class NotebookProviderInfoStore extends Disposable {
 	private readonly _contributedEditorDisposables = new DisposableStore();
 
 	constructor(
-		@INotebookService private readonly _notebookService: INotebookService,
+		private readonly existsCallback: (uri: URI) => boolean,
 		@IStorageService storageService: IStorageService,
 		@IExtensionService extensionService: IExtensionService,
 		@IEditorResolverService private readonly _editorResolverService: IEditorResolverService,
@@ -173,7 +173,7 @@ export class NotebookProviderInfoStore extends Disposable {
 				let uri: URI;
 				for (let counter = 1; ; counter++) {
 					let candidate = URI.from({ scheme: Schemas.untitled, path: resource?.path ?? `Untitled-${counter}${suffix}`, query: notebookProviderInfo.id });
-					if (!this._notebookService.getNotebookTextModel(candidate)) {
+					if (!this.existsCallback(candidate)) {
 						uri = candidate;
 						break;
 					} else {
@@ -330,15 +330,7 @@ export class NotebookService extends Disposable implements INotebookService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _notebookProviders = new Map<string, ComplexNotebookProviderInfo | SimpleNotebookProviderInfo>();
-	private _notebookProviderInfoStore: NotebookProviderInfoStore | undefined = undefined;
-	private get notebookProviderInfoStore(): NotebookProviderInfoStore {
-		if (!this._notebookProviderInfoStore) {
-			this._notebookProviderInfoStore = this._instantiationService.createInstance(NotebookProviderInfoStore);
-			this._register(this._notebookProviderInfoStore);
-		}
-
-		return this._notebookProviderInfoStore;
-	}
+	private readonly _notebookProviderInfoStore: NotebookProviderInfoStore;
 	private readonly _notebookRenderersInfoStore = this._instantiationService.createInstance(NotebookOutputRendererInfoStore);
 	private readonly _models = new ResourceMap<ModelData>();
 
@@ -373,6 +365,9 @@ export class NotebookService extends Disposable implements INotebookService {
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
+
+		this._notebookProviderInfoStore = _instantiationService.createInstance(NotebookProviderInfoStore, uri => !!this.getNotebookTextModel(uri));
+		this._register(this._notebookProviderInfoStore);
 
 		notebookRendererExtensionPoint.setHandler((renderers) => {
 			this._notebookRenderersInfoStore.clear();
@@ -462,7 +457,7 @@ export class NotebookService extends Disposable implements INotebookService {
 
 
 	getEditorTypes(): IEditorType[] {
-		return [...this.notebookProviderInfoStore].map(info => ({
+		return [...this._notebookProviderInfoStore].map(info => ({
 			id: info.id,
 			displayName: info.displayName,
 			providerDisplayName: info.providerDisplayName
@@ -494,7 +489,7 @@ export class NotebookService extends Disposable implements INotebookService {
 
 		info.update({ selectors: data.filenamePattern });
 
-		const reg = this.notebookProviderInfoStore.add(info);
+		const reg = this._notebookProviderInfoStore.add(info);
 		this._onDidChangeEditorTypes.fire();
 
 		return toDisposable(() => {
@@ -515,17 +510,17 @@ export class NotebookService extends Disposable implements INotebookService {
 	}
 
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: INotebookContentProvider): IDisposable {
-		this.notebookProviderInfoStore.get(viewType)?.update({ options: controller.options });
+		this._notebookProviderInfoStore.get(viewType)?.update({ options: controller.options });
 		return this._registerProviderData(viewType, new ComplexNotebookProviderInfo(viewType, controller, extensionData));
 	}
 
 	registerNotebookSerializer(viewType: string, extensionData: NotebookExtensionDescription, serializer: INotebookSerializer): IDisposable {
-		this.notebookProviderInfoStore.get(viewType)?.update({ options: serializer.options });
+		this._notebookProviderInfoStore.get(viewType)?.update({ options: serializer.options });
 		return this._registerProviderData(viewType, new SimpleNotebookProviderInfo(viewType, serializer, extensionData));
 	}
 
 	async withNotebookDataProvider(resource: URI, viewType?: string): Promise<ComplexNotebookProviderInfo | SimpleNotebookProviderInfo> {
-		const providers = this.notebookProviderInfoStore.getContributedNotebook(resource);
+		const providers = this._notebookProviderInfoStore.getContributedNotebook(resource);
 		// If we have a viewtype specified we want that data provider, as the resource won't always map correctly
 		const selected = viewType ? providers.find(p => p.id === viewType) : providers[0];
 		if (!selected) {
@@ -649,14 +644,14 @@ export class NotebookService extends Disposable implements INotebookService {
 
 	getContributedNotebookTypes(resource?: URI): readonly NotebookProviderInfo[] {
 		if (resource) {
-			return this.notebookProviderInfoStore.getContributedNotebook(resource);
+			return this._notebookProviderInfoStore.getContributedNotebook(resource);
 		}
 
-		return [...this.notebookProviderInfoStore];
+		return [...this._notebookProviderInfoStore];
 	}
 
 	getContributedNotebookType(viewType: string): NotebookProviderInfo | undefined {
-		return this.notebookProviderInfoStore.get(viewType);
+		return this._notebookProviderInfoStore.get(viewType);
 	}
 
 	getNotebookProviderResourceRoots(): URI[] {

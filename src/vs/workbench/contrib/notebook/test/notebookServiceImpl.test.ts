@@ -13,7 +13,6 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { NotebookProviderInfoStore } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { EditorResolverService } from 'vs/workbench/services/editor/browser/editorResolverService';
 import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IExtensionService, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
@@ -25,9 +24,7 @@ suite('NotebookProviderInfoStore', function () {
 
 		const instantiationService = workbenchInstantiationService();
 		const store = new NotebookProviderInfoStore(
-			new class extends mock<INotebookService>() {
-				override getNotebookTextModel(uri: URI): undefined { return undefined; }
-			},
+			(_uri) => false,
 			new class extends mock<IStorageService>() {
 				override get() { return ''; }
 				override store() { }
