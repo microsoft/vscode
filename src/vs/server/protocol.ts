@@ -5,12 +5,13 @@
 
 import * as net from 'net';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
+import { ISocket, PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
 import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { ConsoleLogger, LogLevel } from 'vs/platform/log/common/log';
 import { AuthRequest, ConnectionTypeRequest, HandshakeMessage } from 'vs/platform/remote/common/remoteAgentConnection';
-
-export interface SocketOptions {
+import { ServerSocket, ServerWebSocket } from 'vs/platform/remote/common/serverWebSocket';
+import * as strings from 'vs/base/common/strings';
+export interface ServerProtocolOptions {
 	/** The token is how we identify and connect to existing sessions. */
 	readonly reconnectionToken: string;
 	/** Specifies that the client is trying to reconnect. */
@@ -28,24 +29,23 @@ export interface SocketOptions {
 	readonly inflateBytes?: VSBuffer;
 }
 
-export class Protocol extends PersistentProtocol {
-	private readonly logger: ConsoleLogger;
-
-	public constructor(socket: net.Socket, public readonly options: SocketOptions) {
-		super(
-			options.skipWebSocketFrames
-				? new NodeSocket(socket)
-				: new WebSocketNodeSocket(
-					new NodeSocket(socket),
-					options.permessageDeflate || false,
-					options.inflateBytes || null,
-					// Always record inflate bytes if using permessage-deflate.
-					options.permessageDeflate || false,
-				),
-		);
-
-		this.logger = new ConsoleLogger(LogLevel.Info);
+export const createSocketWrapper = (netSocket: net.Socket, { skipWebSocketFrames, permessageDeflate, inflateBytes }: ServerProtocolOptions) => {
+	const nodeSocket = new NodeSocket(netSocket);
+	if (skipWebSocketFrames) {
+		return nodeSocket;
 	}
+
+	return new WebSocketNodeSocket(
+		nodeSocket,
+		permessageDeflate || false,
+		inflateBytes || null,
+		// Always record inflate bytes if using permessage-deflate.
+		permessageDeflate || false,
+	);
+};
+
+export class Protocol extends PersistentProtocol {
+	private readonly logger = new ConsoleLogger(LogLevel.Info);
 
 	public getUnderlyingSocket(): net.Socket {
 		const socket = this.getSocket();
@@ -58,7 +58,7 @@ export class Protocol extends PersistentProtocol {
 	 * Perform a handshake to get a connection request.
 	 */
 	public handshake(): Promise<ConnectionTypeRequest> {
-		this.logger.debug('Initiating handshake...');
+		this.logger.info('Initiating handshake...');
 
 		return new Promise((resolve, reject) => {
 			const cleanup = () => {
@@ -69,27 +69,32 @@ export class Protocol extends PersistentProtocol {
 
 			const onClose = this.onSocketClose(() => {
 				cleanup();
-				this.logger.debug('Handshake failed');
+				this.logger.error('Handshake failed');
 				reject(new Error('Protocol socket closed unexpectedly'));
 			});
 
 			const timeout = setTimeout(() => {
 				cleanup();
-				this.logger.debug('Handshake timed out');
+				this.logger.error('Handshake timed out');
 				reject(new Error('Protocol handshake timed out'));
-			}, 10000); // Matches the client timeout.
+			}, 20000); // Matches the client timeout.
+
+			this.onMessage(rawMessage => {
+				const message = rawMessage.toString();
+				this.logger.info('Got message', message);
+			});
 
 			const handler = this.onControlMessage((rawMessage) => {
 				try {
 					const raw = rawMessage.toString();
-					this.logger.trace('Got message', raw);
-					const message = JSON.parse(raw);
+					this.logger.info('Got message', raw);
+					const message: HandshakeMessage = JSON.parse(raw);
 					switch (message.type) {
 						case 'auth':
 							return this.authenticate(message);
 						case 'connectionType':
 							cleanup();
-							this.logger.debug('Handshake completed');
+							this.logger.info('Handshake completed');
 							return resolve(message);
 						default:
 							throw new Error('Unrecognized message type');
@@ -110,6 +115,7 @@ export class Protocol extends PersistentProtocol {
 	 * TODO: This ignores the authentication process entirely for now.
 	 */
 	private authenticate(_?: AuthRequest): void {
+		this.logger.info('Authenticating');
 		this.sendMessage({ type: 'sign', data: '' });
 	}
 

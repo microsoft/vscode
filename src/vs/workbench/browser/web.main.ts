@@ -368,6 +368,9 @@ class BrowserMain extends Disposable {
 		}
 	}
 
+	/**
+	 * @coder There seems to be only partial support for workspaces on the web.
+	 */
 	private resolveWorkspaceInitializationPayload(): IWorkspaceInitializationPayload {
 		let workspace: IWorkspace | undefined = undefined;
 		if (this.configuration.workspaceProvider) {
@@ -390,7 +393,6 @@ class BrowserMain extends Disposable {
 
 export function main(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<IWorkbench> {
 	const workbench = new BrowserMain(domElement, options);
-	// options.workspaceProvider?.payload =
 
 	return workbench.open();
 }

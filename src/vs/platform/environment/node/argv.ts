@@ -56,6 +56,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'extra-extensions-dir': { type: 'string[]', cat: 'o', description: localize('extra-extensions-dir', 'Path to an extra user extension directory.') },
 	'extra-builtin-extensions-dir': { type: 'string[]', cat: 'o', description: localize('extra-builtin-extensions-dir', 'Path to an extra builtin extension directory.') },
 	'ignore-last-opened': { type: 'string', cat: 'o', description: localize('ignore-last-opened', "Ignore last opened.") },
+	'server': { type: 'string', cat: 'o', description: localize('server', "Run a remote server e.g. http://localhost:8080") },
 	/** @coder: END */
 	'list-extensions': { type: 'boolean', cat: 'e', description: localize('listExtensions', "List the installed extensions.") },
 	'show-versions': { type: 'boolean', cat: 'e', description: localize('showVersions', "Show versions of installed extensions, when using --list-extensions.") },

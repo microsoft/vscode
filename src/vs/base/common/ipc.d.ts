@@ -14,13 +14,8 @@ export interface CodeServerConfiguration {
 	logLevel: number
 }
 
-export interface InitMessage {
-	type: 'init'
-	id: string
-	options: VscodeInitializationOptions
-}
 
-export type Query = { [key: string]: string | string[] | undefined | Query | Query[] }
+export type Query = { [key: string]: string | string[] | undefined | Query | Query[] };
 
 export interface SocketMessage {
 	type: 'socket'
@@ -30,7 +25,7 @@ export interface SocketMessage {
 
 export interface CliMessage {
 	type: 'cli'
-	args: Args
+	// args: Args
 }
 
 export interface OpenCommandPipeArgs {
@@ -45,7 +40,7 @@ export interface OpenCommandPipeArgs {
 	waitMarkerFilePath?: string
 }
 
-export type CodeServerMessage = InitMessage | SocketMessage | CliMessage
+export type CodeServerMessage = SocketMessage | CliMessage;
 
 export interface ReadyMessage {
 	type: 'ready'
@@ -54,33 +49,28 @@ export interface ReadyMessage {
 export interface OptionsMessage {
 	id: string
 	type: 'options'
-	options: WorkbenchOptions
+	// options: WorkbenchOptions
 }
 
-export type VscodeMessage = ReadyMessage | OptionsMessage
+export type VscodeMessage = ReadyMessage | OptionsMessage;
 
-export interface StartPath {
-	url: string
-	workspace: boolean
-}
+// export interface Args {
+// 	'user-data-dir'?: string
 
-export interface Args {
-	'user-data-dir'?: string
+// 	'enable-proposed-api'?: string[]
+// 	'extensions-dir'?: string
+// 	'builtin-extensions-dir'?: string
+// 	'extra-extensions-dir'?: string[]
+// 	'extra-builtin-extensions-dir'?: string[]
+// 	'ignore-last-opened'?: boolean
 
-	'enable-proposed-api'?: string[]
-	'extensions-dir'?: string
-	'builtin-extensions-dir'?: string
-	'extra-extensions-dir'?: string[]
-	'extra-builtin-extensions-dir'?: string[]
-	'ignore-last-opened'?: boolean
+// 	locale?: string
 
-	locale?: string
+// 	log?: string
+// 	verbose?: boolean
 
-	log?: string
-	verbose?: boolean
-
-	_: string[]
-}
+// 	_: string[]
+// }
 
 export interface UriComponents {
 	readonly scheme: string
@@ -88,39 +78,6 @@ export interface UriComponents {
 	readonly path: string
 	readonly query: string
 	readonly fragment: string
-}
-
-export interface NLSConfiguration {
-	locale: string
-	availableLanguages: {
-		[key: string]: string
-	}
-	pseudo?: boolean
-	_languagePackSupport?: boolean
-}
-
-export interface WorkbenchOptions {
-	readonly workbenchWebConfiguration: {
-		readonly remoteAuthority?: string
-		readonly folderUri?: UriComponents
-		readonly workspaceUri?: UriComponents
-		readonly logLevel?: number
-		readonly workspaceProvider?: {
-			payload: [['userDataPath', string], ['enableProposedApi', string]]
-		}
-	}
-	readonly remoteUserDataUri: UriComponents
-	readonly productConfiguration: {
-		codeServerVersion?: string
-		readonly extensionsGallery?: {
-			readonly serviceUrl: string
-			readonly itemUrl: string
-			readonly controlUrl: string
-			readonly recommendationsUrl: string
-		}
-	}
-	readonly nlsConfiguration: NLSConfiguration
-	readonly commit: string
 }
 
 export interface WorkbenchOptionsMessage {

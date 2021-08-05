@@ -71,6 +71,14 @@ export interface IWorkspaceProvider {
 	open(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<boolean>;
 }
 
+/**
+ * @coder Similar to the workspace provider, without `open` helper.
+ * This allows for JSON serialization when passing options to a client.
+ */
+export interface IServerWorkspaceProvider extends Omit<IWorkspaceProvider, 'open'> {
+	payload: [['userDataPath', string], ['enableProposedApi', string]];
+}
+
 enum HostShutdownReason {
 
 	/**

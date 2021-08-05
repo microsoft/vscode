@@ -8,11 +8,9 @@ import { app, dialog } from 'electron';
 import { unlinkSync } from 'fs';
 import { Promises as FSPromises } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
-import { isWindows, IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
+import { isWindows, IProcessEnvironment } from 'vs/base/common/platform';
 import { mark } from 'vs/base/common/performance';
 import product from 'vs/platform/product/common/product';
-import { parseMainProcessArgv, addArg } from 'vs/platform/environment/node/argvHelper';
-import { createWaitMarkerFile } from 'vs/platform/environment/node/wait';
 import { LifecycleMainService, ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Server as NodeIPCServer, serve as nodeIPCServe, connect as nodeIPCConnect, XDG_RUNTIME_DIR } from 'vs/base/parts/ipc/node/ipc.net';
@@ -25,7 +23,6 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService, ConsoleMainLogger, MultiplexLogService, getLogLevel, ILoggerService } from 'vs/platform/log/common/log';
 import { StateMainService } from 'vs/platform/state/electron-main/stateMainService';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { IRequestService } from 'vs/platform/request/common/request';
@@ -47,18 +44,17 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { TunnelService } from 'vs/platform/remote/node/tunnelService';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IPathWithLineAndColumn, isValidBasename, parseLineAndColumnAware, sanitizeFilePath } from 'vs/base/common/extpath';
-import { rtrim, trim } from 'vs/base/common/strings';
-import { basename, join, resolve } from 'vs/base/common/path';
-import { coalesce, distinct } from 'vs/base/common/arrays';
+import { join } from 'vs/base/common/path';
+import { coalesce } from 'vs/base/common/arrays';
 import { EnvironmentMainService, IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
-import { cwd } from 'vs/base/common/process';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 import { ProtocolMainService } from 'vs/platform/protocol/electron-main/protocolMainService';
 import { Promises } from 'vs/base/common/async';
+// eslint-disable-next-line code-import-patterns
+import { ArgumentParser } from 'vs/platform/environment/argumentParser';
 
 /**
  * The main VS Code entry point.
@@ -67,9 +63,10 @@ import { Promises } from 'vs/base/common/async';
  * running and a second instance is started from the command line. It will always
  * try to communicate with an existing instance to prevent that 2 VS Code instances
  * are running at the same time.
+ *
+ * @coder Moved argument parsing code to `ArgumentParser` for sharing with `CodeServer`.
  */
-class CodeMain {
-
+export class CodeMain extends ArgumentParser {
 	main(): void {
 		try {
 			this.startup();
@@ -419,122 +416,7 @@ class CodeMain {
 		lifecycleMainService.kill(exitCode);
 	}
 
-	//#region Command line arguments utilities
 
-	private resolveArgs(): NativeParsedArgs {
-
-		// Parse arguments
-		const args = this.validatePaths(parseMainProcessArgv(process.argv));
-
-		// If we are started with --wait create a random temporary file
-		// and pass it over to the starting instance. We can use this file
-		// to wait for it to be deleted to monitor that the edited file
-		// is closed and then exit the waiting process.
-		//
-		// Note: we are not doing this if the wait marker has been already
-		// added as argument. This can happen if Code was started from CLI.
-		if (args.wait && !args.waitMarkerFilePath) {
-			const waitMarkerFilePath = createWaitMarkerFile(args.verbose);
-			if (waitMarkerFilePath) {
-				addArg(process.argv, '--waitMarkerFilePath', waitMarkerFilePath);
-				args.waitMarkerFilePath = waitMarkerFilePath;
-			}
-		}
-
-		return args;
-	}
-
-	private validatePaths(args: NativeParsedArgs): NativeParsedArgs {
-
-		// Track URLs if they're going to be used
-		if (args['open-url']) {
-			args._urls = args._;
-			args._ = [];
-		}
-
-		// Normalize paths and watch out for goto line mode
-		if (!args['remote']) {
-			const paths = this.doValidatePaths(args._, args.goto);
-			args._ = paths;
-		}
-
-		return args;
-	}
-
-	private doValidatePaths(args: string[], gotoLineMode?: boolean): string[] {
-		const currentWorkingDir = cwd();
-		const result = args.map(arg => {
-			let pathCandidate = String(arg);
-
-			let parsedPath: IPathWithLineAndColumn | undefined = undefined;
-			if (gotoLineMode) {
-				parsedPath = parseLineAndColumnAware(pathCandidate);
-				pathCandidate = parsedPath.path;
-			}
-
-			if (pathCandidate) {
-				pathCandidate = this.preparePath(currentWorkingDir, pathCandidate);
-			}
-
-			const sanitizedFilePath = sanitizeFilePath(pathCandidate, currentWorkingDir);
-
-			const filePathBasename = basename(sanitizedFilePath);
-			if (filePathBasename /* can be empty if code is opened on root */ && !isValidBasename(filePathBasename)) {
-				return null; // do not allow invalid file names
-			}
-
-			if (gotoLineMode && parsedPath) {
-				parsedPath.path = sanitizedFilePath;
-
-				return this.toPath(parsedPath);
-			}
-
-			return sanitizedFilePath;
-		});
-
-		const caseInsensitive = isWindows || isMacintosh;
-		const distinctPaths = distinct(result, path => path && caseInsensitive ? path.toLowerCase() : (path || ''));
-
-		return coalesce(distinctPaths);
-	}
-
-	private preparePath(cwd: string, path: string): string {
-
-		// Trim trailing quotes
-		if (isWindows) {
-			path = rtrim(path, '"'); // https://github.com/microsoft/vscode/issues/1498
-		}
-
-		// Trim whitespaces
-		path = trim(trim(path, ' '), '\t');
-
-		if (isWindows) {
-
-			// Resolve the path against cwd if it is relative
-			path = resolve(cwd, path);
-
-			// Trim trailing '.' chars on Windows to prevent invalid file names
-			path = rtrim(path, '.');
-		}
-
-		return path;
-	}
-
-	private toPath(pathWithLineAndCol: IPathWithLineAndColumn): string {
-		const segments = [pathWithLineAndCol.path];
-
-		if (typeof pathWithLineAndCol.line === 'number') {
-			segments.push(String(pathWithLineAndCol.line));
-		}
-
-		if (typeof pathWithLineAndCol.column === 'number') {
-			segments.push(String(pathWithLineAndCol.column));
-		}
-
-		return segments.join(':');
-	}
-
-	//#endregion
 }
 
 // Main Startup

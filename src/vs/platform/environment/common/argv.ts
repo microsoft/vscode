@@ -44,6 +44,7 @@ export interface NativeParsedArgs {
 	'extra-extensions-dir'?: string[];
 	'extra-builtin-extensions-dir'?: string[];
 	'ignore-last-opened'?: string,
+	'server'?: string,
 	/** @coder: END */
 	extensionDevelopmentPath?: string[]; // undefined or array of 1 or more local paths or URIs
 	extensionTestsPath?: string; // either a local path or a URI

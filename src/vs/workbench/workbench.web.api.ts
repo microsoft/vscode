@@ -13,12 +13,14 @@ import { LogLevel } from 'vs/platform/log/common/log';
 import { IUpdateProvider, IUpdate } from 'vs/workbench/services/update/browser/updateService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
+import { IWorkspaceProvider, IWorkspace, IServerWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IProductConfiguration } from 'vs/base/common/product';
 import { mark } from 'vs/base/common/performance';
 import { ICredentialsProvider } from 'vs/workbench/services/credentials/common/credentials';
 import { TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
+// eslint-disable-next-line code-import-patterns
+import { NLSConfiguration } from 'vs/base/node/languagePacks';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -441,6 +443,28 @@ interface IWorkbenchConstructionOptions {
 
 }
 
+/**
+ * @coder This is commonly used when initializing a code server.
+ */
+interface IOptionalPathURIs {
+	folderUri?: UriComponents
+	workspaceUri?: UriComponents
+}
+
+/**
+ * @coder Standard workbench constructor options with additional server paths.
+ * JSON serializable.
+ */
+interface IServerWorkbenchConstructionOptions extends Omit<IWorkbenchConstructionOptions, 'workspaceProvider'>, IOptionalPathURIs {
+	readonly workspaceProvider: IServerWorkspaceProvider
+	/** @TODO still used? */
+	readonly logLevel?: number
+
+	readonly remoteUserDataUri: UriComponents
+	readonly nlsConfiguration: NLSConfiguration
+	readonly commit: string
+}
+
 interface IDevelopmentOptions {
 
 	/**
@@ -609,6 +633,8 @@ export {
 	// Factory
 	create,
 	IWorkbenchConstructionOptions,
+	IServerWorkbenchConstructionOptions,
+	IOptionalPathURIs,
 	IWorkbench,
 
 	// Basic Types

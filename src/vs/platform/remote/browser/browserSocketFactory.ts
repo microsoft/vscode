@@ -250,6 +250,3 @@ export class BrowserSocketFactory implements ISocketFactory {
 		});
 	}
 }
-
-
-

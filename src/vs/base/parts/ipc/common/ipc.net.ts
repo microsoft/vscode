@@ -246,9 +246,12 @@ class ProtocolReader extends Disposable {
 		this._incomingData = new ChunkStream();
 		this._register(this._socket.onData(data => this.acceptChunk(data)));
 		this.lastReadTime = Date.now();
+		console.log('CREATED PROTOCOL READER');
 	}
 
 	public acceptChunk(data: VSBuffer | null): void {
+		console.log('ACCEPTING CHUNK', data?.toString());
+
 		if (!data || data.byteLength === 0) {
 			return;
 		}
@@ -263,6 +266,7 @@ class ProtocolReader extends Disposable {
 
 			if (this._state.readHead) {
 				// buff is the header
+				console.log('BUFF IS HEAD', buff.toString())
 
 				// save new state => next time will read the body
 				this._state.readHead = false;
@@ -271,6 +275,8 @@ class ProtocolReader extends Disposable {
 				this._state.id = buff.readUInt32BE(1);
 				this._state.ack = buff.readUInt32BE(5);
 			} else {
+				console.log('BUFF IS BODY')
+
 				// buff is the body
 				const messageType = this._state.messageType;
 				const id = this._state.id;
@@ -283,6 +289,7 @@ class ProtocolReader extends Disposable {
 				this._state.id = 0;
 				this._state.ack = 0;
 
+				console.log('WANT TO FIRE READER', buff.toString());
 				this._onMessage.fire(new ProtocolMessage(messageType, id, ack, buff));
 
 				if (this._isDisposed) {
@@ -420,6 +427,7 @@ export class Protocol extends Disposable implements IMessagePassingProtocol {
 		this._socketReader = this._register(new ProtocolReader(this._socket));
 
 		this._register(this._socketReader.onMessage((msg) => {
+			console.log('PROTOCOL MESSAGE', msg.type);
 			if (msg.type === ProtocolMessageType.Regular) {
 				this._onMessage.fire(msg.data);
 			}
@@ -841,6 +849,25 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	}
 
 	private _receiveMessage(msg: ProtocolMessage): void {
+		switch (msg.type) {
+			case ProtocolMessageType.KeepAlive:
+				console.log('KEEP ALIVE', msg.data.toString());
+				break;
+
+			case ProtocolMessageType.Control:
+				console.log('CONTROL', msg.data.toString());
+				break;
+
+			case ProtocolMessageType.Regular:
+				console.log('REGULAR');
+				break;
+
+
+			default:
+				console.log('>>', msg.type, msg.id);
+				break;
+		}
+
 		if (msg.ack > this._outgoingAckId) {
 			this._outgoingAckId = msg.ack;
 			do {

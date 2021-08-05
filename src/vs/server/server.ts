@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { getMachineId } from 'vs/base/node/id';
 import { ClientConnectionEvent, IPCServer, IServerChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { main } from 'vs/code/node/cliProcessMain';
-import { Query, StartPath, WorkbenchOptions } from 'vs/base/common/ipc';
+import { Query } from 'vs/base/common/ipc';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
@@ -32,7 +32,7 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
-import { ConsoleLogger, ConsoleMainLogger, getLogLevel, ILoggerService, ILogService, MultiplexLogService } from 'vs/platform/log/common/log';
+import { ConsoleLogger, ConsoleMainLogger, getLogLevel, ILogger, ILoggerService, ILogService, LogLevel, MultiplexLogService } from 'vs/platform/log/common/log';
 import { LogLevelChannel } from 'vs/platform/log/common/logIpc';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
@@ -54,7 +54,7 @@ import { ExtensionEnvironmentChannel, FileProviderChannel, TerminalProviderChann
 import { Connection, ExtensionHostConnection, ManagementConnection } from 'vs/server/connection';
 import { TelemetryClient } from 'vs/server/insights';
 import { getLocaleFromConfig, getNlsConfiguration } from 'vs/server/nls';
-import { Protocol } from 'vs/server/protocol';
+import { createSocketWrapper, Protocol, ServerProtocolOptions } from 'vs/server/protocol';
 import { REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/workbench/services/remote/common/remoteAgentFileSystemChannel';
 import { RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -62,16 +62,33 @@ import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 import { LogsDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/logsDataCleaner';
 import { createServerURITransformer } from 'vs/base/common/uriServer';
 import { Complete } from 'vs/base/common/types';
+import { IServerWorkbenchConstructionOptions, IWorkspace } from 'vs/workbench/workbench.web.api';
+// eslint-disable-next-line code-import-patterns
+import { ArgumentParser } from 'vs/platform/environment/argumentParser';
+import { toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import * as WebSocket from 'ws';
+// import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+// eslint-disable-next-line code-import-patterns
+import { ServerSocket, ServerWebSocket } from 'vs/platform/remote/common/serverWebSocket';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { IncomingMessage } from 'node:http';
 
 const commit = product.commit || 'development';
 const logger = new ConsoleMainLogger();
 
-export type VscodeServerArgs = NativeParsedArgs & Complete<Pick<NativeParsedArgs, 'remote'>>;
+export type VscodeServerArgs = NativeParsedArgs & Complete<Pick<NativeParsedArgs, 'server'>>;
+
+
+// const wrapWSSSocket = (ws: WebSocket): net.Socket => {
+// 	const socketStream = WebSocket.createWebSocketStream(ws);
+
+// 	return socketStream as net.Socket;
+// };
 
 /**
- * Handles client connections to a VSCode instance via IPC.
+ * Handles client connections to a editor instance via IPC.
  */
-export class VscodeServer {
+export class CodeServer extends ArgumentParser {
 	public readonly _onDidClientConnect = new Emitter<ClientConnectionEvent>();
 	public readonly onDidClientConnect = this._onDidClientConnect.event;
 	private readonly ipc = new IPCServer<RemoteAgentConnectionContext>(this.onDidClientConnect);
@@ -81,42 +98,65 @@ export class VscodeServer {
 
 	private readonly services = new ServiceCollection();
 	private servicesPromise?: Promise<void>;
+	private authority: string = '';
 
 	public async cli(args: NativeParsedArgs): Promise<void> {
 		return main(args);
 	}
 
-	public async initialize(startPath: StartPath, args: VscodeServerArgs): Promise<WorkbenchOptions> {
-		const transformer = createServerURITransformer(args.remote);
+	private createWorkbenchURIs(paths: string[]) {
+		return paths.map(path => toWorkspaceFolder(URI.from({
+			scheme: Schemas.vscodeRemote,
+			authority: this.authority,
+			path,
+		})));
+	}
+
+	public async startup(): Promise<IServerWorkbenchConstructionOptions> {
+		const parsedArgs = this.resolveArgs();
+
+		if (!parsedArgs.server) {
+			throw new Error('Server argument not provided');
+		}
+
+		this.authority = parsedArgs.server;
+
+		const transformer = createServerURITransformer(this.authority);
+
 		if (!this.servicesPromise) {
-			this.servicesPromise = this.initializeServices(args);
+			this.servicesPromise = this.initializeServices(parsedArgs);
 		}
 		await this.servicesPromise;
+
 		const environment = this.services.get(IEnvironmentService) as INativeEnvironmentService;
-		const parseUrl = (url: string): URI => {
-			// This might be a fully-specified URL or just a path.
-			try {
-				return URI.parse(url, true);
-			} catch (error) {
-				return URI.from({
-					scheme: Schemas.vscodeRemote,
-					authority: args.remote,
-					path: url,
-				});
-			}
+
+		/**
+		 * A workspace to open in the workbench can either be:
+		 * - a workspace file with 0-N folders (via `workspaceUri`)
+		 * - a single folder (via `folderUri`)
+		 * - empty (via `undefined`)
+		 */
+		const workbenchURIs = this.createWorkbenchURIs(parsedArgs._.slice(1));
+		// const hasSingleEntry = workbenchURIs.length > 0;
+		// const isSingleEntry = workbenchURIs.length === 1;
+
+		const workspace: IWorkspace = {
+			// workspaceUri: isSingleEntry ? undefined : fs.stat(path),
+			workspaceUri: undefined,
+			folderUri: workbenchURIs[0].uri,
 		};
+
 		return {
-			workbenchWebConfiguration: {
-				workspaceUri: startPath && startPath.workspace ? parseUrl(startPath.url) : undefined,
-				folderUri: startPath && !startPath.workspace ? parseUrl(startPath.url) : undefined,
-				remoteAuthority: args.remote,
-				logLevel: getLogLevel(environment),
-				workspaceProvider: {
-					payload: [
-						['userDataPath', environment.userDataPath],
-						['enableProposedApi', JSON.stringify(args['enable-proposed-api'] || [])]
-					],
-				},
+			...workspace,
+			remoteAuthority: parsedArgs.remote,
+			logLevel: getLogLevel(environment),
+			workspaceProvider: {
+				workspace,
+				trusted: undefined,
+				payload: [
+					['userDataPath', environment.userDataPath],
+					['enableProposedApi', JSON.stringify(parsedArgs['enable-proposed-api'] || [])]
+				],
 			},
 			remoteUserDataUri: transformer.transformOutgoing(URI.file(environment.userDataPath)),
 			productConfiguration: product,
@@ -125,25 +165,35 @@ export class VscodeServer {
 		};
 	}
 
-	public async handleWebSocket(socket: net.Socket, query: Query, permessageDeflate: boolean): Promise<true> {
-		if (!query.reconnectionToken) {
-			throw new Error('Reconnection token is missing from query parameters');
-		}
-		const protocol = new Protocol(socket, {
-			reconnectionToken: <string>query.reconnectionToken,
-			reconnection: query.reconnection === 'true',
-			skipWebSocketFrames: query.skipWebSocketFrames === 'true',
+	// public async handleWebSocket(socket: net.Socket, query: Query, permessageDeflate: boolean): Promise<true> {
+	public async handleWebSocket(socket: net.Socket, query: URLSearchParams, permessageDeflate = false): Promise<true> {
+		// if (!query.reconnectionToken) {
+		// 	throw new Error('Reconnection token is missing from query parameters');
+		// }
+
+		logger.info('got a socket');
+
+		const protocolOptions: ServerProtocolOptions = {
+			reconnectionToken: <string>query.get('reconnectionToken'),
+			reconnection: query.get('reconnection') === 'true',
+			skipWebSocketFrames: query.get('skipWebSocketFrames') === 'true',
 			permessageDeflate,
-		});
+		}
+
+		const wrappedSocket = createSocketWrapper(socket, protocolOptions);
+
+		const protocol = new Protocol(wrappedSocket);
+
 		try {
-			await this.connect(await protocol.handshake(), protocol);
+			const connection = await protocol.handshake();
+			await this.connect(connection, protocol, protocolOptions);
 		} catch (error) {
 			protocol.destroy(error.message);
 		}
 		return true;
 	}
 
-	private async connect(message: ConnectionTypeRequest, protocol: Protocol): Promise<void> {
+	private async connect(message: ConnectionTypeRequest, protocol: Protocol, { reconnectionToken, reconnection }: ServerProtocolOptions): Promise<void> {
 		if (product.commit && message.commit !== product.commit) {
 			logger.warn(`Version mismatch (${message.commit} instead of ${product.commit})`);
 		}
@@ -157,16 +207,15 @@ export class VscodeServer {
 				}
 				const connections = this.connections.get(message.desiredConnectionType)!;
 
-				const token = protocol.options.reconnectionToken;
-				let connection = connections.get(token);
-				if (protocol.options.reconnection && connection) {
+				let connection = connections.get(reconnectionToken);
+				if (reconnection && connection) {
 					return connection.reconnect(protocol);
 				}
 
 				// This probably means the process restarted so the session was lost
 				// while the browser remained open.
-				if (protocol.options.reconnection) {
-					throw new Error(`Unable to reconnect; session no longer exists (${token})`);
+				if (reconnection) {
+					throw new Error(`Unable to reconnect; session no longer exists (${reconnectionToken})`);
 				}
 
 				// This will probably never happen outside a chance collision.
@@ -196,8 +245,8 @@ export class VscodeServer {
 						this.services.get(IEnvironmentService) as INativeEnvironmentService,
 					);
 				}
-				connections.set(token, connection);
-				connection.onClose(() => connections.delete(token));
+				connections.set(reconnectionToken, connection);
+				connection.onClose(() => connections.delete(reconnectionToken));
 
 				this.disposeOldOfflineConnections(connections);
 				logger.debug(`${connections.size} active ${connection.name} connection(s)`);
@@ -235,10 +284,17 @@ export class VscodeServer {
 			logger.warn(error.message || error);
 		})));
 
-		const logService = new MultiplexLogService([
-			new ConsoleLogger(getLogLevel(environmentService)),
-			new SpdLogLogger(RemoteExtensionLogFileName, path.join(environmentService.logsPath, `${RemoteExtensionLogFileName}.log`), false, getLogLevel(environmentService))
-		]);
+
+		// Log
+		const logLevel = getLogLevel(environmentService);
+		const loggers: ILogger[] = [];
+		loggers.push(new SpdLogLogger(RemoteExtensionLogFileName, path.join(environmentService.logsPath, `${RemoteExtensionLogFileName}.log`), true, logLevel));
+		if (logLevel === LogLevel.Trace) {
+			loggers.push(new ConsoleLogger(logLevel));
+		}
+
+		const logService = new MultiplexLogService(loggers);
+
 		const fileService = new FileService(logService);
 		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(logService));
 
@@ -270,6 +326,8 @@ export class VscodeServer {
 		this.services.set(IProductService, productService);
 
 		const machineId = await getMachineId();
+
+		this.services.set(IProductService, productService);
 
 		await new Promise((resolve) => {
 			const instantiationService = new InstantiationService(this.services);

@@ -41,13 +41,13 @@ export abstract class Connection {
 	}
 
 	public reconnect(protocol: Protocol): void {
-		this.logger.debug(`${this.protocol.options.reconnectionToken} Reconnecting...`);
+		// this.logger.debug(`${this.protocol.options.reconnectionToken} Reconnecting...`);
 		this._offline = undefined;
 		this.doReconnect(protocol);
 	}
 
 	public dispose(reason?: string): void {
-		this.logger.debug(`${this.protocol.options.reconnectionToken} Disposing...`, reason);
+		// this.logger.debug(`${this.protocol.options.reconnectionToken} Disposing...`, reason);
 		if (!this.disposed) {
 			this.disposed = true;
 			this.doDispose();
@@ -154,13 +154,13 @@ export class ExtensionHostConnection extends Connection {
 		this.logger.debug('Sending socket');
 
 		// TODO: Do something with the debug port.
-		this.process.send({
-			type: 'VSCODE_EXTHOST_IPC_SOCKET',
-			initialDataChunk: Buffer.from(buffer.buffer).toString('base64'),
-			skipWebSocketFrames: this.protocol.options.skipWebSocketFrames,
-			permessageDeflate: this.protocol.options.permessageDeflate,
-			inflateBytes: inflateBytes ? Buffer.from(inflateBytes).toString('base64') : undefined,
-		}, this.protocol.getUnderlyingSocket());
+		// this.process.send({
+		// 	type: 'VSCODE_EXTHOST_IPC_SOCKET',
+		// 	initialDataChunk: Buffer.from(buffer.buffer).toString('base64'),
+		// 	skipWebSocketFrames: this.protocol.options.skipWebSocketFrames,
+		// 	permessageDeflate: this.protocol.options.permessageDeflate,
+		// 	inflateBytes: inflateBytes ? Buffer.from(inflateBytes).toString('base64') : undefined,
+		// }, this.protocol.getUnderlyingSocket());
 	}
 
 	private async spawn(buffer: VSBuffer, inflateBytes: Uint8Array | undefined): Promise<cp.ChildProcess> {
@@ -198,11 +198,11 @@ export class ExtensionHostConnection extends Connection {
 		);
 
 		proc.on('error', (error) => {
-			this.logger.error(`${this.protocol.options.reconnectionToken} Exited unexpectedly`, error);
+			// this.logger.error(`${this.protocol.options.reconnectionToken} Exited unexpectedly`, error);
 			this.dispose();
 		});
 		proc.on('exit', (code) => {
-			this.logger.debug(`${this.protocol.options.reconnectionToken} Exited`, code);
+			// this.logger.debug(`${this.protocol.options.reconnectionToken} Exited`, code);
 			this.dispose();
 		});
 		if (proc.stdout && proc.stderr) {
