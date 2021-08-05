@@ -45,6 +45,6 @@ export async function activate(ctx: {
 
 	const katex = require('@iktakahiro/markdown-it-katex');
 	markdownItRenderer.extendMarkdownIt((md: markdownIt.MarkdownIt) => {
-		return md.use(katex);
+		return md.use(katex, {'globalGroup': true});
 	});
 }
