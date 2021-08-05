@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Event } from 'vs/base/common/event';
-import { IDriver, IElement, IWindowDriverRegistry, ILocalizedStrings, ILocaleInfo } from 'vs/platform/driver/common/driver';
+import { IDriver, IElement, ILocaleInfo, ILocalizedStrings, IWindowDriverRegistry } from 'vs/platform/driver/common/driver';
 
 export class DriverChannel implements IServerChannel {
 

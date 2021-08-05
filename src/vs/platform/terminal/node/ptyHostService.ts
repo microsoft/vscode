@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalsLayoutInfo, TerminalIpcChannels, IHeartbeatService, HeartbeatConstants, TerminalShellType, ITerminalProfile, IRequestResolveVariablesEvent, TitleEventSource, TerminalIcon, IReconnectConstants } from 'vs/platform/terminal/common/terminal';
-import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
-import { FileAccess } from 'vs/base/common/network';
-import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IProcessEnvironment, isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { Emitter } from 'vs/base/common/event';
-import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
-import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { detectAvailableProfiles } from 'vs/platform/terminal/node/terminalProfiles';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { FileAccess } from 'vs/base/common/network';
+import { IProcessEnvironment, isWindows, OperatingSystem } from 'vs/base/common/platform';
+import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
+import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
-import { RequestStore } from 'vs/platform/terminal/common/requestStore';
 import { resolveShellEnv } from 'vs/platform/environment/node/shellEnv';
+import { ILogService } from 'vs/platform/log/common/log';
+import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { RequestStore } from 'vs/platform/terminal/common/requestStore';
+import { HeartbeatConstants, IHeartbeatService, IProcessDataEvent, IPtyService, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, TerminalIcon, TerminalIpcChannels, TerminalShellType, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
+import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { detectAvailableProfiles } from 'vs/platform/terminal/node/terminalProfiles';
 
 enum Constants {
 	MaxRestarts = 5

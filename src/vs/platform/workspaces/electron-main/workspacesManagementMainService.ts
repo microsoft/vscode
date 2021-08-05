@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { toWorkspaceFolders, IWorkspaceIdentifier, hasWorkspaceFileExtension, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, IUntitledWorkspaceInfo, getStoredWorkspaceFolder, IEnterWorkspaceResult, isUntitledWorkspace, isWorkspaceIdentifier, IStoredWorkspace } from 'vs/platform/workspaces/common/workspaces';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { join, dirname } from 'vs/base/common/path';
-import { rimrafSync, readdirSync, writeFileSync, Promises } from 'vs/base/node/pfs';
-import { readFileSync, existsSync, mkdirSync } from 'fs';
-import { isWindows } from 'vs/base/common/platform';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ILogService } from 'vs/platform/log/common/log';
-import { getWorkspaceIdentifier } from 'vs/platform/workspaces/electron-main/workspaces';
+import { BrowserWindow, MessageBoxOptions } from 'electron';
+import { existsSync, mkdirSync, readFileSync } from 'fs';
+import { Emitter, Event } from 'vs/base/common/event';
 import { parse } from 'vs/base/common/json';
-import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
+import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { originalFSPath, joinPath, basename, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
-import { localize } from 'vs/nls';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { MessageBoxOptions, BrowserWindow } from 'electron';
+import { Schemas } from 'vs/base/common/network';
+import { dirname, join } from 'vs/base/common/path';
+import { isWindows } from 'vs/base/common/platform';
+import { basename, extUriBiasedIgnorePathCase, joinPath, originalFSPath } from 'vs/base/common/resources';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import { Promises, readdirSync, rimrafSync, writeFileSync } from 'vs/base/node/pfs';
+import { localize } from 'vs/nls';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { findWindowOnWorkspaceOrFolder } from 'vs/platform/windows/electron-main/windowsFinder';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { getStoredWorkspaceFolder, hasWorkspaceFileExtension, IEnterWorkspaceResult, IResolvedWorkspace, isStoredWorkspaceFolder, IStoredWorkspace, IStoredWorkspaceFolder, isUntitledWorkspace, isWorkspaceIdentifier, IUntitledWorkspaceInfo, IWorkspaceFolderCreationData, IWorkspaceIdentifier, toWorkspaceFolders, UNTITLED_WORKSPACE_NAME } from 'vs/platform/workspaces/common/workspaces';
+import { getWorkspaceIdentifier } from 'vs/platform/workspaces/electron-main/workspaces';
 
 export const IWorkspacesManagementMainService = createDecorator<IWorkspacesManagementMainService>('workspacesManagementMainService');
 

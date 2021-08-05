@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join } from 'vs/base/common/path';
 import { memoize } from 'vs/base/common/decorators';
-import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { join } from 'vs/base/common/path';
+import { createStaticIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { createStaticIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
+import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IEnvironmentMainService = refineServiceDecorator<IEnvironmentService, IEnvironmentMainService>(IEnvironmentService);
 

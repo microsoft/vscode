@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INullableProcessEnvironment, IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
+import { AddressInfo, createServer } from 'net';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
-import { createServer, AddressInfo } from 'net';
+import { INullableProcessEnvironment, IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
+import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
 import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 
 export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends ExtensionHostDebugBroadcastChannel<TContext> {

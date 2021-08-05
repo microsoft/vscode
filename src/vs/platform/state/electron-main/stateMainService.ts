@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
+import { ThrottledDelayer } from 'vs/base/common/async';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { join } from 'vs/base/common/path';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
-import { ILogService } from 'vs/platform/log/common/log';
+import { URI } from 'vs/base/common/uri';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { ThrottledDelayer } from 'vs/base/common/async';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
-import { VSBuffer } from 'vs/base/common/buffer';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IStateMainService } from 'vs/platform/state/electron-main/state';
 
 type StorageDatabase = { [key: string]: unknown; };
 
