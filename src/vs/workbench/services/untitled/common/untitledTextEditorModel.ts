@@ -389,7 +389,10 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		if (!lang) {
 			return;
 		}
-		this.setModeInternal(lang);
+
+		if (!this.isDisposed()) {
+			this.setModeInternal(lang);
+		}
 	}
 
 	private updateNameFromFirstLine(textEditorModel: ITextModel): void {
