@@ -28,7 +28,7 @@ import { UTF8 } from 'vs/workbench/services/textfile/common/encoding';
 import { bufferToStream, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { debounce } from 'vs/base/common/decorators';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 
 export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport, IEncodingSupport, IWorkingCopy {
 
@@ -96,8 +96,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	readonly capabilities = WorkingCopyCapabilities.Untitled;
 
-	private readonly initialMode: string;
-
 	//#region Name
 
 	private configuredLabelFormat: 'content' | 'name' = 'content';
@@ -132,8 +130,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IEditorService private readonly editorService: IEditorService,
-		@ILanguageDetectionService private readonly languageDetectionService: ILanguageDetectionService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ILanguageDetectionService private readonly languageDetectionService: ILanguageDetectionService
 	) {
 		super(modelService, modeService);
 
@@ -143,8 +140,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		if (preferredMode) {
 			this.setModeInternal(preferredMode);
 		}
-
-		this.initialMode = this.preferredMode ?? 'plaintext';
 
 		// Fetch config
 		this.onConfigurationChange(false);
@@ -188,15 +183,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	get hasModeSetExplicitly(): boolean { return this._hasModeSetExplicitly; }
 
 	override setMode(mode: string): void {
-		if (!this._hasModeSetExplicitly
-			&& this.preferredMode
-			&& this.preferredMode !== this.initialMode
-			&& this.languageDetectionService.isEnabledForMode(this.preferredMode)
-		) {
-			// This is a best attempt to narrow it down to: "automatic language detection was wrong"
-			this.telemetryService.publicLog2('automaticlanguagedetection.likelywrong');
-		}
-
 		// Remember that an explicit mode was set
 		this._hasModeSetExplicitly = true;
 
@@ -390,17 +376,19 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		// Emit as general content change event
 		this._onDidChangeContent.fire();
 
-		this.detectLanguageIfEnabled();
+		this.autoDetectLanguage();
 	}
 
 	@debounce(600)
-	private async detectLanguageIfEnabled() {
-		if (this.hasModeSetExplicitly || !this.languageDetectionService.isEnabledForMode(this.getMode() ?? '')) {
+	private async autoDetectLanguage() {
+		if (this.hasModeSetExplicitly || !this.languageDetectionService.isEnabledForMode(this.getMode() ?? PLAINTEXT_MODE_ID)) {
 			return;
 		}
 
 		const lang = await this.languageDetectionService.detectLanguage(this.resource);
-		if (!lang) { return; }
+		if (!lang) {
+			return;
+		}
 		this.setModeInternal(lang);
 	}
 

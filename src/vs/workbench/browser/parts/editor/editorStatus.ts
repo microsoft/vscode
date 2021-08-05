@@ -1121,6 +1121,10 @@ export class ShowLanguageExtensionsAction extends Action {
 	}
 }
 
+interface IDetectedLanguageQuickPickItem extends IQuickPickItem {
+	guessRank: number;
+}
+
 export class ChangeModeAction extends Action {
 
 	static readonly ID = 'workbench.action.editor.changeLanguageMode';
@@ -1222,6 +1226,7 @@ export class ChangeModeAction extends Action {
 			picks.unshift(autoDetectMode);
 		} else if (detectedLanguages) {
 			// Add untitled detected languages
+			let index = detectedLanguages.length - 1;
 			for (const modeId of detectedLanguages.reverse()) {
 				const lang = this.modeService.getLanguageName(modeId) || 'unknown';
 				let description: string;
@@ -1231,11 +1236,13 @@ export class ChangeModeAction extends Action {
 					description = localize('languageDescriptionConfigured', "({0})", modeId);
 				}
 
-				picks.unshift({
+				const pick: IDetectedLanguageQuickPickItem = {
 					label: lang,
 					iconClasses: getIconClassesForModeId(modeId),
-					description
-				});
+					description,
+					guessRank: index--,
+				};
+				picks.unshift(pick);
 			}
 
 			picks.unshift({ type: 'separator', label: localize('detectedLanguagesPicks', "detected languages (identifier)") });
@@ -1282,6 +1289,28 @@ export class ChangeModeAction extends Action {
 					}
 				} else {
 					languageSelection = this.modeService.createByLanguageName(pick.label);
+				}
+
+				const guessRankOfPicked: number = (pick as IDetectedLanguageQuickPickItem).guessRank ?? -1;
+				// If we detected languages and they didn't choose the top detected language (which should also be the active language if automatic detection is enabled)
+				// then the automatic language detection was likely wrong and the user is correcting it. In this case, we want telemetry.
+				if (detectedLanguages.length && guessRankOfPicked !== 0) {
+					type AutomaticLanguageDetectionLikelyWrongData = {
+						choseOtherGuessedLanguage: boolean,
+						currentLanguageId: string,
+						nextLanguageId: string
+					};
+					type AutomaticLanguageDetectionLikelyWrongClassification = {
+						choseOtherGuessedLanguage: { classification: 'SystemMetaData', purpose: 'FeatureInsight' },
+						currentLanguageId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' },
+						nextLanguageId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' }
+					};
+					this.telemetryService.publicLog2<AutomaticLanguageDetectionLikelyWrongData, AutomaticLanguageDetectionLikelyWrongClassification>('automaticlanguagedetection.likelywrong', {
+						// For languages that weren't guessed, the guessRankOfPicked will be -1. This detail tells us if the user chose the language that was guessed or not.
+						choseOtherGuessedLanguage: guessRankOfPicked !== -1,
+						currentLanguageId: currentLanguageId ?? 'unknown',
+						nextLanguageId: languageSelection?.languageIdentifier.language ?? 'unknown'
+					});
 				}
 
 				// Change mode

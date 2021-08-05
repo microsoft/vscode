@@ -19,6 +19,8 @@ import { IntervalTimer } from 'vs/base/common/async';
 import { SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
+const moduleLocation = '../../../../../../node_modules/@vscode/vscode-languagedetection';
+const moduleLocationAsar = '../../../../../../node_modules.asar/@vscode/vscode-languagedetection';
 export class LanguageDetectionService extends Disposable implements ILanguageDetectionService {
 	static readonly enablementSettingKey = 'workbench.editor.untitled.experimentalLanguageDetection';
 
@@ -41,14 +43,14 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 			'languageDetectionWorkerService',
 			// TODO: See if it's possible to bundle vscode-languagedetection
 			this._environmentService.isBuilt && !isWeb
-				? FileAccess.asBrowserUri('../../../../../../node_modules.asar/@vscode/vscode-languagedetection/dist/lib/index.js', require).toString(true)
-				: FileAccess.asBrowserUri('../../../../../../node_modules/@vscode/vscode-languagedetection/dist/lib/index.js', require).toString(true),
+				? FileAccess.asBrowserUri(`${moduleLocationAsar}/dist/lib/index.js`, require).toString(true)
+				: FileAccess.asBrowserUri(`${moduleLocation}/dist/lib/index.js`, require).toString(true),
 			this._environmentService.isBuilt && !isWeb
-				? FileAccess.asBrowserUri('../../../../../../node_modules.asar/@vscode/vscode-languagedetection/model/model.json', require).toString(true)
-				: FileAccess.asBrowserUri('../../../../../../node_modules/@vscode/vscode-languagedetection/model/model.json', require).toString(true),
+				? FileAccess.asBrowserUri(`${moduleLocationAsar}/model/model.json`, require).toString(true)
+				: FileAccess.asBrowserUri(`${moduleLocation}/model/model.json`, require).toString(true),
 			this._environmentService.isBuilt && !isWeb
-				? FileAccess.asBrowserUri('../../../../../../node_modules.asar/@vscode/vscode-languagedetection/model/group1-shard1of1.bin', require).toString(true)
-				: FileAccess.asBrowserUri('../../../../../../node_modules/@vscode/vscode-languagedetection/model/group1-shard1of1.bin', require).toString(true));
+				? FileAccess.asBrowserUri(`${moduleLocationAsar}/model/group1-shard1of1.bin`, require).toString(true)
+				: FileAccess.asBrowserUri(`${moduleLocation}/model/group1-shard1of1.bin`, require).toString(true));
 	}
 
 	public isEnabledForMode(modeId: string): boolean {
