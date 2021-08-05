@@ -3,18 +3,18 @@
 	"injectionSelector": "L:text.html.markdown - (comment, string, meta.paragraph.markdown, markup.math.block.markdown, markup.fenced_code.block.markdown)",
 	"patterns": [
 		{
-			"include": "#double_quote_math_block"
+			"include": "#double_dollar_math_block"
 		},
 		{
-			"include": "#single_math_block"
+			"include": "#single_dollar_math_block"
 		}
 	],
 	"repository": {
-		"double_quote_math_block": {
+		"double_dollar_math_block": {
 			"name": "markup.math.block.markdown",
 			"begin": "(?<=(^|\\G)\\s*)(\\${2})(?=\\s*$)",
 			"beginCaptures": {
-				"1": {
+				"2": {
 					"name": "punctuation.definition.math.begin.markdown"
 				}
 			},
@@ -37,15 +37,15 @@
 				}
 			]
 		},
-		"single_quote_math_block": {
+		"single_dollar_math_block": {
 			"name": "markup.math.block.markdown",
-			"begin": "(?<=(^|\\G)\\s*)(\\$)(?=\\s*$)",
+			"begin": "(?<=(^|\\G)\\s*)(\\${1})(?=\\s*$)",
 			"beginCaptures": {
-				"1": {
+				"2": {
 					"name": "punctuation.definition.math.begin.markdown"
 				}
 			},
-			"end": "(\\$)",
+			"end": "(\\${1})",
 			"endCaptures": {
 				"1": {
 					"name": "punctuation.definition.math.end.markdown"
@@ -54,7 +54,7 @@
 			"patterns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!.*(\\$))",
+					"while": "(^|\\G)(?!.*(\\${1}))",
 					"contentName": "meta.embedded.math.markdown",
 					"patterns": [
 						{
