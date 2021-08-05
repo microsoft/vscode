@@ -1621,3 +1621,14 @@ export function addMatchMediaChangeListener(query: string, callback: () => void)
 		mediaQueryList.addListener(callback);
 	}
 }
+
+export const enum ZIndex {
+	SASH = 35,
+	SuggestWidget = 40,
+	Hover = 50,
+	DragImage = 1000,
+	MenubarMenuItemsHolder = 2000, // quick-input-widget
+	ContextView = 2500,
+	ModalDialog = 2600,
+	PaneDropOverlay = 10000
+}
