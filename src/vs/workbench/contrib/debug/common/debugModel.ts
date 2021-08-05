@@ -241,13 +241,20 @@ export class Variable extends ExpressionContainer implements IExpression {
 		this.type = type;
 	}
 
-	async setVariable(value: string): Promise<any> {
+	async setVariable(value: string, stackFrame: IStackFrame): Promise<any> {
 		if (!this.session) {
 			return;
 		}
 
 		try {
-			const response = await this.session.setVariable((<ExpressionContainer>this.parent).reference, this.name, value);
+			let response: DebugProtocol.SetExpressionResponse | DebugProtocol.SetVariableResponse | undefined;
+			// Send out a setExpression for debug extensions that do not support set variables https://github.com/microsoft/vscode/issues/124679#issuecomment-869844437
+			if (this.session.capabilities.supportsSetExpression && !this.session.capabilities.supportsSetVariable && this.evaluateName) {
+				response = await this.session.setExpression(stackFrame.frameId, this.evaluateName, value);
+			} else {
+				response = await this.session.setVariable((<ExpressionContainer>this.parent).reference, this.name, value);
+			}
+
 			if (response && response.body) {
 				this.value = response.body.value || '';
 				this.type = response.body.type || this.type;
