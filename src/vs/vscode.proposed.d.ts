@@ -2759,7 +2759,7 @@ declare module 'vscode' {
 
 	export namespace env {
 		/**
-		 * The environment in which the app is embedded in. i.e. Desktop, Codespaces, Web.
+		 * The environment in which the app is embedded in. i.e. 'desktop', 'codespaces', 'web'.
 		 */
 		export const embedderIdentifier: string;
 	}
