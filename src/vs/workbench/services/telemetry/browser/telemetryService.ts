@@ -64,6 +64,7 @@ class WebAppInsightsAppender implements ITelemetryAppender {
 			return;
 		} else if (!this._aiClient && !this._aiClientLoaded) {
 			this._telemetryCache.push({ eventName, data });
+			return;
 		}
 
 		// undefined assertion is ok since above two if statements cover both cases
