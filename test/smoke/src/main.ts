@@ -31,9 +31,8 @@ import { setup as setupLaunchTests } from './areas/workbench/launch.test';
 const testDataPath = path.join(os.tmpdir(), 'vscsmoke');
 if (fs.existsSync(testDataPath)) {
 	rimraf.sync(testDataPath);
-} else {
-	fs.mkdirSync(testDataPath);
 }
+fs.mkdirSync(testDataPath);
 process.once('exit', () => {
 	try {
 		rimraf.sync(testDataPath);
