@@ -234,8 +234,6 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				'**/node-pty/lib/worker/conoutSocketWorker.js',
 				'**/node-pty/lib/shared/conout.js',
 				'**/*.wasm',
-				// For language detection
-				'**/@vscode/vscode-languagedetection/**/*',
 			], 'node_modules.asar'));
 
 		let all = es.merge(
