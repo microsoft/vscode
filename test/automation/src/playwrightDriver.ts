@@ -51,7 +51,7 @@ function buildDriver(browser: playwright.Browser, context: playwright.BrowserCon
 			}
 			await teardown();
 
-			return true;
+			return false;
 		},
 		dispatchKeybinding: async (windowId, keybinding) => {
 			const chords = keybinding.split(' ');
