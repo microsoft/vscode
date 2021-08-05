@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IDebugService, IThread } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, State } from 'vs/workbench/contrib/debug/common/debug';
 import { Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellEditType, CellUri, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -103,42 +104,55 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 class NotebookCellPausing extends Disposable implements IWorkbenchContribution {
 	private readonly _pausedCells = new Set<string>();
 
+	private readonly _sessionDisposables = new Map<string, IDisposable>();
+
 	constructor(
 		@IDebugService private readonly _debugService: IDebugService,
 		@INotebookService private readonly _notebookService: INotebookService
 	) {
 		super();
 
-		this._register(_debugService.getModel().onDidChangeCallStack(this.onDidChangeCallStack, this));
+		const scheduler = this._register(new RunOnceScheduler(() => this.onDidChangeCallStack(), 1000));
+		this._register(_debugService.getModel().onDidChangeCallStack(() => {
+			scheduler.cancel();
+			this.onDidChangeCallStack();
+		}));
+
+		this._register(_debugService.onDidNewSession(s => {
+			this._sessionDisposables.set(s.getId(), s.onDidChangeState(() => {
+				if (s.state === State.Running) {
+					// Continued, start timer to refresh
+					scheduler.schedule();
+				}
+			}));
+		}));
+
+		this._register(_debugService.onDidEndSession(s => {
+			this._sessionDisposables.get(s.getId())?.dispose();
+			this._sessionDisposables.delete(s.getId());
+		}));
 	}
 
 	private async onDidChangeCallStack(): Promise<void> {
 		const newPausedCells = new Set<string>();
 
-		const updateForThread = (thread: IThread): void => {
-			thread.getCallStack().forEach(sf => {
-				const parsed = CellUri.parse(sf.source.uri);
-				if (parsed) {
-					newPausedCells.add(sf.source.uri.toString());
-					this.editIsPaused(sf.source.uri, true);
-				}
-			});
-		};
-
-		const promises: Promise<void>[] = [];
 		for (const session of this._debugService.getModel().getSessions()) {
 			for (const thread of session.getAllThreads()) {
-				const callStack = thread.getCallStack();
-				if (callStack.length) {
-					updateForThread(thread);
-				} else {
-					promises.push(
-						(thread as Thread).fetchCallStack().then(() => updateForThread(thread)));
+				let callStack = thread.getCallStack();
+				if (!callStack.length) {
+					callStack = (thread as Thread).getStaleCallStack();
 				}
+
+				callStack.forEach(sf => {
+					const parsed = CellUri.parse(sf.source.uri);
+					if (parsed) {
+						newPausedCells.add(sf.source.uri.toString());
+						this.editIsPaused(sf.source.uri, true);
+					}
+				});
 			}
 		}
 
-		await Promise.all(promises);
 		for (const uri of this._pausedCells) {
 			if (!newPausedCells.has(uri)) {
 				this.editIsPaused(URI.parse(uri), false);

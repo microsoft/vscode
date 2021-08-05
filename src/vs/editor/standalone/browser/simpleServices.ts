@@ -563,8 +563,8 @@ export class SimpleResourcePropertiesService implements ITextResourcePropertiesS
 	}
 
 	getEOL(resource: URI, language?: string): string {
-		const eol = this.configurationService.getValue<string>('files.eol', { overrideIdentifier: language, resource });
-		if (eol && eol !== 'auto') {
+		const eol = this.configurationService.getValue('files.eol', { overrideIdentifier: language, resource });
+		if (eol && typeof eol === 'string' && eol !== 'auto') {
 			return eol;
 		}
 		return (isLinux || isMacintosh) ? '\n' : '\r\n';

@@ -3,36 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/quickInput';
-import { IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInput, IQuickInputButton, IInputBox, IQuickPickItemButtonEvent, QuickPickInput, IQuickPickSeparator, IKeyMods, IQuickPickDidAcceptEvent, NO_KEY_MODS, ItemActivation, QuickInputHideReason, IQuickInputHideEvent, IQuickPickWillAcceptEvent } from 'vs/base/parts/quickinput/common/quickInput';
 import * as dom from 'vs/base/browser/dom';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { QuickInputList, QuickInputListFocus } from './quickInputList';
-import { QuickInputBox } from './quickInputBox';
-import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { localize } from 'vs/nls';
-import { CountBadge, ICountBadgetyles } from 'vs/base/browser/ui/countBadge/countBadge';
-import { ProgressBar, IProgressBarStyles } from 'vs/base/browser/ui/progressbar/progressbar';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Button, IButtonStyles } from 'vs/base/browser/ui/button/button';
-import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import Severity from 'vs/base/common/severity';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { Button, IButtonStyles } from 'vs/base/browser/ui/button/button';
+import { CountBadge, ICountBadgetyles } from 'vs/base/browser/ui/countBadge/countBadge';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
+import { IKeybindingLabelStyles } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
+import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IListOptions, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
+import { IProgressBarStyles, ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Action } from 'vs/base/common/actions';
 import { equals } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
-import { getIconClass } from 'vs/base/parts/quickinput/browser/quickInputUtils';
-import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
-import { List, IListOptions, IListStyles } from 'vs/base/browser/ui/list/listWidget';
-import { IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Codicon, registerCodicon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
-import { registerCodicon, Codicon } from 'vs/base/common/codicons';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { isString } from 'vs/base/common/types';
-import { IKeybindingLabelStyles } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
+import { Emitter, Event } from 'vs/base/common/event';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { isIOS } from 'vs/base/common/platform';
+import Severity from 'vs/base/common/severity';
+import { isString } from 'vs/base/common/types';
+import { getIconClass } from 'vs/base/parts/quickinput/browser/quickInputUtils';
+import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickWillAcceptEvent, ItemActivation, NO_KEY_MODS, QuickInputHideReason, QuickPickInput } from 'vs/base/parts/quickinput/common/quickInput';
+import 'vs/css!./media/quickInput';
+import { localize } from 'vs/nls';
+import { QuickInputBox } from './quickInputBox';
+import { QuickInputList, QuickInputListFocus } from './quickInputList';
 
 export interface IQuickInputOptions {
 	idPrefix: string;

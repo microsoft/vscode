@@ -68,6 +68,9 @@
               "default": "UTF-8"
             }
           },
+          "additionalProperties": {
+            "type": "string"
+          },
           "default": {},
           "markdownDescription": "%emmetVariables%"
         },
@@ -78,6 +81,9 @@
         },
         "emmet.excludeLanguages": {
           "type": "array",
+          "items": {
+            "type": "string"
+          },
           "default": [
             "markdown"
           ],

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IExtensionManagementService, IExtensionGalleryService, InstallOperation, DidInstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, InstallOperation, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionRecommendationsService, ExtensionRecommendationReason, IExtensionIgnoredRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -23,6 +23,7 @@ import { ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser
 import { ConfigBasedRecommendations } from 'vs/workbench/contrib/extensions/browser/configBasedRecommendations';
 import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { timeout } from 'vs/base/common/async';
+import { URI } from 'vs/base/common/uri';
 
 type IgnoreRecommendationClassification = {
 	recommendationReason: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -81,7 +82,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		// Activation
 		this.activationPromise = this.activate();
 
-		this._register(this.extensionManagementService.onDidInstallExtension(e => this.onDidInstallExtension(e)));
+		this._register(this.extensionManagementService.onDidInstallExtensions(e => this.onDidInstallExtensions(e)));
 	}
 
 	private async activate(): Promise<void> {
@@ -213,20 +214,22 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		return this.toExtensionRecommendations(this.fileBasedRecommendations.recommendations);
 	}
 
-	private onDidInstallExtension(e: DidInstallExtensionEvent): void {
-		if (e.gallery && e.operation === InstallOperation.Install) {
-			const extRecommendations = this.getAllRecommendationsWithReason() || {};
-			const recommendationReason = extRecommendations[e.gallery.identifier.id.toLowerCase()];
-			if (recommendationReason) {
-				/* __GDPR__
-					"extensionGallery:install:recommendations" : {
-						"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"${include}": [
-							"${GalleryExtensionTelemetryData}"
-						]
-					}
-				*/
-				this.telemetryService.publicLog('extensionGallery:install:recommendations', { ...e.gallery.telemetryData, recommendationReason: recommendationReason.reasonId });
+	private onDidInstallExtensions(results: readonly InstallExtensionResult[]): void {
+		for (const e of results) {
+			if (e.source && !URI.isUri(e.source) && e.operation === InstallOperation.Install) {
+				const extRecommendations = this.getAllRecommendationsWithReason() || {};
+				const recommendationReason = extRecommendations[e.source.identifier.id.toLowerCase()];
+				if (recommendationReason) {
+					/* __GDPR__
+						"extensionGallery:install:recommendations" : {
+							"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+							"${include}": [
+								"${GalleryExtensionTelemetryData}"
+							]
+						}
+					*/
+					this.telemetryService.publicLog('extensionGallery:install:recommendations', { ...e.source.telemetryData, recommendationReason: recommendationReason.reasonId });
+				}
 			}
 		}
 	}

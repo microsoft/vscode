@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Iterable } from 'vs/base/common/iterator';
-import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
+import { TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
 import { maxPriority, statePriority } from 'vs/workbench/contrib/testing/common/testingStates';
 
 /**
@@ -21,7 +21,7 @@ export interface IComputedStateAccessor<T> {
 export interface IComputedStateAndDurationAccessor<T> extends IComputedStateAccessor<T> {
 	getOwnDuration(item: T): number | undefined;
 	getCurrentComputedDuration(item: T): number | undefined;
-	setComputedDuration(item: T, duration: number): void;
+	setComputedDuration(item: T, duration: number | undefined): void;
 }
 
 export const isDurationAccessor = <T>(accessor: IComputedStateAccessor<T>): accessor is IComputedStateAndDurationAccessor<T> => 'getOwnDuration' in accessor;
@@ -46,16 +46,19 @@ export const getComputedState = <T>(accessor: IComputedStateAccessor<T>, node: T
 	return computed;
 };
 
-export const getComputedDuration = <T>(accessor: IComputedStateAndDurationAccessor<T>, node: T, force = false): number => {
+export const getComputedDuration = <T>(accessor: IComputedStateAndDurationAccessor<T>, node: T, force = false): number | undefined => {
 	let computed = accessor.getCurrentComputedDuration(node);
 	if (computed === undefined || force) {
 		const own = accessor.getOwnDuration(node);
 		if (own !== undefined) {
 			computed = own;
 		} else {
-			computed = 0;
+			computed = undefined;
 			for (const child of accessor.getChildren(node)) {
-				computed += getComputedDuration(accessor, child);
+				const d = getComputedDuration(accessor, child);
+				if (d !== undefined) {
+					computed = (computed || 0) + d;
+				}
 			}
 		}
 

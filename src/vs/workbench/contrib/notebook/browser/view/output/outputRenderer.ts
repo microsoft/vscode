@@ -16,26 +16,32 @@ export class OutputRenderer {
 	private readonly _richMimeTypeRenderers = new Map<string, IOutputTransformContribution>();
 
 	constructor(
-		notebookEditor: ICommonNotebookEditor,
-		instantiationService: IInstantiationService
+		private readonly notebookEditor: ICommonNotebookEditor,
+		private readonly instantiationService: IInstantiationService
 	) {
-		for (const desc of OutputRendererRegistry.getOutputTransformContributions()) {
-			try {
-				const contribution = instantiationService.createInstance(desc.ctor, notebookEditor);
-				contribution.getMimetypes().forEach(mimetype => { this._richMimeTypeRenderers.set(mimetype, contribution); });
-			} catch (err) {
-				onUnexpectedError(err);
-			}
-		}
 	}
-
 	dispose(): void {
 		dispose(this._richMimeTypeRenderers.values());
 		this._richMimeTypeRenderers.clear();
 	}
 
 	getContribution(preferredMimeType: string): IOutputTransformContribution | undefined {
+		this._initialize();
 		return this._richMimeTypeRenderers.get(preferredMimeType);
+	}
+
+	private _initialize() {
+		if (this._richMimeTypeRenderers.size) {
+			return;
+		}
+		for (const desc of OutputRendererRegistry.getOutputTransformContributions()) {
+			try {
+				const contribution = this.instantiationService.createInstance(desc.ctor, this.notebookEditor);
+				contribution.getMimetypes().forEach(mimetype => { this._richMimeTypeRenderers.set(mimetype, contribution); });
+			} catch (err) {
+				onUnexpectedError(err);
+			}
+		}
 	}
 
 	private _renderMessage(container: HTMLElement, message: string): IRenderOutput {
@@ -46,22 +52,23 @@ export class OutputRenderer {
 	}
 
 	render(viewModel: ICellOutputViewModel, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI): IRenderOutput {
+		this._initialize();
 		if (!viewModel.model.outputs.length) {
 			return this._renderMessage(container, localize('empty', "Cell has no output"));
 		}
 		if (!preferredMimeType) {
 			const mimeTypes = viewModel.model.outputs.map(op => op.mime);
 			const mimeTypesMessage = mimeTypes.join(', ');
-			return this._renderMessage(container, localize('noRenderer.2', "No renderer could be found for output. It has the following MIME types: {0}", mimeTypesMessage));
+			return this._renderMessage(container, localize('noRenderer.2', "No renderer could be found for output. It has the following mimetypes: {0}", mimeTypesMessage));
 		}
 		if (!preferredMimeType || !this._richMimeTypeRenderers.has(preferredMimeType)) {
 			if (preferredMimeType) {
-				return this._renderMessage(container, localize('noRenderer.1', "No renderer could be found for MIME type: {0}", preferredMimeType));
+				return this._renderMessage(container, localize('noRenderer.1', "No renderer could be found for mimetype: {0}", preferredMimeType));
 			}
 		}
 		const renderer = this._richMimeTypeRenderers.get(preferredMimeType);
 		if (!renderer) {
-			return this._renderMessage(container, localize('noRenderer.1', "No renderer could be found for MIME type: {0}", preferredMimeType));
+			return this._renderMessage(container, localize('noRenderer.1', "No renderer could be found for mimetype: {0}", preferredMimeType));
 		}
 		const first = viewModel.model.outputs.find(op => op.mime === preferredMimeType);
 		if (!first) {

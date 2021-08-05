@@ -104,12 +104,6 @@ export interface IResourceEditorInput extends IBaseResourceEditorInput {
 	readonly resource: URI;
 }
 
-export function isResourceEditorInput(editor: unknown): editor is IResourceEditorInput {
-	const candidate = editor as IResourceEditorInput | undefined;
-
-	return URI.isUri(candidate?.resource);
-}
-
 export interface ITextResourceEditorInput extends IResourceEditorInput, IBaseTextResourceEditorInput {
 
 	/**
@@ -167,20 +161,20 @@ export enum EditorActivation {
 	PRESERVE
 }
 
-export enum EditorOverride {
+export enum EditorResolution {
 
 	/**
-	 * Displays a picker and allows the user to decide which editor to use
+	 * Displays a picker and allows the user to decide which editor to use.
 	 */
 	PICK,
 
 	/**
-	 * Disables overrides
+	 * Disables editor resolving.
 	 */
 	DISABLED,
 
 	/**
-	 * Only exclusive overrides are considered
+	 * Only exclusive editors are considered.
 	 */
 	EXCLUSIVE_ONLY
 }
@@ -279,9 +273,9 @@ export interface IEditorOptions {
 	 * Allows to override the editor that should be used to display the input:
 	 * - `undefined`: let the editor decide for itself
 	 * - `string`: specific override by id
-	 * - `EditorOverride`: specific override handling
+	 * - `EditorResolution`: specific override handling
 	 */
-	override?: string | EditorOverride;
+	override?: string | EditorResolution;
 
 	/**
 	 * A optional hint to signal in which context the editor opens.

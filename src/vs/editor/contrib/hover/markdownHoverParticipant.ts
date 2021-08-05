@@ -77,8 +77,8 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		}
 
 		const lineLength = this._editor.getModel().getLineLength(lineNumber);
-		const maxTokenizationLineLength = this._configurationService.getValue<number>('editor.maxTokenizationLineLength');
-		if (lineLength >= maxTokenizationLineLength) {
+		const maxTokenizationLineLength = this._configurationService.getValue('editor.maxTokenizationLineLength');
+		if (typeof maxTokenizationLineLength === 'number' && lineLength >= maxTokenizationLineLength) {
 			result.push(new MarkdownHover(this, new Range(lineNumber, 1, lineNumber, lineLength + 1), [{
 				value: nls.localize('too many characters', "Tokenization is skipped for long lines for performance reasons. This can be configured via `editor.maxTokenizationLineLength`.")
 			}]));

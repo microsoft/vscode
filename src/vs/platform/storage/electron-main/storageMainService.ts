@@ -7,7 +7,7 @@ import { once } from 'vs/base/common/functional';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILifecycleMainService, LifecycleMainPhase, LoadReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { GlobalStorageMain, IStorageMain, IStorageMainOptions, WorkspaceStorageMain } from 'vs/platform/storage/electron-main/storageMain';
 import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
@@ -61,10 +61,6 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		// Workspace Storage: Warmup when related window with workspace loads
 		this._register(this.lifecycleMainService.onWillLoadWindow(async e => {
 			if (e.workspace) {
-				if (e.reason === LoadReason.RELOAD) {
-					return; // TODO@bpasero mitigate https://github.com/microsoft/vscode/issues/127421
-				}
-
 				this.workspaceStorage(e.workspace).init();
 			}
 		}));

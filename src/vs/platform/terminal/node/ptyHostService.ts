@@ -9,7 +9,7 @@ import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensions
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { FileAccess } from 'vs/base/common/network';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
+import { IProcessEnvironment, isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { Emitter } from 'vs/base/common/event';
 import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
@@ -17,6 +17,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { detectAvailableProfiles } from 'vs/platform/terminal/node/terminalProfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
+import { RequestStore } from 'vs/platform/terminal/common/requestStore';
+import { resolveShellEnv } from 'vs/platform/environment/node/shellEnv';
 
 enum Constants {
 	MaxRestarts = 5
@@ -27,8 +29,6 @@ enum Constants {
  * restarted and avoid ID conflicts.
  */
 let lastPtyId = 0;
-
-let lastResolveVariablesRequestId = 0;
 
 /**
  * This service implements IPtyService by launching a pty host process, forwarding messages to and
@@ -41,6 +41,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 	// ProxyChannel is not used here because events get lost when forwarding across multiple proxies
 	private _proxy: IPtyService;
 
+	private readonly _shellEnv: Promise<typeof process.env>;
+	private readonly _resolveVariablesRequestStore: RequestStore<string[], { workspaceId: string, originalText: string[] }>;
 	private _restartCount = 0;
 	private _isResponsive = true;
 	private _isDisposed = false;
@@ -77,6 +79,10 @@ export class PtyHostService extends Disposable implements IPtyService {
 	readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
 	private readonly _onProcessOrphanQuestion = this._register(new Emitter<{ id: number }>());
 	readonly onProcessOrphanQuestion = this._onProcessOrphanQuestion.event;
+	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number, workspaceId: string, instanceId: number }>());
+	readonly onDidRequestDetach = this._onDidRequestDetach.event;
+	private readonly _onProcessDidChangeHasChildProcesses = this._register(new Emitter<{ id: number, event: boolean }>());
+	readonly onProcessDidChangeHasChildProcesses = this._onProcessDidChangeHasChildProcesses.event;
 
 	constructor(
 		private readonly _reconnectConstants: IReconnectConstants,
@@ -90,7 +96,12 @@ export class PtyHostService extends Disposable implements IPtyService {
 		// remote server).
 		registerTerminalPlatformConfiguration();
 
+		this._shellEnv = isWindows ? Promise.resolve(process.env) : resolveShellEnv(this._logService, { _: [] }, process.env);
+
 		this._register(toDisposable(() => this._disposePtyHost()));
+
+		this._resolveVariablesRequestStore = this._register(new RequestStore(undefined, this._logService));
+		this._resolveVariablesRequestStore.onCreateRequest(this._onPtyHostRequestResolveVariables.fire, this._onPtyHostRequestResolveVariables);
 
 		[this._client, this._proxy] = this._startPtyHost();
 	}
@@ -152,8 +163,10 @@ export class PtyHostService extends Disposable implements IPtyService {
 		this._register(proxy.onProcessShellTypeChanged(e => this._onProcessShellTypeChanged.fire(e)));
 		this._register(proxy.onProcessOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e)));
 		this._register(proxy.onProcessResolvedShellLaunchConfig(e => this._onProcessResolvedShellLaunchConfig.fire(e)));
+		this._register(proxy.onProcessDidChangeHasChildProcesses(e => this._onProcessDidChangeHasChildProcesses.fire(e)));
 		this._register(proxy.onProcessReplay(e => this._onProcessReplay.fire(e)));
 		this._register(proxy.onProcessOrphanQuestion(e => this._onProcessOrphanQuestion.fire(e)));
+		this._register(proxy.onDidRequestDetach(e => this._onDidRequestDetach.fire(e)));
 
 		return [client, proxy];
 	}
@@ -222,8 +235,9 @@ export class PtyHostService extends Disposable implements IPtyService {
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
 		return this._proxy.getDefaultSystemShell(osOverride);
 	}
-	async getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles: boolean = false): Promise<ITerminalProfile[]> {
-		return detectAvailableProfiles(profiles, defaultProfile, includeDetectedProfiles, this._configurationService, undefined, this._logService, this._resolveVariables.bind(this));
+	async getProfiles(workspaceId: string, profiles: unknown, defaultProfile: unknown, includeDetectedProfiles: boolean = false): Promise<ITerminalProfile[]> {
+		const shellEnv = await this._shellEnv;
+		return detectAvailableProfiles(profiles, defaultProfile, includeDetectedProfiles, this._configurationService, shellEnv, undefined, this._logService, this._resolveVariables.bind(this, workspaceId));
 	}
 	getEnvironment(): Promise<IProcessEnvironment> {
 		return this._proxy.getEnvironment();
@@ -237,6 +251,14 @@ export class PtyHostService extends Disposable implements IPtyService {
 	}
 	async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
 		return await this._proxy.getTerminalLayoutInfo(args);
+	}
+
+	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
+		return this._proxy.requestDetachInstance(workspaceId, instanceId);
+	}
+
+	async acceptDetachInstanceReply(requestId: number, persistentProcessId: number): Promise<void> {
+		return this._proxy.acceptDetachInstanceReply(requestId, persistentProcessId);
 	}
 
 	async restartPtyHost(): Promise<void> {
@@ -309,21 +331,10 @@ export class PtyHostService extends Disposable implements IPtyService {
 		}
 	}
 
-	private _pendingResolveVariablesRequests: Map<number, (resolved: string[]) => void> = new Map();
-	private _resolveVariables(text: string[]): Promise<string[]> {
-		return new Promise<string[]>(resolve => {
-			const id = ++lastResolveVariablesRequestId;
-			this._pendingResolveVariablesRequests.set(id, resolve);
-			this._onPtyHostRequestResolveVariables.fire({ id, originalText: text });
-		});
+	private _resolveVariables(workspaceId: string, text: string[]): Promise<string[]> {
+		return this._resolveVariablesRequestStore.createRequest({ workspaceId, originalText: text });
 	}
-	async acceptPtyHostResolvedVariables(id: number, resolved: string[]) {
-		const request = this._pendingResolveVariablesRequests.get(id);
-		if (request) {
-			request(resolved);
-			this._pendingResolveVariablesRequests.delete(id);
-		} else {
-			this._logService.warn(`Resolved variables received without matching request ${id}`);
-		}
+	async acceptPtyHostResolvedVariables(requestId: number, resolved: string[]) {
+		this._resolveVariablesRequestStore.acceptReply(requestId, resolved);
 	}
 }

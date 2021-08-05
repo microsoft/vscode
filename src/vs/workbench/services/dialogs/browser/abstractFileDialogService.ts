@@ -160,8 +160,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 
 			const toOpen: IWindowOpenable = stat.isDirectory ? { folderUri: uri } : { fileUri: uri };
 			if (!isWorkspaceToOpen(toOpen) && isFileToOpen(toOpen)) {
-				// add the picked file into the list of recently opened
-				this.workspacesService.addRecentlyOpened([{ fileUri: toOpen.fileUri, label: this.labelService.getUriLabel(toOpen.fileUri) }]);
+				this.addFileToRecentlyOpened(toOpen.fileUri);
 			}
 
 			if (stat.isDirectory || options.forceNewWindow || preferNewWindow) {
@@ -178,14 +177,21 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 
 		const uri = await this.pickResource({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
 		if (uri) {
-			// add the picked file into the list of recently opened
-			this.workspacesService.addRecentlyOpened([{ fileUri: uri, label: this.labelService.getUriLabel(uri) }]);
+			this.addFileToRecentlyOpened(uri);
 
 			if (options.forceNewWindow || preferNewWindow) {
 				return this.hostService.openWindow([{ fileUri: uri }], { forceNewWindow: options.forceNewWindow, remoteAuthority: options.remoteAuthority });
 			} else {
 				return this.openerService.open(uri, { fromUserGesture: true, editorOptions: { pinned: true } });
 			}
+		}
+	}
+
+	private addFileToRecentlyOpened(uri: URI): void {
+		// add the picked file into the list of recently opened
+		// only if it is outside the currently opened workspace
+		if (!this.contextService.isInsideWorkspace(uri)) {
+			this.workspacesService.addRecentlyOpened([{ fileUri: uri, label: this.labelService.getUriLabel(uri) }]);
 		}
 	}
 
@@ -237,16 +243,16 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		return uri ? [uri] : undefined;
 	}
 
-	private pickResource(options: IOpenDialogOptions): Promise<URI | undefined> {
-		const simpleFileDialog = this.instantiationService.createInstance(SimpleFileDialog);
+	protected getSimpleFileDialog(): SimpleFileDialog {
+		return this.instantiationService.createInstance(SimpleFileDialog);
+	}
 
-		return simpleFileDialog.showOpenDialog(options);
+	private pickResource(options: IOpenDialogOptions): Promise<URI | undefined> {
+		return this.getSimpleFileDialog().showOpenDialog(options);
 	}
 
 	private saveRemoteResource(options: ISaveDialogOptions): Promise<URI | undefined> {
-		const remoteFileDialog = this.instantiationService.createInstance(SimpleFileDialog);
-
-		return remoteFileDialog.showSaveDialog(options);
+		return this.getSimpleFileDialog().showSaveDialog(options);
 	}
 
 	protected getSchemeFilterForWindow(defaultUriScheme?: string): string {
@@ -261,6 +267,16 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	abstract pickFileAndOpen(options: IPickAndOpenOptions): Promise<void>;
 	abstract pickFolderAndOpen(options: IPickAndOpenOptions): Promise<void>;
 	abstract pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void>;
+	protected getWorkspaceAvailableFileSystems(options: IPickAndOpenOptions): string[] {
+		if (options.availableFileSystems && (options.availableFileSystems.length > 0)) {
+			return options.availableFileSystems;
+		}
+		const availableFileSystems = [Schemas.file];
+		if (this.environmentService.remoteAuthority) {
+			availableFileSystems.unshift(Schemas.vscodeRemote);
+		}
+		return availableFileSystems;
+	}
 	abstract showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined>;
 	abstract showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined>;
 

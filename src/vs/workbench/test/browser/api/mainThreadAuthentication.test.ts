@@ -7,12 +7,13 @@ import * as assert from 'assert';
 import { AuthenticationProviderInformation } from 'vs/editor/common/modes';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { IQuickInputHideEvent, IQuickInputService, IQuickPickDidAcceptEvent } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { MainThreadAuthentication } from 'vs/workbench/api/browser/mainThreadAuthentication';
 import { IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { IActivityService } from 'vs/workbench/services/activity/common/activity';
@@ -23,9 +24,10 @@ import { TestRemoteAgentService } from 'vs/workbench/services/remote/test/common
 import { TestQuickInputService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestActivityService, TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
+let i = 0;
 function createSession(id: string = '1234', scope: string[] = []) {
 	return {
-		accessToken: '1234',
+		accessToken: (++i) + '',
 		account: {
 			id: 'test@test.com',
 			label: 'Test Person'
@@ -65,29 +67,22 @@ class AuthTestQuickInputService extends TestQuickInputService {
 
 suite('MainThreadAuthentication', () => {
 	let mainThreadAuthentication: MainThreadAuthentication;
+	let instantiationService: TestInstantiationService;
 	suiteSetup(async () => {
+		instantiationService = new TestInstantiationService();
 		// extHostContext: IExtHostContext,
-		const services = new ServiceCollection();
-		const dialogService = new TestDialogService();
-		const storageService = new TestStorageService();
-		const quickInputService = new AuthTestQuickInputService();
-		const extensionService = new TestExtensionService();
+		instantiationService.stub(IDialogService, new TestDialogService());
+		instantiationService.stub(IStorageService, new TestStorageService());
+		instantiationService.stub(IQuickInputService, new AuthTestQuickInputService());
+		instantiationService.stub(IExtensionService, new TestExtensionService());
 
-		const activityService = new TestActivityService();
-		const remoteAgentService = new TestRemoteAgentService();
+		instantiationService.stub(IActivityService, new TestActivityService());
+		instantiationService.stub(IRemoteAgentService, new TestRemoteAgentService());
+		instantiationService.stub(INotificationService, new TestNotificationService());
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
 
-		services.set(IDialogService, dialogService);
-		services.set(IStorageService, storageService);
-		services.set(INotificationService, new TestNotificationService());
-		services.set(IQuickInputService, quickInputService);
-		services.set(IExtensionService, extensionService);
-		services.set(IActivityService, activityService);
-		services.set(IRemoteAgentService, remoteAgentService);
-
-		const instaService = new InstantiationService(services);
-		services.set(IAuthenticationService, instaService.createInstance(AuthenticationService));
-
-		mainThreadAuthentication = instaService.createInstance(MainThreadAuthentication,
+		instantiationService.stub(IAuthenticationService, instantiationService.createInstance(AuthenticationService));
+		mainThreadAuthentication = instantiationService.createInstance(MainThreadAuthentication,
 			new class implements IExtHostContext {
 				remoteAuthority = '';
 				extensionHostKind = ExtensionHostKind.LocalProcess;
@@ -95,32 +90,73 @@ suite('MainThreadAuthentication', () => {
 				set(v: any): any { return null; }
 				getProxy(): any {
 					return {
-						$getSessions(id: string, scopes: string[]) {
-							return Promise.resolve([createSession(id, scopes)]);
+						async $getSessions(id: string, scopes: string[]) {
+							// if we get the empty auth provider, return no sessions
+							return id === 'empty' ? [] : [createSession(id, scopes)];
 						},
 						$createSession(id: string, scopes: string[]) {
 							return Promise.resolve(createSession(id, scopes));
 						},
 						$removeSession(id: string, sessionId: string) { return Promise.resolve(); },
 						$onDidChangeAuthenticationSessions(id: string, label: string) { return Promise.resolve(); },
-						$onDidChangeAuthenticationProviders(added: AuthenticationProviderInformation[], removed: AuthenticationProviderInformation[]) { return Promise.resolve(); },
 						$setProviders(providers: AuthenticationProviderInformation[]) { return Promise.resolve(); }
 					};
 				}
 				drain(): any { return null; }
 			});
-
-		await mainThreadAuthentication.$registerAuthenticationProvider('test', 'test provider', true);
 	});
 
-	suiteTeardown(() => {
+	setup(async () => {
+		await mainThreadAuthentication.$registerAuthenticationProvider('test', 'test provider', true);
+		await mainThreadAuthentication.$registerAuthenticationProvider('empty', 'test provider', true);
+	});
+
+	teardown(() => {
 		mainThreadAuthentication.$unregisterAuthenticationProvider('test');
-		mainThreadAuthentication.dispose();
+		mainThreadAuthentication.$unregisterAuthenticationProvider('empty');
 	});
 
 	test('Can get a session', async () => {
-		const session = await mainThreadAuthentication.$getSession('test', ['foo'], 'testextension', 'test extension', { createIfNone: true, clearSessionPreference: false });
+		const session = await mainThreadAuthentication.$getSession('test', ['foo'], 'testextension', 'test extension', {
+			createIfNone: true,
+			clearSessionPreference: false,
+			forceNewSession: false
+		});
 		assert.strictEqual(session?.id, 'test');
 		assert.strictEqual(session?.scopes[0], 'foo');
+	});
+
+	test('Can recreate a session', async () => {
+		const session = await mainThreadAuthentication.$getSession('test', ['foo'], 'testextension', 'test extension', {
+			createIfNone: true,
+			clearSessionPreference: false,
+			forceNewSession: false
+		});
+
+		assert.strictEqual(session?.id, 'test');
+		assert.strictEqual(session?.scopes[0], 'foo');
+
+		const session2 = await mainThreadAuthentication.$getSession('test', ['foo'], 'testextension', 'test extension', {
+			createIfNone: false,
+			clearSessionPreference: false,
+			forceNewSession: true
+		});
+
+		assert.strictEqual(session.id, session2?.id);
+		assert.strictEqual(session.scopes[0], session2?.scopes[0]);
+		assert.notStrictEqual(session.accessToken, session2?.accessToken);
+	});
+
+	test('Can not recreate a session if none exists', async () => {
+		try {
+			await mainThreadAuthentication.$getSession('empty', ['foo'], 'testextension', 'test extension', {
+				createIfNone: false,
+				clearSessionPreference: false,
+				forceNewSession: true
+			});
+			assert.fail('should have thrown an Error.');
+		} catch (e) {
+			assert.strictEqual(e.message, 'No existing sessions found.');
+		}
 	});
 });

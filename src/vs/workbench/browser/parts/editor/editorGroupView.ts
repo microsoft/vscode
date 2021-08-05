@@ -292,6 +292,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				EventHelper.stop(e);
 
 				this.editorService.openEditor({
+					resource: undefined,
 					forceUntitled: true,
 					options: {
 						pinned: true,
@@ -606,7 +607,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const resource = EditorResourceAccessor.getOriginalUri(editor);
 		const path = resource ? resource.scheme === Schemas.file ? resource.fsPath : resource.path : undefined;
 		if (resource && path) {
-			descriptor['resource'] = { mimeType: guessMimeTypes(resource).join(', '), scheme: resource.scheme, ext: extname(resource), path: hash(path) };
+			let resourceExt = extname(resource);
+			descriptor['resource'] = { mimeType: guessMimeTypes(resource).join(', '), scheme: resource.scheme, ext: resourceExt, path: hash(path) };
 
 			/* __GDPR__FRAGMENT__
 				"EditorTelemetryDescriptor" : {

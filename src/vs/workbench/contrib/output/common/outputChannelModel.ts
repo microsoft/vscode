@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import * as strings from 'vs/base/common/strings';
+import * as resources from 'vs/base/common/resources';
 import { ITextModel } from 'vs/editor/common/model';
 import { Emitter, Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
@@ -16,8 +16,8 @@ import { Disposable, toDisposable, IDisposable, dispose } from 'vs/base/common/l
 import { isNumber } from 'vs/base/common/types';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
-import { binarySearch } from 'vs/base/common/arrays';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { ILogger, ILoggerService } from 'vs/platform/log/common/log';
 
 export interface IOutputChannelModel extends IDisposable {
 	readonly onDidAppendedContent: Event<void>;
@@ -39,12 +39,24 @@ export interface IOutputChannelModelService {
 
 export abstract class AbstractOutputChannelModelService {
 
+	declare readonly _serviceBrand: undefined;
+
 	constructor(
+		private readonly outputLocation: URI,
+		@IFileService protected readonly fileService: IFileService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService
 	) { }
 
 	createOutputChannelModel(id: string, modelUri: URI, mimeType: string, file?: URI): IOutputChannelModel {
-		return file ? this.instantiationService.createInstance(FileOutputChannelModel, modelUri, mimeType, file) : this.instantiationService.createInstance(BufferredOutputChannel, modelUri, mimeType);
+		return file ? this.instantiationService.createInstance(FileOutputChannelModel, modelUri, mimeType, file) : this.instantiationService.createInstance(DelegatedOutputChannelModel, id, modelUri, mimeType, this.outputDir);
+	}
+
+	private _outputDir: Promise<URI> | null = null;
+	private get outputDir(): Promise<URI> {
+		if (!this._outputDir) {
+			this._outputDir = this.fileService.createFolder(this.outputLocation).then(() => this.outputLocation);
+		}
+		return this._outputDir;
 	}
 
 }
@@ -286,142 +298,167 @@ class FileOutputChannelModel extends AbstractFileOutputChannelModel implements I
 	}
 }
 
-export class BufferredOutputChannel extends Disposable implements IOutputChannelModel {
+class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implements IOutputChannelModel {
 
-	readonly file: URI | null = null;
-	scrollLock: boolean = false;
-
-	protected _onDidAppendedContent = new Emitter<void>();
-	readonly onDidAppendedContent: Event<void> = this._onDidAppendedContent.event;
-
-	private readonly _onDispose = new Emitter<void>();
-	readonly onDispose: Event<void> = this._onDispose.event;
-
-	private modelUpdater: RunOnceScheduler;
-	private model: ITextModel | null = null;
-	private readonly bufferredContent: BufferedContent;
-	private lastReadId: number | undefined = undefined;
+	private logger: ILogger;
+	private appendedMessage: string;
+	private loadingFromFileInProgress: boolean;
+	private resettingDelayer: ThrottledDelayer<void>;
+	private readonly rotatingFilePath: URI;
 
 	constructor(
-		private readonly modelUri: URI, private readonly mimeType: string,
-		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService
+		id: string,
+		modelUri: URI,
+		mimeType: string,
+		file: URI,
+		@IFileService fileService: IFileService,
+		@IModelService modelService: IModelService,
+		@IModeService modeService: IModeService,
+		@ILoggerService loggerService: ILoggerService
 	) {
-		super();
+		super(modelUri, mimeType, file, fileService, modelService, modeService);
+		this.appendedMessage = '';
+		this.loadingFromFileInProgress = false;
 
-		this.modelUpdater = new RunOnceScheduler(() => this.updateModel(), 300);
-		this._register(toDisposable(() => this.modelUpdater.cancel()));
+		// Donot rotate to check for the file reset
+		this.logger = loggerService.createLogger(this.file, { always: true, donotRotate: true, donotUseFormatters: true });
 
-		this.bufferredContent = new BufferedContent();
-		this._register(toDisposable(() => this.bufferredContent.clear()));
+		const rotatingFilePathDirectory = resources.dirname(this.file);
+		this.rotatingFilePath = resources.joinPath(rotatingFilePathDirectory, `${id}.1.log`);
+
+		this._register(fileService.watch(rotatingFilePathDirectory));
+		this._register(fileService.onDidFilesChange(e => {
+			if (e.contains(this.rotatingFilePath)) {
+				this.resettingDelayer.trigger(() => this.resetModel());
+			}
+		}));
+
+		this.resettingDelayer = new ThrottledDelayer<void>(50);
 	}
 
-	append(output: string) {
-		this.bufferredContent.append(output);
-		if (!this.modelUpdater.isScheduled()) {
-			this.modelUpdater.schedule();
-		}
-	}
-
-	update(): void { }
-
-	clear(): void {
-		if (this.modelUpdater.isScheduled()) {
-			this.modelUpdater.cancel();
-		}
-		if (this.model) {
-			this.model.setValue('');
-		}
-		this.bufferredContent.clear();
-		this.lastReadId = undefined;
-	}
-
-	loadModel(): Promise<ITextModel> {
-		const { value, id } = this.bufferredContent.getDelta(this.lastReadId);
-		if (this.model) {
-			this.model.setValue(value);
+	append(message: string): void {
+		// update end offset always as message is read
+		this.endOffset = this.endOffset + VSBuffer.fromString(message).byteLength;
+		if (this.loadingFromFileInProgress) {
+			this.appendedMessage += message;
 		} else {
-			this.model = this.createModel(value);
-		}
-		this.lastReadId = id;
-		return Promise.resolve(this.model);
-	}
-
-	private createModel(content: string): ITextModel {
-		const model = this.modelService.createModel(content, this.modeService.create(this.mimeType), this.modelUri);
-		const disposable = model.onWillDispose(() => {
-			this.model = null;
-			dispose(disposable);
-		});
-		return model;
-	}
-
-	private updateModel(): void {
-		if (this.model) {
-			const { value, id } = this.bufferredContent.getDelta(this.lastReadId);
-			this.lastReadId = id;
-			const lastLine = this.model.getLineCount();
-			const lastLineMaxColumn = this.model.getLineMaxColumn(lastLine);
-			this.model.applyEdits([EditOperation.insert(new Position(lastLine, lastLineMaxColumn), value)]);
-			this._onDidAppendedContent.fire();
-		}
-	}
-
-	override dispose(): void {
-		this._onDispose.fire();
-		super.dispose();
-	}
-}
-
-class BufferedContent {
-
-	private static readonly MAX_OUTPUT_LENGTH = 10000 /* Max. number of output lines to show in output */ * 100 /* Guestimated chars per line */;
-
-	private data: string[] = [];
-	private dataIds: number[] = [];
-	private idPool = 0;
-	private length = 0;
-
-	public append(content: string): void {
-		this.data.push(content);
-		this.dataIds.push(++this.idPool);
-		this.length += content.length;
-		this.trim();
-	}
-
-	public clear(): void {
-		this.data.length = 0;
-		this.dataIds.length = 0;
-		this.length = 0;
-	}
-
-	private trim(): void {
-		if (this.length < BufferedContent.MAX_OUTPUT_LENGTH * 1.2) {
-			return;
-		}
-
-		while (this.length > BufferedContent.MAX_OUTPUT_LENGTH) {
-			this.dataIds.shift();
-			const removed = this.data.shift();
-			if (removed) {
-				this.length -= removed.length;
+			this.write(message);
+			if (this.model) {
+				this.appendedMessage += message;
+				if (!this.modelUpdater.isScheduled()) {
+					this.modelUpdater.schedule();
+				}
 			}
 		}
 	}
 
-	public getDelta(previousId?: number): { value: string, id: number } {
-		let idx = -1;
-		if (previousId !== undefined) {
-			idx = binarySearch(this.dataIds, previousId, (a, b) => a - b);
-		}
+	override clear(till?: number): void {
+		super.clear(till);
+		this.appendedMessage = '';
+	}
 
-		const id = this.idPool;
-		if (idx >= 0) {
-			const value = strings.removeAnsiEscapeCodes(this.data.slice(idx + 1).join(''));
-			return { value, id };
-		} else {
-			const value = strings.removeAnsiEscapeCodes(this.data.join(''));
-			return { value, id };
+	loadModel(): Promise<ITextModel> {
+		this.loadingFromFileInProgress = true;
+		if (this.modelUpdater.isScheduled()) {
+			this.modelUpdater.cancel();
+		}
+		this.appendedMessage = '';
+		return this.loadFile()
+			.then(content => {
+				if (this.endOffset !== this.startOffset + VSBuffer.fromString(content).byteLength) {
+					// Queue content is not written into the file
+					// Flush it and load file again
+					this.flush();
+					return this.loadFile();
+				}
+				return content;
+			})
+			.then(content => {
+				if (this.appendedMessage) {
+					this.write(this.appendedMessage);
+					this.appendedMessage = '';
+				}
+				this.loadingFromFileInProgress = false;
+				return this.createModel(content);
+			});
+	}
+
+	private resetModel(): Promise<void> {
+		this.startOffset = 0;
+		this.endOffset = 0;
+		if (this.model) {
+			return this.loadModel().then(() => undefined);
+		}
+		return Promise.resolve(undefined);
+	}
+
+	private loadFile(): Promise<string> {
+		return this.fileService.readFile(this.file, { position: this.startOffset })
+			.then(content => this.appendedMessage ? content.value + this.appendedMessage : content.value.toString());
+	}
+
+	protected override updateModel(): void {
+		if (this.model && this.appendedMessage) {
+			this.appendToModel(this.appendedMessage);
+			this.appendedMessage = '';
 		}
 	}
+
+	private write(content: string): void {
+		this.logger.info(content);
+	}
+
+	private flush(): void {
+		this.logger.flush();
+	}
+}
+
+class DelegatedOutputChannelModel extends Disposable implements IOutputChannelModel {
+
+	private readonly _onDidAppendedContent: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidAppendedContent: Event<void> = this._onDidAppendedContent.event;
+
+	private readonly _onDispose: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDispose: Event<void> = this._onDispose.event;
+
+	private readonly outputChannelModel: Promise<IOutputChannelModel>;
+
+	constructor(
+		id: string,
+		modelUri: URI,
+		mimeType: string,
+		outputDir: Promise<URI>,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IFileService private readonly fileService: IFileService,
+	) {
+		super();
+		this.outputChannelModel = this.createOutputChannelModel(id, modelUri, mimeType, outputDir);
+	}
+
+	private async createOutputChannelModel(id: string, modelUri: URI, mimeType: string, outputDirPromise: Promise<URI>): Promise<IOutputChannelModel> {
+		const outputDir = await outputDirPromise;
+		const file = resources.joinPath(outputDir, `${id.replace(/[\\/:\*\?"<>\|]/g, '')}.log`);
+		await this.fileService.createFile(file);
+		const outputChannelModel = this._register(this.instantiationService.createInstance(OutputChannelBackedByFile, id, modelUri, mimeType, file));
+		this._register(outputChannelModel.onDidAppendedContent(() => this._onDidAppendedContent.fire()));
+		this._register(outputChannelModel.onDispose(() => this._onDispose.fire()));
+		return outputChannelModel;
+	}
+
+	append(output: string): void {
+		this.outputChannelModel.then(outputChannelModel => outputChannelModel.append(output));
+	}
+
+	update(): void {
+		this.outputChannelModel.then(outputChannelModel => outputChannelModel.update());
+	}
+
+	loadModel(): Promise<ITextModel> {
+		return this.outputChannelModel.then(outputChannelModel => outputChannelModel.loadModel());
+	}
+
+	clear(till?: number): void {
+		this.outputChannelModel.then(outputChannelModel => outputChannelModel.clear(till));
+	}
+
 }

@@ -218,7 +218,7 @@
 }
 
 .quick-input-list .quick-input-list-rows > .quick-input-list-row .codicon[class*='codicon-'] {
-	vertical-align: sub;
+	vertical-align: text-bottom;
 }
 
 .quick-input-list .quick-input-list-rows .monaco-highlighted-label span {
@@ -260,7 +260,7 @@
 
 .quick-input-list .quick-input-list-entry-action-bar .action-label.codicon {
 	margin-right: 4px;
-	padding: 2px;
+	padding: 0px 2px 2px 2px;
 }
 
 .quick-input-list .quick-input-list-entry-action-bar {

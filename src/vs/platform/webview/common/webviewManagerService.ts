@@ -8,8 +8,6 @@ import { Event } from 'vs/base/common/event';
 
 export const IWebviewManagerService = createDecorator<IWebviewManagerService>('webviewManagerService');
 
-export const webviewPartitionId = 'webview';
-
 export interface WebviewWebContentsId {
 	readonly webContentsId: number;
 }

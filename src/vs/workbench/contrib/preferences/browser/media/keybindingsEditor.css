@@ -27,6 +27,7 @@
 
 .keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .recording-badge {
 	margin-right: 8px;
+	padding: 3px;
 }
 
 .keybindings-editor > .keybindings-header.small > .search-container > .keybindings-search-actions-container > .recording-badge,
@@ -34,12 +35,12 @@
 	display: none;
 }
 
-.keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .monaco-action-bar .action-item > .icon {
+.keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container .monaco-action-bar .action-item > .icon {
 	width:16px;
 	height: 18px;
 }
 
-.keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .monaco-action-bar .action-item {
+.keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container .monaco-action-bar .action-item {
 	margin-right: 4px;
 }
 

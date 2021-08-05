@@ -26,7 +26,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { UserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSyncResourceEnablementService';
-import { IGlobalExtensionEnablementService, IExtensionManagementService, IExtensionGalleryService, DidInstallExtensionEvent, DidUninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IGlobalExtensionEnablementService, IExtensionManagementService, IExtensionGalleryService, DidUninstallExtensionEvent, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
@@ -110,7 +110,7 @@ export class UserDataSyncClient extends Disposable {
 		this.instantiationService.stub(IIgnoredExtensionsManagementService, this.instantiationService.createInstance(IgnoredExtensionsManagementService));
 		this.instantiationService.stub(IExtensionManagementService, <Partial<IExtensionManagementService>>{
 			async getInstalled() { return []; },
-			onDidInstallExtension: new Emitter<DidInstallExtensionEvent>().event,
+			onDidInstallExtensions: new Emitter<readonly InstallExtensionResult[]>().event,
 			onDidUninstallExtension: new Emitter<DidUninstallExtensionEvent>().event,
 		});
 		this.instantiationService.stub(IExtensionGalleryService, <Partial<IExtensionGalleryService>>{
@@ -131,7 +131,7 @@ export class UserDataSyncClient extends Disposable {
 	}
 
 	async sync(): Promise<void> {
-		await (await this.instantiationService.get(IUserDataSyncService).createSyncTask()).run();
+		await (await this.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
 	}
 
 	read(resource: SyncResource): Promise<IUserData> {
@@ -139,7 +139,7 @@ export class UserDataSyncClient extends Disposable {
 	}
 
 	manifest(): Promise<IUserDataManifest | null> {
-		return this.instantiationService.get(IUserDataSyncStoreService).manifest();
+		return this.instantiationService.get(IUserDataSyncStoreService).manifest(null);
 	}
 
 }
@@ -163,6 +163,8 @@ export class UserDataSyncTestServer implements IRequestService {
 	private _responses: { status: number }[] = [];
 	get responses(): { status: number }[] { return this._responses; }
 	reset(): void { this._requests = []; this._responses = []; this._requestsWithAllHeaders = []; }
+
+	private manifestRef = 0;
 
 	constructor(private readonly rateLimit = Number.MAX_SAFE_INTEGER, private readonly retryAfter?: number) { }
 
@@ -210,11 +212,11 @@ export class UserDataSyncTestServer implements IRequestService {
 	private async getManifest(headers?: IHeaders): Promise<IRequestContext> {
 		if (this.session) {
 			const latest: Record<ServerResource, string> = Object.create({});
-			const manifest: IUserDataManifest = { session: this.session, latest };
 			this.data.forEach((value, key) => latest[key] = value.ref);
-			return this.toResponse(200, { 'Content-Type': 'application/json' }, JSON.stringify(manifest));
+			const manifest = { session: this.session, latest };
+			return this.toResponse(200, { 'Content-Type': 'application/json', etag: `${this.manifestRef++}` }, JSON.stringify(manifest));
 		}
-		return this.toResponse(204);
+		return this.toResponse(204, { etag: `${this.manifestRef++}` });
 	}
 
 	private async getLatestData(resource: string, headers: IHeaders = {}): Promise<IRequestContext> {

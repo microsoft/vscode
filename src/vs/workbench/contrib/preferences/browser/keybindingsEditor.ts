@@ -22,7 +22,7 @@ import { KeybindingsEditorModel, KEYBINDING_ENTRY_TEMPLATE_ID } from 'vs/workben
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService, IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { DefineKeybindingWidget, KeybindingsSearchWidget } from 'vs/workbench/contrib/preferences/browser/keybindingWidgets';
-import { CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_ADD } from 'vs/workbench/contrib/preferences/common/preferences';
+import { CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_ADD, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
@@ -43,12 +43,13 @@ import { MenuRegistry, MenuId, isIMenuItem } from 'vs/platform/actions/common/ac
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { Color, RGBA } from 'vs/base/common/color';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
-import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IKeybindingItemEntry, IKeybindingsEditorPane } from 'vs/workbench/services/preferences/common/preferences';
 import { keybindingsRecordKeysIcon, keybindingsSortIcon, keybindingsAddIcon, preferencesClearInputIcon, keybindingsEditIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browser/keybindingsEditorInput';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 
 const $ = DOM.$;
 
@@ -56,15 +57,13 @@ const evenRowBackgroundColor = new Color(new RGBA(130, 130, 130, 0.04));
 
 class ThemableCheckboxActionViewItem extends CheckboxActionViewItem {
 
-	constructor(context: any, action: IAction, options: IBaseActionViewItemOptions | undefined, private readonly themeService: IThemeService) {
+	constructor(context: any, action: IAction, options: IActionViewItemOptions, private readonly themeService: IThemeService) {
 		super(context, action, options);
 	}
 
 	override render(container: HTMLElement): void {
 		super.render(container);
-		if (this.checkbox) {
-			this.disposables.add(attachCheckboxStyler(this.checkbox, this.themeService));
-		}
+		this._register(attachCheckboxStyler(this.checkbox, this.themeService));
 	}
 }
 
@@ -127,14 +126,10 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		this.keybindingFocusContextKey = CONTEXT_KEYBINDING_FOCUS.bindTo(this.contextKeyService);
 		this.searchHistoryDelayer = new Delayer<void>(500);
 
-		const recordKeysActionKeybinding = this.keybindingsService.lookupKeybinding(KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS);
-		const recordKeysActionLabel = localize('recordKeysLabel', "Record Keys");
-		this.recordKeysAction = new Action(KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, recordKeysActionKeybinding ? localize('recordKeysLabelWithKeybinding', "{0} ({1})", recordKeysActionLabel, recordKeysActionKeybinding.getLabel()) : recordKeysActionLabel, ThemeIcon.asClassName(keybindingsRecordKeysIcon));
+		this.recordKeysAction = new Action(KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, localize('recordKeysLabel', "Record Keys"), ThemeIcon.asClassName(keybindingsRecordKeysIcon));
 		this.recordKeysAction.checked = false;
 
-		const sortByPrecedenceActionKeybinding = this.keybindingsService.lookupKeybinding(KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE);
-		const sortByPrecedenceActionLabel = localize('sortByPrecedeneLabel', "Sort by Precedence");
-		this.sortByPrecedenceAction = new Action('keybindings.editor.sortByPrecedence', sortByPrecedenceActionKeybinding ? localize('sortByPrecedeneLabelWithKeybinding', "{0} ({1})", sortByPrecedenceActionLabel, sortByPrecedenceActionKeybinding.getLabel()) : sortByPrecedenceActionLabel, ThemeIcon.asClassName(keybindingsSortIcon));
+		this.sortByPrecedenceAction = new Action(KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, localize('sortByPrecedeneLabel', "Sort by Precedence (Highest first)"), ThemeIcon.asClassName(keybindingsSortIcon));
 		this.sortByPrecedenceAction.checked = false;
 	}
 
@@ -271,6 +266,12 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		await this.clipboardService.writeText(keybinding.keybindingItem.command);
 	}
 
+	private async copyKeybindingCommandTitle(keybinding: IKeybindingItemEntry): Promise<void> {
+		this.selectEntry(keybinding);
+		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE, keybinding.keybindingItem.command, keybinding.keybindingItem.keybinding);
+		await this.clipboardService.writeText(keybinding.keybindingItem.commandLabel);
+	}
+
 	focusSearch(): void {
 		this.searchWidget.focus();
 	}
@@ -368,24 +369,18 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 			}
 		}));
 
-		const actionBar = this._register(new ActionBar(this.actionsContainer, {
-			animated: false,
+		const actions = [this.recordKeysAction, this.sortByPrecedenceAction, clearInputAction];
+		const toolBar = this._register(new ToolBar(this.actionsContainer, this.contextMenuService, {
 			actionViewItemProvider: (action: IAction) => {
-				let checkboxViewItem: CheckboxActionViewItem | undefined;
-				if (action.id === this.sortByPrecedenceAction.id) {
-					checkboxViewItem = new ThemableCheckboxActionViewItem(null, action, undefined, this.themeService);
+				if (action.id === this.sortByPrecedenceAction.id || action.id === this.recordKeysAction.id) {
+					return new ThemableCheckboxActionViewItem(null, action, { keybinding: this.keybindingsService.lookupKeybinding(action.id)?.getLabel() }, this.themeService);
 				}
-				else if (action.id === this.recordKeysAction.id) {
-					checkboxViewItem = new ThemableCheckboxActionViewItem(null, action, undefined, this.themeService);
-				}
-				if (checkboxViewItem) {
-
-				}
-				return checkboxViewItem;
-			}
+				return undefined;
+			},
+			getKeyBinding: action => this.keybindingsService.lookupKeybinding(action.id)
 		}));
-
-		actionBar.push([this.recordKeysAction, this.sortByPrecedenceAction, clearInputAction], { label: false, icon: true });
+		toolBar.setActions(actions);
+		this._register(this.keybindingsService.onDidUpdateKeybindings(e => toolBar.setActions(actions)));
 	}
 
 	private updateSearchOptions(): void {
@@ -669,6 +664,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 				getActions: () => [
 					this.createCopyAction(keybindingItemEntry),
 					this.createCopyCommandAction(keybindingItemEntry),
+					this.createCopyCommandTitleAction(keybindingItemEntry),
 					new Separator(),
 					...(keybindingItemEntry.keybindingItem.keybinding
 						? [this.createDefineKeybindingAction(keybindingItemEntry), this.createAddKeybindingAction(keybindingItemEntry)]
@@ -764,6 +760,15 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 			enabled: true,
 			id: KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND,
 			run: () => this.copyKeybindingCommand(keybinding)
+		};
+	}
+
+	private createCopyCommandTitleAction(keybinding: IKeybindingItemEntry): IAction {
+		return <IAction>{
+			label: localize('copyCommandTitleLabel', "Copy Command Title"),
+			enabled: !!keybinding.keybindingItem.commandLabel,
+			id: KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE,
+			run: () => this.copyKeybindingCommandTitle(keybinding)
 		};
 	}
 

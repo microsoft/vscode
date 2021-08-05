@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { renderText, renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
+import { renderFormattedText, renderText } from 'vs/base/browser/formattedTextRenderer';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('FormattedTextRenderer', () => {

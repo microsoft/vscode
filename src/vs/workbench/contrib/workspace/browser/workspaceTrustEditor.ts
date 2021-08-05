@@ -39,7 +39,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { attachButtonStyler, attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { ISingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ChoiceAction } from 'vs/workbench/common/notifications';
@@ -52,6 +52,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { getExtensionDependencies } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { EnablementState, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 
 export const shieldIcon = registerCodicon('workspace-trust-icon', Codicon.shield);
 
@@ -142,10 +143,10 @@ class WorkspaceTrustedUrisTable extends Disposable {
 						} else {
 							const hostLabel = getHostLabel(this.labelService, item);
 							if (hostLabel === undefined || hostLabel.length === 0) {
-								return localize('trustedFolderAriaLabel', "You trust {0}", this.labelService.getUriLabel(item.uri));
+								return localize('trustedFolderAriaLabel', "{0}, trusted", this.labelService.getUriLabel(item.uri));
 							}
 
-							return localize('trustedFolderWithHostAriaLabel', "You trust {0} on {1}", this.labelService.getUriLabel(item.uri), hostLabel);
+							return localize('trustedFolderWithHostAriaLabel', "{0} on {1}, trusted", this.labelService.getUriLabel(item.uri), hostLabel);
 
 
 						}
@@ -597,7 +598,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 	// Settings Section
 	private configurationContainer!: HTMLElement;
-	private workpaceTrustedUrisTable!: WorkspaceTrustedUrisTable;
+	private workspaceTrustedUrisTable!: WorkspaceTrustedUrisTable;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -610,6 +611,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService
 	) { super(WorkspaceTrustEditor.ID, telemetryService, themeService, storageService); }
 
 	protected createEditor(parent: HTMLElement): void {
@@ -695,19 +697,19 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 		switch (this.workspaceService.getWorkbenchState()) {
 			case WorkbenchState.EMPTY: {
-				title = trusted ? localize('trustedWindow', "In a trusted window") : localize('untrustedWorkspace', "In Restricted Mode");
+				title = trusted ? localize('trustedWindow', "In a Trusted Window") : localize('untrustedWorkspace', "In Restricted Mode");
 				subTitle = trusted ? localize('trustedWindowSubtitle', "You trust the authors of the files in the current window. All features are enabled:") :
 					localize('untrustedWindowSubtitle', "You do not trust the authors of the files in the current window. The following features are disabled:");
 				break;
 			}
 			case WorkbenchState.FOLDER: {
-				title = trusted ? localize('trustedFolder', "In a trusted folder") : localize('untrustedWorkspace', "In Restricted Mode");
+				title = trusted ? localize('trustedFolder', "In a Trusted Folder") : localize('untrustedWorkspace', "In Restricted Mode");
 				subTitle = trusted ? localize('trustedFolderSubtitle', "You trust the authors of the files in the current folder. All features are enabled:") :
 					localize('untrustedFolderSubtitle', "You do not trust the authors of the files in the current folder. The following features are disabled:");
 				break;
 			}
 			case WorkbenchState.WORKSPACE: {
-				title = trusted ? localize('trustedWorkspace', "In a trusted workspace") : localize('untrustedWorkspace', "In Restricted Mode");
+				title = trusted ? localize('trustedWorkspace', "In a Trusted Workspace") : localize('untrustedWorkspace', "In Restricted Mode");
 				subTitle = trusted ? localize('trustedWorkspaceSubtitle', "You trust the authors of the files in the current workspace. All features are enabled:") :
 					localize('untrustedWorkspaceSubtitle', "You do not trust the authors of the files in the current workspace. The following features are disabled:");
 				break;
@@ -728,7 +730,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.rendering = true;
 		this.rerenderDisposables.clear();
 
-		const isWorkspaceTrusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
+		const isWorkspaceTrusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
 		this.rootElement.classList.toggle('trusted', isWorkspaceTrusted);
 		this.rootElement.classList.toggle('untrusted', !isWorkspaceTrusted);
 
@@ -791,7 +793,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.renderAffectedFeatures(settingsRequiringTrustedWorkspaceCount, this.getExtensionCount());
 
 		// Configuration Tree
-		this.workpaceTrustedUrisTable.updateTable();
+		this.workspaceTrustedUrisTable.updateTable();
 
 		this.bodyScrollBar.getDomNode().style.height = `calc(100% - ${this.headerContainer.clientHeight}px)`;
 		this.bodyScrollBar.scanDomNode();
@@ -806,6 +808,12 @@ export class WorkspaceTrustEditor extends EditorPane {
 		const localExtensions = this.extensionWorkbenchService.local.filter(ext => ext.local).map(ext => ext.local!);
 
 		for (const extension of localExtensions) {
+			const enablementState = this.extensionEnablementService.getEnablementState(extension);
+			if (enablementState !== EnablementState.EnabledGlobally && enablementState !== EnablementState.EnabledWorkspace &&
+				enablementState !== EnablementState.DisabledByTrustRequirement && enablementState !== EnablementState.DisabledByExtensionDependency) {
+				continue;
+			}
+
 			if (inVirtualWorkspace && this.extensionManifestPropertiesService.getExtensionVirtualWorkspaceSupportType(extension.manifest) === false) {
 				continue;
 			}
@@ -840,7 +848,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		const configurationDescription = append(this.configurationContainer, $('.workspace-trusted-folders-description'));
 		configurationDescription.innerText = localize('trustedFoldersDescription', "You trust the following folders, their subfolders, and workspace files.");
 
-		this.workpaceTrustedUrisTable = this._register(this.instantiationService.createInstance(WorkspaceTrustedUrisTable, this.configurationContainer));
+		this.workspaceTrustedUrisTable = this._register(this.instantiationService.createInstance(WorkspaceTrustedUrisTable, this.configurationContainer));
 	}
 
 	private createAffectedFeaturesElement(parent: HTMLElement): void {
@@ -888,7 +896,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 			];
 		this.renderLimitationsListElement(untrustedContainer, untrustedContainerItems, xListIcon.classNamesArray);
 
-		if (this.workspaceTrustManagementService.isWorkpaceTrusted()) {
+		if (this.workspaceTrustManagementService.isWorkspaceTrusted()) {
 			if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
 				this.addDontTrustButtonToElement(untrustedContainer);
 			} else {
@@ -942,19 +950,16 @@ export class WorkspaceTrustEditor extends EditorPane {
 			})
 		];
 
-		const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceService.getWorkspace());
-		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && workspaceIdentifier.uri.scheme === Schemas.file) {
-			const { parentPath } = splitName(workspaceIdentifier.uri.fsPath);
-			const { name } = splitName(parentPath);
+		if (this.workspaceTrustManagementService.canSetParentFolderTrust()) {
+			const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceService.getWorkspace()) as ISingleFolderWorkspaceIdentifier;
+			const { name } = splitName(splitName(workspaceIdentifier.uri.fsPath).parentPath);
 
 			const trustMessageElement = append(parent, $('.trust-message-box'));
 			trustMessageElement.innerText = localize('trustMessage', "Trust the authors of all files in the current folder or its parent '{0}'.", name);
 
-			if (parentPath) {
-				trustActions.push(new Action('workspace.trust.button.action.grantParent', localize('trustParentButton', "Trust Parent"), undefined, true, async () => {
-					await this.workspaceTrustManagementService.setUrisTrust([URI.file(parentPath)], true);
-				}));
-			}
+			trustActions.push(new Action('workspace.trust.button.action.grantParent', localize('trustParentButton', "Trust Parent"), undefined, true, async () => {
+				await this.workspaceTrustManagementService.setParentFolderTrust(true);
+			}));
 		}
 
 		this.createButtonRow(parent, trustActions);
@@ -1018,7 +1023,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 			return;
 		}
 
-		this.workpaceTrustedUrisTable.layout();
+		this.workspaceTrustedUrisTable.layout();
 
 		this.layoutParticipants.forEach(participant => {
 			participant.layout();

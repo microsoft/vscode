@@ -154,12 +154,7 @@ export class Menubar {
 		const privacyStatementUrl = this.productService.privacyStatementUrl;
 		if (privacyStatementUrl && licenseUrl) {
 			this.fallbackMenuHandlers['workbench.action.openPrivacyStatementUrl'] = () => {
-				if (language) {
-					const queryArgChar = licenseUrl.indexOf('?') > 0 ? '&' : '?';
-					this.openUrl(`${privacyStatementUrl}${queryArgChar}lang=${language}`, 'openPrivacyStatement');
-				} else {
-					this.openUrl(privacyStatementUrl, 'openPrivacyStatement');
-				}
+				this.openUrl(privacyStatementUrl, 'openPrivacyStatement');
 			};
 		}
 	}
@@ -175,9 +170,9 @@ export class Menubar {
 	}
 
 	private get currentEnableMenuBarMnemonics(): boolean {
-		let enableMenuBarMnemonics = this.configurationService.getValue<boolean>('window.enableMenuBarMnemonics');
+		let enableMenuBarMnemonics = this.configurationService.getValue('window.enableMenuBarMnemonics');
 		if (typeof enableMenuBarMnemonics !== 'boolean') {
-			enableMenuBarMnemonics = true;
+			return true;
 		}
 
 		return enableMenuBarMnemonics;
@@ -188,9 +183,9 @@ export class Menubar {
 			return false;
 		}
 
-		let enableNativeTabs = this.configurationService.getValue<boolean>('window.nativeTabs');
+		let enableNativeTabs = this.configurationService.getValue('window.nativeTabs');
 		if (typeof enableNativeTabs !== 'boolean') {
-			enableNativeTabs = false;
+			return false;
 		}
 		return enableNativeTabs;
 	}

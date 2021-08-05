@@ -21,15 +21,17 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSION_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { CodeCellRenderTemplate, ICellOutputViewModel, ICellViewModel, IInsetRenderOutput, INotebookEditor, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CodeCellRenderTemplate, ICellOutputViewModel, ICellViewModel, IInsetRenderOutput, INotebookEditor, IRenderOutput, JUPYTER_EXTENSION_ID, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { mimetypeIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { BUILTIN_RENDERER_ID, CellUri, IOrderedMimeType, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { BUILTIN_RENDERER_ID, CellUri, IOrderedMimeType, NotebookCellOutputsSplice, RENDERER_NOT_AVAILABLE } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
 
 interface IMimeTypeRenderer extends IQuickPickItem {
@@ -86,6 +88,7 @@ export class CellOutputElement extends Disposable {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextKeyService parentContextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService,
+		@IViewletService private readonly viewletService: IViewletService,
 	) {
 		super();
 
@@ -339,7 +342,7 @@ export class CellOutputElement extends Disposable {
 		};
 
 		// TODO: This could probably be a real registered action, but it has to talk to this output element
-		const pickAction = new Action('notebook.output.pickMimetype', nls.localize('pickMimeType', "Choose a different output mimetype"), ThemeIcon.asClassName(mimetypeIcon), undefined,
+		const pickAction = new Action('notebook.output.pickMimetype', nls.localize('pickMimeType', "Choose Output Mimetype"), ThemeIcon.asClassName(mimetypeIcon), undefined,
 			async _context => this._pickActiveMimeTypeRenderer(notebookTextModel, kernel, this.output));
 		if (index === 0 && useConsolidatedButton) {
 			const menu = this._renderDisposableStore.add(this.menuService.createMenu(MenuId.NotebookOutputToolbar, this.contextKeyService));
@@ -361,10 +364,14 @@ export class CellOutputElement extends Disposable {
 	private async _pickActiveMimeTypeRenderer(notebookTextModel: NotebookTextModel, kernel: INotebookKernel | undefined, viewModel: ICellOutputViewModel) {
 		const [mimeTypes, currIndex] = viewModel.resolveMimeTypes(notebookTextModel, kernel?.preloadProvides);
 
-		let items: IMimeTypeRenderer[] = [];
+		const items: IMimeTypeRenderer[] = [];
+		const unsupportedItems: IMimeTypeRenderer[] = [];
 		mimeTypes.forEach((mimeType, index) => {
 			if (mimeType.isTrusted) {
-				items.push({
+				const arr = mimeType.rendererId === RENDERER_NOT_AVAILABLE ?
+					unsupportedItems :
+					items;
+				arr.push({
 					label: mimeType.mimeType,
 					id: mimeType.mimeType,
 					index: index,
@@ -375,11 +382,23 @@ export class CellOutputElement extends Disposable {
 			}
 		});
 
+		if (unsupportedItems.some(m => JUPYTER_RENDERER_MIMETYPES.includes(m.id!))) {
+			unsupportedItems.push({
+				label: nls.localize('installJupyterPrompt', "Install additional renderers from the marketplace"),
+				id: 'installRenderers',
+				index: mimeTypes.length
+			});
+		}
+
 		const picker = this.quickInputService.createQuickPick();
-		picker.items = items;
+		picker.items = [
+			...items,
+			{ type: 'separator' },
+			...unsupportedItems
+		];
 		picker.activeItems = items.filter(item => !!item.picked);
 		picker.placeholder = items.length !== mimeTypes.length
-			? nls.localize('promptChooseMimeTypeInSecure.placeHolder', "Select mimetype to render for current output. Rich mimetypes are available only when the notebook is trusted")
+			? nls.localize('promptChooseMimeTypeInSecure.placeHolder', "Select mimetype to render for current output")
 			: nls.localize('promptChooseMimeType.placeHolder', "Select mimetype to render for current output");
 
 		const pick = await new Promise<IMimeTypeRenderer | undefined>(resolve => {
@@ -391,6 +410,11 @@ export class CellOutputElement extends Disposable {
 		});
 
 		if (pick === undefined || pick.index === currIndex) {
+			return;
+		}
+
+		if (pick.id === 'installRenderers') {
+			this._showJupyterExtension();
 			return;
 		}
 
@@ -413,6 +437,12 @@ export class CellOutputElement extends Disposable {
 		this._relayoutCell();
 	}
 
+	private async _showJupyterExtension() {
+		const viewlet = await this.viewletService.openViewlet(EXTENSION_VIEWLET_ID, true);
+		const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
+		view?.search(`@id:${JUPYTER_EXTENSION_ID}`);
+	}
+
 	private _generateRendererInfo(renderId: string | undefined): string {
 		if (renderId === undefined || renderId === BUILTIN_RENDERER_ID) {
 			return nls.localize('builtinRenderInfo', "built-in");
@@ -425,7 +455,7 @@ export class CellOutputElement extends Disposable {
 			return `${displayName} (${renderInfo.extensionId.value})`;
 		}
 
-		return nls.localize('builtinRenderInfo', "built-in");
+		return nls.localize('unavailableRenderInfo', "renderer not available");
 	}
 
 	private _outputHeightTimer: any = null;
@@ -455,6 +485,10 @@ export class CellOutputElement extends Disposable {
 
 		if (this._outputHeightTimer) {
 			clearTimeout(this._outputHeightTimer);
+		}
+
+		if (this.renderResult && this.renderResult.type === RenderOutputType.Mainframe) {
+			this.renderResult.disposable?.dispose();
 		}
 
 		super.dispose();
@@ -797,3 +831,24 @@ export class CellOutputContainer extends Disposable {
 		super.dispose();
 	}
 }
+
+const JUPYTER_RENDERER_MIMETYPES = [
+	'application/geo+json',
+	'application/vdom.v1+json',
+	'application/vnd.dataresource+json',
+	'application/vnd.plotly.v1+json',
+	'application/vnd.vega.v2+json',
+	'application/vnd.vega.v3+json',
+	'application/vnd.vega.v4+json',
+	'application/vnd.vega.v5+json',
+	'application/vnd.vegalite.v1+json',
+	'application/vnd.vegalite.v2+json',
+	'application/vnd.vegalite.v3+json',
+	'application/vnd.vegalite.v4+json',
+	'application/x-nteract-model-debug+json',
+	'image/svg+xml',
+	'text/latex',
+	'text/vnd.plotly.v1+html',
+	'application/vnd.jupyter.widget-view+json',
+	'application/vnd.code.notebook.error'
+];

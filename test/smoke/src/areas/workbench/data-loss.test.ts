@@ -11,7 +11,7 @@ export function setup(opts: minimist.ParsedArgs) {
 
 	describe('Dataloss', () => {
 		beforeSuite(opts);
-		afterSuite();
+		afterSuite(opts);
 
 		it(`verifies that 'hot exit' works for dirty files`, async function () {
 			const app = this.app as Application;

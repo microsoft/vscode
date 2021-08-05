@@ -22,6 +22,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
+import { isWeb } from 'vs/base/common/platform';
 
 interface IRawGalleryExtensionFile {
 	readonly assetType: string;
@@ -56,6 +57,10 @@ interface IRawGalleryExtension {
 	readonly versions: IRawGalleryExtensionVersion[];
 	readonly statistics: IRawGalleryExtensionStatistics[];
 	readonly tags: string[] | undefined;
+	readonly releaseDate: string;
+	readonly publishedDate: string;
+	readonly lastUpdated: string;
+	readonly categories: string[] | undefined;
 	readonly flags: string;
 }
 
@@ -334,6 +339,10 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 		rating: getStatistic(galleryExtension.statistics, 'averagerating'),
 		ratingCount: getStatistic(galleryExtension.statistics, 'ratingcount'),
 		assetUri: URI.parse(version.assetUri),
+		categories: galleryExtension.categories || [],
+		tags: galleryExtension.tags || [],
+		releaseDate: Date.parse(galleryExtension.releaseDate),
+		lastUpdated: Date.parse(galleryExtension.lastUpdated),
 		webExtension: !!galleryExtension.tags?.includes(WEB_EXTENSION_TAG),
 		assetTypes: version.files.map(({ assetType }) => assetType),
 		assets,
@@ -599,12 +608,15 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			return undefined;
 		}
 
+		const url = isWeb ? this.api(`/itemName/${publisher}.${name}/version/${version}/statType/${type === StatisticType.Install ? '1' : '3'}/vscodewebextension`) : this.api(`/publishers/${publisher}/extensions/${name}/${version}/stats?statType=${type}`);
+		const Accept = isWeb ? 'api-version=6.1-preview.1' : '*/*;api-version=4.0-preview.1';
+
 		const commonHeaders = await this.commonHeadersPromise;
-		const headers = { ...commonHeaders, Accept: '*/*;api-version=4.0-preview.1' };
+		const headers = { ...commonHeaders, Accept };
 		try {
 			await this.requestService.request({
 				type: 'POST',
-				url: this.api(`/publishers/${publisher}/extensions/${name}/${version}/stats?statType=${type}`),
+				url,
 				headers
 			}, CancellationToken.None);
 		} catch (error) { /* Ignore */ }

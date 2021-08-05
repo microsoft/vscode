@@ -4,26 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { createServer, Socket } from 'net';
 import { EventEmitter } from 'events';
-import { Protocol, PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
-import { createRandomIPCHandle, createStaticIPCHandle, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
-import { VSBuffer } from 'vs/base/common/buffer';
+import { createServer, Socket } from 'net';
 import { tmpdir } from 'os';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { PersistentProtocol, Protocol } from 'vs/base/parts/ipc/common/ipc.net';
+import { createRandomIPCHandle, createStaticIPCHandle, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import product from 'vs/platform/product/common/product';
 
-class MessageStream {
+class MessageStream extends Disposable {
 
 	private _currentComplete: ((data: VSBuffer) => void) | null;
 	private _messages: VSBuffer[];
 
 	constructor(x: Protocol | PersistentProtocol) {
+		super();
 		this._currentComplete = null;
 		this._messages = [];
-		x.onMessage(data => {
+		this._register(x.onMessage(data => {
 			this._messages.push(data);
 			this._trigger();
-		});
+		}));
 	}
 
 	private _trigger(): void {
@@ -121,6 +124,8 @@ class Ether {
 
 suite('IPC, Socket Protocol', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	let ether: Ether;
 
 	setup(() => {
@@ -142,6 +147,10 @@ suite('IPC, Socket Protocol', () => {
 		a.send(buffer);
 		const msg2 = await bMessages.waitForOne();
 		assert.strictEqual(msg2.readUInt8(0), 123);
+
+		bMessages.dispose();
+		a.dispose();
+		b.dispose();
 	});
 
 
@@ -161,11 +170,18 @@ suite('IPC, Socket Protocol', () => {
 		a.send(VSBuffer.fromString(JSON.stringify(data)));
 		const msg = await bMessages.waitForOne();
 		assert.deepStrictEqual(JSON.parse(msg.toString()), data);
+
+		bMessages.dispose();
+		a.dispose();
+		b.dispose();
 	});
 
 });
 
 suite('PersistentProtocol reconnection', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	let ether: Ether;
 
 	setup(() => {
@@ -222,6 +238,11 @@ suite('PersistentProtocol reconnection', () => {
 		assert.strictEqual(b2.toString(), 'a4');
 		assert.strictEqual(a.unacknowledgedCount, 1);
 		assert.strictEqual(b.unacknowledgedCount, 0);
+
+		aMessages.dispose();
+		bMessages.dispose();
+		a.dispose();
+		b.dispose();
 	});
 });
 

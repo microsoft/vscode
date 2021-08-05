@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DEFAULT_EDITOR_ASSOCIATION, GroupIdentifier, IEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput, UntypedEditorContext, Verbosity } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, GroupIdentifier, IEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { EncodingMode, IEncodingSupport, IModeSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -124,7 +124,7 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		return this.model;
 	}
 
-	override toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IUntitledTextResourceEditorInput {
+	override toUntyped(options?: { preserveViewState: GroupIdentifier }): IUntitledTextResourceEditorInput {
 		const untypedInput: IUntitledTextResourceEditorInput & { options: ITextEditorOptions } = {
 			resource: this.model.hasAssociatedFilePath ? toLocalResource(this.model.resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme) : this.resource,
 			forceUntitled: true,
@@ -133,14 +133,11 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 			}
 		};
 
-		if (context === UntypedEditorContext.Full) {
+		if (typeof options?.preserveViewState === 'number') {
 			untypedInput.encoding = this.getEncoding();
 			untypedInput.mode = this.getMode();
 			untypedInput.contents = this.model.isDirty() ? this.model.textEditorModel?.getValue() : undefined;
-
-			if (typeof group === 'number') {
-				untypedInput.options.viewState = this.getViewStateFor(group);
-			}
+			untypedInput.options.viewState = this.getViewStateFor(options.preserveViewState);
 		}
 
 		return untypedInput;

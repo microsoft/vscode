@@ -13,12 +13,10 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/colorPickerWidget';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { coalesce, flatten } from 'vs/base/common/arrays';
 import { IModelDecoration } from 'vs/editor/common/model';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Constants } from 'vs/base/common/uint';
-import { textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Widget } from 'vs/base/browser/ui/widget';
@@ -577,10 +575,3 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		className: 'hoverHighlight'
 	});
 }
-
-registerThemingParticipant((theme, collector) => {
-	const linkFg = theme.getColor(textLinkForeground);
-	if (linkFg) {
-		collector.addRule(`.monaco-hover .hover-contents a.code-link span:hover { color: ${linkFg}; }`);
-	}
-});

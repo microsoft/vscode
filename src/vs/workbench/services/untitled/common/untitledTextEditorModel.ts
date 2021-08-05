@@ -152,8 +152,8 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	private onConfigurationChange(fromEvent: boolean): void {
 
 		// Encoding
-		const configuredEncoding = this.textResourceConfigurationService.getValue<string>(this.resource, 'files.encoding');
-		if (this.configuredEncoding !== configuredEncoding) {
+		const configuredEncoding = this.textResourceConfigurationService.getValue(this.resource, 'files.encoding');
+		if (this.configuredEncoding !== configuredEncoding && typeof configuredEncoding === 'string') {
 			this.configuredEncoding = configuredEncoding;
 
 			if (fromEvent && !this.preferredEncoding) {
@@ -162,7 +162,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		}
 
 		// Label Format
-		const configuredLabelFormat = this.textResourceConfigurationService.getValue<string>(this.resource, 'workbench.editor.untitled.labelFormat');
+		const configuredLabelFormat = this.textResourceConfigurationService.getValue(this.resource, 'workbench.editor.untitled.labelFormat');
 		if (this.configuredLabelFormat !== configuredLabelFormat && (configuredLabelFormat === 'content' || configuredLabelFormat === 'name')) {
 			this.configuredLabelFormat = configuredLabelFormat;
 
@@ -178,10 +178,10 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	private _hasModeSetExplicitly: boolean = false;
 	get hasModeSetExplicitly(): boolean { return this._hasModeSetExplicitly; }
 
-	override setMode(mode: string): void {
+	override setMode(mode: string, setExplicitly = true): void {
 
 		// Remember that an explicit mode was set
-		this._hasModeSetExplicitly = true;
+		this._hasModeSetExplicitly = setExplicitly;
 
 		let actualMode: string | undefined = undefined;
 		if (mode === '${activeEditorLanguage}') {

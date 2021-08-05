@@ -10,7 +10,7 @@ import 'vs/css!./media/searchEditor';
 import { ICodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EditorOverride } from 'vs/platform/editor/common/editor';
+import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -147,7 +147,7 @@ export const openNewSearchEditor =
 		let editor: SearchEditor;
 		if (existing && args.location === 'reuse') {
 			const input = existing.editor as SearchEditorInput;
-			editor = (await editorService.openEditor(input, { override: EditorOverride.DISABLED }, existing.groupId)) as SearchEditor;
+			editor = (await editorService.openEditor(input, { override: EditorResolution.DISABLED }, existing.groupId)) as SearchEditor;
 			if (selected) { editor.setQuery(selected); }
 			else { editor.selectQuery(); }
 			editor.setSearchConfig(args);

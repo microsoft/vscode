@@ -116,16 +116,19 @@
 	vertical-align: middle;
 }
 
+.monaco-hover .hover-contents a.code-link:hover,
+.monaco-hover .hover-contents a.code-link {
+	color: inherit;
+}
+
 .monaco-hover .hover-contents a.code-link:before {
 	content: '(';
 }
+
 .monaco-hover .hover-contents a.code-link:after {
 	content: ')';
 }
 
-.monaco-hover .hover-contents a.code-link {
-	color: inherit;
-}
 .monaco-hover .hover-contents a.code-link > span {
 	text-decoration: underline;
 	/** Hack to force underline to show **/

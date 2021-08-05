@@ -238,15 +238,18 @@ export class Debugger implements IDebugger {
 					properties: {
 						windows: {
 							$ref: `#/definitions/${definitionId}`,
-							description: nls.localize('debugWindowsConfiguration', "Windows specific launch configuration attributes.")
+							description: nls.localize('debugWindowsConfiguration', "Windows specific launch configuration attributes."),
+							required: [],
 						},
 						osx: {
 							$ref: `#/definitions/${definitionId}`,
-							description: nls.localize('debugOSXConfiguration', "OS X specific launch configuration attributes.")
+							description: nls.localize('debugOSXConfiguration', "OS X specific launch configuration attributes."),
+							required: [],
 						},
 						linux: {
 							$ref: `#/definitions/${definitionId}`,
-							description: nls.localize('debugLinuxConfiguration', "Linux specific launch configuration attributes.")
+							description: nls.localize('debugLinuxConfiguration', "Linux specific launch configuration attributes."),
+							required: [],
 						}
 					}
 				}]

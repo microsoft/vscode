@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFunction, isString } from 'vs/base/common/types';
 import * as dom from 'vs/base/browser/dom';
-import { IIconLabelMarkdownString } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { IHoverDelegate, IHoverDelegateTarget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { localize } from 'vs/nls';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IHoverDelegate, IHoverDelegateTarget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IIconLabelMarkdownString } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { isFunction, isString } from 'vs/base/common/types';
+import { localize } from 'vs/nls';
 
 
 export function setupNativeHover(htmlElement: HTMLElement, tooltip: string | IIconLabelMarkdownString | undefined): void {

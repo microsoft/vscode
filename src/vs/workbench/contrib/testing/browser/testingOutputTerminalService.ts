@@ -101,7 +101,7 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 		}
 
 		const output = new TestOutputProcess();
-		this.showResultsInTerminal(this.terminalService.createTerminal({
+		this.showResultsInTerminal(await this.terminalService.createTerminal({
 			config: {
 				isFeatureTerminal: true,
 				icon: testingViewIcon,

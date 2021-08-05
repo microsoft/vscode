@@ -10,27 +10,8 @@ import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
 import { InlineCompletionsProvider, InlineCompletion, InlineCompletionContext } from 'vs/editor/common/modes';
-import { GhostText, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/ghostText';
+import { GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/ghostText';
 import { ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-
-export function renderGhostTextToText(ghostText: GhostText, text: string): string;
-export function renderGhostTextToText(ghostText: GhostText | undefined, text: string): string | undefined;
-export function renderGhostTextToText(ghostText: GhostText | undefined, text: string): string | undefined {
-	if (!ghostText) {
-		return undefined;
-	}
-	const l = ghostText.lineNumber;
-	const tempModel = createTextModel(text);
-	tempModel.applyEdits(
-		[
-			...ghostText.parts.map(p => ({ range: { startLineNumber: l, endLineNumber: l, startColumn: p.column, endColumn: p.column }, text: `[${p.lines.join('\n')}]` })),
-		]
-	);
-	const value = tempModel.getValue();
-	tempModel.dispose();
-	return value;
-}
 
 export class MockInlineCompletionsProvider implements InlineCompletionsProvider {
 	private returnValue: InlineCompletion[] = [];
@@ -110,7 +91,7 @@ export class GhostTextContext extends Disposable {
 		const ghostText = this.model?.ghostText;
 		let view: string | undefined;
 		if (ghostText) {
-			view = renderGhostTextToText(ghostText, this.editor.getValue());
+			view = ghostText.render(this.editor.getValue(), true);
 		} else {
 			view = this.editor.getValue();
 		}

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as pfs from 'vs/base/node/pfs';
 import * as os from 'os';
 import * as path from 'vs/base/common/path';
+import * as pfs from 'vs/base/node/pfs';
 
 // This is required, since parseInt("7-preview") will return 7.
 const IntRegex: RegExp = /^\d+$/;

@@ -22,6 +22,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorAction, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Progress } from 'vs/platform/progress/common/progress';
+import { flatten } from 'vs/base/common/arrays';
 
 // format notebook
 registerAction2(class extends Action2 {
@@ -61,11 +62,7 @@ registerAction2(class extends Action2 {
 		const notebook = editor.viewModel.notebookDocument;
 		const disposable = new DisposableStore();
 		try {
-
-			const edits: ResourceTextEdit[] = [];
-
-			for (const cell of notebook.cells) {
-
+			const allCellEdits = await Promise.all(notebook.cells.map(async cell => {
 				const ref = await textModelService.createModelReference(cell.uri);
 				disposable.add(ref);
 
@@ -76,14 +73,20 @@ registerAction2(class extends Action2 {
 					model.getOptions(), CancellationToken.None
 				);
 
+				const edits: ResourceTextEdit[] = [];
+
 				if (formatEdits) {
 					for (let edit of formatEdits) {
 						edits.push(new ResourceTextEdit(model.uri, edit, model.getVersionId()));
 					}
-				}
-			}
 
-			await bulkEditService.apply(edits, { label: localize('label', "Format Notebook") });
+					return edits;
+				}
+
+				return [];
+			}));
+
+			await bulkEditService.apply(/* edit */flatten(allCellEdits), { label: localize('label', "Format Notebook") });
 
 		} finally {
 			disposable.dispose();

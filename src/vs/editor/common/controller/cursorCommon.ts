@@ -11,7 +11,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { ICommand, IConfiguration } from 'vs/editor/common/editorCommon';
-import { ITextModel, PositionNormalizationAffinity, TextModelResolvedOptions } from 'vs/editor/common/model';
+import { ITextModel, PositionAffinity, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { AutoClosingPairs, IAutoClosingPair } from 'vs/editor/common/modes/languageConfiguration';
@@ -58,7 +58,7 @@ const autoCloseNever = () => false;
 const autoCloseBeforeWhitespace = (chr: string) => (chr === ' ' || chr === '\t');
 
 export class CursorConfiguration {
-	_cursorMoveConfigurationBrand: void;
+	_cursorMoveConfigurationBrand: void = undefined;
 
 	public readonly readOnly: boolean;
 	public readonly tabSize: number;
@@ -221,7 +221,8 @@ export interface ICursorSimpleModel {
 	getLineMaxColumn(lineNumber: number): number;
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
-	normalizePosition(position: Position, affinity: PositionNormalizationAffinity): Position;
+	normalizePosition(position: Position, affinity: PositionAffinity): Position;
+
 	/**
 	 * Gets the column at which indentation stops at a given line.
 	 * @internal
@@ -233,7 +234,7 @@ export interface ICursorSimpleModel {
  * Represents the cursor state on either the model or on the view model.
  */
 export class SingleCursorState {
-	_singleCursorStateBrand: void;
+	_singleCursorStateBrand: void = undefined;
 
 	// --- selection can start as a range (think double click and drag)
 	public readonly selectionStart: Range;
@@ -318,14 +319,16 @@ export class SingleCursorState {
 }
 
 export class CursorContext {
-	_cursorContextBrand: void;
+	_cursorContextBrand: void = undefined;
 
 	public readonly model: ITextModel;
+	public readonly viewModel: ICursorSimpleModel;
 	public readonly coordinatesConverter: ICoordinatesConverter;
 	public readonly cursorConfig: CursorConfiguration;
 
-	constructor(model: ITextModel, coordinatesConverter: ICoordinatesConverter, cursorConfig: CursorConfiguration) {
+	constructor(model: ITextModel, viewModel: ICursorSimpleModel, coordinatesConverter: ICoordinatesConverter, cursorConfig: CursorConfiguration) {
 		this.model = model;
+		this.viewModel = viewModel;
 		this.coordinatesConverter = coordinatesConverter;
 		this.cursorConfig = cursorConfig;
 	}
@@ -354,7 +357,7 @@ export class PartialViewCursorState {
 export type PartialCursorState = CursorState | PartialModelCursorState | PartialViewCursorState;
 
 export class CursorState {
-	_cursorStateBrand: void;
+	_cursorStateBrand: void = undefined;
 
 	public static fromModelState(modelState: SingleCursorState): PartialModelCursorState {
 		return new PartialModelCursorState(modelState);
@@ -398,7 +401,7 @@ export class CursorState {
 }
 
 export class EditOperationResult {
-	_editOperationResultBrand: void;
+	_editOperationResultBrand: void = undefined;
 
 	readonly type: EditOperationType;
 	readonly commands: Array<ICommand | null>;
