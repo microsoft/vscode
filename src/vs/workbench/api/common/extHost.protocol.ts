@@ -72,6 +72,7 @@ import { ILanguageStatus } from 'vs/editor/common/services/languageStatusService
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
 	appName: string;
+	embedderIdentifier: string;
 	appRoot?: URI;
 	appLanguage: string;
 	appUriScheme: string;
