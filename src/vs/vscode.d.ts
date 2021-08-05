@@ -10468,8 +10468,8 @@ declare module 'vscode' {
 		export const fs: FileSystem;
 
 		/**
-		 * The workspace folder that is open in the editor. `undefined` when no workspace
-		 * has been opened.
+		 * The uri of the first entry of {@linkcode workspace.workspaceFolders workspaceFolders}
+		 * as `string`. `undefined` if there is no first entry.
 		 *
 		 * Refer to https://code.visualstudio.com/docs/editor/workspaces for more information
 		 * on workspaces.
@@ -10479,13 +10479,11 @@ declare module 'vscode' {
 		export const rootPath: string | undefined;
 
 		/**
-		 * List of workspace folders that are open in the editor. `undefined` when no workspace
+		 * List of workspace folders (0-N) that are open in the editor. `undefined` when no workspace
 		 * has been opened.
 		 *
 		 * Refer to https://code.visualstudio.com/docs/editor/workspaces for more information
 		 * on workspaces.
-		 *
-		 * *Note* that the first entry corresponds to the value of `rootPath`.
 		 */
 		export const workspaceFolders: readonly WorkspaceFolder[] | undefined;
 
