@@ -264,6 +264,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				deltaY: event.deltaY,
 				deltaZ: event.deltaZ,
 				detail: event.detail,
+				shiftKey: event.shiftKey,
 				type: event.type
 			}
 		});
