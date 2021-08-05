@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { FileAccess } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -13,11 +13,10 @@ import { URI } from 'vs/base/common/uri';
 import { isWeb } from 'vs/base/common/platform';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { LanguageDetectionSimpleWorker } from 'vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker';
-import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IntervalTimer } from 'vs/base/common/async';
 import { SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { EditorWorkerClient, EditorWorkerHost } from 'vs/editor/common/services/editorWorkerServiceImpl';
 
 const moduleLocation = '../../../../../../node_modules/@vscode/vscode-languagedetection';
 const moduleLocationAsar = '../../../../../../node_modules.asar/@vscode/vscode-languagedetection';
@@ -40,7 +39,6 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		this._languageDetectionWorkerClient = new LanguageDetectionWorkerClient(
 			modelService,
 			telemetryService,
-			'languageDetectionWorkerService',
 			// TODO: See if it's possible to bundle vscode-languagedetection
 			this._environmentService.isBuilt && !isWeb
 				? FileAccess.asBrowserUri(`${moduleLocationAsar}/dist/lib/index.js`, require).toString(true)
@@ -88,103 +86,6 @@ export interface IWorkerClient<W> {
 	dispose(): void;
 }
 
-class LanguageDetectionModelManager extends Disposable {
-	private static STOP_SYNC_MODEL_DELTA_TIME_MS = 60 * 1000;
-	private readonly _proxy: LanguageDetectionSimpleWorker;
-	private readonly _modelService: IModelService;
-	private _syncedModels: { [modelUrl: string]: IDisposable; } = Object.create(null);
-	private _syncedModelsLastUsedTime: { [modelUrl: string]: number; } = Object.create(null);
-
-	constructor(proxy: LanguageDetectionSimpleWorker, modelService: IModelService, keepIdleModels: boolean) {
-		super();
-		this._proxy = proxy;
-		this._modelService = modelService;
-
-		if (!keepIdleModels) {
-			let timer = new IntervalTimer();
-			timer.cancelAndSet(() => this._checkStopModelSync(), Math.round(LanguageDetectionModelManager.STOP_SYNC_MODEL_DELTA_TIME_MS / 2));
-			this._register(timer);
-		}
-	}
-
-	public override dispose(): void {
-		for (let modelUrl in this._syncedModels) {
-			dispose(this._syncedModels[modelUrl]);
-		}
-		this._syncedModels = Object.create(null);
-		this._syncedModelsLastUsedTime = Object.create(null);
-		super.dispose();
-	}
-
-	public ensureSyncedResources(resources: URI[]): void {
-		for (const resource of resources) {
-			let resourceStr = resource.toString();
-
-			if (!this._syncedModels[resourceStr]) {
-				this._beginModelSync(resource);
-			}
-			if (this._syncedModels[resourceStr]) {
-				this._syncedModelsLastUsedTime[resourceStr] = (new Date()).getTime();
-			}
-		}
-	}
-
-	private _checkStopModelSync(): void {
-		let currentTime = (new Date()).getTime();
-
-		let toRemove: string[] = [];
-		for (let modelUrl in this._syncedModelsLastUsedTime) {
-			let elapsedTime = currentTime - this._syncedModelsLastUsedTime[modelUrl];
-			if (elapsedTime > LanguageDetectionModelManager.STOP_SYNC_MODEL_DELTA_TIME_MS) {
-				toRemove.push(modelUrl);
-			}
-		}
-
-		for (const e of toRemove) {
-			this._stopModelSync(e);
-		}
-	}
-
-	private _beginModelSync(resource: URI): void {
-		let model = this._modelService.getModel(resource);
-		if (!model) {
-			return;
-		}
-		if (model.isTooLargeForSyncing()) {
-			return;
-		}
-
-		let modelUrl = resource.toString();
-
-		this._proxy.acceptNewModel({
-			url: model.uri.toString(),
-			lines: model.getLinesContent(),
-			EOL: model.getEOL(),
-			versionId: model.getVersionId()
-		});
-
-		const toDispose = new DisposableStore();
-		toDispose.add(model.onDidChangeContent((e) => {
-			this._proxy.acceptModelChanged(modelUrl.toString(), e);
-		}));
-		toDispose.add(model.onWillDispose(() => {
-			this._stopModelSync(modelUrl);
-		}));
-		toDispose.add(toDisposable(() => {
-			this._proxy.acceptRemovedModel(modelUrl);
-		}));
-
-		this._syncedModels[modelUrl] = toDispose;
-	}
-
-	private _stopModelSync(modelUrl: string): void {
-		let toDispose = this._syncedModels[modelUrl];
-		delete this._syncedModels[modelUrl];
-		delete this._syncedModelsLastUsedTime[modelUrl];
-		dispose(toDispose);
-	}
-}
-
 export class LanguageDetectionWorkerHost {
 	constructor(
 		private _indexJsUri: string,
@@ -222,67 +123,86 @@ export class LanguageDetectionWorkerHost {
 	}
 }
 
-export class LanguageDetectionWorkerClient extends Disposable {
-	private _worker: IWorkerClient<LanguageDetectionSimpleWorker> | null;
-	private readonly _workerFactory: DefaultWorkerFactory;
-	private _modelManager: LanguageDetectionModelManager | null;
+export class LanguageDetectionWorkerClient extends EditorWorkerClient {
+	private worker: IWorkerClient<LanguageDetectionSimpleWorker> | undefined;
 
 	constructor(
-		private readonly _modelService: IModelService,
+		modelService: IModelService,
 		private readonly _telemetryService: ITelemetryService,
-		label: string,
-		public indexJsUri: string,
-		public modelJsonUri: string,
-		public weightsUri: string
-	) {
-		super();
-		this._workerFactory = new DefaultWorkerFactory(label);
-		this._worker = null;
-		this._modelManager = null;
+		private readonly _indexJsUri: string,
+		private readonly _modelJsonUri: string,
+		private readonly _weightsUri: string) {
+		super(modelService, true, 'languageDetectionWorkerService');
+
 
 	}
 
-	private _getOrCreateModelManager(proxy: LanguageDetectionSimpleWorker): LanguageDetectionModelManager {
-		if (!this._modelManager) {
-			this._modelManager = this._register(new LanguageDetectionModelManager(proxy, this._modelService, true));
+	private _getOrCreateLanguageDetectionWorker(): IWorkerClient<LanguageDetectionSimpleWorker> {
+		if (!this.worker) {
+
+			this.worker = this._register(new SimpleWorkerClient<LanguageDetectionSimpleWorker, EditorWorkerHost>(
+				this._workerFactory,
+				'vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker',
+				new EditorWorkerHost(this)
+			));
 		}
-		return this._modelManager;
+		return this.worker;
 	}
 
-	protected _withSyncedResources(resources: URI[]): Promise<LanguageDetectionSimpleWorker> {
-		return this._getProxy().then((proxy) => {
-			this._getOrCreateModelManager(proxy).ensureSyncedResources(resources);
-			return proxy;
+	override async _getProxy(): Promise<LanguageDetectionSimpleWorker> {
+		return await this._getOrCreateLanguageDetectionWorker().getProxyObject();
+	}
+
+	// foreign host request
+	public override fhr(method: string, args: any[]): Promise<any> {
+		switch (method) {
+			case 'getIndexJsUri':
+				return Promise.resolve(this.getIndexJsUri());
+			case 'getModelJsonUri':
+				return Promise.resolve(this.getModelJsonUri());
+			case 'getWeightsUri':
+				return Promise.resolve(this.getWeightsUri());
+			case 'sendTelemetryEvent':
+				return Promise.resolve(this.sendTelemetryEvent(args[0], args[1], args[2]));
+			default:
+				return super.fhr(method, args);
+		}
+	}
+
+	async getIndexJsUri() {
+		return this._indexJsUri;
+	}
+
+	async getModelJsonUri() {
+		return this._modelJsonUri;
+	}
+
+	async getWeightsUri() {
+		return this._weightsUri;
+	}
+
+	async sendTelemetryEvent(languages: string[], confidences: number[], timeSpent: number): Promise<void> {
+		type LanguageDetectionStats = { languages: string; confidences: string; timeSpent: number; };
+		type LanguageDetectionStatsClassification = {
+			languages: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			confidences: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			timeSpent: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+		};
+
+		this._telemetryService.publicLog2<LanguageDetectionStats, LanguageDetectionStatsClassification>('automaticlanguagedetection.stats', {
+			languages: languages.join(','),
+			confidences: confidences.join(','),
+			timeSpent
 		});
 	}
 
-	private _getOrCreateWorker(): IWorkerClient<LanguageDetectionSimpleWorker> {
-		if (!this._worker) {
-
-			this._worker = this._register(new SimpleWorkerClient<LanguageDetectionSimpleWorker, LanguageDetectionWorkerHost>(
-				this._workerFactory,
-				'vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker',
-				new LanguageDetectionWorkerHost(
-					this.indexJsUri,
-					this.modelJsonUri,
-					this.weightsUri,
-					this._telemetryService)
-			));
-		}
-		return this._worker;
-	}
-
-	protected _getProxy(): Promise<LanguageDetectionSimpleWorker> {
-		return this._getOrCreateWorker().getProxyObject();
-	}
-
 	public async detectLanguage(resource: URI): Promise<string | undefined> {
-		const proxy = await this._withSyncedResources([resource]);
-		return proxy.detectLanguage(resource.toString());
+		await this._withSyncedResources([resource]);
+		return (await this._getProxy()).detectLanguage(resource.toString());
 	}
 	public async detectLanguages(resource: URI): Promise<string[]> {
-		const proxy = await this._withSyncedResources([resource]);
-		return proxy.detectLanguages(resource.toString());
+		await this._withSyncedResources([resource]);
+		return (await this._getProxy()).detectLanguages(resource.toString());
 	}
 }
 

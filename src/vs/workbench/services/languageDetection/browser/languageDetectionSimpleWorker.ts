@@ -4,62 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ModelOperations, ModelResult } from '@vscode/vscode-languagedetection';
-import { IDisposable } from 'vs/base/common/lifecycle';
+// import { IDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { URI } from 'vs/base/common/uri';
+// import { URI } from 'vs/base/common/uri';
 import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
-import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
-import { ICommonModel, IRawModelData, MirrorModel } from 'vs/editor/common/services/editorSimpleWorker';
-import { LanguageDetectionWorkerHost } from 'vs/workbench/services/languageDetection/browser/languageDetectionWorkerServiceImpl';
+// import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
+import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
+import { EditorWorkerHost } from 'vs/editor/common/services/editorWorkerServiceImpl';
+
+/**
+ * Called on the worker side
+ * @internal
+ */
+export function create(host: EditorWorkerHost): IRequestHandler {
+	return new LanguageDetectionSimpleWorker(host, null);
+}
 
 /**
  * @internal
  */
-export class LanguageDetectionSimpleWorker implements IRequestHandler, IDisposable {
+export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 	private static readonly expectedRelativeConfidence = 0.2;
-	_requestHandlerBrand: any;
 
-	private _models: { [uri: string]: MirrorModel; };
 	private _modelOperations: ModelOperations | undefined;
 	private _loadFailed: boolean = false;
-
-	constructor(private _host: LanguageDetectionWorkerHost) {
-		this._models = Object.create(null);
-	}
-
-	public dispose(): void {
-		this._models = Object.create(null);
-		this._modelOperations?.dispose();
-	}
-
-	protected _getModel(uri: string): ICommonModel {
-		return this._models[uri];
-	}
-
-	public acceptNewModel(data: IRawModelData): void {
-		this._models[data.url] = new MirrorModel(URI.parse(data.url), data.lines, data.EOL, data.versionId);
-	}
-
-	public acceptModelChanged(strURL: string, e: IModelChangedEvent): void {
-		if (!this._models[strURL]) {
-			return;
-		}
-		let model = this._models[strURL];
-		model.onEvents(e);
-	}
-
-	public acceptRemovedModel(strURL: string): void {
-		if (!this._models[strURL]) {
-			return;
-		}
-		delete this._models[strURL];
-	}
 
 	public async detectLanguage(uri: string): Promise<string | undefined> {
 		const stopWatch = new StopWatch(true);
 		for await (const language of this.detectLanguagesImpl(uri)) {
 			stopWatch.stop();
-			this._host.sendTelemetryEvent([language.languageId], [language.confidence], stopWatch.elapsed());
+			this.host.fhr('sendTelemetryEvent', [[language.languageId], [language.confidence], stopWatch.elapsed()]);
 			return language.languageId;
 		}
 		return undefined;
@@ -75,7 +49,7 @@ export class LanguageDetectionSimpleWorker implements IRequestHandler, IDisposab
 		}
 		stopWatch.stop();
 
-		this._host.sendTelemetryEvent(languages, confidences, stopWatch.elapsed());
+		this.host.fhr('sendTelemetryEvent', [languages, confidences, stopWatch.elapsed()]);
 		return languages;
 	}
 
@@ -84,11 +58,12 @@ export class LanguageDetectionSimpleWorker implements IRequestHandler, IDisposab
 			return this._modelOperations;
 		}
 
-		const uri = await this._host.getIndexJsUri();
+		const uri: string = await this.host.fhr('getIndexJsUri', []);
+		// const uri = await this.host.getIndexJsUri();
 		const { ModelOperations } = await import(uri);
 		this._modelOperations = new ModelOperations(
 			async () => {
-				const response = await fetch(await this._host.getModelJsonUri());
+				const response = await fetch(await this.host.fhr('getModelJsonUri', []));
 				try {
 					const modelJSON = await response.json();
 					return modelJSON;
@@ -98,7 +73,7 @@ export class LanguageDetectionSimpleWorker implements IRequestHandler, IDisposab
 				}
 			},
 			async () => {
-				const response = await fetch(await this._host.getWeightsUri());
+				const response = await fetch(await this.host.fhr('getWeightsUri', []));
 				const buffer = await response.arrayBuffer();
 				return buffer;
 			}
@@ -121,7 +96,7 @@ export class LanguageDetectionSimpleWorker implements IRequestHandler, IDisposab
 			return;
 		}
 
-		const content = this._models[uri];
+		const content = this._getModel(uri);
 		if (!content) {
 			return;
 		}
@@ -161,12 +136,4 @@ export class LanguageDetectionSimpleWorker implements IRequestHandler, IDisposab
 			}
 		}
 	}
-}
-
-/**
- * Called on the worker side
- * @internal
- */
-export function create(host: LanguageDetectionWorkerHost): IRequestHandler {
-	return new LanguageDetectionSimpleWorker(host);
 }

@@ -326,13 +326,13 @@ declare const require: any;
 export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 	_requestHandlerBrand: any;
 
-	private readonly _host: EditorWorkerHost;
+	protected readonly host: EditorWorkerHost;
 	private _models: { [uri: string]: MirrorModel; };
 	private readonly _foreignModuleFactory: IForeignModuleFactory | null;
 	private _foreignModule: any;
 
 	constructor(host: EditorWorkerHost, foreignModuleFactory: IForeignModuleFactory | null) {
-		this._host = host;
+		this.host = host;
 		this._models = Object.create(null);
 		this._foreignModuleFactory = foreignModuleFactory;
 		this._foreignModule = null;
@@ -619,7 +619,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 
 	public loadForeignModule(moduleId: string, createData: any, foreignHostMethods: string[]): Promise<string[]> {
 		const proxyMethodRequest = (method: string, args: any[]): Promise<any> => {
-			return this._host.fhr(method, args);
+			return this.host.fhr(method, args);
 		};
 
 		const foreignHost = types.createProxyObject(foreignHostMethods, proxyMethodRequest);
