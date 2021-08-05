@@ -532,6 +532,11 @@ const editorConfiguration: IConfigurationNode = {
 			default: 20_000,
 			description: nls.localize('maxTokenizationLineLength', "Lines above this length will not be tokenized for performance reasons")
 		},
+		'editor.wordSelection': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('wordSelection', "Enable word selection with the mouse and a key modifier. This replaces the click link to gesture feature.")
+		},
 		'diffEditor.maxComputationTime': {
 			type: 'number',
 			default: 5000,
