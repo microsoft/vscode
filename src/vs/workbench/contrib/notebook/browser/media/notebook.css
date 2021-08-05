@@ -212,7 +212,6 @@
 	user-select: text;
 	-webkit-user-select: text;
 	-ms-user-select: text;
-	transform: translate3d(0px, 0px, 0px);
 	cursor: auto;
 	box-sizing: border-box;
 	z-index: 27; /* Over drag handle */
@@ -242,6 +241,7 @@
 
 .monaco-workbench .notebookOverlay .output > div.foreground.output-inner-container .rendered-output {
 	display: inline;
+	transform: translate3d(0px, 0px, 0px);
 }
 
 .monaco-workbench .notebookOverlay .output > div.foreground .output-stream,
