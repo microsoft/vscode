@@ -294,7 +294,10 @@ export class Code {
 	}
 
 	async exit(): Promise<void> {
-		await this.driver.exitApplication();
+		const success = await this.driver.exitApplication();
+		if (success === false) {
+			throw new Error('Code exit was blocked by a veto.');
+		}
 	}
 
 	async waitForTextContent(selector: string, textContent?: string, accept?: (result: string) => boolean, retryCount?: number): Promise<string> {

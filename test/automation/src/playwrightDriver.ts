@@ -50,6 +50,8 @@ function buildDriver(browser: playwright.Browser, context: playwright.BrowserCon
 				console.error(error); // do not fail the build when this fails
 			}
 			await teardown();
+
+			return true;
 		},
 		dispatchKeybinding: async (windowId, keybinding) => {
 			const chords = keybinding.split(' ');
@@ -202,7 +204,12 @@ export function connect(options: Options = {}): Promise<{ client: IDisposable, d
 		const payloadParam = `[["enableProposedApi",""],["skipWelcome","true"]]`;
 		await page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${URI.file(workspacePath!).path}&payload=${payloadParam}`);
 		const result = {
-			client: { dispose: () => browser.close() && teardown() },
+			client: {
+				dispose: () => {
+					browser.close();
+					teardown();
+				}
+			},
 			driver: buildDriver(browser, context, page)
 		};
 		c(result);

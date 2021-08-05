@@ -20,7 +20,6 @@ import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { timeout } from 'vs/base/common/async';
 import { IDriver, IDriverOptions, IElement, ILocaleInfo, ILocalizedStrings, IWindowDriver, IWindowDriverRegistry } from 'vs/platform/driver/common/driver';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 
 function isSilentKeyCode(keyCode: KeyCode) {
 	return keyCode < KeyCode.KEY_0;
@@ -38,8 +37,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		private windowServer: IPCServer,
 		private options: IDriverOptions,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
 	) { }
 
 	async registerWindowDriver(windowId: number): Promise<IDriverOptions> {
@@ -82,8 +80,8 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		this.lifecycleMainService.reload(window);
 	}
 
-	async exitApplication(): Promise<void> {
-		return this.nativeHostMainService.quit(undefined);
+	exitApplication(): Promise<boolean> {
+		return this.lifecycleMainService.quit();
 	}
 
 	async dispatchKeybinding(windowId: number, keybinding: string): Promise<void> {

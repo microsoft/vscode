@@ -60,7 +60,7 @@ export class DriverChannelClient implements IDriver {
 		return this.channel.call('reloadWindow', windowId);
 	}
 
-	exitApplication(): Promise<void> {
+	exitApplication(): Promise<boolean> {
 		return this.channel.call('exitApplication');
 	}
 
