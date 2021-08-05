@@ -212,18 +212,14 @@ export class URI implements UriComponents {
 	// ---- modify to new -------------------------
 
 	with(change: { scheme?: string; authority?: string | null; path?: string | null; query?: string | null; fragment?: string | null }): URI {
-		const getOnlySyntax = (initialSyntax: any): object => {
-			const { scheme, authority, path, query, fragment } = initialSyntax;
-			return { scheme, authority, path, query, fragment };
-		};
-
-		const prevSyntax = getOnlySyntax(this);
+		let { scheme, authority, path, query, fragment } = this;
+		const prevSyntax = { scheme, authority, path, query, fragment };
 		const mergedSyntax = { ...prevSyntax, ...change };
 		const filteredSyntaxArray = Object.entries(mergedSyntax).map(([_key, syntaxComponent]) => syntaxComponent === null ? [_key, _empty] : [_key, syntaxComponent]);
 		const hasUpdated = Object.entries(prevSyntax).sort().toString() !== filteredSyntaxArray.sort().toString();
 
 		if (hasUpdated) {
-			const { scheme, authority, path, query, fragment } = Object.fromEntries(filteredSyntaxArray);
+			({ scheme, authority, path, query, fragment } = Object.fromEntries(filteredSyntaxArray));
 			return new Uri(scheme, authority, path, query, fragment);
 		}
 
