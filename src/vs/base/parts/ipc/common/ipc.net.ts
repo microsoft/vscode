@@ -175,6 +175,16 @@ const enum ProtocolMessageType {
 	ReplayRequest = 6
 }
 
+const ProtocolMessageTypeToLabel: { [K in ProtocolMessageType]: string } = {
+	0: 'None',
+	1: 'Regular',
+	2: 'Control',
+	3: 'Ack',
+	4: 'KeepAlive',
+	5: 'Disconnect',
+	6: 'ReplayRequest'
+};
+
 export const enum ProtocolConstants {
 	HeaderLength = 13,
 	/**
@@ -203,7 +213,7 @@ export const enum ProtocolConstants {
 	ReconnectionShortGraceTime = 5 * 60 * 1000, // 5min
 }
 
-class ProtocolMessage {
+export class ProtocolMessage {
 
 	public writtenTime: number;
 
@@ -218,6 +228,10 @@ class ProtocolMessage {
 
 	public get size(): number {
 		return this.data.byteLength;
+	}
+
+	public get label(): string {
+		return ProtocolMessageTypeToLabel[this.type as ProtocolMessageType];
 	}
 }
 
@@ -250,7 +264,7 @@ class ProtocolReader extends Disposable {
 	}
 
 	public acceptChunk(data: VSBuffer | null): void {
-		console.log('ACCEPTING CHUNK', data?.toString());
+		console.log('ACCEPTING CHUNK');
 
 		if (!data || data.byteLength === 0) {
 			return;

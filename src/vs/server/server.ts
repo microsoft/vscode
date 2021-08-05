@@ -54,7 +54,7 @@ import { ExtensionEnvironmentChannel, FileProviderChannel, TerminalProviderChann
 import { Connection, ExtensionHostConnection, ManagementConnection } from 'vs/server/connection';
 import { TelemetryClient } from 'vs/server/insights';
 import { getLocaleFromConfig, getNlsConfiguration } from 'vs/server/nls';
-import { createSocketWrapper, Protocol, ServerProtocolOptions } from 'vs/server/protocol';
+import { ServerProtocol, ServerProtocolOptions } from 'vs/server/protocol';
 import { REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/workbench/services/remote/common/remoteAgentFileSystemChannel';
 import { RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -67,23 +67,17 @@ import { IServerWorkbenchConstructionOptions, IWorkspace } from 'vs/workbench/wo
 import { ArgumentParser } from 'vs/platform/environment/argumentParser';
 import { toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import * as WebSocket from 'ws';
+import { ServerSocket } from 'vs/platform/remote/common/serverWebSocket';
 // import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 // eslint-disable-next-line code-import-patterns
-import { ServerSocket, ServerWebSocket } from 'vs/platform/remote/common/serverWebSocket';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { IncomingMessage } from 'node:http';
+// import { ServerSocket, ServerWebSocket } from 'vs/platform/remote/common/serverWebSocket';
+// import { VSBuffer } from 'vs/base/common/buffer';
+// import { IncomingMessage } from 'node:http';
 
 const commit = product.commit || 'development';
 const logger = new ConsoleMainLogger();
 
 export type VscodeServerArgs = NativeParsedArgs & Complete<Pick<NativeParsedArgs, 'server'>>;
-
-
-// const wrapWSSSocket = (ws: WebSocket): net.Socket => {
-// 	const socketStream = WebSocket.createWebSocketStream(ws);
-
-// 	return socketStream as net.Socket;
-// };
 
 /**
  * Handles client connections to a editor instance via IPC.
@@ -166,7 +160,7 @@ export class CodeServer extends ArgumentParser {
 	}
 
 	// public async handleWebSocket(socket: net.Socket, query: Query, permessageDeflate: boolean): Promise<true> {
-	public async handleWebSocket(socket: net.Socket, query: URLSearchParams, permessageDeflate = false): Promise<true> {
+	public async handleWebSocket(ws: WebSocket, socket: net.Socket, query: URLSearchParams, permessageDeflate = false): Promise<true> {
 		// if (!query.reconnectionToken) {
 		// 	throw new Error('Reconnection token is missing from query parameters');
 		// }
@@ -178,11 +172,11 @@ export class CodeServer extends ArgumentParser {
 			reconnection: query.get('reconnection') === 'true',
 			skipWebSocketFrames: query.get('skipWebSocketFrames') === 'true',
 			permessageDeflate,
-		}
+		};
 
-		const wrappedSocket = createSocketWrapper(socket, protocolOptions);
+		// const wrappedSocket = createSocketWrapper(socket, protocolOptions);
 
-		const protocol = new Protocol(wrappedSocket);
+		const protocol = new ServerProtocol(new ServerSocket(ws, socket));
 
 		try {
 			const connection = await protocol.handshake();
@@ -193,7 +187,7 @@ export class CodeServer extends ArgumentParser {
 		return true;
 	}
 
-	private async connect(message: ConnectionTypeRequest, protocol: Protocol, { reconnectionToken, reconnection }: ServerProtocolOptions): Promise<void> {
+	private async connect(message: ConnectionTypeRequest, protocol: ServerProtocol, { reconnectionToken, reconnection }: ServerProtocolOptions): Promise<void> {
 		if (product.commit && message.commit !== product.commit) {
 			logger.warn(`Version mismatch (${message.commit} instead of ${product.commit})`);
 		}

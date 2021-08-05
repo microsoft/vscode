@@ -11,7 +11,7 @@ import { INativeEnvironmentService } from 'vs/platform/environment/common/enviro
 import { ConsoleLogger } from 'vs/platform/log/common/log';
 import { IRemoteExtensionHostStartParams } from 'vs/platform/remote/common/remoteAgentConnection';
 import { getNlsConfiguration } from 'vs/server/nls';
-import { Protocol } from 'vs/server/protocol';
+import { ServerProtocol } from 'vs/server/protocol';
 import { IExtHostReadyMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 
 export abstract class Connection {
@@ -27,7 +27,7 @@ export abstract class Connection {
 	protected readonly logger: ConsoleLogger;
 
 	public constructor(
-		protected readonly protocol: Protocol,
+		protected readonly protocol: ServerProtocol,
 		public readonly name: string,
 	) {
 		this.logger = new ConsoleLogger();
@@ -40,7 +40,7 @@ export abstract class Connection {
 		return this._offline;
 	}
 
-	public reconnect(protocol: Protocol): void {
+	public reconnect(protocol: ServerProtocol): void {
 		// this.logger.debug(`${this.protocol.options.reconnectionToken} Reconnecting...`);
 		this._offline = undefined;
 		this.doReconnect(protocol);
@@ -65,7 +65,7 @@ export abstract class Connection {
 	/**
 	 * Set up the connection on a new socket.
 	 */
-	protected abstract doReconnect(protcol: Protocol): void;
+	protected abstract doReconnect(protcol: ServerProtocol): void;
 
 	/**
 	 * Dispose/destroy everything permanently.
@@ -77,7 +77,7 @@ export abstract class Connection {
  * Used for all the IPC channels.
  */
 export class ManagementConnection extends Connection {
-	public constructor(protocol: Protocol) {
+	public constructor(protocol: ServerProtocol) {
 		super(protocol, 'management');
 		protocol.onDidDispose(() => this.dispose()); // Explicit close.
 		protocol.onSocketClose(() => this.setOffline()); // Might reconnect.
@@ -88,7 +88,7 @@ export class ManagementConnection extends Connection {
 		this.protocol.destroy();
 	}
 
-	protected doReconnect(protocol: Protocol): void {
+	protected doReconnect(protocol: ServerProtocol): void {
 		protocol.sendMessage({ type: 'ok' });
 		this.protocol.beginAcceptReconnection(protocol.getSocket(), protocol.readEntireBuffer());
 		this.protocol.endAcceptReconnection();
@@ -113,7 +113,7 @@ export class ExtensionHostConnection extends Connection {
 	private process?: cp.ChildProcess;
 
 	public constructor(
-		protocol: Protocol,
+		protocol: ServerProtocol,
 		private readonly params: IRemoteExtensionHostStartParams,
 		private readonly environment: INativeEnvironmentService,
 	) {
@@ -135,7 +135,7 @@ export class ExtensionHostConnection extends Connection {
 		}
 	}
 
-	protected doReconnect(protocol: Protocol): void {
+	protected doReconnect(protocol: ServerProtocol): void {
 		protocol.sendMessage({ debugPort: this.params.port });
 		const buffer = protocol.readEntireBuffer();
 		const inflateBytes = protocol.inflateBytes;

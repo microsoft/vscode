@@ -5,12 +5,10 @@
 
 import * as net from 'net';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { ISocket, PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
+import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
 import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { ConsoleLogger, LogLevel } from 'vs/platform/log/common/log';
 import { AuthRequest, ConnectionTypeRequest, HandshakeMessage } from 'vs/platform/remote/common/remoteAgentConnection';
-import { ServerSocket, ServerWebSocket } from 'vs/platform/remote/common/serverWebSocket';
-import * as strings from 'vs/base/common/strings';
 export interface ServerProtocolOptions {
 	/** The token is how we identify and connect to existing sessions. */
 	readonly reconnectionToken: string;
@@ -29,22 +27,22 @@ export interface ServerProtocolOptions {
 	readonly inflateBytes?: VSBuffer;
 }
 
-export const createSocketWrapper = (netSocket: net.Socket, { skipWebSocketFrames, permessageDeflate, inflateBytes }: ServerProtocolOptions) => {
-	const nodeSocket = new NodeSocket(netSocket);
-	if (skipWebSocketFrames) {
-		return nodeSocket;
-	}
+// export const createSocketWrapper = (netSocket: net.Socket, { skipWebSocketFrames, permessageDeflate, inflateBytes }: ServerProtocolOptions): ISocket => {
+// const nodeSocket = new NodeSocket(netSocket);
+// if (skipWebSocketFrames) {
+// 	return nodeSocket;
+// }
 
-	return new WebSocketNodeSocket(
-		nodeSocket,
-		permessageDeflate || false,
-		inflateBytes || null,
-		// Always record inflate bytes if using permessage-deflate.
-		permessageDeflate || false,
-	);
-};
+// return new WebSocketNodeSocket(
+// 	nodeSocket,
+// 	permessageDeflate || false,
+// 	inflateBytes || null,
+// 	// Always record inflate bytes if using permessage-deflate.
+// 	permessageDeflate || false,
+// );
+// };
 
-export class Protocol extends PersistentProtocol {
+export class ServerProtocol extends PersistentProtocol {
 	private readonly logger = new ConsoleLogger(LogLevel.Info);
 
 	public getUnderlyingSocket(): net.Socket {

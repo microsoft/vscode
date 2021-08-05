@@ -7,11 +7,12 @@ import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import * as proxyAgent from 'vs/base/node/proxy_agent';
 import { enableCustomMarketplace } from 'vs/server/marketplace';
 import { ConsoleMainLogger } from 'vs/platform/log/common/log';
-import { Server as WebSocketServer, createWebSocketStream } from 'ws';
+import { Server as WebSocketServer } from 'ws';
 import { CodeServer, VscodeServerArgs as ServerArgs } from 'vs/server/server';
 import { createServer, IncomingMessage } from 'http';
-import * as net from 'net'
-import { VSBuffer } from 'vs/base/common/buffer';
+import * as net from 'net';
+// import { VSBuffer } from 'vs/base/common/buffer';
+// import { ProtocolMessage } from 'vs/base/parts/ipc/common/ipc.net';
 
 const logger = new ConsoleMainLogger();
 
@@ -21,7 +22,7 @@ setUnexpectedErrorHandler((error) => {
 enableCustomMarketplace();
 proxyAgent.monkeyPatch(true);
 
-type UpgradeHandler = (request: IncomingMessage, socket: net.Socket, upgradeHead: Buffer) => void
+type UpgradeHandler = (request: IncomingMessage, socket: net.Socket, upgradeHead: Buffer) => void;
 
 export async function main(args: ServerArgs) {
 	const httpServer = createServer();
@@ -76,14 +77,10 @@ export async function main(args: ServerArgs) {
 		wss.handleUpgrade(request, socket, head, function done(ws) {
 			// logger.info('headers', request.rawHeaders);
 
-			ws.on('message', data => {
-				logger.info('WS MESSAGE', VSBuffer.wrap(data as Uint8Array).toString());
-			})
-
-			codeServer.handleWebSocket(socket, query, !!wss.options.perMessageDeflate);
+			codeServer.handleWebSocket(ws, socket, query, !!wss.options.perMessageDeflate);
 			// wss.emit('connection', ws, request);
 		});
-	}
+	};
 
 	httpServer.on('upgrade', upgrade);
 

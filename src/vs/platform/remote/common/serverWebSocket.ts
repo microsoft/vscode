@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as net from 'net';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -11,15 +12,16 @@ import { RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode } from '
 import * as WebSocket from 'ws';
 // eslint-disable-next-line code-layering, code-import-patterns
 import { IWebSocket, IWebSocketCloseEvent } from 'vs/platform/remote/browser/browserSocketFactory';
-import { ISocket, SocketCloseEvent, SocketCloseEventType } from 'vs/base/parts/ipc/common/ipc.net';
+import { ISocket, ProtocolMessage, SocketCloseEvent, SocketCloseEventType } from 'vs/base/parts/ipc/common/ipc.net';
 import { VSBuffer } from 'vs/base/common/buffer';
 
-export type SocketMessageListener = (event: { data: any; type: string; target: WebSocket }) => void;
+export type SocketMessageListener = (data: Uint8Array) => void;
 export type SocketOpenListener = (this: WebSocket) => void;
 
 /**
  * @coder Wraps server-side web socket in an interface that can be consumed
  * by `ServerSocket`. This allows IPC-style protocol handlers to interact with it.
+ * @TODO move to ipc.net.ts
  */
 export class ServerWebSocket extends Disposable implements IWebSocket {
 
@@ -36,17 +38,19 @@ export class ServerWebSocket extends Disposable implements IWebSocket {
 
 	private _isClosed = false;
 
-	public readonly socket: WebSocket;
+	public readonly ws: WebSocket;
+	public readonly socket: net.Socket;
 
-	private readonly _socketMessageListener: SocketMessageListener = (ev) => {
-		this._onData.fire(ev.data);
+	private readonly _socketMessageListener: SocketMessageListener = (data) => {
+		this._onData.fire(data);
 	};
 
-	constructor(socket: WebSocket) {
+	constructor(ws: WebSocket, socket: net.Socket) {
 		super();
+		this.ws = ws;
 		this.socket = socket;
 
-		this.onOpen = Event.fromNodeEventEmitter(this.socket, 'open');
+		this.onOpen = Event.fromNodeEventEmitter(this.ws, 'open');
 
 		// WebSockets emit error events that do not contain any real information
 		// Our only chance of getting to the root cause of an error is to
@@ -80,9 +84,9 @@ export class ServerWebSocket extends Disposable implements IWebSocket {
 			sendPendingErrorNow();
 		};
 
-		this.socket.on('message', this._socketMessageListener);
+		this.ws.on('message', this._socketMessageListener);
 
-		this.socket.addEventListener('close', (e) => {
+		this.ws.addEventListener('close', (e) => {
 			this._isClosed = true;
 
 			if (pendingErrorEvent) {
@@ -101,7 +105,7 @@ export class ServerWebSocket extends Disposable implements IWebSocket {
 			this._onClose.fire({ code: e.code, reason: e.reason, wasClean: e.wasClean, event: e });
 		});
 
-		this.socket.addEventListener('error', sendErrorSoon);
+		this.ws.addEventListener('error', sendErrorSoon);
 	}
 
 	send(data: ArrayBuffer | ArrayBufferView): void {
@@ -109,31 +113,43 @@ export class ServerWebSocket extends Disposable implements IWebSocket {
 			// Refuse to write data to closed WebSocket...
 			return;
 		}
-		this.socket.send(data);
+		this.ws.send(data);
 	}
 
 	close(): void {
 		this._isClosed = true;
-		this.socket.close();
-		this.socket.removeAllListeners();
+		this.ws.close();
+		this.ws.removeAllListeners();
 		this.dispose();
 	}
 }
 
 export class ServerSocket implements ISocket {
-	public readonly webSocket: ServerWebSocket;
+	public readonly ws: ServerWebSocket;
 
-	constructor(webSocket: ServerWebSocket) {
-		this.webSocket = webSocket;
+	constructor(ws: WebSocket, socket: net.Socket) {
+		this.ws = new ServerWebSocket(ws, socket);
 	}
 
 	public dispose(): void {
-		this.webSocket.close();
+		this.ws.close();
 	}
 
 	public onData(listener: (e: VSBuffer) => void): IDisposable {
-		return this.webSocket.onData((data) => listener(VSBuffer.wrap(new Uint8Array(data))));
+		return this.ws.onData((data) => listener(VSBuffer.wrap(new Uint8Array(data))));
 	}
+
+	// const buff = VSBuffer.wrap(data);
+
+	// const readLen = buff.readUInt32BE(9);
+	// const messageType = buff.readUInt8(0);
+	// const id = buff.readUInt32BE(1);
+	// const ack = buff.readUInt32BE(5);
+
+	// const message = new ProtocolMessage(messageType, id, ack, buff);
+
+	// console.log('WS MESSAGE', message.label, message.data.toString());
+
 
 	public onClose(listener: (e: SocketCloseEvent) => void): IDisposable {
 		const adapter = (e: IWebSocketCloseEvent | void) => {
@@ -149,7 +165,7 @@ export class ServerSocket implements ISocket {
 				});
 			}
 		};
-		return this.webSocket.onClose(adapter);
+		return this.ws.onClose(adapter);
 	}
 
 	public onEnd(listener: () => void): IDisposable {
@@ -157,11 +173,11 @@ export class ServerSocket implements ISocket {
 	}
 
 	public write(buffer: VSBuffer): void {
-		this.webSocket.send(buffer.buffer);
+		this.ws.send(buffer.buffer);
 	}
 
 	public end(): void {
-		this.webSocket.close();
+		this.ws.close();
 	}
 
 	public drain(): Promise<void> {
