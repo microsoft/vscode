@@ -56,3 +56,11 @@ export function afterSuite(opts: minimist.ParsedArgs) {
 		}
 	});
 }
+
+export function timeout(i: number) {
+	return new Promise<void>(resolve => {
+		setTimeout(() => {
+			resolve();
+		}, i);
+	});
+}

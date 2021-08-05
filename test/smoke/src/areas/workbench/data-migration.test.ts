@@ -6,6 +6,7 @@
 import { Application, ApplicationOptions, Quality } from '../../../../automation';
 import { join } from 'path';
 import { ParsedArgs } from 'minimist';
+import { timeout } from '../../utils';
 
 export function setup(opts: ParsedArgs, testDataPath: string) {
 
@@ -64,12 +65,6 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 				this.skip();
 			}
 
-			// Windows: this test is flaky for yet unknown reasons
-			// https://github.com/microsoft/vscode/issues/129279
-			if (process.platform === 'win32') {
-				this.retries(2);
-			}
-
 			const userDataDir = join(testDataPath, 'd3'); // different data dir from the other tests
 
 			const stableOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
@@ -91,6 +86,8 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 			await stableApp.workbench.quickaccess.openFile(readmeMd);
 			await stableApp.workbench.editor.waitForTypeInEditor(readmeMd, textToType);
 
+			await timeout(2000); // give time to store the backup before stopping the app
+
 			await stableApp.stop();
 
 			const insiderOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
@@ -99,9 +96,11 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 			const insidersApp = new Application(insiderOptions);
 			await insidersApp.start();
 
+			await insidersApp.workbench.editors.waitForTab(readmeMd, true);
 			await insidersApp.workbench.editors.selectTab(readmeMd);
 			await insidersApp.workbench.editor.waitForEditorContents(readmeMd, c => c.indexOf(textToType) > -1);
 
+			await insidersApp.workbench.editors.waitForTab(untitled, true);
 			await insidersApp.workbench.editors.selectTab(untitled);
 			await insidersApp.workbench.editor.waitForEditorContents(untitled, c => c.indexOf(textToTypeInUntitled) > -1);
 
