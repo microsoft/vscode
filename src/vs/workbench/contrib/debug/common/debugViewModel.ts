@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { CONTEXT_EXPRESSION_SELECTED, IViewModel, IStackFrame, IDebugSession, IThread, IExpression, CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_RESTART_FRAME_SUPPORTED, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, CONTEXT_SET_VARIABLE_SUPPORTED, CONTEXT_MULTI_SESSION_DEBUG, CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED, CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE } from 'vs/workbench/contrib/debug/common/debug';
+import { CONTEXT_EXPRESSION_SELECTED, IViewModel, IStackFrame, IDebugSession, IThread, IExpression, CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_RESTART_FRAME_SUPPORTED, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, CONTEXT_SET_VARIABLE_SUPPORTED, CONTEXT_MULTI_SESSION_DEBUG, CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED, CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE, CONTEXT_SET_EXPRESSION_SUPPORTED } from 'vs/workbench/contrib/debug/common/debug';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { isSessionAttach } from 'vs/workbench/contrib/debug/common/debugUtils';
 
@@ -28,6 +28,7 @@ export class ViewModel implements IViewModel {
 	private stepIntoTargetsSupported!: IContextKey<boolean>;
 	private jumpToCursorSupported!: IContextKey<boolean>;
 	private setVariableSupported!: IContextKey<boolean>;
+	private setExpressionSupported!: IContextKey<boolean>;
 	private multiSessionDebug!: IContextKey<boolean>;
 	private terminateDebuggeeSuported!: IContextKey<boolean>;
 	private disassembleRequestSupported!: IContextKey<boolean>;
@@ -43,6 +44,7 @@ export class ViewModel implements IViewModel {
 			this.stepIntoTargetsSupported = CONTEXT_STEP_INTO_TARGETS_SUPPORTED.bindTo(contextKeyService);
 			this.jumpToCursorSupported = CONTEXT_JUMP_TO_CURSOR_SUPPORTED.bindTo(contextKeyService);
 			this.setVariableSupported = CONTEXT_SET_VARIABLE_SUPPORTED.bindTo(contextKeyService);
+			this.setExpressionSupported = CONTEXT_SET_EXPRESSION_SUPPORTED.bindTo(contextKeyService);
 			this.multiSessionDebug = CONTEXT_MULTI_SESSION_DEBUG.bindTo(contextKeyService);
 			this.terminateDebuggeeSuported = CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED.bindTo(contextKeyService);
 			this.disassembleRequestSupported = CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED.bindTo(contextKeyService);
@@ -81,6 +83,7 @@ export class ViewModel implements IViewModel {
 			this.stepIntoTargetsSupported.set(session ? !!session.capabilities.supportsStepInTargetsRequest : false);
 			this.jumpToCursorSupported.set(session ? !!session.capabilities.supportsGotoTargetsRequest : false);
 			this.setVariableSupported.set(session ? !!session.capabilities.supportsSetVariable : false);
+			this.setExpressionSupported.set(session ? !!session.capabilities.supportsSetExpression : false);
 			this.terminateDebuggeeSuported.set(session ? !!session.capabilities.supportTerminateDebuggee : false);
 			this.disassembleRequestSupported.set(!!session?.capabilities.supportsDisassembleRequest);
 			this.focusedStackFrameHasInstructionPointerReference.set(!!stackFrame?.instructionPointerReference);
