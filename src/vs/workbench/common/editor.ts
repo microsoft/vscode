@@ -285,10 +285,15 @@ export interface IEditorSerializer {
 export interface IUntitledTextResourceEditorInput extends IBaseTextResourceEditorInput {
 
 	/**
-	 * Optional resource. If the resource is not provided a new untitled file is created (e.g. Untitled-1).
-	 * If the used scheme for the resource is not `untitled://`, `forceUntitled: true` must be configured to
-	 * force use the provided resource as associated path. As such, the resource will be used when saving
-	 * the untitled editor.
+	 * Optional resource for the untitled editor. Depending on the value, the editor:
+	 * - should get a unique name if `undefined` (for example `Untitled-1`)
+	 * - should use the resource directly if the scheme is `untitled:`
+	 * - should change the scheme to `untitled:` otherwise and assume an associated path
+	 *
+	 * Untitled editors with associated path behave slightly different from other untitled
+	 * editors:
+	 * - they are dirty right when opening
+	 * - they will not ask for a file path when saving but use the associated path
 	 */
 	readonly resource: URI | undefined;
 }
@@ -336,7 +341,7 @@ export function isUntitledResourceEditorInput(editor: unknown): editor is IUntit
 		return false;
 	}
 
-	return candidate?.resource === undefined || candidate.resource.scheme === Schemas.untitled || candidate.forceUntitled === true;
+	return candidate.resource === undefined || candidate.resource.scheme === Schemas.untitled || candidate.forceUntitled === true;
 }
 
 export const enum Verbosity {
