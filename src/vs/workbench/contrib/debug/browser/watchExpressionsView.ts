@@ -281,11 +281,9 @@ export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 				ariaLabel: localize('typeNewValue', "Type new value"),
 				onFinish: async (value: string, success: boolean) => {
 					if (success && value) {
-						const focusedSession = this.debugService.getViewModel().focusedSession;
 						const focusedFrame = this.debugService.getViewModel().focusedStackFrame;
-						if (focusedSession && focusedFrame) {
-							const path = expression instanceof Variable && expression.evaluateName ? expression.evaluateName : expression.name;
-							await focusedSession.setExpression(focusedFrame.frameId, path, value);
+						if (focusedFrame && (expression instanceof Variable || expression instanceof Expression)) {
+							await expression.setExpression(value, focusedFrame);
 							ignoreViewUpdates = true;
 							this.debugService.getViewModel().updateViews();
 							ignoreViewUpdates = false;
