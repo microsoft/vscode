@@ -177,6 +177,8 @@ export class NotebookEditorToolbar extends Disposable {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(GlobalToolbarShowLabel)) {
 				this._renderLabel = this.configurationService.getValue<boolean>(GlobalToolbarShowLabel);
+				const oldElement = this._notebookLeftToolbar.getElement();
+				oldElement.parentElement?.removeChild(oldElement);
 				this._notebookLeftToolbar.dispose();
 				this._notebookLeftToolbar = new ToolBar(this._notebookTopLeftToolbarContainer, this.contextMenuService, {
 					getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
@@ -185,6 +187,7 @@ export class NotebookEditorToolbar extends Disposable {
 				});
 				this._register(this._notebookLeftToolbar);
 				this._notebookLeftToolbar.context = context;
+				this._showNotebookActionsinEditorToolbar();
 				return;
 			}
 
