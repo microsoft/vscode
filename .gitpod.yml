@@ -1,0 +1,29 @@
+image:
+  file: .gitpod.Dockerfile
+ports:
+  - port: 3000
+    onOpen: open-browser
+tasks:
+  - init: |
+      export VSCODE_INIT_BUILD_DIR=$(leeway describe "//:init" -t "/tmp/build/{{ .Metadata.Name }}.{{ .Metadata.Version }}")
+      leeway build
+      sudo cp -rup "$VSCODE_INIT_BUILD_DIR/install/." . | true
+    command: |
+      gp sync-done init
+      export NODE_ENV=development
+      export VSCODE_DEV=1
+      yarn gulp watch-init
+    name: watch app
+  - command: |
+      export NODE_ENV=development
+      export VSCODE_DEV=1
+      gp sync-await init
+      node out/server.js
+    name: run app
+    openMode: split-right
+github:
+  prebuilds:
+    pullRequestsFromForks: true
+vscode:
+  extensions:
+    - dbaeumer.vscode-eslint

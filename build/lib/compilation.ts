@@ -17,6 +17,7 @@ import * as fancyLog from 'fancy-log';
 import * as ansiColors from 'ansi-colors';
 import * as os from 'os';
 import ts = require('typescript');
+const replace = require('gulp-replace');
 
 const watch = require('./watch');
 
@@ -41,6 +42,22 @@ function createCompile(src: string, build: boolean, emitError?: boolean) {
 	const tsb = require('gulp-tsb') as typeof import('gulp-tsb');
 	const sourcemaps = require('gulp-sourcemaps') as typeof import('gulp-sourcemaps');
 
+	const rootDir = path.dirname(path.dirname(__dirname));
+	const product = JSON.parse(fs.readFileSync(path.join(rootDir, 'product.json'), 'utf-8'));
+	// Running out of sources
+	if (!build) {
+		Object.assign(product, {
+			nameShort: `${product.nameShort} Dev`,
+			nameLong: `${product.nameLong} Dev`,
+			dataFolderName: `${product.dataFolderName}-dev`
+		});
+	}
+	Object.assign(product, {
+		commit: util.getVersion(rootDir),
+		date: new Date().toISOString(),
+		version: JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf-8')).version
+	});
+	const productJson = JSON.stringify(product, undefined, 4);
 
 	const projectPath = path.join(__dirname, '../../', src, 'tsconfig.json');
 	const overrideOptions = { ...getTypeScriptCompilerOptions(src), inlineSources: Boolean(build) };
@@ -59,6 +76,7 @@ function createCompile(src: string, build: boolean, emitError?: boolean) {
 
 		const input = es.through();
 		const output = input
+			.pipe(replace(/{\s*\/\*BUILD->INSERT_PRODUCT_CONFIGURATION\*\/\s*}/, productJson, { skipBinary: true }))
 			.pipe(utf8Filter)
 			.pipe(bom()) // this is required to preserve BOM in test files that loose it otherwise
 			.pipe(utf8Filter.restore)
@@ -70,7 +88,7 @@ function createCompile(src: string, build: boolean, emitError?: boolean) {
 			.pipe(noDeclarationsFilter.restore)
 			.pipe(sourcemaps.write('.', {
 				addComment: false,
-				includeContent: !!build,
+				includeContent: true,
 				sourceRoot: overrideOptions.sourceRoot
 			}))
 			.pipe(tsFilter.restore)

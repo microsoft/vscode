@@ -88,5 +88,9 @@ runtime "${runtime}"`;
 	yarnInstall(watchPath);
 }
 
-cp.execSync('git config pull.rebase merges');
-cp.execSync('git config blame.ignoreRevsFile .git-blame-ignore');
+try {
+	cp.execSync('git config pull.rebase merges');
+	cp.execSync('git config blame.ignoreRevsFile .git-blame-ignore');
+} catch (e) {
+	console.error(e)
+}

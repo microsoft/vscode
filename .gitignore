@@ -1,4 +1,4 @@
-.DS_Store
+*.DS_Store
 .cache
 npm-debug.log
 Thumbs.db
@@ -7,8 +7,6 @@ node_modules/
 extensions/**/dist/
 /out*/
 /extensions/**/out/
-src/vs/server
-resources/server
 build/node_modules
 coverage/
 test_data/
