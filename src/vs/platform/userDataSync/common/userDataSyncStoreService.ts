@@ -161,7 +161,7 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 
 	constructor(
 		userDataSyncStoreUrl: URI | undefined,
-		@IProductService productService: IProductService,
+		@IProductService private readonly productService: IProductService,
 		@IRequestService private readonly requestService: IRequestService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -173,14 +173,14 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 		this.commonHeadersPromise = getServiceMachineId(environmentService, fileService, storageService)
 			.then(uuid => {
 				const headers: IHeaders = {
-					'X-Client-Name': `${productService.applicationName}${isWeb ? '-web' : ''}`,
-					'X-Client-Version': productService.version
+					'X-Client-Name': `${this.productService.applicationName}${isWeb ? '-web' : ''}`,
+					'X-Client-Version': this.productService.version
 				};
-				if (productService.enableTelemetry) {
+				if (this.productService.enableTelemetry) {
 					headers['X-Machine-Id'] = uuid;
 				}
-				if (productService.commit) {
-					headers['X-Client-Commit'] = productService.commit;
+				if (this.productService.commit) {
+					headers['X-Client-Commit'] = this.productService.commit;
 				}
 				return headers;
 			});
@@ -521,6 +521,9 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 	}
 
 	private addSessionHeaders(headers: IHeaders): void {
+		if (!this.productService.enableTelemetry) {
+			return;
+		}
 		let machineSessionId = this.storageService.get(MACHINE_SESSION_ID_KEY, StorageScope.GLOBAL);
 		if (machineSessionId === undefined) {
 			machineSessionId = generateUuid();
