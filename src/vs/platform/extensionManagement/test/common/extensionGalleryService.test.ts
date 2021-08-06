@@ -48,5 +48,7 @@ suite('Extension Gallery Service', () => {
 		assert.ok(isUUID(headers['X-Market-User-Id']));
 		const headers2 = await resolveMarketplaceHeaders(product.version, productService, environmentService, fileService, storageService);
 		assert.strictEqual(headers['X-Market-User-Id'], headers2['X-Market-User-Id']);
+		const headers3 = await resolveMarketplaceHeaders(product.version, { ...productService, enableTelemetry: false }, environmentService, fileService, storageService);
+		assert.ok(!headers3['X-Market-User-Id']);
 	});
 });
