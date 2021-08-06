@@ -199,7 +199,7 @@ function getVsCodeApiScript(allowMultipleAPIAcquire, state) {
 /** @type {Promise<void>} */
 const workerReady = new Promise(async (resolve, reject) => {
 	if (!areServiceWorkersEnabled()) {
-		return reject(new Error('Service Workers are not enabled in browser. Webviews will not work.'));
+		return reject(new Error('Service Workers are not enabled. Webviews will not work. Try disabling private/incognito mode.'));
 	}
 
 	const swPath = `service-worker.js${self.location.search}`;
