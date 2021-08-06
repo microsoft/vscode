@@ -122,4 +122,34 @@ suite.only('ipynb NotebookSerializer', function () {
 		assert.strictEqual(notebookEditor.document.cellAt(0).kind, vscode.NotebookCellKind.Markup);
 		console.log(`5`);
 	});
+
+	test('Can open an ipynb notebook - tmp contents 2', async () => {
+		const contents = `
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "source": [
+    "## Header"
+   ],
+   "metadata": {}
+  }
+ ]
+}
+`;
+		console.log(`1`);
+		const randomFile = await createRandomFile(contents, undefined, '.ipynb');
+		console.log(`2`);
+		const notebook = await vscode.workspace.openNotebookDocument(randomFile);
+		console.log(`3`);
+		await vscode.window.showNotebookDocument(notebook);
+		console.log(`4`);
+
+		const notebookEditor = vscode.window.activeNotebookEditor;
+		assert.ok(notebookEditor);
+
+		assert.strictEqual(notebookEditor.document.cellCount, 1, 'cell count');
+		assert.strictEqual(notebookEditor.document.cellAt(0).kind, vscode.NotebookCellKind.Markup, 'kind');
+		console.log(`5`);
+	});
 });
