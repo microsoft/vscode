@@ -40,9 +40,11 @@ stages:
     - job: WindowsJob
       timeoutInMinutes: 0
       steps:
-      - task: CredScan@2
+      - task: CredScan@3
+        continueOnError: true
         inputs:
-          toolMajorVersion: 'V2'
+          scanFolder: '$(Build.SourcesDirectory)'
+          outputFormat: 'pre'
       - task: NodeTool@0
         inputs:
           versionSpec: "14.x"
@@ -116,12 +118,14 @@ stages:
           exec { yarn gulp "vscode-symbols-win32-$(VSCODE_ARCH)" }
         displayName: Download Symbols
 
-      - task: BinSkim@3
+      - task: BinSkim@4
         inputs:
-          toolVersion: Latest
-          InputType:   CommandLine
-          arguments:   analyze $(agent.builddirectory)\scanbin\*.dll $(agent.builddirectory)\scanbin\*.exe $(agent.builddirectory)\scanbin\*.node --recurse --local-symbol-directories $(agent.builddirectory)\scanbin\VSCode-win32-$(VSCODE_ARCH)\pdb
-
+          InputType: 'Basic'
+          Function: 'analyze'
+          TargetPattern: 'guardianGlob'
+          AnalyzeTargetGlob: '$(agent.builddirectory)\scanbin\**.dll;$(agent.builddirectory)\scanbin\**.exe;$(agent.builddirectory)\scanbin\**.node'
+          AnalyzeLocalSymbolDirectories: '$(agent.builddirectory)\scanbin\VSCode-win32-$(VSCODE_ARCH)\pdb'
+          
       - task: TSAUpload@2
         inputs:
           GdnPublishTsaOnboard: true
