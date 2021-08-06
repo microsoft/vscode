@@ -13,9 +13,12 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
+import { INotebookEditorModelResolverService, IUntitledNotebookResource } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { ResourceMap } from 'vs/base/common/map';
 import { FileWorkingCopyManager, IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
+import { Schemas } from 'vs/base/common/network';
+import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
+import { assertIsDefined } from 'vs/base/common/types';
 
 class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IResolvedNotebookEditorModel>> {
 
@@ -152,7 +155,33 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 		return this._data.isDirty(resource);
 	}
 
-	async resolve(resource: URI, viewType?: string): Promise<IReference<IResolvedNotebookEditorModel>> {
+	async resolve(resource: URI, viewType?: string): Promise<IReference<IResolvedNotebookEditorModel>>;
+	async resolve(resource: IUntitledNotebookResource, viewType: string): Promise<IReference<IResolvedNotebookEditorModel>>;
+	async resolve(arg0: URI | IUntitledNotebookResource, viewType?: string): Promise<IReference<IResolvedNotebookEditorModel>> {
+		let resource: URI;
+		if (URI.isUri(arg0)) {
+			resource = arg0;
+		} else {
+			if (!arg0.untitledResource) {
+				const info = this._notebookService.getContributedNotebookType(assertIsDefined(viewType));
+				if (!info) {
+					throw new Error('UNKNOWN view type: ' + viewType);
+				}
+
+				const suffix = NotebookProviderInfo.possibleFileEnding(info.selectors) ?? '';
+				for (let counter = 1; ; counter++) {
+					let candidate = URI.from({ scheme: Schemas.untitled, path: `Untitled-${counter}${suffix}`, query: viewType });
+					if (!this._notebookService.getNotebookTextModel(candidate)) {
+						resource = candidate;
+						break;
+					}
+				}
+			} else if (arg0.untitledResource.scheme === Schemas.untitled) {
+				resource = arg0.untitledResource;
+			} else {
+				resource = arg0.untitledResource.with({ scheme: Schemas.untitled });
+			}
+		}
 
 		if (resource.scheme === CellUri.scheme) {
 			throw new Error(`CANNOT open a cell-uri as notebook. Tried with ${resource.toString()}`);
