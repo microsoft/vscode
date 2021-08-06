@@ -1321,10 +1321,7 @@ registerAction2(class EditCellAction extends NotebookCellAction {
 
 const quitEditCondition = ContextKeyExpr.and(
 	NOTEBOOK_EDITOR_FOCUSED,
-	InputFocusedContext,
-	EditorContextKeys.hoverVisible.toNegated(),
-	EditorContextKeys.hasNonEmptySelection.toNegated(),
-	EditorContextKeys.hasMultipleSelections.toNegated()
+	InputFocusedContext
 );
 registerAction2(class QuitEditCellAction extends NotebookCellAction {
 	constructor() {
@@ -1344,7 +1341,10 @@ registerAction2(class QuitEditCellAction extends NotebookCellAction {
 				icon: icons.stopEditIcon,
 				keybinding: [
 					{
-						when: quitEditCondition,
+						when: ContextKeyExpr.and(quitEditCondition,
+							EditorContextKeys.hoverVisible.toNegated(),
+							EditorContextKeys.hasNonEmptySelection.toNegated(),
+							EditorContextKeys.hasMultipleSelections.toNegated()),
 						primary: KeyCode.Escape,
 						weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT - 5
 					},
