@@ -17,6 +17,7 @@ import { LanguageId, LanguageIdentifier, FormattingOptions } from 'vs/editor/com
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { MultilineTokens, MultilineTokens2 } from 'vs/editor/common/model/tokensStore';
 import { TextChange } from 'vs/editor/common/model/textChange';
+import { BracketPairColorizerConfig } from 'vs/editor/common/model/bracketPairColorizer/bracketPairColorizer';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -1314,6 +1315,12 @@ export interface ITextModel {
 	 * @internal
 	*/
 	getLineIndentColumn(lineNumber: number): number;
+
+	/**
+	 * Configures bracket pair colorization for the given owning editor.
+	 * @internal
+	*/
+	configureBracketPairColorization(owner: number, config: BracketPairColorizerConfig | 'disabled'): void
 }
 
 /**
