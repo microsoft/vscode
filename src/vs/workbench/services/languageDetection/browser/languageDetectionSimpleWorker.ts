@@ -56,7 +56,6 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 		}
 
 		const uri: string = await this._host.fhr('getIndexJsUri', []);
-		// const uri = await this.host.getIndexJsUri();
 		const { ModelOperations } = await import(uri) as typeof import('@vscode/vscode-languagedetection');
 		this._modelOperations = new ModelOperations({
 			modelJsonLoaderFunc: async () => {
