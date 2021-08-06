@@ -3,45 +3,55 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ApplicationInsights } from '@microsoft/applicationinsights-web';
-import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService, combinedAppender, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import type { ApplicationInsights } from '@microsoft/applicationinsights-web';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ILoggerService } from 'vs/platform/log/common/log';
-import { TelemetryService as BaseTelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { resolveWorkbenchCommonProperties } from 'vs/workbench/services/telemetry/browser/workbenchCommonProperties';
+import { ILoggerService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
+import { ITelemetryData, ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
+import { ITelemetryServiceConfig, TelemetryService as BaseTelemetryService } from 'vs/platform/telemetry/common/telemetryService';
+import { combinedAppender, ITelemetryAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { resolveWorkbenchCommonProperties } from 'vs/workbench/services/telemetry/browser/workbenchCommonProperties';
 
 class WebAppInsightsAppender implements ITelemetryAppender {
 	private _aiClient: ApplicationInsights | undefined;
+	private _aiClientLoaded = false;
+	private _telemetryCache: { eventName: string, data: any }[] = [];
 
 	constructor(private _eventPrefix: string, aiKey: string) {
 		const endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
-		this._aiClient = new ApplicationInsights({
-			config: {
-				instrumentationKey: aiKey,
-				endpointUrl,
-				disableAjaxTracking: true,
-				disableExceptionTracking: true,
-				disableFetchTracking: true,
-				disableCorrelationHeaders: true,
-				disableCookiesUsage: true,
-				autoTrackPageVisitTime: false,
-				emitLineDelimitedJson: true,
-			},
-		});
-		this._aiClient.loadAppInsights();
+		import('@microsoft/applicationinsights-web').then(aiLibrary => {
+			this._aiClient = new aiLibrary.ApplicationInsights({
+				config: {
+					instrumentationKey: aiKey,
+					endpointUrl,
+					disableAjaxTracking: true,
+					disableExceptionTracking: true,
+					disableFetchTracking: true,
+					disableCorrelationHeaders: true,
+					disableCookiesUsage: true,
+					autoTrackPageVisitTime: false,
+					emitLineDelimitedJson: true,
+				},
+			});
+			this._aiClient.loadAppInsights();
+			// Client is loaded we can now flush the cached events
+			this._aiClientLoaded = true;
+			this._telemetryCache.forEach(cacheEntry => this.log(cacheEntry.eventName, cacheEntry.data));
+			this._telemetryCache = [];
 
-		// If we cannot access the endpoint this most likely means it's being blocked
-		// and we should not attempt to send any telemetry.
-		fetch(endpointUrl).catch(() => (this._aiClient = undefined));
+			// If we cannot access the endpoint this most likely means it's being blocked
+			// and we should not attempt to send any telemetry.
+			fetch(endpointUrl).catch(() => (this._aiClient = undefined));
+		}).catch(err => {
+			console.error(err);
+		});
 	}
 
 	/**
@@ -50,11 +60,15 @@ class WebAppInsightsAppender implements ITelemetryAppender {
 	 * @param data The data associated with the events
 	 */
 	public log(eventName: string, data: any): void {
-		if (!this._aiClient) {
+		if (!this._aiClient && this._aiClientLoaded) {
+			return;
+		} else if (!this._aiClient && !this._aiClientLoaded) {
+			this._telemetryCache.push({ eventName, data });
 			return;
 		}
 
-		this._aiClient.trackEvent({ name: this._eventPrefix + '/' + eventName }, data);
+		// undefined assertion is ok since above two if statements cover both cases
+		this._aiClient!.trackEvent({ name: this._eventPrefix + '/' + eventName }, data);
 	}
 
 	/**
