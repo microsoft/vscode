@@ -4,11 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ModelOperations, ModelResult } from '@vscode/vscode-languagedetection';
-// import { IDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
-// import { URI } from 'vs/base/common/uri';
 import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
-// import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
 import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
 import { EditorWorkerHost } from 'vs/editor/common/services/editorWorkerServiceImpl';
 
@@ -60,9 +57,9 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 
 		const uri: string = await this._host.fhr('getIndexJsUri', []);
 		// const uri = await this.host.getIndexJsUri();
-		const { ModelOperations } = await import(uri);
-		this._modelOperations = new ModelOperations(
-			async () => {
+		const { ModelOperations } = await import(uri) as typeof import('@vscode/vscode-languagedetection');
+		this._modelOperations = new ModelOperations({
+			modelJsonLoaderFunc: async () => {
 				const response = await fetch(await this._host.fhr('getModelJsonUri', []));
 				try {
 					const modelJSON = await response.json();
@@ -72,12 +69,12 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 					throw new Error(message);
 				}
 			},
-			async () => {
+			weightsLoaderFunc: async () => {
 				const response = await fetch(await this._host.fhr('getWeightsUri', []));
 				const buffer = await response.arrayBuffer();
 				return buffer;
 			}
-		);
+		});
 
 		return this._modelOperations!;
 	}
