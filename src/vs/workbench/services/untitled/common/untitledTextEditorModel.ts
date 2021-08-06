@@ -376,6 +376,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		// Emit as general content change event
 		this._onDidChangeContent.fire();
 
+		// Try to detect language from content (debounced by some time to reduce pressure).
 		this.autoDetectLanguage();
 	}
 

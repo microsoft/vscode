@@ -29,3 +29,35 @@ export interface ILanguageDetectionService {
 	 */
 	detectLanguages(resource: URI): Promise<string[]>;
 }
+
+//#region Telemetry events
+
+export const AutomaticLanguageDetectionLikelyWrongId = 'automaticlanguagedetection.likelywrong';
+
+export interface IAutomaticLanguageDetectionLikelyWrongData {
+	choseOtherGuessedLanguage: boolean;
+	currentLanguageId: string;
+	nextLanguageId: string;
+}
+
+export type AutomaticLanguageDetectionLikelyWrongClassification = {
+	choseOtherGuessedLanguage: { classification: 'SystemMetaData', purpose: 'FeatureInsight' },
+	currentLanguageId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' },
+	nextLanguageId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' }
+};
+
+export const LanguageDetectionStatsId = 'automaticlanguagedetection.stats';
+
+export interface ILanguageDetectionStats {
+	languages: string;
+	confidences: string;
+	timeSpent: number;
+}
+
+export type LanguageDetectionStatsClassification = {
+	languages: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	confidences: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	timeSpent: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+};
+
+//#endregion

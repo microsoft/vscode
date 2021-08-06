@@ -33,7 +33,7 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 		const stopWatch = new StopWatch(true);
 		for await (const language of this.detectLanguagesImpl(uri)) {
 			stopWatch.stop();
-			this.host.fhr('sendTelemetryEvent', [[language.languageId], [language.confidence], stopWatch.elapsed()]);
+			this._host.fhr('sendTelemetryEvent', [[language.languageId], [language.confidence], stopWatch.elapsed()]);
 			return language.languageId;
 		}
 		return undefined;
@@ -49,7 +49,7 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 		}
 		stopWatch.stop();
 
-		this.host.fhr('sendTelemetryEvent', [languages, confidences, stopWatch.elapsed()]);
+		this._host.fhr('sendTelemetryEvent', [languages, confidences, stopWatch.elapsed()]);
 		return languages;
 	}
 
@@ -58,12 +58,12 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 			return this._modelOperations;
 		}
 
-		const uri: string = await this.host.fhr('getIndexJsUri', []);
+		const uri: string = await this._host.fhr('getIndexJsUri', []);
 		// const uri = await this.host.getIndexJsUri();
 		const { ModelOperations } = await import(uri);
 		this._modelOperations = new ModelOperations(
 			async () => {
-				const response = await fetch(await this.host.fhr('getModelJsonUri', []));
+				const response = await fetch(await this._host.fhr('getModelJsonUri', []));
 				try {
 					const modelJSON = await response.json();
 					return modelJSON;
@@ -73,7 +73,7 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 				}
 			},
 			async () => {
-				const response = await fetch(await this.host.fhr('getWeightsUri', []));
+				const response = await fetch(await this._host.fhr('getWeightsUri', []));
 				const buffer = await response.arrayBuffer();
 				return buffer;
 			}

@@ -55,7 +55,7 @@ import { ThemeColor, themeColorFromId } from 'vs/platform/theme/common/themeServ
 import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { ILanguageStatus, ILanguageStatusService } from 'vs/editor/common/services/languageStatusService';
-import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
+import { AutomaticLanguageDetectionLikelyWrongClassification, AutomaticLanguageDetectionLikelyWrongId, IAutomaticLanguageDetectionLikelyWrongData, ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
@@ -1295,17 +1295,7 @@ export class ChangeModeAction extends Action {
 				// If we detected languages and they didn't choose the top detected language (which should also be the active language if automatic detection is enabled)
 				// then the automatic language detection was likely wrong and the user is correcting it. In this case, we want telemetry.
 				if (detectedLanguages.length && guessRankOfPicked !== 0) {
-					type AutomaticLanguageDetectionLikelyWrongData = {
-						choseOtherGuessedLanguage: boolean,
-						currentLanguageId: string,
-						nextLanguageId: string
-					};
-					type AutomaticLanguageDetectionLikelyWrongClassification = {
-						choseOtherGuessedLanguage: { classification: 'SystemMetaData', purpose: 'FeatureInsight' },
-						currentLanguageId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' },
-						nextLanguageId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' }
-					};
-					this.telemetryService.publicLog2<AutomaticLanguageDetectionLikelyWrongData, AutomaticLanguageDetectionLikelyWrongClassification>('automaticlanguagedetection.likelywrong', {
+					this.telemetryService.publicLog2<IAutomaticLanguageDetectionLikelyWrongData, AutomaticLanguageDetectionLikelyWrongClassification>(AutomaticLanguageDetectionLikelyWrongId, {
 						// For languages that weren't guessed, the guessRankOfPicked will be -1. This detail tells us if the user chose the language that was guessed or not.
 						choseOtherGuessedLanguage: guessRankOfPicked !== -1,
 						currentLanguageId: currentLanguageId ?? 'unknown',

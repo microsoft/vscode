@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
+import { ILanguageDetectionService, ILanguageDetectionStats, LanguageDetectionStatsClassification, LanguageDetectionStatsId } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { FileAccess } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -131,10 +131,9 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 		private readonly _telemetryService: ITelemetryService,
 		private readonly _indexJsUri: string,
 		private readonly _modelJsonUri: string,
-		private readonly _weightsUri: string) {
+		private readonly _weightsUri: string
+	) {
 		super(modelService, true, 'languageDetectionWorkerService');
-
-
 	}
 
 	private _getOrCreateLanguageDetectionWorker(): IWorkerClient<LanguageDetectionSimpleWorker> {
@@ -154,16 +153,16 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 	}
 
 	// foreign host request
-	public override fhr(method: string, args: any[]): Promise<any> {
+	public override async fhr(method: string, args: any[]): Promise<any> {
 		switch (method) {
 			case 'getIndexJsUri':
-				return Promise.resolve(this.getIndexJsUri());
+				return this.getIndexJsUri();
 			case 'getModelJsonUri':
-				return Promise.resolve(this.getModelJsonUri());
+				return this.getModelJsonUri();
 			case 'getWeightsUri':
-				return Promise.resolve(this.getWeightsUri());
+				return this.getWeightsUri();
 			case 'sendTelemetryEvent':
-				return Promise.resolve(this.sendTelemetryEvent(args[0], args[1], args[2]));
+				return this.sendTelemetryEvent(args[0], args[1], args[2]);
 			default:
 				return super.fhr(method, args);
 		}
@@ -182,14 +181,7 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 	}
 
 	async sendTelemetryEvent(languages: string[], confidences: number[], timeSpent: number): Promise<void> {
-		type LanguageDetectionStats = { languages: string; confidences: string; timeSpent: number; };
-		type LanguageDetectionStatsClassification = {
-			languages: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			confidences: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			timeSpent: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-		};
-
-		this._telemetryService.publicLog2<LanguageDetectionStats, LanguageDetectionStatsClassification>('automaticlanguagedetection.stats', {
+		this._telemetryService.publicLog2<ILanguageDetectionStats, LanguageDetectionStatsClassification>(LanguageDetectionStatsId, {
 			languages: languages.join(','),
 			confidences: confidences.join(','),
 			timeSpent

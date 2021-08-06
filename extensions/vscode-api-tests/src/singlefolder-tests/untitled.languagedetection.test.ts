@@ -13,16 +13,6 @@ function sleep(ms: number) {
 
 suite('vscode - untitled automatic language detection', () => {
 
-	suiteSetup(async () => {
-		await vscode.workspace.getConfiguration()
-			.update('workbench.editor.untitled.experimentalLanguageDetection', true, vscode.ConfigurationTarget.Global);
-	});
-
-	suiteTeardown(async () => {
-		await vscode.workspace.getConfiguration()
-			.update('workbench.editor.untitled.experimentalLanguageDetection', undefined, vscode.ConfigurationTarget.Global);
-	});
-
 	teardown(async function () {
 		assertNoRpc();
 		await closeAllEditors();
@@ -33,6 +23,10 @@ suite('vscode - untitled automatic language detection', () => {
 		const editor = await vscode.window.showTextDocument(doc);
 
 		assert.strictEqual(editor.document.languageId, 'plaintext');
+
+		const settingResult = vscode.workspace.getConfiguration().get<boolean>('workbench.editor.untitled.experimentalLanguageDetection');
+		assert.ok(settingResult);
+
 		const result = await editor.edit(editBuilder => {
 			editBuilder.insert(new vscode.Position(0, 0), `{
 	"extends": "./tsconfig.base.json",
