@@ -27,8 +27,8 @@ import { getCharContainingOffset } from 'vs/base/common/strings';
 import { UTF8 } from 'vs/workbench/services/textfile/common/encoding';
 import { bufferToStream, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
-import { debounce } from 'vs/base/common/decorators';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport, IEncodingSupport, IWorkingCopy {
 
@@ -96,6 +96,8 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	readonly capabilities = WorkingCopyCapabilities.Untitled;
 
+	private readonly _autoDetectLanguageScheduler: RunOnceScheduler;
+
 	//#region Name
 
 	private configuredLabelFormat: 'content' | 'name' = 'content';
@@ -140,6 +142,8 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		if (preferredMode) {
 			this.setModeInternal(preferredMode);
 		}
+
+		this._autoDetectLanguageScheduler = this._register(new RunOnceScheduler(() => this.autoDetectLanguage(), 600));
 
 		// Fetch config
 		this.onConfigurationChange(false);
@@ -377,10 +381,9 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		this._onDidChangeContent.fire();
 
 		// Try to detect language from content (debounced by some time to reduce pressure).
-		this.autoDetectLanguage();
+		this._autoDetectLanguageScheduler.schedule();
 	}
 
-	@debounce(600)
 	private async autoDetectLanguage() {
 		if (this.hasModeSetExplicitly || !this.languageDetectionService.isEnabledForMode(this.getMode() ?? PLAINTEXT_MODE_ID)) {
 			return;

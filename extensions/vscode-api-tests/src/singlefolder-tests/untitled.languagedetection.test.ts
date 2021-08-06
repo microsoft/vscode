@@ -5,11 +5,7 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { assertNoRpc, closeAllEditors } from '../utils';
-
-function sleep(ms: number) {
-	return new Promise(resolve => setTimeout(resolve, ms));
-}
+import { asPromise, assertNoRpc, closeAllEditors } from '../utils';
 
 suite('vscode - untitled automatic language detection', () => {
 
@@ -61,8 +57,9 @@ suite('vscode - untitled automatic language detection', () => {
 
 		assert.ok(result);
 
-		// language detection is debounced so we need to wait a bit
-		await sleep(2000);
-		assert.strictEqual(editor.document.languageId, 'json');
+		// Changing the language triggers a file to be closed and opened again so wait for that event to happen.
+		const newDoc = await asPromise(vscode.workspace.onDidOpenTextDocument, 5000);
+
+		assert.strictEqual(newDoc.languageId, 'json');
 	});
 });
