@@ -19,14 +19,14 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 	return {
-		exportNotebook: (notebook: vscode.NotebookData): Uint8Array => {
+		exportNotebook: (notebook: vscode.NotebookData): string => {
 			return exportNotebook(notebook, serializer);
 		}
 	};
 }
 
-function exportNotebook(notebook: vscode.NotebookData, serializer: NotebookSerializer): Uint8Array {
-	return serializer.serializeNotebook(notebook, new vscode.CancellationTokenSource().token);
+function exportNotebook(notebook: vscode.NotebookData, serializer: NotebookSerializer): string {
+	return serializer.serializeNotebookToString(notebook);
 }
 
 export function deactivate() { }
