@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { isLinux } from 'vs/base/common/platform';
 import { extUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
@@ -35,9 +36,18 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 	private readonly files = new Map<string, FileSystemFileHandle>();
 	private readonly directories = new Map<string, FileSystemDirectoryHandle>();
 
-	readonly capabilities: FileSystemProviderCapabilities =
-		FileSystemProviderCapabilities.FileReadWrite
-		| FileSystemProviderCapabilities.PathCaseSensitive;
+	private _capabilities: FileSystemProviderCapabilities | undefined;
+	get capabilities(): FileSystemProviderCapabilities {
+		if (!this._capabilities) {
+			this._capabilities = FileSystemProviderCapabilities.FileReadWrite;
+
+			if (isLinux) {
+				this._capabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
+			}
+		}
+
+		return this._capabilities;
+	}
 
 	readonly onDidChangeCapabilities = Event.None;
 
