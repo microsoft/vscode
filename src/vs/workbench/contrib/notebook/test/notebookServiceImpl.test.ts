@@ -12,6 +12,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { IFileService } from 'vs/platform/files/common/files';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { NotebookProviderInfoStore } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
+import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { EditorResolverService } from 'vs/workbench/services/editor/browser/editorResolverService';
 import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
@@ -37,7 +38,8 @@ suite('NotebookProviderInfoStore', function () {
 			instantiationService,
 			new class extends mock<IFileService>() {
 				override canHandleResource() { return true; }
-			}
+			},
+			new class extends mock<INotebookEditorModelResolverService>() { }
 		);
 
 		const fooInfo = new NotebookProviderInfo({

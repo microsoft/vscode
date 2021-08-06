@@ -154,11 +154,15 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			return undefined;
 		}
 
-		const dialogPath = this.hasCapability(EditorInputCapabilities.Untitled) ? await this._suggestName(this.labelService.getUriBasenameLabel(this.resource)) : this._editorModelReference.object.resource;
-
-		const target = await this._fileDialogService.pickFileToSave(dialogPath, options?.availableFileSystems);
-		if (!target) {
-			return undefined; // save cancelled
+		const pathCandidate = this.hasCapability(EditorInputCapabilities.Untitled) ? await this._suggestName(this.labelService.getUriBasenameLabel(this.resource)) : this._editorModelReference.object.resource;
+		let target: URI | undefined;
+		if (this._editorModelReference.object.hasAssociatedFilePath()) {
+			target = pathCandidate;
+		} else {
+			target = await this._fileDialogService.pickFileToSave(pathCandidate, options?.availableFileSystems);
+			if (!target) {
+				return undefined; // save cancelled
+			}
 		}
 
 		if (!provider.matches(target)) {
