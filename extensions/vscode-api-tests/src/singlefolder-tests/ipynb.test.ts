@@ -67,7 +67,7 @@ suite.only('ipynb NotebookSerializer', function () {
    "cell_type": "code",
    "execution_count": 2,
    "source": [
-    "print('hello 1')\n",
+    "print('hello 1')\\n",
     "print('hello 2')"
    ],
    "outputs": [
@@ -75,8 +75,8 @@ suite.only('ipynb NotebookSerializer', function () {
      "output_type": "stream",
      "name": "stdout",
      "text": [
-      "hello 1\n",
-      "hello 2\n"
+      "hello 1\\n",
+      "hello 2\\n"
      ]
     }
    ],
