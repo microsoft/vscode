@@ -118,8 +118,8 @@ suite.only('ipynb NotebookSerializer', function () {
 		const notebookEditor = vscode.window.activeNotebookEditor;
 		assert.ok(notebookEditor);
 
-		assert.strictEqual(notebookEditor.document.cellCount, 1);
-		assert.strictEqual(notebookEditor.document.cellAt(0).kind, vscode.NotebookCellKind.Code);
+		assert.strictEqual(notebookEditor.document.cellCount, 2);
+		assert.strictEqual(notebookEditor.document.cellAt(0).kind, vscode.NotebookCellKind.Markup);
 		console.log(`5`);
 	});
 });
