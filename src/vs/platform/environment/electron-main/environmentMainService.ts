@@ -73,5 +73,5 @@ export class EnvironmentMainService extends NativeEnvironmentService implements 
 	get codeCachePath(): string | undefined { return process.env['VSCODE_CODE_CACHE_PATH'] || undefined; }
 
 	@memoize
-	get useCodeCache(): boolean { return typeof this.codeCachePath === 'string'; }
+	get useCodeCache(): boolean { return !!this.codeCachePath; }
 }
