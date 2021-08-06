@@ -3,39 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join } from 'vs/base/common/path';
-import { localize } from 'vs/nls';
-import { getMarks, mark } from 'vs/base/common/performance';
+import { app, BrowserWindow, BrowserWindowConstructorOptions, Display, Event, nativeImage, NativeImage, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl, WebFrameMain } from 'electron';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, Event, WebFrameMain } from 'electron';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { WindowMinimumSize, IWindowSettings, MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, zoomLevelToZoomFactor, INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { browserCodeLoadingCacheStrategy, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { FileAccess, Schemas } from 'vs/base/common/network';
+import { join } from 'vs/base/common/path';
+import { getMarks, mark } from 'vs/base/common/performance';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
+import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
+import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
+import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/common/extensionGalleryService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
+import { IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
+import { getMenuBarVisibility, getTitleBarStyle, INativeWindowConfiguration, IWindowSettings, MenuBarVisibility, WindowMinimumSize, zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
 import { defaultWindowState, ICodeWindow, ILoadEvent, IWindowState, LoadReason, WindowError, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
-import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/common/extensionGalleryService';
-import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
-import { RunOnceScheduler } from 'vs/base/common/async';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -186,10 +186,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				title: this.productService.nameLong,
 				webPreferences: {
 					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
-					additionalArguments: this.environmentMainService.sandbox ?
-						[`--vscode-window-config=${this.configObjectUrl.resource.toString()}`, '--context-isolation' /* TODO@bpasero: Use process.contextIsolateed when 13-x-y is adopted (https://github.com/electron/electron/pull/28030) */] :
-						[`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
-					v8CacheOptions: browserCodeLoadingCacheStrategy,
+					additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
+					v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : undefined,
 					enableWebSQL: false,
 					spellcheck: false,
 					nativeWindowOpen: true,
@@ -208,12 +206,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 						}
 				}
 			};
-
-			if (browserCodeLoadingCacheStrategy) {
-				this.logService.info(`window: using vscode-file:// protocol and V8 cache options: ${browserCodeLoadingCacheStrategy}`);
-			} else {
-				this.logService.info(`window: vscode-file:// protocol is explicitly disabled`);
-			}
 
 			// Apply icon to window
 			// Linux: always

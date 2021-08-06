@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LogLevel, ILogger, AbstractMessageLogger } from 'vs/platform/log/common/log';
 import * as spdlog from 'spdlog';
 import { ByteSize } from 'vs/platform/files/common/files';
+import { AbstractMessageLogger, ILogger, LogLevel } from 'vs/platform/log/common/log';
 
 async function createSpdLogLogger(name: string, logfilePath: string, filesize: number, filecount: number): Promise<spdlog.Logger | null> {
 	// Do not crash if spdlog cannot be loaded

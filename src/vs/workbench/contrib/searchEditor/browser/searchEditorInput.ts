@@ -31,6 +31,7 @@ import { ISearchComplete, ISearchConfigurationProperties } from 'vs/workbench/se
 import { bufferToReadable, VSBuffer } from 'vs/base/common/buffer';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export type SearchConfiguration = {
 	query: string,
@@ -147,17 +148,26 @@ export class SearchEditorInput extends EditorInput {
 		return serializeSearchConfiguration(configurationModel.config) + '\n' + resultsModel.getValue();
 	}
 
+	private configChangeListenerDisposable: IDisposable | undefined;
+	private registerConfigChangeListeners(model: SearchConfigurationModel) {
+		this.configChangeListenerDisposable?.dispose();
+
+		if (!this.isDisposed()) {
+			this.configChangeListenerDisposable = model.onConfigDidUpdate(() => {
+				this._onDidChangeLabel.fire();
+				this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE).searchConfig = model.config;
+			});
+
+			this._register(this.configChangeListenerDisposable);
+		}
+	}
+
 	async getModels() {
 		return this.model.resolve().then(data => {
 			this._cachedResultsModel = data.resultsModel;
 			this._cachedConfigurationModel = data.configurationModel;
 			this._onDidChangeLabel.fire();
-			if (!this.isDisposed()) {
-				this._register(this._cachedConfigurationModel.onConfigDidUpdate(() => {
-					this._onDidChangeLabel.fire();
-					this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE).searchConfig = this._cachedConfigurationModel?.config;
-				}));
-			}
+			this.registerConfigChangeListeners(data.configurationModel);
 			return data;
 		});
 	}

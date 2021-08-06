@@ -10,7 +10,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { URI } from 'vs/base/common/uri';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
-import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType, ThemeColor } from './extHostTypes';
+import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType } from './extHostTypes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { localize } from 'vs/nls';
 import { NotSupportedError } from 'vs/base/common/errors';
@@ -20,7 +20,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { withNullAsUndefined } from 'vs/base/common/types';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, IDisposable {
@@ -135,6 +135,7 @@ export class ExtHostTerminal {
 			cwd: withNullAsUndefined(options.cwd),
 			env: withNullAsUndefined(options.env),
 			icon: withNullAsUndefined(asTerminalIcon(options.iconPath)),
+			color: ThemeColor.isThemeColor(options.color) ? options.color.id : undefined,
 			initialText: withNullAsUndefined(options.message),
 			strictEnv: withNullAsUndefined(options.strictEnv),
 			hideFromUser: withNullAsUndefined(options.hideFromUser),
@@ -146,7 +147,7 @@ export class ExtHostTerminal {
 		});
 	}
 
-	public async createExtensionTerminal(isSplitTerminal?: boolean, target?: TerminalLocation, iconPath?: URI | { light: URI; dark: URI } | ThemeIcon): Promise<number> {
+	public async createExtensionTerminal(isSplitTerminal?: boolean, target?: TerminalLocation, iconPath?: TerminalIcon, color?: ThemeColor): Promise<number> {
 		if (typeof this._id !== 'string') {
 			throw new Error('Terminal has already been created');
 		}
@@ -154,6 +155,7 @@ export class ExtHostTerminal {
 			name: this._name,
 			isExtensionCustomPtyTerminal: true,
 			icon: iconPath,
+			color: ThemeColor.isThemeColor(color) ? color.id : undefined,
 			isSplitTerminal,
 			target
 		});
@@ -372,7 +374,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	public createExtensionTerminal(options: vscode.ExtensionTerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, generateUuid(), options, options.name);
 		const p = new ExtHostPseudoterminal(options.pty);
-		terminal.createExtensionTerminal(internalOptions?.isSplitTerminal, internalOptions?.target, asTerminalIcon(options.iconPath)).then(id => {
+		terminal.createExtensionTerminal(internalOptions?.isSplitTerminal, internalOptions?.target, asTerminalIcon(options.iconPath), asTerminalColor(options.color)).then(id => {
 			const disposable = this._setupExtHostProcessListeners(id, p);
 			this._terminalProcessDisposables[id] = disposable;
 		});
@@ -842,11 +844,11 @@ export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
 }
 
 function asTerminalIcon(iconPath?: vscode.Uri | { light: vscode.Uri; dark: vscode.Uri } | vscode.ThemeIcon): TerminalIcon | undefined {
-	if (!iconPath) {
+	if (!iconPath || typeof iconPath === 'string') {
 		return undefined;
 	}
 
-	if (typeof iconPath === 'string' || !('id' in iconPath)) {
+	if (!('id' in iconPath)) {
 		return iconPath;
 	}
 
@@ -854,4 +856,8 @@ function asTerminalIcon(iconPath?: vscode.Uri | { light: vscode.Uri; dark: vscod
 		id: iconPath.id,
 		color: iconPath.color as ThemeColor
 	};
+}
+
+function asTerminalColor(color?: vscode.ThemeColor): ThemeColor | undefined {
+	return ThemeColor.isThemeColor(color) ? color as ThemeColor : undefined;
 }

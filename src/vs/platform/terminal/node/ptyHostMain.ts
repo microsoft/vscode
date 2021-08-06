@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Server } from 'vs/base/parts/ipc/node/ipc.cp';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { PtyService } from 'vs/platform/terminal/node/ptyService';
-import { TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
+import { Server } from 'vs/base/parts/ipc/node/ipc.cp';
 import { ConsoleLogger, LogService } from 'vs/platform/log/common/log';
 import { LogLevelChannel } from 'vs/platform/log/common/logIpc';
+import { TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
 import { HeartbeatService } from 'vs/platform/terminal/node/heartbeatService';
+import { PtyService } from 'vs/platform/terminal/node/ptyService';
 
 const server = new Server('ptyHost');
 

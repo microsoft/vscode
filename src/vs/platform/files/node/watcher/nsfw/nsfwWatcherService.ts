@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nsfw from 'nsfw';
-import { ParsedPattern, parse } from 'vs/base/common/glob';
+import { ThrottledDelayer } from 'vs/base/common/async';
+import { Emitter } from 'vs/base/common/event';
+import { isEqualOrParent } from 'vs/base/common/extpath';
+import { parse, ParsedPattern } from 'vs/base/common/glob';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { normalizeNFC } from 'vs/base/common/normalization';
 import { join } from 'vs/base/common/path';
 import { isMacintosh } from 'vs/base/common/platform';
-import { isEqualOrParent } from 'vs/base/common/extpath';
-import { IDiskFileChange, normalizeFileChanges, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
-import { IWatcherService, IWatcherRequest } from 'vs/platform/files/node/watcher/nsfw/watcher';
-import { ThrottledDelayer } from 'vs/base/common/async';
-import { FileChangeType } from 'vs/platform/files/common/files';
-import { normalizeNFC } from 'vs/base/common/normalization';
-import { Emitter } from 'vs/base/common/event';
 import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { FileChangeType } from 'vs/platform/files/common/files';
+import { IWatcherRequest, IWatcherService } from 'vs/platform/files/node/watcher/nsfw/watcher';
+import { IDiskFileChange, ILogMessage, normalizeFileChanges } from 'vs/platform/files/node/watcher/watcher';
 
 const nsfwActionToRawChangeType: { [key: number]: number } = [];
 nsfwActionToRawChangeType[nsfw.actions.CREATED] = FileChangeType.ADDED;

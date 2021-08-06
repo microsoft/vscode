@@ -13,8 +13,8 @@ import { InlineCompletionsModel, inlineCompletionToGhostText } from 'vs/editor/c
 import { GhostTextContext, MockInlineCompletionsProvider } from 'vs/editor/contrib/inlineCompletions/test/utils';
 import { ITestCodeEditor, TestCodeEditorCreationOptions, withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import sinon = require('sinon');
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { runWithFakedTimers } from 'vs/editor/contrib/inlineCompletions/test/timeTravelScheduler';
 
 suite('Inline Completions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -84,10 +84,10 @@ suite('Inline Completions', () => {
 		});
 	});
 
-	test('Does not trigger automatically by default', async function () {
+	test('Does trigger automatically if disabled', async function () {
 		const provider = new MockInlineCompletionsProvider();
 		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
-			{ fakeClock: true, provider },
+			{ fakeClock: true, provider, inlineSuggest: { enabled: false } },
 			async ({ editor, editorViewModel, model, context }) => {
 				model.setActive(true);
 
@@ -488,41 +488,38 @@ suite('Inline Completions', () => {
 	});
 });
 
-async function withAsyncTestCodeEditorAndInlineCompletionsModel(
+async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 	text: string,
 	options: TestCodeEditorCreationOptions & { provider?: InlineCompletionsProvider, fakeClock?: boolean },
-	callback: (args: { editor: ITestCodeEditor, editorViewModel: ViewModel, model: InlineCompletionsModel, context: GhostTextContext }) => Promise<void>
-): Promise<void> {
-	const disposableStore = new DisposableStore();
+	callback: (args: { editor: ITestCodeEditor, editorViewModel: ViewModel, model: InlineCompletionsModel, context: GhostTextContext }) => Promise<T>
+): Promise<T> {
+	return await runWithFakedTimers({
+		useFakeTimers: options.fakeClock,
+	}, async () => {
+		const disposableStore = new DisposableStore();
 
-	if (options.provider) {
-		const d = InlineCompletionsProviderRegistry.register({ pattern: '**' }, options.provider);
-		disposableStore.add(d);
-	}
+		try {
+			if (options.provider) {
+				const d = InlineCompletionsProviderRegistry.register({ pattern: '**' }, options.provider);
+				disposableStore.add(d);
+			}
 
-	let clock: sinon.SinonFakeTimers | undefined;
-	if (options.fakeClock) {
-		clock = sinon.useFakeTimers();
-	}
-	try {
-		const p = withAsyncTestCodeEditor(text, options, async (editor, editorViewModel, instantiationService) => {
-			const model = instantiationService.createInstance(InlineCompletionsModel, editor);
-			const context = new GhostTextContext(model, editor);
-			await callback({ editor, editorViewModel, model, context });
-			context.dispose();
-			model.dispose();
-		});
+			let result: T;
+			await withAsyncTestCodeEditor(text, options, async (editor, editorViewModel, instantiationService) => {
+				const model = instantiationService.createInstance(InlineCompletionsModel, editor);
+				const context = new GhostTextContext(model, editor);
+				result = await callback({ editor, editorViewModel, model, context });
+				context.dispose();
+				model.dispose();
+			});
 
-		const p2 = clock?.runAllAsync();
+			if (options.provider instanceof MockInlineCompletionsProvider) {
+				options.provider.assertNotCalledTwiceWithin50ms();
+			}
 
-		await p;
-		await p2;
-
-		if (options.provider instanceof MockInlineCompletionsProvider) {
-			options.provider.assertNotCalledTwiceWithin50ms();
+			return result!;
+		} finally {
+			disposableStore.dispose();
 		}
-	} finally {
-		clock?.restore();
-		disposableStore.dispose();
-	}
+	});
 }

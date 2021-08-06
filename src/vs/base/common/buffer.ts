@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
 import * as streams from 'vs/base/common/stream';
+import * as strings from 'vs/base/common/strings';
 
 declare const Buffer: any;
 

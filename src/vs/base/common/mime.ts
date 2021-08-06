@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename, posix, extname } from 'vs/base/common/path';
-import { startsWithUTF8BOM } from 'vs/base/common/strings';
 import { match } from 'vs/base/common/glob';
-import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
+import { basename, extname, posix } from 'vs/base/common/path';
 import { DataUri } from 'vs/base/common/resources';
+import { startsWithUTF8BOM } from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
 
 export namespace Mimes {
 	export const text = 'text/plain';

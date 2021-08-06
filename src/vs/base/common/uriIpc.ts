@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
 import { MarshalledId, MarshalledObject } from 'vs/base/common/marshalling';
+import { URI, UriComponents } from 'vs/base/common/uri';
 
 export interface IURITransformer {
 	transformIncoming(uri: UriComponents): UriComponents;

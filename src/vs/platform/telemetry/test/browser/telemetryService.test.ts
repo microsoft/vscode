@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { Emitter } from 'vs/base/common/event';
-import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
-import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
-import { NullAppender, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
-import * as Errors from 'vs/base/common/errors';
 import * as sinon from 'sinon';
 import * as sinonTest from 'sinon-test';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import * as Errors from 'vs/base/common/errors';
+import { Emitter } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
+import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
+import { ITelemetryAppender, NullAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 
 const sinonTestFn = sinonTest(sinon);
 

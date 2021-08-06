@@ -14,6 +14,7 @@ import { ISplice, Sequence } from 'vs/base/common/sequence';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { MarshalledId } from 'vs/base/common/marshalling';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 
@@ -438,7 +439,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		repository.input.setFocus();
 	}
 
-	$showValidationMessage(sourceControlHandle: number, message: string, type: InputValidationType) {
+	$showValidationMessage(sourceControlHandle: number, message: string | IMarkdownString, type: InputValidationType) {
 		const repository = this._repositories.get(sourceControlHandle);
 		if (!repository) {
 			return;

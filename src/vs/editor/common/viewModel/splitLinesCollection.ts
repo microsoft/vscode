@@ -118,12 +118,12 @@ export class CoordinatesConverter implements ICoordinatesConverter {
 
 	// Model -> View conversion and related methods
 
-	public convertModelPositionToViewPosition(modelPosition: Position): Position {
-		return this._lines.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column);
+	public convertModelPositionToViewPosition(modelPosition: Position, affinity?: PositionAffinity): Position {
+		return this._lines.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column, affinity);
 	}
 
-	public convertModelRangeToViewRange(modelRange: Range): Range {
-		return this._lines.convertModelRangeToViewRange(modelRange);
+	public convertModelRangeToViewRange(modelRange: Range, affinity?: PositionAffinity): Range {
+		return this._lines.convertModelRangeToViewRange(modelRange, affinity);
 	}
 
 	public modelPositionIsVisible(modelPosition: Position): boolean {
@@ -286,24 +286,12 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 
 		const linesContent = this.model.getLinesContent();
 		const injectedTextDecorations = this.model.getInjectedTextDecorations(this._editorId);
-		const injectedText = LineInjectedText.fromDecorations(injectedTextDecorations);
 		const lineCount = linesContent.length;
 		const lineBreaksComputer = this.createLineBreaksComputer();
-		const injectedTextLength = injectedText.length;
-		let injectedTextIndex = 0;
-		let nextLineNumberWithInjectedText = (injectedTextIndex < injectedTextLength ? injectedText[injectedTextIndex].lineNumber : lineCount + 1);
-		for (let i = 0; i < lineCount; i++) {
-			let lineInjectedText: LineInjectedText[] | null = null;
-			if (i + 1 === nextLineNumberWithInjectedText) {
-				// There is some injected text on this line
-				lineInjectedText = [];
-				while (i + 1 === nextLineNumberWithInjectedText && injectedTextIndex < injectedTextLength) {
-					lineInjectedText.push(injectedText[injectedTextIndex]);
-					injectedTextIndex++;
-					nextLineNumberWithInjectedText = (injectedTextIndex < injectedTextLength ? injectedText[injectedTextIndex].lineNumber : lineCount + 1);
-				}
-			}
 
+		const injectedTextQueue = new arrays.ArrayQueue(LineInjectedText.fromDecorations(injectedTextDecorations));
+		for (let i = 0; i < lineCount; i++) {
+			const lineInjectedText = injectedTextQueue.takeWhile(t => t.lineNumber === i + 1);
 			lineBreaksComputer.addRequest(linesContent[i], lineInjectedText, previousLineBreaks ? previousLineBreaks[i] : null);
 		}
 		const linesBreaks = lineBreaksComputer.finalize();
@@ -886,9 +874,12 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		return r;
 	}
 
-	public convertModelRangeToViewRange(modelRange: Range): Range {
+	/**
+	 * @param affinity The affinity in case of an empty range. Has no effect for non-empty ranges.
+	*/
+	public convertModelRangeToViewRange(modelRange: Range, affinity: PositionAffinity = PositionAffinity.Left): Range {
 		if (modelRange.isEmpty()) {
-			const start = this.convertModelPositionToViewPosition(modelRange.startLineNumber, modelRange.startColumn, PositionAffinity.Left);
+			const start = this.convertModelPositionToViewPosition(modelRange.startLineNumber, modelRange.startColumn, affinity);
 			return Range.fromPositions(start);
 		} else {
 			const start = this.convertModelPositionToViewPosition(modelRange.startLineNumber, modelRange.startColumn, PositionAffinity.Right);

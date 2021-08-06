@@ -3,35 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { toDisposable, Disposable } from 'vs/base/common/lifecycle';
-import {
-	IExtensionManagementService, IExtensionGalleryService, ILocalExtension,
-	IGalleryExtension,
-	InstallExtensionEvent, DidUninstallExtensionEvent,
-	IExtensionIdentifier,
-	IReportedExtension,
-	InstallOperation,
-	INSTALL_ERROR_MALICIOUS,
-	INSTALL_ERROR_INCOMPATIBLE,
-	ExtensionManagementError,
-	InstallOptions,
-	InstallVSIXOptions,
-	InstallExtensionResult,
-	UninstallOptions,
-	IGalleryMetadata,
-	StatisticType
-} from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions, getMaliciousExtensionsSet, getGalleryExtensionTelemetryData, ExtensionIdentifierWithVersion, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { Event, Emitter } from 'vs/base/common/event';
-import product from 'vs/platform/product/common/product';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { canceled, getErrorMessage } from 'vs/base/common/errors';
-import { URI } from 'vs/base/common/uri';
 import { Barrier, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { canceled, getErrorMessage } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { isWeb } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
+import * as nls from 'vs/nls';
+import {
+	DidUninstallExtensionEvent, ExtensionManagementError, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementParticipant, IExtensionManagementService, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallExtensionEvent, InstallExtensionResult, InstallOperation, InstallOptions,
+	InstallVSIXOptions, INSTALL_ERROR_INCOMPATIBLE, INSTALL_ERROR_MALICIOUS, IReportedExtension, StatisticType, UninstallOptions
+} from 'vs/platform/extensionManagement/common/extensionManagement';
+import { areSameExtensions, ExtensionIdentifierWithVersion, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { ILogService } from 'vs/platform/log/common/log';
+import product from 'vs/platform/product/common/product';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export const INSTALL_ERROR_VALIDATING = 'validating';
 export const ERROR_UNKNOWN = 'unknown';
@@ -75,6 +63,8 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 	protected _onDidUninstallExtension = this._register(new Emitter<DidUninstallExtensionEvent>());
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent> = this._onDidUninstallExtension.event;
+
+	private readonly participants: IExtensionManagementParticipant[] = [];
 
 	constructor(
 		@IExtensionGalleryService protected readonly galleryService: IExtensionGalleryService,
@@ -152,6 +142,10 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		return this.reportedExtensions;
 	}
 
+	registerParticipant(participant: IExtensionManagementParticipant): void {
+		this.participants.push(participant);
+	}
+
 	protected async installExtension(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallOptions & InstallVSIXOptions): Promise<ILocalExtension> {
 		// only cache gallery extensions tasks
 		if (!URI.isUri(extension)) {
@@ -217,12 +211,19 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 				}
 
 				// Install extensions in parallel and wait until all extensions are installed / failed
-				const result = await Promise.allSettled(extensionsToInstall.map(async ({ task }) => {
+				await this.joinAllSettled(extensionsToInstall.map(async ({ task }) => {
 					const startTime = new Date().getTime();
 					try {
 						const local = await task.run();
+						await this.joinAllSettled(this.participants.map(participant => participant.postInstall(local, task.source, options, CancellationToken.None)));
 						if (!URI.isUri(task.source)) {
 							reportTelemetry(this.telemetryService, task.operation === InstallOperation.Update ? 'extensionGallery:update' : 'extensionGallery:install', getGalleryExtensionTelemetryData(task.source), new Date().getTime() - startTime, undefined);
+							// In web, report extension install statistics explicitly. In Desktop, statistics are automatically updated while downloading the VSIX.
+							if (isWeb && task.operation === InstallOperation.Install) {
+								try {
+									await this.galleryService.reportStatistic(local.manifest.publisher, local.manifest.name, local.manifest.version, StatisticType.Install);
+								} catch (error) { /* ignore */ }
+							}
 						}
 						installResults.push({ local, identifier: task.identifier, operation: task.operation, source: task.source });
 					} catch (error) {
@@ -234,11 +235,6 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 						throw error;
 					} finally { extensionsToInstallMap.delete(task.identifier.id.toLowerCase()); }
 				}));
-
-				// Collect the errors
-				const errors = result.reduce<any[]>((errors, r) => { if (r.status === 'rejected') { errors.push(r.reason); } return errors; }, []);
-				// If there are errors, throw the error.
-				if (errors.length) { throw joinErrors(errors); }
 			}
 
 			installResults.forEach(({ identifier }) => this.logService.info(`Extension installed successfully:`, identifier.id));
@@ -287,6 +283,22 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 				}
 			}
 		}
+	}
+
+	private async joinAllSettled<T>(promises: Promise<T>[]): Promise<T[]> {
+		const results: T[] = [];
+		const errors: any[] = [];
+		const promiseResults = await Promise.allSettled(promises);
+		for (const r of promiseResults) {
+			if (r.status === 'fulfilled') {
+				results.push(r.value);
+			} else {
+				errors.push(r.reason);
+			}
+		}
+		// If there are errors, throw the error.
+		if (errors.length) { throw joinErrors(errors); }
+		return results;
 	}
 
 	private async getAllDepsAndPackExtensionsToInstall(extensionIdentifier: IExtensionIdentifier, manifest: IExtensionManifest, getOnlyNewlyAddedFromExtensionPack: boolean): Promise<{ gallery: IGalleryExtension, manifest: IExtensionManifest }[]> {
@@ -413,9 +425,10 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			}
 
 			// Uninstall extensions in parallel and wait until all extensions are uninstalled / failed
-			const result = await Promise.allSettled(allTasks.map(async task => {
+			await this.joinAllSettled(allTasks.map(async task => {
 				try {
 					await task.run();
+					await this.joinAllSettled(this.participants.map(participant => participant.postUninstall(task.extension, options, CancellationToken.None)));
 					// only report if extension has a mapped gallery extension. UUID identifies the gallery extension.
 					if (task.extension.identifier.uuid) {
 						try {
@@ -431,11 +444,6 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 					processedTasks.push(task);
 				}
 			}));
-
-			// Collect the errors
-			const errors = result.reduce<any[]>((errors, r) => { if (r.status === 'rejected') { errors.push(r.reason); } return errors; }, []);
-			// If there are errors, throw the error.
-			if (errors.length) { throw joinErrors(errors); }
 
 		} catch (e) {
 			const error = e instanceof ExtensionManagementError ? e : new ExtensionManagementError(getErrorMessage(e), ERROR_UNKNOWN);

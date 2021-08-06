@@ -24,7 +24,6 @@
 	const bootstrapLib = bootstrap();
 	const preloadGlobals = sandboxGlobals();
 	const safeProcess = preloadGlobals.process;
-	const useCustomProtocol = safeProcess.sandboxed || typeof safeProcess.env['VSCODE_BROWSER_CODE_LOADING'] === 'string';
 
 	/**
 	 * @typedef {import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
@@ -83,8 +82,10 @@
 			developerDeveloperKeybindingsDisposable = registerDeveloperKeybindings(disallowReloadKeybinding);
 		}
 
-		// Enable ASAR support
-		globalThis.MonacoBootstrap.enableASARSupport(configuration.appRoot, true);
+		// Enable ASAR support (TODO@sandbox non-sandboxed only)
+		if (!safeProcess.sandboxed) {
+			globalThis.MonacoBootstrap.enableASARSupport(configuration.appRoot);
+		}
 
 		// Get the nls configuration into the process.env as early as possible
 		const nlsConfig = globalThis.MonacoBootstrap.setupNLS();
@@ -98,11 +99,6 @@
 
 		window.document.documentElement.setAttribute('lang', locale);
 
-		// Do not advertise AMD to avoid confusing UMD modules loaded with nodejs
-		if (!useCustomProtocol) {
-			window['define'] = undefined;
-		}
-
 		// Replace the patched electron fs with the original node fs for all AMD code (TODO@sandbox non-sandboxed only)
 		if (!safeProcess.sandboxed) {
 			require.define('fs', [], function () { return require.__$__nodeRequire('original-fs'); });
@@ -111,11 +107,9 @@
 		window['MonacoEnvironment'] = {};
 
 		const loaderConfig = {
-			baseUrl: useCustomProtocol ?
-				`${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out` :
-				`${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32' })}/out`,
+			baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out`,
 			'vs/nls': nlsConfig,
-			preferScriptTags: useCustomProtocol
+			preferScriptTags: true
 		};
 
 		// use a trusted types policy when loading via script tags
@@ -147,14 +141,6 @@
 			};
 		} else {
 			loaderConfig.amdModulesPattern = /^vs\//;
-		}
-
-		// Cached data config (node.js loading only)
-		if (!useCustomProtocol && configuration.codeCachePath) {
-			loaderConfig.nodeCachedData = {
-				path: configuration.codeCachePath,
-				seed: modulePaths.join('')
-			};
 		}
 
 		// Signal before require.config()

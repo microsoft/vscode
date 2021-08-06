@@ -102,11 +102,13 @@ export type RegisteredEditorInfo = {
 	priority: RegisteredEditorPriority;
 };
 
-export type EditorInputFactoryFunction = (editorInput: IResourceEditorInput | ITextResourceEditorInput, group: IEditorGroup) => IEditorInputWithOptions;
+type EditorInputFactoryResult = IEditorInputWithOptions | Promise<IEditorInputWithOptions>;
 
-export type UntitledEditorInputFactoryFunction = (untitledEditorInput: IUntitledTextResourceEditorInput, group: IEditorGroup) => IEditorInputWithOptions;
+export type EditorInputFactoryFunction = (editorInput: IResourceEditorInput | ITextResourceEditorInput, group: IEditorGroup) => EditorInputFactoryResult;
 
-export type DiffEditorInputFactoryFunction = (diffEditorInput: IResourceDiffEditorInput, group: IEditorGroup) => IEditorInputWithOptions;
+export type UntitledEditorInputFactoryFunction = (untitledEditorInput: IUntitledTextResourceEditorInput, group: IEditorGroup) => EditorInputFactoryResult;
+
+export type DiffEditorInputFactoryFunction = (diffEditorInput: IResourceDiffEditorInput, group: IEditorGroup) => EditorInputFactoryResult;
 
 export interface IEditorResolverService {
 	readonly _serviceBrand: undefined;

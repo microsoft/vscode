@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
 
 export interface IEditorModel {
 

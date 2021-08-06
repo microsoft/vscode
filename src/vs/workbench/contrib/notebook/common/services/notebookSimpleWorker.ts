@@ -72,7 +72,10 @@ class MirrorCell {
 		}
 
 		this._hash = hash([hash(this.language), hash(this.getValue()), this.metadata, this.internalMetadata, this.outputs.map(op => ({
-			outputs: op.outputs,
+			outputs: op.outputs.map(output => ({
+				mime: output.mime,
+				data: Array.from(output.data)
+			})),
 			metadata: op.metadata
 		}))]);
 		return this._hash;

@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import {
-	SyntaxKind, createScanner, parse, Node, ParseError, parseTree, ParseErrorCode, ParseOptions, ScanError
-} from 'vs/base/common/json';
+import { createScanner, Node, parse, ParseError, ParseErrorCode, ParseOptions, parseTree, ScanError, SyntaxKind } from 'vs/base/common/json';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 
 function assertKinds(text: string, ...kinds: SyntaxKind[]): void {

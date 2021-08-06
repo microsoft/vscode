@@ -42,7 +42,7 @@ export interface IDriver {
 	getWindowIds(): Promise<number[]>;
 	capturePage(windowId: number): Promise<string>;
 	reloadWindow(windowId: number): Promise<void>;
-	exitApplication(): Promise<void>;
+	exitApplication(): Promise<boolean>;
 	dispatchKeybinding(windowId: number, keybinding: string): Promise<void>;
 	click(windowId: number, selector: string, xoffset?: number | undefined, yoffset?: number | undefined): Promise<void>;
 	doubleClick(windowId: number, selector: string): Promise<void>;

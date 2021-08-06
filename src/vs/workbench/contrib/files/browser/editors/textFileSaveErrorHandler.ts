@@ -394,7 +394,7 @@ class ConfigureSaveConflictAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		this.preferencesService.openSettings(undefined, 'files.saveConflictResolution');
+		this.preferencesService.openSettings({ query: 'files.saveConflictResolution' });
 	}
 }
 

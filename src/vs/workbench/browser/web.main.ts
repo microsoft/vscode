@@ -201,7 +201,7 @@ class BrowserMain extends Disposable {
 				return service;
 			}),
 
-			this.createStorageService(payload, environmentService, fileService, logService).then(service => {
+			this.createStorageService(payload, logService).then(service => {
 
 				// Storage
 				serviceCollection.set(IStorageService, service);
@@ -269,7 +269,7 @@ class BrowserMain extends Disposable {
 
 			logService.logger = new MultiplexLogService(coalesce([
 				new ConsoleLogger(logService.getLevel()),
-				new FileLogger('window', environmentService.logFile, logService.getLevel(), fileService),
+				new FileLogger('window', environmentService.logFile, logService.getLevel(), false, fileService),
 				// Extension development test CLI: forward everything to test runner
 				environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI ? new ConsoleLogInAutomationLogger(logService.getLevel()) : undefined
 			]));
@@ -338,8 +338,8 @@ class BrowserMain extends Disposable {
 		fileService.registerProvider(Schemas.tmp, new InMemoryFileSystemProvider());
 	}
 
-	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService): Promise<BrowserStorageService> {
-		const storageService = new BrowserStorageService(payload, logService, environmentService, fileService);
+	private async createStorageService(payload: IWorkspaceInitializationPayload, logService: ILogService): Promise<BrowserStorageService> {
+		const storageService = new BrowserStorageService(payload, logService);
 
 		try {
 			await storageService.initialize();

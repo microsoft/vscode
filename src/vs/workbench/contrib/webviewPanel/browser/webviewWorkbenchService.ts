@@ -7,7 +7,7 @@ import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { memoize } from 'vs/base/common/decorators';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { EditorActivation } from 'vs/platform/editor/common/editor';

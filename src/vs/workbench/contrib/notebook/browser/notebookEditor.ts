@@ -49,9 +49,11 @@ export class NotebookEditor extends EditorPane {
 
 	private readonly inputListener = this._register(new MutableDisposable());
 
-	// todo@rebornix is there a reason that `super.fireOnDidFocus` isn't used?
+	// override onDidFocus and onDidBlur to be based on the NotebookEditorWidget element
 	private readonly _onDidFocusWidget = this._register(new Emitter<void>());
 	override get onDidFocus(): Event<void> { return this._onDidFocusWidget.event; }
+	private readonly _onDidBlurWidget = this._register(new Emitter<void>());
+	override get onDidBlur(): Event<void> { return this._onDidBlurWidget.event; }
 
 	private readonly _onDidChangeModel = this._register(new Emitter<void>());
 	readonly onDidChangeModel: Event<void> = this._onDidChangeModel.event;
@@ -226,6 +228,7 @@ export class NotebookEditor extends EditorPane {
 		const isReadOnly = input.hasCapability(EditorInputCapabilities.Readonly);
 		await this._widget.value!.setOptions({ ...options, isReadOnly });
 		this._widgetDisposableStore.add(this._widget.value!.onDidFocus(() => this._onDidFocusWidget.fire()));
+		this._widgetDisposableStore.add(this._widget.value!.onDidBlur(() => this._onDidBlurWidget.fire()));
 
 		this._widgetDisposableStore.add(this._editorDropService.createEditorDropTarget(this._widget.value!.getDomNode(), {
 			containsGroup: (group) => this.group?.id === group.id

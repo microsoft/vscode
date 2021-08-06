@@ -15,6 +15,7 @@ import { IExtensionManifest, ExtensionType } from 'vs/platform/extensions/common
 import { URI } from 'vs/base/common/uri';
 import { IView, IViewPaneContainer } from 'vs/workbench/common/views';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IExtensionsStatus } from 'vs/workbench/services/extensions/common/extensions';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
 
@@ -57,6 +58,8 @@ export interface IExtension {
 	readonly ratingCount?: number;
 	readonly outdated: boolean;
 	readonly enablementState: EnablementState;
+	readonly tags: readonly string[];
+	readonly categories: readonly string[];
 	readonly dependencies: string[];
 	readonly extensionPack: string[];
 	readonly telemetryData: any;
@@ -92,12 +95,22 @@ export interface IExtensionsWorkbenchService {
 	installVersion(extension: IExtension, version: string): Promise<IExtension>;
 	reinstall(extension: IExtension): Promise<IExtension>;
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
-	open(extension: IExtension, options?: { sideByside?: boolean, preserveFocus?: boolean, pinned?: boolean }): Promise<any>;
+	open(extension: IExtension, options?: { sideByside?: boolean, preserveFocus?: boolean, pinned?: boolean, tab?: string }): Promise<void>;
 	checkForUpdates(): Promise<void>;
+	getExtensionStatus(extension: IExtension): IExtensionsStatus | undefined;
 
 	// Sync APIs
 	isExtensionIgnoredToSync(extension: IExtension): boolean;
 	toggleExtensionIgnoredToSync(extension: IExtension): Promise<void>;
+}
+
+export const enum ExtensionEditorTab {
+	Readme = 'readme',
+	Contributions = 'contributions',
+	Changelog = 'changelog',
+	Dependencies = 'dependencies',
+	ExtensionPack = 'extensionPack',
+	RuntimeStatus = 'runtimeStatus',
 }
 
 export const ConfigurationKey = 'extensions';

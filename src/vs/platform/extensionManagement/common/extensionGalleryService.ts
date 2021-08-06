@@ -3,25 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getErrorMessage, isPromiseCanceledError, canceled } from 'vs/base/common/errors';
-import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionIdentifier, IReportedExtension, InstallOperation, ITranslation, IGalleryExtensionVersion, IGalleryExtensionAssets, isIExtensionIdentifier, DefaultIconPath, WEB_EXTENSION_TAG } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionId, getGalleryExtensionTelemetryData, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { getOrDefault } from 'vs/base/common/objects';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IPager } from 'vs/base/common/paging';
-import { IRequestService, asJson, asText, isSuccess } from 'vs/platform/request/common/request';
-import { IRequestOptions, IRequestContext, IHeaders } from 'vs/base/parts/request/common/request';
-import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { IFileService } from 'vs/platform/files/common/files';
+import { canceled, getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
+import { getOrDefault } from 'vs/base/common/objects';
+import { IPager } from 'vs/base/common/paging';
+import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
+import { IHeaders, IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { DefaultIconPath, IExtensionGalleryService, IExtensionIdentifier, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IReportedExtension, isIExtensionIdentifier, ITranslation, SortBy, SortOrder, StatisticType, WEB_EXTENSION_TAG } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { adoptToGalleryExtensionId, getGalleryExtensionId, getGalleryExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
+import { IFileService } from 'vs/platform/files/common/files';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { asJson, asText, IRequestService, isSuccess } from 'vs/platform/request/common/request';
+import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 interface IRawGalleryExtensionFile {
 	readonly assetType: string;
@@ -56,6 +57,10 @@ interface IRawGalleryExtension {
 	readonly versions: IRawGalleryExtensionVersion[];
 	readonly statistics: IRawGalleryExtensionStatistics[];
 	readonly tags: string[] | undefined;
+	readonly releaseDate: string;
+	readonly publishedDate: string;
+	readonly lastUpdated: string;
+	readonly categories: string[] | undefined;
 	readonly flags: string;
 }
 
@@ -334,6 +339,10 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 		rating: getStatistic(galleryExtension.statistics, 'averagerating'),
 		ratingCount: getStatistic(galleryExtension.statistics, 'ratingcount'),
 		assetUri: URI.parse(version.assetUri),
+		categories: galleryExtension.categories || [],
+		tags: galleryExtension.tags || [],
+		releaseDate: Date.parse(galleryExtension.releaseDate),
+		lastUpdated: Date.parse(galleryExtension.lastUpdated),
 		webExtension: !!galleryExtension.tags?.includes(WEB_EXTENSION_TAG),
 		assetTypes: version.files.map(({ assetType }) => assetType),
 		assets,
@@ -599,12 +608,15 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			return undefined;
 		}
 
+		const url = isWeb ? this.api(`/itemName/${publisher}.${name}/version/${version}/statType/${type === StatisticType.Install ? '1' : '3'}/vscodewebextension`) : this.api(`/publishers/${publisher}/extensions/${name}/${version}/stats?statType=${type}`);
+		const Accept = isWeb ? 'api-version=6.1-preview.1' : '*/*;api-version=4.0-preview.1';
+
 		const commonHeaders = await this.commonHeadersPromise;
-		const headers = { ...commonHeaders, Accept: '*/*;api-version=4.0-preview.1' };
+		const headers = { ...commonHeaders, Accept };
 		try {
 			await this.requestService.request({
 				type: 'POST',
-				url: this.api(`/publishers/${publisher}/extensions/${name}/${version}/stats?statType=${type}`),
+				url,
 				headers
 			}, CancellationToken.None);
 		} catch (error) { /* Ignore */ }

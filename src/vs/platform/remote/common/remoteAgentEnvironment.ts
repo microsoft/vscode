@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { OperatingSystem } from 'vs/base/common/platform';
 import * as performance from 'vs/base/common/performance';
+import { OperatingSystem } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
 
 export interface IRemoteAgentEnvironment {
 	pid: number;

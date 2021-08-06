@@ -26,9 +26,8 @@
     "portastic": "^1.0.1",
     "rimraf": "^2.6.1",
     "strip-json-comments": "^2.0.1",
-    "tmp": "0.0.33",
     "typescript": "^4.3.2",
-    "vscode-test": "^1.5.2",
+    "vscode-test": "^1.6.1",
     "watch": "^1.0.2"
   }
 }

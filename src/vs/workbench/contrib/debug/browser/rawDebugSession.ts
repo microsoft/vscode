@@ -358,6 +358,13 @@ export class RawDebugSession implements IDisposable {
 		return Promise.reject(new Error('setVariable not supported'));
 	}
 
+	setExpression(args: DebugProtocol.SetExpressionArguments): Promise<DebugProtocol.SetExpressionResponse | undefined> {
+		if (this.capabilities.supportsSetExpression) {
+			return this.send<DebugProtocol.SetExpressionResponse>('setExpression', args);
+		}
+		return Promise.reject(new Error('setExpression not supported'));
+	}
+
 	async restartFrame(args: DebugProtocol.RestartFrameArguments, threadId: number): Promise<DebugProtocol.RestartFrameResponse | undefined> {
 		if (this.capabilities.supportsRestartFrame) {
 			const response = await this.send('restartFrame', args);
@@ -495,6 +502,22 @@ export class RawDebugSession implements IDisposable {
 		}
 
 		return Promise.reject(new Error('goto is not supported'));
+	}
+
+	async setInstructionBreakpoints(args: DebugProtocol.SetInstructionBreakpointsArguments): Promise<DebugProtocol.SetInstructionBreakpointsResponse | undefined> {
+		if (this.capabilities.supportsInstructionBreakpoints) {
+			return await this.send('setInstructionBreakpoints', args);
+		}
+
+		return Promise.reject(new Error('setInstructionBreakpoints is not supported'));
+	}
+
+	async disassemble(args: DebugProtocol.DisassembleArguments): Promise<DebugProtocol.DisassembleResponse | undefined> {
+		if (this.capabilities.supportsDisassembleRequest) {
+			return await this.send('disassemble', args);
+		}
+
+		return Promise.reject(new Error('disassemble is not supported'));
 	}
 
 	cancel(args: DebugProtocol.CancelArguments): Promise<DebugProtocol.CancelResponse | undefined> {

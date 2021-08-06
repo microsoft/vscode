@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { GestureEvent } from 'vs/base/browser/touch';
-import { Event as BaseEvent, Emitter } from 'vs/base/common/event';
+import { Emitter, Event as BaseEvent } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 export type EventHandler = HTMLElement | HTMLDocument | Window;

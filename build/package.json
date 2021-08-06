@@ -12,6 +12,7 @@
     "@types/debounce": "^1.0.0",
     "@types/eslint": "4.16.1",
     "@types/fancy-log": "^1.3.0",
+    "@types/fs-extra": "^9.0.12",
     "@types/glob": "^7.1.1",
     "@types/gulp": "^4.0.5",
     "@types/gulp-concat": "^0.0.32",
@@ -57,9 +58,9 @@
     "plist": "^3.0.1",
     "source-map": "0.6.1",
     "tmp": "^0.2.1",
-    "typescript": "^4.4.0-dev.20210708",
+    "typescript": "^4.4.0-dev.20210802",
     "vsce": "1.48.0",
-    "vscode-universal": "deepak1556/universal#61454d96223b774c53cda10f72c2098c0ce02d58"
+    "vscode-universal-bundler": "^0.0.2"
   },
   "scripts": {
     "compile": "tsc -p tsconfig.build.json",

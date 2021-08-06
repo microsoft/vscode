@@ -6,7 +6,7 @@
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDebugService, IExpression, IScope, CONTEXT_VARIABLES_FOCUSED, IStackFrame, CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT, IDataBreakpointInfoResponse, CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT, VARIABLES_VIEW_ID, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IExpression, IScope, CONTEXT_VARIABLES_FOCUSED, IStackFrame, CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT, IDataBreakpointInfoResponse, CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT, VARIABLES_VIEW_ID, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_VARIABLE_IS_READONLY } from 'vs/workbench/contrib/debug/common/debug';
 import { Variable, Scope, ErrorScope, StackFrame, Expression } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -61,6 +61,7 @@ export class VariablesView extends ViewPane {
 	private breakWhenValueIsAccessedSupported: IContextKey<boolean>;
 	private breakWhenValueIsReadSupported: IContextKey<boolean>;
 	private variableEvaluateName: IContextKey<boolean>;
+	private variableReadonly: IContextKey<boolean>;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -85,6 +86,7 @@ export class VariablesView extends ViewPane {
 		this.breakWhenValueIsAccessedSupported = CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED.bindTo(contextKeyService);
 		this.breakWhenValueIsReadSupported = CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED.bindTo(contextKeyService);
 		this.variableEvaluateName = CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT.bindTo(contextKeyService);
+		this.variableReadonly = CONTEXT_VARIABLE_IS_READONLY.bindTo(contextKeyService);
 
 		// Use scheduler to prevent unnecessary flashing
 		this.updateTreeScheduler = new RunOnceScheduler(async () => {
@@ -164,13 +166,14 @@ export class VariablesView extends ViewPane {
 		}));
 		let horizontalScrolling: boolean | undefined;
 		this._register(this.debugService.getViewModel().onDidSelectExpression(e => {
-			if (e instanceof Variable) {
+			const variable = e?.expression;
+			if (variable instanceof Variable && !e?.settingWatch) {
 				horizontalScrolling = this.tree.options.horizontalScrolling;
 				if (horizontalScrolling) {
 					this.tree.updateOptions({ horizontalScrolling: false });
 				}
 
-				this.tree.rerender(e);
+				this.tree.rerender(variable);
 			} else if (!e && horizontalScrolling !== undefined) {
 				this.tree.updateOptions({ horizontalScrolling: horizontalScrolling });
 				horizontalScrolling = undefined;
@@ -198,7 +201,7 @@ export class VariablesView extends ViewPane {
 	private onMouseDblClick(e: ITreeMouseEvent<IExpression | IScope>): void {
 		const session = this.debugService.getViewModel().focusedSession;
 		if (session && e.element instanceof Variable && session.capabilities.supportsSetVariable) {
-			this.debugService.getViewModel().setSelectedExpression(e.element);
+			this.debugService.getViewModel().setSelectedExpression(e.element, false);
 		}
 	}
 
@@ -209,6 +212,8 @@ export class VariablesView extends ViewPane {
 			variableInternalContext = variable;
 			const session = this.debugService.getViewModel().focusedSession;
 			this.variableEvaluateName.set(!!variable.evaluateName);
+			const attributes = variable.presentationHint?.attributes;
+			this.variableReadonly.set(!!attributes && attributes.indexOf('readOnly') >= 0);
 			this.breakWhenValueChangesSupported.reset();
 			this.breakWhenValueIsAccessedSupported.reset();
 			this.breakWhenValueIsReadSupported.reset();
@@ -374,8 +379,9 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 			},
 			onFinish: (value: string, success: boolean) => {
 				variable.errorMessage = undefined;
-				if (success && variable.value !== value) {
-					variable.setVariable(value)
+				const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+				if (success && variable.value !== value && focusedStackFrame) {
+					variable.setVariable(value, focusedStackFrame)
 						// Need to force watch expressions and variables to update since a variable change can have an effect on both
 						.then(() => {
 							// Do not refresh scopes due to a node limitation #15520
@@ -411,7 +417,7 @@ CommandsRegistry.registerCommand({
 	id: SET_VARIABLE_ID,
 	handler: (accessor: ServicesAccessor) => {
 		const debugService = accessor.get(IDebugService);
-		debugService.getViewModel().setSelectedExpression(variableInternalContext);
+		debugService.getViewModel().setSelectedExpression(variableInternalContext, false);
 	}
 });
 

@@ -178,10 +178,10 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	private _hasModeSetExplicitly: boolean = false;
 	get hasModeSetExplicitly(): boolean { return this._hasModeSetExplicitly; }
 
-	override setMode(mode: string): void {
+	override setMode(mode: string, setExplicitly = true): void {
 
 		// Remember that an explicit mode was set
-		this._hasModeSetExplicitly = true;
+		this._hasModeSetExplicitly = setExplicitly;
 
 		let actualMode: string | undefined = undefined;
 		if (mode === '${activeEditorLanguage}') {

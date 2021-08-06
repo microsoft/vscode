@@ -3,15 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IAction, Action, SubmenuAction, Separator } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { Schemas } from 'vs/base/common/network';
 import { localize } from 'vs/nls';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { MenuRegistry, MenuId, IMenuActionOptions, MenuItemAction, IMenu } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IExtensionTerminalProfile, ITerminalProfile, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { IS_SPLIT_TERMINAL_CONTEXT_KEY, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TerminalCommandId, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalContextKey } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { ICreateTerminalOptions, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalCommandId, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalContextKeys, TerminalContextKeyStrings } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 
 const enum ContextMenuGroup {
@@ -56,10 +60,10 @@ export function setupTerminalMenus(): void {
 					command: {
 						id: TerminalCommandId.Split,
 						title: localize({ key: 'miSplitTerminal', comment: ['&& denotes a mnemonic'] }, "&&Split Terminal"),
-						precondition: ContextKeyExpr.has(TerminalContextKey.IsOpen)
+						precondition: ContextKeyExpr.has(TerminalContextKeyStrings.IsOpen)
 					},
 					order: 2,
-					when: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+					when: TerminalContextKeys.processSupported
 				}
 			},
 			{
@@ -71,7 +75,7 @@ export function setupTerminalMenus(): void {
 						title: localize({ key: 'miRunActiveFile', comment: ['&& denotes a mnemonic'] }, "Run &&Active File")
 					},
 					order: 3,
-					when: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+					when: TerminalContextKeys.processSupported
 				}
 			},
 			{
@@ -83,7 +87,7 @@ export function setupTerminalMenus(): void {
 						title: localize({ key: 'miRunSelectedText', comment: ['&& denotes a mnemonic'] }, "Run &&Selected Text")
 					},
 					order: 4,
-					when: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+					when: TerminalContextKeys.processSupported
 				}
 			}
 		]
@@ -261,18 +265,18 @@ export function setupTerminalMenus(): void {
 						ContextKeyExpr.or(
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'singleTerminal'),
-								ContextKeyExpr.equals(TerminalContextKey.Count, 1)
+								ContextKeyExpr.equals(TerminalContextKeyStrings.Count, 1)
 							),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'singleTerminalOrNarrow'),
 								ContextKeyExpr.or(
-									ContextKeyExpr.equals(TerminalContextKey.Count, 1),
-									ContextKeyExpr.has(TerminalContextKey.TabsNarrow)
+									ContextKeyExpr.equals(TerminalContextKeyStrings.Count, 1),
+									ContextKeyExpr.has(TerminalContextKeyStrings.TabsNarrow)
 								)
 							),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'singleGroup'),
-								ContextKeyExpr.equals(TerminalContextKey.GroupCount, 1)
+								ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1)
 							),
 							ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'always')
 						)
@@ -295,18 +299,18 @@ export function setupTerminalMenus(): void {
 							ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminal'),
-								ContextKeyExpr.equals(TerminalContextKey.Count, 1)
+								ContextKeyExpr.equals(TerminalContextKeyStrings.Count, 1)
 							),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminalOrNarrow'),
 								ContextKeyExpr.or(
-									ContextKeyExpr.equals(TerminalContextKey.Count, 1),
-									ContextKeyExpr.has(TerminalContextKey.TabsNarrow)
+									ContextKeyExpr.equals(TerminalContextKeyStrings.Count, 1),
+									ContextKeyExpr.has(TerminalContextKeyStrings.TabsNarrow)
 								)
 							),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleGroup'),
-								ContextKeyExpr.equals(TerminalContextKey.GroupCount, 1)
+								ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1)
 							),
 							ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'always')
 						)
@@ -329,18 +333,18 @@ export function setupTerminalMenus(): void {
 							ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminal'),
-								ContextKeyExpr.equals(TerminalContextKey.Count, 1)
+								ContextKeyExpr.equals(TerminalContextKeyStrings.Count, 1)
 							),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminalOrNarrow'),
 								ContextKeyExpr.or(
-									ContextKeyExpr.equals(TerminalContextKey.Count, 1),
-									ContextKeyExpr.has(TerminalContextKey.TabsNarrow)
+									ContextKeyExpr.equals(TerminalContextKeyStrings.Count, 1),
+									ContextKeyExpr.has(TerminalContextKeyStrings.TabsNarrow)
 								)
 							),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleGroup'),
-								ContextKeyExpr.equals(TerminalContextKey.GroupCount, 1)
+								ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1)
 							),
 							ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'always')
 						)
@@ -493,7 +497,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.JoinInstance,
 						title: localize('workbench.action.terminal.joinInstance', "Join Terminals")
 					},
-					when: KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION.toNegated()
+					when: TerminalContextKeys.tabsSingularSelection.toNegated()
 				}
 			},
 			{
@@ -504,7 +508,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.UnsplitInstance,
 						title: terminalStrings.unsplit.value
 					},
-					when: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, IS_SPLIT_TERMINAL_CONTEXT_KEY)
+					when: ContextKeyExpr.and(TerminalContextKeys.tabsSingularSelection, TerminalContextKeys.splitTerminal)
 				}
 			},
 			{
@@ -565,4 +569,90 @@ export function setupTerminalMenus(): void {
 		order: 0,
 		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal)
 	});
+}
+
+export function getTerminalActionBarArgs(target: TerminalLocation, profiles: ITerminalProfile[], defaultProfileName: string, contributedProfiles: readonly IExtensionTerminalProfile[], instantiationService: IInstantiationService, terminalService: ITerminalService, contextKeyService: IContextKeyService, commandService: ICommandService, dropdownMenu: IMenu): {
+	primaryAction: MenuItemAction,
+	dropdownAction: IAction,
+	dropdownMenuActions: IAction[],
+	className: string,
+	dropdownIcon?: string
+} {
+	const dropdownActions: IAction[] = [];
+	const submenuActions: IAction[] = [];
+
+	for (const p of profiles) {
+		const isDefault = p.profileName === defaultProfileName;
+		const options: IMenuActionOptions = {
+			arg: {
+				config: p,
+				target
+			} as ICreateTerminalOptions,
+			shouldForwardArgs: true
+		};
+		if (isDefault) {
+			dropdownActions.unshift(new MenuItemAction({ id: TerminalCommandId.NewWithProfile, title: localize('defaultTerminalProfile', "{0} (Default)", p.profileName), category: TerminalTabContextMenuGroup.Profile }, undefined, options, contextKeyService, commandService));
+			submenuActions.unshift(new MenuItemAction({ id: TerminalCommandId.Split, title: localize('defaultTerminalProfile', "{0} (Default)", p.profileName), category: TerminalTabContextMenuGroup.Profile }, undefined, options, contextKeyService, commandService));
+		} else {
+			dropdownActions.push(new MenuItemAction({ id: TerminalCommandId.NewWithProfile, title: p.profileName.replace(/[\n\r\t]/g, ''), category: TerminalTabContextMenuGroup.Profile }, undefined, options, contextKeyService, commandService));
+			submenuActions.push(new MenuItemAction({ id: TerminalCommandId.Split, title: p.profileName.replace(/[\n\r\t]/g, ''), category: TerminalTabContextMenuGroup.Profile }, undefined, options, contextKeyService, commandService));
+		}
+	}
+
+	for (const contributed of contributedProfiles) {
+		const isDefault = contributed.title === defaultProfileName;
+		const title = isDefault ? localize('defaultTerminalProfile', "{0} (Default)", contributed.title.replace(/[\n\r\t]/g, '')) : contributed.title.replace(/[\n\r\t]/g, '');
+		dropdownActions.push(new Action(TerminalCommandId.NewWithProfile, title, undefined, true, () => terminalService.createTerminal({
+			config: {
+				extensionIdentifier: contributed.extensionIdentifier,
+				id: contributed.id,
+				title
+			},
+			forceSplit: false,
+			target
+		})));
+		submenuActions.push(new Action(TerminalCommandId.NewWithProfile, title, undefined, true, () => terminalService.createTerminal({
+			config: {
+				extensionIdentifier: contributed.extensionIdentifier,
+				id: contributed.id,
+				title
+			},
+			forceSplit: true,
+			target
+		})));
+	}
+
+	if (dropdownActions.length > 0) {
+		dropdownActions.push(new SubmenuAction('split.profile', 'Split...', submenuActions));
+		dropdownActions.push(new Separator());
+	}
+
+	for (const [, configureActions] of dropdownMenu.getActions()) {
+		for (const action of configureActions) {
+			// make sure the action is a MenuItemAction
+			if ('alt' in action) {
+				dropdownActions.push(action);
+			}
+		}
+	}
+
+	const primaryAction = instantiationService.createInstance(
+		MenuItemAction,
+		{
+			id: target === TerminalLocation.TerminalView ? TerminalCommandId.New : TerminalCommandId.CreateTerminalEditor,
+			title: localize('terminal.new', "New Terminal"),
+			icon: Codicon.plus
+		},
+		{
+			id: TerminalCommandId.Split,
+			title: terminalStrings.split.value,
+			icon: Codicon.splitHorizontal
+		},
+		{
+			shouldForwardArgs: true,
+			arg: { target } as ICreateTerminalOptions,
+		});
+
+	const dropdownAction = new Action('refresh profiles', 'Launch Profile...', 'codicon-chevron-down', true);
+	return { primaryAction, dropdownAction, dropdownMenuActions: dropdownActions, className: 'terminal-tab-actions' };
 }

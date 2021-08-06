@@ -93,6 +93,7 @@
 .workspace-trust-editor.untrusted .workspace-trust-features .workspace-trust-limitations.untrusted {
 	border-width: 2px;
 	border-color: var(--workspace-trust-selected-color) !important;
+	padding: 9px 39px;
 }
 
 .workspace-trust-editor .workspace-trust-features .workspace-trust-limitations ul {

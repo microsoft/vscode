@@ -4,14 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { isEqual } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, State } from 'vs/workbench/contrib/debug/common/debug';
+import { Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellUri, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellUri, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
@@ -97,3 +100,80 @@ class NotebookBreakpoints extends Disposable implements IWorkbenchContribution {
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NotebookBreakpoints, LifecyclePhase.Restored);
+
+class NotebookCellPausing extends Disposable implements IWorkbenchContribution {
+	private readonly _pausedCells = new Set<string>();
+
+	private readonly _sessionDisposables = new Map<string, IDisposable>();
+
+	constructor(
+		@IDebugService private readonly _debugService: IDebugService,
+		@INotebookService private readonly _notebookService: INotebookService
+	) {
+		super();
+
+		const scheduler = this._register(new RunOnceScheduler(() => this.onDidChangeCallStack(), 1000));
+		this._register(_debugService.getModel().onDidChangeCallStack(() => {
+			scheduler.cancel();
+			this.onDidChangeCallStack();
+		}));
+
+		this._register(_debugService.onDidNewSession(s => {
+			this._sessionDisposables.set(s.getId(), s.onDidChangeState(() => {
+				if (s.state === State.Running) {
+					// Continued, start timer to refresh
+					scheduler.schedule();
+				}
+			}));
+		}));
+
+		this._register(_debugService.onDidEndSession(s => {
+			this._sessionDisposables.get(s.getId())?.dispose();
+			this._sessionDisposables.delete(s.getId());
+		}));
+	}
+
+	private async onDidChangeCallStack(): Promise<void> {
+		const newPausedCells = new Set<string>();
+
+		for (const session of this._debugService.getModel().getSessions()) {
+			for (const thread of session.getAllThreads()) {
+				let callStack = thread.getCallStack();
+				if (!callStack.length) {
+					callStack = (thread as Thread).getStaleCallStack();
+				}
+
+				callStack.forEach(sf => {
+					const parsed = CellUri.parse(sf.source.uri);
+					if (parsed) {
+						newPausedCells.add(sf.source.uri.toString());
+						this.editIsPaused(sf.source.uri, true);
+					}
+				});
+			}
+		}
+
+		for (const uri of this._pausedCells) {
+			if (!newPausedCells.has(uri)) {
+				this.editIsPaused(URI.parse(uri), false);
+				this._pausedCells.delete(uri);
+			}
+		}
+
+		newPausedCells.forEach(cell => this._pausedCells.add(cell));
+	}
+
+	private editIsPaused(cellUri: URI, isPaused: boolean) {
+		const parsed = CellUri.parse(cellUri);
+		if (parsed) {
+			const notebookModel = this._notebookService.getNotebookTextModel(parsed.notebook);
+			notebookModel?.applyEdits([{
+				editType: CellEditType.PartialInternalMetadata,
+				handle: parsed.handle,
+				internalMetadata: { isPaused },
+			}], true, undefined, () => undefined, undefined);
+		}
+	}
+}
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NotebookCellPausing, LifecyclePhase.Restored);

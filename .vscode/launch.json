@@ -185,7 +185,6 @@
 			"name": "Attach to VS Code",
 			"browserAttachLocation": "workspace",
 			"port": 9222,
-			"trace": true,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			],
@@ -244,15 +243,17 @@
 			}
 		},
 		{
-			"type": "node",
+			"type": "pwa-node",
 			"request": "launch",
 			"name": "Main Process",
+			"attachSimplePort": 5875,
 			"runtimeExecutable": "${workspaceFolder}/scripts/code.sh",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat",
 			},
 			"runtimeArgs": [
-				"--no-cached-data"
+				"--inspect-brk=5875",
+				"--no-cached-data",
 			],
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
