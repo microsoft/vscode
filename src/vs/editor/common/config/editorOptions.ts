@@ -3233,7 +3233,7 @@ export type InternalInlineSuggestOptions = Readonly<Required<IInlineSuggestOptio
 class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, InternalInlineSuggestOptions> {
 	constructor() {
 		const defaults: InternalInlineSuggestOptions = {
-			enabled: false,
+			enabled: true,
 			mode: 'subwordSmart'
 		};
 
