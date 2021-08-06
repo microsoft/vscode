@@ -96,7 +96,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	readonly capabilities = WorkingCopyCapabilities.Untitled;
 
-	private readonly _autoDetectLanguageScheduler: RunOnceScheduler;
+	private readonly _autoDetectLanguageScheduler = this._register(new RunOnceScheduler(() => this.autoDetectLanguage(), 600));;
 
 	//#region Name
 
@@ -142,8 +142,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		if (preferredMode) {
 			this.setModeInternal(preferredMode);
 		}
-
-		this._autoDetectLanguageScheduler = this._register(new RunOnceScheduler(() => this.autoDetectLanguage(), 600));
 
 		// Fetch config
 		this.onConfigurationChange(false);
