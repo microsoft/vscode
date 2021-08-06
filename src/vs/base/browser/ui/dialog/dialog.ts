@@ -495,9 +495,9 @@ export class Dialog extends Disposable {
 			buttonMap.push({ label: button, index });
 		});
 
-		// macOS/linux: reverse button order
+		// macOS/linux: reverse button order if `cancelId` is defined
 		if (isMacintosh || isLinux) {
-			if (cancelId !== undefined) {
+			if (cancelId !== undefined && cancelId < buttons.length) {
 				const cancelButton = buttonMap.splice(cancelId, 1)[0];
 				buttonMap.reverse();
 				buttonMap.splice(buttonMap.length - 1, 0, cancelButton);
