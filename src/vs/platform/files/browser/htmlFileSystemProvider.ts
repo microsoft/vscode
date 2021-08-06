@@ -6,7 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isLinux } from 'vs/base/common/platform';
-import { extUri } from 'vs/base/common/resources';
+import { basename, extUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 
@@ -165,8 +165,14 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 		return result;
 	}
 
-	delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
-		throw new Error('Method not implemented: delete');
+	async delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
+		const parent = await this.getParentDirectoryHandle(resource);
+
+		if (!parent) {
+			throw new Error('Stat error: no parent found');
+		}
+
+		return parent.removeEntry(basename(resource), { recursive: opts.recursive });
 	}
 
 	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {

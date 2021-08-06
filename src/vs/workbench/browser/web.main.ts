@@ -334,7 +334,7 @@ class BrowserMain extends Disposable {
 			});
 		}
 
-		if (WebFileSystemAccess.supported(Window)) {
+		if (WebFileSystemAccess.supported(window)) {
 			fileService.registerProvider(Schemas.file, new HTMLFileSystemProvider());
 		}
 		fileService.registerProvider(Schemas.tmp, new InMemoryFileSystemProvider());
