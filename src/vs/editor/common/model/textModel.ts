@@ -1916,7 +1916,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._tokens.setTokens(this._languageIdentifier.id, lineNumber - 1, this._buffer.getLineLength(lineNumber), tokens, false);
 	}
 
-	public setTokens(tokens: MultilineTokens[]): void {
+	public setTokens(tokens: MultilineTokens[], backgroundTokenizationCompleted: boolean = false): void {
 		if (tokens.length === 0) {
 			return;
 		}
@@ -1951,6 +1951,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			this._emitModelTokensChangedEvent({
 				tokenizationSupportChanged: false,
 				semanticTokensApplied: false,
+				backgroundTokenizationCompleted,
 				ranges: ranges
 			});
 		}
@@ -1962,6 +1963,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._emitModelTokensChangedEvent({
 			tokenizationSupportChanged: false,
 			semanticTokensApplied: tokens !== null,
+			backgroundTokenizationCompleted: false,
 			ranges: [{ fromLineNumber: 1, toLineNumber: this.getLineCount() }]
 		});
 	}
@@ -1983,6 +1985,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._emitModelTokensChangedEvent({
 			tokenizationSupportChanged: false,
 			semanticTokensApplied: true,
+			backgroundTokenizationCompleted: false,
 			ranges: [{ fromLineNumber: changedRange.startLineNumber, toLineNumber: changedRange.endLineNumber }]
 		});
 	}
@@ -1998,6 +2001,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._emitModelTokensChangedEvent({
 			tokenizationSupportChanged: true,
 			semanticTokensApplied: false,
+			backgroundTokenizationCompleted: false,
 			ranges: [{
 				fromLineNumber: 1,
 				toLineNumber: this._buffer.getLineCount()
@@ -2011,6 +2015,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._emitModelTokensChangedEvent({
 			tokenizationSupportChanged: false,
 			semanticTokensApplied: false,
+			backgroundTokenizationCompleted: false,
 			ranges: [{ fromLineNumber: 1, toLineNumber: this.getLineCount() }]
 		});
 	}
