@@ -381,7 +381,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._tokens2 = new TokensStore2();
 		this._tokenization = new TextModelTokenization(this);
 
-		this._bracketPairColorizer = new BracketPairColorizer(this);
+		this._bracketPairColorizer = this._register(new BracketPairColorizer(this));
 		this._decorationProvider = this._bracketPairColorizer;
 
 		this._register(this._decorationProvider.onDidChangeDecorations(() => {
