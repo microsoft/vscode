@@ -1141,6 +1141,7 @@ export class TerminalService implements ITerminalService {
 		if (options?.instanceToSplit && typeof shellLaunchConfig.cwd !== 'object' && typeof options.instanceToSplit.shellLaunchConfig.cwd === 'object') {
 			shellLaunchConfig.cwd = URI.from({
 				scheme: options.instanceToSplit.shellLaunchConfig.cwd.scheme,
+				authority: options.instanceToSplit.shellLaunchConfig.cwd.authority,
 				path: shellLaunchConfig.cwd || options.instanceToSplit.shellLaunchConfig.cwd.path
 			});
 		}
