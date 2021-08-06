@@ -31,7 +31,7 @@ class NotebookUndoRedoContribution extends Disposable {
 			if (editor?.hasModel()) {
 				const activeCodeEditor = editor.activeCodeEditor;
 
-				if (activeCodeEditor && activeCodeEditor.hasTextFocus()) {
+				if ((activeCodeEditor && activeCodeEditor.hasTextFocus()) || !activeCodeEditor) {
 					return editor.viewModel.undo().then(cellResources => {
 						if (cellResources?.length) {
 							editor?.viewModel?.viewCells.forEach(cell => {
@@ -54,7 +54,7 @@ class NotebookUndoRedoContribution extends Disposable {
 			if (editor?.hasModel()) {
 				const activeCodeEditor = editor.activeCodeEditor;
 
-				if (activeCodeEditor && activeCodeEditor.hasTextFocus()) {
+				if ((activeCodeEditor && activeCodeEditor.hasTextFocus()) || !activeCodeEditor) {
 					return editor.viewModel.redo().then(cellResources => {
 						if (cellResources?.length) {
 							editor?.viewModel?.viewCells.forEach(cell => {
