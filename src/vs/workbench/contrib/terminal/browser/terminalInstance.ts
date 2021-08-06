@@ -66,6 +66,8 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { getTerminalResourcesFromDragEvent, getTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -268,7 +270,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IProductService private readonly _productService: IProductService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IEditorService private readonly _editorService: IEditorService
 	) {
 		super();
 
@@ -1128,7 +1131,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _refreshSelectionContextKey() {
 		const isActive = !!this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID);
-		this._terminalHasTextContextKey.set(isActive && this.hasSelection());
+		let isEditorActive = false;
+		const editor = this._editorService.activeEditor;
+		if (editor) {
+			isEditorActive = editor instanceof TerminalEditorInput;
+		}
+		this._terminalHasTextContextKey.set((isActive || isEditorActive) && this.hasSelection());
 	}
 
 	protected _createProcessManager(): void {
