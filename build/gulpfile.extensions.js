@@ -222,7 +222,9 @@ const compileExtensionsBuildTask = task.define('compile-extensions-build', task.
 ));
 
 gulp.task(compileExtensionsBuildTask);
-gulp.task(task.define('extensions-ci', task.series(compileExtensionsBuildTask, compileExtensionMediaBuildTask)));
+const compileExtensionsCi = task.series(compileExtensionsBuildTask, compileExtensionMediaBuildTask);
+gulp.task(task.define('extensions-ci', compileExtensionsCi));
+exports.compileExtensionsCi = compileExtensionsCi;
 
 exports.compileExtensionsBuildTask = compileExtensionsBuildTask;
 
