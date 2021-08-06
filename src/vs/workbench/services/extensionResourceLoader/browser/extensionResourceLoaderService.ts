@@ -43,12 +43,16 @@ class ExtensionResourceLoaderService implements IExtensionResourceLoaderService 
 
 		const requestInit: RequestInit = {};
 		if (this._extensionGalleryResourceAuthority && this._extensionGalleryResourceAuthority === this._getExtensionResourceAuthority(uri)) {
-			const machineId = await this._getServiceMachineId();
+
 			requestInit.headers = {
 				'X-Client-Name': `${this._productService.applicationName}${isWeb ? '-web' : ''}`,
-				'X-Client-Version': this._productService.version,
-				'X-Machine-Id': machineId
+				'X-Client-Version': this._productService.version
 			};
+			// Only send machine id if telemetry is enabled
+			if (!!this._productService.enableTelemetry) {
+				const machineId = await this._getServiceMachineId();
+				requestInit.headers['X-Machine-Id'] = machineId;
+			}
 			if (this._productService.commit) {
 				requestInit.headers['X-Client-Commit'] = this._productService.commit;
 			}

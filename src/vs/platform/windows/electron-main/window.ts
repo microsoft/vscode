@@ -136,7 +136,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private readonly touchBarGroups: TouchBarSegmentedControl[] = [];
 
-	private marketplaceHeadersPromise: Promise<object>;
+	private marketplaceHeadersPromise: Promise<{ [key: string]: string }>;
 	private currentHttpProxy: string | undefined = undefined;
 	private currentNoProxy: string | undefined = undefined;
 
@@ -302,7 +302,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this.createTouchBar();
 
 		// Request handling
-		this.marketplaceHeadersPromise = resolveMarketplaceHeaders(this.productService.version, this.environmentMainService, this.fileService, {
+		this.marketplaceHeadersPromise = resolveMarketplaceHeaders(this.productService.version, this.productService, this.environmentMainService, this.fileService, {
 			get: key => storageMainService.globalStorage.get(key),
 			store: (key, value) => storageMainService.globalStorage.set(key, value)
 		});
@@ -540,7 +540,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Inject headers when requests are incoming
 		const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
 		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, async (details, cb) => {
-			const headers = await this.marketplaceHeadersPromise;
+			let headers = await this.marketplaceHeadersPromise;
+			if (headers['X-Market-User-Id'] && !this.productService.enableTelemetry) {
+				delete headers['X-Market-User-Id'];
+			}
 
 			cb({ cancel: false, requestHeaders: Object.assign(details.requestHeaders, headers) });
 		});

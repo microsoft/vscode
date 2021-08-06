@@ -174,9 +174,11 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 			.then(uuid => {
 				const headers: IHeaders = {
 					'X-Client-Name': `${productService.applicationName}${isWeb ? '-web' : ''}`,
-					'X-Client-Version': productService.version,
-					'X-Machine-Id': uuid
+					'X-Client-Version': productService.version
 				};
+				if (productService.enableTelemetry) {
+					headers['X-Machine-Id'] = uuid;
+				}
 				if (productService.commit) {
 					headers['X-Client-Commit'] = productService.commit;
 				}

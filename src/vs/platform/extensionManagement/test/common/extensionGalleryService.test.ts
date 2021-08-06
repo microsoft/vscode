@@ -16,6 +16,7 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { NullLogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
 
 class EnvironmentServiceMock extends mock<IEnvironmentService>() {
@@ -28,7 +29,7 @@ class EnvironmentServiceMock extends mock<IEnvironmentService>() {
 
 suite('Extension Gallery Service', () => {
 	const disposables: DisposableStore = new DisposableStore();
-	let fileService: IFileService, environmentService: IEnvironmentService, storageService: IStorageService;
+	let fileService: IFileService, environmentService: IEnvironmentService, storageService: IStorageService, productService: IProductService;
 
 	setup(() => {
 		const serviceMachineIdResource = joinPath(URI.file('tests').with({ scheme: 'vscode-tests' }), 'machineid');
@@ -37,14 +38,15 @@ suite('Extension Gallery Service', () => {
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		fileService.registerProvider(serviceMachineIdResource.scheme, fileSystemProvider);
 		storageService = new InMemoryStorageService();
+		productService = { _serviceBrand: undefined, ...product, enableTelemetry: true, };
 	});
 
 	teardown(() => disposables.clear());
 
 	test('marketplace machine id', async () => {
-		const headers = await resolveMarketplaceHeaders(product.version, environmentService, fileService, storageService);
+		const headers = await resolveMarketplaceHeaders(product.version, productService, environmentService, fileService, storageService);
 		assert.ok(isUUID(headers['X-Market-User-Id']));
-		const headers2 = await resolveMarketplaceHeaders(product.version, environmentService, fileService, storageService);
+		const headers2 = await resolveMarketplaceHeaders(product.version, productService, environmentService, fileService, storageService);
 		assert.strictEqual(headers['X-Market-User-Id'], headers2['X-Market-User-Id']);
 	});
 });

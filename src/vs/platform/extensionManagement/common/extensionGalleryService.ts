@@ -392,7 +392,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		const config = productService.extensionsGallery;
 		this.extensionsGalleryUrl = config && config.serviceUrl;
 		this.extensionsControlUrl = config && config.controlUrl;
-		this.commonHeadersPromise = resolveMarketplaceHeaders(productService.version, this.environmentService, this.fileService, storageService);
+		this.commonHeadersPromise = resolveMarketplaceHeaders(productService.version, productService, this.environmentService, this.fileService, storageService);
 	}
 
 	private api(path = ''): string {
@@ -842,7 +842,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 }
 
-export async function resolveMarketplaceHeaders(version: string, environmentService: IEnvironmentService, fileService: IFileService, storageService: {
+export async function resolveMarketplaceHeaders(version: string, productService: IProductService, environmentService: IEnvironmentService, fileService: IFileService, storageService: {
 	get: (key: string, scope: StorageScope) => string | undefined,
 	store: (key: string, value: string, scope: StorageScope, target: StorageTarget) => void
 } | undefined): Promise<{ [key: string]: string; }> {
@@ -850,7 +850,10 @@ export async function resolveMarketplaceHeaders(version: string, environmentServ
 		'X-Market-Client-Id': `VSCode ${version}`,
 		'User-Agent': `VSCode ${version}`
 	};
-	const uuid = await getServiceMachineId(environmentService, fileService, storageService);
-	headers['X-Market-User-Id'] = uuid;
+	// Don't send user id header if telemetry is disabled
+	if (!!productService.enableTelemetry) {
+		const uuid = await getServiceMachineId(environmentService, fileService, storageService);
+		headers['X-Market-User-Id'] = uuid;
+	}
 	return headers;
 }
