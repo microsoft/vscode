@@ -175,7 +175,12 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 					return `${pattern} (base ${pattern.base})`;
 				}
 
-				return `${pattern.include} (exclude: ${pattern.exclude})`;
+				if (pattern.exclude) {
+					return `${pattern.include} (exclude: ${pattern.exclude})`;
+				} else {
+					return `${pattern.include}`;
+				}
+
 			}).join(', ');
 			throw new Error(`File name ${target} is not supported by ${provider.providerDisplayName}.\n\nPlease make sure the file name matches following patterns:\n${patterns}`);
 		}
