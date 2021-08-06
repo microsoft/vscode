@@ -12,6 +12,7 @@ import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { isArray, isStringArray } from 'vs/base/common/types';
 
 //#region typed options
 
@@ -3274,6 +3275,83 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 
 //#endregion
 
+//#region bracketPairColorization
+
+export interface IBracketPairColorizationOptions {
+	/**
+	 * Enable or disable bracket pair colorization.
+	*/
+	enabled?: boolean;
+
+	/**
+	 * Configures custom bracket pairs that are not provided by the language.
+	*/
+	customBracketPairs?: [string, string][];
+}
+
+export type InternalBracketPairColorizationOptions = Readonly<Required<IBracketPairColorizationOptions>>;
+
+/**
+ * Configuration options for inline suggestions
+ */
+class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairColorization, InternalBracketPairColorizationOptions> {
+	constructor() {
+		const defaults: InternalBracketPairColorizationOptions = {
+			enabled: false,
+			customBracketPairs: []
+		};
+
+		super(
+			EditorOption.bracketPairColorization, 'bracketPairColorization', defaults,
+			{
+				'editor.bracketPairColorization.enabled': {
+					type: 'boolean',
+					default: defaults.enabled,
+					description: nls.localize('bracketPairColorization.enabled', "Controls whether bracket pair colorization is enabled or not.")
+				},
+				'editor.bracketPairColorization.customBracketPairs': {
+					type: 'array',
+					items: {
+						type: 'array',
+						minLength: 2,
+						maxLength: 2,
+						items: {
+							type: 'string'
+						}
+					},
+					default: defaults.customBracketPairs,
+					description: nls.localize('bracketPairColorization.customBracketPairs', "Custom bracket pairs that get highlighted.")
+				},
+			}
+		);
+	}
+
+	public validate(_input: any): InternalBracketPairColorizationOptions {
+		if (!_input || typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as IBracketPairColorizationOptions;
+		return {
+			enabled: boolean(input.enabled, this.defaultValue.enabled),
+			customBracketPairs: this.validateBracketPairs(input.customBracketPairs, this.defaultValue.customBracketPairs)
+		};
+	}
+
+	private validateBracketPairs(input: any, defaultValue: [string, string][]): [string, string][] {
+		if (!isArray(input)) {
+			return defaultValue;
+		}
+
+		if (!input.every(i => isStringArray(i) && i.length === 2)) {
+			return defaultValue;
+		}
+
+		return input;
+	}
+}
+
+//#endregion
+
 //#region suggest
 
 /**
@@ -3922,6 +4000,7 @@ export const enum EditorOption {
 	autoIndent,
 	automaticLayout,
 	autoSurround,
+	bracketPairColorization,
 	codeLens,
 	codeLensFontFamily,
 	codeLensFontSize,
@@ -4172,6 +4251,7 @@ export const EditorOptions = {
 			description: nls.localize('autoSurround', "Controls whether the editor should automatically surround selections when typing quotes or brackets.")
 		}
 	)),
+	bracketPairColorization: register(new BracketPairColorization()),
 	stickyTabStops: register(new EditorBooleanOption(
 		EditorOption.stickyTabStops, 'stickyTabStops', false,
 		{ description: nls.localize('stickyTabStops', "Emulate selection behavior of tab characters when using spaces for indentation. Selection will stick to tab stops.") }
