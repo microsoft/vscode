@@ -59,7 +59,7 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 		return this._dirtyStates.get(resource) ?? false;
 	}
 
-	protected async createReferencedObject(key: string, viewType: string): Promise<IResolvedNotebookEditorModel> {
+	protected async createReferencedObject(key: string, viewType: string, hasAssociatedFilePath: boolean): Promise<IResolvedNotebookEditorModel> {
 		const uri = URI.parse(key);
 		const info = await this._notebookService.withNotebookDataProvider(uri, viewType);
 
@@ -82,7 +82,7 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 				);
 				this._workingCopyManagers.set(workingCopyTypeId, workingCopyManager);
 			}
-			const model = this._instantiationService.createInstance(SimpleNotebookEditorModel, uri, viewType, workingCopyManager);
+			const model = this._instantiationService.createInstance(SimpleNotebookEditorModel, uri, hasAssociatedFilePath, viewType, workingCopyManager);
 			result = await model.load();
 
 		} else {
@@ -159,6 +159,7 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 	async resolve(resource: IUntitledNotebookResource, viewType: string): Promise<IReference<IResolvedNotebookEditorModel>>;
 	async resolve(arg0: URI | IUntitledNotebookResource, viewType?: string): Promise<IReference<IResolvedNotebookEditorModel>> {
 		let resource: URI;
+		let hasAssociatedFilePath = false;
 		if (URI.isUri(arg0)) {
 			resource = arg0;
 		} else {
@@ -180,6 +181,7 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 				resource = arg0.untitledResource;
 			} else {
 				resource = arg0.untitledResource.with({ scheme: Schemas.untitled });
+				hasAssociatedFilePath = true;
 			}
 		}
 
@@ -209,7 +211,7 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 			throw new Error(`A notebook with view type '${existingViewType}' already exists for '${resource}', CANNOT create another notebook with view type ${viewType}`);
 		}
 
-		const reference = this._data.acquire(resource.toString(), viewType);
+		const reference = this._data.acquire(resource.toString(), viewType, hasAssociatedFilePath);
 		try {
 			const model = await reference.object;
 			return {
