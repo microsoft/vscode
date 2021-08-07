@@ -1595,8 +1595,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				break;
 			case InstancePolicy.prompt:
 			default:
-				let commonId = task._id.split('|')[0];
-				this.showQuickPick(this._taskSystem!.getActiveTasks().filter(t => commonId === t._id.split('|')[0]),
+				this.showQuickPick(this._taskSystem!.getActiveTasks().filter(t => task._id === t._id),
 					nls.localize('TaskService.instanceToTerminate', 'Select an instance to terminate'),
 					{
 						label: nls.localize('TaskService.noInstanceRunning', 'No instance is currently running'),

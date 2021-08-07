@@ -258,7 +258,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this.currentTask = new VerifiedTask(task, resolver, trigger);
 		if (instance > 0) {
 			task.instance = this.instances[recentTaskKey].counter;
-			task._id = task._id.split('|')[0] + '|' + this.instances[recentTaskKey].counter.toString();
 		}
 		let lastTaskInstance = this.getLastInstance(task);
 		let terminalData = lastTaskInstance ? this.activeTasks[lastTaskInstance.getMapKey()] : undefined;
