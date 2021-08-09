@@ -167,8 +167,8 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 			this.workingCopyTypeId,
 			this.storedWorkingCopyModelFactory,
 			fileService, lifecycleService, labelService, logService, workingCopyFileService,
-			workingCopyBackupService, uriIdentityService, textFileService, filesConfigurationService,
-			workingCopyService, notificationService, workingCopyEditorService, editorService, elevatedFileService
+			workingCopyBackupService, uriIdentityService, filesConfigurationService, workingCopyService,
+			notificationService, workingCopyEditorService, editorService, elevatedFileService
 		));
 
 		// Untitled file working copies manager
