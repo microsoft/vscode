@@ -27,10 +27,10 @@ typescript-vscode-sh-plugin@^0.7.3:
   resolved "https://registry.yarnpkg.com/typescript-vscode-sh-plugin/-/typescript-vscode-sh-plugin-0.7.3.tgz#acdc223e5baf2cd43b8e9cf21775fba162b05029"
   integrity sha512-IAjOX1fE35G6DiNCJv6oq7JmYkPV7KI/g1SGX6i8Cgauv7hsXbS94fboSZNM2Dai+m3xNGARHG5V6Ka7YcZRgQ==
 
-vscode-extension-telemetry@0.2.6:
-  version "0.2.6"
-  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.2.6.tgz#fa40b711e2fde2d10813df372192ae7d494d6428"
-  integrity sha512-wQ8EEr3tQnAB5K3CyLScOEmiEVR3NNOtaOnf6XuJdOJFZnCPFT8Adc3mYPIzcTJwE720pL0ybt+Peigz197nTQ==
+vscode-extension-telemetry@0.2.7:
+  version "0.2.7"
+  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.2.7.tgz#9dc1ff456734a2d5c66ab8587efaeafecd63a84b"
+  integrity sha512-h+W/H6IFq5rEfW9r/yCAnF8fLWZr+xgCYrWYQz/Spi7kYrs8RRFf2CdA/7qsnqrMt28kaOcT6QzZp1HtOpWzMA==
 
 vscode-nls@^5.0.0:
   version "5.0.0"
