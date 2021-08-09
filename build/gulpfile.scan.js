@@ -44,7 +44,6 @@ BUILD_TARGETS.forEach(buildTarget => {
 	// electron
 	tasks.push(() => electron.dest(destinationExe, _.extend({}, config, { platform, arch: arch === 'armhf' ? 'arm' : arch })));
 
-
 	// pdbs for windows
 	if (platform === 'win32') {
 		tasks.push(
