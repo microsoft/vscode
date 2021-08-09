@@ -3339,6 +3339,14 @@ export class TestMessage implements vscode.TestMessage {
 	constructor(public message: string | vscode.MarkdownString) { }
 }
 
+@es5ClassCompat
+export class TestTag implements vscode.TestTag {
+	constructor(
+		public readonly id: string,
+		public readonly label?: string,
+	) { }
+}
+
 //#endregion
 
 //#region Test Coverage

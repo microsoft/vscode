@@ -1806,6 +1806,55 @@ declare module 'vscode' {
 	}
 	//#endregion
 
+	//#region test tags https://github.com/microsoft/vscode/issues/129456
+	/**
+	 * Tags can be associated with {@link TestItem | TestItems} and
+	 * {@link TestRunProfile | TestRunProfiles}. A profile with a tag can only
+	 * execute tests that include that tag in their {@link TestItem.tags} array.
+	 */
+	export class TestTag {
+		/**
+		 * Unique ID of the test tag.
+		 */
+		readonly id: string;
+
+		/**
+		 * Human-readable name of the tag. If present, the tag will be visible as
+		 * a filter option in the UI.
+		 */
+		readonly label?: string;
+
+		/**
+		 * Creates a new TestTag instance.
+		 * @param id Unique ID of the test tag.
+		 * @param label Human-readable name of the tag.  If present, the tag will
+		 * be visible as a filter option in the UI.
+		 */
+		constructor(id: string, label?: string);
+	}
+
+	export interface TestRunProfile {
+		/**
+		 * Associated tag for the profile. If this is set, only {@link TestItem}
+		 * instances with the same tag will be eligible to execute in this profile.
+		 */
+		tag?: TestTag;
+	}
+
+	export interface TestItem {
+		/**
+		 * Tags associated with this test item. May be used in combination with
+		 * {@link TestRunProfile.tags}, or simply as an organizational feature.
+		 */
+		tags: readonly TestTag[];
+	}
+
+	export interface TestController {
+		createRunProfile(label: string, kind: TestRunProfileKind, runHandler: (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void, isDefault?: boolean, tag?: TestTag): TestRunProfile;
+	}
+
+	//#endregion
+
 	//#region proposed test APIs https://github.com/microsoft/vscode/issues/107467
 	export namespace tests {
 		/**

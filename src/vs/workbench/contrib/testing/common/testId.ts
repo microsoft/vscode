@@ -49,6 +49,13 @@ export class TestId {
 	}
 
 	/**
+	 * Cheaply ets whether the ID refers to the root .
+	 */
+	public static isRoot(idString: string) {
+		return !idString.includes(TestIdPathParts.Delimiter);
+	}
+
+	/**
 	 * Creates a test ID from a serialized TestId instance.
 	 */
 	public static fromString(idString: string) {

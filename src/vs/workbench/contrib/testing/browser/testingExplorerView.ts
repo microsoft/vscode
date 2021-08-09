@@ -56,12 +56,12 @@ import { ITestExplorerFilterState, TestExplorerFilterState, TestingExplorerFilte
 import { ITestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { labelForTestInState, TestExplorerStateFilter, TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
-import { identifyTest, ITestRunProfile, TestItemExpandState, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
+import { ITestRunProfile, TestItemExpandState, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { cmpPriority, isFailedState, isStateWithResult } from 'vs/workbench/contrib/testing/common/testingStates';
+import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestCollection, ITestService, testCollectionIsEmpty } from 'vs/workbench/contrib/testing/common/testService';
@@ -590,7 +590,7 @@ export class TestingExplorerViewModel extends Disposable {
 			// If the node or any of its children are excluded, flip on the 'show
 			// excluded tests' checkbox automatically.
 			for (let n: TestItemTreeElement | null = element; n instanceof TestItemTreeElement; n = n.parent) {
-				if (n.test && this.testService.excluded.contains(identifyTest(n.test))) {
+				if (n.test && this.testService.excluded.contains(n.test)) {
 					this.filterState.showExcludedTests.value = true;
 					break;
 				}
@@ -674,7 +674,7 @@ export class TestingExplorerViewModel extends Disposable {
 		if (toRun.length) {
 			this.testService.runTests({
 				group: TestRunProfileBitset.Run,
-				tests: toRun.map(t => identifyTest(t.test)),
+				tests: toRun.map(t => t.test),
 			});
 		}
 	}
@@ -814,7 +814,7 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 		if (
 			element.test
 			&& !this.state.showExcludedTests.value
-			&& this.testService.excluded.contains(identifyTest(element.test))
+			&& this.testService.excluded.contains(element.test)
 		) {
 			return TreeVisibility.Hidden;
 		}
@@ -1147,7 +1147,7 @@ class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
 		const options: IResourceLabelOptions = {};
 		data.label.setResource(label, options);
 
-		const testHidden = this.testService.excluded.contains(identifyTest(node.element.test));
+		const testHidden = this.testService.excluded.contains(node.element.test);
 		data.wrapper.classList.toggle('test-is-hidden', testHidden);
 
 		const icon = icons.testingStatesToIcons.get(
@@ -1197,8 +1197,8 @@ const getActionableElementActions = (
 	const test = element instanceof TestItemTreeElement ? element.test : undefined;
 	const contextOverlay = contextKeyService.createOverlay([
 		['view', Testing.ExplorerViewId],
-		[TestingContextKeys.testItemIsHidden.key, !!test && testService.excluded.contains(identifyTest(test))],
-		...getTestItemContextOverlay(test, test ? profiles.controllerCapabilities(test.controllerId) : 0),
+		[TestingContextKeys.testItemIsHidden.key, !!test && testService.excluded.contains(test)],
+		...getTestItemContextOverlay(test, test ? profiles.capabilitiesForTest(test) : 0),
 	]);
 	const menu = menuService.createMenu(MenuId.TestItem, contextOverlay);
 

@@ -30,12 +30,12 @@ import { ITestExplorerFilterState } from 'vs/workbench/contrib/testing/browser/t
 import type { TestingExplorerView, TestingExplorerViewModel } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
 import { TestExplorerViewMode, TestExplorerViewSorting, Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { identifyTest, InternalTestItem, ITestIdWithSrc, ITestItem, ITestRunProfile, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
+import { InternalTestItem, ITestItem, ITestRunProfile, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
+import { canUseProfileWithTest, ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { expandAndGetTestById, IMainThreadTestCollection, ITestService, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
@@ -80,7 +80,7 @@ export class HideTestAction extends Action2 {
 		const service = accessor.get(ITestService);
 		for (const element of elements) {
 			if (element instanceof TestItemTreeElement) {
-				service.excluded.toggle(identifyTest(element.test), true);
+				service.excluded.toggle(element.test, true);
 			}
 		}
 		return Promise.resolve();
@@ -105,7 +105,7 @@ export class UnhideTestAction extends Action2 {
 		const service = accessor.get(ITestService);
 		for (const element of elements) {
 			if (element instanceof TestItemTreeElement) {
-				service.excluded.toggle(identifyTest(element.test), false);
+				service.excluded.toggle(element.test, false);
 			}
 		}
 		return Promise.resolve();
@@ -159,8 +159,9 @@ export class RunUsingProfileAction extends Action2 {
 
 		const commandService = acessor.get(ICommandService);
 		const testService = acessor.get(ITestService);
-		const controllerId = testElements[0].test.controllerId;
-		const profile: ITestRunProfile | undefined = await commandService.executeCommand('vscode.pickTestProfile', { onlyControllerId: controllerId });
+		const profile: ITestRunProfile | undefined = await commandService.executeCommand('vscode.pickTestProfile', {
+			onlyForTest: testElements[0].test,
+		});
 		if (!profile) {
 			return;
 		}
@@ -170,7 +171,7 @@ export class RunUsingProfileAction extends Action2 {
 				profileGroup: profile.group,
 				profileId: profile.profileId,
 				controllerId: profile.controllerId,
-				testIds: testElements.filter(t => controllerId === t.test.controllerId).map(t => t.test.item.extId)
+				testIds: testElements.filter(t => canUseProfileWithTest(profile, t.test)).map(t => t.test.item.extId)
 			}]
 		});
 	}
@@ -288,14 +289,13 @@ abstract class ExecuteSelectedAction extends ViewAction<TestingExplorerView> {
 
 	private getActionableTests(testService: ITestService, viewModel: TestingExplorerViewModel) {
 		const selected = viewModel.getSelectedTests();
-		let tests: ITestIdWithSrc[];
+		let tests: InternalTestItem[];
 		if (!selected.length) {
-			tests = ([...testService.collection.rootItems].map(identifyTest));
+			tests = [...testService.collection.rootItems];
 		} else {
 			tests = selected
 				.map(treeElement => treeElement instanceof TestItemTreeElement ? treeElement.test : undefined)
-				.filter(isDefined)
-				.map(identifyTest);
+				.filter(isDefined);
 		}
 
 		return tests;
@@ -372,7 +372,7 @@ abstract class RunOrDebugAllTestsAction extends Action2 {
 			return;
 		}
 
-		await testService.runTests({ tests: roots.map(identifyTest), group: this.group });
+		await testService.runTests({ tests: roots, group: this.group });
 	}
 }
 
@@ -795,7 +795,7 @@ abstract class ExecuteTestAtCursor extends Action2 {
 		if (bestNode) {
 			await testService.runTests({
 				group: this.group,
-				tests: [identifyTest(bestNode)],
+				tests: [bestNode],
 			});
 		}
 	}
@@ -861,7 +861,7 @@ abstract class ExecuteTestsInCurrentFile extends Action2 {
 		for (const test of testService.collection.all) {
 			if (test.item.uri?.toString() === demandedUri) {
 				return testService.runTests({
-					tests: [identifyTest(test)],
+					tests: [test],
 					group: this.group,
 				});
 			}
@@ -1015,7 +1015,7 @@ export class ReRunFailedTests extends RunOrDebugFailedTests {
 	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
 		return service.runTests({
 			group: TestRunProfileBitset.Run,
-			tests: internalTests.map(identifyTest),
+			tests: internalTests,
 		});
 	}
 }
@@ -1037,7 +1037,7 @@ export class DebugFailedTests extends RunOrDebugFailedTests {
 	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
 		return service.runTests({
 			group: TestRunProfileBitset.Debug,
-			tests: internalTests.map(identifyTest),
+			tests: internalTests,
 		});
 	}
 }
@@ -1059,7 +1059,7 @@ export class ReRunLastRun extends RunOrDebugLastRun {
 	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
 		return service.runTests({
 			group: TestRunProfileBitset.Run,
-			tests: internalTests.map(identifyTest),
+			tests: internalTests,
 		});
 	}
 }
@@ -1081,7 +1081,7 @@ export class DebugLastRun extends RunOrDebugLastRun {
 	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
 		return service.runTests({
 			group: TestRunProfileBitset.Debug,
-			tests: internalTests.map(identifyTest),
+			tests: internalTests,
 		});
 	}
 }
