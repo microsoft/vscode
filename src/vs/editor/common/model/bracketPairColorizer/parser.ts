@@ -5,7 +5,7 @@
 
 import { AstNode, AstNodeKind, BracketAstNode, InvalidBracketAstNode, ListAstNode, PairAstNode, TextAstNode } from './ast';
 import { BeforeEditPositionMapper, TextEditInfo } from './beforeEditPositionMapper';
-import { DenseKeyProvider, ImmutableSet } from './immutableSet';
+import { DenseKeyProvider, SmallImmutableSet } from './smallImmutableSet';
 import { getLinesOfLength, lengthIsZero, lengthLessThanEqual } from './length';
 import { merge23Trees } from './mergeItems';
 import { NodeReader } from './nodeReader';
@@ -50,7 +50,7 @@ export class Parser {
 		this._itemsConstructed = 0;
 		this._itemsFromCache = 0;
 
-		let result = this.parseList(ImmutableSet.getEmpty());
+		let result = this.parseList(SmallImmutableSet.getEmpty());
 		if (!result) {
 			result = ListAstNode.create([]);
 		}
@@ -59,7 +59,7 @@ export class Parser {
 	}
 
 	private parseList(
-		expectedClosingCategories: ImmutableSet<number>,
+		expectedClosingCategories: SmallImmutableSet<number>,
 	): AstNode | null {
 		const items = new Array<AstNode>();
 
@@ -86,7 +86,7 @@ export class Parser {
 	}
 
 	private parseChild(
-		expectingClosingCategories: ImmutableSet<number>,
+		expectingClosingCategories: SmallImmutableSet<number>,
 	): AstNode {
 		if (this.oldNodeReader) {
 			const maxCacheableLength = this.positionMapper.getDistanceToNextChange(this.tokenizer.offset);

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { tail } from 'vs/base/common/arrays';
-import { DenseKeyProvider, ImmutableSet } from './immutableSet';
+import { DenseKeyProvider, SmallImmutableSet } from './smallImmutableSet';
 import { lengthAdd, lengthZero, Length, lengthHash } from './length';
 
 export const enum AstNodeKind {
@@ -20,7 +20,7 @@ export type AstNode = PairAstNode | ListAstNode | BracketAstNode | InvalidBracke
 abstract class BaseAstNode {
 	abstract readonly kind: AstNodeKind;
 	abstract readonly children: readonly AstNode[];
-	abstract readonly unopenedBrackets: ImmutableSet<number>;
+	abstract readonly unopenedBrackets: SmallImmutableSet<number>;
 
 	/**
 	 * In case of a list, determines the height of the (2,3) tree.
@@ -28,7 +28,7 @@ abstract class BaseAstNode {
 	abstract readonly listHeight: number;
 
 	abstract canBeReused(
-		expectedClosingCategories: ImmutableSet<number>,
+		expectedClosingCategories: SmallImmutableSet<number>,
 		endLineDidChange: boolean
 	): boolean;
 
@@ -71,7 +71,7 @@ export class PairAstNode extends BaseAstNode {
 			children.push(closingBracket);
 		}
 
-		return new PairAstNode(length, category, children, child ? child.unopenedBrackets : ImmutableSet.getEmpty());
+		return new PairAstNode(length, category, children, child ? child.unopenedBrackets : SmallImmutableSet.getEmpty());
 	}
 
 	get kind(): AstNodeKind.Pair {
@@ -82,7 +82,7 @@ export class PairAstNode extends BaseAstNode {
 	}
 
 	canBeReused(
-		expectedClosingCategories: ImmutableSet<number>,
+		expectedClosingCategories: SmallImmutableSet<number>,
 		endLineDidChange: boolean
 	) {
 		if (this.closingBracket === null) {
@@ -140,7 +140,7 @@ export class PairAstNode extends BaseAstNode {
 		length: Length,
 		public readonly category: number,
 		public readonly children: readonly AstNode[],
-		public readonly unopenedBrackets: ImmutableSet<number>
+		public readonly unopenedBrackets: SmallImmutableSet<number>
 	) {
 		super(length);
 	}
@@ -169,7 +169,7 @@ function computeLength(openingBracket: BracketAstNode, child: AstNode | null, cl
 export class ListAstNode extends BaseAstNode {
 	public static create(items: AstNode[]) {
 		if (items.length === 0) {
-			return new ListAstNode(lengthZero, 0, items, ImmutableSet.getEmpty());
+			return new ListAstNode(lengthZero, 0, items, SmallImmutableSet.getEmpty());
 		} else {
 			let length = items[0].length;
 			let unopenedBrackets = items[0].unopenedBrackets;
@@ -187,7 +187,7 @@ export class ListAstNode extends BaseAstNode {
 	get children(): readonly AstNode[] {
 		return this._items;
 	}
-	get unopenedBrackets(): ImmutableSet<number> {
+	get unopenedBrackets(): SmallImmutableSet<number> {
 		return this._unopenedBrackets;
 	}
 
@@ -195,13 +195,13 @@ export class ListAstNode extends BaseAstNode {
 		length: Length,
 		public readonly listHeight: number,
 		private readonly _items: AstNode[],
-		private _unopenedBrackets: ImmutableSet<number>
+		private _unopenedBrackets: SmallImmutableSet<number>
 	) {
 		super(length);
 	}
 
 	canBeReused(
-		expectedClosingCategories: ImmutableSet<number>,
+		expectedClosingCategories: SmallImmutableSet<number>,
 		endLineDidChange: boolean
 	): boolean {
 		if (this._items.length === 0) {
@@ -372,12 +372,12 @@ export class TextAstNode extends BaseAstNode {
 	get children(): readonly AstNode[] {
 		return emptyArray;
 	}
-	get unopenedBrackets(): ImmutableSet<number> {
-		return ImmutableSet.getEmpty();
+	get unopenedBrackets(): SmallImmutableSet<number> {
+		return SmallImmutableSet.getEmpty();
 	}
 
 	canBeReused(
-		expectedClosingCategories: ImmutableSet<number>,
+		expectedClosingCategories: SmallImmutableSet<number>,
 		endLineDidChange: boolean
 	) {
 		// Don't reuse text from a line that got changed.
@@ -422,12 +422,12 @@ export class BracketAstNode extends BaseAstNode {
 		return emptyArray;
 	}
 
-	get unopenedBrackets(): ImmutableSet<number> {
-		return ImmutableSet.getEmpty();
+	get unopenedBrackets(): SmallImmutableSet<number> {
+		return SmallImmutableSet.getEmpty();
 	}
 
 	canBeReused(
-		expectedClosingCategories: ImmutableSet<number>,
+		expectedClosingCategories: SmallImmutableSet<number>,
 		endLineDidChange: boolean
 	) {
 		// These nodes could be reused,
@@ -456,15 +456,15 @@ export class InvalidBracketAstNode extends BaseAstNode {
 		return emptyArray;
 	}
 
-	public readonly unopenedBrackets: ImmutableSet<number>;
+	public readonly unopenedBrackets: SmallImmutableSet<number>;
 
 	constructor(category: number, length: Length, denseKeyProvider: DenseKeyProvider<number>) {
 		super(length);
-		this.unopenedBrackets = ImmutableSet.getEmpty().add(category, denseKeyProvider);
+		this.unopenedBrackets = SmallImmutableSet.getEmpty().add(category, denseKeyProvider);
 	}
 
 	canBeReused(
-		expectedClosingCategories: ImmutableSet<number>,
+		expectedClosingCategories: SmallImmutableSet<number>,
 		endLineDidChange: boolean
 	) {
 		return !expectedClosingCategories.intersects(this.unopenedBrackets);

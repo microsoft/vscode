@@ -5,18 +5,39 @@
 
 const emptyArr = new Array<number>();
 
-export class ImmutableSet<T> {
-	private static empty = new ImmutableSet<any>(0);
-	public static getEmpty<T>(): ImmutableSet<T> {
+/**
+ * Represents an immutable set that works best for a small number of elements (less than 32).
+ * It uses bits to encode element membership efficiently.
+*/
+export class SmallImmutableSet<T> {
+	private static cache = new Array<SmallImmutableSet<any>>(129);
+
+	private static create<T>(items: number, additionalItems: readonly number[]): SmallImmutableSet<T> {
+		if (items <= 128 && additionalItems.length === 0) {
+			// We create a cache of 128=2^7 elements to cover all sets with up to 7 (dense) elements.
+			let cached = SmallImmutableSet.cache[items];
+			if (!cached) {
+				cached = new SmallImmutableSet(items, additionalItems);
+				SmallImmutableSet.cache[items] = cached;
+			}
+			return cached;
+		}
+
+		return new SmallImmutableSet(items, additionalItems);
+	}
+
+	private static empty = SmallImmutableSet.create<any>(0, emptyArr);
+	public static getEmpty<T>(): SmallImmutableSet<T> {
 		return this.empty;
 	}
 
-	constructor(
+	private constructor(
 		private readonly items: number,
-		private readonly additionalItems: readonly number[] = emptyArr) {
+		private readonly additionalItems: readonly number[]
+	) {
 	}
 
-	public add(value: T, keyProvider: DenseKeyProvider<T>): ImmutableSet<T> {
+	public add(value: T, keyProvider: DenseKeyProvider<T>): SmallImmutableSet<T> {
 		const key = keyProvider.getKey(value);
 		let idx = key >> 5; // divided by 32
 		if (idx === 0) {
@@ -25,7 +46,7 @@ export class ImmutableSet<T> {
 			if (newItem === this.items) {
 				return this;
 			}
-			return new ImmutableSet(newItem, this.additionalItems);
+			return SmallImmutableSet.create(newItem, this.additionalItems);
 		}
 		idx--;
 
@@ -35,7 +56,7 @@ export class ImmutableSet<T> {
 		}
 		newItems[idx] |= 1 << (key & 31);
 
-		return new ImmutableSet(this.items, newItems);
+		return SmallImmutableSet.create(this.items, newItems);
 	}
 
 	public has(value: T, keyProvider: DenseKeyProvider<T>): boolean {
@@ -50,7 +71,7 @@ export class ImmutableSet<T> {
 		return ((this.additionalItems[idx] || 0) & (1 << (key & 31))) !== 0;
 	}
 
-	public merge(other: ImmutableSet<T>): ImmutableSet<T> {
+	public merge(other: SmallImmutableSet<T>): SmallImmutableSet<T> {
 		const merged = this.items | other.items;
 
 		if (this.additionalItems === emptyArr && other.additionalItems === emptyArr) {
@@ -61,7 +82,7 @@ export class ImmutableSet<T> {
 			if (merged === other.items) {
 				return other;
 			}
-			return new ImmutableSet(merged, emptyArr);
+			return SmallImmutableSet.create(merged, emptyArr);
 		}
 
 		// This can be optimized, but it's not a common case
@@ -72,10 +93,10 @@ export class ImmutableSet<T> {
 			newItems.push(item1 | item2);
 		}
 
-		return new ImmutableSet(merged, newItems);
+		return SmallImmutableSet.create(merged, newItems);
 	}
 
-	public intersects(other: ImmutableSet<T>): boolean {
+	public intersects(other: SmallImmutableSet<T>): boolean {
 		if ((this.items & other.items) !== 0) {
 			return true;
 		}
@@ -88,8 +109,29 @@ export class ImmutableSet<T> {
 
 		return false;
 	}
+
+	public equals(other: SmallImmutableSet<T>): boolean {
+		if (this.items !== other.items) {
+			return false;
+		}
+
+		if (this.additionalItems.length !== other.additionalItems.length) {
+			return false;
+		}
+
+		for (let i = 0; i < this.additionalItems.length; i++) {
+			if (this.additionalItems[i] !== other.additionalItems[i]) {
+				return false;
+			}
+		}
+
+		return true;
+	}
 }
 
+/**
+ * Assigns values a unique incrementing key.
+*/
 export class DenseKeyProvider<T> {
 	private readonly items = new Map<T, number>();
 
