@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, FileFilter } from 'vs/platform/dialogs/common/dialogs';
 import { URI } from 'vs/base/common/uri';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractFileDialogService } from 'vs/workbench/services/dialogs/browser/abstractFileDialogService';
@@ -12,6 +12,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
 import { generateUuid } from 'vs/base/common/uuid';
 import { localize } from 'vs/nls';
+import { getMediaOrTextMime } from 'vs/base/common/mime';
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
 
@@ -86,17 +87,32 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 	async pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
 		const schema = this.getFileSystemSchema({ defaultUri, availableFileSystems });
 
+		const options = this.getPickFileToSaveDialogOptions(defaultUri, availableFileSystems);
 		if (this.shouldUseSimplified(schema)) {
-			return this.pickFileToSaveSimplified(schema, this.getPickFileToSaveDialogOptions(defaultUri, availableFileSystems));
+			return this.pickFileToSaveSimplified(schema, options);
 		}
 
-		const handle = await window.showSaveFilePicker();
+		const handle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters) });
 		const uuid = generateUuid();
 		const uri = URI.from({ scheme: Schemas.file, path: `/${uuid}/${handle.name}` });
 
 		this.fileSystemProvider.registerFileHandle(uuid, handle);
 
 		return uri;
+	}
+
+	private getFilePickerTypes(filters?: FileFilter[]): FilePickerAcceptType[] | undefined {
+		return filters?.filter(filter => {
+			return !((filter.extensions.length === 1) && ((filter.extensions[0] === '*') || filter.extensions[0] === ''));
+		}).map(filter => {
+			const accept: Record<string, string[]> = {};
+			const extensions = filter.extensions.filter(ext => (ext.indexOf('-') < 0) && (ext.indexOf('*') < 0) && (ext.indexOf('_') < 0));
+			accept[getMediaOrTextMime(`fileName.${filter.extensions[0]}`) ?? 'text/plain'] = extensions.map(ext => ext.startsWith('.') ? ext : `.${ext}`);
+			return {
+				description: filter.name,
+				accept
+			};
+		});
 	}
 
 	async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
@@ -106,7 +122,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return this.showSaveDialogSimplified(schema, options);
 		}
 
-		const handle = await window.showSaveFilePicker();
+		const handle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters) });
 		const uuid = generateUuid();
 		const uri = URI.from({ scheme: Schemas.file, path: `/${uuid}/${handle.name}` });
 
@@ -125,7 +141,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		let handleName: string | undefined;
 		const uuid = generateUuid();
 		if (options.canSelectFiles) {
-			const handle = await window.showOpenFilePicker({ multiple: false });
+			const handle = await window.showOpenFilePicker({ multiple: false, types: this.getFilePickerTypes(options.filters) });
 			if (handle.length === 1) {
 				handleName = handle[0].name;
 				this.fileSystemProvider.registerFileHandle(uuid, handle[0]);

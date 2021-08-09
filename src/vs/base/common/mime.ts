@@ -253,6 +253,18 @@ interface MapExtToMediaMimes {
 	[index: string]: string;
 }
 
+const mapExtToTextMimes: MapExtToMediaMimes = {
+	'.css': 'text/css',
+	'.csv': 'text/csv',
+	'.htm': 'text/html',
+	'.html': 'text/html',
+	'.ics': 'text/calendar',
+	'.js': 'text/javascript',
+	'.mjs': 'text/javascript',
+	'.txt': 'text/plain',
+	'.xml': 'text/xml'
+};
+
 // Known media mimes that we can handle
 const mapExtToMediaMimes: MapExtToMediaMimes = {
 	'.aac': 'audio/x-aac',
@@ -304,6 +316,16 @@ const mapExtToMediaMimes: MapExtToMediaMimes = {
 	'.wmv': 'video/x-ms-wmv',
 	'.woff': 'application/font-woff',
 };
+
+export function getMediaOrTextMime(path: string): string | undefined {
+	const ext = extname(path);
+	const textMime = mapExtToTextMimes[ext.toLowerCase()];
+	if (textMime !== undefined) {
+		return textMime;
+	} else {
+		return getMediaMime(path);
+	}
+}
 
 export function getMediaMime(path: string): string | undefined {
 	const ext = extname(path);
