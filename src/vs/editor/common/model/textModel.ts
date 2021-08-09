@@ -41,7 +41,7 @@ import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/
 import { listenStream } from 'vs/base/common/stream';
 import { ArrayQueue } from 'vs/base/common/arrays';
 import { BracketPairColorizer, BracketPairColorizerConfig } from 'vs/editor/common/model/bracketPairColorizer/bracketPairColorizer';
-import { DecorationProvider } from 'vs/editor/common/model/DecorationProvider';
+import { DecorationProvider } from 'vs/editor/common/model/decorationProvider';
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();

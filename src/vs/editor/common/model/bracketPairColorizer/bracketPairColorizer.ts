@@ -8,7 +8,7 @@ import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
 import { DenseKeyProvider } from 'vs/editor/common/model/bracketPairColorizer/immutableSet';
-import { DecorationProvider } from 'vs/editor/common/model/DecorationProvider';
+import { DecorationProvider } from 'vs/editor/common/model/decorationProvider';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { LanguageId } from 'vs/editor/common/modes';
