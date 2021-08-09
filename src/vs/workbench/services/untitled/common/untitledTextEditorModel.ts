@@ -96,7 +96,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	readonly capabilities = WorkingCopyCapabilities.Untitled;
 
-	private readonly _autoDetectLanguageThrottler = this._register(new ThrottledDelayer<void>(600));;
+	private readonly _autoDetectLanguageThrottler = this._register(new ThrottledDelayer<void>(600));
 
 	//#region Name
 
