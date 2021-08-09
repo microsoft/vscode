@@ -28,7 +28,7 @@ import { UTF8 } from 'vs/workbench/services/textfile/common/encoding';
 import { bufferToStream, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { ThrottledDelayer } from 'vs/base/common/async';
 
 export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport, IEncodingSupport, IWorkingCopy {
 
@@ -96,7 +96,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	readonly capabilities = WorkingCopyCapabilities.Untitled;
 
-	private readonly _autoDetectLanguageScheduler = this._register(new RunOnceScheduler(() => this.autoDetectLanguage(), 600));;
+	private readonly _autoDetectLanguageThrottler = this._register(new ThrottledDelayer<void>(600));;
 
 	//#region Name
 
@@ -379,7 +379,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		this._onDidChangeContent.fire();
 
 		// Try to detect language from content (debounced by some time to reduce pressure).
-		this._autoDetectLanguageScheduler.schedule();
+		this._autoDetectLanguageThrottler.trigger(() => this.autoDetectLanguage());
 	}
 
 	private async autoDetectLanguage() {
