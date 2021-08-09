@@ -38,12 +38,6 @@
 	height: 100%;
 }
 
-.monaco-tl-twistie + .monaco-tl-contents {
-	padding-left: 6px;
-	margin-left: -6px;
-	z-index: 1;
-}
-
 .monaco-tl-twistie {
 	font-size: 10px;
 	text-align: right;
