@@ -39,14 +39,13 @@ export class NodeReader {
 
 			if (lengthLessThan(offset, curNodeOffset)) {
 				// The next best node is not here yet.
-				// The reader must advance before a cached node is hite.
+				// The reader must advance before a cached node is hit.
 				return undefined;
 			}
 
 			if (lengthLessThan(curNodeOffset, offset)) {
 				// The reader is ahead of the current node.
-				if (lengthAdd(curNodeOffset, curNode.length) <=
-					offset) {
+				if (lengthAdd(curNodeOffset, curNode.length) <= offset) {
 					// The reader is after the end of the current node.
 					this.nextNodeAfterCurrent();
 				} else {
@@ -66,19 +65,19 @@ export class NodeReader {
 				if (predicate(curNode)) {
 					this.nextNodeAfterCurrent();
 					return curNode;
+				} else {
+					// look for shorter node
+					if (curNode.children.length === 0) {
+						// There is no shorter node.
+						this.nextNodeAfterCurrent();
+						return undefined;
+					} else {
+						// Descend into first child & repeat.
+						this.nextNodes.push(curNode.children[0]);
+						this.offsets.push(curNodeOffset);
+						this.idxs.push(0);
+					}
 				}
-
-				// look for smaller node
-				if (curNode.children.length === 0) {
-					// There is no smaller node.
-					this.nextNodeAfterCurrent();
-					return undefined;
-				}
-
-				// Go to next node & repeat.
-				this.nextNodes.push(curNode.children[0]);
-				this.offsets.push(curNodeOffset);
-				this.idxs.push(0);
 			}
 		}
 	}

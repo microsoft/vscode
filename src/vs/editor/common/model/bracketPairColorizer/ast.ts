@@ -35,7 +35,7 @@ abstract class BaseAstNode {
 	/**
 	 * Flattenes all lists in this AST. Only for debugging.
 	 */
-	abstract normalizeLists(): AstNode;
+	abstract flattenLists(): AstNode;
 
 	/**
 	 * Creates a deep clone.
@@ -103,12 +103,12 @@ export class PairAstNode extends BaseAstNode {
 		return true;
 	}
 
-	normalizeLists(): PairAstNode {
+	flattenLists(): PairAstNode {
 		return PairAstNode.create(
 			this.category,
-			this.openingBracket.normalizeLists(),
-			this.child && this.child.normalizeLists(),
-			this.closingBracket && this.closingBracket.normalizeLists()
+			this.openingBracket.flattenLists(),
+			this.child && this.child.flattenLists(),
+			this.closingBracket && this.closingBracket.flattenLists()
 		);
 	}
 
@@ -224,10 +224,10 @@ export class ListAstNode extends BaseAstNode {
 		);
 	}
 
-	normalizeLists(): ListAstNode {
+	flattenLists(): ListAstNode {
 		const items = new Array<AstNode>();
 		for (const c of this.children) {
-			const normalized = c.normalizeLists();
+			const normalized = c.flattenLists();
 			if (normalized.kind === AstNodeKind.List) {
 				items.push(...normalized._items);
 			} else {
@@ -385,7 +385,7 @@ export class TextAstNode extends BaseAstNode {
 		return !endLineDidChange;
 	}
 
-	normalizeLists(): TextAstNode {
+	flattenLists(): TextAstNode {
 		return this;
 	}
 	clone(): TextAstNode {
@@ -436,7 +436,7 @@ export class BracketAstNode extends BaseAstNode {
 		return false;
 	}
 
-	normalizeLists(): BracketAstNode {
+	flattenLists(): BracketAstNode {
 		return this;
 	}
 
@@ -470,7 +470,7 @@ export class InvalidBracketAstNode extends BaseAstNode {
 		return !expectedClosingCategories.intersects(this.unopenedBrackets);
 	}
 
-	normalizeLists(): InvalidBracketAstNode {
+	flattenLists(): InvalidBracketAstNode {
 		return this;
 	}
 

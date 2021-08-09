@@ -7,6 +7,7 @@ import { AstNode, ListAstNode } from './ast';
 
 /**
  * Merges a list of (2,3) AstNode's into a single (2,3) AstNode.
+ * This mutates the items of the input array!
 */
 export function merge23Trees(items: AstNode[]): AstNode | null {
 	if (items.length === 0) {
