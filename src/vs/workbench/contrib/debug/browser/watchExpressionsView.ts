@@ -284,9 +284,7 @@ export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 						const focusedFrame = this.debugService.getViewModel().focusedStackFrame;
 						if (focusedFrame && (expression instanceof Variable || expression instanceof Expression)) {
 							await expression.setExpression(value, focusedFrame);
-							ignoreViewUpdates = true;
 							this.debugService.getViewModel().updateViews();
-							ignoreViewUpdates = false;
 						}
 					}
 				}
