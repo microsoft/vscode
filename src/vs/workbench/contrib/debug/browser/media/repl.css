@@ -184,3 +184,9 @@
 .repl-panel-filter-container .repl-panel-filter-controls > .repl-panel-filter-badge.hidden {
 	display: none;
 }
+
+.monaco-workbench .repl .repl-tree .monaco-tl-twistie + .monaco-tl-contents {
+	padding-left: 6px;
+	margin-left: -6px;
+	z-index: 1;
+}
