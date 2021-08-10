@@ -95,6 +95,8 @@ stages:
         env:
           npm_config_arch: "$(NPM_ARCH)"
           npm_config_build_from_source: true
+          CXXFLAGS: "/guard:cf,nochecks /W4"
+          LDFLAGS: "/guard:cf"
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: CodeQL
@@ -103,13 +105,15 @@ stages:
           . build/azure-pipelines/win32/exec.ps1
           . build/azure-pipelines/win32/retry.ps1
           $ErrorActionPreference = "Stop"
-          $env:npm_config_arch="$(NPM_ARCH)"
-          $env:npm_config_build_from_source="true"
-          $env:CHILD_CONCURRENCY="1"
           retry { exec { yarn --frozen-lockfile } }
         env:
+          npm_config_arch: "$(NPM_ARCH)"
+          npm_config_build_from_source: true
+          CXXFLAGS: "/guard:cf,nochecks /W4"
+          LDFLAGS: "/guard:cf"
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
+          CHILD_CONCURRENCY: 1
         displayName: Install dependencies
 
       - powershell: |
@@ -125,7 +129,7 @@ stages:
           TargetPattern: 'guardianGlob'
           AnalyzeTargetGlob: '$(agent.builddirectory)\scanbin\**.dll;$(agent.builddirectory)\scanbin\**.exe;$(agent.builddirectory)\scanbin\**.node'
           AnalyzeLocalSymbolDirectories: '$(agent.builddirectory)\scanbin\VSCode-win32-$(VSCODE_ARCH)\pdb'
-          
+
       - task: TSAUpload@2
         inputs:
           GdnPublishTsaOnboard: true
@@ -183,12 +187,30 @@ stages:
 
       - script: |
           set -e
+          yarn --cwd build
+          yarn --cwd build compile
+        displayName: Compile build tools
+
+      - script: |
+          set -e
           export npm_config_arch=$(NPM_ARCH)
           export npm_config_build_from_source=true
 
           if [ -z "$CC" ] || [ -z "$CXX" ]; then
-            export CC=$(which gcc-5)
-            export CXX=$(which g++-5)
+            # Download clang based on chromium revision used by vscode
+            curl -s https://raw.githubusercontent.com/chromium/chromium/91.0.4472.164/tools/clang/scripts/update.py | python - --output-dir=$PWD/.build/CR_Clang --host-os=linux
+            # Download libcxx headers and objects from upstream electron releases
+            DEBUG=libcxx-fetcher \
+            VSCODE_LIBCXX_OBJECTS_DIR=$PWD/.build/libcxx-objects \
+            VSCODE_LIBCXX_HEADERS_DIR=$PWD/.build/libcxx_headers  \
+            VSCODE_LIBCXXABI_HEADERS_DIR=$PWD/.build/libcxxabi_headers \
+            VSCODE_ARCH="$(NPM_ARCH)" \
+            node build/linux/libcxx-fetcher.js
+            # Set compiler toolchain
+            export CC=$PWD/.build/CR_Clang/bin/clang
+            export CXX=$PWD/.build/CR_Clang/bin/clang++
+            export CXXFLAGS="-nostdinc++ -D_LIBCPP_HAS_NO_VENDOR_AVAILABILITY_ANNOTATIONS -isystem$PWD/.build/libcxx_headers/include -isystem$PWD/.build/libcxxabi_headers/include -fPIC -flto=thin -fsplit-lto-unit"
+            export LDFLAGS="-stdlib=libc++ -fuse-ld=lld -flto=thin -fsplit-lto-unit -L$PWD/.build/libcxx-objects -lc++abi"
           fi
 
           if [ "$VSCODE_ARCH" == "x64" ]; then
