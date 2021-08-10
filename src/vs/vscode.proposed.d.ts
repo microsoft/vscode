@@ -975,9 +975,7 @@ declare module 'vscode' {
 		 * JSON.parse(await (items.get('text/treeitems')!.asString()))
 		 * ```
 		 */
-		// todo@API no Map
-		// @ts-ignore
-		items: Map<string, TreeDataTransferItem>;
+		items: { get: (mimeType: string) => TreeDataTransferItem | undefined };
 	}
 
 	export interface DragAndDropController<T> extends Disposable {
