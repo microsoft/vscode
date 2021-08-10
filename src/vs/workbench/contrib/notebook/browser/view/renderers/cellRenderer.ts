@@ -716,12 +716,10 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		expandIcon.classList.add(...CSSIcon.asClassNameArray(Codicon.more));
 
 		const keybinding = this.keybindingService.lookupKeybinding(EXPAND_CELL_OUTPUT_COMMAND_ID);
-		let title = localize('cellExpandOutputButtonLabel', "Expand Cell Output");
 		if (keybinding) {
-			title += ` (${keybinding.getLabel()})`;
+			placeholder.title = localize('cellExpandOutputButtonLabelWithDoubleClick', "Double click to expand cell output ({0})", keybinding.getLabel());
+			cellOutputCollapseContainer.title = localize('cellExpandOutputButtonLabel', "Expand Cell Output (${0})", keybinding.getLabel());
 		}
-
-		cellOutputCollapseContainer.title = title;
 
 		DOM.hide(cellOutputCollapseContainer);
 

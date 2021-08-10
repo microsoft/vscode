@@ -278,12 +278,11 @@ export class CodeCell extends Disposable {
 		this.templateData.cellInputCollapsedContainer.appendChild(element);
 		const expandIcon = DOM.$('span.expandInputIcon');
 		const keybinding = this.keybindingService.lookupKeybinding(EXPAND_CELL_INPUT_COMMAND_ID);
-		let title = localize('cellExpandInputButtonLabel', "Expand Cell Input");
 		if (keybinding) {
-			title += ` (${keybinding.getLabel()})`;
+			element.title = localize('cellExpandInputButtonLabelWithDoubleClick', "Double click to expand cell input ({0})", keybinding.getLabel());
+			expandIcon.title = localize('cellExpandInputButtonLabel', "Expand Cell Input ({0})", keybinding.getLabel());
 		}
 
-		expandIcon.title = title;
 		expandIcon.classList.add(...CSSIcon.asClassNameArray(Codicon.more));
 		element.appendChild(expandIcon);
 
