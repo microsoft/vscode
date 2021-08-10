@@ -363,6 +363,7 @@ export class TestingExplorerView extends ViewPane {
 			primaryAction, dropdownAction, dropdownActions,
 			'',
 			this.contextMenuService,
+			{}
 		);
 	}
 

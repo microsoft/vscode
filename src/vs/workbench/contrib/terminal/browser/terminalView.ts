@@ -206,7 +206,7 @@ export class TerminalViewPane extends ViewPane {
 
 				const actions = getTerminalActionBarArgs(TerminalLocation.TerminalView, this._terminalService.availableProfiles, this._getDefaultProfileName(), this._terminalContributionService.terminalProfiles, this._instantiationService, this._terminalService, this._contextKeyService, this._commandService, this._dropdownMenu);
 
-				this._tabButtons = new DropdownWithPrimaryActionViewItem(actions.primaryAction, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, this._keybindingService, this._notificationService, this._contextKeyService);
+				this._tabButtons = new DropdownWithPrimaryActionViewItem(actions.primaryAction, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, {}, this._keybindingService, this._notificationService, this._contextKeyService);
 				this._updateTabActionBar(this._terminalService.availableProfiles);
 				return this._tabButtons;
 			}

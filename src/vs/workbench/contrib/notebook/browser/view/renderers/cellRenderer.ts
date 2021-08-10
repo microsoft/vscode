@@ -819,9 +819,10 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const actionViewItemDisposables = disposables.add(new DisposableStore());
 		const dropdownAction = disposables.add(new Action('notebook.moreRunActions', localize('notebook.moreRunActionsLabel', "More..."), 'codicon-chevron-down', true));
 
+		const keybindingProvider = (action: IAction) => this.keybindingService.lookupKeybinding(action.id, executionContextKeyService);
 		const executionContextKeyService = disposables.add(getCodeCellExecutionContextKeyService(contextKeyService));
 		const toolbar = disposables.add(new ToolBar(container, this.contextMenuService, {
-			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id, executionContextKeyService),
+			getKeyBinding: keybindingProvider,
 			actionViewItemProvider: _action => {
 				actionViewItemDisposables.clear();
 
@@ -836,16 +837,15 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 					return undefined;
 				}
 
-				if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().consolidatedRunButton) {
-					return undefined;
-				}
-
 				const item = this.instantiationService.createInstance(DropdownWithPrimaryActionViewItem,
 					primary,
 					dropdownAction,
 					actions.secondary,
 					'notebook-cell-run-toolbar',
-					this.contextMenuService);
+					this.contextMenuService,
+					{
+						getKeyBinding: keybindingProvider
+					});
 				actionViewItemDisposables.add(item.onDidChangeDropdownVisibility(visible => {
 					cellContainer.classList.toggle('cell-run-toolbar-dropdown-active', visible);
 				}));

@@ -202,7 +202,7 @@ export class TerminalEditor extends EditorPane {
 		switch (action.id) {
 			case TerminalCommandId.CreateWithProfileButton: {
 				const actions = getTerminalActionBarArgs(TerminalLocation.Editor, this._terminalService.availableProfiles, this._getDefaultProfileName(), this._terminalContributionService.terminalProfiles, this._instantiationService, this._terminalService, this._contextKeyService, this._commandService, this._dropdownMenu);
-				const button = this._instantiationService.createInstance(DropdownWithPrimaryActionViewItem, actions.primaryAction, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService);
+				const button = this._instantiationService.createInstance(DropdownWithPrimaryActionViewItem, actions.primaryAction, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, {});
 				return button;
 			}
 		}
