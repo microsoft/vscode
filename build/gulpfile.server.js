@@ -102,7 +102,8 @@ function defineTasks(options) {
 		buildfile.entrypoint(`vs/${qualifier}/node/server`),
 		buildfile.entrypoint('vs/workbench/services/extensions/node/extensionHostProcess'),
 		buildfile.entrypoint('vs/platform/files/node/watcher/unix/watcherApp'),
-		buildfile.entrypoint('vs/platform/files/node/watcher/nsfw/watcherApp')
+		buildfile.entrypoint('vs/platform/files/node/watcher/nsfw/watcherApp'),
+		buildfile.entrypoint('vs/platform/terminal/node/ptyHostMain')
 	]);
 
 	const outWeb = `out-${qualifier}-web`;

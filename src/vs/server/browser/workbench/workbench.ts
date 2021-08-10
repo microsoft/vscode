@@ -1,6 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copyright (c) Gitpod. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
 import { isStandalone } from 'vs/base/browser/browser';
@@ -374,8 +373,15 @@ class WindowIndicator implements IWindowIndicator {
 	const webviewEndpoint = new URL(window.location.href);
 	webviewEndpoint.pathname = '/out/vs/workbench/contrib/webview/browser/pre/';
 	webviewEndpoint.search = '';
+
+	// TODO(ak) secure by using external endpoint
+	const webWorkerExtensionEndpoint = new URL(window.location.href);
+	webWorkerExtensionEndpoint.pathname = `/out/vs/workbench/services/extensions/worker/${window.location.protocol === 'https:' ? 'https' : 'http'}WebWorkerExtensionHostIframe.html`;
+	webWorkerExtensionEndpoint.search = '';
+
 	create(document.body, {
 		webviewEndpoint: webviewEndpoint.href,
+		webWorkerExtensionHostIframeSrc: webWorkerExtensionEndpoint.href,
 		remoteAuthority,
 		webSocketFactory: {
 			create: url => {
