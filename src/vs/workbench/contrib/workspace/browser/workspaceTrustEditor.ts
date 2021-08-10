@@ -79,8 +79,10 @@ class WorkspaceTrustedUrisTable extends Disposable {
 
 	private readonly table: WorkbenchTable<ITrustedUriItem>;
 
+	private readonly descriptionElement: HTMLElement;
+
 	constructor(
-		container: HTMLElement,
+		private readonly container: HTMLElement,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
@@ -91,6 +93,7 @@ class WorkspaceTrustedUrisTable extends Disposable {
 	) {
 		super();
 
+		this.descriptionElement = container.appendChild($('.workspace-trusted-folders-description'));
 		const tableElement = container.appendChild($('.trusted-uris-table'));
 		const addButtonBarElement = container.appendChild($('.trusted-uris-button-bar'));
 
@@ -265,6 +268,13 @@ class WorkspaceTrustedUrisTable extends Disposable {
 	}
 
 	updateTable(): void {
+		const entries = this.trustedUriEntries;
+		this.container.classList.toggle('empty', entries.length === 0);
+
+		this.descriptionElement.innerText = entries.length ?
+			localize('trustedFoldersDescription', "You trust the following folders, their subfolders, and workspace files.") :
+			localize('noTrustedFoldersDescriptions', "You haven't trusted any folders or workspace files yet.");
+
 		this.table.splice(0, Number.POSITIVE_INFINITY, this.trustedUriEntries);
 		this.layout();
 	}
@@ -817,9 +827,6 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.configurationContainer = append(parent, $('.workspace-trust-settings'));
 		const configurationTitle = append(this.configurationContainer, $('.workspace-trusted-folders-title'));
 		configurationTitle.innerText = localize('trustedFoldersAndWorkspaces', "Trusted Folders & Workspaces");
-
-		const configurationDescription = append(this.configurationContainer, $('.workspace-trusted-folders-description'));
-		configurationDescription.innerText = localize('trustedFoldersDescription', "You trust the following folders, their subfolders, and workspace files.");
 
 		this.workspaceTrustedUrisTable = this._register(this.instantiationService.createInstance(WorkspaceTrustedUrisTable, this.configurationContainer));
 	}
