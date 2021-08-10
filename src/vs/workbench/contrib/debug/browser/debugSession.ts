@@ -916,7 +916,7 @@ export class DebugSession implements IDebugSession {
 				focus();
 				await promises.wholeCallStack;
 				const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-				if (!focusedStackFrame || !focusedStackFrame.source || focusedStackFrame.source.presentationHint === 'deemphasize') {
+				if (!focusedStackFrame || !focusedStackFrame.source || focusedStackFrame.source.presentationHint === 'deemphasize' || focusedStackFrame.presentationHint === 'deemphasize') {
 					// The top stack frame can be deemphesized so try to focus again #68616
 					focus();
 				}
