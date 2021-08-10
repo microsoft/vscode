@@ -219,7 +219,7 @@ export function delta<T>(before: ReadonlyArray<T>, after: ReadonlyArray<T>, comp
  * @param array The unsorted array.
  * @param compare A sort function for the elements.
  * @param n The number of elements to return.
- * @return The first n elemnts from array when sorted with compare.
+ * @return The first n elements from array when sorted with compare.
  */
 export function top<T>(array: ReadonlyArray<T>, compare: (a: T, b: T) => number, n: number): T[] {
 	if (n === 0) {
@@ -241,7 +241,7 @@ export function top<T>(array: ReadonlyArray<T>, compare: (a: T, b: T) => number,
  * @param compare A sort function for the elements.
  * @param n The number of elements to return.
  * @param batch The number of elements to examine before yielding to the event loop.
- * @return The first n elemnts from array when sorted with compare.
+ * @return The first n elements from array when sorted with compare.
  */
 export function topAsync<T>(array: T[], compare: (a: T, b: T) => number, n: number, batch: number, token?: CancellationToken): Promise<T[]> {
 	if (n === 0) {
@@ -286,7 +286,7 @@ export function coalesce<T>(array: ReadonlyArray<T | undefined | null>): T[] {
 }
 
 /**
- * Remove all falsey values from `array`. The original array IS modified.
+ * Remove all falsy values from `array`. The original array IS modified.
  */
 export function coalesceInPlace<T>(array: Array<T | undefined | null>): void {
 	let to = 0;
@@ -324,7 +324,7 @@ export function isNonEmptyArray<T>(obj: T[] | readonly T[] | undefined | null): 
 
 /**
  * Removes duplicates from the given array. The optional keyFn allows to specify
- * how elements are checked for equalness by returning a unique string for each.
+ * how elements are checked for equality by returning a unique string for each.
  */
 export function distinct<T>(array: ReadonlyArray<T>, keyFn?: (t: T) => string): T[] {
 	if (!keyFn) {

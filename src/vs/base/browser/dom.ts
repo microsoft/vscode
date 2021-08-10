@@ -670,7 +670,7 @@ function getParentFlowToElement(node: HTMLElement): HTMLElement | null {
 }
 
 /**
- * Check if `testAncestor` is an ancessor of `testChild`, observing the explicit
+ * Check if `testAncestor` is an ancestor of `testChild`, observing the explicit
  * parents set by `setParentFlowTo`.
  */
 export function isAncestorUsingFlowTo(testChild: Node, testAncestor: Node): boolean {
@@ -1179,7 +1179,7 @@ export function computeScreenAwareSize(cssPx: number): number {
 
 /**
  * Open safely a new window. This is the best way to do so, but you cannot tell
- * if the window was opened or if it was blocked by the brower's popup blocker.
+ * if the window was opened or if it was blocked by the browser's popup blocker.
  * If you want to tell if the browser blocked the new window, use `windowOpenNoOpenerWithSuccess`.
  *
  * See https://github.com/microsoft/monaco-editor/issues/601
@@ -1199,7 +1199,7 @@ export function windowOpenNoOpener(url: string): void {
 }
 
 /**
- * Open safely a new window. This technique is not appropiate in certain contexts,
+ * Open safely a new window. This technique is not appropriate in certain contexts,
  * like for example when the JS context is executing inside a sandboxed iframe.
  * If it is not necessary to know if the browser blocked the new window, use
  * `windowOpenNoOpener`.
@@ -1305,7 +1305,7 @@ export enum DetectedFullscreenMode {
 	DOCUMENT = 1,
 
 	/**
-	 * The browser is fullsreen, e.g. because the user enabled
+	 * The browser is fullscreen, e.g. because the user enabled
 	 * native window fullscreen for it.
 	 */
 	BROWSER

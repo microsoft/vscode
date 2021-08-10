@@ -71,7 +71,7 @@ export interface IIPCOptions {
 	debugBrk?: number;
 
 	/**
-	 * If set, starts the fork with empty execArgv. If not set, execArgv from the parent proces are inherited,
+	 * If set, starts the fork with empty execArgv. If not set, execArgv from the parent process are inherited,
 	 * except --inspect= and --inspect-brk= which are filtered as they would result in a port conflict.
 	 */
 	freshExecArgv?: boolean;

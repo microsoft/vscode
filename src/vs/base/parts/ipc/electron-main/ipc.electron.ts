@@ -23,7 +23,7 @@ function createScopedOnMessageEvent(senderId: number, eventName: string): Event<
 }
 
 /**
- * An implemention of `IPCServer` on top of Electron `ipcMain` API.
+ * An implementation of `IPCServer` on top of Electron `ipcMain` API.
  */
 export class Server extends IPCServer {
 
