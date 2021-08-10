@@ -1814,6 +1814,7 @@ registerAction2(class CollapseCellInputAction extends ChangeNotebookCellMetadata
 				id: MenuId.NotebookCellTitle,
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_INPUT_COLLAPSED.toNegated()),
 				group: CellOverflowToolbarGroups.Collapse,
+				order: 0
 			}
 		});
 	}
@@ -1837,6 +1838,7 @@ registerAction2(class ExpandCellInputAction extends ChangeNotebookCellMetadataAc
 				id: MenuId.NotebookCellTitle,
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_INPUT_COLLAPSED),
 				group: CellOverflowToolbarGroups.Collapse,
+				order: 1
 			}
 		});
 	}
@@ -1860,6 +1862,7 @@ registerAction2(class CollapseCellOutputAction extends ChangeNotebookCellMetadat
 				id: MenuId.NotebookCellTitle,
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_OUTPUT_COLLAPSED.toNegated(), NOTEBOOK_CELL_HAS_OUTPUTS),
 				group: CellOverflowToolbarGroups.Collapse,
+				order: 2
 			}
 		});
 	}
@@ -1883,6 +1886,7 @@ registerAction2(class ExpandCellOuputAction extends ChangeNotebookCellMetadataAc
 				id: MenuId.NotebookCellTitle,
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_OUTPUT_COLLAPSED),
 				group: CellOverflowToolbarGroups.Collapse,
+				order: 3
 			}
 		});
 	}
