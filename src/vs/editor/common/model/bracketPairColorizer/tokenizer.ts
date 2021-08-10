@@ -42,7 +42,7 @@ export class TextBufferTokenizer implements Tokenizer {
 	private readonly textBufferLineCount: number;
 	private readonly textBufferLastLineLength: number;
 
-	private readonly reader = new TokenReader(this.textModel, this.bracketTokens);
+	private readonly reader = new NonPeekableTextBufferTokenizer(this.textModel, this.bracketTokens);
 
 	constructor(
 		private readonly textModel: ITextModel,
@@ -102,7 +102,7 @@ export class TextBufferTokenizer implements Tokenizer {
 /**
  * Does not support peek.
 */
-class TokenReader {
+class NonPeekableTextBufferTokenizer {
 	private readonly textBufferLineCount: number;
 	private readonly textBufferLastLineLength: number;
 
@@ -253,12 +253,22 @@ export class FastTokenizer implements Tokenizer {
 
 		const smallTextTokens0Line = new Array<Token>();
 		for (let i = 0; i < 60; i++) {
-			smallTextTokens0Line.push(new Token(toLength(0, i), TokenKind.Text, -1, -1, new TextAstNode(toLength(0, i))));
+			smallTextTokens0Line.push(
+				new Token(
+					toLength(0, i), TokenKind.Text, -1, -1,
+					new TextAstNode(toLength(0, i))
+				)
+			);
 		}
 
 		const smallTextTokens1Line = new Array<Token>();
 		for (let i = 0; i < 60; i++) {
-			smallTextTokens1Line.push(new Token(toLength(1, i), TokenKind.Text, -1, -1, new TextAstNode(toLength(1, i))));
+			smallTextTokens1Line.push(
+				new Token(
+					toLength(1, i), TokenKind.Text, -1, -1,
+					new TextAstNode(toLength(1, i))
+				)
+			);
 		}
 
 		if (regexp) {

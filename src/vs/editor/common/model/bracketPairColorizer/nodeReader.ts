@@ -6,6 +6,10 @@
 import { AstNode } from './ast';
 import { lengthAdd, lengthZero, Length, lengthLessThan } from './length';
 
+/**
+ * Allows to efficiently find a longest child at a given offset in a fixed node.
+ * The requested offsets must increase monotonously.
+*/
 export class NodeReader {
 	private readonly nextNodes: AstNode[];
 	private readonly offsets: Length[];

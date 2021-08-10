@@ -7,7 +7,7 @@ import { AstNode, AstNodeKind, BracketAstNode, InvalidBracketAstNode, ListAstNod
 import { BeforeEditPositionMapper, TextEditInfo } from './beforeEditPositionMapper';
 import { DenseKeyProvider, SmallImmutableSet } from './smallImmutableSet';
 import { lengthGetLineCount, lengthIsZero, lengthLessThanEqual } from './length';
-import { merge23Trees } from './mergeItems';
+import { concat23Trees } from './concat23Trees';
 import { NodeReader } from './nodeReader';
 import { Tokenizer, TokenKind } from './tokenizer';
 
@@ -16,7 +16,7 @@ export function parseDocument(tokenizer: Tokenizer, edits: TextEditInfo[], oldNo
 	return parser.parseDocument();
 }
 
-export class Parser {
+class Parser {
 	private readonly oldNodeReader?: NodeReader;
 	private readonly positionMapper: BeforeEditPositionMapper;
 	private _itemsConstructed: number = 0;
@@ -81,7 +81,7 @@ export class Parser {
 			items.push(child);
 		}
 
-		const result = merge23Trees(items);
+		const result = concat23Trees(items);
 		return result;
 	}
 

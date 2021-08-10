@@ -6,10 +6,10 @@
 import { AstNode, ListAstNode } from './ast';
 
 /**
- * Merges a list of (2,3) AstNode's into a single (2,3) AstNode.
+ * Concatenates a list of (2,3) AstNode's into a single (2,3) AstNode.
  * This mutates the items of the input array!
 */
-export function merge23Trees(items: AstNode[]): AstNode | null {
+export function concat23Trees(items: AstNode[]): AstNode | null {
 	if (items.length === 0) {
 		return null;
 	}
@@ -17,28 +17,32 @@ export function merge23Trees(items: AstNode[]): AstNode | null {
 		return items[0];
 	}
 
-	const firstHeight = items[0].listHeight;
-
-	let allItemsHaveSameHeight = true;
-	for (const item of items) {
-		if (item.listHeight !== firstHeight) {
-			allItemsHaveSameHeight = false;
-			break;
-		}
+	if (allItemsHaveSameHeight(items)) {
+		return concatFast(items);
 	}
-
-	if (allItemsHaveSameHeight) {
-		return mergeFast(items);
-	}
-
-	return mergeSlow(items);
+	return concatSlow(items);
 }
 
-function mergeFast(items: AstNode[]): AstNode | null {
+/**
+ * @param items must be non empty.
+*/
+function allItemsHaveSameHeight(items: AstNode[]): boolean {
+	const firstHeight = items[0].listHeight;
+
+	for (const item of items) {
+		if (item.listHeight !== firstHeight) {
+			return false;
+		}
+	}
+	return true;
+}
+
+function concatFast(items: AstNode[]): AstNode | null {
 	let length = items.length;
 	// All trees have same height, just create parent nodes.
 	while (length > 1) {
 		const newLength = length >> 1;
+		// Ideally, due to the slice, not a lot of memory is wasted.
 		const newItems = new Array<AstNode>(newLength);
 		for (let i = 0; i < newLength; i++) {
 			const j = i << 1;
@@ -54,13 +58,15 @@ function heightDiff(node1: AstNode, node2: AstNode): number {
 	return Math.abs(node1.listHeight - node2.listHeight);
 }
 
-function mergeSlow(items: AstNode[]): AstNode | null {
+function concatSlow(items: AstNode[]): AstNode | null {
+	// The items might not have the same height.
+	// We merge all items by using a binary concat operator.
 	let first = items[0];
 	let second = items[1];
 
 	for (let i = 2; i < items.length; i++) {
 		const item = items[i];
-		// Prefer concatenating smaller trees.
+		// Prefer concatenating smaller trees, as the runtime of concat depends on the tree height.
 		if (heightDiff(first, second) <= heightDiff(second, item)) {
 			first = concat(first, second);
 			second = item;

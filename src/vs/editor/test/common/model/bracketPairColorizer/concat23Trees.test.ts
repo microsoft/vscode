@@ -6,7 +6,7 @@
 import assert = require('assert');
 import { AstNode, AstNodeKind, ListAstNode, TextAstNode } from 'vs/editor/common/model/bracketPairColorizer/ast';
 import { toLength } from 'vs/editor/common/model/bracketPairColorizer/length';
-import { merge23Trees } from 'vs/editor/common/model/bracketPairColorizer/mergeItems';
+import { concat23Trees } from 'vs/editor/common/model/bracketPairColorizer/concat23Trees';
 
 suite('Bracket Pair Colorizer - mergeItems', () => {
 	test('Clone', () => {
@@ -47,7 +47,7 @@ suite('Bracket Pair Colorizer - mergeItems', () => {
 	}
 
 	function testMerge(lists: AstNode[]) {
-		const node = (merge23Trees(lists.map(l => l.clone())) || ListAstNode.create([])).flattenLists();
+		const node = (concat23Trees(lists.map(l => l.clone())) || ListAstNode.create([])).flattenLists();
 		// This trivial merge does not maintain the (2,3) tree invariant.
 		const referenceNode = ListAstNode.create(lists).flattenLists();
 
