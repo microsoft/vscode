@@ -34,10 +34,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { DeleteCellAction, INotebookActionContext, INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { BaseCellRenderTemplate, CodeCellLayoutInfo, CodeCellRenderTemplate, EXPAND_CELL_INPUT_COMMAND_ID, ICellViewModel, INotebookEditor, isCodeCellRenderTemplate, MarkdownCellRenderTemplate, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { unfoldIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
+import { BaseCellRenderTemplate, CodeCellLayoutInfo, CodeCellRenderTemplate, ICellViewModel, INotebookEditor, isCodeCellRenderTemplate, MarkdownCellRenderTemplate, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
 import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellContextKeys';
 import { CellDragAndDropController, DRAGGING_CLASS } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellDnd';
@@ -698,7 +696,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		this.dndController?.registerDragHandle(templateData, rootContainer, dragHandle, () => new CodeCellDragImageRenderer().getDragImage(templateData, templateData.editor, 'code'));
 
-		disposables.add(this.addDoubleClickCollapseHandler(templateData));
+		disposables.add(this.addCollapseClickCollapseHandler(templateData));
 		disposables.add(DOM.addDisposableListener(focusSinkElement, DOM.EventType.FOCUS, () => {
 			if (templateData.currentRenderedCell && (templateData.currentRenderedCell as CodeCellViewModel).outputsViewModels.length) {
 				this.notebookEditor.focusNotebookCell(templateData.currentRenderedCell, 'output');
@@ -706,23 +704,18 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		}));
 
 		this.commonRenderTemplate(templateData);
-		this.setupOutputCollapsedPart(templateData, cellOutputCollapsedContainer);
 
 		return templateData;
 	}
 
-	private setupOutputCollapsedPart(templateData: CodeCellRenderTemplate, cellOutputCollapseContainer: HTMLElement) {
-		const expandButton = DOM.append(cellOutputCollapseContainer, $('span.expandButton' + ThemeIcon.asCSSSelector(unfoldIcon))) as HTMLElement;
-		const keybinding = this.keybindingService.lookupKeybinding(EXPAND_CELL_INPUT_COMMAND_ID);
-		let title = localize('cellExpandButtonLabel', "Expand");
-		if (keybinding) {
-			title += ` (${keybinding.getLabel()})`;
-		}
+	private setupOutputCollapsedPart(templateData: CodeCellRenderTemplate, cellOutputCollapseContainer: HTMLElement, element: CodeCellViewModel) {
+		const placeholder = DOM.append(cellOutputCollapseContainer, $('span.expandOutputPlaceholder')) as HTMLElement;
+		placeholder.textContent = 'Outputs are collapsed';
+		const expandIcon = DOM.append(cellOutputCollapseContainer, $('span.expandOutputIcon'));
 
-		cellOutputCollapseContainer.title = title;
 		DOM.hide(cellOutputCollapseContainer);
 
-		templateData.disposables.add(DOM.addDisposableListener(expandButton, DOM.EventType.CLICK, () => {
+		const expand = () => {
 			if (!templateData.currentRenderedCell) {
 				return;
 			}
@@ -734,19 +727,21 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 				return;
 			}
 
-			if (templateData.currentRenderedCell.metadata.inputCollapsed) {
-				textModel.applyEdits([
-					{ editType: CellEditType.Metadata, index, metadata: { ...templateData.currentRenderedCell.metadata, inputCollapsed: false } }
-				], true, undefined, () => undefined, undefined);
-			} else if (templateData.currentRenderedCell.metadata.outputCollapsed) {
-				textModel.applyEdits([
-					{ editType: CellEditType.Metadata, index, metadata: { ...templateData.currentRenderedCell.metadata, outputCollapsed: false } }
-				], true, undefined, () => undefined, undefined);
-			}
+			textModel.applyEdits([
+				{ editType: CellEditType.Metadata, index, metadata: { ...templateData.currentRenderedCell.metadata, outputCollapsed: !templateData.currentRenderedCell.metadata.outputCollapsed } }
+			], true, undefined, () => undefined, undefined);
+		};
+
+		templateData.disposables.add(DOM.addDisposableListener(expandIcon, DOM.EventType.CLICK, () => {
+			expand();
+		}));
+
+		templateData.disposables.add(DOM.addDisposableListener(cellOutputCollapseContainer, DOM.EventType.DBLCLICK, () => {
+			expand();
 		}));
 	}
 
-	private addDoubleClickCollapseHandler(templateData: CodeCellRenderTemplate): IDisposable {
+	private addCollapseClickCollapseHandler(templateData: CodeCellRenderTemplate): IDisposable {
 		const dragHandleListener = DOM.addDisposableListener(templateData.dragHandle, DOM.EventType.DBLCLICK, e => {
 			const cell = templateData.currentRenderedCell;
 			if (!cell) {
@@ -767,28 +762,49 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			], true, undefined, () => undefined, undefined);
 		});
 
-		const collapsedPartListeners = [templateData.cellInputCollapsedContainer, templateData.cellOutputCollapsedContainer].map(part => {
-			return DOM.addDisposableListener(part, DOM.EventType.DBLCLICK, e => {
-				const cell = templateData.currentRenderedCell;
-				if (!cell) {
-					return;
-				}
+		const collapsedPartListener = DOM.addDisposableListener(templateData.cellInputCollapsedContainer, DOM.EventType.DBLCLICK, e => {
+			const cell = templateData.currentRenderedCell;
+			if (!cell) {
+				return;
+			}
 
-				const metadata: Partial<NotebookCellMetadata> = cell.metadata.inputCollapsed ?
-					{ inputCollapsed: false } :
-					{ outputCollapsed: false };
+			const metadata: Partial<NotebookCellMetadata> = cell.metadata.inputCollapsed ?
+				{ inputCollapsed: false } :
+				{ outputCollapsed: false };
+			const viewModel = this.notebookEditor.viewModel!;
+			viewModel.notebookDocument.applyEdits([
+				{
+					editType: CellEditType.PartialMetadata,
+					index: viewModel.getCellIndex(cell),
+					metadata
+				}
+			], true, undefined, () => undefined, undefined);
+		});
+
+		const clickHandler = DOM.addDisposableListener(templateData.cellInputCollapsedContainer, DOM.EventType.CLICK, e => {
+			const cell = templateData.currentRenderedCell;
+			if (!cell) {
+				return;
+			}
+
+			const element = e.target as HTMLElement;
+
+			if (element && element.classList && element.classList.contains('expandInputIcon')) {
+				// clicked on the expand icon
 				const viewModel = this.notebookEditor.viewModel!;
 				viewModel.notebookDocument.applyEdits([
 					{
 						editType: CellEditType.PartialMetadata,
 						index: viewModel.getCellIndex(cell),
-						metadata
+						metadata: {
+							inputCollapsed: false
+						}
 					}
 				], true, undefined, () => undefined, undefined);
-			});
+			}
 		});
 
-		return combinedDisposable(dragHandleListener, ...collapsedPartListeners);
+		return combinedDisposable(dragHandleListener, collapsedPartListener, clickHandler);
 	}
 
 	private createRunCellToolbar(container: HTMLElement, cellContainer: HTMLElement, contextKeyService: IContextKeyService, disposables: DisposableStore): ToolBar {
@@ -932,7 +948,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		templateData.outputContainer.innerText = '';
 		const cellOutputCollapsedContainer = DOM.append(templateData.outputContainer, $('.output-collapse-container'));
 		templateData.cellOutputCollapsedContainer = cellOutputCollapsedContainer;
-		this.setupOutputCollapsedPart(templateData, cellOutputCollapsedContainer);
+		this.setupOutputCollapsedPart(templateData, cellOutputCollapsedContainer, element);
 
 		const elementDisposables = templateData.elementDisposables;
 

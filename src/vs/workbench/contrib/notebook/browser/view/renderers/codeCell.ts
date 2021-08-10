@@ -272,6 +272,8 @@ export class CodeCell extends Disposable {
 		element.classList.add('cell-collapse-preview');
 		DOM.safeInnerHtml(element, richEditorText);
 		this.templateData.cellInputCollapsedContainer.appendChild(element);
+		const expandIcon = DOM.$('span.expandInputIcon');
+		element.appendChild(expandIcon);
 
 		DOM.show(this.templateData.cellInputCollapsedContainer);
 	}
