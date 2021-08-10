@@ -911,6 +911,22 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region Terminal color support https://github.com/microsoft/vscode/issues/128228
+	export interface TerminalOptions {
+		/**
+		 * Supports all ThemeColor keys, terminal.ansi* is recommended for contrast/consistency
+		 */
+		color?: ThemeColor;
+	}
+	export interface ExtensionTerminalOptions {
+		/**
+		 * Supports all ThemeColor keys, terminal.ansi* is recommended for contrast/consistency
+		 */
+		color?: ThemeColor;
+	}
+
+	//#endregion
+
 	// eslint-disable-next-line vscode-dts-region-comments
 	//#region @jrieken -> exclusive document filters
 
