@@ -116,6 +116,7 @@ function buildWebNodePaths() {
 
 	// Now we write the node paths to out/vs
 	const outDirectory = path.join(root, 'out', 'vs');
+	fs.mkdirSync(outDirectory, { recursive: true });
 	const headerWithGeneratedFileWarning = `/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
