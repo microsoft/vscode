@@ -3,38 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isLinux } from 'vs/base/common/platform';
 import { basename, extUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
-
-function split(path: string): [string, string] | undefined {
-	const match = /^(.*)\/([^/]+)$/.exec(path);
-
-	if (!match) {
-		return undefined;
-	}
-
-	const [, parentPath, name] = match;
-	return [parentPath, name];
-}
-
-function getRootUUID(uri: URI): string | undefined {
-	const match = /^\/([^/]+)\/[^/]+\/?$/.exec(uri.path);
-
-	if (!match) {
-		return undefined;
-	}
-
-	return match[1];
-}
+import { FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 
 export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability {
 
 	private readonly files = new Map<string, FileSystemFileHandle>();
 	private readonly directories = new Map<string, FileSystemDirectoryHandle>();
+
+	readonly onDidChangeCapabilities = Event.None;
+	readonly onDidChangeFile = Event.None;
+	readonly onDidErrorOccur = Event.None;
 
 	private _capabilities: FileSystemProviderCapabilities | undefined;
 	get capabilities(): FileSystemProviderCapabilities {
@@ -49,14 +32,6 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 		return this._capabilities;
 	}
 
-	readonly onDidChangeCapabilities = Event.None;
-
-	private readonly _onDidChangeFile = new Emitter<readonly IFileChange[]>();
-	readonly onDidChangeFile = this._onDidChangeFile.event;
-
-	private readonly _onDidErrorOccur = new Emitter<string>();
-	readonly onDidErrorOccur = this._onDidErrorOccur.event;
-
 	async readFile(resource: URI): Promise<Uint8Array> {
 		const handle = await this.getFileHandle(resource);
 
@@ -69,7 +44,17 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 	}
 
 	async writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
-		const handle = await this.getFileHandle(resource);
+		let handle = await this.getFileHandle(resource);
+
+		if (!handle && opts.create) {
+			const parent = await this.getParentDirectoryHandle(resource);
+
+			if (!parent) {
+				throw new Error('Stat error: no parent found');
+			}
+
+			handle = await parent.getFileHandle(basename(resource), { create: true });
+		}
 
 		if (!handle) {
 			throw new Error('File not found.');
@@ -85,7 +70,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 	}
 
 	async stat(resource: URI): Promise<IStat> {
-		const rootUUID = getRootUUID(resource);
+		const rootUUID = this.getRootUUID(resource);
 
 		if (rootUUID) {
 			const fileHandle = this.files.get(rootUUID);
@@ -145,8 +130,14 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 		throw new Error('Stat error: entry not found');
 	}
 
-	mkdir(resource: URI): Promise<void> {
-		throw new Error('Method not implemented.');
+	async mkdir(resource: URI): Promise<void> {
+		const parent = await this.getParentDirectoryHandle(resource);
+
+		if (!parent) {
+			throw new Error('Stat error: no parent found');
+		}
+
+		await parent.getDirectoryHandle(basename(resource), { create: true });
 	}
 
 	async readdir(resource: URI): Promise<[string, FileType][]> {
@@ -180,13 +171,13 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 	}
 
 	private async getDirectoryHandle(uri: URI): Promise<FileSystemDirectoryHandle | undefined> {
-		const rootUUID = getRootUUID(uri);
+		const rootUUID = this.getRootUUID(uri);
 
 		if (rootUUID) {
 			return this.directories.get(rootUUID);
 		}
 
-		const splitResult = split(uri.path);
+		const splitResult = this.splitPath(uri.path);
 
 		if (!splitResult) {
 			return undefined;
@@ -201,7 +192,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 	}
 
 	private async getFileHandle(uri: URI): Promise<FileSystemFileHandle | undefined> {
-		const rootUUID = getRootUUID(uri);
+		const rootUUID = this.getRootUUID(uri);
 
 		if (rootUUID) {
 			return this.files.get(rootUUID);
@@ -220,7 +211,24 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 		this.directories.set(uuid, handle);
 	}
 
-	dispose(): void {
-		this._onDidChangeFile.dispose();
+	private splitPath(path: string): [string, string] | undefined {
+		const match = /^(.*)\/([^/]+)$/.exec(path);
+
+		if (!match) {
+			return undefined;
+		}
+
+		const [, parentPath, name] = match;
+		return [parentPath, name];
+	}
+
+	private getRootUUID(uri: URI): string | undefined {
+		const match = /^\/([^/]+)\/[^/]+\/?$/.exec(uri.path);
+
+		if (!match) {
+			return undefined;
+		}
+
+		return match[1];
 	}
 }
