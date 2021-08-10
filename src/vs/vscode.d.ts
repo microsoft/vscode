@@ -9513,7 +9513,8 @@ declare module 'vscode' {
 		iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
 
 		/**
-		 * Supports all ThemeColor keys, terminal.ansi* is recommended for contrast/consistency
+		 * Supports all {@link ThemeColor} keys, the standard `terminal.ansi*` theme keys are
+		 * recommended for the best contrast and consistency across themes.
 		 */
 		color?: ThemeColor;
 	}
