@@ -6,7 +6,7 @@
 import { AstNode, AstNodeKind, BracketAstNode, InvalidBracketAstNode, ListAstNode, PairAstNode, TextAstNode } from './ast';
 import { BeforeEditPositionMapper, TextEditInfo } from './beforeEditPositionMapper';
 import { DenseKeyProvider, SmallImmutableSet } from './smallImmutableSet';
-import { getLinesOfLength, lengthIsZero, lengthLessThanEqual } from './length';
+import { lengthGetLineCount, lengthIsZero, lengthLessThanEqual } from './length';
 import { merge23Trees } from './mergeItems';
 import { NodeReader } from './nodeReader';
 import { Tokenizer, TokenKind } from './tokenizer';
@@ -96,7 +96,7 @@ export class Parser {
 						return false;
 					}
 
-					const endLineDidChange = getLinesOfLength(curNode.length) === getLinesOfLength(maxCacheableLength);
+					const endLineDidChange = lengthGetLineCount(curNode.length) === lengthGetLineCount(maxCacheableLength);
 					const canBeReused = curNode.canBeReused(expectingClosingCategories, endLineDidChange);
 					return canBeReused;
 				});

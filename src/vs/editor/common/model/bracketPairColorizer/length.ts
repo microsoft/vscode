@@ -7,10 +7,14 @@ import { splitLines } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 
+/**
+ * Represents a non-negative length in terms of line and column count.
+ * Prefer using {@link Length}.
+*/
 export class LengthObj {
 	public static zero = new LengthObj(0, 0);
 
-	public static lengthDiffNonNeg(start: LengthObj, end: LengthObj): LengthObj {
+	public static lengthDiffNonNegative(start: LengthObj, end: LengthObj): LengthObj {
 		if (end.isLessThan(start)) {
 			return LengthObj.zero;
 		}
@@ -72,17 +76,18 @@ export class LengthObj {
 	}
 }
 
+/**
+ * The end must be greater than or equal to the start.
+*/
 export function lengthDiff(startLineCount: number, startColumnCount: number, endLineCount: number, endColumnCount: number): Length {
 	return (startLineCount !== endLineCount)
 		? toLength(endLineCount - startLineCount, endColumnCount)
 		: toLength(0, endColumnCount - startColumnCount);
 }
 
-// ========= This is the fast implementation, but it is very hard to debug =========
-// /* // Uncomment to enable the slow implementation that makes debugging significantly easier (objects are used instead of a number enconding).
-
 /**
  * Represents a non-negative length in terms of line and column count.
+ * Does not allocate.
 */
 export type Length = { _brand: 'Length' };
 
@@ -95,14 +100,17 @@ export function lengthIsZero(length: Length): boolean {
 /*
  * We have 52 bits available in a JS number.
  * We use the upper 26 bits to store the line and the lower 26 bits to store the column.
- * If there is no overflow (all values/sums below 2^26 = 67108864),
- * we have `toLength(lns1, cols1) + toLength(lns2, cols2) = toLength(lns1 + lns2, cols1 + cols2)`.
+ *
+ * Set boolean to `true` when debugging, so that debugging is easier.
  */
-const factor = 2 ** 26;
+const factor = /* is debug: */ false ? 100000 : 2 ** 26;
 
 export function toLength(lineCount: number, columnCount: number): Length {
 	// llllllllllllllllllllllllllcccccccccccccccccccccccccc (52 bits)
 	//       line count (26 bits)    column count (26 bits)
+
+	// If there is no overflow (all values/sums below 2^26 = 67108864),
+	// we have `toLength(lns1, cols1) + toLength(lns2, cols2) = toLength(lns1 + lns2, cols1 + cols2)`.
 
 	return (lineCount * factor + columnCount) as any as Length;
 }
@@ -114,9 +122,17 @@ export function lengthToObj(length: Length): LengthObj {
 	return new LengthObj(lineCount, columnCount);
 }
 
-export function getLinesOfLength(length: Length): number {
+export function lengthGetLineCount(length: Length): number {
 	return Math.floor(length as any as number / factor);
 }
+
+/**
+ * Returns the amount of columns of the given length, assuming that it does not span any line.
+*/
+export function lengthGetColumnCountIfZeroLineCount(length: Length): number {
+	return length as any as number;
+}
+
 
 // [10 lines, 5 cols] + [ 0 lines, 3 cols] = [10 lines, 8 cols]
 // [10 lines, 5 cols] + [20 lines, 3 cols] = [30 lines, 3 cols]
@@ -127,8 +143,10 @@ export function lengthAdd(l1: any, l2: any): Length {
 		: (l1 - (l1 % factor) + l2)); // l1 - (l1 % factor) equals toLength(l1.lineCount, 0)
 }
 
-// Returns a non negative length `result` such that `lengthAdd(length1, result) = length2`, or zero if such length does not exist.
-export function lengthDiffNonNeg(length1: Length, length2: Length): Length {
+/**
+ * Returns a non negative length `result` such that `lengthAdd(length1, result) = length2`, or zero if such length does not exist.
+ */
+export function lengthDiffNonNegative(length1: Length, length2: Length): Length {
 	const l1 = length1 as any as number;
 	const l2 = length2 as any as number;
 
@@ -188,7 +206,7 @@ export function lengthsToRange(lengthStart: Length, lengthEnd: Length): Range {
 	return new Range(lineCount + 1, colCount + 1, lineCount2 + 1, colCount2 + 1);
 }
 
-export function compareLengths(length1: Length, length2: Length): number {
+export function lengthCompare(length1: Length, length2: Length): number {
 	const l1 = length1 as any as number;
 	const l2 = length2 as any as number;
 	return l1 - l2;
@@ -204,91 +222,9 @@ export function lengthOfStringObj(str: string): LengthObj {
 	return new LengthObj(lines.length - 1, lines[lines.length - 1].length);
 }
 
+/**
+ * Computes a numeric hash of the given length.
+*/
 export function lengthHash(length: Length): number {
 	return length as any;
 }
-
-export function getLengthColumnsZeroLines(length: Length): number {
-	return length as any as number;
-}
-
-/*/
-
-// ========= This is a slow implementation, but much easier to debug =========
-
-export type Length = LengthObj;
-
-export const lengthZero = LengthObj.zero;
-
-export function lengthIsZero(length: Length): boolean {
-	return length.isZero();
-}
-
-export function lengthAdd(length1: Length, length2: Length): Length {
-	return length1.add(length2);
-}
-
-export function getLinesOfLength(length: Length): number {
-	return return length.lineCount;
-}
-
-// Returns a non negative length `result` such that `lengthAdd(length1, result) = length2`, or zero if such length does not exist.
-export function lengthDiffNonNeg(length1: Length, length2: Length): Length {
-	return LengthObj.lengthDiffNonNeg(length1, length2);
-}
-
-export function toLength(lineCount: number, columnCount: number): Length {
-	return new LengthObj(lineCount, columnCount);
-}
-
-export function lengthLessThan(length1: Length, length2: Length): boolean {
-	return length1.isLessThan(length2);
-}
-
-export function lengthLessThanEqual(length1: Length, length2: Length): boolean {
-	return !length1.isGreaterThan(length2);
-}
-
-export function lengthGreaterThanEqual(length1: Length, length2: Length): boolean {
-	return !length1.isLessThan(length2);
-}
-
-export function lengthToPosition(length: Length): Position {
-	return new Position(length.lineCount + 1, length.columnCount + 1);
-}
-
-export function lengthsToRange(lengthStart: Length, lengthEnd: Length): Range {
-	return new Range(lengthStart.lineCount + 1, lengthStart.columnCount + 1, lengthEnd.lineCount + 1, lengthEnd.columnCount + 1);
-}
-
-export function positionToLength(position: Position): Length {
-	return toLength(position.lineNumber - 1, position.column - 1);
-}
-
-export function lengthToObj(length: Length): LengthObj {
-	return length;
-}
-
-export function compareLengths(length1: Length, length2: Length): number {
-	return length1.compare(length2);
-}
-
-export function lengthOfString(str: string): Length {
-	const lines = splitLines(str);
-	return toLength(lines.length - 1, lines[lines.length - 1].length);
-}
-
-export function lengthOfStringObj(str: string): LengthObj {
-	const lines = splitLines(str);
-	return new LengthObj(lines.length - 1, lines[lines.length - 1].length);
-}
-
-export function lengthHash(length: Length): number {
-	return length.lineCount * factor + length.columnCount;
-}
-
-export function getLengthColumnsZeroLines(length: Length): number {
-	return length.column;
-}
-
-// */

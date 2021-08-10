@@ -9,7 +9,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { LanguageId, StandardTokenType, TokenMetadata } from 'vs/editor/common/modes';
 import { BracketAstNode, TextAstNode } from './ast';
 import { BracketTokens, LanguageAgnosticBracketTokens } from './brackets';
-import { getLengthColumnsZeroLines, Length, lengthAdd, lengthDiff, lengthToObj, lengthZero, toLength } from './length';
+import { lengthGetColumnCountIfZeroLineCount, Length, lengthAdd, lengthDiff, lengthToObj, lengthZero, toLength } from './length';
 
 export interface Tokenizer {
 	readonly offset: Length;
@@ -137,7 +137,7 @@ class TokenReader {
 		if (this.peekedToken) {
 			const token = this.peekedToken;
 			this.peekedToken = null;
-			this.lineCharOffset += getLengthColumnsZeroLines(token.length);
+			this.lineCharOffset += lengthGetColumnCountIfZeroLineCount(token.length);
 			return token;
 		}
 
@@ -206,7 +206,7 @@ class TokenReader {
 						break;
 					} else {
 						// Consume the peeked token
-						this.lineCharOffset += getLengthColumnsZeroLines(peekedBracketToken.length);
+						this.lineCharOffset += lengthGetColumnCountIfZeroLineCount(peekedBracketToken.length);
 						return peekedBracketToken;
 					}
 				} else {

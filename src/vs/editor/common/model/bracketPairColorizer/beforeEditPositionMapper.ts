@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Length, lengthAdd, lengthDiffNonNeg, lengthLessThanEqual, LengthObj, lengthToObj, toLength } from './length';
+import { Length, lengthAdd, lengthDiffNonNegative, lengthLessThanEqual, LengthObj, lengthToObj, toLength } from './length';
 
 export class TextEditInfo {
 	constructor(
@@ -48,7 +48,7 @@ export class BeforeEditPositionMapper {
 		const nextEdit = this.edits[this.nextEditIdx];
 		const nextChangeOffset = nextEdit ? this.translateOldToCur(nextEdit.offsetObj) : this.documentLength;
 
-		return lengthDiffNonNeg(offset, nextChangeOffset);
+		return lengthDiffNonNegative(offset, nextChangeOffset);
 	}
 
 	private translateOldToCur(oldOffsetObj: LengthObj): Length {

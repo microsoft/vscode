@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert = require('assert');
-import { Length, lengthAdd, lengthDiffNonNeg, lengthToObj, toLength } from 'vs/editor/common/model/bracketPairColorizer/length';
+import { Length, lengthAdd, lengthDiffNonNegative, lengthToObj, toLength } from 'vs/editor/common/model/bracketPairColorizer/length';
 
 suite('Bracket Pair Colorizer - Length', () => {
 	function toStr(length: Length): string {
@@ -23,7 +23,7 @@ suite('Bracket Pair Colorizer - Length', () => {
 	test('lengthDiffNonNeg', () => {
 		assert.deepStrictEqual(
 			toStr(
-				lengthDiffNonNeg(
+				lengthDiffNonNegative(
 					toLength(100, 10),
 					toLength(100, 20))
 			),
@@ -32,7 +32,7 @@ suite('Bracket Pair Colorizer - Length', () => {
 
 		assert.deepStrictEqual(
 			toStr(
-				lengthDiffNonNeg(
+				lengthDiffNonNegative(
 					toLength(100, 10),
 					toLength(101, 20))
 			),
@@ -41,7 +41,7 @@ suite('Bracket Pair Colorizer - Length', () => {
 
 		assert.deepStrictEqual(
 			toStr(
-				lengthDiffNonNeg(
+				lengthDiffNonNegative(
 					toLength(101, 30),
 					toLength(101, 20))
 			),
@@ -50,7 +50,7 @@ suite('Bracket Pair Colorizer - Length', () => {
 
 		assert.deepStrictEqual(
 			toStr(
-				lengthDiffNonNeg(
+				lengthDiffNonNegative(
 					toLength(102, 10),
 					toLength(101, 20))
 			),
