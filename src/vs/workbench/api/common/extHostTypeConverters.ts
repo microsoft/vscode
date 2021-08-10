@@ -1700,7 +1700,7 @@ export namespace TestItem {
 			id: TestId.fromString(item.extId).localId,
 			label: item.label,
 			uri: URI.revive(item.uri),
-			tags: item.tags.map(t => {
+			tags: (item.tags || []).map(t => {
 				const { tagId } = TestTag.denamespace(t);
 				return new types.TestTag(tagId, tagId);
 			}),

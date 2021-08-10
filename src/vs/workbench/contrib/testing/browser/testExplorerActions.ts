@@ -18,7 +18,6 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { FocusedViewContext } from 'vs/workbench/common/views';
@@ -27,7 +26,7 @@ import { REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/contrib/files/browse
 import { IActionableTestTreeElement, TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestExplorerFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
-import type { TestingExplorerView, TestingExplorerViewModel } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
+import type { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
 import { TestExplorerViewMode, TestExplorerViewSorting, Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { InternalTestItem, ITestItem, ITestRunProfile, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
@@ -263,15 +262,25 @@ export class ConfigureTestProfilesAction extends Action2 {
 }
 
 abstract class ExecuteSelectedAction extends ViewAction<TestingExplorerView> {
-	constructor(id: string, title: string, icon: ThemeIcon, private readonly group: TestRunProfileBitset) {
+	constructor(options: IAction2Options, private readonly group: TestRunProfileBitset) {
 		super({
-			id,
-			title,
-			icon,
-			viewId: Testing.ExplorerViewId,
-			f1: true,
+			...options,
+			menu: [{
+				id: MenuId.ViewTitle,
+				order: group === TestRunProfileBitset.Run
+					? ActionOrder.Run
+					: group === TestRunProfileBitset.Debug
+						? ActionOrder.Debug
+						: ActionOrder.Coverage,
+				group: 'navigation',
+				when: ContextKeyAndExpr.create([
+					ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId),
+					TestingContextKeys.isRunning.isEqualTo(false),
+					TestingContextKeys.capabilityToContextKey[group].isEqualTo(true),
+				])
+			}],
 			category,
-			precondition: FocusedViewContext.isEqualTo(Testing.ExplorerViewId),
+			viewId: Testing.ExplorerViewId,
 		});
 	}
 
@@ -279,26 +288,8 @@ abstract class ExecuteSelectedAction extends ViewAction<TestingExplorerView> {
 	 * @override
 	 */
 	public runInView(accessor: ServicesAccessor, view: TestingExplorerView): Promise<ITestResult | undefined> {
-		const tests = this.getActionableTests(accessor.get(ITestService), view.viewModel);
-		if (!tests.length) {
-			return Promise.resolve(undefined);
-		}
-
-		return accessor.get(ITestService).runTests({ tests, group: this.group });
-	}
-
-	private getActionableTests(testService: ITestService, viewModel: TestingExplorerViewModel) {
-		const selected = viewModel.getSelectedTests();
-		let tests: InternalTestItem[];
-		if (!selected.length) {
-			tests = [...testService.collection.rootItems];
-		} else {
-			tests = selected
-				.map(treeElement => treeElement instanceof TestItemTreeElement ? treeElement.test : undefined)
-				.filter(isDefined);
-		}
-
-		return tests;
+		const { include, exclude } = view.getSelectedOrVisibleItems();
+		return accessor.get(ITestService).runTests({ tests: include, exclude, group: this.group });
 	}
 }
 
@@ -306,24 +297,23 @@ export class RunSelectedAction extends ExecuteSelectedAction {
 	public static readonly ID = 'testing.runSelected';
 
 	constructor() {
-		super(
-			RunSelectedAction.ID,
-			localize('runSelectedTests', 'Run Selected Tests'),
-			icons.testingRunIcon,
-			TestRunProfileBitset.Run,
-		);
+		super({
+			id: RunSelectedAction.ID,
+			title: localize('runSelectedTests', 'Run Tests'),
+			icon: icons.testingRunAllIcon,
+		}, TestRunProfileBitset.Run);
 	}
 }
 
 export class DebugSelectedAction extends ExecuteSelectedAction {
 	public static readonly ID = 'testing.debugSelected';
 	constructor() {
-		super(
-			DebugSelectedAction.ID,
-			localize('debugSelectedTests', 'Debug Selected Tests'),
-			icons.testingDebugIcon,
-			TestRunProfileBitset.Debug,
-		);
+
+		super({
+			id: DebugSelectedAction.ID,
+			title: localize('debugSelectedTests', 'Debug Tests'),
+			icon: icons.testingDebugAllIcon,
+		}, TestRunProfileBitset.Debug);
 	}
 }
 
@@ -343,19 +333,6 @@ abstract class RunOrDebugAllTestsAction extends Action2 {
 			...options,
 			category,
 			menu: [{
-				id: MenuId.ViewTitle,
-				order: group === TestRunProfileBitset.Run
-					? ActionOrder.Run
-					: group === TestRunProfileBitset.Debug
-						? ActionOrder.Debug
-						: ActionOrder.Coverage,
-				group: 'navigation',
-				when: ContextKeyAndExpr.create([
-					ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId),
-					TestingContextKeys.isRunning.isEqualTo(false),
-					TestingContextKeys.capabilityToContextKey[group].isEqualTo(true),
-				])
-			}, {
 				id: MenuId.CommandPalette,
 				when: TestingContextKeys.capabilityToContextKey[group].isEqualTo(true),
 			}]
