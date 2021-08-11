@@ -274,7 +274,7 @@ function getElectronVersion() {
     return target;
 }
 exports.getElectronVersion = getElectronVersion;
-function buildWebNodePaths() {
+function buildWebNodePaths(outDir) {
     const result = () => new Promise((resolve, _) => {
         var _a;
         const root = path.join(__dirname, '..', '..');
@@ -300,7 +300,7 @@ function buildWebNodePaths() {
             nodePaths[key] = entryPoint;
         }
         // Now we write the node paths to out/vs
-        const outDirectory = path.join(root, 'out', 'vs');
+        const outDirectory = path.join(root, outDir, 'vs');
         fs.mkdirSync(outDirectory, { recursive: true });
         const headerWithGeneratedFileWarning = `/*---------------------------------------------------------------------------------------------
 	 *  Copyright (c) Microsoft Corporation. All rights reserved.

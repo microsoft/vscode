@@ -341,7 +341,7 @@ export function getElectronVersion(): string {
 	return target;
 }
 
-export function buildWebNodePaths() {
+export function buildWebNodePaths(outDir: string) {
 	const result = () => new Promise<void>((resolve, _) => {
 		const root = path.join(__dirname, '..', '..');
 		const webPackageJSON = path.join(root, '/remote/web', 'package.json');
@@ -366,7 +366,7 @@ export function buildWebNodePaths() {
 		}
 
 		// Now we write the node paths to out/vs
-		const outDirectory = path.join(root, 'out', 'vs');
+		const outDirectory = path.join(root, outDir, 'vs');
 		fs.mkdirSync(outDirectory, { recursive: true });
 		const headerWithGeneratedFileWarning = `/*---------------------------------------------------------------------------------------------
 	 *  Copyright (c) Microsoft Corporation. All rights reserved.
