@@ -1,5 +1,5 @@
 # ruleid: detected-aws-secret-access-key
-aws_secret_new_access_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+aws_secret_new_access_keyss = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
 
 # ruleid: detected-aws-secret-access-key
 aws_secret_access_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
