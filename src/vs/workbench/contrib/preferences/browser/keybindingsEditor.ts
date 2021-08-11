@@ -279,7 +279,11 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 	search(filter: string): void {
 		this.focusSearch();
 		this.searchWidget.setValue(filter);
-		this.selectEntry(0);
+		if (this.keybindingsTable.length > 0) {
+			this.selectEntry(0);
+		} else {
+			this.searchWidget.blur();
+		}
 	}
 
 	clearSearchResults(): void {

@@ -458,6 +458,15 @@ export class SearchWidget extends Widget {
 
 	focus() {
 		this.inputBox.focus();
+		this.selectValue();
+	}
+
+	blur() {
+		this.inputBox.blur();
+		this.selectValue();
+	}
+
+	private selectValue() {
 		if (this.getValue()) {
 			this.inputBox.select();
 		}
