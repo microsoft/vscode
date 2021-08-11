@@ -373,18 +373,22 @@ export class PersistentTerminalProcess extends Disposable {
 		super();
 		this._logService.trace('persistentTerminalProcess#ctor', _persistentProcessId, arguments);
 
-		this._xterm = new Terminal({ cols, rows });
+		this._xterm = new Terminal({
+			cols,
+			rows,
+			scrollback: reconnectConstants.scrollback
+		});
 		this._recorder = new TerminalRecorder(cols, rows);
 		this._orphanQuestionBarrier = null;
 		this._orphanQuestionReplyTime = 0;
 		this._disconnectRunner1 = this._register(new RunOnceScheduler(() => {
-			this._logService.info(`Persistent process "${this._persistentProcessId}": The reconnection grace time of ${printTime(reconnectConstants.GraceTime)} has expired, shutting down pid "${this._pid}"`);
+			this._logService.info(`Persistent process "${this._persistentProcessId}": The reconnection grace time of ${printTime(reconnectConstants.graceTime)} has expired, shutting down pid "${this._pid}"`);
 			this.shutdown(true);
-		}, reconnectConstants.GraceTime));
+		}, reconnectConstants.graceTime));
 		this._disconnectRunner2 = this._register(new RunOnceScheduler(() => {
-			this._logService.info(`Persistent process "${this._persistentProcessId}": The short reconnection grace time of ${printTime(reconnectConstants.ShortGraceTime)} has expired, shutting down pid ${this._pid}`);
+			this._logService.info(`Persistent process "${this._persistentProcessId}": The short reconnection grace time of ${printTime(reconnectConstants.shortGraceTime)} has expired, shutting down pid ${this._pid}`);
 			this.shutdown(true);
-		}, reconnectConstants.ShortGraceTime));
+		}, reconnectConstants.shortGraceTime));
 
 		this._register(this._terminalProcess.onProcessReady(e => {
 			this._pid = e.pid;
@@ -490,7 +494,7 @@ export class PersistentTerminalProcess extends Disposable {
 		}
 		const serialize = new SerializeAddon();
 		this._xterm.loadAddon(serialize);
-		const serialized = serialize.serialize(100);
+		const serialized = serialize.serialize(this._xterm.getOption('scrollback'));
 		this._logService.info('serialized', serialized);
 		// this._onProcessReplay.fire(ev);
 		this._onProcessReplay.fire({
