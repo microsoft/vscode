@@ -52,9 +52,9 @@ export const overviewRulerError = registerColor('editorOverviewRuler.errorForegr
 export const overviewRulerWarning = registerColor('editorOverviewRuler.warningForeground', { dark: editorWarningForeground, light: editorWarningForeground, hc: editorWarningBorder }, nls.localize('overviewRuleWarning', 'Overview ruler marker color for warnings.'));
 export const overviewRulerInfo = registerColor('editorOverviewRuler.infoForeground', { dark: editorInfoForeground, light: editorInfoForeground, hc: editorInfoBorder }, nls.localize('overviewRuleInfo', 'Overview ruler marker color for infos.'));
 
-export const editorBracketHighlightingForeground1 = registerColor('editorBracketHighlight.foreground1', { dark: '#0064001a', light: '#0064001a', hc: '#0064001a' }, nls.localize('editorBracketHighlightForeground1', 'Foreground color of brackets (1).'));
-export const editorBracketHighlightingForeground2 = registerColor('editorBracketHighlight.foreground2', { dark: '#0064001a', light: '#0064001a', hc: '#0064001a' }, nls.localize('editorBracketHighlightForeground2', 'Foreground color of brackets (2).'));
-export const editorBracketHighlightingForeground3 = registerColor('editorBracketHighlight.foreground3', { dark: '#0064001a', light: '#0064001a', hc: '#0064001a' }, nls.localize('editorBracketHighlightForeground3', 'Foreground color of brackets (3).'));
+export const editorBracketHighlightingForeground1 = registerColor('editorBracketHighlight.foreground1', { dark: '#FFD700', light: '#9A6D03', hc: '#FFD700' }, nls.localize('editorBracketHighlightForeground1', 'Foreground color of brackets (1).'));
+export const editorBracketHighlightingForeground2 = registerColor('editorBracketHighlight.foreground2', { dark: '#DA70D6', light: '#C433BF', hc: '#DA70D6' }, nls.localize('editorBracketHighlightForeground2', 'Foreground color of brackets (2).'));
+export const editorBracketHighlightingForeground3 = registerColor('editorBracketHighlight.foreground3', { dark: '#87CEFA', light: '#0879BF', hc: '#87CEFA' }, nls.localize('editorBracketHighlightForeground3', 'Foreground color of brackets (3).'));
 
 // contains all color rules that used to defined in editor/browser/widget/editor.css
 registerThemingParticipant((theme, collector) => {
