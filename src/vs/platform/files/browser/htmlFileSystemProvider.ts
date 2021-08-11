@@ -48,60 +48,31 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 
 	async stat(resource: URI): Promise<IStat> {
 		try {
-			let handle: FileSystemHandle | undefined = undefined;
-
-			// First: try to find a well known handle first
-			const handleId = this.findHandleId(resource);
-			if (handleId) {
-				handle = this.files.get(handleId) ?? this.directories.get(handleId);
-			}
-
-			// Second: walk up parent directories and resolve handle if possible
-			if (!handle) {
-				const parent = await this.getParentDirectoryHandle(resource);
-				if (parent) {
-					const name = extUri.basename(resource);
-
-					try {
-						handle = await parent.getFileHandle(name);
-					} catch (error) {
-						try {
-							handle = await parent.getDirectoryHandle(name);
-						} catch (error) {
-							// Ignore
-						}
-					}
-				}
-			}
-
+			const handle = await this.getHandle(resource);
 			if (!handle) {
 				throw createFileSystemProviderError(new Error(`No such file or directory, stat '${resource.toString(true)}'`), FileSystemProviderErrorCode.FileNotFound);
 			}
 
-			return this.toStat(handle);
+			if (handle.kind === 'file') {
+				const file = await handle.getFile();
+
+				return {
+					type: FileType.File,
+					mtime: file.lastModified,
+					ctime: 0,
+					size: file.size
+				};
+			}
+
+			return {
+				type: FileType.Directory,
+				mtime: 0,
+				ctime: 0,
+				size: 0
+			};
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		}
-	}
-
-	private async toStat(handle: FileSystemHandle): Promise<IStat> {
-		if (handle.kind === 'file') {
-			const file = await handle.getFile();
-
-			return {
-				type: FileType.File,
-				mtime: file.lastModified,
-				ctime: 0,
-				size: file.size
-			};
-		}
-
-		return {
-			type: FileType.Directory,
-			mtime: 0,
-			ctime: 0,
-			size: 0
-		};
 	}
 
 	async readdir(resource: URI): Promise<[string, FileType][]> {
@@ -224,7 +195,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 
 			// Create target as needed
 			if (!handle) {
-				const parent = await this.getParentDirectoryHandle(resource);
+				const parent = await this.getParentHandle(resource);
 				if (!parent) {
 					throw createFileSystemProviderError(new Error(`No such parent directory, writeFile '${resource.toString(true)}'`), FileSystemProviderErrorCode.FileNotFound);
 				}
@@ -250,7 +221,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 
 	async mkdir(resource: URI): Promise<void> {
 		try {
-			const parent = await this.getParentDirectoryHandle(resource);
+			const parent = await this.getParentHandle(resource);
 			if (!parent) {
 				throw createFileSystemProviderError(new Error(`No such parent directory, mkdir '${resource.toString(true)}'`), FileSystemProviderErrorCode.FileNotFound);
 			}
@@ -263,7 +234,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 
 	async delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
 		try {
-			const parent = await this.getParentDirectoryHandle(resource);
+			const parent = await this.getParentHandle(resource);
 			if (!parent) {
 				throw createFileSystemProviderError(new Error(`No such parent directory, delete '${resource.toString(true)}'`), FileSystemProviderErrorCode.FileNotFound);
 			}
@@ -332,22 +303,50 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 		return URI.from({ scheme: Schemas.file, path: `/${handleId}/${handle.name}` });
 	}
 
-	private async getFileHandle(uri: URI): Promise<FileSystemFileHandle | undefined> {
-		const handleId = this.findHandleId(uri);
+	private async getHandle(resource: URI): Promise<FileSystemHandle | undefined> {
+		let handle: FileSystemHandle | undefined = undefined;
+
+		// First: try to find a well known handle first
+		const handleId = this.findHandleId(resource);
+		if (handleId) {
+			handle = this.files.get(handleId) ?? this.directories.get(handleId);
+		}
+
+		// Second: walk up parent directories and resolve handle if possible
+		if (!handle) {
+			const parent = await this.getParentHandle(resource);
+			if (parent) {
+				try {
+					handle = await parent.getFileHandle(extUri.basename(resource));
+				} catch (error) {
+					try {
+						handle = await parent.getDirectoryHandle(extUri.basename(resource));
+					} catch (error) {
+						// Ignore
+					}
+				}
+			}
+		}
+
+		return handle;
+	}
+
+	private async getFileHandle(resource: URI): Promise<FileSystemFileHandle | undefined> {
+		const handleId = this.findHandleId(resource);
 		if (handleId) {
 			return this.files.get(handleId);
 		}
 
-		const parent = await this.getParentDirectoryHandle(uri);
+		const parent = await this.getParentHandle(resource);
 
 		try {
-			return await parent?.getFileHandle(extUri.basename(uri));
+			return await parent?.getFileHandle(extUri.basename(resource));
 		} catch (error) {
 			return undefined; // guard against possible DOMException
 		}
 	}
 
-	private async getParentDirectoryHandle(uri: URI): Promise<FileSystemDirectoryHandle | undefined> {
+	private async getParentHandle(uri: URI): Promise<FileSystemDirectoryHandle | undefined> {
 		return this.getDirectoryHandle(URI.from({ ...uri, path: extUri.dirname(uri).path }));
 	}
 
