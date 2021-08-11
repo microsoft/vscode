@@ -257,6 +257,30 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(version + 1, editor.document.version);
 	});
 
+	test('edit API batch edits undo/redo', async function () {
+		const notebook = await openRandomNotebookDocument();
+		const editor = await vscode.window.showNotebookDocument(notebook);
+
+		const cellsChangeEvent = asPromise<vscode.NotebookCellsChangeEvent>(vscode.notebooks.onDidChangeNotebookCells);
+		const cellMetadataChangeEvent = asPromise<vscode.NotebookCellMetadataChangeEvent>(vscode.notebooks.onDidChangeCellMetadata);
+		const version = editor.document.version;
+		await editor.edit(editBuilder => {
+			editBuilder.replaceCells(1, 0, [{ kind: vscode.NotebookCellKind.Code, languageId: 'javascript', value: 'test 2', outputs: [], metadata: undefined }]);
+			editBuilder.replaceCellMetadata(0, { inputCollapsed: false });
+		});
+
+		await cellsChangeEvent;
+		await cellMetadataChangeEvent;
+		assert.strictEqual(editor.document.cellCount, 3);
+		assert.strictEqual(editor.document.cellAt(0)?.metadata.inputCollapsed, false);
+		assert.strictEqual(version + 1, editor.document.version);
+
+		await vscode.commands.executeCommand('undo');
+		assert.strictEqual(version + 2, editor.document.version);
+		assert.strictEqual(editor.document.cellAt(0)?.metadata.inputCollapsed, undefined);
+		assert.strictEqual(editor.document.cellCount, 2);
+	});
+
 	test('#98841, initialzation should not emit cell change events.', async function () {
 		let count = 0;
 
