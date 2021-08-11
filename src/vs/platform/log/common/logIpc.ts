@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { LogLevel, ILogService, LogService, ILoggerService, ILogger, AbstractMessageLogger, ILoggerOptions, AdapterLogger, AbstractLoggerService } from 'vs/platform/log/common/log';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
+import { AbstractLoggerService, AbstractMessageLogger, AdapterLogger, ILogger, ILoggerOptions, ILoggerService, ILogService, LogLevel, LogService } from 'vs/platform/log/common/log';
 
 export class LogLevelChannel implements IServerChannel {
 

@@ -3,29 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {
-	IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncResource, IUserDataSyncLogService, IUserDataSynchroniser, UserDataSyncErrorCode,
-	UserDataSyncError, ISyncResourceHandle, IUserDataManifest, ISyncTask, IResourcePreview, IManualSyncTask, ISyncResourcePreview, MergeState, Change, IUserDataSyncStoreManagementService, UserDataSyncStoreError, createSyncHeaders
-} from 'vs/platform/userDataSync/common/userDataSync';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { ExtensionsSynchroniser } from 'vs/platform/userDataSync/common/extensionsSync';
-import { KeybindingsSynchroniser } from 'vs/platform/userDataSync/common/keybindingsSync';
-import { GlobalStateSynchroniser } from 'vs/platform/userDataSync/common/globalStateSync';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { equals } from 'vs/base/common/arrays';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { URI } from 'vs/base/common/uri';
-import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
-import { isEqual } from 'vs/base/common/resources';
-import { SnippetsSynchroniser } from 'vs/platform/userDataSync/common/snippetsSync';
+import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IHeaders } from 'vs/base/parts/request/common/request';
-import { generateUuid } from 'vs/base/common/uuid';
-import { createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { isEqual } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
+import { IHeaders } from 'vs/base/parts/request/common/request';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ExtensionsSynchroniser } from 'vs/platform/userDataSync/common/extensionsSync';
+import { GlobalStateSynchroniser } from 'vs/platform/userDataSync/common/globalStateSync';
+import { KeybindingsSynchroniser } from 'vs/platform/userDataSync/common/keybindingsSync';
+import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
+import { SnippetsSynchroniser } from 'vs/platform/userDataSync/common/snippetsSync';
+import { Change, createSyncHeaders, IManualSyncTask, IResourcePreview, ISyncResourceHandle, ISyncResourcePreview, ISyncTask, IUserDataManifest, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, MergeState, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
 
 type SyncErrorClassification = {
 	code: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };

@@ -3,21 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
-import { IWebviewService, WebviewContentOptions, WebviewContentPurpose, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
-import { SerializedWebviewOptions, DeserializedWebview, reviveWebviewExtensionDescription, SerializedWebview, WebviewEditorInputSerializer, restoreWebviewContentOptions, restoreWebviewOptions } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInputSerializer';
-import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
+import { ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { IWebviewService, WebviewContentOptions, WebviewContentPurpose, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { DeserializedWebview, restoreWebviewContentOptions, restoreWebviewOptions, reviveWebviewExtensionDescription, SerializedWebview, SerializedWebviewOptions, WebviewEditorInputSerializer } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInputSerializer';
+import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
+import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
+import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
+import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 
 export interface CustomDocumentBackupData extends IWorkingCopyBackupMeta {
 	readonly viewType: string;
@@ -56,6 +57,7 @@ export class CustomEditorInputSerializer extends WebviewEditorInputSerializer {
 		@IWebviewWorkbenchService webviewWorkbenchService: IWebviewWorkbenchService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
+		@IEditorResolverService private readonly _editorResolverService: IEditorResolverService
 	) {
 		super(webviewWorkbenchService);
 	}
@@ -90,7 +92,10 @@ export class CustomEditorInputSerializer extends WebviewEditorInputSerializer {
 	): CustomEditorInput {
 		const data = this.fromJson(JSON.parse(serializedEditorInput));
 		if (data.viewType === 'jupyter.notebook.ipynb') {
-			return NotebookEditorInput.create(this._instantiationService, data.editorResource, 'jupyter-notebook', { _backupId: data.backupId }) as any;
+			const editorAssociation = this._editorResolverService.getAssociationsForResource(data.editorResource);
+			if (!editorAssociation.find(association => association.viewType === 'jupyter.notebook.ipynb')) {
+				return NotebookEditorInput.create(this._instantiationService, data.editorResource, 'jupyter-notebook', { _backupId: data.backupId, startDirty: data.dirty }) as any;
+			}
 		}
 
 		const webview = reviveWebview(this._webviewService, data);
@@ -118,6 +123,7 @@ export class ComplexCustomWorkingCopyEditorHandler extends Disposable implements
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkingCopyEditorService private readonly _workingCopyEditorService: IWorkingCopyEditorService,
 		@IWorkingCopyBackupService private readonly _workingCopyBackupService: IWorkingCopyBackupService,
+		@IEditorResolverService private readonly _editorResolverService: IEditorResolverService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
 		@ICustomEditorService _customEditorService: ICustomEditorService // DO NOT REMOVE (needed on startup to register overrides properly)
 	) {
@@ -164,7 +170,10 @@ export class ComplexCustomWorkingCopyEditorHandler extends Disposable implements
 
 				const backupData = backup.meta;
 				if (backupData.viewType === 'jupyter.notebook.ipynb') {
-					return NotebookEditorInput.create(this._instantiationService, URI.revive(backupData.editorResource), 'jupyter-notebook', { _backupId: backupData.backupId, _workingCopy: workingCopy }) as any;
+					const editorAssociation = this._editorResolverService.getAssociationsForResource(URI.revive(backupData.editorResource));
+					if (!editorAssociation.find(association => association.viewType === 'jupyter.notebook.ipynb')) {
+						return NotebookEditorInput.create(this._instantiationService, URI.revive(backupData.editorResource), 'jupyter-notebook', { startDirty: !!backupData.backupId, _backupId: backupData.backupId, _workingCopy: workingCopy }) as any;
+					}
 				}
 
 				const id = backupData.webview.id;

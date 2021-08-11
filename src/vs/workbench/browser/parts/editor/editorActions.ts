@@ -237,7 +237,7 @@ export class NavigateBetweenGroupsAction extends Action {
 
 	override async run(): Promise<void> {
 		const nextGroup = this.editorGroupService.findGroup({ location: GroupLocation.NEXT }, this.editorGroupService.activeGroup, true);
-		nextGroup.focus();
+		nextGroup?.focus();
 	}
 }
 

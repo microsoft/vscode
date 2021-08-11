@@ -49,7 +49,7 @@ export class ReactionActionViewItem extends ActionViewItem {
 			let reactionIcon = dom.append(this.label, dom.$('.reaction-icon'));
 			reactionIcon.style.display = '';
 			let uri = URI.revive(action.icon);
-			reactionIcon.style.backgroundImage = `url('${uri}')`;
+			reactionIcon.style.backgroundImage = dom.asCSSUrl(uri);
 			reactionIcon.title = action.label;
 		}
 		if (action.count) {

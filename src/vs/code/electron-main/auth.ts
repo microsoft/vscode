@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { app, AuthenticationResponseDetails, AuthInfo, Event as ElectronEvent, WebContents } from 'electron';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
-import { app, AuthInfo, WebContents, Event as ElectronEvent, AuthenticationResponseDetails } from 'electron';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
-import { IEncryptionMainService } from 'vs/platform/encryption/electron-main/encryptionMainService';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { generateUuid } from 'vs/base/common/uuid';
+import { IEncryptionMainService } from 'vs/platform/encryption/electron-main/encryptionMainService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 
 interface ElectronAuthenticationResponseDetails extends AuthenticationResponseDetails {
 	firstAuthAttempt?: boolean; // https://github.com/electron/electron/blob/84a42a050e7d45225e69df5bd2d2bf9f1037ea41/shell/browser/login_handler.cc#L70

@@ -12,7 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { IDisposable, IReference } from 'vs/base/common/lifecycle';
-import { IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
 import { mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
@@ -24,7 +24,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 
-interface NotebookEditorInputOptions {
+export interface NotebookEditorInputOptions {
 	startDirty?: boolean;
 	/**
 	 * backupId for webview
@@ -154,11 +154,15 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			return undefined;
 		}
 
-		const dialogPath = this.hasCapability(EditorInputCapabilities.Untitled) ? await this._suggestName(this.labelService.getUriBasenameLabel(this.resource)) : this._editorModelReference.object.resource;
-
-		const target = await this._fileDialogService.pickFileToSave(dialogPath, options?.availableFileSystems);
-		if (!target) {
-			return undefined; // save cancelled
+		const pathCandidate = this.hasCapability(EditorInputCapabilities.Untitled) ? await this._suggestName(this.labelService.getUriBasenameLabel(this.resource)) : this._editorModelReference.object.resource;
+		let target: URI | undefined;
+		if (this._editorModelReference.object.hasAssociatedFilePath()) {
+			target = pathCandidate;
+		} else {
+			target = await this._fileDialogService.pickFileToSave(pathCandidate, options?.availableFileSystems);
+			if (!target) {
+				return undefined; // save cancelled
+			}
 		}
 
 		if (!provider.matches(target)) {
@@ -171,7 +175,12 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 					return `${pattern} (base ${pattern.base})`;
 				}
 
-				return `${pattern.include} (exclude: ${pattern.exclude})`;
+				if (pattern.exclude) {
+					return `${pattern.include} (exclude: ${pattern.exclude})`;
+				} else {
+					return `${pattern.include}`;
+				}
+
 			}).join(', ');
 			throw new Error(`File name ${target} is not supported by ${provider.providerDisplayName}.\n\nPlease make sure the file name matches following patterns:\n${patterns}`);
 		}
@@ -248,10 +257,20 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			}
 
 			const data = await info.serializer.dataToNotebook(VSBuffer.fromString(JSON.stringify({ __webview_backup: this.options._backupId })));
-			this._editorModelReference.object.notebook._initialize(data.cells, true);
+			this._editorModelReference.object.notebook.applyEdits([
+				{
+					editType: CellEditType.Replace,
+					index: 0,
+					count: this._editorModelReference.object.notebook.length,
+					cells: data.cells
+				}
+			], true, undefined, () => undefined, undefined, false);
 
 			if (this.options._workingCopy) {
 				await this.workingCopyBackupService.discardBackup(this.options._workingCopy);
+				this.options._backupId = undefined;
+				this.options._workingCopy = undefined;
+				this.options.startDirty = undefined;
 			}
 		}
 

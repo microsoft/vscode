@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IItemAccessor, FuzzyScore, FuzzyScore2, IItemScore, prepareQuery, scoreFuzzy, scoreFuzzy2, scoreItemFuzzy, compareItemsByFuzzyScore, pieceToQuery } from 'vs/base/common/fuzzyScorer';
-import { URI } from 'vs/base/common/uri';
-import { basename, dirname, sep, posix, win32 } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
+import { compareItemsByFuzzyScore, FuzzyScore, FuzzyScore2, IItemAccessor, IItemScore, pieceToQuery, prepareQuery, scoreFuzzy, scoreFuzzy2, scoreItemFuzzy } from 'vs/base/common/fuzzyScorer';
 import { Schemas } from 'vs/base/common/network';
+import { basename, dirname, posix, sep, win32 } from 'vs/base/common/path';
+import { isWindows } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
 
 class ResourceAccessorClass implements IItemAccessor<URI> {
 

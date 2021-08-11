@@ -9,6 +9,7 @@ import { localize } from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { OpenGettingStarted } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 
 const setupIcon = registerIcon('getting-started-setup', Codicon.zap, localize('getting-started-setup-icon', "Icon used for the setup category of welcome page"));
@@ -146,6 +147,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					id: 'findLanguageExtensions',
 					title: localize('gettingStarted.findLanguageExts.title', "Rich support for all your languages"),
 					description: localize('gettingStarted.findLanguageExts.description.interpolated', "Code smarter with syntax highlighting, code completion, linting and debugging. While many languages are built-in, many more can be added as extensions.\n{0}", Button(localize('browseLangExts', "Browse Language Extensions"), 'command:workbench.extensions.action.showLanguageExtensions')),
+					when: 'virtualWorkspace != \'vscode-vfs\'',
 					media: {
 						type: 'svg', altText: 'Language extensions', path: 'languages.svg'
 					},
@@ -160,7 +162,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					id: 'workspaceTrust',
 					title: localize('gettingStarted.workspaceTrust.title', "Safely browse and edit code"),
 					description: localize('gettingStarted.workspaceTrust.description.interpolated', "{0} lets you decide whether your project folders should **allow or restrict** automatic code execution __(required for extensions, debugging, etc)__.\nOpening a file/folder will prompt to grant trust. You can always {1} later.", Button(localize('workspaceTrust', "Workspace Trust"), 'https://github.com/microsoft/vscode-docs/blob/workspaceTrust/docs/editor/workspace-trust.md'), Button(localize('enableTrust', "enable trust"), 'command:toSide:workbench.action.manageTrustedDomain')),
-					when: '!isWorkspaceTrusted && workspaceFolderCount == 0',
+					when: 'virtualWorkspace != \'vscode-vfs\' && !isWorkspaceTrusted && workspaceFolderCount == 0',
 					media: {
 						type: 'svg', altText: 'Workspace Trust editor in Restricted mode and a primary button for switching to Trusted mode.', path: 'workspaceTrust.svg'
 					},
@@ -218,7 +220,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					id: 'terminal',
 					title: localize('gettingStarted.terminal.title', "Convenient built-in terminal"),
 					description: localize('gettingStarted.terminal.description.interpolated', "Quickly run shell commands and monitor build output, right next to your code.\n{0}", Button(localize('showTerminal', "Show Terminal Panel"), 'command:workbench.action.terminal.toggleTerminal')),
-					when: 'remoteName != codespaces && !terminalIsOpen',
+					when: 'virtualWorkspace != \'vscode-vfs\' && remoteName != codespaces && !terminalIsOpen',
 					media: {
 						type: 'svg', altText: 'Integrated terminal running a few npm commands', path: 'terminal.svg'
 					},
@@ -227,6 +229,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					id: 'extensions',
 					title: localize('gettingStarted.extensions.title', "Limitless extensibility"),
 					description: localize('gettingStarted.extensions.description.interpolated', "Extensions are VS Code's power-ups. They range from handy productivity hacks, expanding out-of-the-box features, to adding completely new capabilities.\n{0}", Button(localize('browseRecommended', "Browse Recommended Extensions"), 'command:workbench.extensions.action.showRecommendedExtensions')),
+					when: 'virtualWorkspace != \'vscode-vfs\'',
 					media: {
 						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions.svg'
 					},
@@ -280,7 +283,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					id: 'debugging',
 					title: localize('gettingStarted.debug.title', "Watch your code in action"),
 					description: localize('gettingStarted.debug.description.interpolated', "Accelerate your edit, build, test, and debug loop by setting up a launch configuration.\n{0}", Button(localize('runProject', "Run your Project"), 'command:workbench.action.debug.selectandstart')),
-					when: 'workspaceFolderCount != 0',
+					when: 'virtualWorkspace != \'vscode-vfs\' && workspaceFolderCount != 0',
 					media: {
 						type: 'svg', altText: 'Run and debug view.', path: 'debug.svg',
 					},
@@ -315,7 +318,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'tasks',
 					title: localize('gettingStarted.tasks.title', "Automate your project tasks"),
-					when: 'workspaceFolderCount != 0',
+					when: 'workspaceFolderCount != 0 && virtualWorkspace != \'vscode-vfs\'',
 					description: localize('gettingStarted.tasks.description.interpolated', "Create tasks for your common workflows and enjoy the integrated experience of running scripts and automatically checking results.\n{0}", Button(localize('runTasks', "Run Auto-detected Tasks"), 'command:workbench.action.tasks.runTask')),
 					media: {
 						type: 'svg', altText: 'Task runner.', path: 'runTask.svg',
@@ -338,7 +341,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		description: '',
 		icon: setupIcon,
 		isFeatured: false,
-		when: 'config.notebook.experimental.gettingStarted && userHasOpenedNotebook',
+		when: `config.${OpenGettingStarted} && userHasOpenedNotebook`,
 		content: {
 			type: 'steps',
 			steps: [

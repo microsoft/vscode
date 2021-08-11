@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ICollapseStateChangeEvent, ITreeElement, ITreeFilter, ITreeFilterDataResult, ITreeModel, ITreeNode, TreeVisibility, ITreeModelSpliceEvent, TreeError } from 'vs/base/browser/ui/tree/tree';
+import { ICollapseStateChangeEvent, ITreeElement, ITreeFilter, ITreeFilterDataResult, ITreeModel, ITreeModelSpliceEvent, ITreeNode, TreeError, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { splice, tail2 } from 'vs/base/common/arrays';
 import { LcsDiff } from 'vs/base/common/diff/diff';
 import { Emitter, Event, EventBufferer } from 'vs/base/common/event';

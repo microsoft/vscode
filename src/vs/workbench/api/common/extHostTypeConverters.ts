@@ -31,7 +31,7 @@ import { SaveReason } from 'vs/workbench/common/editor';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import * as search from 'vs/workbench/contrib/search/common/search';
-import { CoverageDetails, DetailType, ICoveredCount, IFileCoverage, ISerializedTestResults, ITestItem, ITestItemContext, ITestMessage, SerializedTestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { CoverageDetails, DetailType, ICoveredCount, IFileCoverage, ISerializedTestResults, ITestItem, ITestItemContext, ITestMessage, ITestTag, ITestTagDisplayInfo, SerializedTestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -1657,14 +1657,38 @@ export namespace TestMessage {
 	}
 }
 
+export namespace TestTag {
+	const enum Constants {
+		Delimiter = '\0',
+	}
+
+	export const namespace = (ctrlId: string, tagId: string) =>
+		ctrlId + Constants.Delimiter + tagId;
+
+	export function display(controllerId: string, tag: vscode.TestTag): ITestTagDisplayInfo {
+		return {
+			displayId: tag.id,
+			id: namespace(controllerId, tag.id),
+			label: tag.label,
+		};
+	}
+
+	export const denamespace = (namespaced: string) => {
+		const index = namespaced.indexOf(Constants.Delimiter);
+		return { ctrlId: namespaced.slice(0, index), tagId: namespaced.slice(index + 1) };
+	};
+}
+
 export namespace TestItem {
 	export type Raw = vscode.TestItem;
 
 	export function from(item: TestItemImpl): ITestItem {
+		const ctrlId = getPrivateApiFor(item).controllerId;
 		return {
-			extId: TestId.fromExtHostTestItem(item, getPrivateApiFor(item).controllerId).toString(),
+			extId: TestId.fromExtHostTestItem(item, ctrlId).toString(),
 			label: item.label,
 			uri: item.uri,
+			tags: item.tags.map(t => TestTag.namespace(ctrlId, t.id)),
 			range: Range.from(item.range) || null,
 			description: item.description || null,
 			error: item.error ? (MarkdownString.fromStrict(item.error) || null) : null,
@@ -1676,6 +1700,10 @@ export namespace TestItem {
 			id: TestId.fromString(item.extId).localId,
 			label: item.label,
 			uri: URI.revive(item.uri),
+			tags: (item.tags || []).map(t => {
+				const { tagId } = TestTag.denamespace(t);
+				return new types.TestTag(tagId, tagId);
+			}),
 			range: Range.to(item.range || undefined),
 			invalidateResults: () => undefined,
 			canResolveChildren: false,
@@ -1701,6 +1729,16 @@ export namespace TestItem {
 		}
 
 		return node!;
+	}
+}
+
+export namespace TestTag {
+	export function from(tag: vscode.TestTag): ITestTag {
+		return { id: tag.id, label: tag.label };
+	}
+
+	export function to(tag: ITestTag): vscode.TestTag {
+		return new types.TestTag(tag.id, tag.label);
 	}
 }
 

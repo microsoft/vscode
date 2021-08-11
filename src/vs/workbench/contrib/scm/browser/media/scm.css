@@ -215,6 +215,16 @@
 	border-top: none;
 }
 
+.scm-editor-validation p {
+	margin: 0;
+	padding: 0;
+}
+
+.scm-editor-validation a {
+	-webkit-user-select: none;
+	user-select: none;
+}
+
 .scm-view .scm-editor-placeholder {
 	position: absolute;
 	pointer-events: none;

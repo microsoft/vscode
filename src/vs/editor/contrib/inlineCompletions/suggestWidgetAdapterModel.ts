@@ -79,6 +79,7 @@ export class SuggestWidgetAdapterModel extends BaseGhostTextWidgetModel {
 
 		this._register(this.editor.onDidChangeCursorPosition((e) => {
 			if (this.isSuggestionPreviewEnabled()) {
+				this.minReservedLineCount = 0;
 				this.update();
 			}
 		}));
@@ -170,7 +171,11 @@ export class SuggestWidgetAdapterModel extends BaseGhostTextWidgetModel {
 		this.currentGhostText = newGhostText;
 
 		if (this.currentGhostText && this.expanded) {
-			this.minReservedLineCount = Math.max(this.minReservedLineCount, ...this.currentGhostText.parts.map(p => p.lines.length - 1));
+			function sum(arr: number[]): number {
+				return arr.reduce((a, b) => a + b, 0);
+			}
+
+			this.minReservedLineCount = Math.max(this.minReservedLineCount, sum(this.currentGhostText.parts.map(p => p.lines.length - 1)));
 		}
 
 		const suggestController = SuggestController.get(this.editor);

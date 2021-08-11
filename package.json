@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.59.0",
-  "distro": "3b178e90461e217e4b51870f136c316327a58f66",
+  "version": "1.60.0",
+  "distro": "61e4c454dd3e0928fdf44dce555922b34ea8e507",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -58,10 +58,10 @@
     "extensions-ci": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js extensions-ci"
   },
   "dependencies": {
-    "@vscode/vscode-languagedetection": "1.0.14",
+    "@microsoft/applicationinsights-web": "^2.6.4",
+    "@vscode/vscode-languagedetection": "1.0.18",
     "applicationinsights": "1.0.8",
     "chokidar": "3.5.1",
-    "eslint-plugin-header": "3.1.1",
     "graceful-fs": "4.2.6",
     "http-proxy-agent": "^2.1.0",
     "https-proxy-agent": "^2.2.3",
@@ -129,8 +129,9 @@
     "cssnano": "^4.1.11",
     "debounce": "^1.0.0",
     "deemon": "^1.4.0",
-    "electron": "13.1.7",
+    "electron": "13.1.8",
     "eslint": "6.8.0",
+    "eslint-plugin-header": "3.1.1",
     "eslint-plugin-jsdoc": "^19.1.0",
     "event-stream": "3.3.4",
     "fancy-log": "^1.3.3",
@@ -195,7 +196,7 @@
     "style-loader": "^1.0.0",
     "ts-loader": "^9.2.3",
     "tsec": "0.1.4",
-    "typescript": "^4.4.0-dev.20210719",
+    "typescript": "^4.5.0-dev.20210810",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.12.1",
     "util": "^0.12.4",

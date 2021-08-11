@@ -162,7 +162,7 @@ declare module 'vscode' {
 		 *
 		 * Defaults to false.
 		 */
-		forceRecreate?: boolean;
+		forceNewSession?: boolean | { detail: string };
 	}
 
 	export namespace authentication {
@@ -179,7 +179,8 @@ declare module 'vscode' {
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { forceRecreate: true }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { forceNewSession: true }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { forceNewSession: { detail: string } }): Thenable<AuthenticationSession>;
 	}
 
 	export namespace workspace {
@@ -422,7 +423,7 @@ declare module 'vscode' {
 	export interface TextSearchComplete {
 		/**
 		 * Whether the search hit the limit on the maximum number of search results.
-		 * `maxResults` on {@link TextSearchOptions `TextSearchOptions`} specifies the max number of results.
+		 * `maxResults` on {@linkcode TextSearchOptions} specifies the max number of results.
 		 * - If exactly that number of matches exist, this should be false.
 		 * - If `maxResults` matches are returned and more exist, this should be true.
 		 * - If search hits an internal limit which is less than `maxResults`, this should be true.
@@ -783,7 +784,7 @@ declare module 'vscode' {
 		/**
 		 * The validation message to display.
 		 */
-		readonly message: string;
+		readonly message: string | MarkdownString;
 
 		/**
 		 * The validation type.
@@ -799,7 +800,7 @@ declare module 'vscode' {
 		/**
 		 * Shows a transient contextual message on the input.
 		 */
-		showValidationMessage(message: string, type: SourceControlInputBoxValidationType): void;
+		showValidationMessage(message: string | MarkdownString, type: SourceControlInputBoxValidationType): void;
 
 		/**
 		 * A validation function for the input box. It's possible to change
@@ -910,22 +911,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Terminal color support https://github.com/microsoft/vscode/issues/128228
-	export interface TerminalOptions {
-		/**
-		 * Supports all ThemeColor keys, terminal.ansi* is recommended for contrast/consistency
-		 */
-		color?: ThemeColor;
-	}
-	export interface ExtensionTerminalOptions {
-		/**
-		 * Supports all ThemeColor keys, terminal.ansi* is recommended for contrast/consistency
-		 */
-		color?: ThemeColor;
-	}
-
-	//#endregion
-
 	// eslint-disable-next-line vscode-dts-region-comments
 	//#region @jrieken -> exclusive document filters
 
@@ -974,9 +959,7 @@ declare module 'vscode' {
 		 * JSON.parse(await (items.get('text/treeitems')!.asString()))
 		 * ```
 		 */
-		// todo@API no Map
-		// @ts-ignore
-		items: Map<string, TreeDataTransferItem>;
+		items: { get: (mimeType: string) => TreeDataTransferItem | undefined };
 	}
 
 	export interface DragAndDropController<T> extends Disposable {
@@ -1803,6 +1786,55 @@ declare module 'vscode' {
 		 */
 		notebook: NotebookDocument | undefined;
 	}
+	//#endregion
+
+	//#region test tags https://github.com/microsoft/vscode/issues/129456
+	/**
+	 * Tags can be associated with {@link TestItem | TestItems} and
+	 * {@link TestRunProfile | TestRunProfiles}. A profile with a tag can only
+	 * execute tests that include that tag in their {@link TestItem.tags} array.
+	 */
+	export class TestTag {
+		/**
+		 * Unique ID of the test tag.
+		 */
+		readonly id: string;
+
+		/**
+		 * Human-readable name of the tag. If present, the tag will be visible as
+		 * a filter option in the UI.
+		 */
+		readonly label?: string;
+
+		/**
+		 * Creates a new TestTag instance.
+		 * @param id Unique ID of the test tag.
+		 * @param label Human-readable name of the tag.  If present, the tag will
+		 * be visible as a filter option in the UI.
+		 */
+		constructor(id: string, label?: string);
+	}
+
+	export interface TestRunProfile {
+		/**
+		 * Associated tag for the profile. If this is set, only {@link TestItem}
+		 * instances with the same tag will be eligible to execute in this profile.
+		 */
+		tag?: TestTag;
+	}
+
+	export interface TestItem {
+		/**
+		 * Tags associated with this test item. May be used in combination with
+		 * {@link TestRunProfile.tags}, or simply as an organizational feature.
+		 */
+		tags: readonly TestTag[];
+	}
+
+	export interface TestController {
+		createRunProfile(label: string, kind: TestRunProfileKind, runHandler: (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void, isDefault?: boolean, tag?: TestTag): TestRunProfile;
+	}
+
 	//#endregion
 
 	//#region proposed test APIs https://github.com/microsoft/vscode/issues/107467
@@ -2750,6 +2782,17 @@ declare module 'vscode' {
 
 	namespace languages {
 		export function createLanguageStatusItem(selector: DocumentSelector): LanguageStatusItem;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/129053
+
+	export namespace env {
+		/**
+		 * The environment in which the app is embedded in. i.e. 'desktop', 'codespaces', 'web'.
+		 */
+		export const embedderIdentifier: string;
 	}
 
 	//#endregion

@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createHash } from 'crypto';
-import { Socket, Server as NetServer, createConnection, createServer } from 'net';
-import * as zlib from 'zlib';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ClientConnectionEvent, IPCServer } from 'vs/base/parts/ipc/common/ipc';
-import { join } from 'vs/base/common/path';
+import { createConnection, createServer, Server as NetServer, Socket } from 'net';
 import { tmpdir } from 'os';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { ISocket, Protocol, Client, ChunkStream, SocketCloseEvent, SocketCloseEventType } from 'vs/base/parts/ipc/common/ipc.net';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { join } from 'vs/base/common/path';
 import { Platform, platform } from 'vs/base/common/platform';
+import { generateUuid } from 'vs/base/common/uuid';
+import { ClientConnectionEvent, IPCServer } from 'vs/base/parts/ipc/common/ipc';
+import { ChunkStream, Client, ISocket, Protocol, SocketCloseEvent, SocketCloseEventType } from 'vs/base/parts/ipc/common/ipc.net';
+import * as zlib from 'zlib';
 
 export class NodeSocket implements ISocket {
 

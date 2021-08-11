@@ -14,7 +14,7 @@ import * as tasks from '../common/shared/tasks';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
 import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
@@ -24,6 +24,8 @@ import { Schemas } from 'vs/base/common/network';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
+import * as resources from 'vs/base/common/resources';
+import { homedir } from 'os';
 
 export class ExtHostTask extends ExtHostTaskBase {
 	private _variableResolver: ExtHostVariableResolverService | undefined;
@@ -37,7 +39,7 @@ export class ExtHostTask extends ExtHostTaskBase {
 		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService,
 		@ILogService logService: ILogService,
 		@IExtHostApiDeprecationService deprecationService: IExtHostApiDeprecationService,
-		@IExtHostEditorTabs private readonly editorTabs: IExtHostEditorTabs
+		@IExtHostEditorTabs private readonly editorTabs: IExtHostEditorTabs,
 	) {
 		super(extHostRpc, initData, workspaceService, editorService, configurationService, extHostTerminalService, logService, deprecationService);
 		if (initData.remote.isRemote && initData.remote.authority) {
@@ -134,6 +136,22 @@ export class ExtHostTask extends ExtHostTaskBase {
 		return this._variableResolver;
 	}
 
+	private async getAFolder(workspaceFolders: vscode.WorkspaceFolder[] | undefined): Promise<IWorkspaceFolder> {
+		let folder = (workspaceFolders && workspaceFolders.length > 0) ? workspaceFolders[0] : undefined;
+		if (!folder) {
+			const userhome = URI.file(homedir());
+			folder = new WorkspaceFolder({ uri: userhome, name: resources.basename(userhome), index: 0 });
+		}
+		return {
+			uri: folder.uri,
+			name: folder.name,
+			index: folder.index,
+			toResource: () => {
+				throw new Error('Not implemented');
+			}
+		};
+	}
+
 	public async $resolveVariables(uriComponents: UriComponents, toResolve: { process?: { name: string; cwd?: string; path?: string }, variables: string[] }): Promise<{ process?: string, variables: { [key: string]: string; } }> {
 		const uri: URI = URI.revive(uriComponents);
 		const result = {
@@ -141,19 +159,18 @@ export class ExtHostTask extends ExtHostTaskBase {
 			variables: Object.create(null)
 		};
 		const workspaceFolder = await this._workspaceProvider.resolveWorkspaceFolder(uri);
-		const workspaceFolders = await this._workspaceProvider.getWorkspaceFolders2();
-		if (!workspaceFolders || !workspaceFolder) {
-			throw new Error('Unexpected: Tasks can only be run in a workspace folder');
-		}
+		const workspaceFolders = (await this._workspaceProvider.getWorkspaceFolders2()) ?? [];
+
 		const resolver = await this.getVariableResolver(workspaceFolders);
-		const ws: IWorkspaceFolder = {
+		const ws: IWorkspaceFolder = workspaceFolder ? {
 			uri: workspaceFolder.uri,
 			name: workspaceFolder.name,
 			index: workspaceFolder.index,
 			toResource: () => {
 				throw new Error('Not implemented');
 			}
-		};
+		} : await this.getAFolder(workspaceFolders);
+
 		for (let variable of toResolve.variables) {
 			result.variables[variable] = await resolver.resolveAsync(ws, variable);
 		}

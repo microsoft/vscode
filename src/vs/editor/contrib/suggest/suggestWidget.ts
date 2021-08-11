@@ -792,7 +792,8 @@ export class SuggestWidget implements IDisposable {
 			const cursorBox = this.editor.getScrolledVisiblePosition(this.editor.getPosition());
 			const cursorBottom = editorBox.top + cursorBox.top + cursorBox.height;
 			const maxHeightBelow = Math.min(bodyBox.height - cursorBottom - info.verticalPadding, fullHeight);
-			const maxHeightAbove = Math.min(editorBox.top + cursorBox.top - info.verticalPadding, fullHeight);
+			const availableSpaceAbove = editorBox.top + cursorBox.top - info.verticalPadding;
+			const maxHeightAbove = Math.min(availableSpaceAbove, fullHeight);
 			let maxHeight = Math.min(Math.max(maxHeightAbove, maxHeightBelow) + info.borderHeight, fullHeight);
 
 			if (height === this._cappedHeight?.capped) {
@@ -808,12 +809,11 @@ export class SuggestWidget implements IDisposable {
 				height = maxHeight;
 			}
 
-			const forceRenderingAboveRequiredSpace = 100;
-			if (height > maxHeightBelow || (this._forceRenderingAbove && maxHeightAbove > forceRenderingAboveRequiredSpace)) {
+			const forceRenderingAboveRequiredSpace = 150;
+			if (height > maxHeightBelow || (this._forceRenderingAbove && availableSpaceAbove > forceRenderingAboveRequiredSpace)) {
 				this._contentWidget.setPreference(ContentWidgetPositionPreference.ABOVE);
 				this.element.enableSashes(true, true, false, false);
 				maxHeight = maxHeightAbove;
-
 			} else {
 				this._contentWidget.setPreference(ContentWidgetPositionPreference.BELOW);
 				this.element.enableSashes(false, true, true, false);

@@ -60,6 +60,9 @@ export class TestingProgressUiService extends Disposable implements ITestingProg
 				const collected = collectTestStateCounts(false, allResults[0].counts);
 				this.updateCountsEmitter.fire(collected);
 				this.updateTextEmitter.fire(getTestProgressText(false, collected));
+			} else {
+				this.updateTextEmitter.fire('');
+				this.updateCountsEmitter.fire(collectTestStateCounts(false));
 			}
 
 			this.current.clear();

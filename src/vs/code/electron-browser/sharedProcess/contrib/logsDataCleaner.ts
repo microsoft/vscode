@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { join, dirname, basename } from 'vs/base/common/path';
-import { Promises } from 'vs/base/node/pfs';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { basename, dirname, join } from 'vs/base/common/path';
+import { Promises } from 'vs/base/node/pfs';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class LogsDataCleaner extends Disposable {

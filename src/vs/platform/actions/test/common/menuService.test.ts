@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { MenuRegistry, MenuId, isIMenuItem } from 'vs/platform/actions/common/actions';
-import { MenuService } from 'vs/platform/actions/common/menuService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { isIMenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { MenuService } from 'vs/platform/actions/common/menuService';
 import { NullCommandService } from 'vs/platform/commands/common/commands';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 

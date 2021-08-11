@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
-import { IExtensionIdentifier, EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, allSettings } from 'vs/platform/configuration/common/configurationRegistry';
-import { localize } from 'vs/nls';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { FormattingOptions } from 'vs/base/common/jsonFormatter';
-import { URI } from 'vs/base/common/uri';
-import { joinPath, isEqualOrParent, IExtUri } from 'vs/base/common/resources';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { distinct } from 'vs/base/common/arrays';
-import { isArray, isString, isObject } from 'vs/base/common/types';
+import { IStringDictionary } from 'vs/base/common/collections';
+import { Event } from 'vs/base/common/event';
+import { FormattingOptions } from 'vs/base/common/jsonFormatter';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IExtUri, isEqualOrParent, joinPath } from 'vs/base/common/resources';
+import { isArray, isObject, isString } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
 import { IHeaders } from 'vs/base/parts/request/common/request';
+import { localize } from 'vs/nls';
+import { allSettings, ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { EXTENSION_IDENTIFIER_PATTERN, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { ILogService } from 'vs/platform/log/common/log';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
 

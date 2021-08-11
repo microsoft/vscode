@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { sep } from 'vs/base/common/path';
 import { IdleValue } from 'vs/base/common/async';
+import { sep } from 'vs/base/common/path';
 
 // When comparing large numbers of strings it's better for performance to create an
 // Intl.Collator object and use the function provided by its compare property

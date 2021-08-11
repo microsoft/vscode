@@ -277,7 +277,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					}
 
 					table, th, tr {
-						vertical-align: top;
+						vertical-align: middle;
 						text-align: right;
 					}
 

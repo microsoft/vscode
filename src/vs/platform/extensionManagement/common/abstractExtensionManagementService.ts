@@ -3,37 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { toDisposable, Disposable } from 'vs/base/common/lifecycle';
-import {
-	IExtensionManagementService, IExtensionGalleryService, ILocalExtension,
-	IGalleryExtension,
-	InstallExtensionEvent, DidUninstallExtensionEvent,
-	IExtensionIdentifier,
-	IReportedExtension,
-	InstallOperation,
-	INSTALL_ERROR_MALICIOUS,
-	INSTALL_ERROR_INCOMPATIBLE,
-	ExtensionManagementError,
-	InstallOptions,
-	InstallVSIXOptions,
-	InstallExtensionResult,
-	UninstallOptions,
-	IGalleryMetadata,
-	StatisticType,
-	IExtensionManagementParticipant
-} from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions, getMaliciousExtensionsSet, getGalleryExtensionTelemetryData, ExtensionIdentifierWithVersion, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { Event, Emitter } from 'vs/base/common/event';
-import product from 'vs/platform/product/common/product';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { canceled, getErrorMessage } from 'vs/base/common/errors';
-import { URI } from 'vs/base/common/uri';
 import { Barrier, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { canceled, getErrorMessage } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
+import * as nls from 'vs/nls';
+import {
+	DidUninstallExtensionEvent, ExtensionManagementError, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementParticipant, IExtensionManagementService, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallExtensionEvent, InstallExtensionResult, InstallOperation, InstallOptions,
+	InstallVSIXOptions, INSTALL_ERROR_INCOMPATIBLE, INSTALL_ERROR_MALICIOUS, IReportedExtension, StatisticType, UninstallOptions
+} from 'vs/platform/extensionManagement/common/extensionManagement';
+import { areSameExtensions, ExtensionIdentifierWithVersion, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { ILogService } from 'vs/platform/log/common/log';
+import product from 'vs/platform/product/common/product';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export const INSTALL_ERROR_VALIDATING = 'validating';
 export const ERROR_UNKNOWN = 'unknown';

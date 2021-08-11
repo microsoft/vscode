@@ -60,7 +60,9 @@ export function createValidator(prop: IConfigurationPropertySchema): (value: any
 		}
 
 		if (prop.type === 'string') {
-			if (!isString(value)) {
+			if (prop.enum && !isStringArray(prop.enum)) {
+				errors.push(nls.localize('validations.stringIncorrectEnumOptions', 'The enum options should be strings, but there is a non-string option. Please file an issue with the extension author.'));
+			} else if (!isString(value)) {
 				errors.push(nls.localize('validations.stringIncorrectType', 'Incorrect type. Expected "string".'));
 			} else {
 				errors.push(...stringValidations.filter(validator => !validator.isValid(value)).map(validator => validator.message));

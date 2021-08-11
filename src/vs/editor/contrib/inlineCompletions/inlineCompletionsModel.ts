@@ -29,6 +29,7 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 	public readonly completionSession = this._register(new MutableDisposable<InlineCompletionsSession>());
 
 	private active: boolean = false;
+	private disposed = false;
 
 	constructor(
 		private readonly editor: IActiveCodeEditor,
@@ -59,6 +60,10 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 				this.hide();
 			}
 		}));
+
+		this._register(toDisposable(() => {
+			this.disposed = true;
+		}));
 	}
 
 	private handleUserInput() {
@@ -66,6 +71,9 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 			this.hide();
 		}
 		setTimeout(() => {
+			if (this.disposed) {
+				return;
+			}
 			// Wait for the cursor update that happens in the same iteration loop iteration
 			this.startSessionIfTriggered();
 		}, 0);

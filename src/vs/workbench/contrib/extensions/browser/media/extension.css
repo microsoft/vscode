@@ -182,3 +182,7 @@
 .extension-list-item .monaco-action-bar > .actions-container > .action-item.disabled {
 	min-width: 0;
 }
+
+.extension-list-item .monaco-action-bar .action-label.icon {
+	padding: 1px 2px;
+}

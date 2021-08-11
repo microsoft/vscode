@@ -34,7 +34,7 @@
     "jsonc-parser": "^2.2.1",
     "semver": "5.5.1",
     "typescript-vscode-sh-plugin": "^0.7.3",
-    "vscode-extension-telemetry": "0.2.2",
+    "vscode-extension-telemetry": "0.2.8",
     "vscode-nls": "^5.0.0"
   },
   "devDependencies": {
@@ -139,11 +139,7 @@
       "order": 20,
       "properties": {
         "typescript.tsdk": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null,
+          "type": "string",
           "markdownDescription": "%typescript.tsdk.desc%",
           "scope": "window"
         },
@@ -163,11 +159,7 @@
           "scope": "window"
         },
         "typescript.npm": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null,
+          "type": "string",
           "markdownDescription": "%typescript.npm%",
           "scope": "machine"
         },
@@ -282,45 +274,44 @@
             "%inlayHints.parameterNames.literals%",
             "%inlayHints.parameterNames.all%"
           ],
-          "default": "none",
-          "description": "%configuration.inlayHints.parameterNames.enabled%",
+          "default": "literals",
+          "markdownDescription": "%configuration.inlayHints.parameterNames.enabled%",
           "scope": "resource"
         },
         "typescript.inlayHints.parameterNames.suppressWhenArgumentMatchesName": {
           "type": "boolean",
           "default": true,
-          "description": "%configuration.inlayHints.parameterNames.suppressWhenArgumentMatchesName%",
+          "markdownDescription": "%configuration.inlayHints.parameterNames.suppressWhenArgumentMatchesName%",
           "scope": "resource"
         },
         "typescript.inlayHints.parameterTypes.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "%configuration.inlayHints.parameterTypes.enabled%",
+          "markdownDescription": "%configuration.inlayHints.parameterTypes.enabled%",
           "scope": "resource"
         },
         "typescript.inlayHints.variableTypes.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "%configuration.inlayHints.variableTypes.enabled%",
+          "markdownDescription": "%configuration.inlayHints.variableTypes.enabled%",
           "scope": "resource"
         },
-
         "typescript.inlayHints.propertyDeclarationTypes.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "%configuration.inlayHints.propertyDeclarationTypes.enabled%",
+          "markdownDescription": "%configuration.inlayHints.propertyDeclarationTypes.enabled%",
           "scope": "resource"
         },
         "typescript.inlayHints.functionLikeReturnTypes.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "%configuration.inlayHints.functionLikeReturnTypes.enabled%",
+          "markdownDescription": "%configuration.inlayHints.functionLikeReturnTypes.enabled%",
           "scope": "resource"
         },
         "typescript.inlayHints.enumMemberValues.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "%configuration.inlayHints.enumMemberValues.enabled%",
+          "markdownDescription": "%configuration.inlayHints.enumMemberValues.enabled%",
           "scope": "resource"
         },
         "javascript.inlayHints.parameterNames.enabled": {
@@ -336,43 +327,43 @@
             "%inlayHints.parameterNames.all%"
           ],
           "default": "none",
-          "description": "%configuration.inlayHints.parameterNames.enabled%",
+          "markdownDescription": "%configuration.inlayHints.parameterNames.enabled%",
           "scope": "resource"
         },
         "javascript.inlayHints.parameterNames.suppressWhenArgumentMatchesName": {
           "type": "boolean",
           "default": true,
-          "description": "%configuration.inlayHints.parameterNames.suppressWhenArgumentMatchesName%",
+          "markdownDescription": "%configuration.inlayHints.parameterNames.suppressWhenArgumentMatchesName%",
           "scope": "resource"
         },
         "javascript.inlayHints.parameterTypes.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "%configuration.inlayHints.parameterTypes.enabled%",
+          "markdownDescription": "%configuration.inlayHints.parameterTypes.enabled%",
           "scope": "resource"
         },
         "javascript.inlayHints.variableTypes.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "%configuration.inlayHints.variableTypes.enabled%",
+          "markdownDescription": "%configuration.inlayHints.variableTypes.enabled%",
           "scope": "resource"
         },
         "javascript.inlayHints.propertyDeclarationTypes.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "%configuration.inlayHints.propertyDeclarationTypes.enabled%",
+          "markdownDescription": "%configuration.inlayHints.propertyDeclarationTypes.enabled%",
           "scope": "resource"
         },
         "javascript.inlayHints.functionLikeReturnTypes.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "%configuration.inlayHints.functionLikeReturnTypes.enabled%",
+          "markdownDescription": "%configuration.inlayHints.functionLikeReturnTypes.enabled%",
           "scope": "resource"
         },
         "javascript.inlayHints.enumMemberValues.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "%configuration.inlayHints.enumMemberValues.enabled%",
+          "markdownDescription": "%configuration.inlayHints.enumMemberValues.enabled%",
           "scope": "resource"
         },
         "javascript.suggest.includeCompletionsForImportStatements": {
@@ -752,10 +743,7 @@
           "scope": "resource"
         },
         "typescript.locale": {
-          "type": [
-            "string",
-            "null"
-          ],
+          "type": "string",
           "enum": [
             "de",
             "es",
@@ -766,10 +754,8 @@
             "ko",
             "ru",
             "zh-CN",
-            "zh-TW",
-            null
+            "zh-TW"
           ],
-          "default": null,
           "markdownDescription": "%typescript.locale%",
           "scope": "window"
         },

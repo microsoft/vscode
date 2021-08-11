@@ -10,11 +10,6 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { TestMessageSeverity } from 'vs/workbench/api/common/extHostTypes';
 
-export interface ITestIdWithSrc {
-	testId: string;
-	controllerId: string;
-}
-
 export const enum TestResultState {
 	Unset = 0,
 	Queued = 1,
@@ -24,9 +19,6 @@ export const enum TestResultState {
 	Skipped = 5,
 	Errored = 6
 }
-
-export const identifyTest = (test: { controllerId: string, item: { extId: string } }): ITestIdWithSrc =>
-	({ testId: test.item.extId, controllerId: test.controllerId });
 
 export const enum TestRunProfileBitset {
 	Run = 1 << 1,
@@ -55,6 +47,7 @@ export interface ITestRunProfile {
 	label: string;
 	group: TestRunProfileBitset;
 	isDefault: boolean;
+	tag: string | null;
 	hasConfigurationHandler: boolean;
 }
 
@@ -69,7 +62,7 @@ export interface ResolvedTestRunRequest {
 		profileGroup: TestRunProfileBitset;
 		profileId: number;
 	}[]
-	exclude?: ITestIdWithSrc[];
+	exclude?: string[];
 	isAutoRun?: boolean;
 }
 
@@ -125,6 +118,17 @@ export interface ITestRunTask {
 	running: boolean;
 }
 
+export interface ITestTag {
+	id: string;
+	label?: string;
+}
+
+export interface ITestTagDisplayInfo {
+	id: string;
+	displayId: string;
+	label?: string;
+}
+
 /**
  * The TestItem from .d.ts, as a plain object without children.
  */
@@ -132,6 +136,7 @@ export interface ITestItem {
 	/** ID of the test given by the test controller */
 	extId: string;
 	label: string;
+	tags: string[];
 	busy?: boolean;
 	children?: never;
 	uri?: URI;

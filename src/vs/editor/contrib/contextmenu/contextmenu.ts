@@ -89,6 +89,7 @@ export class ContextMenuController implements IEditorContribution {
 		}
 
 		e.event.preventDefault();
+		e.event.stopPropagation();
 
 		if (e.target.type !== MouseTargetType.CONTENT_TEXT && e.target.type !== MouseTargetType.CONTENT_EMPTY && e.target.type !== MouseTargetType.TEXTAREA) {
 			return; // only support mouse click into text or native context menu key for now

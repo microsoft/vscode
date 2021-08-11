@@ -45,7 +45,6 @@ export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey
 
 // Is Notebook
 export const NOTEBOOK_IS_ACTIVE_EDITOR = ContextKeyExpr.equals('activeEditor', NOTEBOOK_EDITOR_ID);
-export const NOTEBOOK_DIFF_IS_ACTIVE_EDITOR = ContextKeyExpr.equals('activeEditor', NOTEBOOK_DIFF_EDITOR_ID);
 
 // Editor keys
 export const NOTEBOOK_EDITOR_FOCUSED = new RawContextKey<boolean>('notebookEditorFocused', false);
@@ -66,6 +65,7 @@ export const NOTEBOOK_CELL_MARKDOWN_EDIT_MODE = new RawContextKey<boolean>('note
 export const NOTEBOOK_CELL_LINE_NUMBERS = new RawContextKey<'on' | 'off' | 'inherit'>('notebookCellLineNumbers', 'inherit');
 export type NotebookCellExecutionStateContext = 'idle' | 'pending' | 'executing' | 'succeeded' | 'failed';
 export const NOTEBOOK_CELL_EXECUTION_STATE = new RawContextKey<NotebookCellExecutionStateContext>('notebookCellExecutionState', undefined);
+export const NOTEBOOK_CELL_EXECUTING = new RawContextKey<boolean>('notebookCellExecuting', false); // This only exists to simplify a context key expression, see #129625
 export const NOTEBOOK_CELL_HAS_OUTPUTS = new RawContextKey<boolean>('notebookCellHasOutputs', false);
 export const NOTEBOOK_CELL_INPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellInputIsCollapsed', false);
 export const NOTEBOOK_CELL_OUTPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellOutputIsCollapsed', false);
@@ -83,6 +83,8 @@ export const EXPAND_CELL_INPUT_COMMAND_ID = 'notebook.cell.expandCellInput';
 export const EXECUTE_CELL_COMMAND_ID = 'notebook.cell.execute';
 export const CHANGE_CELL_LANGUAGE = 'notebook.cell.changeLanguage';
 export const QUIT_EDIT_CELL_COMMAND_ID = 'notebook.cell.quitEdit';
+export const EXPAND_CELL_OUTPUT_COMMAND_ID = 'notebook.cell.expandCellOutput';
+
 
 //#endregion
 
@@ -737,8 +739,7 @@ export interface INotebookCellList {
 export interface BaseCellRenderTemplate {
 	rootContainer: HTMLElement;
 	editorPart: HTMLElement;
-	collapsedPart: HTMLElement;
-	expandButton: HTMLElement;
+	cellInputCollapsedContainer: HTMLElement;
 	contextKeyService: IContextKeyService;
 	container: HTMLElement;
 	cellContainer: HTMLElement;
@@ -769,6 +770,7 @@ export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
 	runButtonContainer: HTMLElement;
 	executionOrderLabel: HTMLElement;
 	outputContainer: HTMLElement;
+	cellOutputCollapsedContainer: HTMLElement;
 	outputShowMoreContainer: HTMLElement;
 	focusSinkElement: HTMLElement;
 	editor: ICodeEditor;

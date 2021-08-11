@@ -3107,7 +3107,7 @@ export class NotebookCellOutputItem {
 	) {
 		const mimeNormalized = normalizeMimeType(mime, true);
 		if (!mimeNormalized) {
-			throw new Error('INVALID mime type, must not be empty or falsy: ' + mime);
+			throw new Error(`INVALID mime type: ${mime}. Must be in the format "type/subtype[;optionalparameter]"`);
 		}
 		this.mime = mimeNormalized;
 	}
@@ -3337,6 +3337,14 @@ export class TestMessage implements vscode.TestMessage {
 	}
 
 	constructor(public message: string | vscode.MarkdownString) { }
+}
+
+@es5ClassCompat
+export class TestTag implements vscode.TestTag {
+	constructor(
+		public readonly id: string,
+		public readonly label?: string,
+	) { }
 }
 
 //#endregion

@@ -452,9 +452,12 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 			this._panelPosition = this._layoutService.getPanelPosition();
 			this._terminalLocation = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
 			const orientation = this._terminalLocation === ViewContainerLocation.Panel && this._panelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
-			const newLocal = this._instantiationService.createInstance(SplitPaneContainer, this._groupElement, orientation);
-			this._splitPaneContainer = newLocal;
+			this._splitPaneContainer = this._instantiationService.createInstance(SplitPaneContainer, this._groupElement, orientation);
 			this.terminalInstances.forEach(instance => this._splitPaneContainer!.split(instance, this._activeInstanceIndex + 1));
+			if (this._initialRelativeSizes) {
+				this.resizePanes(this._initialRelativeSizes);
+				this._initialRelativeSizes = undefined;
+			}
 		}
 		this.setVisible(this._isVisible);
 	}
@@ -521,10 +524,6 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 				this._onPanelOrientationChanged.fire(this._splitPaneContainer.orientation);
 			}
 			this._splitPaneContainer.layout(width, height);
-			if (this._initialRelativeSizes && height > 0 && width > 0) {
-				this.resizePanes(this._initialRelativeSizes);
-				this._initialRelativeSizes = undefined;
-			}
 		}
 	}
 
@@ -557,8 +556,6 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 			this._initialRelativeSizes = relativeSizes;
 			return;
 		}
-		// for the local case
-		this._initialRelativeSizes = relativeSizes;
 
 		this._splitPaneContainer.resizePanes(relativeSizes);
 	}

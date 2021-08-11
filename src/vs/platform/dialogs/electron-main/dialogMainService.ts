@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { MessageBoxOptions, MessageBoxReturnValue, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, dialog, FileFilter, BrowserWindow } from 'electron';
+import { BrowserWindow, dialog, FileFilter, MessageBoxOptions, MessageBoxReturnValue, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'electron';
 import { Queue } from 'vs/base/common/async';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
-import { isMacintosh } from 'vs/base/common/platform';
-import { dirname } from 'vs/base/common/path';
-import { normalizeNFC } from 'vs/base/common/normalization';
-import { Promises } from 'vs/base/node/pfs';
-import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { localize } from 'vs/nls';
-import { WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';
+import { hash } from 'vs/base/common/hash';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { hash } from 'vs/base/common/hash';
+import { normalizeNFC } from 'vs/base/common/normalization';
+import { dirname } from 'vs/base/common/path';
+import { isMacintosh } from 'vs/base/common/platform';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import { Promises } from 'vs/base/node/pfs';
+import { localize } from 'vs/nls';
+import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IStateMainService } from 'vs/platform/state/electron-main/state';
+import { WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';
 
 export const IDialogMainService = createDecorator<IDialogMainService>('dialogMainService');
 

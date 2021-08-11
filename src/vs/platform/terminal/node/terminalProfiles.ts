@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { normalize, basename, delimiter } from 'vs/base/common/path';
-import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
-import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import * as cp from 'child_process';
-import { ILogService } from 'vs/platform/log/common/log';
-import * as pfs from 'vs/base/node/pfs';
-import { ITerminalEnvironment, ITerminalExecutable, ITerminalProfile, ITerminalProfileSource, ProfileSource, TerminalIcon, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
+import { basename, delimiter, normalize } from 'vs/base/common/path';
 import { isLinux, isWindows } from 'vs/base/common/platform';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { URI } from 'vs/base/common/uri';
+import * as pfs from 'vs/base/node/pfs';
+import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ILogService } from 'vs/platform/log/common/log';
+import { ITerminalEnvironment, ITerminalExecutable, ITerminalProfile, ITerminalProfileSource, ProfileSource, TerminalIcon, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 let profileSources: Map<string, IPotentialTerminalProfile> | undefined;
 

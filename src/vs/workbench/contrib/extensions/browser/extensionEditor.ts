@@ -836,11 +836,11 @@ export class ExtensionEditor extends EditorPane {
 			append(moreInfo,
 				$('.more-info-entry', undefined,
 					$('div', undefined, localize('release date', "Released on")),
-					$('div', undefined, new Date(gallery.releaseDate).toLocaleString())
+					$('div', undefined, new Date(gallery.releaseDate).toLocaleString(undefined, { hour12: false }))
 				),
 				$('.more-info-entry', undefined,
 					$('div', undefined, localize('last updated', "Last updated")),
-					$('div', undefined, new Date(gallery.lastUpdated).toLocaleString())
+					$('div', undefined, new Date(gallery.lastUpdated).toLocaleString(undefined, { hour12: false }))
 				)
 			);
 		}
@@ -856,7 +856,7 @@ export class ExtensionEditor extends EditorPane {
 	}
 
 	private openContributions(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
-		const content = $('div', { class: 'subcontent', tabindex: '0' });
+		const content = $('div.subcontent.feature-contributions', { tabindex: '0' });
 		return this.loadContents(() => this.extensionManifest!.get(), template.content)
 			.then(manifest => {
 				if (token.isCancellationRequested) {
@@ -1644,14 +1644,17 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
-		collector.addRule(`.monaco-workbench .extension-editor .content a { color: ${link}; }`);
+		collector.addRule(`.monaco-workbench .extension-editor .content .details .additional-details-container .resources-container a { color: ${link}; }`);
+		collector.addRule(`.monaco-workbench .extension-editor .content .feature-contributions a { color: ${link}; }`);
 		collector.addRule(`.monaco-workbench .extension-editor > .header > .details > .actions-status-container > .status > .status-text a { color: ${link}; }`);
 	}
 
 	const activeLink = theme.getColor(textLinkActiveForeground);
 	if (activeLink) {
-		collector.addRule(`.monaco-workbench .extension-editor .content a:hover,
-			.monaco-workbench .extension-editor .content a:active { color: ${activeLink}; }`);
+		collector.addRule(`.monaco-workbench .extension-editor .content .details .additional-details-container .resources-container a:hover,
+			.monaco-workbench .extension-editor .content .details .additional-details-container .resources-container a:active { color: ${activeLink}; }`);
+		collector.addRule(`.monaco-workbench .extension-editor .content .feature-contributions a:hover,
+			.monaco-workbench .extension-editor .content .feature-contributions a:active { color: ${activeLink}; }`);
 		collector.addRule(`.monaco-workbench .extension-editor > .header > .details > .actions-status-container > .status > .status-text a:hover,
 			.monaco-workbench .extension-editor > .header > .details > actions-status-container > .status > .status-text a:active { color: ${activeLink}; }`);
 

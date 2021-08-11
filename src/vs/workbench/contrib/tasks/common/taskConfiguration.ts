@@ -1230,7 +1230,7 @@ const partialSource: Partial<Tasks.TaskSource> = {
 	config: undefined
 };
 
-namespace GroupKind {
+export namespace GroupKind {
 	export function from(this: void, external: string | GroupKind | undefined): Tasks.TaskGroup | undefined {
 		if (external === undefined) {
 			return undefined;
@@ -1243,6 +1243,18 @@ namespace GroupKind {
 			return { _id: group, isDefault };
 		}
 		return undefined;
+	}
+
+	export function to(group: Tasks.TaskGroup | string): GroupKind | string {
+		if (Types.isString(group)) {
+			return group;
+		} else if (!group.isDefault) {
+			return group._id;
+		}
+		return {
+			kind: group._id,
+			isDefault: group.isDefault
+		};
 	}
 }
 
@@ -1729,9 +1741,14 @@ namespace TaskParser {
 			}
 			context.taskLoadIssues = Objects.deepClone(baseLoadIssues);
 		}
-		if ((defaultBuildTask.rank > -1) && (defaultBuildTask.rank < 2) && defaultBuildTask.task) {
+		// There is some special logic for tasks with the labels "build" and "test".
+		// Even if they are not marked as a task group Build or Test, we automagically group them as such.
+		// However, if they are already grouped as Build or Test, we don't need to add this grouping.
+		const defaultBuildGroupName = Types.isString(defaultBuildTask.task?.configurationProperties.group) ? defaultBuildTask.task?.configurationProperties.group : defaultBuildTask.task?.configurationProperties.group?._id;
+		const defaultTestTaskGroupName = Types.isString(defaultTestTask.task?.configurationProperties.group) ? defaultTestTask.task?.configurationProperties.group : defaultTestTask.task?.configurationProperties.group?._id;
+		if ((defaultBuildGroupName !== Tasks.TaskGroup.Build._id) && (defaultBuildTask.rank > -1) && (defaultBuildTask.rank < 2) && defaultBuildTask.task) {
 			defaultBuildTask.task.configurationProperties.group = Tasks.TaskGroup.Build;
-		} else if ((defaultTestTask.rank > -1) && (defaultTestTask.rank < 2) && defaultTestTask.task) {
+		} else if ((defaultTestTaskGroupName !== Tasks.TaskGroup.Test._id) && (defaultTestTask.rank > -1) && (defaultTestTask.rank < 2) && defaultTestTask.task) {
 			defaultTestTask.task.configurationProperties.group = Tasks.TaskGroup.Test;
 		}
 

@@ -29,6 +29,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { distinct } from 'vs/base/common/arrays';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 type FileExtensionSuggestionClassification = {
 	userReaction: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
@@ -152,8 +153,8 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 	}
 
 	private onModelAdded(model: ITextModel): void {
-		const uri = model.uri;
-		const supportedSchemes = [Schemas.untitled, Schemas.file, Schemas.vscodeRemote, Schemas.vscodeNotebookCell];
+		const uri = model.uri.scheme === Schemas.vscodeNotebookCell ? CellUri.parse(model.uri)?.notebook : model.uri;
+		const supportedSchemes = [Schemas.untitled, Schemas.file, Schemas.vscodeRemote];
 		if (!uri || !supportedSchemes.includes(uri.scheme)) {
 			return;
 		}

@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./contextMenuHandler';
-
-import { ActionRunner, IRunEvent, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
-import { combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Menu } from 'vs/base/browser/ui/menu/menu';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
-import { EventType, $, isHTMLElement, addDisposableListener } from 'vs/base/browser/dom';
-import { attachMenuStyler } from 'vs/platform/theme/common/styler';
+import { $, addDisposableListener, EventType, isHTMLElement } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { Menu } from 'vs/base/browser/ui/menu/menu';
+import { ActionRunner, IRunEvent, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import 'vs/css!./contextMenuHandler';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { attachMenuStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+
 
 export interface IContextMenuHandlerOptions {
 	blockMouse: boolean;

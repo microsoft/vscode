@@ -66,11 +66,6 @@ export interface IUntitledTextEditorModelManager {
 	/**
 	 * Events for when untitled text editors change (e.g. getting dirty, saved or reverted).
 	 */
-	readonly onDidChangeContent: Event<IUntitledTextEditorModel>;
-
-	/**
-	 * Events for when untitled text editors change (e.g. getting dirty, saved or reverted).
-	 */
 	readonly onDidChangeDirty: Event<IUntitledTextEditorModel>;
 
 	/**
@@ -127,9 +122,6 @@ export interface IUntitledTextEditorService extends IUntitledTextEditorModelMana
 export class UntitledTextEditorService extends Disposable implements IUntitledTextEditorService {
 
 	declare readonly _serviceBrand: undefined;
-
-	private readonly _onDidChangeContent = this._register(new Emitter<IUntitledTextEditorModel>());
-	readonly onDidChangeContent = this._onDidChangeContent.event;
 
 	private readonly _onDidChangeDirty = this._register(new Emitter<IUntitledTextEditorModel>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
@@ -243,7 +235,6 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 
 		// Install model listeners
 		const modelListeners = new DisposableStore();
-		modelListeners.add(model.onDidChangeContent(() => this._onDidChangeContent.fire(model)));
 		modelListeners.add(model.onDidChangeDirty(() => this._onDidChangeDirty.fire(model)));
 		modelListeners.add(model.onDidChangeName(() => this._onDidChangeLabel.fire(model)));
 		modelListeners.add(model.onDidChangeEncoding(() => this._onDidChangeEncoding.fire(model)));

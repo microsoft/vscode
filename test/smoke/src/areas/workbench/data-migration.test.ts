@@ -6,6 +6,7 @@
 import { Application, ApplicationOptions, Quality } from '../../../../automation';
 import { join } from 'path';
 import { ParsedArgs } from 'minimist';
+import { timeout } from '../../utils';
 
 export function setup(opts: ParsedArgs, testDataPath: string) {
 
@@ -31,7 +32,7 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 			stableOptions.quality = Quality.Stable;
 
 			const stableApp = new Application(stableOptions);
-			await stableApp!.start();
+			await stableApp.start();
 
 			// Open 3 editors and pin 2 of them
 			await stableApp.workbench.quickaccess.openFile('www');
@@ -48,10 +49,10 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 			insiderOptions.userDataDir = userDataDir;
 
 			const insidersApp = new Application(insiderOptions);
-			await insidersApp!.start(false /* not expecting walkthrough path */);
+			await insidersApp.start();
 
 			// Verify 3 editors are open
-			await insidersApp.workbench.editors.waitForEditorFocus('Untitled-1');
+			await insidersApp.workbench.editors.selectTab('Untitled-1');
 			await insidersApp.workbench.editors.selectTab('app.js');
 			await insidersApp.workbench.editors.selectTab('www');
 
@@ -72,7 +73,7 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 			stableOptions.quality = Quality.Stable;
 
 			const stableApp = new Application(stableOptions);
-			await stableApp!.start();
+			await stableApp.start();
 
 			await stableApp.workbench.editors.newUntitledFile();
 
@@ -85,13 +86,15 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 			await stableApp.workbench.quickaccess.openFile(readmeMd);
 			await stableApp.workbench.editor.waitForTypeInEditor(readmeMd, textToType);
 
+			await timeout(2000); // give time to store the backup before stopping the app
+
 			await stableApp.stop();
 
 			const insiderOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
 			insiderOptions.userDataDir = userDataDir;
 
 			const insidersApp = new Application(insiderOptions);
-			await insidersApp!.start(false /* not expecting walkthrough path */);
+			await insidersApp.start();
 
 			await insidersApp.workbench.editors.waitForTab(readmeMd, true);
 			await insidersApp.workbench.editors.selectTab(readmeMd);

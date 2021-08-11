@@ -4,24 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IUserDataSyncStoreService, SyncResource, UserDataSyncErrorCode, UserDataSyncStoreError, IUserDataSyncStoreManagementService, IUserDataSyncStore } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ConfigurationSyncStore } from 'vs/base/common/product';
-import { isWeb } from 'vs/base/common/platform';
-import { RequestsSession, UserDataSyncStoreService, UserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { newWriteableBufferStream, VSBuffer } from 'vs/base/common/buffer';
 import { timeout } from 'vs/base/common/async';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { newWriteableBufferStream, VSBuffer } from 'vs/base/common/buffer';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
-import product from 'vs/platform/product/common/product';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { isWeb } from 'vs/base/common/platform';
+import { ConfigurationSyncStore } from 'vs/base/common/product';
 import { URI } from 'vs/base/common/uri';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IFileService } from 'vs/platform/files/common/files';
+import { NullLogService } from 'vs/platform/log/common/log';
+import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IRequestService } from 'vs/platform/request/common/request';
+import { IUserDataSyncStore, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, SyncResource, UserDataSyncErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
+import { RequestsSession, UserDataSyncStoreManagementService, UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
+import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 
 suite('UserDataSyncStoreManagementService', () => {
 	const disposableStore = new DisposableStore();

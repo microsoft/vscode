@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { $, addDisposableListener, clearNode, EventHelper, EventType, hide, isAncestor, show } from 'vs/base/browser/dom';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ButtonBar, ButtonWithDescription, IButtonStyles } from 'vs/base/browser/ui/button/button';
+import { ISimpleCheckboxStyles, SimpleCheckbox } from 'vs/base/browser/ui/checkbox/checkbox';
+import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { Action } from 'vs/base/common/actions';
+import { Codicon, registerCodicon } from 'vs/base/common/codicons';
+import { Color } from 'vs/base/common/color';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import 'vs/css!./dialog';
 import * as nls from 'vs/nls';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { $, hide, show, EventHelper, clearNode, isAncestor, addDisposableListener, EventType } from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Color } from 'vs/base/common/color';
-import { ButtonBar, ButtonWithDescription, IButtonStyles } from 'vs/base/browser/ui/button/button';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Action } from 'vs/base/common/actions';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { isMacintosh, isLinux } from 'vs/base/common/platform';
-import { SimpleCheckbox, ISimpleCheckboxStyles } from 'vs/base/browser/ui/checkbox/checkbox';
-import { Codicon, registerCodicon } from 'vs/base/common/codicons';
-import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 
 export interface IDialogInputOptions {
 	readonly placeholder?: string;
@@ -495,9 +495,9 @@ export class Dialog extends Disposable {
 			buttonMap.push({ label: button, index });
 		});
 
-		// macOS/linux: reverse button order
+		// macOS/linux: reverse button order if `cancelId` is defined
 		if (isMacintosh || isLinux) {
-			if (cancelId !== undefined) {
+			if (cancelId !== undefined && cancelId < buttons.length) {
 				const cancelButton = buttonMap.splice(cancelId, 1)[0];
 				buttonMap.reverse();
 				buttonMap.splice(buttonMap.length - 1, 0, cancelButton);

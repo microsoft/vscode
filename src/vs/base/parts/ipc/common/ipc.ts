@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter, Relay, EventMultiplexer } from 'vs/base/common/event';
-import { IDisposable, toDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import * as errors from 'vs/base/common/errors';
-import { VSBuffer } from 'vs/base/common/buffer';
 import { getRandomElement } from 'vs/base/common/arrays';
-import { isFunction, isUndefinedOrNull } from 'vs/base/common/types';
+import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { memoize } from 'vs/base/common/decorators';
+import * as errors from 'vs/base/common/errors';
+import { Emitter, Event, EventMultiplexer, Relay } from 'vs/base/common/event';
+import { combinedDisposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import * as strings from 'vs/base/common/strings';
-import { memoize } from 'vs/base/common/decorators';
+import { isFunction, isUndefinedOrNull } from 'vs/base/common/types';
 
 /**
  * An `IChannel` is an abstraction over a collection of commands.
