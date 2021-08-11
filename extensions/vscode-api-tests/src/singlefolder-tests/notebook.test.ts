@@ -834,7 +834,6 @@ suite('Notebook API tests', function () {
 		assert.ok(cell.executionSummary);
 		assert.strictEqual(cell.executionSummary!.success, true);
 		assert.strictEqual(typeof cell.executionSummary!.executionOrder, 'number');
-
 	});
 
 	test('initialize executionSummary', async () => {

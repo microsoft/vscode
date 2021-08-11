@@ -468,6 +468,10 @@ class NotebookCellExecutionTask extends Disposable {
 					runEndTime: endTime,
 					lastRunSuccess: success
 				});
+
+				// The last update needs to be ordered correctly and applied immediately,
+				// so we use updateSoon and immediately flush.
+				that._collector.flush();
 			},
 
 			clearOutput(cell?: vscode.NotebookCell): Thenable<void> {
@@ -511,13 +515,17 @@ class TimeoutBasedCollector<T> {
 		this.batch.push(item);
 		if (!this.waitPromise) {
 			this.waitPromise = timeout(this.delay).then(() => {
-				this.waitPromise = undefined;
-				const batch = this.batch;
-				this.batch = [];
-				return this.callback(batch);
+				return this.flush();
 			});
 		}
 
 		return this.waitPromise;
+	}
+
+	flush(): void | Promise<void> {
+		this.waitPromise = undefined;
+		const batch = this.batch;
+		this.batch = [];
+		return this.callback(batch);
 	}
 }
