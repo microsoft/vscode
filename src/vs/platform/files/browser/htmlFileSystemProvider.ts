@@ -120,10 +120,6 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 	//#region File Reading/Writing
 
 	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
-		if (typeof opts.length === 'number' || typeof opts.position === 'number') {
-			throw new Error('Unsupported'); // TODO implement support for `length` and `position`
-		}
-
 		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer, {
 			// Set a highWaterMark to prevent the stream
 			// for file upload to produce large buffers
@@ -139,25 +135,44 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 				}
 
 				const file = await handle.getFile();
-				const reader: ReadableStreamDefaultReader<Uint8Array> = file.stream().getReader();
 
-				let res = await reader.read();
-				while (!res.done) {
-					if (token.isCancellationRequested) {
-						break;
+				// Partial file: implemented simply via `readFile`
+				if (typeof opts.length === 'number' || typeof opts.position === 'number') {
+					let buffer = new Uint8Array(await file.arrayBuffer());
+
+					if (typeof opts?.position === 'number') {
+						buffer = buffer.slice(opts.position);
 					}
 
-					// Write buffer into stream but make sure to wait
-					// in case the `highWaterMark` is reached
-					await stream.write(res.value);
-
-					if (token.isCancellationRequested) {
-						break;
+					if (typeof opts?.length === 'number') {
+						buffer = buffer.slice(0, opts.length);
 					}
 
-					res = await reader.read();
+					stream.end(buffer);
 				}
-				stream.end(undefined);
+
+				// Entire file
+				else {
+					const reader: ReadableStreamDefaultReader<Uint8Array> = file.stream().getReader();
+
+					let res = await reader.read();
+					while (!res.done) {
+						if (token.isCancellationRequested) {
+							break;
+						}
+
+						// Write buffer into stream but make sure to wait
+						// in case the `highWaterMark` is reached
+						await stream.write(res.value);
+
+						if (token.isCancellationRequested) {
+							break;
+						}
+
+						res = await reader.read();
+					}
+					stream.end(undefined);
+				}
 			} catch (error) {
 				stream.error(error);
 				stream.end();
@@ -181,20 +196,34 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 	async writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
 		let handle = await this.getFileHandle(resource);
 
-		if (!handle && opts.create) {
-			const parent = await this.getParentDirectoryHandle(resource);
+		// Validate target unless { create: true, overwrite: true }
+		if (!opts.create || !opts.overwrite) {
+			if (handle) {
+				if (!opts.overwrite) {
+					throw createFileSystemProviderError(new Error(`File already exists, writeFile '${resource.toString(true)}'`), FileSystemProviderErrorCode.FileExists);
+				}
+			} else {
+				if (!opts.create) {
+					throw createFileSystemProviderError(new Error(`No such file, writeFile '${resource.toString(true)}'`), FileSystemProviderErrorCode.FileNotFound);
+				}
+			}
+		}
 
+		// Create target as needed
+		if (!handle) {
+			const parent = await this.getParentDirectoryHandle(resource);
 			if (!parent) {
-				throw new Error('Stat error: no parent found');
+				throw createFileSystemProviderError(new Error(`No such parent directory, writeFile '${resource.toString(true)}'`), FileSystemProviderErrorCode.FileNotFound);
 			}
 
 			handle = await parent.getFileHandle(basename(resource), { create: true });
+
+			if (!handle) {
+				throw createFileSystemProviderError(new Error(`Unable to create file , writeFile '${resource.toString(true)}'`), FileSystemProviderErrorCode.Unknown);
+			}
 		}
 
-		if (!handle) {
-			throw new Error('File not found.');
-		}
-
+		// Write to target overwriting any existing contents
 		const writable = await handle.createWritable();
 		await writable.write(content);
 		await writable.close();
