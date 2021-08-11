@@ -434,7 +434,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					onExit.dispose();
 					this.fireTaskEvent(TaskEvent.create(TaskEventKind.Terminated, task));
 				} catch (error) {
-					// Do nothing.
+
 				}
 				resolve({ success: true, task: task });
 			});
