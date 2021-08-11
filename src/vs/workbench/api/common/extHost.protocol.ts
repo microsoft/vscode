@@ -516,12 +516,11 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 
 export interface TransferQuickPickItems extends quickInput.IQuickPickItem {
 	handle: number;
+	buttons?: TransferQuickInputButton[];
 }
 
-export interface TransferQuickInputButton {
+export interface TransferQuickInputButton extends quickInput.IQuickInputButton {
 	handle: number;
-	iconPath: { dark: URI; light?: URI; } | { id: string; };
-	tooltip?: string;
 }
 
 export type TransferQuickInput = TransferQuickPick | TransferInputBox;
@@ -1706,6 +1705,7 @@ export interface ExtHostQuickOpenShape {
 	$onDidAccept(sessionId: number): void;
 	$onDidChangeValue(sessionId: number, value: string): void;
 	$onDidTriggerButton(sessionId: number, handle: number): void;
+	$onDidTriggerItemButton(sessionId: number, itemHandle: number, buttonHandle: number): void;
 	$onDidHide(sessionId: number): void;
 }
 
