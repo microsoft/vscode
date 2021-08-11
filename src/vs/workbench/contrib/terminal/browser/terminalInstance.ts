@@ -209,8 +209,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get icon(): TerminalIcon | undefined { return this._getIcon(); }
 	get color(): string | undefined { return this._getColor(); }
 
-	private readonly _onExit = this._register(new Emitter<number | undefined>());
+	// The onExit event is special in that it fires and is disposed after the terminal instance
+	// itself is disposed
+	private readonly _onExit = new Emitter<number | undefined>();
 	readonly onExit = this._onExit.event;
+
 	private readonly _onDisposed = this._register(new Emitter<ITerminalInstance>());
 	readonly onDisposed = this._onDisposed.event;
 	private readonly _onProcessIdReady = this._register(new Emitter<ITerminalInstance>());
@@ -1330,6 +1333,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		this._onExit.fire(this._exitCode);
+		this._onExit.dispose();
 	}
 
 	/**
