@@ -49,6 +49,13 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { ILifecycleService, ShutdownReason, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
+function createAwaitableFlag() {
+	let resolve!: () => void;
+	const promise = new Promise<void>(res => resolve = res);
+
+	return { promise, resolve };
+}
+
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
 
@@ -72,8 +79,9 @@ export class TerminalService implements ITerminalService {
 	private _remoteTerminalsInitPromise: Promise<void> | undefined;
 	private _localTerminalsInitPromise: Promise<void> | undefined;
 	private _connectionState: TerminalConnectionState;
+	private _firstDetectionFinished = createAwaitableFlag();
 
-	private _editable: { instance: ITerminalInstance, data: IEditableData } | undefined;
+	private _editable: { instance: ITerminalInstance, data: IEditableData; } | undefined;
 
 	get isProcessSupportRegistered(): boolean { return !!this._processSupportContextKey.get(); }
 	get connectionState(): TerminalConnectionState { return this._connectionState; }
@@ -488,7 +496,11 @@ export class TerminalService implements ITerminalService {
 
 	@throttle(2000)
 	private async _refreshAvailableProfiles(): Promise<void> {
+		console.log('_refreshAvailableProfiles called');
+		await new Promise(resolve => setTimeout(resolve, 10000)); //make sure that first _detectProfiles is noticeable delayed, increase if needed
 		const result = await this._detectProfiles();
+		console.log('_detectProfiles finished');
+		this._firstDetectionFinished.resolve();
 		const profilesChanged = !equals(result, this._availableProfiles);
 		const contributedProfilesChanged = !equals(this._terminalContributionService.terminalProfiles, this._contributedProfiles);
 		if (profilesChanged || contributedProfilesChanged) {
@@ -856,7 +868,7 @@ export class TerminalService implements ITerminalService {
 				if ('id' in context.item.profile) {
 					return;
 				}
-				const configProfiles = this._configurationService.getValue<{ [key: string]: ITerminalProfileObject }>(profilesKey);
+				const configProfiles = this._configurationService.getValue<{ [key: string]: ITerminalProfileObject; }>(profilesKey);
 				const existingProfiles = configProfiles ? Object.keys(configProfiles) : [];
 				const name = await this._quickInputService.input({
 					prompt: nls.localize('enterTerminalProfileName', "Enter terminal profile name"),
@@ -871,7 +883,7 @@ export class TerminalService implements ITerminalService {
 				if (!name) {
 					return;
 				}
-				const newConfigValue: { [key: string]: ITerminalProfileObject } = { ...configProfiles } ?? {};
+				const newConfigValue: { [key: string]: ITerminalProfileObject; } = { ...configProfiles } ?? {};
 				newConfigValue[name] = {
 					path: context.item.profile.path,
 					args: context.item.profile.args
@@ -977,7 +989,7 @@ export class TerminalService implements ITerminalService {
 				if (value.profile.args) {
 					newProfile.args = value.profile.args;
 				}
-				(profilesConfig as { [key: string]: ITerminalProfileObject })[value.profile.profileName] = newProfile;
+				(profilesConfig as { [key: string]: ITerminalProfileObject; })[value.profile.profileName] = newProfile;
 			}
 			await this._configurationService.updateValue(profilesKey, profilesConfig, ConfigurationTarget.USER);
 		}
@@ -1037,7 +1049,7 @@ export class TerminalService implements ITerminalService {
 				color: options.color
 			};
 
-			(profilesConfig as { [key: string]: ITerminalProfileObject })[title] = newProfile;
+			(profilesConfig as { [key: string]: ITerminalProfileObject; })[title] = newProfile;
 		}
 		await this._configurationService.updateValue(`${TerminalSettingPrefix.Profiles}${platformKey}`, profilesConfig, ConfigurationTarget.USER);
 		return;
@@ -1108,8 +1120,12 @@ export class TerminalService implements ITerminalService {
 
 
 	async createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance> {
+		console.log('createTerminal started');
+		await this._firstDetectionFinished.promise; // comment this line to reproduce issue
+		console.log('createTerminal after await this._firstDetectionFinished.promise;');
 		const config = options?.config || this._availableProfiles?.find(p => p.profileName === this._defaultProfileName);
 		const shellLaunchConfig = config && 'extensionIdentifier' in config ? {} : this._convertProfileToShellLaunchConfig(config || {});
+		console.log('createTerminal proceeded with:', { options, config, shellLaunchConfig });
 
 		// Get the contributed profile if it was provided
 		let contributedProfile = config && 'extensionIdentifier' in config ? config : undefined;
@@ -1226,7 +1242,7 @@ export class TerminalService implements ITerminalService {
 }
 
 interface IProfileQuickPickItem extends IQuickPickItem {
-	profile: ITerminalProfile | IExtensionTerminalProfile
+	profile: ITerminalProfile | IExtensionTerminalProfile;
 }
 
 class TerminalEditorStyle extends Themable {
