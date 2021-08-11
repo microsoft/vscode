@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as vscode from 'vscode';
 import { posix } from 'path';
+import * as vscode from 'vscode';
 import { assertNoRpc } from '../utils';
 
 suite('vscode API - workspace-fs', () => {

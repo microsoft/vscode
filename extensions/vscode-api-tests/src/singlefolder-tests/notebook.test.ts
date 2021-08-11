@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'mocha';
 import * as assert from 'assert';
-import * as vscode from 'vscode';
-import { createRandomFile, asPromise, disposeAll, closeAllEditors, revertAllDirty, saveAllEditors, assertNoRpc } from '../utils';
+import 'mocha';
 import { TextDecoder } from 'util';
+import * as vscode from 'vscode';
+import { asPromise, assertNoRpc, closeAllEditors, createRandomFile, disposeAll, revertAllDirty, saveAllEditors } from '../utils';
 
 async function createRandomNotebookFile() {
 	return createRandomFile('', undefined, '.vsctestnb');
