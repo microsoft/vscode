@@ -12,6 +12,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
 import { localize } from 'vs/nls';
 import { getMediaOrTextMime } from 'vs/base/common/mime';
+import { basename } from 'vs/base/common/resources';
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
 
@@ -96,7 +97,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 
 		let fileHandle: FileSystemHandle | undefined = undefined;
 		try {
-			fileHandle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters) });
+			fileHandle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters), ...{ suggestedName: basename(defaultUri) } });
 		} catch (error) {
 			return; // `showSaveFilePicker` will throw an error when the user cancels
 		}
@@ -127,7 +128,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 
 		let fileHandle: FileSystemHandle | undefined = undefined;
 		try {
-			fileHandle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters) });
+			fileHandle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters), ...options.defaultUri ? { suggestedName: basename(options.defaultUri) } : undefined });
 		} catch (error) {
 			return; // `showSaveFilePicker` will throw an error when the user cancels
 		}
