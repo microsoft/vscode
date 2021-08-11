@@ -38,6 +38,7 @@ import { IncrementalTestCollectionItem, InternalTestItem, IRichLocation, ITestMe
 import { isFailedState, maxPriority } from 'vs/workbench/contrib/testing/common/testingStates';
 import { buildTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
 import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
+import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { getContextForTestItem, ITestService, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
 
@@ -126,17 +127,12 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 			}
 		}));
 
-		this._register(Event.any(this.results.onResultsChanged, this.testService.excluded.onTestExclusionsChanged)(() => {
-			if (this.currentUri) {
-				this.setDecorations(this.currentUri);
-			}
-		}));
-
-		this._register(this.testService.onDidProcessDiff(() => {
-			if (this.currentUri) {
-				this.setDecorations(this.currentUri);
-			}
-		}));
+		this._register(Event.any(
+			this.results.onResultsChanged,
+			this.testService.excluded.onTestExclusionsChanged,
+			this.testService.showInlineOutput.onDidChange,
+			this.testService.onDidProcessDiff,
+		)(() => this.setDecorations(this.currentUri)));
 	}
 
 	private attachModel(uri?: URI) {
@@ -165,45 +161,56 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 		this.setDecorations(uri);
 	}
 
-	private setDecorations(uri: URI): void {
+	private setDecorations(uri: URI | undefined): void {
+		if (!uri) {
+			this.clearDecorations();
+			return;
+		}
+
 		this.editor.changeDecorations(accessor => {
 			const newDecorations: ITestDecoration[] = [];
 			for (const test of this.testService.collection.all) {
-				const stateLookup = this.results.getStateById(test.item.extId);
-				if (test.item.range && test.item.uri?.toString() === uri.toString()) {
-					const line = test.item.range.startLineNumber;
-					const resultItem = stateLookup?.[1];
-					const existing = newDecorations.findIndex(d => d instanceof RunTestDecoration && d.line === line);
-					if (existing !== -1) {
-						newDecorations[existing] = (newDecorations[existing] as RunTestDecoration).merge(test, resultItem);
-					} else {
-						newDecorations.push(this.instantiationService.createInstance(RunSingleTestDecoration, test, this.editor, stateLookup?.[1]));
-					}
-				}
-
-				if (!stateLookup) {
+				if (!test.item.range || test.item.uri?.toString() !== uri.toString()) {
 					continue;
 				}
 
-				const [result, stateItem] = stateLookup;
-				if (stateItem.retired) {
-					continue; // do not show decorations for outdated tests
+				const stateLookup = this.results.getStateById(test.item.extId);
+				const line = test.item.range.startLineNumber;
+				const resultItem = stateLookup?.[1];
+				const existing = newDecorations.findIndex(d => d instanceof RunTestDecoration && d.line === line);
+				if (existing !== -1) {
+					newDecorations[existing] = (newDecorations[existing] as RunTestDecoration).merge(test, resultItem);
+				} else {
+					newDecorations.push(this.instantiationService.createInstance(RunSingleTestDecoration, test, this.editor, stateLookup?.[1]));
+				}
+			}
+
+			const lastResult = this.results.results[0];
+			if (this.testService.showInlineOutput.value && lastResult instanceof LiveTestResult) {
+				for (const task of lastResult.tasks) {
+					for (const m of task.otherMessages) {
+						if (!this.invalidatedMessages.has(m) && hasValidLocation(uri, m)) {
+							newDecorations.push(this.instantiationService.createInstance(TestMessageDecoration, m, uri, m.location, this.editor));
+						}
+					}
 				}
 
-				for (let taskId = 0; taskId < stateItem.tasks.length; taskId++) {
-					const state = stateItem.tasks[taskId];
-					for (let i = 0; i < state.messages.length; i++) {
-						const m = state.messages[i];
-						if (!this.invalidatedMessages.has(m) && hasValidLocation(uri, m)) {
-							const uri = m.type === TestMessageType.Info ? undefined : buildTestUri({
-								type: TestUriType.ResultActualOutput,
-								messageIndex: i,
-								taskIndex: taskId,
-								resultId: result.id,
-								testExtId: stateItem.item.extId,
-							});
+				for (const test of lastResult.tests) {
+					for (let taskId = 0; taskId < test.tasks.length; taskId++) {
+						const state = test.tasks[taskId];
+						for (let i = 0; i < state.messages.length; i++) {
+							const m = state.messages[i];
+							if (!this.invalidatedMessages.has(m) && hasValidLocation(uri, m)) {
+								const uri = m.type === TestMessageType.Info ? undefined : buildTestUri({
+									type: TestUriType.ResultActualOutput,
+									messageIndex: i,
+									taskIndex: taskId,
+									resultId: lastResult.id,
+									testExtId: test.item.extId,
+								});
 
-							newDecorations.push(this.instantiationService.createInstance(TestMessageDecoration, m, uri, m.location, this.editor));
+								newDecorations.push(this.instantiationService.createInstance(TestMessageDecoration, m, uri, m.location, this.editor));
+							}
 						}
 					}
 				}
@@ -218,6 +225,10 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 	}
 
 	private clearDecorations(): void {
+		if (!this.lastDecorations.length) {
+			return;
+		}
+
 		this.editor.changeDecorations(accessor => {
 			for (const decoration of this.lastDecorations) {
 				accessor.removeDecoration(decoration.id);

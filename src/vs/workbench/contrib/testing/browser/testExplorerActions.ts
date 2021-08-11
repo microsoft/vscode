@@ -1103,6 +1103,30 @@ export class OpenOutputPeek extends Action2 {
 	}
 }
 
+export class ToggleInlineTestOutput extends Action2 {
+	public static readonly ID = 'testing.toggleInlineTestOutput';
+	constructor() {
+		super({
+			id: ToggleInlineTestOutput.ID,
+			title: localize('testing.toggleInlineTestOutput', "Toggle Inline Test Output"),
+			category,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_I),
+			},
+			menu: {
+				id: MenuId.CommandPalette,
+				when: TestingContextKeys.hasAnyResults.isEqualTo(true),
+			},
+		});
+	}
+
+	public async run(accessor: ServicesAccessor) {
+		const testService = accessor.get(ITestService);
+		testService.showInlineOutput.value = !testService.showInlineOutput.value;
+	}
+}
+
 export const allTestActions = [
 	// todo: these are disabled until we figure out how we want autorun to work
 	// AutoRunOffAction,
@@ -1136,5 +1160,6 @@ export const allTestActions = [
 	TestingSortByStatusAction,
 	TestingViewAsListAction,
 	TestingViewAsTreeAction,
+	ToggleInlineTestOutput,
 	UnhideTestAction,
 ];

@@ -9,6 +9,7 @@ suite('Arrays', () => {
 	test('findFirst', () => {
 		const array = [1, 4, 5, 7, 55, 59, 60, 61, 64, 69];
 
+		console.log('hello');
 		let idx = arrays.findFirstInSorted(array, e => e >= 0);
 		assert.strictEqual(array[idx], 1);
 
@@ -20,6 +21,7 @@ suite('Arrays', () => {
 
 		idx = arrays.findFirstInSorted(array, e => e >= 61);
 		assert.strictEqual(array[idx], 61);
+		console.log('world');
 
 		idx = arrays.findFirstInSorted(array, e => e >= 69);
 		assert.strictEqual(array[idx], 69);
@@ -28,7 +30,7 @@ suite('Arrays', () => {
 		assert.strictEqual(idx, array.length);
 
 		idx = arrays.findFirstInSorted([], e => e >= 0);
-		assert.strictEqual(array[idx], 1);
+		assert.strictEqual(array[idx], 3);
 	});
 
 	test('quickSelect', () => {
