@@ -304,13 +304,16 @@ export abstract class NotebookCellAction<T = INotebookCellActionContext> extends
 }
 
 // If this changes, update getCodeCellExecutionContextKeyService to match
-const executeCellCondition = ContextKeyExpr.and(
+const executeCondition = ContextKeyExpr.and(
 	NOTEBOOK_CELL_TYPE.isEqualTo('code'),
-	NOTEBOOK_CELL_EXECUTING.toNegated(),
 	ContextKeyExpr.or(
 		ContextKeyExpr.greater(NOTEBOOK_KERNEL_COUNT.key, 0),
 		NOTEBOOK_MISSING_KERNEL_EXTENSION
 	));
+
+const executeThisCellCondition = ContextKeyExpr.and(
+	executeCondition,
+	NOTEBOOK_CELL_EXECUTING.toNegated());
 
 const executeNotebookCondition = ContextKeyExpr.greater(NOTEBOOK_KERNEL_COUNT.key, 0);
 
@@ -412,13 +415,13 @@ registerAction2(class ExecuteAboveCells extends NotebookMultiCellAction<INoteboo
 	constructor() {
 		super({
 			id: EXECUTE_CELLS_ABOVE,
-			precondition: executeCellCondition,
+			precondition: executeCondition,
 			title: localize('notebookActions.executeAbove', "Execute Above Cells"),
 			menu: [
 				{
 					id: MenuId.NotebookCellExecute,
 					when: ContextKeyExpr.and(
-						executeCellCondition,
+						executeCondition,
 						ContextKeyExpr.equals(`config.${ConsolidatedRunButton}`, true))
 				},
 				{
@@ -426,7 +429,7 @@ registerAction2(class ExecuteAboveCells extends NotebookMultiCellAction<INoteboo
 					order: CellToolbarOrder.ExecuteAboveCells,
 					group: CELL_TITLE_CELL_GROUP_ID,
 					when: ContextKeyExpr.and(
-						executeCellCondition,
+						executeCondition,
 						ContextKeyExpr.equals(`config.${ConsolidatedRunButton}`, false))
 				}
 			],
@@ -458,13 +461,13 @@ registerAction2(class ExecuteCellAndBelow extends NotebookMultiCellAction<INoteb
 	constructor() {
 		super({
 			id: EXECUTE_CELL_AND_BELOW,
-			precondition: executeCellCondition,
+			precondition: executeCondition,
 			title: localize('notebookActions.executeBelow', "Execute Cell and Below"),
 			menu: [
 				{
 					id: MenuId.NotebookCellExecute,
 					when: ContextKeyExpr.and(
-						executeCellCondition,
+						executeCondition,
 						ContextKeyExpr.equals(`config.${ConsolidatedRunButton}`, true))
 				},
 				{
@@ -472,7 +475,7 @@ registerAction2(class ExecuteCellAndBelow extends NotebookMultiCellAction<INoteb
 					order: CellToolbarOrder.ExecuteCellAndBelow,
 					group: CELL_TITLE_CELL_GROUP_ID,
 					when: ContextKeyExpr.and(
-						executeCellCondition,
+						executeCondition,
 						ContextKeyExpr.equals(`config.${ConsolidatedRunButton}`, false))
 				}
 			],
@@ -504,7 +507,7 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction<INotebookActio
 	constructor() {
 		super({
 			id: EXECUTE_CELL_COMMAND_ID,
-			precondition: executeCellCondition,
+			precondition: executeThisCellCondition,
 			title: localize('notebookActions.execute', "Execute Cell"),
 			keybinding: {
 				when: NOTEBOOK_CELL_LIST_FOCUSED,
@@ -516,7 +519,7 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction<INotebookActio
 			},
 			menu: {
 				id: MenuId.NotebookCellExecute,
-				when: executeCellCondition,
+				when: executeThisCellCondition,
 				group: 'inline'
 			},
 			description: {
@@ -665,7 +668,7 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 	constructor() {
 		super({
 			id: EXECUTE_CELL_SELECT_BELOW,
-			precondition: ContextKeyExpr.or(executeCellCondition, NOTEBOOK_CELL_TYPE.isEqualTo('markup')),
+			precondition: ContextKeyExpr.or(executeThisCellCondition, NOTEBOOK_CELL_TYPE.isEqualTo('markup')),
 			title: localize('notebookActions.executeAndSelectBelow', "Execute Notebook Cell and Select Below"),
 			keybinding: {
 				when: NOTEBOOK_CELL_LIST_FOCUSED,
@@ -713,7 +716,7 @@ registerAction2(class ExecuteCellInsertBelow extends NotebookCellAction {
 	constructor() {
 		super({
 			id: EXECUTE_CELL_INSERT_BELOW,
-			precondition: executeCellCondition,
+			precondition: executeThisCellCondition,
 			title: localize('notebookActions.executeAndInsertBelow', "Execute Notebook Cell and Insert Below"),
 			keybinding: {
 				when: NOTEBOOK_CELL_LIST_FOCUSED,
