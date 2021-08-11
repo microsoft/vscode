@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IOutputDto, IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -48,10 +47,9 @@ export interface ICellExecutionComplete {
 }
 
 export interface INotebookCellExecution {
-	readonly id: number;
 	readonly notebook: URI;
 	readonly cellHandle: number;
-	readonly onDidChange: Event<Readonly<ICellExecuteUpdate[]>>;
+	update(updates: ICellExecuteUpdate[]): void;
 }
 
 export const INotebookExecutionService = createDecorator<INotebookExecutionService>('INotebookExecutionService');
@@ -59,5 +57,6 @@ export const INotebookExecutionService = createDecorator<INotebookExecutionServi
 export interface INotebookExecutionService {
 	_serviceBrand: undefined;
 
-	registerNotebookCellExecution(execution: INotebookCellExecution): void;
+	// getExecutions(notebook: URI): INotebookCellExecution[];
+	createNotebookCellExecution(notebook: URI, cellHandle: number): INotebookCellExecution;
 }

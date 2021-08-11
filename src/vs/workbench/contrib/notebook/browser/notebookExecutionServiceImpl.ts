@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from 'vs/base/common/uri';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellEditType, ICellEditOperation, NotebookCellExecutionState, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType, ICellExecuteUpdate, INotebookCellExecution, INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
@@ -16,33 +17,8 @@ export class NotebookExecutionService implements INotebookExecutionService {
 	) {
 	}
 
-	registerNotebookCellExecution(execution: INotebookCellExecution): void {
-		const notebook = this._notebookService.getNotebookTextModel(execution.notebook);
-		if (!notebook) {
-			return;
-		}
-
-		const startExecuteEdit: ICellEditOperation = {
-			editType: CellEditType.PartialInternalMetadata,
-			handle: execution.cellHandle,
-			internalMetadata: {
-				runState: NotebookCellExecutionState.Pending
-			}
-		};
-		this._applyExecutionEdits(notebook, [startExecuteEdit]);
-
-		const listener = execution.onDidChange(updates => {
-			const edits = updates.map(update => updateToEdit(update, execution.cellHandle));
-			if (updates.some(update => update.editType === CellExecutionUpdateType.Complete)) {
-				listener.dispose();
-			}
-
-			this._applyExecutionEdits(notebook, edits);
-		});
-	}
-
-	private _applyExecutionEdits(notebook: NotebookTextModel, edits: ICellEditOperation[]): void {
-		notebook.applyEdits(edits, true, undefined, () => undefined, undefined, false);
+	createNotebookCellExecution(notebook: URI, cellHandle: number): INotebookCellExecution {
+		return new CellExecution(notebook, cellHandle, this._notebookService);
 	}
 }
 
@@ -89,4 +65,39 @@ function updateToEdit(update: ICellExecuteUpdate, cellHandle: number): ICellEdit
 	}
 
 	throw new Error('Unknown cell update type');
+}
+
+class CellExecution implements INotebookCellExecution {
+	private readonly _notebookModel: NotebookTextModel;
+
+	constructor(
+		readonly notebook: URI,
+		readonly cellHandle: number,
+		private readonly _notebookService: INotebookService,
+	) {
+		const notebookModel = this._notebookService.getNotebookTextModel(notebook);
+		if (!notebookModel) {
+			throw new Error('Notebook not found: ' + notebook);
+		}
+
+		this._notebookModel = notebookModel;
+
+		const startExecuteEdit: ICellEditOperation = {
+			editType: CellEditType.PartialInternalMetadata,
+			handle: cellHandle,
+			internalMetadata: {
+				runState: NotebookCellExecutionState.Pending
+			}
+		};
+		this._applyExecutionEdits([startExecuteEdit]);
+	}
+
+	update(updates: ICellExecuteUpdate[]): void {
+		const edits = updates.map(update => updateToEdit(update, this.cellHandle));
+		this._applyExecutionEdits(edits);
+	}
+
+	private _applyExecutionEdits(edits: ICellEditOperation[]): void {
+		this._notebookModel.applyEdits(edits, true, undefined, () => undefined, undefined, false);
+	}
 }

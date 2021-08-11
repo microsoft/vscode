@@ -14,9 +14,9 @@ import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
-import { ICellExecuteUpdate, INotebookCellExecution, INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
+import { INotebookCellExecution, INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookKernel, INotebookKernelChangeEvent, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { ICellExecuteUpdateDto, ExtHostContext, ExtHostNotebookKernelsShape, IExtHostContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, IExtHostContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
 
 abstract class MainThreadKernel implements INotebookKernel {
 
@@ -99,7 +99,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 	private readonly _kernels = new Map<number, [kernel: MainThreadKernel, registraion: IDisposable]>();
 	private readonly _proxy: ExtHostNotebookKernelsShape;
 
-	private readonly _executions = new Map<number, MainThreadExecution>();
+	private readonly _executions = new Map<number, INotebookCellExecution>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -229,9 +229,8 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 	// --- execution
 
 	$addExecution(handle: number, uri: UriComponents, cellHandle: number): void {
-		const execution = new MainThreadExecution(handle, URI.revive(uri), cellHandle);
+		const execution = this._notebookExecutionService.createNotebookCellExecution(URI.revive(uri), cellHandle);
 		this._executions.set(handle, execution);
-		this._notebookExecutionService.registerNotebookCellExecution(execution);
 	}
 
 	$updateExecutions(updates: ICellExecuteUpdateDto[]): void {
@@ -249,20 +248,5 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 				onUnexpectedError(e);
 			}
 		});
-	}
-}
-
-class MainThreadExecution implements INotebookCellExecution {
-	private readonly _onDidChange = new Emitter<ICellExecuteUpdate[]>();
-	readonly onDidChange: Event<Readonly<ICellExecuteUpdate[]>> = this._onDidChange.event;
-
-	constructor(
-		readonly id: number,
-		readonly notebook: URI,
-		readonly cellHandle: number,
-	) { }
-
-	update(updates: ICellExecuteUpdate[]): void {
-		this._onDidChange.fire(updates);
 	}
 }
