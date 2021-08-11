@@ -3,16 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from 'vs/base/common/buffer';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux } from 'vs/base/common/platform';
 import { basename, extUri } from 'vs/base/common/resources';
+import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import { createFileSystemProviderError, FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+import { createFileSystemProviderError, FileDeleteOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 
-export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability {
+export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileReadStreamCapability {
 
 	//#region Events (unsupported)
 
@@ -27,7 +30,9 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 	private _capabilities: FileSystemProviderCapabilities | undefined;
 	get capabilities(): FileSystemProviderCapabilities {
 		if (!this._capabilities) {
-			this._capabilities = FileSystemProviderCapabilities.FileReadWrite;
+			this._capabilities =
+				FileSystemProviderCapabilities.FileReadWrite |
+				FileSystemProviderCapabilities.FileReadStream;
 
 			if (isLinux) {
 				this._capabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
@@ -114,14 +119,62 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 
 	//#region File Reading/Writing
 
+	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
+		if (typeof opts.length === 'number' || typeof opts.position === 'number') {
+			throw new Error('Unsupported'); // TODO implement support for `length` and `position`
+		}
+
+		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer, {
+			// Set a highWaterMark to prevent the stream
+			// for file upload to produce large buffers
+			// in-memory
+			highWaterMark: 10
+		});
+
+		(async () => {
+			try {
+				const handle = await this.getFileHandle(resource);
+				if (!handle) {
+					throw createFileSystemProviderError(new Error(`No such file or directory, readFile '${resource.toString(true)}'`), FileSystemProviderErrorCode.FileNotFound);
+				}
+
+				const file = await handle.getFile();
+				const reader: ReadableStreamDefaultReader<Uint8Array> = file.stream().getReader();
+
+				let res = await reader.read();
+				while (!res.done) {
+					if (token.isCancellationRequested) {
+						break;
+					}
+
+					// Write buffer into stream but make sure to wait
+					// in case the `highWaterMark` is reached
+					await stream.write(res.value);
+
+					if (token.isCancellationRequested) {
+						break;
+					}
+
+					res = await reader.read();
+				}
+				stream.end(undefined);
+			} catch (error) {
+				stream.error(error);
+				stream.end();
+			}
+		})();
+
+		return stream;
+	}
+
 	async readFile(resource: URI): Promise<Uint8Array> {
 		const handle = await this.getFileHandle(resource);
-
 		if (!handle) {
-			throw new Error('File not found.');
+			throw createFileSystemProviderError(new Error(`No such file or directory, readFile '${resource.toString(true)}'`), FileSystemProviderErrorCode.FileNotFound);
 		}
 
 		const file = await handle.getFile();
+
 		return new Uint8Array(await file.arrayBuffer());
 	}
 
