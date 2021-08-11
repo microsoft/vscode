@@ -230,7 +230,6 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 				}
 
 				handle = await parent.getFileHandle(basename(resource), { create: true });
-
 				if (!handle) {
 					throw createFileSystemProviderError(new Error(`Unable to create file , writeFile '${resource.toString(true)}'`), FileSystemProviderErrorCode.Unknown);
 				}
