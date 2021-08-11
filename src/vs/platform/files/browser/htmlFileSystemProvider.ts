@@ -215,12 +215,11 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 		}
 
 		const parent = await this.getParentDirectoryHandle(uri);
-		const name = extUri.basename(uri);
 
 		try {
-			return await parent?.getFileHandle(name);
+			return await parent?.getFileHandle(extUri.basename(uri));
 		} catch (error) {
-			return undefined;
+			return undefined; // guard against possible DOMException
 		}
 	}
 
@@ -234,7 +233,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 			return this.directories.get(handleId);
 		}
 
-		const parentPath = this.getParent(uri.path);
+		const parentPath = this.findParent(uri.path);
 		if (!parentPath) {
 			return undefined;
 		}
@@ -244,11 +243,12 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 		try {
 			return await parent?.getDirectoryHandle(extUri.basename(uri));
 		} catch (error) {
-			return undefined;
+			return undefined; // guard against possible DOMException
 		}
 	}
 
-	private getParent(path: string): string | undefined {
+	private findParent(path: string): string | undefined {
+		// TODO@bpasero TODO@joaomoreno what is the purpose of this?
 		const match = /^(.*)\/([^/]+)$/.exec(path);
 		if (!match) {
 			return undefined;
