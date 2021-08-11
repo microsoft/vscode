@@ -60,7 +60,6 @@ class WebAppInsightsAppender implements ITelemetryAppender {
 	 * @param data The data associated with the events
 	 */
 	public log(eventName: string, data: any): void {
-		console.warn('TELEMETRY BEING SENT');
 		if (!this._aiClient && this._aiClientLoaded) {
 			return;
 		} else if (!this._aiClient && !this._aiClientLoaded) {
