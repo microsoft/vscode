@@ -55,6 +55,7 @@ import { IRevealOptions, ITreeItem } from 'vs/workbench/common/views';
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { IAdapterDescriptor, IConfig, IDebugSessionReplMode } from 'vs/workbench/contrib/debug/common/debug';
 import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellExecutionUpdateType, ICellExecutionComplete, ICellExecutionStateUpdate } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
@@ -909,21 +910,23 @@ export interface INotebookKernelDto2 {
 	preloads?: { uri: UriComponents; provides: string[] }[];
 }
 
-export interface CellExecuteOutputEditDto {
-	editType: notebookCommon.CellEditType.Output;
+export interface ICellExecuteOutputEditDto {
+	editType: CellExecutionUpdateType.Output;
+	executionHandle: number;
+	cellHandle: number;
 	append?: boolean;
-	handle: number;
 	outputs: NotebookOutputDto[]
 }
 
-export interface CellExecuteOutputItemEditDto {
-	editType: notebookCommon.CellEditType.OutputItems;
+export interface ICellExecuteOutputItemEditDto {
+	editType: CellExecutionUpdateType.OutputItems;
+	executionHandle: number;
 	append?: boolean;
 	outputId: string;
 	items: NotebookOutputItemDto[]
 }
 
-export type CellExecuteEditDto = CellExecuteOutputEditDto | CellExecuteOutputItemEditDto | notebookCommon.ICellPartialInternalMetadataEditByHandle;
+export type ICellExecuteUpdateDto = ICellExecuteOutputEditDto | ICellExecuteOutputItemEditDto | ICellExecutionStateUpdate | ICellExecutionComplete;
 
 export interface MainThreadNotebookKernelsShape extends IDisposable {
 	$postMessage(handle: number, editorId: string | undefined, message: any): Promise<boolean>;
@@ -932,7 +935,8 @@ export interface MainThreadNotebookKernelsShape extends IDisposable {
 	$removeKernel(handle: number): void;
 	$updateNotebookPriority(handle: number, uri: UriComponents, value: number | undefined): void;
 
-	$applyExecutionEdits(resource: UriComponents, edits: CellExecuteEditDto[]): Promise<void>;
+	$addExecution(handle: number, uri: UriComponents, cellHandle: number): void;
+	$updateExecutions(data: ICellExecuteUpdateDto[]): void;
 }
 
 export interface MainThreadNotebookRenderersShape extends IDisposable {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten, isNonEmptyArray } from 'vs/base/common/arrays';
+import { flatten, groupBy, isNonEmptyArray } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { combinedDisposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -14,9 +14,9 @@ import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
+import { ICellExecuteUpdate, INotebookCellExecution, INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookKernel, INotebookKernelChangeEvent, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { CellExecuteEditDto, ExtHostContext, ExtHostNotebookKernelsShape, IExtHostContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
+import { ICellExecuteUpdateDto, ExtHostContext, ExtHostNotebookKernelsShape, IExtHostContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
 
 abstract class MainThreadKernel implements INotebookKernel {
 
@@ -99,11 +99,14 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 	private readonly _kernels = new Map<number, [kernel: MainThreadKernel, registraion: IDisposable]>();
 	private readonly _proxy: ExtHostNotebookKernelsShape;
 
+	private readonly _executions = new Map<number, MainThreadExecution>();
+
 	constructor(
 		extHostContext: IExtHostContext,
 		@IModeService private readonly _modeService: IModeService,
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
-		@INotebookService private readonly _notebookService: INotebookService,
+		@INotebookExecutionService private readonly _notebookExecutionService: INotebookExecutionService,
+		// @INotebookService private readonly _notebookService: INotebookService,
 		@INotebookEditorService notebookEditorService: INotebookEditorService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebookKernels);
@@ -223,22 +226,43 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		}
 	}
 
-	// --- execution editss
+	// --- execution
 
-	async $applyExecutionEdits(resource: UriComponents, cellEdits: CellExecuteEditDto[]): Promise<void> {
-		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
-		if (!textModel) {
-			throw new Error(`Can't apply edits to unknown notebook model: ${URI.revive(resource).toString()}`);
-		}
+	$addExecution(handle: number, uri: UriComponents, cellHandle: number): void {
+		const execution = new MainThreadExecution(handle, URI.revive(uri), cellHandle);
+		this._executions.set(handle, execution);
+		this._notebookExecutionService.registerNotebookCellExecution(execution);
+	}
 
-		const edits = cellEdits.map(NotebookDto.fromCellExecuteEditDto);
+	$updateExecutions(updates: ICellExecuteUpdateDto[]): void {
+		const groupedUpdates = groupBy(updates, (a, b) => a.executionHandle - b.executionHandle);
+		groupedUpdates.forEach(datas => {
+			const first = datas[0];
+			const execution = this._executions.get(first.executionHandle);
+			if (!execution) {
+				return;
+			}
 
-		try {
-			textModel.applyEdits(edits, true, undefined, () => undefined, undefined, false);
-		} catch (e) {
-			// Clearing outputs at the same time as the EH calling append/replaceOutputItems is an expected race, and it should be a no-op.
-			// And any other failure should not throw back to the extension.
-			onUnexpectedError(e);
-		}
+			try {
+				execution.update(datas.map(NotebookDto.fromCellExecuteUpdateDto));
+			} catch (e) {
+				onUnexpectedError(e);
+			}
+		});
+	}
+}
+
+class MainThreadExecution implements INotebookCellExecution {
+	private readonly _onDidChange = new Emitter<ICellExecuteUpdate[]>();
+	readonly onDidChange: Event<Readonly<ICellExecuteUpdate[]>> = this._onDidChange.event;
+
+	constructor(
+		readonly id: number,
+		readonly notebook: URI,
+		readonly cellHandle: number,
+	) { }
+
+	update(updates: ICellExecuteUpdate[]): void {
+		this._onDidChange.fire(updates);
 	}
 }

@@ -6,6 +6,7 @@
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellExecutionUpdateType, ICellExecuteUpdate } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 
 export namespace NotebookDto {
 
@@ -91,23 +92,25 @@ export namespace NotebookDto {
 		};
 	}
 
-	export function fromCellExecuteEditDto(data: extHostProtocol.CellExecuteEditDto): notebookCommon.IImmediateCellEditOperation {
-		if (data.editType === notebookCommon.CellEditType.PartialInternalMetadata) {
-			return data;
-		} else if (data.editType === notebookCommon.CellEditType.Output) {
+	export function fromCellExecuteUpdateDto(data: extHostProtocol.ICellExecuteUpdateDto): ICellExecuteUpdate {
+		if (data.editType === CellExecutionUpdateType.Output) {
 			return {
 				editType: data.editType,
-				handle: data.handle,
+				executionHandle: data.executionHandle,
+				cellHandle: data.cellHandle,
 				append: data.append,
 				outputs: data.outputs.map(fromNotebookOutputDto)
 			};
-		} else {
+		} else if (data.editType === CellExecutionUpdateType.OutputItems) {
 			return {
 				editType: data.editType,
+				executionHandle: data.executionHandle,
 				append: data.append,
 				outputId: data.outputId,
 				items: data.items.map(fromNotebookOutputItemDto)
 			};
+		} else {
+			return data;
 		}
 	}
 
