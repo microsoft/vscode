@@ -10,7 +10,6 @@ import { AbstractFileDialogService } from 'vs/workbench/services/dialogs/browser
 import { Schemas } from 'vs/base/common/network';
 import { memoize } from 'vs/base/common/decorators';
 import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
-import { generateUuid } from 'vs/base/common/uuid';
 import { localize } from 'vs/nls';
 import { getMediaOrTextMime } from 'vs/base/common/mime';
 
@@ -47,10 +46,8 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		const [handle] = await window.showOpenFilePicker({ multiple: false });
-		const uuid = generateUuid();
-		const uri = URI.from({ scheme: Schemas.file, path: `/${uuid}/${handle.name}` });
 
-		this.fileSystemProvider.registerFileHandle(uuid, handle);
+		const uri = this.fileSystemProvider.registerFileHandle(handle);
 
 		await this.openerService.open(uri, { fromUserGesture: true, editorOptions: { pinned: true } });
 	}
@@ -93,12 +90,8 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		const handle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters) });
-		const uuid = generateUuid();
-		const uri = URI.from({ scheme: Schemas.file, path: `/${uuid}/${handle.name}` });
 
-		this.fileSystemProvider.registerFileHandle(uuid, handle);
-
-		return uri;
+		return this.fileSystemProvider.registerFileHandle(handle);
 	}
 
 	private getFilePickerTypes(filters?: FileFilter[]): FilePickerAcceptType[] | undefined {
@@ -123,12 +116,8 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		const handle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters) });
-		const uuid = generateUuid();
-		const uri = URI.from({ scheme: Schemas.file, path: `/${uuid}/${handle.name}` });
 
-		this.fileSystemProvider.registerFileHandle(uuid, handle);
-
-		return uri;
+		return this.fileSystemProvider.registerFileHandle(handle);
 	}
 
 	async showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
@@ -138,21 +127,17 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return this.showOpenDialogSimplified(schema, options);
 		}
 
-		let handleName: string | undefined;
-		const uuid = generateUuid();
+		let uri: URI | undefined;
 		if (options.canSelectFiles) {
 			const handle = await window.showOpenFilePicker({ multiple: false, types: this.getFilePickerTypes(options.filters) });
 			if (handle.length === 1) {
-				handleName = handle[0].name;
-				this.fileSystemProvider.registerFileHandle(uuid, handle[0]);
+				uri = this.fileSystemProvider.registerFileHandle(handle[0]);
 			}
 		} else {
 			const handle = await window.showDirectoryPicker();
-			handleName = handle.name;
-			this.fileSystemProvider.registerDirectoryHandle(uuid, handle);
+			uri = this.fileSystemProvider.registerDirectoryHandle(handle);
 		}
-		if (handleName) {
-			const uri = URI.from({ scheme: Schemas.file, path: `/${uuid}/${handleName}` });
+		if (uri) {
 			return [uri];
 		}
 		return undefined;
