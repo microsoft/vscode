@@ -276,6 +276,22 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			throw new Error(localize('no account', "No account available"));
 		}
 
+		await this.turnOnUsingCurrentAccount();
+	}
+
+	async turnOnUsingCurrentAccount(): Promise<void> {
+		if (this.userDataAutoSyncEnablementService.isEnabled()) {
+			return;
+		}
+
+		if (this.userDataSyncService.status !== SyncStatus.Idle) {
+			throw new Error('Cannont turn on sync while syncing');
+		}
+
+		if (this.accountStatus !== AccountStatus.Available) {
+			throw new Error(localize('no account', "No account available"));
+		}
+
 		const syncTitle = SYNC_TITLE;
 		const title = `${syncTitle} [(${localize('show log', "show log")})](command:${SHOW_SYNC_LOG_COMMAND_ID})`;
 		const manualSyncTask = await this.userDataSyncService.createManualSyncTask();

@@ -12,7 +12,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { ExtensionRunTestsRequest, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestDiffOpType, TestResultState, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
+import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
@@ -195,8 +195,9 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 			id: controllerId,
 			label,
 			configureRunProfile: id => this.proxy.$configureRunProfile(controllerId, id),
+			getTags: () => this.proxy.$getTestTags(controllerId),
 			runTests: (req, token) => this.proxy.$runControllerTests(req, token),
-			expandTest: (src, levels) => this.proxy.$expandTest(src, isFinite(levels) ? levels : -1),
+			expandTest: (testId, levels) => this.proxy.$expandTest(testId, isFinite(levels) ? levels : -1),
 		};
 
 

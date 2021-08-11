@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ipcMain, WebContents } from 'electron';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IPCServer, ClientConnectionEvent } from 'vs/base/parts/ipc/common/ipc';
-import { Protocol as ElectronProtocol } from 'vs/base/parts/ipc/common/ipc.electron';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { ClientConnectionEvent, IPCServer } from 'vs/base/parts/ipc/common/ipc';
+import { Protocol as ElectronProtocol } from 'vs/base/parts/ipc/common/ipc.electron';
 
 interface IIPCEvent {
 	event: { sender: WebContents; };

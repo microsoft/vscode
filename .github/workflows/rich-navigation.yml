@@ -1,5 +1,6 @@
 name: "Rich Navigation Indexing"
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches:
@@ -33,5 +34,6 @@ jobs:
         with:
           languages: typescript
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-          typescriptVersion: 0.6.0-dev.1
+          typescriptVersion: 0.6.0-next.16
+          configFiles: .lsifrc.json
         continue-on-error: true

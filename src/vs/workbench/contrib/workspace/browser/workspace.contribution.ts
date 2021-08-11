@@ -641,7 +641,7 @@ registerAction2(class extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor) {
-		accessor.get(IPreferencesService).openGlobalSettings(false, { query: `@tag:${WORKSPACE_TRUST_SETTING_TAG}` });
+		accessor.get(IPreferencesService).openUserSettings({ jsonEditor: false, query: `@tag:${WORKSPACE_TRUST_SETTING_TAG}` });
 	}
 });
 

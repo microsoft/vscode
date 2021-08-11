@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ChildProcess, spawn, SpawnOptions } from 'child_process';
+import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync } from 'fs';
 import { homedir } from 'os';
-import { existsSync, statSync, unlinkSync, chmodSync, truncateSync, readFileSync } from 'fs';
-import { spawn, ChildProcess, SpawnOptions } from 'child_process';
-import { buildHelpMessage, buildVersionMessage, OPTIONS } from 'vs/platform/environment/node/argv';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { parseCLIProcessArgv, addArg } from 'vs/platform/environment/node/argvHelper';
-import { createWaitMarkerFile } from 'vs/platform/environment/node/wait';
-import product from 'vs/platform/product/common/product';
+import type { ProfilingSession, Target } from 'v8-inspect-profiler';
 import { isAbsolute, join } from 'vs/base/common/path';
+import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
+import { randomPort } from 'vs/base/common/ports';
+import { isString } from 'vs/base/common/types';
 import { whenDeleted, writeFileSync } from 'vs/base/node/pfs';
 import { findFreePort } from 'vs/base/node/ports';
-import { randomPort } from 'vs/base/common/ports';
-import { isWindows, IProcessEnvironment } from 'vs/base/common/platform';
-import type { ProfilingSession, Target } from 'v8-inspect-profiler';
-import { isString } from 'vs/base/common/types';
-import { hasStdinWithoutTty, stdinDataListener, getStdinFilePath, readFromStdin } from 'vs/platform/environment/node/stdin';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { buildHelpMessage, buildVersionMessage, OPTIONS } from 'vs/platform/environment/node/argv';
+import { addArg, parseCLIProcessArgv } from 'vs/platform/environment/node/argvHelper';
+import { getStdinFilePath, hasStdinWithoutTty, readFromStdin, stdinDataListener } from 'vs/platform/environment/node/stdin';
+import { createWaitMarkerFile } from 'vs/platform/environment/node/wait';
+import product from 'vs/platform/product/common/product';
 
 function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 	return !!argv['install-source']

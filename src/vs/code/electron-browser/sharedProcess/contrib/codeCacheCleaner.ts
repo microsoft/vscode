@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename, dirname, join } from 'vs/base/common/path';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { basename, dirname, join } from 'vs/base/common/path';
 import { Promises } from 'vs/base/node/pfs';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { RunOnceScheduler } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export class CodeCacheCleaner extends Disposable {
 

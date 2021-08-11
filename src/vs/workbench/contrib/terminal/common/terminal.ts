@@ -571,16 +571,6 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.toggleMaximizedPanel'
 ];
 
-export interface ITerminalContributions {
-	profiles?: ITerminalProfileContribution[];
-}
-
-export interface ITerminalProfileContribution {
-	title: string;
-	id: string;
-	icon?: string;
-}
-
 export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
 	extensionPoint: 'terminal',
 	defaultExtensionKind: ['workspace'],
@@ -604,8 +594,23 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
 							type: 'string',
 						},
 						icon: {
-							description: nls.localize('vscode.extension.contributes.terminal.types.icon', "A codicon to associate with this terminal type."),
-							type: 'string',
+							description: nls.localize('vscode.extension.contributes.terminal.types.icon', "A codicon, URI, or light and dark URIs to associate with this terminal type."),
+							anyOf: [{
+								type: 'string',
+							},
+							{
+								type: 'object',
+								properties: {
+									light: {
+										description: nls.localize('vscode.extension.contributes.terminal.types.icon.light', 'Icon path when a light theme is used'),
+										type: 'string'
+									},
+									dark: {
+										description: nls.localize('vscode.extension.contributes.terminal.types.icon.dark', 'Icon path when a dark theme is used'),
+										type: 'string'
+									}
+								}
+							}]
 						},
 					},
 				},
@@ -632,8 +637,23 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
 							type: 'string',
 						},
 						icon: {
-							description: nls.localize('vscode.extension.contributes.terminal.profiles.icon', "A codicon to associate with this terminal profile."),
-							type: 'string',
+							description: nls.localize('vscode.extension.contributes.terminal.types.icon', "A codicon, URI, or light and dark URIs to associate with this terminal type."),
+							anyOf: [{
+								type: 'string',
+							},
+							{
+								type: 'object',
+								properties: {
+									light: {
+										description: nls.localize('vscode.extension.contributes.terminal.types.icon.light', 'Icon path when a light theme is used'),
+										type: 'string'
+									},
+									dark: {
+										description: nls.localize('vscode.extension.contributes.terminal.types.icon.dark', 'Icon path when a dark theme is used'),
+										type: 'string'
+									}
+								}
+							}]
 						},
 					},
 				},

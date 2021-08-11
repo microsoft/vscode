@@ -55,7 +55,7 @@ import { ThemeColor, themeColorFromId } from 'vs/platform/theme/common/themeServ
 import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { ILanguageStatus, ILanguageStatusService } from 'vs/editor/common/services/languageStatusService';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
+import { AutomaticLanguageDetectionLikelyWrongClassification, AutomaticLanguageDetectionLikelyWrongId, IAutomaticLanguageDetectionLikelyWrongData, ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
@@ -339,8 +339,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IUntitledTextEditorService private readonly untitledEditorService: IUntitledTextEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -782,10 +781,6 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			if (textModel) {
 				const modeId = textModel.getLanguageIdentifier().language;
 				info.mode = withNullAsUndefined(this.modeService.getLanguageName(modeId));
-				const untitledTextEditorModel = this.untitledEditorService.get(textModel.uri);
-				if (untitledTextEditorModel) {
-					info.mode += untitledTextEditorModel.hasModeSetExplicitly ? '' : localize('languageModeAuto', " (Auto)");
-				}
 			}
 		}
 
@@ -1126,6 +1121,10 @@ export class ShowLanguageExtensionsAction extends Action {
 	}
 }
 
+interface IDetectedLanguageQuickPickItem extends IQuickPickItem {
+	guessRank: number;
+}
+
 export class ChangeModeAction extends Action {
 
 	static readonly ID = 'workbench.action.editor.changeLanguageMode';
@@ -1141,7 +1140,8 @@ export class ChangeModeAction extends Action {
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILanguageDetectionService private readonly languageDetectionService: ILanguageDetectionService,
 	) {
 		super(actionId, actionLabel);
 	}
@@ -1156,11 +1156,6 @@ export class ChangeModeAction extends Action {
 		const textModel = activeTextEditorControl.getModel();
 		const resource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
-		let hasLanguageSupport = !!resource;
-		if (resource?.scheme === Schemas.untitled && !this.textFileService.untitled.get(resource)?.hasAssociatedFilePath) {
-			hasLanguageSupport = false; // no configuration for untitled resources (e.g. "Untitled-1")
-		}
-
 		// Compute mode
 		let currentLanguageId: string | undefined;
 		let currentModeId: string | undefined;
@@ -1169,29 +1164,40 @@ export class ChangeModeAction extends Action {
 			currentLanguageId = withNullAsUndefined(this.modeService.getLanguageName(currentModeId));
 		}
 
+		let hasLanguageSupport = !!resource;
+		let detectedLanguages: string[] = [];
+		if (resource?.scheme === Schemas.untitled && !this.textFileService.untitled.get(resource)?.hasAssociatedFilePath) {
+			hasLanguageSupport = false; // no configuration for untitled resources (e.g. "Untitled-1")
+
+			// Detect languages since we are in an untitled file
+			detectedLanguages = await this.languageDetectionService.detectLanguages(resource);
+		}
+
 		// All languages are valid picks
 		const languages = this.modeService.getRegisteredLanguageNames();
-		const picks: QuickPickInput[] = languages.sort().map(lang => {
-			const modeId = this.modeService.getModeIdForLanguageName(lang.toLowerCase()) || 'unknown';
-			const extensions = this.modeService.getExtensions(lang).join(' ');
-			let description: string;
-			if (currentLanguageId === lang) {
-				description = localize('languageDescription', "({0}) - Configured Language", modeId);
-			} else {
-				description = localize('languageDescriptionConfigured', "({0})", modeId);
-			}
+		const picks: QuickPickInput[] = languages.sort()
+			.filter(lang => {
+				const modeId = this.modeService.getModeIdForLanguageName(lang.toLowerCase()) || 'unknown';
+				return (detectedLanguages.indexOf(modeId) === -1);
+			}).map(lang => {
+				const modeId = this.modeService.getModeIdForLanguageName(lang.toLowerCase()) || 'unknown';
+				const extensions = this.modeService.getExtensions(lang).join(' ');
+				let description: string;
+				if (currentLanguageId === lang) {
+					description = localize('languageDescription', "({0}) - Configured Language", modeId);
+				} else {
+					description = localize('languageDescriptionConfigured', "({0})", modeId);
+				}
 
-			return {
-				label: lang,
-				meta: extensions,
-				iconClasses: getIconClassesForModeId(modeId),
-				description
-			};
-		});
+				return {
+					label: lang,
+					meta: extensions,
+					iconClasses: getIconClassesForModeId(modeId),
+					description
+				};
+			});
 
-		if (hasLanguageSupport) {
-			picks.unshift({ type: 'separator', label: localize('languagesPicks', "languages (identifier)") });
-		}
+		picks.unshift({ type: 'separator', label: localize('languagesPicks', "languages (identifier)") });
 
 		// Offer action to configure via settings
 		let configureModeAssociations: IQuickPickItem | undefined;
@@ -1218,6 +1224,28 @@ export class ChangeModeAction extends Action {
 
 		if (hasLanguageSupport) {
 			picks.unshift(autoDetectMode);
+		} else if (detectedLanguages) {
+			// Add untitled detected languages
+			let index = detectedLanguages.length - 1;
+			for (const modeId of detectedLanguages.reverse()) {
+				const lang = this.modeService.getLanguageName(modeId) || 'unknown';
+				let description: string;
+				if (currentLanguageId === lang) {
+					description = localize('languageDescriptionCurrent', "({0}) - Current Language", modeId);
+				} else {
+					description = localize('languageDescriptionConfigured', "({0})", modeId);
+				}
+
+				const pick: IDetectedLanguageQuickPickItem = {
+					label: lang,
+					iconClasses: getIconClassesForModeId(modeId),
+					description,
+					guessRank: index--,
+				};
+				picks.unshift(pick);
+			}
+
+			picks.unshift({ type: 'separator', label: localize('detectedLanguagesPicks', "detected languages (identifier)") });
 		}
 
 		const pick = await this.quickInputService.pick(picks, { placeHolder: localize('pickLanguage', "Select Language Mode"), matchOnDescription: true });
@@ -1240,7 +1268,7 @@ export class ChangeModeAction extends Action {
 
 		// User decided to configure settings for current language
 		if (pick === configureModeSettings) {
-			this.preferencesService.openGlobalSettings(true, { revealSetting: { key: `[${withUndefinedAsNull(currentModeId)}]`, edit: true } });
+			this.preferencesService.openUserSettings({ jsonEditor: true, revealSetting: { key: `[${withUndefinedAsNull(currentModeId)}]`, edit: true } });
 			return;
 		}
 
@@ -1261,6 +1289,18 @@ export class ChangeModeAction extends Action {
 					}
 				} else {
 					languageSelection = this.modeService.createByLanguageName(pick.label);
+				}
+
+				const guessRankOfPicked: number = (pick as IDetectedLanguageQuickPickItem).guessRank ?? -1;
+				// If we detected languages and they didn't choose the top detected language (which should also be the active language if automatic detection is enabled)
+				// then the automatic language detection was likely wrong and the user is correcting it. In this case, we want telemetry.
+				if (detectedLanguages.length && guessRankOfPicked !== 0) {
+					this.telemetryService.publicLog2<IAutomaticLanguageDetectionLikelyWrongData, AutomaticLanguageDetectionLikelyWrongClassification>(AutomaticLanguageDetectionLikelyWrongId, {
+						// For languages that weren't guessed, the guessRankOfPicked will be -1. This detail tells us if the user chose the language that was guessed or not.
+						choseOtherGuessedLanguage: guessRankOfPicked !== -1,
+						currentLanguageId: currentLanguageId ?? 'unknown',
+						nextLanguageId: languageSelection?.languageIdentifier.language ?? 'unknown'
+					});
 				}
 
 				// Change mode

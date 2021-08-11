@@ -6,13 +6,13 @@
 import * as assert from 'assert';
 import * as fs from 'fs';
 import { tmpdir } from 'os';
-import { join, sep } from 'vs/base/common/path';
-import { generateUuid } from 'vs/base/common/uuid';
-import { Promises, RimRafMode, rimrafSync, SymlinkSupport, writeFileSync } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { flakySuite, getRandomTestPath, getPathFromAmdModule } from 'vs/base/test/node/testUtils';
+import { join, sep } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
+import { generateUuid } from 'vs/base/common/uuid';
+import { Promises, RimRafMode, rimrafSync, SymlinkSupport, writeFileSync } from 'vs/base/node/pfs';
+import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
 
 flakySuite('PFS', function () {
 

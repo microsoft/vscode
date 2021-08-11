@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { NotebookSerializer } from './serializer';
+import { NotebookSerializer } from './notebookSerializer';
 
 export function activate(context: vscode.ExtensionContext) {
-	context.subscriptions.push(vscode.workspace.registerNotebookSerializer('jupyter-notebook', new NotebookSerializer(), {
+	const serializer = new NotebookSerializer(context);
+	context.subscriptions.push(vscode.workspace.registerNotebookSerializer('jupyter-notebook', serializer, {
 		transientOutputs: false,
 		transientCellMetadata: {
 			breakpointMargin: true,
@@ -16,6 +17,16 @@ export function activate(context: vscode.ExtensionContext) {
 			custom: false
 		}
 	}));
+
+	return {
+		exportNotebook: (notebook: vscode.NotebookData): string => {
+			return exportNotebook(notebook, serializer);
+		}
+	};
+}
+
+function exportNotebook(notebook: vscode.NotebookData, serializer: NotebookSerializer): string {
+	return serializer.serializeNotebookToString(notebook);
 }
 
 export function deactivate() { }

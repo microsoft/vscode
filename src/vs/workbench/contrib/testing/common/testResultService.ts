@@ -10,9 +10,9 @@ import { once } from 'vs/base/common/functional';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ExtensionRunTestsRequest, ITestRunProfile, ResolvedTestRunRequest, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
+import { ExtensionRunTestsRequest, ITestRunProfile, ResolvedTestRunRequest, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { ITestResult, LiveTestResult, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultStorage, RETAIN_MAX_RESULTS } from 'vs/workbench/contrib/testing/common/testResultStorage';
 
@@ -137,16 +137,14 @@ export class TestResultService implements ITestResultService {
 		}
 
 		let profile: ITestRunProfile | undefined;
-		if (!req.profile) {
-			profile = this.testProfiles.getControllerGroupProfiles(req.controllerId, TestRunProfileBitset.Run)[0];
-		} else {
-			const profiles = this.testProfiles.getControllerGroupProfiles(req.controllerId, req.profile.group);
-			profile = profiles.find(c => c.profileId === req.profile!.id) || profiles[0];
+		if (req.profile) {
+			const profiles = this.testProfiles.getControllerProfiles(req.controllerId);
+			profile = profiles.find(c => c.profileId === req.profile!.id);
 		}
 
 		const resolved: ResolvedTestRunRequest = {
 			targets: [],
-			exclude: req.exclude.map(testId => ({ testId, controllerId: req.controllerId })),
+			exclude: req.exclude,
 			isAutoRun: false,
 		};
 

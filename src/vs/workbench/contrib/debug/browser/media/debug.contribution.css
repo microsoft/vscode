@@ -42,8 +42,8 @@
 /* Do not push text with inline decoration when decoration on start of line */
 .monaco-editor .debug-top-stack-frame-column.start-of-line::before {
 	position: absolute;
-	top: 2px;
-	transform: translateX(-17px);
+	top: 50%;
+	transform: translate(-17px, -50%);
 }
 
 .monaco-editor .debug-top-stack-frame-column {

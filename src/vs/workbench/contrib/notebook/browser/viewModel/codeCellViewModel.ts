@@ -211,7 +211,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				layoutState: newState
 			};
 		} else {
-			outputTotalHeight = Math.max(this._outputMinHeight, this.metadata.inputCollapsed && this.metadata.outputCollapsed ? 0 : outputTotalHeight);
 			const indicatorHeight = notebookLayoutConfiguration.collapsedIndicatorHeight + outputTotalHeight + outputShowMoreContainerHeight;
 
 			const outputContainerOffset = notebookLayoutConfiguration.cellTopMargin + notebookLayoutConfiguration.collapsedIndicatorHeight;

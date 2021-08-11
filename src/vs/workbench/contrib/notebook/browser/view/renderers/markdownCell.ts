@@ -20,6 +20,9 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { IReadonlyTextBuffer } from 'vs/editor/common/model';
+import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { TokenizationRegistry } from 'vs/editor/common/modes';
 
 
 export class StatefulMarkdownCell extends Disposable {
@@ -176,13 +179,25 @@ export class StatefulMarkdownCell extends Disposable {
 	}
 
 	private viewUpdateCollapsed(): void {
-		DOM.show(this.templateData.collapsedPart);
+		DOM.show(this.templateData.cellInputCollapsedContainer);
 		DOM.hide(this.editorPart);
+
+		this.templateData.cellInputCollapsedContainer.innerText = '';
+		const richEditorText = this.getRichText(this.viewCell.textBuffer, this.viewCell.language);
+		const element = DOM.$('div');
+		element.classList.add('cell-collapse-preview');
+		DOM.safeInnerHtml(element, richEditorText);
+		this.templateData.cellInputCollapsedContainer.appendChild(element);
+
 		this.markdownAccessibilityContainer.ariaHidden = 'true';
 
 		this.templateData.container.classList.toggle('input-collapsed', true);
 		this.viewCell.renderedMarkdownHeight = 0;
 		this.viewCell.layoutChange({});
+	}
+
+	private getRichText(buffer: IReadonlyTextBuffer, language: string) {
+		return tokenizeToString(buffer.getLineContent(1), TokenizationRegistry.get(language)!);
 	}
 
 	private viewUpdateEditing(): void {
@@ -191,7 +206,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 		DOM.show(this.editorPart);
 		this.markdownAccessibilityContainer.ariaHidden = 'true';
-		DOM.hide(this.templateData.collapsedPart);
+		DOM.hide(this.templateData.cellInputCollapsedContainer);
 
 		this.notebookEditor.hideMarkupPreviews([this.viewCell]);
 
@@ -280,7 +295,7 @@ export class StatefulMarkdownCell extends Disposable {
 	private viewUpdatePreview(): void {
 		this.viewCell.detachTextEditor();
 		DOM.hide(this.editorPart);
-		DOM.hide(this.templateData.collapsedPart);
+		DOM.hide(this.templateData.cellInputCollapsedContainer);
 		this.markdownAccessibilityContainer.ariaHidden = 'false';
 		this.templateData.container.classList.toggle('collapsed', false);
 		this.templateData.container.classList.toggle('markdown-cell-edit-mode', false);
@@ -296,7 +311,9 @@ export class StatefulMarkdownCell extends Disposable {
 	}
 
 	private focusEditorIfNeeded() {
-		if (this.viewCell.focusMode === CellFocusMode.Editor && this.notebookEditor.hasEditorFocus()) {
+		if (
+			this.viewCell.focusMode === CellFocusMode.Editor &&
+			(this.notebookEditor.hasEditorFocus() || document.activeElement === document.body)) { // Don't steal focus from other workbench parts, but if body has focus, we can take it
 			this.editor?.focus();
 		}
 	}

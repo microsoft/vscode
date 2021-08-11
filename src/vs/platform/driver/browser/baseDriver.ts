@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getTopLeftOffset, getClientArea } from 'vs/base/browser/dom';
+import { getClientArea, getTopLeftOffset } from 'vs/base/browser/dom';
 import { coalesce } from 'vs/base/common/arrays';
+import { language, locale } from 'vs/base/common/platform';
 import { IElement, ILocaleInfo, ILocalizedStrings, IWindowDriver } from 'vs/platform/driver/common/driver';
 import localizedStrings from 'vs/platform/localizations/common/localizedStrings';
-import { locale, language } from 'vs/base/common/platform';
 
 function serializeElement(element: Element, recursive: boolean): IElement {
 	const attributes = Object.create(null);

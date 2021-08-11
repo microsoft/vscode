@@ -77,7 +77,7 @@ class NewFileTemplatesManager extends Disposable {
 		for (const [groupName, group] of this.menu.getActions({ renderShortTitle: true })) {
 			for (const action of group) {
 				if (action instanceof MenuItemAction) {
-					items.push({ commandID: action.item.id, from: '', title: action.label, group: groupName });
+					items.push({ commandID: action.item.id, from: action.item.source ?? localize('Built-In', "Built-In"), title: action.label, group: groupName });
 				}
 			}
 		}

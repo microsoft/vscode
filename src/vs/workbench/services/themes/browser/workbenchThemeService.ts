@@ -271,8 +271,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 					this.currentColorTheme.setCustomTokenColors(this.settings.tokenColorCustomizations);
 					hasColorChanges = true;
 				}
-				if (e.affectsConfiguration(ThemeSettings.SEMANTIC_TOKEN_COLOR_CUSTOMIZATIONS) || e.affectsConfiguration(ThemeSettings.TOKEN_COLOR_CUSTOMIZATIONS_EXPERIMENTAL)) {
-					this.currentColorTheme.setCustomSemanticTokenColors(this.settings.semanticTokenColorCustomizations, this.settings.experimentalSemanticTokenColorCustomizations);
+				if (e.affectsConfiguration(ThemeSettings.SEMANTIC_TOKEN_COLOR_CUSTOMIZATIONS)) {
+					this.currentColorTheme.setCustomSemanticTokenColors(this.settings.semanticTokenColorCustomizations);
 					hasColorChanges = true;
 				}
 				if (hasColorChanges) {

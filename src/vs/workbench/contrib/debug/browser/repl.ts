@@ -249,6 +249,12 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			} else if (e.affectsConfiguration('debug.console.lineHeight') || e.affectsConfiguration('debug.console.fontSize') || e.affectsConfiguration('debug.console.fontFamily')) {
 				this.onDidStyleChange();
 			}
+			if (e.affectsConfiguration('debug.console.acceptSuggestionOnEnter')) {
+				const config = this.configurationService.getValue<IDebugConfiguration>('debug');
+				this.replInput.updateOptions({
+					acceptSuggestionOnEnter: config.console.acceptSuggestionOnEnter === 'on' ? 'on' : 'off'
+				});
+			}
 		}));
 
 		this._register(this.themeService.onDidColorThemeChange(e => {
@@ -612,7 +618,8 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		const options = getSimpleEditorOptions();
 		options.readOnly = true;
 		options.suggest = { showStatusBar: true };
-		options.acceptSuggestionOnEnter = 'off';
+		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
+		options.acceptSuggestionOnEnter = config.console.acceptSuggestionOnEnter === 'on' ? 'on' : 'off';
 		options.ariaLabel = localize('debugConsole', "Debug Console");
 
 		this.replInput = this.scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, options, getSimpleCodeEditorWidgetOptions());

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { ReplayEntry } from 'vs/platform/terminal/common/terminalProcess';
+import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 
 function eventsEqual(recorder: TerminalRecorder, expected: ReplayEntry[]) {
 	const actual = recorder.generateReplayEvent().events;

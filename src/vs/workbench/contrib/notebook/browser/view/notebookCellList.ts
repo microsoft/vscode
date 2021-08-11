@@ -182,6 +182,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			const focus = this.getFocusedElements()[0];
 
 			if (focus && focus.cellKind === CellKind.Markup && !focus.metadata.inputCollapsed && !this._viewModel?.options.isReadOnly) {
+				// scroll the cell into view if out of viewport
+				this.revealElementInView(focus);
 				focus.updateEditState(CellEditState.Editing, 'dbclick');
 				focus.focusMode = CellFocusMode.Editor;
 			}
@@ -883,7 +885,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		// the `element` is in the viewport, it's very often that the height update is triggerred by user interaction (collapse, run cell)
 		// then we should make sure that the `element`'s visual view position doesn't change.
 
-		if (this.view.elementTop(index) > this.view.scrollTop) {
+		if (this.view.elementTop(index) >= this.view.scrollTop) {
 			this.view.updateElementHeight(index, size, index);
 			return;
 		}

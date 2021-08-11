@@ -39,7 +39,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 
 	constructor(
 		private context: unknown,
-		private action: IAction,
+		action: IAction,
 		@IDebugService private readonly debugService: IDebugService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,

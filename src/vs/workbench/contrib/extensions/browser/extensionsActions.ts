@@ -128,7 +128,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 			const message = localize('cannot be installed', "The '{0}' extension is not available in {1}. Click 'More Information' to learn more.", this.extension.displayName || this.extension.identifier.id, productName);
 			const result = await this.dialogService.show(Severity.Info, message, [localize('close', "Close"), localize('more information', "More Information")], { cancelId: 0 });
 			if (result.choice === 1) {
-				this.openerService.open(isWeb ? URI.parse('https://aka.ms/vscode-remote-codespaces') : URI.parse('https://aka.ms/vscode-remote'));
+				this.openerService.open(isWeb ? URI.parse('https://aka.ms/vscode-remote-codespaces#_why-is-an-extension-not-installable-in-the-browser') : URI.parse('https://aka.ms/vscode-remote'));
 			}
 			return;
 		}
@@ -719,15 +719,11 @@ export class UpdateAction extends ExtensionAction {
 	}
 }
 
-export interface IExtensionActionViewItemOptions extends IActionViewItemOptions {
-	tabOnlyOnFocus?: boolean;
-}
-
 export class ExtensionActionWithDropdownActionViewItem extends ActionWithDropdownActionViewItem {
 
 	constructor(
 		action: ActionWithDropDownAction,
-		options: IExtensionActionViewItemOptions & IActionWithDropdownActionViewItemOptions,
+		options: IActionViewItemOptions & IActionWithDropdownActionViewItemOptions,
 		contextMenuProvider: IContextMenuProvider
 	) {
 		super(null, action, options, contextMenuProvider);
@@ -2018,7 +2014,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 				if (this.extension.gallery.webExtension) {
 					message = new MarkdownString(localize('user disabled', "You have configured the '{0}' extension to be disabled in {1}. To enable it, please open user settings and remove it from `remote.extensionKind` setting.", this.extension.displayName || this.extension.identifier.id, productName));
 				} else {
-					message = new MarkdownString(`${localize('not web tooltip', "The '{0}' extension is not available in {1}. Click {2} to learn more.", this.extension.displayName || this.extension.identifier.id, productName, `[${localize('more info', "More Information")}](https://aka.ms/vscode-remote-codespaces#_why-is-an-extension-not-installable-in-the-browser)`)}`);
+					message = new MarkdownString(`${localize('not web tooltip', "The '{0}' extension is not available in {1}.", this.extension.displayName || this.extension.identifier.id, productName)} [${localize('learn more', "Learn More")}](https://aka.ms/vscode-remote-codespaces#_why-is-an-extension-not-installable-in-the-browser)`);
 				}
 				this.updateStatus({ icon: infoIcon, message }, true);
 				return;
@@ -2086,14 +2082,32 @@ export class ExtensionStatusAction extends ExtensionAction {
 		// Extension is disabled by extension kind
 		if (this.extension.enablementState === EnablementState.DisabledByExtensionKind) {
 			if (!this.extensionsWorkbenchService.installed.some(e => areSameExtensions(e.identifier, this.extension!.identifier) && e.server !== this.extension!.server)) {
-				const server = this.extensionManagementServerService.localExtensionManagementServer === this.extension.server ? this.extensionManagementServerService.remoteExtensionManagementServer : this.extensionManagementServerService.localExtensionManagementServer;
 				let message;
-				if (server) {
-					message = new MarkdownString(localize('Install in other server to enable', "Install the extension on '{0}' to enable.", server.label));
-				} else {
-					message = new MarkdownString(localize('disabled because of extension kind', "This extension has defined that it cannot run on the remote server"));
+				// Extension on Local Server
+				if (this.extensionManagementServerService.localExtensionManagementServer === this.extension.server) {
+					if (this.extensionManifestPropertiesService.prefersExecuteOnWorkspace(this.extension.local.manifest)) {
+						if (this.extensionManagementServerService.remoteExtensionManagementServer) {
+							message = new MarkdownString(`${localize('Install in remote server to enable', "This extension is disabled in this workspace because it is defined to run in the Remote Extension Host. Please install the extension in '{0}' to enable.", this.extensionManagementServerService.remoteExtensionManagementServer.label)} [${localize('learn more', "Learn More")}](https://aka.ms/vscode-remote/developing-extensions/architecture)`);
+						}
+					}
 				}
-				this.updateStatus({ icon: warningIcon, message }, true);
+				// Extension on Remote Server
+				else if (this.extensionManagementServerService.remoteExtensionManagementServer === this.extension.server) {
+					if (this.extensionManifestPropertiesService.prefersExecuteOnUI(this.extension.local.manifest)) {
+						if (this.extensionManagementServerService.localExtensionManagementServer) {
+							message = new MarkdownString(`${localize('Install in local server to enable', "This extension is disabled in this workspace because it is defined to run in the Local Extension Host. Please install the extension locally to enable.", this.extensionManagementServerService.remoteExtensionManagementServer.label)} [${localize('learn more', "Learn More")}](https://aka.ms/vscode-remote/developing-extensions/architecture)`);
+						} else if (isWeb) {
+							message = new MarkdownString(`${localize('Cannot be enabled', "This extension is disabled because it is not supported in {0}.", localize({ key: 'vscode web', comment: ['VS Code Web is the name of the product'] }, "VS Code Web"))} [${localize('learn more', "Learn More")}](https://aka.ms/vscode-remote/developing-extensions/architecture)`);
+						}
+					}
+				}
+				// Extension on Web Server
+				else if (this.extensionManagementServerService.webExtensionManagementServer === this.extension.server) {
+					message = new MarkdownString(`${localize('Cannot be enabled', "This extension is disabled because it is not supported in {0}.", localize({ key: 'vscode web', comment: ['VS Code Web is the name of the product'] }, "VS Code Web"))} [${localize('learn more', "Learn More")}](https://aka.ms/vscode-remote/developing-extensions/architecture)`);
+				}
+				if (message) {
+					this.updateStatus({ icon: warningIcon, message }, true);
+				}
 				return;
 			}
 		}
@@ -2114,14 +2128,14 @@ export class ExtensionStatusAction extends ExtensionAction {
 			const runningExtensionServer = runningExtension ? this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension)) : null;
 			if (this.extension.server === this.extensionManagementServerService.localExtensionManagementServer && runningExtensionServer === this.extensionManagementServerService.remoteExtensionManagementServer) {
 				if (this.extensionManifestPropertiesService.prefersExecuteOnWorkspace(this.extension.local!.manifest)) {
-					this.updateStatus({ icon: infoIcon, message: new MarkdownString(localize('disabled locally', "Extension is enabled on '{0}' and disabled locally.", this.extensionManagementServerService.remoteExtensionManagementServer.label)) }, true);
+					this.updateStatus({ icon: infoIcon, message: new MarkdownString(`${localize('enabled remotely', "This extension is enabled in the Remote Extension Host because it prefers to run there.")} [${localize('learn more', "Learn More")}](https://aka.ms/vscode-remote/developing-extensions/architecture)`) }, true);
 				}
 				return;
 			}
 
 			if (this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer && runningExtensionServer === this.extensionManagementServerService.localExtensionManagementServer) {
 				if (this.extensionManifestPropertiesService.prefersExecuteOnUI(this.extension.local!.manifest)) {
-					this.updateStatus({ icon: infoIcon, message: new MarkdownString(localize('disabled remotely', "Extension is enabled locally and disabled on '{0}'.", this.extensionManagementServerService.remoteExtensionManagementServer.label)) }, true);
+					this.updateStatus({ icon: infoIcon, message: new MarkdownString(`${localize('enabled locally', "This extension is enabled in the Local Extension Host because it prefers to run there.")} [${localize('learn more', "Learn More")}](https://aka.ms/vscode-remote/developing-extensions/architecture)`) }, true);
 				}
 				return;
 			}
@@ -2637,7 +2651,6 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.extension-status-error { color: ${errorColor}; }`);
 		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.extension-status-error { color: ${errorColor}; }`);
 		collector.addRule(`.extension-editor .body .subcontent .runtime-status ${ThemeIcon.asCSSSelector(errorIcon)} { color: ${errorColor}; }`);
-		collector.addRule(`.monaco-workbench .extension-editor > .header > .details > .actions > .status ${ThemeIcon.asCSSSelector(errorIcon)} { color: ${errorColor}; }`);
 		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(errorIcon)} { color: ${errorColor}; }`);
 	}
 
@@ -2646,7 +2659,6 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.extension-status-warning { color: ${warningColor}; }`);
 		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.extension-status-warning { color: ${warningColor}; }`);
 		collector.addRule(`.extension-editor .body .subcontent .runtime-status ${ThemeIcon.asCSSSelector(warningIcon)} { color: ${warningColor}; }`);
-		collector.addRule(`.monaco-workbench .extension-editor > .header > .details > .actions > .status ${ThemeIcon.asCSSSelector(warningIcon)} { color: ${warningColor}; }`);
 		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(warningIcon)} { color: ${warningColor}; }`);
 	}
 
@@ -2655,7 +2667,6 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.extension-status-info { color: ${infoColor}; }`);
 		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.extension-status-info { color: ${infoColor}; }`);
 		collector.addRule(`.extension-editor .body .subcontent .runtime-status ${ThemeIcon.asCSSSelector(infoIcon)} { color: ${infoColor}; }`);
-		collector.addRule(`.monaco-workbench .extension-editor > .header > .details > .actions > .status ${ThemeIcon.asCSSSelector(infoIcon)} { color: ${infoColor}; }`);
 		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(infoIcon)} { color: ${infoColor}; }`);
 	}
 });

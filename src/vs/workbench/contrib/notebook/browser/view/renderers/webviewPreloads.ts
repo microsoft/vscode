@@ -253,7 +253,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		return false;
 	}
 
-	const handleWheel = (event: WheelEvent) => {
+	const handleWheel = (event: WheelEvent & { wheelDeltaX?: number, wheelDeltaY?: number, wheelDelta?: number }) => {
 		if (event.defaultPrevented || scrollWillGoToParent(event)) {
 			return;
 		}
@@ -263,7 +263,11 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				deltaX: event.deltaX,
 				deltaY: event.deltaY,
 				deltaZ: event.deltaZ,
+				wheelDelta: event.wheelDelta,
+				wheelDeltaX: event.wheelDeltaX,
+				wheelDeltaY: event.wheelDeltaY,
 				detail: event.detail,
+				shiftKey: event.shiftKey,
 				type: event.type
 			}
 		});

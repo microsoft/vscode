@@ -6,8 +6,8 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { disposeAll } from '../../utils/dispose';
 import { createTestEditor, joinLines, retryUntilDocumentChanges, wait } from '../../test/testUtils';
+import { disposeAll } from '../../utils/dispose';
 
 suite.skip('TypeScript Quick Fix', () => {
 

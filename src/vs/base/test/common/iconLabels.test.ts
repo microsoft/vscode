@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { IMatch } from 'vs/base/common/filters';
-import { matchesFuzzyIconAware, parseLabelWithIcons, IParsedLabelWithIcons, stripIcons, escapeIcons, markdownEscapeEscapedIcons } from 'vs/base/common/iconLabels';
+import { escapeIcons, IParsedLabelWithIcons, markdownEscapeEscapedIcons, matchesFuzzyIconAware, parseLabelWithIcons, stripIcons } from 'vs/base/common/iconLabels';
 
 export interface IIconFilter {
 	// Returns null if word doesn't match.

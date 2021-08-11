@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as electron from 'electron';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
 import { memoize } from 'vs/base/common/decorators';
+import { Event } from 'vs/base/common/event';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { State, IUpdate, StateType, UpdateType } from 'vs/platform/update/common/update';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { AbstractUpdateService, createUpdateURL, UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
-import { IRequestService } from 'vs/platform/request/common/request';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IRequestService } from 'vs/platform/request/common/request';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IUpdate, State, StateType, UpdateType } from 'vs/platform/update/common/update';
+import { AbstractUpdateService, createUpdateURL, UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
 
 export class DarwinUpdateService extends AbstractUpdateService {
 

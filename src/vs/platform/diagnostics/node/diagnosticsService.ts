@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as osLib from 'os';
-import { virtualMachineHint } from 'vs/base/node/id';
-import { IDiagnosticsService, IMachineInfo, WorkspaceStats, WorkspaceStatItem, PerformanceInfo, SystemInfo, IRemoteDiagnosticInfo, IRemoteDiagnosticError, isRemoteDiagnosticError, IWorkspaceInformation } from 'vs/platform/diagnostics/common/diagnostics';
-import { join, basename } from 'vs/base/common/path';
-import { parse, ParseError, getNodeType } from 'vs/base/common/json';
-import { listProcesses } from 'vs/base/node/ps';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { isWindows, isLinux } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { ProcessItem } from 'vs/base/common/processes';
-import { IMainProcessInfo } from 'vs/platform/launch/common/launch';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Iterable } from 'vs/base/common/iterator';
+import { getNodeType, parse, ParseError } from 'vs/base/common/json';
 import { Schemas } from 'vs/base/common/network';
-import { ByteSize } from 'vs/platform/files/common/files';
+import { basename, join } from 'vs/base/common/path';
+import { isLinux, isWindows } from 'vs/base/common/platform';
+import { ProcessItem } from 'vs/base/common/processes';
+import { URI } from 'vs/base/common/uri';
+import { virtualMachineHint } from 'vs/base/node/id';
 import { IDirent, Promises } from 'vs/base/node/pfs';
+import { listProcesses } from 'vs/base/node/ps';
+import { IDiagnosticsService, IMachineInfo, IRemoteDiagnosticError, IRemoteDiagnosticInfo, isRemoteDiagnosticError, IWorkspaceInformation, PerformanceInfo, SystemInfo, WorkspaceStatItem, WorkspaceStats } from 'vs/platform/diagnostics/common/diagnostics';
+import { ByteSize } from 'vs/platform/files/common/files';
+import { IMainProcessInfo } from 'vs/platform/launch/common/launch';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export interface VersionInfo {
 	vscodeVersion: string;

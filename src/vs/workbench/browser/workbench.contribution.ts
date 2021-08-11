@@ -93,9 +93,9 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': 'text',
 				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'untitledHint' }, "Controls if the untitled hint should be inline text in the editor or a floating button or hidden.")
 			},
-			'workbench.editor.untitled.languageDetection': {
+			'workbench.editor.untitled.experimentalLanguageDetection': {
 				type: 'boolean',
-				default: false,
+				default: true,
 				description: localize('workbench.editor.untitled.languageDetection', "Experimental. Controls whether the language in an untitled text editor is automatically detected unless the language has been explicitly set by the language picker. This can also be scoped by language so you can control which languages you want to trigger language detection on."),
 				scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
 			},

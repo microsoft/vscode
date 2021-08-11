@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'vs/base/common/path';
+import { exec } from 'child_process';
 import type * as pty from 'node-pty';
 import * as os from 'os';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalLaunchError, FlowControlConstants, ITerminalChildProcess, ITerminalDimensionsOverride, TerminalShellType, IProcessReadyEvent } from 'vs/platform/terminal/common/terminal';
-import { exec } from 'child_process';
-import { ILogService } from 'vs/platform/log/common/log';
-import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
-import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { timeout } from 'vs/base/common/async';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
+import * as path from 'vs/base/common/path';
+import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
 import { Promises } from 'vs/base/node/pfs';
+import { localize } from 'vs/nls';
+import { ILogService } from 'vs/platform/log/common/log';
+import { FlowControlConstants, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { ChildProcessMonitor } from 'vs/platform/terminal/node/childProcessMonitor';
+import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
+import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
 
 const enum ShutdownConstants {
 	/**

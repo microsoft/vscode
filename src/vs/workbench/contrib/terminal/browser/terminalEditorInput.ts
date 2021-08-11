@@ -5,14 +5,14 @@
 
 import { dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ConfirmOnKill } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -30,7 +30,8 @@ export class TerminalEditorInput extends EditorInput {
 
 	private _isDetached = false;
 	private _isShuttingDown = false;
-	private _copyInstance?: ITerminalInstance;
+	private _isReverted = false;
+	private _copyLaunchConfig?: IShellLaunchConfig;
 	private _terminalEditorFocusContextKey: IContextKey<boolean>;
 
 	private _group: IEditorGroup | undefined;
@@ -67,18 +68,18 @@ export class TerminalEditorInput extends EditorInput {
 	}
 
 	override copy(): IEditorInput {
-		const instance = this._copyInstance || this._terminalInstanceService.createInstance({}, TerminalLocation.Editor);
+		const instance = this._terminalInstanceService.createInstance(this._copyLaunchConfig || {}, TerminalLocation.Editor);
 		instance.focusWhenReady();
-		this._copyInstance = undefined;
+		this._copyLaunchConfig = undefined;
 		return this._instantiationService.createInstance(TerminalEditorInput, instance.resource, instance);
 	}
 
 	/**
-	 * Sets what instance to use for the next call to IEditorInput.copy, this is used to define what
-	 * terminal instance is used when the editor's split command is run.
+	 * Sets the launch config to use for the next call to IEditorInput.copy, which will be used when
+	 * the editor's split command is run.
 	 */
-	setCopyInstance(instance: ITerminalInstance) {
-		this._copyInstance = instance;
+	setCopyLaunchConfig(launchConfig: IShellLaunchConfig) {
+		this._copyLaunchConfig = launchConfig;
 	}
 
 	/**
@@ -89,11 +90,19 @@ export class TerminalEditorInput extends EditorInput {
 	}
 
 	override isDirty(): boolean {
+		if (this._isReverted) {
+			return false;
+		}
 		const confirmOnKill = this._configurationService.getValue<ConfirmOnKill>(TerminalSettingId.ConfirmOnKill);
 		if (confirmOnKill === 'editor' || confirmOnKill === 'always') {
 			return this._terminalInstance?.hasChildProcesses || false;
 		}
 		return false;
+	}
+
+	override async revert(): Promise<void> {
+		// On revert just treat the terminal as permanently non-dirty
+		this._isReverted = true;
 	}
 
 	constructor(
@@ -184,5 +193,16 @@ export class TerminalEditorInput extends EditorInput {
 			this._terminalInstance?.detachFromElement();
 			this._isDetached = true;
 		}
+	}
+
+	public override toUntyped(): IUntypedEditorInput {
+		return {
+			resource: this.resource,
+			options: {
+				override: TerminalEditor.ID,
+				pinned: true,
+				forceReload: true
+			}
+		};
 	}
 }

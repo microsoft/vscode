@@ -63,6 +63,10 @@
 	display: none;
 }
 
+.monaco-action-bar .extension-action.label {
+	display: inherit;
+}
+
 .monaco-action-bar .action-item.disabled .action-label.extension-status:before {
 	opacity: 1;
 }

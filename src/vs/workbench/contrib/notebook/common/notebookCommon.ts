@@ -344,7 +344,7 @@ export type ISelectionState = ISelectionHandleState | ISelectionIndexState;
 export type NotebookTextModelChangedEvent = {
 	readonly rawEvents: NotebookRawContentEvent[];
 	readonly versionId: number;
-	readonly synchronous: boolean;
+	readonly synchronous: boolean | undefined;
 	readonly endSelectionState: ISelectionState | undefined;
 };
 
@@ -850,6 +850,8 @@ export const DragAndDropEnabled = 'notebook.dragAndDropEnabled';
 export const NotebookCellEditorOptionsCustomizations = 'notebook.editorOptionsCustomizations';
 export const ConsolidatedRunButton = 'notebook.consolidatedRunButton';
 export const OpenGettingStarted = 'notebook.experimental.openGettingStarted';
+export const TextOutputLineLimit = 'notebook.output.textLineLimit';
+export const GlobalToolbarShowLabel = 'notebook.globalToolbarShowLabel';
 
 export const enum CellStatusbarAlignment {
 	Left = 1,

@@ -3,24 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IProcessEnvironment, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
-import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalsLayoutInfo, IRawTerminalInstanceLayoutInfo, ITerminalTabLayoutInfoById, ITerminalInstanceLayoutInfoById, TerminalShellType, IProcessReadyEvent, TitleEventSource, TerminalIcon, IReconnectConstants, IRequestResolveVariablesEvent } from 'vs/platform/terminal/common/terminal';
+import { execFile } from 'child_process';
 import { AutoOpenBarrier, Queue, RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
-import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
-import { ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto, IProcessDetails, IGetTerminalLayoutInfoArgs, IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
-import { ILogService } from 'vs/platform/log/common/log';
-import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
-import { getSystemShell } from 'vs/base/node/shell';
-import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
-import { execFile } from 'child_process';
-import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IProcessEnvironment, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
+import { getSystemShell } from 'vs/base/node/shell';
+import { ILogService } from 'vs/platform/log/common/log';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
+import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, TerminalShellType, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
+import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { Terminal } from 'xterm-headless';
 import { SerializeAddon } from 'vs/platform/terminal/node/serializeAddon';
+import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto } from 'vs/platform/terminal/common/terminalProcess';
+import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
+import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
+import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
+
 type WorkspaceId = string;
 
 export class PtyService extends Disposable implements IPtyService {

@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ipcMain, session } from 'electron';
-import { ILogService } from 'vs/platform/log/common/log';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
-import { isLinux, isPreferringBrowserCodeLoad } from 'vs/base/common/platform';
+import { FileAccess, Schemas } from 'vs/base/common/network';
+import { isLinux } from 'vs/base/common/platform';
 import { extname } from 'vs/base/common/resources';
-import { IIPCObjectUrl, IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
+import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IIPCObjectUrl, IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 
 type ProtocolCallback = { (result: string | Electron.FilePathWithHeaders | { error: number }): void };
 
@@ -49,7 +49,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 		// Register vscode-file:// handler
 		defaultSession.protocol.registerFileProtocol(Schemas.vscodeFileResource, (request, callback) => this.handleResourceRequest(request, callback));
 
-		// Intercept any file:// access
+		// Block any file:// access
 		defaultSession.protocol.interceptFileProtocol(Schemas.file, (request, callback) => this.handleFileRequest(request, callback));
 
 		// Cleanup
@@ -71,39 +71,12 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 
 	//#region file://
 
-	private handleFileRequest(request: Electron.ProtocolRequest, callback: ProtocolCallback): void {
-		const fileUri = URI.parse(request.url);
+	private handleFileRequest(request: Electron.ProtocolRequest, callback: ProtocolCallback) {
+		const uri = URI.parse(request.url);
 
-		// isPreferringBrowserCodeLoad: false
-		if (!isPreferringBrowserCodeLoad) {
+		this.logService.error(`Refused to load resource ${uri.fsPath} from ${Schemas.file}: protocol (original URL: ${request.url})`);
 
-			// first check by validRoots
-			if (this.validRoots.findSubstr(fileUri)) {
-				return callback({
-					path: fileUri.fsPath
-				});
-			}
-
-			// then check by validExtensions
-			if (this.validExtensions.has(extname(fileUri))) {
-				return callback({
-					path: fileUri.fsPath
-				});
-			}
-
-			// finally block to load the resource
-			this.logService.error(`${Schemas.file}: Refused to load resource ${fileUri.fsPath} from ${Schemas.file}: protocol (original URL: ${request.url})`);
-
-			return callback({ error: -3 /* ABORTED */ });
-		}
-
-		// isPreferringBrowserCodeLoad: true
-		// => block any file request
-		else {
-			this.logService.error(`Refused to load resource ${fileUri.fsPath} from ${Schemas.file}: protocol (original URL: ${request.url})`);
-
-			return callback({ error: -3 /* ABORTED */ });
-		}
+		return callback({ error: -3 /* ABORTED */ });
 	}
 
 	//#endregion

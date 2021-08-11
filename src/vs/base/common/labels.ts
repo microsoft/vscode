@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { posix, normalize, win32, sep } from 'vs/base/common/path';
-import { startsWithIgnoreCase, rtrim } from 'vs/base/common/strings';
-import { Schemas } from 'vs/base/common/network';
-import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
-import { isEqual, basename, relativePath } from 'vs/base/common/resources';
 import { hasDriveLetter, isRootOrDriveLetter } from 'vs/base/common/extpath';
+import { Schemas } from 'vs/base/common/network';
+import { normalize, posix, sep, win32 } from 'vs/base/common/path';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { basename, isEqual, relativePath } from 'vs/base/common/resources';
+import { rtrim, startsWithIgnoreCase } from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
 
 export interface IWorkspaceFolderProvider {
 	getWorkspaceFolder(resource: URI): { uri: URI, name?: string; } | null;

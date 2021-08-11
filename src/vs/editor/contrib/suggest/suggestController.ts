@@ -593,6 +593,10 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	stopForceRenderingAbove() {
+		if (!this.widget.isInitialized) {
+			// This method has no effect if the widget is not initialized yet.
+			return;
+		}
 		this.widget.value.stopForceRenderingAbove();
 	}
 }

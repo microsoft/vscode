@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./actionbar';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IAction, IActionRunner, ActionRunner, IRunEvent, Separator } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
-import * as types from 'vs/base/common/types';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ActionRunner, IAction, IActionRunner, IRunEvent, Separator } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
-import { IActionViewItemOptions, ActionViewItem, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import * as types from 'vs/base/common/types';
+import 'vs/css!./actionbar';
 
 export interface IActionViewItem extends IDisposable {
+	action: IAction;
 	actionRunner: IActionRunner;
 	setActionContext(context: unknown): void;
 	render(element: HTMLElement): void;
@@ -290,6 +291,10 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	hasAction(action: IAction): boolean {
 		return this._actionIds.includes(action.id);
+	}
+
+	getAction(index: number): IAction {
+		return this.viewItems[index].action;
 	}
 
 	push(arg: IAction | ReadonlyArray<IAction>, options: IActionOptions = {}): void {

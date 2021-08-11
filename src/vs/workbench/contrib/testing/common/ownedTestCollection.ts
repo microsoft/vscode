@@ -10,7 +10,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { assertNever } from 'vs/base/common/types';
 import { diffTestItems, ExtHostTestItemEvent, ExtHostTestItemEventOp, getPrivateApiFor, TestItemImpl, TestItemRootImpl } from 'vs/workbench/api/common/extHostTestingPrivateApi';
 import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
-import { applyTestItemUpdate, TestDiffOpType, TestItemExpandState, TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testCollection';
+import { applyTestItemUpdate, ITestTag, TestDiffOpType, TestItemExpandState, TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 
 type TestItemRaw = Convert.TestItem.Raw;
@@ -76,6 +76,21 @@ export class SingleUseTestCollection extends Disposable {
 		const diff = this.diff;
 		this.diff = [];
 		return diff;
+	}
+
+	/**
+	 * Gets all tags associated with items in the collection.
+	 */
+	public *tags() {
+		const seen = new Set<string>();
+		for (const item of this.tree.values()) {
+			for (const tag of item.actual.tags) {
+				if (!seen.has(tag.id)) {
+					seen.add(tag.id);
+					yield tag;
+				}
+			}
+		}
 	}
 
 	/**
@@ -168,6 +183,9 @@ export class SingleUseTestCollection extends Disposable {
 				switch (key) {
 					case 'canResolveChildren':
 						this.updateExpandability(internal);
+						break;
+					case 'tags':
+						this.pushDiff([TestDiffOpType.Update, { extId, item: { tags: (value as ITestTag[]).map(v => v.id) }, }]);
 						break;
 					case 'range':
 						this.pushDiff([TestDiffOpType.Update, { extId, item: { range: Convert.Range.from(value) }, }]);
@@ -347,16 +365,22 @@ export class SingleUseTestCollection extends Disposable {
 		this.pushExpandStateUpdate(internal);
 
 		const barrier = internal.resolveBarrier = new Barrier();
+		const applyError = (err: Error) => {
+			console.error(`Unhandled error in resolveHandler of test controller "${this.controllerId}"`);
+			if (internal.actual !== this.root) {
+				internal.actual.error = err.stack || err.message || String(err);
+			}
+		};
 
 		let r: Thenable<void> | void;
 		try {
 			r = this._resolveHandler(internal.actual === this.root ? undefined : internal.actual);
 		} catch (err) {
-			internal.actual.error = err.stack || err.message;
+			applyError(err);
 		}
 
 		if (isThenable(r)) {
-			r.catch(err => internal.actual.error = err.stack || err.message).then(() => {
+			r.catch(applyError).then(() => {
 				barrier.open();
 				this.updateExpandability(internal);
 			});
