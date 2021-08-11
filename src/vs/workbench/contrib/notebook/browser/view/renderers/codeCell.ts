@@ -300,7 +300,17 @@ export class CodeCell extends Disposable {
 	}
 
 	private _removeInputCollapsePreview() {
-		DOM.clearNode(this.templateData.cellInputCollapsedContainer);
+		const children = this.templateData.cellInputCollapsedContainer.children;
+		const elements = [];
+		for (let i = 0; i < children.length; i++) {
+			if (children[i].classList.contains('cell-collapse-preview')) {
+				elements.push(children[i]);
+			}
+		}
+
+		elements.forEach(element => {
+			element.parentElement?.removeChild(element);
+		});
 	}
 
 	private _updateOutputInnertContainer(hide: boolean) {
