@@ -817,6 +817,11 @@ export class CodeApplication extends Disposable {
 
 	private shouldBlockURI(uri: URI): boolean {
 		if (uri.authority === Schemas.file && isWindows) {
+			if (uri.fsPath.match(/^[a-zA-Z]\:/)) {
+				// don't block local paths (starting with the drive letter)
+				return true;
+			}
+
 			const res = dialog.showMessageBoxSync({
 				title: this.productService.nameLong,
 				type: 'question',
