@@ -371,7 +371,6 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 	}
 
 	private findParent(path: string): string | undefined {
-		// TODO@bpasero TODO@joaomoreno what is the purpose of this?
 		const match = /^(.*)\/([^/]+)$/.exec(path);
 		if (!match) {
 			return undefined;
