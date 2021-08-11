@@ -13,7 +13,7 @@ import { basename, extUri, isEqual } from 'vs/base/common/resources';
 import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import { createFileSystemProviderError, FileDeleteOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+import { createFileSystemProviderError, FileDeleteOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 
 export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileReadStreamCapability {
 
@@ -47,37 +47,41 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 	//#region File Metadata Resolving
 
 	async stat(resource: URI): Promise<IStat> {
-		let handle: FileSystemHandle | undefined = undefined;
+		try {
+			let handle: FileSystemHandle | undefined = undefined;
 
-		// First: try to find a well known handle first
-		const handleId = this.findHandleId(resource);
-		if (handleId) {
-			handle = this.files.get(handleId) ?? this.directories.get(handleId);
-		}
+			// First: try to find a well known handle first
+			const handleId = this.findHandleId(resource);
+			if (handleId) {
+				handle = this.files.get(handleId) ?? this.directories.get(handleId);
+			}
 
-		// Second: walk up parent directories and resolve handle if possible
-		if (!handle) {
-			const parent = await this.getParentDirectoryHandle(resource);
-			if (parent) {
-				const name = extUri.basename(resource);
+			// Second: walk up parent directories and resolve handle if possible
+			if (!handle) {
+				const parent = await this.getParentDirectoryHandle(resource);
+				if (parent) {
+					const name = extUri.basename(resource);
 
-				try {
-					handle = await parent.getFileHandle(name);
-				} catch (error) {
 					try {
-						handle = await parent.getDirectoryHandle(name);
+						handle = await parent.getFileHandle(name);
 					} catch (error) {
-						// Ignore
+						try {
+							handle = await parent.getDirectoryHandle(name);
+						} catch (error) {
+							// Ignore
+						}
 					}
 				}
 			}
-		}
 
-		if (!handle) {
-			throw createFileSystemProviderError(new Error(`No such file or directory, stat '${resource.toString(true)}'`), FileSystemProviderErrorCode.FileNotFound);
-		}
+			if (!handle) {
+				throw createFileSystemProviderError(new Error(`No such file or directory, stat '${resource.toString(true)}'`), FileSystemProviderErrorCode.FileNotFound);
+			}
 
-		return this.toStat(handle);
+			return this.toStat(handle);
+		} catch (error) {
+			throw this.toFileSystemProviderError(error);
+		}
 	}
 
 	private async toStat(handle: FileSystemHandle): Promise<IStat> {
@@ -101,18 +105,22 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 	}
 
 	async readdir(resource: URI): Promise<[string, FileType][]> {
-		const handle = await this.getDirectoryHandle(resource);
-		if (!handle) {
-			throw createFileSystemProviderError(new Error(`No such file or directory, readdir '${resource.toString(true)}'`), FileSystemProviderErrorCode.FileNotFound);
+		try {
+			const handle = await this.getDirectoryHandle(resource);
+			if (!handle) {
+				throw createFileSystemProviderError(new Error(`No such file or directory, readdir '${resource.toString(true)}'`), FileSystemProviderErrorCode.FileNotFound);
+			}
+
+			const result: [string, FileType][] = [];
+
+			for await (const [name, child] of handle) {
+				result.push([name, child.kind === 'file' ? FileType.File : FileType.Directory]);
+			}
+
+			return result;
+		} catch (error) {
+			throw this.toFileSystemProviderError(error);
 		}
-
-		const result: [string, FileType][] = [];
-
-		for await (const [name, child] of handle) {
-			result.push([name, child.kind === 'file' ? FileType.File : FileType.Directory]);
-		}
-
-		return result;
 	}
 
 	//#endregion
@@ -174,7 +182,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 					stream.end(undefined);
 				}
 			} catch (error) {
-				stream.error(error);
+				stream.error(this.toFileSystemProviderError(error));
 				stream.end();
 			}
 		})();
@@ -183,50 +191,58 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 	}
 
 	async readFile(resource: URI): Promise<Uint8Array> {
-		const handle = await this.getFileHandle(resource);
-		if (!handle) {
-			throw createFileSystemProviderError(new Error(`No such file or directory, readFile '${resource.toString(true)}'`), FileSystemProviderErrorCode.FileNotFound);
+		try {
+			const handle = await this.getFileHandle(resource);
+			if (!handle) {
+				throw createFileSystemProviderError(new Error(`No such file or directory, readFile '${resource.toString(true)}'`), FileSystemProviderErrorCode.FileNotFound);
+			}
+
+			const file = await handle.getFile();
+
+			return new Uint8Array(await file.arrayBuffer());
+		} catch (error) {
+			throw this.toFileSystemProviderError(error);
 		}
-
-		const file = await handle.getFile();
-
-		return new Uint8Array(await file.arrayBuffer());
 	}
 
 	async writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
-		let handle = await this.getFileHandle(resource);
+		try {
+			let handle = await this.getFileHandle(resource);
 
-		// Validate target unless { create: true, overwrite: true }
-		if (!opts.create || !opts.overwrite) {
-			if (handle) {
-				if (!opts.overwrite) {
-					throw createFileSystemProviderError(new Error(`File already exists, writeFile '${resource.toString(true)}'`), FileSystemProviderErrorCode.FileExists);
-				}
-			} else {
-				if (!opts.create) {
-					throw createFileSystemProviderError(new Error(`No such file, writeFile '${resource.toString(true)}'`), FileSystemProviderErrorCode.FileNotFound);
+			// Validate target unless { create: true, overwrite: true }
+			if (!opts.create || !opts.overwrite) {
+				if (handle) {
+					if (!opts.overwrite) {
+						throw createFileSystemProviderError(new Error(`File already exists, writeFile '${resource.toString(true)}'`), FileSystemProviderErrorCode.FileExists);
+					}
+				} else {
+					if (!opts.create) {
+						throw createFileSystemProviderError(new Error(`No such file, writeFile '${resource.toString(true)}'`), FileSystemProviderErrorCode.FileNotFound);
+					}
 				}
 			}
-		}
 
-		// Create target as needed
-		if (!handle) {
-			const parent = await this.getParentDirectoryHandle(resource);
-			if (!parent) {
-				throw createFileSystemProviderError(new Error(`No such parent directory, writeFile '${resource.toString(true)}'`), FileSystemProviderErrorCode.FileNotFound);
-			}
-
-			handle = await parent.getFileHandle(basename(resource), { create: true });
-
+			// Create target as needed
 			if (!handle) {
-				throw createFileSystemProviderError(new Error(`Unable to create file , writeFile '${resource.toString(true)}'`), FileSystemProviderErrorCode.Unknown);
-			}
-		}
+				const parent = await this.getParentDirectoryHandle(resource);
+				if (!parent) {
+					throw createFileSystemProviderError(new Error(`No such parent directory, writeFile '${resource.toString(true)}'`), FileSystemProviderErrorCode.FileNotFound);
+				}
 
-		// Write to target overwriting any existing contents
-		const writable = await handle.createWritable();
-		await writable.write(content);
-		await writable.close();
+				handle = await parent.getFileHandle(basename(resource), { create: true });
+
+				if (!handle) {
+					throw createFileSystemProviderError(new Error(`Unable to create file , writeFile '${resource.toString(true)}'`), FileSystemProviderErrorCode.Unknown);
+				}
+			}
+
+			// Write to target overwriting any existing contents
+			const writable = await handle.createWritable();
+			await writable.write(content);
+			await writable.close();
+		} catch (error) {
+			throw this.toFileSystemProviderError(error);
+		}
 	}
 
 	//#endregion
@@ -234,41 +250,53 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 	//#region Move/Copy/Delete/Create Folder
 
 	async mkdir(resource: URI): Promise<void> {
-		const parent = await this.getParentDirectoryHandle(resource);
-		if (!parent) {
-			throw createFileSystemProviderError(new Error(`No such parent directory, mkdir '${resource.toString(true)}'`), FileSystemProviderErrorCode.FileNotFound);
-		}
+		try {
+			const parent = await this.getParentDirectoryHandle(resource);
+			if (!parent) {
+				throw createFileSystemProviderError(new Error(`No such parent directory, mkdir '${resource.toString(true)}'`), FileSystemProviderErrorCode.FileNotFound);
+			}
 
-		await parent.getDirectoryHandle(basename(resource), { create: true });
+			await parent.getDirectoryHandle(basename(resource), { create: true });
+		} catch (error) {
+			throw this.toFileSystemProviderError(error);
+		}
 	}
 
 	async delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
-		const parent = await this.getParentDirectoryHandle(resource);
-		if (!parent) {
-			throw createFileSystemProviderError(new Error(`No such parent directory, delete '${resource.toString(true)}'`), FileSystemProviderErrorCode.FileNotFound);
-		}
+		try {
+			const parent = await this.getParentDirectoryHandle(resource);
+			if (!parent) {
+				throw createFileSystemProviderError(new Error(`No such parent directory, delete '${resource.toString(true)}'`), FileSystemProviderErrorCode.FileNotFound);
+			}
 
-		return parent.removeEntry(basename(resource), { recursive: opts.recursive });
+			return parent.removeEntry(basename(resource), { recursive: opts.recursive });
+		} catch (error) {
+			throw this.toFileSystemProviderError(error);
+		}
 	}
 
 	async rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
-		if (isEqual(from, to)) {
-			return; // no-op if the paths are the same
-		}
+		try {
+			if (isEqual(from, to)) {
+				return; // no-op if the paths are the same
+			}
 
-		// Implement file rename by write + delete
-		let fileHandle = await this.getFileHandle(from);
-		if (fileHandle) {
-			const file = await fileHandle.getFile();
-			const contents = new Uint8Array(await file.arrayBuffer());
+			// Implement file rename by write + delete
+			let fileHandle = await this.getFileHandle(from);
+			if (fileHandle) {
+				const file = await fileHandle.getFile();
+				const contents = new Uint8Array(await file.arrayBuffer());
 
-			await this.writeFile(to, contents, { create: true, overwrite: opts.overwrite, unlock: false });
-			await this.delete(from, { recursive: false, useTrash: false });
-		}
+				await this.writeFile(to, contents, { create: true, overwrite: opts.overwrite, unlock: false });
+				await this.delete(from, { recursive: false, useTrash: false });
+			}
 
-		// File API does not support any real rename otherwise
-		else {
-			throw createFileSystemProviderError(new Error(`Rename is unsupported for folders`), FileSystemProviderErrorCode.Unavailable);
+			// File API does not support any real rename otherwise
+			else {
+				throw createFileSystemProviderError(new Error(`Rename is unsupported for folders`), FileSystemProviderErrorCode.Unavailable);
+			}
+		} catch (error) {
+			throw this.toFileSystemProviderError(error);
 		}
 	}
 
@@ -368,4 +396,12 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 	}
 
 	//#endregion
+
+	private toFileSystemProviderError(error: Error): FileSystemProviderError {
+		if (error instanceof FileSystemProviderError) {
+			return error; // avoid double conversion
+		}
+
+		return createFileSystemProviderError(error, FileSystemProviderErrorCode.Unknown);
+	}
 }
