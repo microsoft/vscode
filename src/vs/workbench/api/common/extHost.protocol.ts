@@ -926,7 +926,15 @@ export interface ICellExecuteOutputItemEditDto {
 	items: NotebookOutputItemDto[]
 }
 
-export type ICellExecuteUpdateDto = ICellExecuteOutputEditDto | ICellExecuteOutputItemEditDto | ICellExecutionStateUpdate | ICellExecutionComplete;
+export interface ICellExecutionStateUpdateDto extends ICellExecutionStateUpdate {
+	executionHandle: number;
+}
+
+export interface ICellExecutionCompleteDto extends ICellExecutionComplete {
+	executionHandle: number;
+}
+
+export type ICellExecuteUpdateDto = ICellExecuteOutputEditDto | ICellExecuteOutputItemEditDto | ICellExecutionStateUpdateDto | ICellExecutionCompleteDto;
 
 export interface MainThreadNotebookKernelsShape extends IDisposable {
 	$postMessage(handle: number, editorId: string | undefined, message: any): Promise<boolean>;
@@ -937,6 +945,7 @@ export interface MainThreadNotebookKernelsShape extends IDisposable {
 
 	$addExecution(handle: number, uri: UriComponents, cellHandle: number): void;
 	$updateExecutions(data: ICellExecuteUpdateDto[]): void;
+	$removeExecution(handle: number): void;
 }
 
 export interface MainThreadNotebookRenderersShape extends IDisposable {

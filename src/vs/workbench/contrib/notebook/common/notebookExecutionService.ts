@@ -16,7 +16,6 @@ export enum CellExecutionUpdateType {
 
 export interface ICellExecuteOutputEdit {
 	editType: CellExecutionUpdateType.Output;
-	executionHandle: number;
 	cellHandle: number;
 	append?: boolean;
 	outputs: IOutputDto[]
@@ -24,7 +23,6 @@ export interface ICellExecuteOutputEdit {
 
 export interface ICellExecuteOutputItemEdit {
 	editType: CellExecutionUpdateType.OutputItems;
-	executionHandle: number;
 	append?: boolean;
 	outputId: string;
 	items: IOutputItemDto[]
@@ -34,14 +32,12 @@ export type ICellExecuteUpdate = ICellExecuteOutputEdit | ICellExecuteOutputItem
 
 export interface ICellExecutionStateUpdate {
 	editType: CellExecutionUpdateType.ExecutionState;
-	executionHandle: number;
 	executionOrder?: number;
 	runStartTime?: number;
 }
 
 export interface ICellExecutionComplete {
 	editType: CellExecutionUpdateType.Complete;
-	executionHandle: number;
 	runEndTime?: number;
 	lastRunSuccess?: boolean;
 }
@@ -57,6 +53,5 @@ export const INotebookExecutionService = createDecorator<INotebookExecutionServi
 export interface INotebookExecutionService {
 	_serviceBrand: undefined;
 
-	// getExecutions(notebook: URI): INotebookCellExecution[];
 	createNotebookCellExecution(notebook: URI, cellHandle: number): INotebookCellExecution;
 }

@@ -472,6 +472,8 @@ class NotebookCellExecutionTask extends Disposable {
 				// The last update needs to be ordered correctly and applied immediately,
 				// so we use updateSoon and immediately flush.
 				that._collector.flush();
+
+				that._proxy.$removeExecution(that._handle);
 			},
 
 			clearOutput(cell?: vscode.NotebookCell): Thenable<void> {

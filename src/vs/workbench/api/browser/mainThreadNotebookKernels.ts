@@ -249,4 +249,8 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			}
 		});
 	}
+
+	$removeExecution(handle: number): void {
+		this._executions.delete(handle);
+	}
 }

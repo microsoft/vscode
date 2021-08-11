@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellEditType, ICellEditOperation, NotebookCellExecutionState, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -67,8 +68,10 @@ function updateToEdit(update: ICellExecuteUpdate, cellHandle: number): ICellEdit
 	throw new Error('Unknown cell update type');
 }
 
-class CellExecution implements INotebookCellExecution {
+class CellExecution implements INotebookCellExecution, IDisposable {
 	private readonly _notebookModel: NotebookTextModel;
+
+	private _isDisposed = false;
 
 	constructor(
 		readonly notebook: URI,
@@ -93,8 +96,20 @@ class CellExecution implements INotebookCellExecution {
 	}
 
 	update(updates: ICellExecuteUpdate[]): void {
+		if (this._isDisposed) {
+			throw new Error('Cannot update disposed execution');
+		}
+
 		const edits = updates.map(update => updateToEdit(update, this.cellHandle));
 		this._applyExecutionEdits(edits);
+
+		if (updates.some(u => u.editType === CellExecutionUpdateType.Complete)) {
+			this.dispose();
+		}
+	}
+
+	dispose(): void {
+		this._isDisposed = true;
 	}
 
 	private _applyExecutionEdits(edits: ICellEditOperation[]): void {
