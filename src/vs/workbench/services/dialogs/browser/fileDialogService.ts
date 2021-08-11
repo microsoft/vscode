@@ -20,7 +20,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		return this.fileService.getProvider(Schemas.file) as HTMLFileSystemProvider;
 	}
 
-	async pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
+	async pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<void> {
 		const schema = this.getFileSystemSchema(options);
 
 		if (!options.defaultUri) {
@@ -34,7 +34,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		throw new Error(localize('pickFolderAndOpen', "Can't open folders, try adding a folder to the workspace instead."));
 	}
 
-	async pickFileAndOpen(options: IPickAndOpenOptions): Promise<any> {
+	async pickFileAndOpen(options: IPickAndOpenOptions): Promise<void> {
 		const schema = this.getFileSystemSchema(options);
 
 		if (!options.defaultUri) {
@@ -45,14 +45,19 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return this.pickFileAndOpenSimplified(schema, options, false);
 		}
 
-		const [handle] = await window.showOpenFilePicker({ multiple: false });
+		let fileHandle: FileSystemHandle | undefined = undefined;
+		try {
+			([fileHandle] = await window.showOpenFilePicker({ multiple: false }));
+		} catch (error) {
+			return; // `showOpenFilePicker` will throw an error when the user cancels
+		}
 
-		const uri = this.fileSystemProvider.registerFileHandle(handle);
+		const uri = this.fileSystemProvider.registerFileHandle(fileHandle);
 
 		await this.openerService.open(uri, { fromUserGesture: true, editorOptions: { pinned: true } });
 	}
 
-	async pickFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
+	async pickFolderAndOpen(options: IPickAndOpenOptions): Promise<void> {
 		const schema = this.getFileSystemSchema(options);
 
 		if (!options.defaultUri) {
@@ -89,9 +94,14 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return this.pickFileToSaveSimplified(schema, options);
 		}
 
-		const handle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters) });
+		let fileHandle: FileSystemHandle | undefined = undefined;
+		try {
+			fileHandle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters) });
+		} catch (error) {
+			return; // `showSaveFilePicker` will throw an error when the user cancels
+		}
 
-		return this.fileSystemProvider.registerFileHandle(handle);
+		return this.fileSystemProvider.registerFileHandle(fileHandle);
 	}
 
 	private getFilePickerTypes(filters?: FileFilter[]): FilePickerAcceptType[] | undefined {
@@ -115,9 +125,14 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return this.showSaveDialogSimplified(schema, options);
 		}
 
-		const handle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters) });
+		let fileHandle: FileSystemHandle | undefined = undefined;
+		try {
+			fileHandle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters) });
+		} catch (error) {
+			return; // `showSaveFilePicker` will throw an error when the user cancels
+		}
 
-		return this.fileSystemProvider.registerFileHandle(handle);
+		return this.fileSystemProvider.registerFileHandle(fileHandle);
 	}
 
 	async showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
@@ -128,19 +143,21 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		let uri: URI | undefined;
-		if (options.canSelectFiles) {
-			const handle = await window.showOpenFilePicker({ multiple: false, types: this.getFilePickerTypes(options.filters) });
-			if (handle.length === 1) {
-				uri = this.fileSystemProvider.registerFileHandle(handle[0]);
+		try {
+			if (options.canSelectFiles) {
+				const handle = await window.showOpenFilePicker({ multiple: false, types: this.getFilePickerTypes(options.filters) });
+				if (handle.length === 1) {
+					uri = this.fileSystemProvider.registerFileHandle(handle[0]);
+				}
+			} else {
+				const handle = await window.showDirectoryPicker();
+				uri = this.fileSystemProvider.registerDirectoryHandle(handle);
 			}
-		} else {
-			const handle = await window.showDirectoryPicker();
-			uri = this.fileSystemProvider.registerDirectoryHandle(handle);
+		} catch (error) {
+			// ignore - `showOpenFilePicker` / `showDirectoryPicker` will throw an error when the user cancels
 		}
-		if (uri) {
-			return [uri];
-		}
-		return undefined;
+
+		return uri ? [uri] : undefined;
 	}
 
 	private shouldUseSimplified(scheme: string): boolean {
