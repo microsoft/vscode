@@ -274,7 +274,7 @@ suite('Workbench - Test Results Service', () => {
 		const makeHydrated = async (completedAt = 42, state = TestResultState.Passed) => new HydratedTestResult({
 			completedAt,
 			id: 'some-id',
-			tasks: [{ id: 't', running: false, name: undefined }],
+			tasks: [{ id: 't', messages: [], name: undefined }],
 			name: 'hello world',
 			request: defaultOpts([]),
 			items: [{

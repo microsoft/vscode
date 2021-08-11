@@ -31,7 +31,7 @@ import { SaveReason } from 'vs/workbench/common/editor';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import * as search from 'vs/workbench/contrib/search/common/search';
-import { CoverageDetails, DetailType, ICoveredCount, IFileCoverage, ISerializedTestResults, ITestItem, ITestItemContext, ITestMessage, ITestTag, ITestTagDisplayInfo, SerializedTestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { CoverageDetails, DetailType, ICoveredCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestItemContext, ITestTag, ITestTagDisplayInfo, SerializedTestResultItem, TestMessageType } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -1639,20 +1639,20 @@ export namespace NotebookRendererScript {
 }
 
 export namespace TestMessage {
-	export function from(message: vscode.TestMessage): ITestMessage {
+	export function from(message: vscode.TestMessage): ITestErrorMessage {
 		return {
 			message: MarkdownString.fromStrict(message.message) || '',
-			severity: types.TestMessageSeverity.Error,
-			expectedOutput: message.expectedOutput,
-			actualOutput: message.actualOutput,
+			type: TestMessageType.Error,
+			expected: message.expectedOutput,
+			actual: message.actualOutput,
 			location: message.location ? location.from(message.location) as any : undefined,
 		};
 	}
 
-	export function to(item: ITestMessage): vscode.TestMessage {
+	export function to(item: ITestErrorMessage): vscode.TestMessage {
 		const message = new types.TestMessage(typeof item.message === 'string' ? item.message : MarkdownString.to(item.message));
-		message.actualOutput = item.actualOutput;
-		message.expectedOutput = item.expectedOutput;
+		message.actualOutput = item.actual;
+		message.expectedOutput = item.expected;
 		return message;
 	}
 }
@@ -1750,7 +1750,9 @@ export namespace TestResults {
 			taskStates: item.tasks.map(t => ({
 				state: t.state as number as types.TestResultState,
 				duration: t.duration,
-				messages: t.messages.map(TestMessage.to),
+				messages: t.messages
+					.filter((m): m is ITestErrorMessage => m.type === TestMessageType.Error)
+					.map(TestMessage.to),
 			})),
 			children: item.children
 				.map(c => byInternalId.get(c))

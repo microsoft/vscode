@@ -398,10 +398,26 @@ class TestRunTracker extends Disposable {
 				this.proxy.$updateTestStateInRun(runId, taskId, TestId.fromExtHostTestItem(test, this.dto.controllerId).toString(), TestResultState.Passed, duration);
 			}),
 			//#endregion
-			appendOutput: output => {
-				if (!ended) {
-					this.proxy.$appendOutputToRun(runId, taskId, VSBuffer.fromString(output));
+			appendOutput: (output, location?: vscode.Location, test?: vscode.TestItem) => {
+				if (ended) {
+					return;
 				}
+
+				if (test) {
+					if (this.dto.isIncluded(test)) {
+						this.ensureTestIsKnown(test);
+					} else {
+						test = undefined;
+					}
+				}
+
+				this.proxy.$appendOutputToRun(
+					runId,
+					taskId,
+					VSBuffer.fromString(output),
+					location && Convert.location.from(location),
+					test && TestId.fromExtHostTestItem(test, ctrlId).toString(),
+				);
 			},
 			end: () => {
 				if (ended) {

@@ -62,7 +62,7 @@ import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/brow
 import { testingPeekBorder } from 'vs/workbench/contrib/testing/browser/theme';
 import { AutoOpenPeekViewWhen, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { IRichLocation, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { IRichLocation, ITestErrorMessage, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
@@ -646,6 +646,10 @@ class TestingOutputPeek extends PeekViewWidget {
 		const message = dto.messages[dto.messageIndex];
 		const previous = this.current;
 
+		if (message.type !== TestMessageType.Error) {
+			return Promise.resolve();
+		}
+
 		if (!dto.revealLocation && !previous) {
 			return Promise.resolve();
 		}
@@ -729,8 +733,8 @@ const diffEditorOptions: IDiffEditorOptions = {
 	modifiedAriaLabel: localize('testingOutputActual', 'Actual result'),
 };
 
-const isDiffable = (message: ITestMessage): message is ITestMessage & { actualOutput: string; expectedOutput: string } =>
-	message.actualOutput !== undefined && message.expectedOutput !== undefined;
+const isDiffable = (message: ITestErrorMessage): message is ITestErrorMessage & { actualOutput: string; expectedOutput: string } =>
+	message.actual !== undefined && message.expected !== undefined;
 
 class DiffContentProvider extends Disposable implements IPeekOutputRenderer {
 	private readonly widget = this._register(new MutableDisposable<EmbeddedDiffEditorWidget>());
@@ -746,7 +750,7 @@ class DiffContentProvider extends Disposable implements IPeekOutputRenderer {
 		super();
 	}
 
-	public async update({ expectedUri, actualUri }: TestDto, message: ITestMessage) {
+	public async update({ expectedUri, actualUri }: TestDto, message: ITestErrorMessage) {
 		if (!isDiffable(message)) {
 			return this.clear();
 		}
@@ -772,7 +776,7 @@ class DiffContentProvider extends Disposable implements IPeekOutputRenderer {
 
 		this.widget.value.setModel(model);
 		this.widget.value.updateOptions(this.getOptions(
-			isMultiline(message.expectedOutput) || isMultiline(message.actualOutput)
+			isMultiline(message.expected) || isMultiline(message.actual)
 		));
 	}
 
@@ -831,7 +835,7 @@ class MarkdownTestMessagePeek extends Disposable implements IPeekOutputRenderer 
 		super();
 	}
 
-	public update(_dto: TestDto, message: ITestMessage): void {
+	public update(_dto: TestDto, message: ITestErrorMessage): void {
 		if (isDiffable(message) || typeof message.message === 'string') {
 			return this.textPreview.clear();
 		}
@@ -862,7 +866,7 @@ class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
 		super();
 	}
 
-	public async update({ messageUri }: TestDto, message: ITestMessage) {
+	public async update({ messageUri }: TestDto, message: ITestErrorMessage) {
 		if (isDiffable(message) || typeof message.message !== 'string') {
 			return this.clear();
 		}
@@ -902,8 +906,8 @@ class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
 	}
 }
 
-const hintDiffPeekHeight = (message: ITestMessage) =>
-	Math.max(hintPeekStrHeight(message.actualOutput), hintPeekStrHeight(message.expectedOutput));
+const hintDiffPeekHeight = (message: ITestErrorMessage) =>
+	Math.max(hintPeekStrHeight(message.actual), hintPeekStrHeight(message.expected));
 
 const firstLine = (str: string) => {
 	const index = str.indexOf('\n');
@@ -1039,7 +1043,6 @@ class TestMessageElement implements ITreeElement {
 	public readonly context: URI;
 	public readonly id: string;
 	public readonly label: string;
-	public readonly icon: ThemeIcon | undefined;
 	public readonly uri: URI;
 	public readonly location: IRichLocation | undefined;
 
@@ -1049,7 +1052,7 @@ class TestMessageElement implements ITreeElement {
 		public readonly taskIndex: number,
 		public readonly messageIndex: number,
 	) {
-		const { message, severity, location } = test.tasks[taskIndex].messages[messageIndex];
+		const { message, location } = test.tasks[taskIndex].messages[messageIndex];
 
 		this.location = location;
 		this.uri = this.context = buildTestUri({
@@ -1062,7 +1065,6 @@ class TestMessageElement implements ITreeElement {
 
 		this.id = this.uri.toString();
 		this.label = firstLine(renderStringAsPlaintext(message));
-		this.icon = icons.testMessageSeverityToIcons.get(severity);
 	}
 }
 

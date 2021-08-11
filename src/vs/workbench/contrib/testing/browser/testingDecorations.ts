@@ -8,6 +8,7 @@ import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/action
 import { Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore, IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
@@ -16,7 +17,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IRange } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { overviewRulerError, overviewRulerInfo, overviewRulerWarning } from 'vs/editor/common/view/editorColorRegistry';
+import { overviewRulerError, overviewRulerInfo } from 'vs/editor/common/view/editorColorRegistry';
 import { localize } from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
@@ -26,7 +27,6 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { TestMessageSeverity } from 'vs/workbench/api/common/extHostTypes';
 import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution } from 'vs/workbench/contrib/debug/common/debug';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
 import { testingRunAllIcon, testingRunIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
@@ -34,7 +34,7 @@ import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browse
 import { testMessageSeverityColors } from 'vs/workbench/contrib/testing/browser/theme';
 import { DefaultGutterClickAction, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { labelForTestInState } from 'vs/workbench/contrib/testing/common/constants';
-import { IncrementalTestCollectionItem, InternalTestItem, IRichLocation, ITestMessage, ITestRunProfile, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { IncrementalTestCollectionItem, InternalTestItem, IRichLocation, ITestMessage, ITestRunProfile, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { isFailedState, maxPriority } from 'vs/workbench/contrib/testing/common/testingStates';
 import { buildTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
 import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
@@ -195,7 +195,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 					for (let i = 0; i < state.messages.length; i++) {
 						const m = state.messages[i];
 						if (!this.invalidatedMessages.has(m) && hasValidLocation(uri, m)) {
-							const uri = buildTestUri({
+							const uri = m.type === TestMessageType.Info ? undefined : buildTestUri({
 								type: TestUriType.ResultActualOutput,
 								messageIndex: i,
 								taskIndex: taskId,
@@ -582,13 +582,14 @@ class TestMessageDecoration implements ITestDecoration {
 
 	constructor(
 		public readonly testMessage: ITestMessage,
-		private readonly messageUri: URI,
+		private readonly messageUri: URI | undefined,
 		public readonly location: IRichLocation,
 		private readonly editor: ICodeEditor,
 		@ICodeEditorService private readonly editorService: ICodeEditorService,
 		@IThemeService themeService: IThemeService,
 	) {
-		const { severity = TestMessageSeverity.Error, message } = testMessage;
+		const severity = testMessage.type;
+		const message = typeof testMessage.message === 'string' ? removeAnsiEscapeCodes(testMessage.message) : testMessage.message;
 		const colorTheme = themeService.getColorTheme();
 		editorService.registerDecorationType('test-message-decoration', this.decorationId, {
 			after: {
@@ -609,13 +610,9 @@ class TestMessageDecoration implements ITestDecoration {
 		options.stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 		options.collapseOnReplaceEdit = true;
 
-		const rulerColor = severity === TestMessageSeverity.Error
+		const rulerColor = severity === TestMessageType.Error
 			? overviewRulerError
-			: severity === TestMessageSeverity.Warning
-				? overviewRulerWarning
-				: severity === TestMessageSeverity.Information
-					? overviewRulerInfo
-					: undefined;
+			: overviewRulerInfo;
 
 		if (rulerColor) {
 			options.overviewRuler = { color: themeColorFromId(rulerColor), position: OverviewRulerLane.Right };
@@ -626,6 +623,10 @@ class TestMessageDecoration implements ITestDecoration {
 
 	click(e: IEditorMouseEvent): boolean {
 		if (e.event.rightButton) {
+			return false;
+		}
+
+		if (!this.messageUri) {
 			return false;
 		}
 

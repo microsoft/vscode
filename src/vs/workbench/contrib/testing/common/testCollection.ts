@@ -8,7 +8,6 @@ import { MarshalledId } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { TestMessageSeverity } from 'vs/workbench/api/common/extHostTypes';
 
 export const enum TestResultState {
 	Unset = 0,
@@ -97,14 +96,27 @@ export interface IRichLocation {
 	uri: URI;
 }
 
-export interface ITestMessage {
+export const enum TestMessageType {
+	Error,
+	Info
+}
+
+export interface ITestErrorMessage {
 	message: string | IMarkdownString;
-	/** @deprecated */
-	severity: TestMessageSeverity;
-	expectedOutput: string | undefined;
-	actualOutput: string | undefined;
+	type: TestMessageType.Error;
+	expected: string | undefined;
+	actual: string | undefined;
 	location: IRichLocation | undefined;
 }
+
+export interface ITestOutputMessage {
+	message: string;
+	type: TestMessageType.Info;
+	offset: number;
+	location: IRichLocation | undefined;
+}
+
+export type ITestMessage = ITestErrorMessage | ITestOutputMessage;
 
 export interface ITestTaskState {
 	state: TestResultState;
@@ -211,12 +223,10 @@ export interface ISerializedTestResults {
 	id: string;
 	/** Time the results were compelted */
 	completedAt: number;
-	/** Raw output, given for tests published by extensiosn */
-	output?: string;
 	/** Subset of test result items */
 	items: SerializedTestResultItem[];
 	/** Tasks involved in the run. */
-	tasks: ITestRunTask[];
+	tasks: { id: string; name: string | undefined; messages: ITestOutputMessage[] }[];
 	/** Human-readable name of the test run. */
 	name: string;
 	/** Test trigger informaton */

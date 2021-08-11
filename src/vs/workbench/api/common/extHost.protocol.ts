@@ -2156,7 +2156,7 @@ export interface MainThreadTestingShape {
 	/** Appends a message to a test in the run. */
 	$appendTestMessagesInRun(runId: string, taskId: string, testId: string, messages: ITestMessage[]): void;
 	/** Appends raw output to the test run.. */
-	$appendOutputToRun(runId: string, taskId: string, output: VSBuffer): void;
+	$appendOutputToRun(runId: string, taskId: string, output: VSBuffer, location?: ILocationDto, testId?: string): void;
 	/** Triggered when coverage is added to test results. */
 	$signalCoverageAvailable(runId: string, taskId: string): void;
 	/** Signals a task in a test run started. */
