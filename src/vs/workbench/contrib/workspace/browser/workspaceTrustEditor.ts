@@ -58,6 +58,7 @@ export const shieldIcon = registerCodicon('workspace-trust-icon', Codicon.shield
 
 const checkListIcon = registerCodicon('workspace-trusted-check-icon', Codicon.check);
 const xListIcon = registerCodicon('workspace-trusted-x-icon', Codicon.x);
+const folderPickerIcon = registerCodicon('folder-picker', Codicon.folder);
 
 interface ITrustedUriItem {
 	parentOfWorkspaceItem: boolean;
@@ -113,16 +114,16 @@ class WorkspaceTrustedUrisTable extends Disposable {
 				{
 					label: localize('pathColumnLabel', "Path"),
 					tooltip: '',
-					weight: 9,
+					weight: 8,
 					templateId: TrustedUriPathColumnRenderer.TEMPLATE_ID,
 					project(row: ITrustedUriItem): ITrustedUriItem { return row; }
 				},
 				{
 					label: '',
 					tooltip: '',
-					weight: 0,
-					minimumWidth: 55,
-					maximumWidth: 55,
+					weight: 1,
+					minimumWidth: 75,
+					maximumWidth: 75,
 					templateId: TrustedUriActionsColumnRenderer.TEMPLATE_ID,
 					project(row: ITrustedUriItem): ITrustedUriItem { return row; }
 				},
@@ -130,7 +131,7 @@ class WorkspaceTrustedUrisTable extends Disposable {
 			[
 				this.instantiationService.createInstance(TrustedUriHostColumnRenderer),
 				this.instantiationService.createInstance(TrustedUriPathColumnRenderer, this),
-				this.instantiationService.createInstance(TrustedUriActionsColumnRenderer, this),
+				this.instantiationService.createInstance(TrustedUriActionsColumnRenderer, this, this.currentWorkspaceUri),
 			],
 			{
 				horizontalScrolling: false,
@@ -154,7 +155,7 @@ class WorkspaceTrustedUrisTable extends Disposable {
 		this._register(this.table.onDidOpen(item => {
 			// default prevented when input box is double clicked #125052
 			if (item && item.element && !item.browserEvent?.defaultPrevented) {
-				this.edit(item.element);
+				this.edit(item.element, true);
 			}
 		}));
 
@@ -302,10 +303,10 @@ class WorkspaceTrustedUrisTable extends Disposable {
 		this._onDelete.fire(item);
 	}
 
-	async edit(item: ITrustedUriItem) {
+	async edit(item: ITrustedUriItem, usePickerIfPossible?: boolean) {
 		const canUseOpenDialog = item.uri.scheme === Schemas.file ||
 			(item.uri.scheme === this.currentWorkspaceUri.scheme && this.uriService.extUri.isEqualAuthority(this.currentWorkspaceUri.authority, item.uri.authority));
-		if (canUseOpenDialog) {
+		if (canUseOpenDialog && usePickerIfPossible) {
 			const uri = await this.fileDialogService.showOpenDialog({
 				canSelectFiles: false,
 				canSelectFolders: true,
@@ -347,7 +348,10 @@ class TrustedUriActionsColumnRenderer implements ITableRenderer<ITrustedUriItem,
 
 	readonly templateId: string = TrustedUriActionsColumnRenderer.TEMPLATE_ID;
 
-	constructor(private readonly table: WorkspaceTrustedUrisTable) { }
+	constructor(
+		private readonly table: WorkspaceTrustedUrisTable,
+		private readonly currentWorkspaceUri: URI,
+		@IUriIdentityService private readonly uriService: IUriIdentityService) { }
 
 	renderTemplate(container: HTMLElement): IActionsColumnTemplateData {
 		const element = container.appendChild($('.actions'));
@@ -358,7 +362,13 @@ class TrustedUriActionsColumnRenderer implements ITableRenderer<ITrustedUriItem,
 	renderElement(item: ITrustedUriItem, index: number, templateData: IActionsColumnTemplateData, height: number | undefined): void {
 		templateData.actionBar.clear();
 
+		const canUseOpenDialog = item.uri.scheme === Schemas.file ||
+			(item.uri.scheme === this.currentWorkspaceUri.scheme && this.uriService.extUri.isEqualAuthority(this.currentWorkspaceUri.authority, item.uri.authority));
+
 		const actions: IAction[] = [];
+		if (canUseOpenDialog) {
+			actions.push(this.createPickerAction(item));
+		}
 		actions.push(this.createEditAction(item));
 		actions.push(this.createDeleteAction(item));
 		templateData.actionBar.push(actions, { icon: true });
@@ -369,9 +379,21 @@ class TrustedUriActionsColumnRenderer implements ITableRenderer<ITrustedUriItem,
 			class: ThemeIcon.asClassName(settingsEditIcon),
 			enabled: true,
 			id: 'editTrustedUri',
-			tooltip: localize('editTrustedUri', "Change Path"),
+			tooltip: localize('editTrustedUri', "Edit Path"),
 			run: () => {
-				this.table.edit(item);
+				this.table.edit(item, false);
+			}
+		};
+	}
+
+	private createPickerAction(item: ITrustedUriItem): IAction {
+		return <IAction>{
+			class: ThemeIcon.asClassName(folderPickerIcon),
+			enabled: true,
+			id: 'pickerTrustedUri',
+			tooltip: localize('pickerTrustedUri', "Open File Picker"),
+			run: () => {
+				this.table.edit(item, true);
 			}
 		};
 	}
