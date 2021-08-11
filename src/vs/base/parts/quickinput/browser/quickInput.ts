@@ -516,9 +516,29 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	}
 
 	set items(items: Array<T | IQuickPickSeparator>) {
+		const shouldKeepFocus = this.shouldKeepFocus(items);
+		let scrollTopBefore: number | undefined;
+		if (shouldKeepFocus) {
+			const newActiveItems: T[] = [];
+			for (const activeItem of this._activeItems) {
+				const item = items.find(i => (i as T).id === activeItem.id);
+				if (item) {
+					newActiveItems.push(item as T);
+				}
+			}
+
+			this._activeItems = newActiveItems;
+			this.activeItemsUpdated = true;
+			scrollTopBefore = (this.ui.list as any).list.scrollTop;
+		}
+
 		this._items = items;
 		this.itemsUpdated = true;
 		this.update();
+
+		if (shouldKeepFocus) {
+			(this.ui.list as any).list.scrollTop = scrollTopBefore;
+		}
 	}
 
 	get canSelectMany() {
@@ -664,6 +684,44 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	set ok(showOkButton: boolean | 'default') {
 		this._ok = showOkButton;
 		this.update();
+	}
+
+	private shouldKeepFocus(items: Array<T | IQuickPickSeparator>): boolean {
+		const ids = new Set<string>();
+		// short circuit if their lengths are different
+		if (items.length !== this._items.length) {
+			return false;
+		} else {
+			return this._items.every((item, i) => {
+				const otherItem = items[i];
+
+				// verify separators are the same
+				if (otherItem.type === 'separator'
+					&& item.type === 'separator'
+					&& otherItem.label === item.label
+				) {
+					return true;
+				}
+
+				// verify items have the same id (and that that id is not undefined)
+				if (otherItem.type !== 'separator'
+					&& item.type !== 'separator'
+					&& otherItem.id === item.id
+					&& otherItem.id
+				) {
+					if (ids.has(otherItem.id)) {
+						// duplicate Ids present
+						// TODO: Log to the user properly
+						console.warn('Duplicate IDs present.');
+						return false;
+					}
+					ids.add(otherItem.id);
+					return true;
+				}
+
+				return false;
+			});
+		}
 	}
 
 	inputHasFocus(): boolean {

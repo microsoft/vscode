@@ -163,6 +163,7 @@ class InsertSnippetAction extends EditorAction {
 				const pick: ISnippetPick = {
 					label: snippet.prefix || snippet.name,
 					detail: snippet.description,
+					id: snippet.prefix || snippet.name,
 					snippet
 				};
 				if (!prevSnippet || prevSnippet.snippetSource !== snippet.snippetSource) {
