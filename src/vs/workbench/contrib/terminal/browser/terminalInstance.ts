@@ -1324,8 +1324,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}
 
+		// Fire onExit to consumers, this can happen after the terminal has already been disposed.
 		this._onExit.fire(this._exitCode);
-		this._onExit.dispose();
+
+		// Dispose of the onExit event if the terminal will not be reused again
+		if (this._isDisposed) {
+			this._onExit.dispose();
+		}
 	}
 
 	/**
