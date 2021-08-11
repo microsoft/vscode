@@ -9,7 +9,7 @@ import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux } from 'vs/base/common/platform';
-import { basename, extUri } from 'vs/base/common/resources';
+import { basename, extUri, isEqual } from 'vs/base/common/resources';
 import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -235,9 +235,8 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 
 	async mkdir(resource: URI): Promise<void> {
 		const parent = await this.getParentDirectoryHandle(resource);
-
 		if (!parent) {
-			throw new Error('Stat error: no parent found');
+			throw createFileSystemProviderError(new Error(`No such parent directory, mkdir '${resource.toString(true)}'`), FileSystemProviderErrorCode.FileNotFound);
 		}
 
 		await parent.getDirectoryHandle(basename(resource), { create: true });
@@ -245,16 +244,30 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 
 	async delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
 		const parent = await this.getParentDirectoryHandle(resource);
-
 		if (!parent) {
-			throw new Error('Stat error: no parent found');
+			throw createFileSystemProviderError(new Error(`No such parent directory, delete '${resource.toString(true)}'`), FileSystemProviderErrorCode.FileNotFound);
 		}
 
 		return parent.removeEntry(basename(resource), { recursive: opts.recursive });
 	}
 
-	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
-		throw new Error('Method not implemented: rename');
+	async rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
+		if (isEqual(from, to)) {
+			return; // no-op if the paths are the same
+		}
+
+		// Implement file rename by write + delete
+		let fileHandle = await this.getFileHandle(from);
+		if (fileHandle) {
+			const file = await fileHandle.getFile();
+			const contents = new Uint8Array(await file.arrayBuffer());
+
+			await this.writeFile(to, contents, { create: true, overwrite: opts.overwrite, unlock: false });
+			await this.delete(from, { recursive: false, useTrash: false });
+		}
+
+		// File API does not support any real rename otherwise
+		throw createFileSystemProviderError(new Error(`Rename is unsupported for folders`), FileSystemProviderErrorCode.Unavailable);
 	}
 
 	//#endregion
