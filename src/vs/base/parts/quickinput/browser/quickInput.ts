@@ -520,6 +520,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		let scrollTopBefore: number | undefined;
 		if (shouldKeepFocus) {
 			const newActiveItems: T[] = [];
+			// Find the new object references of the same id.
 			for (const activeItem of this._activeItems) {
 				const item = items.find(i => (i as T).id === activeItem.id);
 				if (item) {
