@@ -96,7 +96,6 @@ export namespace NotebookDto {
 		if (data.editType === CellExecutionUpdateType.Output) {
 			return {
 				editType: data.editType,
-				executionHandle: data.executionHandle,
 				cellHandle: data.cellHandle,
 				append: data.append,
 				outputs: data.outputs.map(fromNotebookOutputDto)
@@ -104,7 +103,6 @@ export namespace NotebookDto {
 		} else if (data.editType === CellExecutionUpdateType.OutputItems) {
 			return {
 				editType: data.editType,
-				executionHandle: data.executionHandle,
 				append: data.append,
 				outputId: data.outputId,
 				items: data.items.map(fromNotebookOutputItemDto)
