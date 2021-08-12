@@ -194,7 +194,7 @@ function guessMimeTypeByPath(path: string, filename: string, associations: IText
 		}
 	}
 
-	// 1.) Exact name match has second highest prio
+	// 1.) Exact name match has second highest priority
 	if (filenameMatch) {
 		return filenameMatch.mime;
 	}

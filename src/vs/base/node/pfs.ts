@@ -33,7 +33,7 @@ export enum RimRafMode {
 }
 
 /**
- * Allows to delete the provied path (either file or folder) recursively
+ * Allows to delete the provided path (either file or folder) recursively
  * with the options:
  * - `UNLINK`: direct removal from disk
  * - `MOVE`: faster variant that first moves the target to temp dir and then
@@ -176,7 +176,7 @@ function handleDirectoryChildren(children: (string | IDirent)[]): (string | IDir
 }
 
 /**
- * A convinience method to read all children of a path that
+ * A convenience method to read all children of a path that
  * are directories.
  */
 async function readDirsInDir(dirPath: string): Promise<string[]> {
