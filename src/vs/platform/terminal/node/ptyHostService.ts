@@ -107,7 +107,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 	}
 
 	private _startPtyHost(): [Client, IPtyService] {
-		this._logService.info('use experimental serialize ' + (this._reconnectConstants.useExperimentalSerialization ? 1 : 0));
 		const client = new Client(
 			FileAccess.asFileUri('bootstrap-fork', require).fsPath,
 			{
