@@ -75,7 +75,7 @@ export interface IEditorOptions {
 	/**
 	 * Control the rendering of line numbers.
 	 * If it is a function, it will be invoked when rendering a line number and the return value will be rendered.
-	 * Otherwise, if it is a truey, line numbers will be rendered normally (equivalent of using an identity function).
+	 * Otherwise, if it is a truthy, line numbers will be rendered normally (equivalent of using an identity function).
 	 * Otherwise, line numbers will not be rendered.
 	 * Defaults to `on`.
 	 */
@@ -714,7 +714,7 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	 */
 	originalAriaLabel?: string;
 	/**
-	 * Aria label for modifed editor.
+	 * Aria label for modified editor.
 	 */
 	modifiedAriaLabel?: string;
 }
