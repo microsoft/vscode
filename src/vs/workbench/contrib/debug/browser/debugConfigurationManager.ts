@@ -371,7 +371,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		}
 
 		const names = launch ? launch.getConfigurationNames() : [];
-		this.getSelectedConfig = () => Promise.resolve(config);
+		this.getSelectedConfig = () => Promise.resolve(this.selectedName ? launch?.getConfiguration(this.selectedName) : undefined);
 		let type = config?.type;
 		if (name && names.indexOf(name) >= 0) {
 			this.setSelectedLaunchName(name);
