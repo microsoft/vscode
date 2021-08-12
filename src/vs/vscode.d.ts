@@ -11687,7 +11687,7 @@ declare module 'vscode' {
 		readonly executionOrder?: number;
 
 		/**
-		 * If the exclusive finished successfully.
+		 * If the execution finished successfully.
 		 */
 		readonly success?: boolean;
 

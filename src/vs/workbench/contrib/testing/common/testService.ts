@@ -11,7 +11,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
+import { IObservableValue, MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { AbstractIncrementalTestCollection, IncrementalTestCollectionItem, InternalTestItem, ITestItemContext, ITestTagDisplayInfo, ResolvedTestRunRequest, RunTestForControllerRequest, TestItemExpandState, TestRunProfileBitset, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestExclusions } from 'vs/workbench/contrib/testing/common/testExclusions';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
@@ -224,6 +224,11 @@ export interface ITestService {
 	 * Event that fires after a diff is processed.
 	 */
 	readonly onDidProcessDiff: Event<TestsDiff>;
+
+	/**
+	 * Whether inline editor decorations should be visible.
+	 */
+	readonly showInlineOutput: MutableObservableValue<boolean>;
 
 	/**
 	 * Registers an interface that runs tests for the given provider ID.

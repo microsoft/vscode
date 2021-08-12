@@ -1788,6 +1788,22 @@ declare module 'vscode' {
 	}
 	//#endregion
 
+	//#region non-error test output https://github.com/microsoft/vscode/issues/129201
+	interface TestRun {
+		/**
+		 * Appends raw output from the test runner. On the user's request, the
+		 * output will be displayed in a terminal. ANSI escape sequences,
+		 * such as colors and text styles, are supported.
+		 *
+		 * @param output Output text to append.
+		 * @param location Indicate that the output was logged at the given
+		 * location.
+		 * @param test Test item to associate the output with.
+		 */
+		appendOutput(output: string, location?: Location, test?: TestItem): void;
+	}
+	//#endregion
+
 	//#region test tags https://github.com/microsoft/vscode/issues/129456
 	/**
 	 * Tags can be associated with {@link TestItem | TestItems} and
@@ -2793,6 +2809,20 @@ declare module 'vscode' {
 		 * The environment in which the app is embedded in. i.e. 'desktop', 'codespaces', 'web'.
 		 */
 		export const embedderIdentifier: string;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/88716
+	export interface QuickPickItem {
+		buttons?: QuickInputButton[];
+	}
+	export interface QuickPick<T extends QuickPickItem> extends QuickInput {
+		readonly onDidTriggerItemButton: Event<QuickPickItemButtonEvent<T>>;
+	}
+	export interface QuickPickItemButtonEvent<T extends QuickPickItem> {
+		button: QuickInputButton;
+		item: T;
 	}
 
 	//#endregion

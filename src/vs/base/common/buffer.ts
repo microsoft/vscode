@@ -4,13 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as streams from 'vs/base/common/stream';
-import * as strings from 'vs/base/common/strings';
 
 declare const Buffer: any;
 
 const hasBuffer = (typeof Buffer !== 'undefined');
-const hasTextEncoder = (typeof TextEncoder !== 'undefined');
-const hasTextDecoder = (typeof TextDecoder !== 'undefined');
 
 let textEncoder: TextEncoder | null;
 let textDecoder: TextDecoder | null;
@@ -38,13 +35,11 @@ export class VSBuffer {
 		const dontUseNodeBuffer = options?.dontUseNodeBuffer || false;
 		if (!dontUseNodeBuffer && hasBuffer) {
 			return new VSBuffer(Buffer.from(source));
-		} else if (hasTextEncoder) {
+		} else {
 			if (!textEncoder) {
 				textEncoder = new TextEncoder();
 			}
 			return new VSBuffer(textEncoder.encode(source));
-		} else {
-			return new VSBuffer(strings.encodeUTF8(source));
 		}
 	}
 
@@ -78,20 +73,18 @@ export class VSBuffer {
 	toString(): string {
 		if (hasBuffer) {
 			return this.buffer.toString();
-		} else if (hasTextDecoder) {
+		} else {
 			if (!textDecoder) {
 				textDecoder = new TextDecoder();
 			}
 			return textDecoder.decode(this.buffer);
-		} else {
-			return strings.decodeUTF8(this.buffer);
 		}
 	}
 
 	slice(start?: number, end?: number): VSBuffer {
 		// IMPORTANT: use subarray instead of slice because TypedArray#slice
 		// creates shallow copy and NodeBuffer#slice doesn't. The use of subarray
-		// ensures the same, performant, behaviour.
+		// ensures the same, performance, behaviour.
 		return new VSBuffer(this.buffer.subarray(start!/*bad lib.d.ts*/, end));
 	}
 

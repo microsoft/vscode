@@ -457,7 +457,7 @@ suite('ExtHost Testing', () => {
 
 			task1.appendOutput('hello');
 			const taskId = proxy.$appendOutputToRun.args[0]?.[1];
-			assert.deepStrictEqual([['run-id', taskId, VSBuffer.fromString('hello')]], proxy.$appendOutputToRun.args);
+			assert.deepStrictEqual([['run-id', taskId, VSBuffer.fromString('hello'), undefined, undefined]], proxy.$appendOutputToRun.args);
 			task1.end();
 
 			assert.strictEqual(proxy.$finishedExtensionTestRun.called, false);

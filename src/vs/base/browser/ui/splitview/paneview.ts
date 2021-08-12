@@ -38,11 +38,11 @@ export interface IPaneStyles {
 /**
  * A Pane is a structured SplitView view.
  *
- * WARNING: You must call `render()` after you contruct it.
+ * WARNING: You must call `render()` after you construct it.
  * It can't be done automatically at the end of the ctor
  * because of the order of property initialization in TypeScript.
  * Subclasses wouldn't be able to set own properties
- * before the `render()` call, thus forbiding their use.
+ * before the `render()` call, thus forbidding their use.
  */
 export abstract class Pane extends Disposable implements IView {
 

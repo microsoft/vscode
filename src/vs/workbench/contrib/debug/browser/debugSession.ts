@@ -899,7 +899,12 @@ export class DebugSession implements IDebugSession {
 				const promises = this.model.fetchCallStack(<Thread>thread);
 				const focus = async () => {
 					if (!event.body.preserveFocusHint && thread.getCallStack().length) {
-						await this.debugService.focusStackFrame(undefined, thread);
+						const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+						if (!focusedStackFrame || focusedStackFrame.thread.session === this) {
+							// Only take focus if nothing is focused, or if the focus is already on the current session
+							await this.debugService.focusStackFrame(undefined, thread);
+						}
+
 						if (thread.stoppedDetails) {
 							if (thread.stoppedDetails.reason === 'breakpoint' && this.configurationService.getValue<IDebugConfiguration>('debug').openDebug === 'openOnDebugBreak' && !this.isSimpleUI) {
 								await this.viewletService.openViewlet(VIEWLET_ID);

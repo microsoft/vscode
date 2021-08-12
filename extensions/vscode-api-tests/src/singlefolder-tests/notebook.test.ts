@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'mocha';
 import * as assert from 'assert';
-import * as vscode from 'vscode';
-import { createRandomFile, asPromise, disposeAll, closeAllEditors, revertAllDirty, saveAllEditors, assertNoRpc } from '../utils';
+import 'mocha';
 import { TextDecoder } from 'util';
+import * as vscode from 'vscode';
+import { asPromise, assertNoRpc, closeAllEditors, createRandomFile, disposeAll, revertAllDirty, saveAllEditors } from '../utils';
 
 async function createRandomNotebookFile() {
 	return createRandomFile('', undefined, '.vsctestnb');
@@ -255,6 +255,30 @@ suite('Notebook API tests', function () {
 		await cellsChangeEvent;
 		await cellMetadataChangeEvent;
 		assert.strictEqual(version + 1, editor.document.version);
+	});
+
+	test('edit API batch edits undo/redo', async function () {
+		const notebook = await openRandomNotebookDocument();
+		const editor = await vscode.window.showNotebookDocument(notebook);
+
+		const cellsChangeEvent = asPromise<vscode.NotebookCellsChangeEvent>(vscode.notebooks.onDidChangeNotebookCells);
+		const cellMetadataChangeEvent = asPromise<vscode.NotebookCellMetadataChangeEvent>(vscode.notebooks.onDidChangeCellMetadata);
+		const version = editor.document.version;
+		await editor.edit(editBuilder => {
+			editBuilder.replaceCells(1, 0, [{ kind: vscode.NotebookCellKind.Code, languageId: 'javascript', value: 'test 2', outputs: [], metadata: undefined }]);
+			editBuilder.replaceCellMetadata(0, { inputCollapsed: false });
+		});
+
+		await cellsChangeEvent;
+		await cellMetadataChangeEvent;
+		assert.strictEqual(editor.document.cellCount, 3);
+		assert.strictEqual(editor.document.cellAt(0)?.metadata.inputCollapsed, false);
+		assert.strictEqual(version + 1, editor.document.version);
+
+		await vscode.commands.executeCommand('undo');
+		assert.strictEqual(version + 2, editor.document.version);
+		assert.strictEqual(editor.document.cellAt(0)?.metadata.inputCollapsed, undefined);
+		assert.strictEqual(editor.document.cellCount, 2);
 	});
 
 	test('#98841, initialzation should not emit cell change events.', async function () {
@@ -834,7 +858,6 @@ suite('Notebook API tests', function () {
 		assert.ok(cell.executionSummary);
 		assert.strictEqual(cell.executionSummary!.success, true);
 		assert.strictEqual(typeof cell.executionSummary!.executionOrder, 'number');
-
 	});
 
 	test('initialize executionSummary', async () => {

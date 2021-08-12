@@ -171,6 +171,7 @@ export class InlayHintsController implements IEditorContribution {
 					fontFamily: `var(${fontFamilyVar})`,
 					padding: `0px ${(fontSize / 4) | 0}px`,
 					borderRadius: `${(fontSize / 4) | 0}px`,
+					verticalAlign: 'middle',
 				};
 				const key = 'inlayHints-' + hash(before).toString(16);
 				this._codeEditorService.registerDecorationType('inlay-hints-controller', key,

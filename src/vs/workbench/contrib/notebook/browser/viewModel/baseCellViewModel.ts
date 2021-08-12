@@ -19,6 +19,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { Mimes } from 'vs/base/common/mime';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 
 export abstract class BaseCellViewModel extends Disposable {
 
@@ -150,6 +151,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		private readonly _viewContext: ViewContext,
 		private readonly _configurationService: IConfigurationService,
 		private readonly _modelService: ITextModelService,
+		private readonly _undoRedoService: IUndoRedoService
 	) {
 		super();
 
@@ -537,6 +539,8 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	override dispose() {
 		super.dispose();
+
+		this._undoRedoService.removeElements(this.uri);
 
 		if (this._textModelRef) {
 			this._textModelRef.dispose();

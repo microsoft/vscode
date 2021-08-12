@@ -740,16 +740,24 @@ suite('Async', () => {
 	});
 
 	test('IntervalCounter', async () => {
-		const counter = new async.IntervalCounter(1);
+		let now = Date.now();
+
+		const counter = new async.IntervalCounter(5);
+
+		let ellapsed = Date.now() - now;
+		if (ellapsed > 4) {
+			return; // flaky (https://github.com/microsoft/vscode/issues/114028)
+		}
+
 		assert.strictEqual(counter.increment(), 1);
 		assert.strictEqual(counter.increment(), 2);
 		assert.strictEqual(counter.increment(), 3);
 
-		const now = Date.now();
-		await async.timeout(5);
-		const ellapsed = Date.now() - now;
-		if (ellapsed < 1) {
-			return; // Firefox in Playwright seems to have a flaky timeout implementation (https://github.com/microsoft/vscode/issues/114028)
+		now = Date.now();
+		await async.timeout(10);
+		ellapsed = Date.now() - now;
+		if (ellapsed < 5) {
+			return; // flaky (https://github.com/microsoft/vscode/issues/114028)
 		}
 
 		assert.strictEqual(counter.increment(), 1);

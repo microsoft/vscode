@@ -647,6 +647,10 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		progressBar.hide();
 		disposables.add(progressBar);
 
+		const collapsedProgressBar = new ProgressBar(cellInputCollapsedContainer);
+		collapsedProgressBar.hide();
+		disposables.add(collapsedProgressBar);
+
 		const statusBar = disposables.add(this.instantiationService.createInstance(CellEditorStatusBar, editorPart));
 
 		const outputContainer = DOM.append(container, $('.output'));
@@ -673,6 +677,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			decorationContainer,
 			cellContainer,
 			progressBar,
+			collapsedProgressBar,
 			statusBar,
 			focusIndicatorLeft: focusIndicator,
 			focusIndicatorRight,
@@ -887,10 +892,18 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const internalMetadata = element.internalMetadata;
 		this.updateExecutionOrder(internalMetadata, templateData);
 
-		if (internalMetadata.runState === NotebookCellExecutionState.Executing && !internalMetadata.isPaused) {
-			templateData.progressBar.infinite().show(500);
-		} else {
+		if (element.metadata.inputCollapsed) {
 			templateData.progressBar.hide();
+		} else {
+			templateData.collapsedProgressBar.hide();
+		}
+
+		const progressBar = element.metadata.inputCollapsed ? templateData.collapsedProgressBar : templateData.progressBar;
+
+		if (internalMetadata.runState === NotebookCellExecutionState.Executing && !internalMetadata.isPaused) {
+			progressBar.infinite().show(500);
+		} else {
+			progressBar.hide();
 		}
 	}
 
@@ -999,7 +1012,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		this.updateForFocus(element, templateData);
 		cellEditorOptions.setLineNumbers(element.lineNumbers);
 		elementDisposables.add(element.onDidChangeState((e) => {
-			if (e.internalMetadataChanged) {
+			if (e.metadataChanged || e.internalMetadataChanged) {
 				this.updateForInternalMetadata(element, templateData);
 				this.updateForLayout(element, templateData);
 			}

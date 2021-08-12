@@ -277,6 +277,15 @@
 	max-width: 100%;
 }
 
+.workspace-trust-editor .workspace-trust-settings .monaco-table-tr .monaco-table-td .actions {
+	width: 100%;
+}
+
+.workspace-trust-editor .workspace-trust-settings .monaco-table-tr .monaco-table-td .actions .actions-container {
+	justify-content: flex-end;
+	padding-right: 3px;
+}
+
 .workspace-trust-editor .workspace-trust-settings .monaco-table-tr .monaco-table-td .monaco-button {
 	height: 18px;
 	padding-left: 8px;
