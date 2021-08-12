@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepEqual, doesNotThrow, equal, strictEqual, throws } from 'assert';
-import { ConfigurationTarget, Disposable, env, EnvironmentVariableMutator, EnvironmentVariableMutatorType, EventEmitter, ExtensionContext, extensions, ExtensionTerminalOptions, Pseudoterminal, Terminal, TerminalDimensions, TerminalOptions, UIKind, window, workspace } from 'vscode';
+import { deepStrictEqual } from 'node:assert';
+import { ConfigurationTarget, Disposable, env, EnvironmentVariableMutator, EnvironmentVariableMutatorType, EventEmitter, ExtensionContext, extensions, ExtensionTerminalOptions, Pseudoterminal, Terminal, TerminalDimensions, TerminalOptions, TerminalState, UIKind, window, workspace } from 'vscode';
 import { assertNoRpc } from '../utils';
 
 // Disable terminal tests:
@@ -226,6 +227,21 @@ import { assertNoRpc } from '../utils';
 				}));
 				terminal.dispose();
 			});
+		});
+
+		test('onDidChangeTerminalState should fire after writing to a terminal', async () => {
+			const terminal = window.createTerminal();
+			deepStrictEqual(terminal.state, { interactedWith: false });
+			const eventState = await new Promise<TerminalState>(r => {
+				window.onDidChangeTerminalState(e => {
+					if (e.terminal === terminal) {
+						r(e.state);
+					}
+				});
+				terminal.sendText('test');
+			});
+			deepStrictEqual(eventState, { interactedWith: true });
+			deepStrictEqual(terminal.state, { interactedWith: true });
 		});
 
 		// test('onDidChangeActiveTerminal should fire when new terminals are created', (done) => {

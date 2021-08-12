@@ -563,6 +563,9 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 	public $acceptProcessInput(id: number, data: string): void {
 		this._terminalProcesses.get(id)?.input(data);
+	}
+
+	public $acceptTerminalInteraction(id: number): void {
 		const terminal = this._getTerminalById(id);
 		if (terminal?.setInteractedWith()) {
 			this._onDidChangeTerminalState.fire({

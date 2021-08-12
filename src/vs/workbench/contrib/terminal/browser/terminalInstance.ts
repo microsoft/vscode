@@ -240,6 +240,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onDidFocus = this._onDidFocus.event;
 	private readonly _onDidBlur = this._register(new Emitter<ITerminalInstance>());
 	readonly onDidBlur = this._onDidBlur.event;
+	private readonly _onDidInputData = this._register(new Emitter<ITerminalInstance>());
+	readonly onDidInputData = this._onDidInputData.event;
 	private readonly _onRequestAddInstanceToGroup = this._register(new Emitter<IRequestAddInstanceToGroupEvent>());
 	readonly onRequestAddInstanceToGroup = this._onRequestAddInstanceToGroup.event;
 	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
@@ -623,7 +625,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._xterm.buffer.onBufferChange(() => this._refreshAltBufferContextKey());
 
 		this._processManager.onProcessData(e => this._onProcessData(e));
-		this._xterm.onData(data => this._processManager.write(data));
+		this._xterm.onData(async data => {
+			await this._processManager.write(data);
+			this._onDidInputData.fire(this);
+		});
 		this._xterm.onBinary(data => this._processManager.processBinary(data));
 		this.processReady.then(async () => {
 			if (this._linkManager) {
@@ -1077,7 +1082,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		// Send it to the process
-		return this._processManager.write(text);
+		await this._processManager.write(text);
+		this._onDidInputData.fire(this);
 	}
 
 	setVisible(visible: boolean): void {
