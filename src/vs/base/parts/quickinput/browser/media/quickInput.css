@@ -7,7 +7,7 @@
 	position: absolute;
 	width: 600px;
 	z-index: 2000;
-	padding: 0 1px 6px 1px;
+	padding: 0 1px 1px 1px;
 	left: 50%;
 	margin-left: -300px;
 }
@@ -146,7 +146,6 @@
 .quick-input-list {
 	line-height: 22px;
 	margin-top: 6px;
-	margin-bottom: -5px;
 }
 
 .quick-input-widget.hidden-input .quick-input-list {
