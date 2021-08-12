@@ -21,7 +21,7 @@ import { EditorWorkerClient, EditorWorkerHost } from 'vs/editor/common/services/
 const moduleLocation = '../../../../../../node_modules/@vscode/vscode-languagedetection';
 const moduleLocationAsar = '../../../../../../node_modules.asar/@vscode/vscode-languagedetection';
 export class LanguageDetectionService extends Disposable implements ILanguageDetectionService {
-	static readonly enablementSettingKey = 'workbench.editor.untitled.experimentalLanguageDetection';
+	static readonly enablementSettingKey = 'workbench.editor.untitled.languageDetection';
 
 	_serviceBrand: undefined;
 
@@ -124,7 +124,7 @@ export class LanguageDetectionWorkerHost {
 }
 
 export class LanguageDetectionWorkerClient extends EditorWorkerClient {
-	private worker: IWorkerClient<LanguageDetectionSimpleWorker> | undefined;
+	private workerPromise: Promise<IWorkerClient<LanguageDetectionSimpleWorker>> | undefined;
 
 	constructor(
 		modelService: IModelService,
@@ -136,20 +136,24 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 		super(modelService, true, 'languageDetectionWorkerService');
 	}
 
-	private _getOrCreateLanguageDetectionWorker(): IWorkerClient<LanguageDetectionSimpleWorker> {
-		if (!this.worker) {
+	private _getOrCreateLanguageDetectionWorker(): Promise<IWorkerClient<LanguageDetectionSimpleWorker>> {
+		if (this.workerPromise) {
+			return this.workerPromise;
+		}
 
-			this.worker = this._register(new SimpleWorkerClient<LanguageDetectionSimpleWorker, EditorWorkerHost>(
+		this.workerPromise = new Promise((resolve, reject) => {
+			resolve(this._register(new SimpleWorkerClient<LanguageDetectionSimpleWorker, EditorWorkerHost>(
 				this._workerFactory,
 				'vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker',
 				new EditorWorkerHost(this)
-			));
-		}
-		return this.worker;
+			)));
+		});
+
+		return this.workerPromise;
 	}
 
 	override async _getProxy(): Promise<LanguageDetectionSimpleWorker> {
-		return await this._getOrCreateLanguageDetectionWorker().getProxyObject();
+		return (await this._getOrCreateLanguageDetectionWorker()).getProxyObject();
 	}
 
 	// foreign host request
