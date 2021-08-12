@@ -1806,8 +1806,8 @@ declare module 'vscode' {
 
 	//#region test tags https://github.com/microsoft/vscode/issues/129456
 	/**
-	 * Tags can be associated with {@link TestItem | TestItems} and
-	 * {@link TestRunProfile | TestRunProfiles}. A profile with a tag can only
+	 * Tags can be associated with {@link TestItem TestItems} and
+	 * {@link TestRunProfile TestRunProfiles}. A profile with a tag can only
 	 * execute tests that include that tag in their {@link TestItem.tags} array.
 	 */
 	export class TestTag {
