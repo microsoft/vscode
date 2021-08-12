@@ -68,7 +68,7 @@ import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService'
 import { combinedAppender, ITelemetryAppender, NullAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { CustomEndpointTelemetryService } from 'vs/platform/telemetry/node/customEndpointTelemetryService';
-import { LocalReconnectConstants, TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
+import { LocalReconnectConstants, TerminalIpcChannels, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 import { ExtensionsStorageSyncService, IExtensionsStorageSyncService } from 'vs/platform/userDataSync/common/extensionsStorageSync';
@@ -276,8 +276,10 @@ class SharedProcessMain extends Disposable {
 			ILocalPtyService,
 			this._register(
 				new PtyHostService({
-					GraceTime: LocalReconnectConstants.GraceTime,
-					ShortGraceTime: LocalReconnectConstants.ShortGraceTime
+					graceTime: LocalReconnectConstants.GraceTime,
+					shortGraceTime: LocalReconnectConstants.ShortGraceTime,
+					scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) || 1,
+					useExperimentalSerialization: !!configurationService.getValue<boolean>(TerminalSettingId.PersistentSessionExperimentalSerializer),
 				},
 					configurationService,
 					logService,
