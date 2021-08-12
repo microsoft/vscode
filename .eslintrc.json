@@ -1070,6 +1070,17 @@
 					}
 				]
 			}
+		},
+		{
+			"files": [
+				"src/vs/server/*"
+			],
+			"rules": {
+				"header/header": [
+					// hygiene.js still checks that all files (even those in this directory) are MIT licensed.
+					"off"
+				]
+			}
 		}
 	]
 }
