@@ -120,7 +120,7 @@ export async function launch(userDataDir: string, _workspacePath: string, codeSe
 		...process.env
 	};
 
-	const args = ['--port', `${port++}`, '--browser', 'none', '--driver', 'web', '--extensions-dir', extPath];
+	const args = ['--disable-telemetry', '--port', `${port++}`, '--browser', 'none', '--driver', 'web', '--extensions-dir', extPath];
 
 	let serverLocation: string | undefined;
 	if (codeServerPath) {

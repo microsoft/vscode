@@ -230,7 +230,7 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 		this._recordInflateBytes = recordInflateBytes;
 		if (permessageDeflate) {
 			// See https://tools.ietf.org/html/rfc7692#page-16
-			// To simplify our logic, we don't negociate the window size
+			// To simplify our logic, we don't negotiate the window size
 			// and simply dedicate (2^15) / 32kb per web socket
 			this._zlibInflate = zlib.createInflateRaw({
 				windowBits: 15

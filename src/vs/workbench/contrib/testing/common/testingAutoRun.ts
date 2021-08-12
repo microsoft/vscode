@@ -11,7 +11,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { AutoRunMode, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
-import { identifyTest, ITestIdWithSrc, TestDiffOpType, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { InternalTestItem, TestDiffOpType, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { isRunningTests, ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
@@ -65,7 +65,7 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 	 * Runs them on a debounce.
 	 */
 	private makeRunner() {
-		const rerunIds = new Map<string, ITestIdWithSrc>();
+		const rerunIds = new Map<string, InternalTestItem>();
 		const store = new DisposableStore();
 		const cts = new CancellationTokenSource();
 		store.add(toDisposable(() => cts.dispose(true)));
@@ -90,15 +90,15 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 			}
 		}, delay));
 
-		const addToRerun = (test: ITestIdWithSrc) => {
-			rerunIds.set(getTestKey(test), test);
+		const addToRerun = (test: InternalTestItem) => {
+			rerunIds.set(test.item.extId, test);
 			if (!isRunningTests(this.results)) {
 				scheduler.schedule(delay);
 			}
 		};
 
-		const removeFromRerun = (test: ITestIdWithSrc) => {
-			rerunIds.delete(getTestKey(test));
+		const removeFromRerun = (test: InternalTestItem) => {
+			rerunIds.delete(test.item.extId);
 			if (rerunIds.size === 0) {
 				scheduler.cancel();
 			}
@@ -106,9 +106,9 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 
 		store.add(this.results.onTestChanged(evt => {
 			if (evt.reason === TestResultItemChangeReason.Retired) {
-				addToRerun(identifyTest(evt.item));
+				addToRerun(evt.item);
 			} else if ((evt.reason === TestResultItemChangeReason.OwnStateChange || evt.reason === TestResultItemChangeReason.ComputedStateChange)) {
-				removeFromRerun(identifyTest(evt.item));
+				removeFromRerun(evt.item);
 			}
 		}));
 
@@ -126,12 +126,12 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 						const test = entry[1];
 						const isQueued = Iterable.some(
 							getCollectionItemParents(this.testService.collection, test),
-							t => rerunIds.has(getTestKey(identifyTest(test))),
+							t => rerunIds.has(test.item.extId),
 						);
 
 						const state = this.results.getStateById(test.item.extId);
 						if (!isQueued && (!state || state[1].retired)) {
-							addToRerun(identifyTest(test));
+							addToRerun(test);
 						}
 					}
 				}
@@ -139,12 +139,10 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 
 
 			for (const root of this.testService.collection.rootItems) {
-				addToRerun(identifyTest(root));
+				addToRerun(root);
 			}
 		}
 
 		return store;
 	}
 }
-
-const getTestKey = (test: ITestIdWithSrc) => `${test.controllerId}\0${test.testId}`;

@@ -16,6 +16,7 @@ import { CellKind, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 
 export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewModel {
 
@@ -114,8 +115,9 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITextModelService textModelService: ITextModelService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IUndoRedoService undoRedoService: IUndoRedoService
 	) {
-		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, textModelService);
+		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, textModelService, undoRedoService);
 
 		const { bottomToolbarGap } = this.viewContext.notebookOptions.computeBottomToolbarDimensions(this.viewType);
 
@@ -127,7 +129,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 				? this.viewContext.notebookOptions.computeMarkdownCellEditorWidth(initialNotebookLayoutInfo.width)
 				: 0,
 			bottomToolbarOffset: bottomToolbarGap,
-			totalHeight: 0
+			totalHeight: 1
 		};
 
 		this._register(this.onDidChangeState(e => {
@@ -180,7 +182,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 
 	private _updateTotalHeight(newHeight: number) {
 		if (newHeight !== this.layoutInfo.totalHeight) {
-			this.layoutChange({ totalHeight: newHeight });
+			this.layoutChange({ totalHeight: Math.max(1, newHeight) });
 		}
 	}
 

@@ -9,6 +9,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { CellEditState, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, CodeCellLayoutState, ICellOutputViewModel, ICellViewModel, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/cellOutputViewModel';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
@@ -103,8 +104,9 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		@IConfigurationService configurationService: IConfigurationService,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@ITextModelService modelService: ITextModelService,
+		@IUndoRedoService undoRedoService: IUndoRedoService
 	) {
-		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, modelService);
+		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, modelService, undoRedoService);
 		this._outputViewModels = this.model.outputs.map(output => new CellOutputViewModel(this, output, this._notebookService));
 
 		this._register(this.model.onDidChangeOutputs((splice) => {

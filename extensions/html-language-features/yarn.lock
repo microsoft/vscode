@@ -46,10 +46,10 @@ semver@^7.3.4:
   dependencies:
     lru-cache "^6.0.0"
 
-vscode-extension-telemetry@0.2.6:
-  version "0.2.6"
-  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.2.6.tgz#fa40b711e2fde2d10813df372192ae7d494d6428"
-  integrity sha512-wQ8EEr3tQnAB5K3CyLScOEmiEVR3NNOtaOnf6XuJdOJFZnCPFT8Adc3mYPIzcTJwE720pL0ybt+Peigz197nTQ==
+vscode-extension-telemetry@0.2.8:
+  version "0.2.8"
+  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.2.8.tgz#670c625c44791237c040cee2cb9f567ca34784ac"
+  integrity sha512-Vf52im5qzORRD2K5Ryp8PXo31YXVcJAYRSDDZGegWlt0OATOd83DYabS1U/WIq9nR5g80UQKH3+BsenhpQHUaA==
 
 vscode-jsonrpc@6.0.0:
   version "6.0.0"

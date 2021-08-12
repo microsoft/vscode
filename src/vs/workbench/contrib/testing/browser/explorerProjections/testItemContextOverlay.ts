@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { InternalTestItem } from 'vs/workbench/contrib/testing/common/testCollection';
-import { capabilityContextKeys } from 'vs/workbench/contrib/testing/common/testConfigurationService';
+import { capabilityContextKeys } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 

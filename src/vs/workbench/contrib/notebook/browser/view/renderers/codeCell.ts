@@ -6,14 +6,17 @@
 import * as DOM from 'vs/base/browser/dom';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { CellFocusMode, CodeCellRenderTemplate, IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFocusMode, CodeCellRenderTemplate, EXPAND_CELL_INPUT_COMMAND_ID, IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellOutputContainer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellOutput';
 import { ClickTargetType } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
@@ -33,6 +36,7 @@ export class CodeCell extends Disposable {
 		private templateData: CodeCellRenderTemplate,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotebookCellStatusBarService readonly notebookCellStatusBarService: INotebookCellStatusBarService,
+		@IKeybindingService readonly keybindingService: IKeybindingService,
 		@IOpenerService readonly openerService: IOpenerService
 	) {
 		super();
@@ -272,6 +276,15 @@ export class CodeCell extends Disposable {
 		element.classList.add('cell-collapse-preview');
 		DOM.safeInnerHtml(element, richEditorText);
 		this.templateData.cellInputCollapsedContainer.appendChild(element);
+		const expandIcon = DOM.$('span.expandInputIcon');
+		const keybinding = this.keybindingService.lookupKeybinding(EXPAND_CELL_INPUT_COMMAND_ID);
+		if (keybinding) {
+			element.title = localize('cellExpandInputButtonLabelWithDoubleClick', "Double click to expand cell input ({0})", keybinding.getLabel());
+			expandIcon.title = localize('cellExpandInputButtonLabel', "Expand Cell Input ({0})", keybinding.getLabel());
+		}
+
+		expandIcon.classList.add(...CSSIcon.asClassNameArray(Codicon.more));
+		element.appendChild(expandIcon);
 
 		DOM.show(this.templateData.cellInputCollapsedContainer);
 	}
@@ -287,7 +300,17 @@ export class CodeCell extends Disposable {
 	}
 
 	private _removeInputCollapsePreview() {
-		DOM.clearNode(this.templateData.cellInputCollapsedContainer);
+		const children = this.templateData.cellInputCollapsedContainer.children;
+		const elements = [];
+		for (let i = 0; i < children.length; i++) {
+			if (children[i].classList.contains('cell-collapse-preview')) {
+				elements.push(children[i]);
+			}
+		}
+
+		elements.forEach(element => {
+			element.parentElement?.removeChild(element);
+		});
 	}
 
 	private _updateOutputInnertContainer(hide: boolean) {

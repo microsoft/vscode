@@ -18,8 +18,8 @@ import { InputFocusedContext, InputFocusedContextKey } from 'vs/platform/context
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { BaseCellRenderTemplate, CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, EXPAND_CELL_INPUT_COMMAND_ID, getNotebookEditorFromEditorPane, IActiveNotebookEditor, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_HAS_RUNNING_CELL, CHANGE_CELL_LANGUAGE, QUIT_EDIT_CELL_COMMAND_ID, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_CELL_EXECUTING, NOTEBOOK_MISSING_KERNEL_EXTENSION } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellEditType, CellKind, ICellEditOperation, isDocumentExcludePattern, NotebookCellMetadata, NotebookCellExecutionState, TransientCellMetadata, TransientDocumentMetadata, SelectionStateType, ICellReplaceEdit, OpenGettingStarted, GlobalToolbarShowLabel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { BaseCellRenderTemplate, CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, EXPAND_CELL_INPUT_COMMAND_ID, getNotebookEditorFromEditorPane, IActiveNotebookEditor, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_HAS_RUNNING_CELL, CHANGE_CELL_LANGUAGE, QUIT_EDIT_CELL_COMMAND_ID, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_CELL_EXECUTING, NOTEBOOK_MISSING_KERNEL_EXTENSION, EXPAND_CELL_OUTPUT_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditType, CellKind, ICellEditOperation, isDocumentExcludePattern, NotebookCellMetadata, NotebookCellExecutionState, TransientCellMetadata, TransientDocumentMetadata, SelectionStateType, ICellReplaceEdit, OpenGettingStarted, GlobalToolbarShowLabel, ConsolidatedRunButton } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange, isICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -70,7 +70,6 @@ const CENTER_ACTIVE_CELL = 'notebook.centerActiveCell';
 
 const COLLAPSE_CELL_INPUT_COMMAND_ID = 'notebook.cell.collapseCellInput';
 const COLLAPSE_CELL_OUTPUT_COMMAND_ID = 'notebook.cell.collapseCellOutput';
-const EXPAND_CELL_OUTPUT_COMMAND_ID = 'notebook.cell.expandCellOutput';
 
 export const NOTEBOOK_ACTIONS_CATEGORY = { value: localize('notebookActions.category', "Notebook"), original: 'Notebook' };
 
@@ -305,13 +304,16 @@ export abstract class NotebookCellAction<T = INotebookCellActionContext> extends
 }
 
 // If this changes, update getCodeCellExecutionContextKeyService to match
-const executeCellCondition = ContextKeyExpr.and(
+const executeCondition = ContextKeyExpr.and(
 	NOTEBOOK_CELL_TYPE.isEqualTo('code'),
-	NOTEBOOK_CELL_EXECUTING.toNegated(),
 	ContextKeyExpr.or(
 		ContextKeyExpr.greater(NOTEBOOK_KERNEL_COUNT.key, 0),
 		NOTEBOOK_MISSING_KERNEL_EXTENSION
 	));
+
+const executeThisCellCondition = ContextKeyExpr.and(
+	executeCondition,
+	NOTEBOOK_CELL_EXECUTING.toNegated());
 
 const executeNotebookCondition = ContextKeyExpr.greater(NOTEBOOK_KERNEL_COUNT.key, 0);
 
@@ -413,20 +415,22 @@ registerAction2(class ExecuteAboveCells extends NotebookMultiCellAction<INoteboo
 	constructor() {
 		super({
 			id: EXECUTE_CELLS_ABOVE,
-			precondition: executeCellCondition,
+			precondition: executeCondition,
 			title: localize('notebookActions.executeAbove', "Execute Above Cells"),
 			menu: [
 				{
 					id: MenuId.NotebookCellExecute,
-					when: executeCellCondition
+					when: ContextKeyExpr.and(
+						executeCondition,
+						ContextKeyExpr.equals(`config.${ConsolidatedRunButton}`, true))
 				},
 				{
 					id: MenuId.NotebookCellTitle,
 					order: CellToolbarOrder.ExecuteAboveCells,
 					group: CELL_TITLE_CELL_GROUP_ID,
 					when: ContextKeyExpr.and(
-						executeCellCondition,
-						ContextKeyExpr.equals('config.notebook.consolidatedRunButton', false))
+						executeCondition,
+						ContextKeyExpr.equals(`config.${ConsolidatedRunButton}`, false))
 				}
 			],
 			icon: icons.executeAboveIcon
@@ -457,20 +461,22 @@ registerAction2(class ExecuteCellAndBelow extends NotebookMultiCellAction<INoteb
 	constructor() {
 		super({
 			id: EXECUTE_CELL_AND_BELOW,
-			precondition: executeCellCondition,
+			precondition: executeCondition,
 			title: localize('notebookActions.executeBelow', "Execute Cell and Below"),
 			menu: [
 				{
 					id: MenuId.NotebookCellExecute,
-					when: executeCellCondition,
+					when: ContextKeyExpr.and(
+						executeCondition,
+						ContextKeyExpr.equals(`config.${ConsolidatedRunButton}`, true))
 				},
 				{
 					id: MenuId.NotebookCellTitle,
 					order: CellToolbarOrder.ExecuteCellAndBelow,
 					group: CELL_TITLE_CELL_GROUP_ID,
 					when: ContextKeyExpr.and(
-						executeCellCondition,
-						ContextKeyExpr.equals('config.notebook.consolidatedRunButton', false))
+						executeCondition,
+						ContextKeyExpr.equals(`config.${ConsolidatedRunButton}`, false))
 				}
 			],
 			icon: icons.executeBelowIcon
@@ -501,7 +507,7 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction<INotebookActio
 	constructor() {
 		super({
 			id: EXECUTE_CELL_COMMAND_ID,
-			precondition: executeCellCondition,
+			precondition: executeThisCellCondition,
 			title: localize('notebookActions.execute', "Execute Cell"),
 			keybinding: {
 				when: NOTEBOOK_CELL_LIST_FOCUSED,
@@ -513,7 +519,7 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction<INotebookActio
 			},
 			menu: {
 				id: MenuId.NotebookCellExecute,
-				when: executeCellCondition,
+				when: executeThisCellCondition,
 				group: 'inline'
 			},
 			description: {
@@ -662,7 +668,7 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 	constructor() {
 		super({
 			id: EXECUTE_CELL_SELECT_BELOW,
-			precondition: ContextKeyExpr.or(executeCellCondition, NOTEBOOK_CELL_TYPE.isEqualTo('markup')),
+			precondition: ContextKeyExpr.or(executeThisCellCondition, NOTEBOOK_CELL_TYPE.isEqualTo('markup')),
 			title: localize('notebookActions.executeAndSelectBelow', "Execute Notebook Cell and Select Below"),
 			keybinding: {
 				when: NOTEBOOK_CELL_LIST_FOCUSED,
@@ -710,7 +716,7 @@ registerAction2(class ExecuteCellInsertBelow extends NotebookCellAction {
 	constructor() {
 		super({
 			id: EXECUTE_CELL_INSERT_BELOW,
-			precondition: executeCellCondition,
+			precondition: executeThisCellCondition,
 			title: localize('notebookActions.executeAndInsertBelow', "Execute Notebook Cell and Insert Below"),
 			keybinding: {
 				when: NOTEBOOK_CELL_LIST_FOCUSED,
@@ -1814,6 +1820,7 @@ registerAction2(class CollapseCellInputAction extends ChangeNotebookCellMetadata
 				id: MenuId.NotebookCellTitle,
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_INPUT_COLLAPSED.toNegated()),
 				group: CellOverflowToolbarGroups.Collapse,
+				order: 0
 			}
 		});
 	}
@@ -1837,6 +1844,7 @@ registerAction2(class ExpandCellInputAction extends ChangeNotebookCellMetadataAc
 				id: MenuId.NotebookCellTitle,
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_INPUT_COLLAPSED),
 				group: CellOverflowToolbarGroups.Collapse,
+				order: 1
 			}
 		});
 	}
@@ -1860,6 +1868,7 @@ registerAction2(class CollapseCellOutputAction extends ChangeNotebookCellMetadat
 				id: MenuId.NotebookCellTitle,
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_OUTPUT_COLLAPSED.toNegated(), NOTEBOOK_CELL_HAS_OUTPUTS),
 				group: CellOverflowToolbarGroups.Collapse,
+				order: 2
 			}
 		});
 	}
@@ -1883,6 +1892,7 @@ registerAction2(class ExpandCellOuputAction extends ChangeNotebookCellMetadataAc
 				id: MenuId.NotebookCellTitle,
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_OUTPUT_COLLAPSED),
 				group: CellOverflowToolbarGroups.Collapse,
+				order: 3
 			}
 		});
 	}

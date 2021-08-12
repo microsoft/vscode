@@ -28,13 +28,13 @@ import { ITestingProgressUiService, TestingProgressUiService } from 'vs/workbenc
 import { TestingViewPaneContainer } from 'vs/workbench/contrib/testing/browser/testingViewPaneContainer';
 import { testingConfiguation } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { identifyTest, ITestIdWithSrc, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestProfileService, TestProfileService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
+import { TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestId, TestPosition } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestingAutoRun, TestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
 import { TestingContentProvider } from 'vs/workbench/contrib/testing/common/testingContentProvider';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
+import { ITestProfileService, TestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { ITestResultService, TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestResultStorage, TestResultStorage } from 'vs/workbench/contrib/testing/common/testResultStorage';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
@@ -114,22 +114,6 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 
 registerEditorContribution(Testing.OutputPeekContributionId, TestingOutputPeekController);
 registerEditorContribution(Testing.DecorationsContributionId, TestingDecorations);
-
-CommandsRegistry.registerCommand({
-	id: 'vscode.runTests',
-	handler: async (accessor: ServicesAccessor, tests: ITestIdWithSrc[]) => {
-		const testService = accessor.get(ITestService);
-		testService.runTests({ group: TestRunProfileBitset.Run, tests });
-	}
-});
-
-CommandsRegistry.registerCommand({
-	id: 'vscode.debugTests',
-	handler: async (accessor: ServicesAccessor, tests: ITestIdWithSrc[]) => {
-		const testService = accessor.get(ITestService);
-		testService.runTests({ group: TestRunProfileBitset.Debug, tests });
-	}
-});
 
 CommandsRegistry.registerCommand({
 	id: 'vscode.revealTestInExplorer',
@@ -216,7 +200,7 @@ CommandsRegistry.registerCommand({
 			accessor.get(ITestService).collection,
 			accessor.get(IProgressService),
 			testIds,
-			tests => testService.runTests({ group, tests: tests.map(identifyTest) }),
+			tests => testService.runTests({ group, tests }),
 		);
 	}
 });

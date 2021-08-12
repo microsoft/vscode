@@ -11,12 +11,16 @@ import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { MainThreadTestCollection } from 'vs/workbench/contrib/testing/common/mainThreadTestCollection';
-import { ITestIdWithSrc, ResolvedTestRunRequest, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
+import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
+import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
+import { ResolvedTestRunRequest, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestExclusions } from 'vs/workbench/contrib/testing/common/testExclusions';
+import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+import { canUseProfileWithTest, ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { AmbiguousRunTestsRequest, IMainThreadTestController, ITestService } from 'vs/workbench/contrib/testing/common/testService';
@@ -54,9 +58,19 @@ export class TestService extends Disposable implements ITestService {
 	 */
 	public readonly excluded: TestExclusions;
 
+	/**
+	 * @inheritdoc
+	 */
+	public readonly showInlineOutput = MutableObservableValue.stored(new StoredValue<boolean>({
+		key: 'inlineTestOutputVisible',
+		scope: StorageScope.WORKSPACE,
+		target: StorageTarget.USER
+	}, this.storage), true);
+
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IStorageService private readonly storage: IStorageService,
 		@ITestProfileService private readonly testProfiles: ITestProfileService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITestResultService private readonly testResults: ITestResultService,
@@ -70,8 +84,8 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
-	public async expandTest(test: ITestIdWithSrc, levels: number) {
-		await this.testControllers.get(test.controllerId)?.expandTest(test, levels);
+	public async expandTest(id: string, levels: number) {
+		await this.testControllers.get(TestId.fromString(id).controllerId)?.expandTest(id, levels);
 	}
 
 	/**
@@ -93,11 +107,15 @@ export class TestService extends Disposable implements ITestService {
 	 * @inheritdoc
 	 */
 	public async runTests(req: AmbiguousRunTestsRequest, token = CancellationToken.None): Promise<ITestResult> {
-		const resolved: ResolvedTestRunRequest = { targets: [], exclude: req.exclude, isAutoRun: req.isAutoRun };
+		const resolved: ResolvedTestRunRequest = {
+			targets: [],
+			exclude: req.exclude?.map(t => t.item.extId),
+			isAutoRun: req.isAutoRun,
+		};
 
 		// First, try to run the tests using the default run profiles...
 		for (const profile of this.testProfiles.getGroupDefaultProfiles(req.group)) {
-			const testIds = req.tests.filter(t => t.controllerId === profile.controllerId).map(t => t.testId);
+			const testIds = req.tests.filter(t => canUseProfileWithTest(profile, t)).map(t => t.item.extId);
 			if (testIds.length) {
 				resolved.targets.push({
 					testIds: testIds,
@@ -114,14 +132,22 @@ export class TestService extends Disposable implements ITestService {
 		// explorer or decoration. We shouldn't no-op.
 		if (resolved.targets.length === 0) {
 			for (const byController of groupBy(req.tests, (a, b) => a.controllerId === b.controllerId ? 0 : 1)) {
-				const profiles = this.testProfiles.getControllerGroupProfiles(byController[0].controllerId, req.group);
-				if (profiles.length) {
-					resolved.targets.push({
-						testIds: byController.map(t => t.testId),
-						profileGroup: req.group,
-						profileId: profiles[0].profileId,
-						controllerId: profiles[0].controllerId,
-					});
+				const profiles = this.testProfiles.getControllerProfiles(byController[0].controllerId);
+				const withControllers = byController.map(test => ({
+					profile: profiles.find(p => p.group === req.group && canUseProfileWithTest(p, test)),
+					test,
+				}));
+
+				for (const byProfile of groupBy(withControllers, (a, b) => a.profile === b.profile ? 0 : 1)) {
+					const profile = byProfile[0].profile;
+					if (profile) {
+						resolved.targets.push({
+							testIds: byProfile.map(t => t.test.item.extId),
+							profileGroup: req.group,
+							profileId: profile.profileId,
+							controllerId: profile.controllerId,
+						});
+					}
 				}
 			}
 		}
@@ -155,9 +181,7 @@ export class TestService extends Disposable implements ITestService {
 				group => this.testControllers.get(group.controllerId)?.runTests(
 					{
 						runId: result.id,
-						excludeExtIds: req.exclude!
-							.filter(t => t.controllerId === group.controllerId && !group.testIds.includes(t.testId))
-							.map(t => t.testId),
+						excludeExtIds: req.exclude!.filter(t => !group.testIds.includes(t)),
 						profileId: group.profileId,
 						controllerId: group.controllerId,
 						testIds: group.testIds,

@@ -24,7 +24,7 @@ export const virtualMachineHint: { value(): number } = new class {
 	private _virtualMachineOUIs?: TernarySearchTree<string, boolean>;
 	private _value?: number;
 
-	private _isVirtualMachineMacAdress(mac: string): boolean {
+	private _isVirtualMachineMacAddress(mac: string): boolean {
 		if (!this._virtualMachineOUIs) {
 			this._virtualMachineOUIs = TernarySearchTree.forStrings<boolean>();
 
@@ -61,7 +61,7 @@ export const virtualMachineHint: { value(): number } = new class {
 					for (const { mac, internal } of networkInterface) {
 						if (!internal) {
 							interfaceCount += 1;
-							if (this._isVirtualMachineMacAdress(mac.toUpperCase())) {
+							if (this._isVirtualMachineMacAddress(mac.toUpperCase())) {
 								vmOui += 1;
 							}
 						}

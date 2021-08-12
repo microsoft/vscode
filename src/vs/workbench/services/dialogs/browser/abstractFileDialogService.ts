@@ -149,7 +149,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		return schema === Schemas.untitled ? [Schemas.file] : (schema !== Schemas.file ? [schema, Schemas.file] : [schema]);
 	}
 
-	protected async pickFileFolderAndOpenSimplified(schema: string, options: IPickAndOpenOptions, preferNewWindow: boolean): Promise<any> {
+	protected async pickFileFolderAndOpenSimplified(schema: string, options: IPickAndOpenOptions, preferNewWindow: boolean): Promise<void> {
 		const title = nls.localize('openFileOrFolder.title', 'Open File Or Folder');
 		const availableFileSystems = this.addFileSchemaIfNeeded(schema);
 
@@ -164,14 +164,14 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 			}
 
 			if (stat.isDirectory || options.forceNewWindow || preferNewWindow) {
-				return this.hostService.openWindow([toOpen], { forceNewWindow: options.forceNewWindow, remoteAuthority: options.remoteAuthority });
+				await this.hostService.openWindow([toOpen], { forceNewWindow: options.forceNewWindow, remoteAuthority: options.remoteAuthority });
 			} else {
-				return this.openerService.open(uri, { fromUserGesture: true, editorOptions: { pinned: true } });
+				await this.openerService.open(uri, { fromUserGesture: true, editorOptions: { pinned: true } });
 			}
 		}
 	}
 
-	protected async pickFileAndOpenSimplified(schema: string, options: IPickAndOpenOptions, preferNewWindow: boolean): Promise<any> {
+	protected async pickFileAndOpenSimplified(schema: string, options: IPickAndOpenOptions, preferNewWindow: boolean): Promise<void> {
 		const title = nls.localize('openFile.title', 'Open File');
 		const availableFileSystems = this.addFileSchemaIfNeeded(schema);
 
@@ -180,9 +180,9 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 			this.addFileToRecentlyOpened(uri);
 
 			if (options.forceNewWindow || preferNewWindow) {
-				return this.hostService.openWindow([{ fileUri: uri }], { forceNewWindow: options.forceNewWindow, remoteAuthority: options.remoteAuthority });
+				await this.hostService.openWindow([{ fileUri: uri }], { forceNewWindow: options.forceNewWindow, remoteAuthority: options.remoteAuthority });
 			} else {
-				return this.openerService.open(uri, { fromUserGesture: true, editorOptions: { pinned: true } });
+				await this.openerService.open(uri, { fromUserGesture: true, editorOptions: { pinned: true } });
 			}
 		}
 	}
@@ -195,7 +195,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		}
 	}
 
-	protected async pickFolderAndOpenSimplified(schema: string, options: IPickAndOpenOptions): Promise<any> {
+	protected async pickFolderAndOpenSimplified(schema: string, options: IPickAndOpenOptions): Promise<void> {
 		const title = nls.localize('openFolder.title', 'Open Folder');
 		const availableFileSystems = this.addFileSchemaIfNeeded(schema);
 
@@ -205,7 +205,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		}
 	}
 
-	protected async pickWorkspaceAndOpenSimplified(schema: string, options: IPickAndOpenOptions): Promise<any> {
+	protected async pickWorkspaceAndOpenSimplified(schema: string, options: IPickAndOpenOptions): Promise<void> {
 		const title = nls.localize('openWorkspace.title', 'Open Workspace');
 		const filters: FileFilter[] = [{ name: nls.localize('filterName.workspace', 'Workspace'), extensions: [WORKSPACE_EXTENSION] }];
 		const availableFileSystems = this.addFileSchemaIfNeeded(schema);

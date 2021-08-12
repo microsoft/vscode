@@ -95,7 +95,6 @@ export function getSymbolRange(
 	document: vscode.TextDocument,
 	item: Proto.NavigationTree
 ): vscode.Range | null {
-	// TS 3.0+ provides a span for just the symbol
 	if (item.nameSpan) {
 		return typeConverters.Range.fromTextSpan(item.nameSpan);
 	}

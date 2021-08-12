@@ -9,7 +9,8 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { ITestRunProfile, TestRunProfileBitset, testRunProfileBitsetList } from 'vs/workbench/contrib/testing/common/testCollection';
+import { InternalTestItem, ITestRunProfile, TestRunProfileBitset, testRunProfileBitsetList } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { IMainThreadTestController } from 'vs/workbench/contrib/testing/common/testService';
 
@@ -40,11 +41,11 @@ export interface ITestProfileService {
 	removeProfile(controllerId: string, profileId?: number): void;
 
 	/**
-	 * Gets capabilities for the given controller by ID, indicating whether
-	 * there's any profiles available for those groups.
+	 * Gets capabilities for the given test, indicating whether
+	 * there's any usable profiles available for those groups.
 	 * @returns a bitset to use with {@link TestRunProfileBitset}
 	 */
-	controllerCapabilities(controllerId: string): number;
+	capabilitiesForTest(test: InternalTestItem): number;
 
 	/**
 	 * Configures a test profile.
@@ -55,7 +56,6 @@ export interface ITestProfileService {
 	 * Gets all registered controllers, grouping by controller.
 	 */
 	all(): Iterable<Readonly<{
-		capabilities: number,
 		controller: IMainThreadTestController,
 		profiles: ITestRunProfile[],
 	}>>;
@@ -73,16 +73,14 @@ export interface ITestProfileService {
 	/**
 	 * Gets the profiles for a controller, in priority order.
 	 */
-	getControllerProfiles(controllerId: string): undefined | {
-		controller: IMainThreadTestController;
-		profiles: ITestRunProfile[];
-	};
-
-	/**
-	 * Gets the profiles for the group in a controller, in priorty order.
-	 */
-	getControllerGroupProfiles(controllerId: string, group: TestRunProfileBitset): readonly ITestRunProfile[];
+	getControllerProfiles(controllerId: string): ITestRunProfile[];
 }
+
+/**
+ * Gets whether the given profile can be used to run the test.
+ */
+export const canUseProfileWithTest = (profile: ITestRunProfile, test: InternalTestItem) =>
+	profile.controllerId === test.controllerId && (TestId.isRoot(test.item.extId) || !profile.tag || test.item.tags.includes(profile.tag));
 
 const sorter = (a: ITestRunProfile, b: ITestRunProfile) => {
 	if (a.isDefault !== b.isDefault) {
@@ -102,7 +100,6 @@ export const capabilityContextKeys = (capabilities: number): [key: string, value
 	[TestingContextKeys.hasCoverableTests.key, (capabilities & TestRunProfileBitset.Coverage) !== 0],
 ];
 
-
 export class TestProfileService implements ITestProfileService {
 	declare readonly _serviceBrand: undefined;
 	private readonly preferredDefaults: StoredValue<{ [K in TestRunProfileBitset]?: { controllerId: string; profileId: number }[] }>;
@@ -111,7 +108,6 @@ export class TestProfileService implements ITestProfileService {
 	private readonly controllerProfiles = new Map</* controller ID */string, {
 		profiles: ITestRunProfile[],
 		controller: IMainThreadTestController,
-		capabilities: number,
 	}>();
 
 	/** @inheritdoc */
@@ -144,18 +140,12 @@ export class TestProfileService implements ITestProfileService {
 		if (record) {
 			record.profiles.push(profile);
 			record.profiles.sort(sorter);
-			record.capabilities |= profile.group;
 		} else {
 			record = {
 				profiles: [profile],
 				controller,
-				capabilities: profile.group
 			};
 			this.controllerProfiles.set(profile.controllerId, record);
-		}
-
-		if (!profile.isDefault) {
-			record.capabilities |= TestRunProfileBitset.HasNonDefaultProfile;
 		}
 
 		this.refreshContextKeys();
@@ -203,18 +193,25 @@ export class TestProfileService implements ITestProfileService {
 		}
 
 		ctrl.profiles.splice(index, 1);
-		ctrl.capabilities = 0;
-		for (const { group } of ctrl.profiles) {
-			ctrl.capabilities |= group;
-		}
-
 		this.refreshContextKeys();
 		this.changeEmitter.fire();
 	}
 
 	/** @inheritdoc */
-	public controllerCapabilities(controllerId: string) {
-		return this.controllerProfiles.get(controllerId)?.capabilities || 0;
+	public capabilitiesForTest(test: InternalTestItem) {
+		const ctrl = this.controllerProfiles.get(test.controllerId);
+		if (!ctrl) {
+			return 0;
+		}
+
+		let capabilities = 0;
+		for (const profile of ctrl.profiles) {
+			if (!profile.tag || test.item.tags.includes(profile.tag)) {
+				capabilities |= capabilities & profile.group ? TestRunProfileBitset.HasNonDefaultProfile : profile.group;
+			}
+		}
+
+		return capabilities;
 	}
 
 	/** @inheritdoc */
@@ -224,12 +221,7 @@ export class TestProfileService implements ITestProfileService {
 
 	/** @inheritdoc */
 	public getControllerProfiles(profileId: string) {
-		return this.controllerProfiles.get(profileId);
-	}
-
-	/** @inheritdoc */
-	public getControllerGroupProfiles(controllerId: string, group: TestRunProfileBitset) {
-		return this.controllerProfiles.get(controllerId)?.profiles.filter(c => c.group === group) ?? [];
+		return this.controllerProfiles.get(profileId)?.profiles ?? [];
 	}
 
 	/** @inheritdoc */
@@ -271,8 +263,10 @@ export class TestProfileService implements ITestProfileService {
 
 	private refreshContextKeys() {
 		let allCapabilities = 0;
-		for (const { capabilities } of this.controllerProfiles.values()) {
-			allCapabilities |= capabilities;
+		for (const { profiles } of this.controllerProfiles.values()) {
+			for (const profile of profiles) {
+				allCapabilities |= allCapabilities & profile.group ? TestRunProfileBitset.HasNonDefaultProfile : profile.group;
+			}
 		}
 
 		for (const group of testRunProfileBitsetList) {

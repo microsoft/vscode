@@ -229,7 +229,7 @@ function parseRegExp(pattern: string): string {
 	return regEx;
 }
 
-// regexes to check for trival glob patterns that just check for String#endsWith
+// regexes to check for trivial glob patterns that just check for String#endsWith
 const T1 = /^\*\*\/\*\.[\w\.-]+$/; 						   			// **/*.something
 const T2 = /^\*\*\/([\w\.-]+)\/?$/; 							   			// **/something
 const T3 = /^{\*\*\/[\*\.]?[\w\.-]+\/?(,\*\*\/[\*\.]?[\w\.-]+\/?)*}$/; 	// {**/*.something,**/*.else} or {**/package.json,**/project.json}
@@ -296,7 +296,7 @@ function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): P
 		return wrapRelativePattern(parsedPattern, arg1);
 	}
 
-	// Check for Trivias
+	// Check for Trivials
 	let match: RegExpExecArray | null;
 	if (T1.test(pattern)) { // common pattern: **/*.txt just need endsWith check
 		const base = pattern.substr(4); // '**/*'.length === 4

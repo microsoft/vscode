@@ -977,6 +977,10 @@ export class IdleValue<T> {
 		}
 		return this._value!;
 	}
+
+	get isInitialized(): boolean {
+		return this._didRun;
+	}
 }
 
 //#endregion

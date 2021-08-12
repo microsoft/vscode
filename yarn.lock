@@ -735,10 +735,10 @@
     "@types/webpack-sources" "*"
     source-map "^0.6.0"
 
-"@types/wicg-file-system-access@^2020.9.1":
-  version "2020.9.1"
-  resolved "https://registry.yarnpkg.com/@types/wicg-file-system-access/-/wicg-file-system-access-2020.9.1.tgz#ae1f420b0ca70f545c8621a9b63ed29270ef724a"
-  integrity sha512-hEN/YpLwvDjhRJrKoBiyiKtIh2zNkmJ/GY9VWIXNgjy7TBZNM9upfb/rnWDGpOoLomnEQtlTBjFBFCDra1oxOQ==
+"@types/wicg-file-system-access@^2020.9.2":
+  version "2020.9.2"
+  resolved "https://registry.yarnpkg.com/@types/wicg-file-system-access/-/wicg-file-system-access-2020.9.2.tgz#6433e5a1d7cfdc58558e15f69276e4f0034088c6"
+  integrity sha512-8ni2EyWi01DBuVqekudo2I+RTfq4Jq93iHmlzq0+eKPkG1uebQA9OUxIDRzOevvw9wF922XYRo4bqP0a6DBF5g==
 
 "@types/windows-foreground-love@^0.3.0":
   version "0.3.0"
@@ -7686,9 +7686,9 @@ path-key@^3.0.0, path-key@^3.1.0:
   integrity sha512-ojmeN0qd+y0jszEtoY48r0Peq5dwMEkIlCOu6Q5f41lfkswXuKtYrhgoTpLnyIcHm24Uhqx+5Tqm2InSwLhE6Q==
 
 path-parse@^1.0.6:
-  version "1.0.6"
-  resolved "https://registry.yarnpkg.com/path-parse/-/path-parse-1.0.6.tgz#d62dbb5679405d72c4737ec58600e9ddcf06d24c"
-  integrity sha512-GSmOT2EbHrINBf9SR7CDELwlJ8AENk3Qn7OikK4nFYAu3Ote2+JYNVvkpAEQm3/TLNEJFD/xZJjzyxg3KBWOzw==
+  version "1.0.7"
+  resolved "https://registry.yarnpkg.com/path-parse/-/path-parse-1.0.7.tgz#fbc114b60ca42b30d9daf5858e4bd68bbedb6735"
+  integrity sha512-LDJzPVEEEPR+y48z93A0Ed0yXb8pAByGWo/k5YYdYgpY2/2EsOsksJrq7lOHxryrVOn1ejG6oAp8ahvOIQD8sw==
 
 path-root-regex@^0.1.0:
   version "0.1.2"
@@ -10224,10 +10224,10 @@ typescript@^2.6.2:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.6.2.tgz#3c5b6fd7f6de0914269027f03c0946758f7673a4"
   integrity sha1-PFtv1/beCRQmkCfwPAlGdY92c6Q=
 
-typescript@^4.4.0-dev.20210802:
-  version "4.4.0-dev.20210802"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.4.0-dev.20210802.tgz#6bb697544506b33c062ae2e18413bef23251ba72"
-  integrity sha512-PknU1j5Vk6LCUWgUwqAcTpuYv1WfvNEaMDTS5mbFFcXTTek9/z9PQgJPl3gyYGeQXjjcbhYe3JVHXG3jOExAuQ==
+typescript@^4.5.0-dev.20210810:
+  version "4.5.0-dev.20210810"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.5.0-dev.20210810.tgz#e29c56a180a3ea43dca880000f8b1cbb4da5af48"
+  integrity sha512-9d8OrY8J3LbkWgjrPLE8pXOI4Z8bfS9N2SudgvrZOgYUmEODJYfA+MIZ6Zv/qrVSRH3M5632/0CjJr0Zk/sqWA==
 
 typical@^4.0.0:
   version "4.0.0"

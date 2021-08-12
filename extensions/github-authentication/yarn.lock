@@ -92,10 +92,10 @@ uuid@8.1.0:
   resolved "https://registry.yarnpkg.com/uuid/-/uuid-8.1.0.tgz#6f1536eb43249f473abc6bd58ff983da1ca30d8d"
   integrity sha512-CI18flHDznR0lq54xBycOVmphdCYnQLKn8abKn7PXUiKUGdEd+/l9LWNJmugXel4hXq7S+RMNl34ecyC9TntWg==
 
-vscode-extension-telemetry@0.2.6:
-  version "0.2.6"
-  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.2.6.tgz#fa40b711e2fde2d10813df372192ae7d494d6428"
-  integrity sha512-wQ8EEr3tQnAB5K3CyLScOEmiEVR3NNOtaOnf6XuJdOJFZnCPFT8Adc3mYPIzcTJwE720pL0ybt+Peigz197nTQ==
+vscode-extension-telemetry@0.2.8:
+  version "0.2.8"
+  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.2.8.tgz#670c625c44791237c040cee2cb9f567ca34784ac"
+  integrity sha512-Vf52im5qzORRD2K5Ryp8PXo31YXVcJAYRSDDZGegWlt0OATOd83DYabS1U/WIq9nR5g80UQKH3+BsenhpQHUaA==
 
 vscode-nls@^5.0.0:
   version "5.0.0"

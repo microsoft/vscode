@@ -107,7 +107,7 @@
 	 */
 	function fileUriFromPath(path, config) {
 
-		// Since we are building a URI, we normalize any backlsash
+		// Since we are building a URI, we normalize any backslash
 		// to slashes and we ensure that the path begins with a '/'.
 		let pathName = path.replace(/\\/g, '/');
 		if (pathName.length > 0 && pathName.charAt(0) !== '/') {

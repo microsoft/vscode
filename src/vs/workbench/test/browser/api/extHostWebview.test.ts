@@ -15,7 +15,7 @@ import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDep
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';
 import { ExtHostWebviewPanels } from 'vs/workbench/api/common/extHostWebviewPanels';
-import { webviewResourceBaseHost } from 'vs/workbench/api/common/shared/webview';
+import { decodeAuthority, webviewResourceBaseHost } from 'vs/workbench/api/common/shared/webview';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import type * as vscode from 'vscode';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
@@ -117,6 +117,29 @@ suite('ExtHostWebview', () => {
 			(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/file.html')).toString()),
 			`https://vscode-remote%2Bremote.vscode-resource.${webviewResourceBaseHost}/Users/codey/file.html`,
 			'Unix basic'
+		);
+	});
+
+	test('asWebviewUri for remote with / and + in name', () => {
+		const webview = createWebview(rpcProtocol, /* remoteAuthority */ 'remote');
+		const authority = 'ssh-remote+localhost=foo/bar';
+
+		const sourceUri = URI.from({
+			scheme: 'vscode-remote',
+			authority: authority,
+			path: '/Users/cody/x.png'
+		});
+
+		const webviewUri = webview.webview.asWebviewUri(sourceUri);
+		assert.strictEqual(
+			webviewUri.toString(),
+			`https://vscode-remote%2Bssh-002dremote-002blocalhost-003dfoo-002fbar.vscode-resource.vscode-webview.net/Users/cody/x.png`,
+			'Check transform');
+
+		assert.strictEqual(
+			decodeAuthority(webviewUri.authority),
+			`vscode-remote+${authority}.vscode-resource.vscode-webview.net`,
+			'Check decoded authority'
 		);
 	});
 });

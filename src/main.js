@@ -571,7 +571,7 @@ async function resolveNlsConfiguration() {
 			nlsConfiguration = { locale: 'en', availableLanguages: {} };
 		} else {
 
-			// See above the comment about the loader and case sensitiviness
+			// See above the comment about the loader and case sensitiveness
 			appLocale = appLocale.toLowerCase();
 
 			const { getNLSConfiguration } = require('./vs/base/node/languagePacks');

@@ -88,7 +88,7 @@ const testItemPropAccessor = <K extends keyof vscode.TestItem>(
 	};
 };
 
-type WritableProps = Pick<vscode.TestItem, 'range' | 'label' | 'description' | 'canResolveChildren' | 'busy' | 'error'>;
+type WritableProps = Pick<vscode.TestItem, 'range' | 'label' | 'description' | 'canResolveChildren' | 'busy' | 'error' | 'tags'>;
 
 const strictEqualComparator = <T>(a: T, b: T) => a === b;
 
@@ -102,7 +102,18 @@ const propComparators: { [K in keyof Required<WritableProps>]: (a: vscode.TestIt
 	description: strictEqualComparator,
 	busy: strictEqualComparator,
 	error: strictEqualComparator,
-	canResolveChildren: strictEqualComparator
+	canResolveChildren: strictEqualComparator,
+	tags: (a, b) => {
+		if (a.length !== b.length) {
+			return false;
+		}
+
+		if (a.some(t1 => !b.find(t2 => t1.id === t2.id))) {
+			return false;
+		}
+
+		return true;
+	},
 };
 
 const writablePropKeys = Object.keys(propComparators) as (keyof Required<WritableProps>)[];
@@ -114,6 +125,7 @@ const makePropDescriptors = (api: IExtHostTestItemApi, label: string): { [K in k
 	canResolveChildren: testItemPropAccessor(api, 'canResolveChildren', false, propComparators.canResolveChildren),
 	busy: testItemPropAccessor(api, 'busy', false, propComparators.busy),
 	error: testItemPropAccessor(api, 'error', undefined, propComparators.error),
+	tags: testItemPropAccessor(api, 'tags', [], propComparators.tags),
 });
 
 /**
@@ -253,6 +265,7 @@ export class TestItemImpl implements vscode.TestItem {
 	public error!: string | vscode.MarkdownString;
 	public busy!: boolean;
 	public canResolveChildren!: boolean;
+	public tags!: readonly vscode.TestTag[];
 
 	/**
 	 * Note that data is deprecated and here for back-compat only
