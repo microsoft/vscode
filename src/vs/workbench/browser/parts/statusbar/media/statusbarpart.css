@@ -85,8 +85,11 @@
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-background-color > :first-child {
 	margin-right: 0;
 	margin-left: 0;
-	padding-left: 17px;
-	padding-right: 17px;
+	padding-left: 10px;
+	padding-right: 10px;
+	min-width: 48px;
+    	box-sizing: border-box;
+    	justify-content: center;
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item > a {
