@@ -58,6 +58,7 @@ class NotebookBreakpoints extends Disposable implements IWorkbenchContribution {
 		this._register(_notebookService.onWillRemoveNotebookDocument(model => {
 			this.updateBreakpoints(model);
 			listeners.get(model.uri)?.dispose();
+			listeners.delete(model.uri);
 		}));
 
 		this._register(this._debugService.getModel().onDidChangeBreakpoints(e => {
