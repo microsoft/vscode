@@ -129,7 +129,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 				? this.viewContext.notebookOptions.computeMarkdownCellEditorWidth(initialNotebookLayoutInfo.width)
 				: 0,
 			bottomToolbarOffset: bottomToolbarGap,
-			totalHeight: 1
+			totalHeight: 0
 		};
 
 		this._register(this.onDidChangeState(e => {
@@ -182,7 +182,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 
 	private _updateTotalHeight(newHeight: number) {
 		if (newHeight !== this.layoutInfo.totalHeight) {
-			this.layoutChange({ totalHeight: Math.max(1, newHeight) });
+			this.layoutChange({ totalHeight: newHeight });
 		}
 	}
 
