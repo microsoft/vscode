@@ -34,6 +34,7 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	onDidOpenTerminal: Event<vscode.Terminal>;
 	onDidChangeActiveTerminal: Event<vscode.Terminal | undefined>;
 	onDidChangeTerminalDimensions: Event<vscode.TerminalDimensionsChangeEvent>;
+	onDidChangeTerminalState: Event<vscode.TerminalStateChangeEvent>;
 	onDidWriteTerminalData: Event<vscode.TerminalDataWriteEvent>;
 
 	createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal;
@@ -63,6 +64,7 @@ export class ExtHostTerminal {
 	private _pidPromiseComplete: ((value: number | undefined) => any) | undefined;
 	private _rows: number | undefined;
 	private _exitStatus: vscode.TerminalExitStatus | undefined;
+	private _state: vscode.TerminalState = { interactedWith: false };
 
 	public isOpen: boolean = false;
 
@@ -90,6 +92,9 @@ export class ExtHostTerminal {
 			},
 			get exitStatus(): vscode.TerminalExitStatus | undefined {
 				return that._exitStatus;
+			},
+			get state(): vscode.TerminalState {
+				return that._state;
 			},
 			sendText(text: string, addNewLine: boolean = true): void {
 				that._checkDisposed();
@@ -191,6 +196,14 @@ export class ExtHostTerminal {
 		this._cols = cols;
 		this._rows = rows;
 		return true;
+	}
+
+	public setInteractedWith(): boolean {
+		if (!this._state.interactedWith) {
+			this._state = { interactedWith: true };
+			return true;
+		}
+		return false;
 	}
 
 	public _setProcessId(processId: number | undefined): void {
@@ -334,7 +347,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	readonly onDidChangeActiveTerminal = this._onDidChangeActiveTerminal.event;
 	protected readonly _onDidChangeTerminalDimensions = new Emitter<vscode.TerminalDimensionsChangeEvent>();
 	readonly onDidChangeTerminalDimensions = this._onDidChangeTerminalDimensions.event;
-	protected readonly _onDidChangeTerminalState = new Emitter<vscode.TerminalDimensionsChangeEvent>();
+	protected readonly _onDidChangeTerminalState = new Emitter<vscode.TerminalStateChangeEvent>();
 	readonly onDidChangeTerminalState = this._onDidChangeTerminalState.event;
 	protected readonly _onDidWriteTerminalData: Emitter<vscode.TerminalDataWriteEvent>;
 	readonly onDidWriteTerminalData: Event<vscode.TerminalDataWriteEvent>;
@@ -550,6 +563,13 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 	public $acceptProcessInput(id: number, data: string): void {
 		this._terminalProcesses.get(id)?.input(data);
+		const terminal = this._getTerminalById(id);
+		if (terminal?.setInteractedWith()) {
+			this._onDidChangeTerminalState.fire({
+				terminal: terminal.value,
+				state: terminal.value.state
+			});
+		}
 	}
 
 	public $acceptProcessResize(id: number, cols: number, rows: number): void {
