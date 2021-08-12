@@ -31,7 +31,7 @@ import { deepClone, equals } from 'vs/base/common/objects';
 import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IDebugModel, IEnablement, IBreakpoint, IBreakpointData, ICompound, IStackFrame, getStateLabel, IDebugSessionOptions, CONTEXT_DEBUG_UX, REPL_VIEW_ID, CONTEXT_BREAKPOINTS_EXIST, IGlobalConfig, CALLSTACK_VIEW_ID, IAdapterManager, IExceptionBreakpoint, CONTEXT_DISASSEMBLY_VIEW_FOCUS } from 'vs/workbench/contrib/debug/common/debug';
-import { getExtensionHostDebugSession } from 'vs/workbench/contrib/debug/common/debugUtils';
+import { getExtensionHostDebugSession, saveAllBeforeDebugStart } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { raceTimeout, RunOnceScheduler } from 'vs/base/common/async';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -301,7 +301,7 @@ export class DebugService implements IDebugService {
 	 * main entry point
 	 * properly manages compounds, checks for errors and handles the initializing state.
 	 */
-	async startDebugging(launch: ILaunch | undefined, configOrName?: IConfig | string, options?: IDebugSessionOptions): Promise<boolean> {
+	async startDebugging(launch: ILaunch | undefined, configOrName?: IConfig | string, options?: IDebugSessionOptions, saveBeforeStart = !options?.parentSession): Promise<boolean> {
 		const message = options && options.noDebug ? nls.localize('runTrust', "Running executes build tasks and program code from your workspace.") : nls.localize('debugTrust', "Debugging executes build tasks and program code from your workspace.");
 		const trust = await this.workspaceTrustRequestService.requestWorkspaceTrust({ message });
 		if (!trust) {
@@ -311,20 +311,9 @@ export class DebugService implements IDebugService {
 		try {
 			// make sure to save all files and that the configuration is up to date
 			await this.extensionService.activateByEvent('onDebug');
-			if (!options?.parentSession) {
-				const saveBeforeStartConfig: string = this.configurationService.getValue('debug.saveBeforeStart', { overrideIdentifier: this.editorService.activeTextEditorMode });
-				if (saveBeforeStartConfig !== 'none') {
-					await this.editorService.saveAll();
-					if (saveBeforeStartConfig === 'allEditorsInActiveGroup') {
-						const activeEditor = this.editorService.activeEditorPane;
-						if (activeEditor) {
-							// Make sure to save the active editor in case it is in untitled file it wont be saved as part of saveAll #111850
-							await this.editorService.save({ editor: activeEditor.input, groupId: activeEditor.group.id });
-						}
-					}
-				}
+			if (saveBeforeStart) {
+				await saveAllBeforeDebugStart(this.configurationService, this.editorService);
 			}
-			await this.configurationService.reloadConfiguration(launch ? launch.workspace : undefined);
 			await this.extensionService.whenInstalledExtensionsRegistered();
 
 			let config: IConfig | undefined;

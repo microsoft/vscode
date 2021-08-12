@@ -9,6 +9,8 @@ import { URI as uri } from 'vs/base/common/uri';
 import { isAbsolute } from 'vs/base/common/path';
 import { deepClone } from 'vs/base/common/objects';
 import { Schemas } from 'vs/base/common/network';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const _formatPIIRegexp = /{([^}]+)}/g;
 
@@ -302,4 +304,19 @@ function compareOrders(first: number | undefined, second: number | undefined): n
 	}
 
 	return first - second;
+}
+
+export async function saveAllBeforeDebugStart(configurationService: IConfigurationService, editorService: IEditorService): Promise<void> {
+	const saveBeforeStartConfig: string = configurationService.getValue('debug.saveBeforeStart', { overrideIdentifier: editorService.activeTextEditorMode });
+	if (saveBeforeStartConfig !== 'none') {
+		await editorService.saveAll();
+		if (saveBeforeStartConfig === 'allEditorsInActiveGroup') {
+			const activeEditor = editorService.activeEditorPane;
+			if (activeEditor) {
+				// Make sure to save the active editor in case it is in untitled file it wont be saved as part of saveAll #111850
+				await editorService.save({ editor: activeEditor.input, groupId: activeEditor.group.id });
+			}
+		}
+	}
+	await configurationService.reloadConfiguration();
 }
