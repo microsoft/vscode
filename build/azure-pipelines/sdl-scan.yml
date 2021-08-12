@@ -95,8 +95,6 @@ stages:
         env:
           npm_config_arch: "$(NPM_ARCH)"
           npm_config_build_from_source: true
-          CXXFLAGS: "/guard:cf,nochecks /W4"
-          LDFLAGS: "/guard:cf"
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: CodeQL
@@ -109,8 +107,6 @@ stages:
         env:
           npm_config_arch: "$(NPM_ARCH)"
           npm_config_build_from_source: true
-          CXXFLAGS: "/guard:cf,nochecks /W4"
-          LDFLAGS: "/guard:cf"
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
           CHILD_CONCURRENCY: 1
