@@ -538,6 +538,7 @@
     grid-area: footer;
     align-self: flex-end;
     justify-self: center;
+	text-align: center;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-detail-right {

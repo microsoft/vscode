@@ -893,7 +893,6 @@ export class GettingStartedPage extends EditorPane {
 
 		const someStepsComplete = this.gettingStartedCategories.some(categry => categry.content.type === 'steps' && categry.content.stepsComplete);
 		if (!someStepsComplete && !this.hasScrolledToFirstCategory) {
-			// FIXME: The same logic shoud
 			const firstSessionDateString = this.storageService.get(firstSessionDateStorageKey, StorageScope.GLOBAL) || new Date().toUTCString();
 			const daysSinceFirstSession = ((+new Date()) - (+new Date(firstSessionDateString))) / 1000 / 60 / 60 / 24;
 			const fistContentBehaviour = daysSinceFirstSession < 1 ? 'openToFirstCategory' : 'index';
@@ -905,7 +904,8 @@ export class GettingStartedPage extends EditorPane {
 					this.currentCategory = first;
 					this.editorInput.selectedCategory = this.currentCategory?.id;
 					// FIXME: Clarify if this should be in buildCategorySlide.
-					// FIXME: telemetryFooter
+					// FIXME: telemetryFooter as extra argument could be improved.
+					// FIXME: This logic between firstSessionDateString and welcomePage.ts' check for telemetryOptOutStorageKey
 					this.buildCategorySlide(this.editorInput.selectedCategory, undefined, true);
 					this.setSlide('details');
 					return;
@@ -1320,9 +1320,9 @@ export class GettingStartedPage extends EditorPane {
 		const stepListComponent = this.detailsScrollbar.getDomNode();
 
 		const categoryFooter = $('.getting-started-footer');
-		// FIXME: Does this need an actioHandler or is there a different way to render this
+		// FIXME: This rendering doesn't actually work and is probably not right anwyays.
 		categoryFooter.append(renderFormattedText(localize('telemetryFooter',
-			"Help improve VS Code by allowing Microsoft to collect usage data. Read our [privacy statement](command:{0}) and learn how to [opt out](command:{1}).", 'hello', 'hello'), { inline: true }));
+			"VS Code collects usage data. Read our [privacy statement](command:{0}) and learn how to [opt out]({1}).", 'workbench.action.openPrivacyStatementUrl', 'command:settings.filterByTelemetry'), { inline: true }));
 
 		reset(this.stepsContent, categoryDescriptorComponent, stepListComponent, this.stepMediaComponent, categoryFooter);
 

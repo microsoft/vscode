@@ -20,9 +20,12 @@ import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { GettingStartedInput, gettingStartedInputTypeId } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 const configurationKey = 'workbench.startupEditor';
 const oldConfigurationKey = 'workbench.welcome.enabled';
+const telemetryOptOutStorageKey = 'workbench.telemetryOptOutShown';
 
 export class WelcomePageContribution implements IWorkbenchContribution {
 
@@ -36,7 +39,9 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IProductService private readonly productService: IProductService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		this.run().then(undefined, onUnexpectedError);
 	}
@@ -47,20 +52,29 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 			const hasBackups = await this.workingCopyBackupService.hasBackups();
 			if (hasBackups) { return; }
 
-			// Open the welcome even if we opened a set of default editors
-			if (!this.editorService.activeEditor || this.layoutService.openedDefaultEditors) {
-				const startupEditorSetting = this.configurationService.inspect<string>(configurationKey);
+			// Ensure Welcome page for first-launch, no matter what is open.
+			// FIXME: Logic inspired by contrib/welcome/telemetryOptOut/browser/telemetryOptOut.ts.
+			// FIXME: Migrate telemetryOptOutUrl to boolean telemetryOptOut
+			if (this.productService.telemetryOptOutUrl && !this.storageService.get(telemetryOptOutStorageKey, StorageScope.GLOBAL)) {
+				this.storageService.store(telemetryOptOutStorageKey, true, StorageScope.GLOBAL, StorageTarget.USER);
+				// FIXME: If we want to focus
+				await this.openWelcome();
+			}
+		}
 
-				// 'readme' should not be set in workspace settings to prevent tracking,
-				// but it can be set as a default (as in codespaces) or a user setting
-				const openWithReadme = startupEditorSetting.value === 'readme' &&
-					(startupEditorSetting.userValue === 'readme' || startupEditorSetting.defaultValue === 'readme');
+		// Open the welcome even if we opened a set of default editors
+		if (!this.editorService.activeEditor || this.layoutService.openedDefaultEditors) {
+			const startupEditorSetting = this.configurationService.inspect<string>(configurationKey);
 
-				if (openWithReadme) {
-					await this.openReadme();
-				} else {
-					await this.openWelcome();
-				}
+			// 'readme' should not be set in workspace settings to prevent tracking,
+			// but it can be set as a default (as in codespaces) or a user setting
+			const openWithReadme = startupEditorSetting.value === 'readme' &&
+				(startupEditorSetting.userValue === 'readme' || startupEditorSetting.defaultValue === 'readme');
+
+			if (openWithReadme) {
+				await this.openReadme();
+			} else {
+				await this.openWelcome();
 			}
 		}
 	}
