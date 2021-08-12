@@ -639,16 +639,38 @@ export interface IHistoryInputOptions extends IInputOptions {
 export class HistoryInputBox extends InputBox implements IHistoryNavigationWidget {
 
 	private readonly history: HistoryNavigator<string>;
+	private observer: MutationObserver | undefined;
 
 	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider | undefined, options: IHistoryInputOptions) {
 		const NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX = ` [\u21C5]`;
 		super(container, contextViewProvider, options);
 		this.history = new HistoryNavigator<string>(options.history, 100);
-		this.onfocus(this.input, () => {
+
+		// Function to append the history suffix to the placeholder if necessary
+		const addSuffix = () => {
 			if (!this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX) && this.history.getHistory().length) {
-				this.setPlaceHolder(this.placeholder + NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX);
+				const suffixedPlaceholder = this.placeholder + NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX;
+				if (options.showPlaceholderOnFocus && document.activeElement !== this.input) {
+					this.placeholder = suffixedPlaceholder;
+				}
+				else {
+					this.setPlaceHolder(suffixedPlaceholder);
+				}
 			}
+		};
+
+		// Spot the change to the textarea class attribute whic occurs when it changes between non-empty and empty,
+		// and add the history suffix to the placeholder if not yet present
+		this.observer = new MutationObserver((mutationList: MutationRecord[], observer: MutationObserver) => {
+			mutationList.forEach((mutation: MutationRecord) => {
+				if (!mutation.target.textContent) {
+					addSuffix();
+				}
+			});
 		});
+		this.observer.observe(this.input, { attributeFilter: ['class'] });
+
+		this.onfocus(this.input, () => addSuffix());
 		this.onblur(this.input, () => {
 			const revertedPlaceholder = this.placeholder.slice(0, this.placeholder.length - NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX.length);
 			if (this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX)) {
@@ -660,6 +682,14 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 				}
 			}
 		});
+	}
+
+	override dispose() {
+		super.dispose();
+		if (this.observer) {
+			this.observer.disconnect();
+			this.observer = undefined;
+		}
 	}
 
 	public addToHistory(): void {
