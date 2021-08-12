@@ -893,7 +893,7 @@ export class GettingStartedPage extends EditorPane {
 
 		const someStepsComplete = this.gettingStartedCategories.some(categry => categry.content.type === 'steps' && categry.content.stepsComplete);
 		if (!someStepsComplete && !this.hasScrolledToFirstCategory) {
-
+			// FIXME: The same logic shoud
 			const firstSessionDateString = this.storageService.get(firstSessionDateStorageKey, StorageScope.GLOBAL) || new Date().toUTCString();
 			const daysSinceFirstSession = ((+new Date()) - (+new Date(firstSessionDateString))) / 1000 / 60 / 60 / 24;
 			const fistContentBehaviour = daysSinceFirstSession < 1 ? 'openToFirstCategory' : 'index';
@@ -904,7 +904,9 @@ export class GettingStartedPage extends EditorPane {
 				if (first) {
 					this.currentCategory = first;
 					this.editorInput.selectedCategory = this.currentCategory?.id;
-					this.buildCategorySlide(this.editorInput.selectedCategory);
+					// FIXME: Clarify if this should be in buildCategorySlide.
+					// FIXME: telemetryFooter
+					this.buildCategorySlide(this.editorInput.selectedCategory, undefined, true);
 					this.setSlide('details');
 					return;
 				}
@@ -1244,7 +1246,7 @@ export class GettingStartedPage extends EditorPane {
 		super.clearInput();
 	}
 
-	private buildCategorySlide(categoryID: string, selectedStep?: string) {
+	private buildCategorySlide(categoryID: string, selectedStep?: string, telemetryFooter?: boolean) {
 		if (this.detailsScrollbar) { this.detailsScrollbar.dispose(); }
 
 		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
@@ -1317,7 +1319,12 @@ export class GettingStartedPage extends EditorPane {
 		this.detailsScrollbar = this._register(new DomScrollableElement(stepsContainer, { className: 'steps-container' }));
 		const stepListComponent = this.detailsScrollbar.getDomNode();
 
-		reset(this.stepsContent, categoryDescriptorComponent, stepListComponent, this.stepMediaComponent);
+		const categoryFooter = $('.getting-started-footer');
+		// FIXME: Does this need an actioHandler or is there a different way to render this
+		categoryFooter.append(renderFormattedText(localize('telemetryFooter',
+			"Help improve VS Code by allowing Microsoft to collect usage data. Read our [privacy statement](command:{0}) and learn how to [opt out](command:{1}).", 'hello', 'hello'), { inline: true }));
+
+		reset(this.stepsContent, categoryDescriptorComponent, stepListComponent, this.stepMediaComponent, categoryFooter);
 
 		const toExpand = category.content.steps.find(step => !step.done) ?? category.content.steps[0];
 		this.selectStep(selectedStep ?? toExpand.id, !selectedStep, true);
