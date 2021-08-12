@@ -275,4 +275,9 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 			matches
 		};
 	}
+
+	override dispose() {
+		super.dispose();
+		(this.foldingDelegate as any) = null;
+	}
 }
