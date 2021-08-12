@@ -220,7 +220,7 @@ export interface NotebookLayoutChangeEvent {
 	fontInfo?: boolean;
 }
 
-export enum CodeCellLayoutState {
+export enum CellLayoutState {
 	Uninitialized,
 	Estimated,
 	FromCache,
@@ -238,7 +238,7 @@ export interface CodeCellLayoutInfo {
 	readonly outputShowMoreContainerOffset: number;
 	readonly indicatorHeight: number;
 	readonly bottomToolbarOffset: number;
-	readonly layoutState: CodeCellLayoutState;
+	readonly layoutState: CellLayoutState;
 }
 
 export interface CodeCellLayoutChangeEvent {
@@ -258,6 +258,7 @@ export interface MarkdownCellLayoutInfo {
 	readonly previewHeight: number;
 	readonly bottomToolbarOffset: number;
 	readonly totalHeight: number;
+	readonly layoutState: CellLayoutState;
 }
 
 export interface MarkdownCellLayoutChangeEvent {
