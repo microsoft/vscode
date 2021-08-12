@@ -309,7 +309,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: OpenWorkspaceConfigFileAction.ID,
-		title: { value: OpenWorkspaceConfigFileAction.LABEL, original: 'Workspaces: Open Workspace Configuration File' },
+		title: { value: OpenWorkspaceConfigFileAction.LABEL, original: 'Open Workspace Configuration File' },
 		category: workspacesCategory
 	},
 	when: WorkbenchStateContext.isEqualTo('workspace')
