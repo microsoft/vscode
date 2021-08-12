@@ -1651,6 +1651,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	@debounce(50)
 	private async _resize(): Promise<void> {
+		console.trace('resize');
 		this._resizeNow(false);
 	}
 
@@ -1789,6 +1790,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		this._dimensionsOverride = dimensions;
 		if (immediate) {
+			console.trace('setDimensions immediate');
 			this._resizeNow(true);
 		} else {
 			this._resize();
