@@ -287,6 +287,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': true,
 				'description': localize('activityBarVisibility', "Controls the visibility of the activity bar in the workbench.")
 			},
+			'workbench.outletBar.visible': {
+				'type': 'boolean',
+				'default': false,
+				'description': localize('outletBarVisibility', 'Controls the visibility of the outlet bar at the opposite side of the activity bar.')
+			},
 			'workbench.activityBar.iconClickBehavior': {
 				'type': 'string',
 				'enum': ['toggle', 'focus'],

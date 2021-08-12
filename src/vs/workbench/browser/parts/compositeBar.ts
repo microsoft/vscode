@@ -152,6 +152,8 @@ export interface ICompositeBarOptions {
 	readonly activityHoverOptions: IActivityHoverOptions;
 	readonly preventLoopNavigation?: boolean;
 
+	readonly openViewContainerEvenIfEmpty?: boolean;
+
 	getActivityAction: (compositeId: string) => ActivityAction;
 	getCompositePinnedAction: (compositeId: string) => IAction;
 	getOnCompositeClickAction: (compositeId: string) => IAction;
@@ -269,7 +271,12 @@ export class CompositeBar extends Widget implements ICompositeBar {
 				if (visibleItems.length) {
 					const target = this.insertAtFront(actionBarDiv, e.eventData) ? visibleItems[0] : visibleItems[visibleItems.length - 1];
 					this.options.dndHandler.drop(e.dragAndDropData, target.id, e.eventData, insertDropBefore);
+				} else if (this.options.openViewContainerEvenIfEmpty) {
+					this.options.dndHandler.drop(e.dragAndDropData, '', e.eventData, insertDropBefore);
+					console.log('should perform a move');
+					// this.options.dndHandler.drop(e.dragAndDropData, ,e.eventData, insertDropBefore);
 				}
+
 				insertDropBefore = this.updateFromDragging(parent, false, false);
 			}
 		}));
@@ -446,7 +453,9 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 		if (before !== undefined) {
 			const fromIndex = this.model.items.findIndex(c => c.id === compositeId);
-			let toIndex = this.model.items.findIndex(c => c.id === toCompositeId);
+			let toIndex = toCompositeId === ''
+				? 0
+				: this.model.items.findIndex(c => c.id === toCompositeId);
 
 			if (fromIndex >= 0 && toIndex >= 0) {
 				if (!before && fromIndex > toIndex) {

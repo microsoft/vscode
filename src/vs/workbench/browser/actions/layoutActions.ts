@@ -81,6 +81,46 @@ export class ToggleActivityBarVisibilityAction extends Action2 {
 
 registerAction2(ToggleActivityBarVisibilityAction);
 
+// --- Toggle Outlet Bar
+
+export class ToggleOutletBarVisibilityAction extends Action2 {
+
+	static readonly ID = 'workbench.action.toggleOutletBarVisibility';
+
+	private static readonly outletBarVisibleKey = 'workbench.outletBar.visible';
+
+	constructor() {
+		super({
+			id: ToggleOutletBarVisibilityAction.ID,
+			title: {
+				value: localize('toggleOutletBar', "Toggle Outlet Bar Visibility"),
+				mnemonicTitle: localize({ key: 'miShowOutletBar', comment: ['&& denotes a mnemonic'] }, "Show &&Outlet Bar"),
+				original: 'Toggle Outlet Bar Visibility'
+			},
+			category: CATEGORIES.View,
+			f1: true,
+			toggled: ContextKeyExpr.equals('config.workbench.outletBar.visible', true),
+			menu: {
+				id: MenuId.MenubarAppearanceMenu,
+				group: '2_workbench_layout',
+				order: 5
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const configurationService = accessor.get(IConfigurationService);
+
+		const visibility = layoutService.isVisible(Parts.OUTLET_PART);
+		const newVisibilityValue = !visibility;
+
+		configurationService.updateValue(ToggleOutletBarVisibilityAction.outletBarVisibleKey, newVisibilityValue);
+	}
+}
+
+registerAction2(ToggleOutletBarVisibilityAction);
+
 // --- Toggle Centered Layout
 
 registerAction2(class extends Action2 {

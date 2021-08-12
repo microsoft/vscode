@@ -55,6 +55,7 @@ import { ThirdPanelPart } from 'vs/workbench/browser/parts/thirdpanel/thirdpanel
 export enum Settings {
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',
 	STATUSBAR_VISIBLE = 'workbench.statusBar.visible',
+	OUTLETBAR_VISIBLE = 'workbench.outletBar.visible',
 
 	SIDEBAR_POSITION = 'workbench.sideBar.location',
 	PANEL_POSITION = 'workbench.panel.defaultLocation',
@@ -252,7 +253,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			viewletToRestore: undefined as string | undefined
 		},
 
-		outlet: {
+		outletBar: {
 			hidden: false,
 			position: Position.RIGHT,
 			width: 20,
@@ -430,6 +431,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if (newActivityBarHiddenValue !== this.state.activityBar.hidden) {
 				this.setActivityBarHidden(newActivityBarHiddenValue, skipLayout);
 			}
+
+			// Outlet bar visibility
+			const newOutletBarHiddenValue = !this.configurationService.getValue<boolean>(Settings.OUTLETBAR_VISIBLE);
+			if (newOutletBarHiddenValue !== this.state.outletBar.hidden) {
+				this.setOutletBarHidden(newActivityBarHiddenValue);
+			}
 		}
 
 		// Menubar visibility
@@ -535,6 +542,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Activity bar visibility
 		this.state.activityBar.hidden = !this.configurationService.getValue<string>(Settings.ACTIVITYBAR_VISIBLE);
+
+		// Outlet bar visibility
+		this.state.outletBar.hidden = !this.configurationService.getValue<string>(Settings.OUTLETBAR_VISIBLE);
 
 		// Sidebar visibility
 		this.state.sideBar.hidden = this.storageService.getBoolean(Storage.SIDEBAR_HIDDEN, StorageScope.WORKSPACE, this.contextService.getWorkbenchState() === WorkbenchState.EMPTY);
@@ -1036,7 +1046,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			case Parts.THIRD_PANEL_PART:
 				return !this.state.thirdPanel.hidden;
 			case Parts.OUTLET_PART:
-				return !this.state.outlet.hidden;
+				return !this.state.outletBar.hidden;
 			default:
 				return true; // any other part cannot be hidden
 		}
@@ -1444,6 +1454,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	setOutletBarHidden(hidden: boolean): void {
+		this.state.outletBar.hidden = hidden;
+
 		this.workbenchGrid.setViewVisible(this.outletBarPartView, !hidden);
 	}
 
@@ -1889,7 +1901,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			- (this.state.activityBar.hidden ? 0 : activityBarWidth)
 			- (this.state.sideBar.hidden ? 0 : sideBarSize)
 			- (this.state.thirdPanel.hidden ? 0 : thirdPanelSize)
-			- (this.state.outlet.hidden ? 0 : outletBarWidth);
+			- (this.state.outletBar.hidden ? 0 : outletBarWidth);
 
 		const activityBarNode: ISerializedLeafNode = {
 			type: 'leaf',
@@ -1932,7 +1944,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			type: 'leaf',
 			data: { type: Parts.OUTLET_PART },
 			size: outletBarWidth,
-			visible: !this.state.outlet.hidden
+			visible: !this.state.outletBar.hidden
 		};
 
 		const editorSectionNode = this.arrangeEditorNodes(editorNode, panelNode, editorSectionWidth);

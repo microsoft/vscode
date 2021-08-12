@@ -218,7 +218,7 @@ export class OutletPart extends Part implements IActivityBarService {
 
 	private onDidChangeViewContainers(added: readonly { container: ViewContainer, location: ViewContainerLocation; }[], removed: readonly { container: ViewContainer, location: ViewContainerLocation; }[]) {
 		removed.filter(({ location }) => location === ViewContainerLocation.Sidebar).forEach(({ container }) => this.onDidDeregisterViewContainer(container));
-		this.onDidRegisterViewContainers(added.filter(({ location }) => location === ViewContainerLocation.Sidebar).map(({ container }) => container));
+		this.onDidRegisterViewContainers(added.filter(({ location }) => location === ViewContainerLocation.ThirdPanel).map(({ container }) => container));
 	}
 
 	private onDidChangeViewContainerLocation(container: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation) {
@@ -282,13 +282,14 @@ export class OutletPart extends Part implements IActivityBarService {
 	}
 
 	private onDidDeregisterViewContainer(viewContainer: ViewContainer): void {
+		// composite bar menu not updated
 		const disposable = this.viewContainerDisposables.get(viewContainer.id);
 		if (disposable) {
 			disposable.dispose();
 		}
 
-		this.viewContainerDisposables.delete(viewContainer.id);
 		this.removeComposite(viewContainer.id);
+		this.viewContainerDisposables.delete(viewContainer.id); // TODO: fix this and rollback sequence
 	}
 
 	private addComposite(viewContainer: ViewContainer): void {
@@ -316,8 +317,6 @@ export class OutletPart extends Part implements IActivityBarService {
 			this.compositeActions.delete(compositeId);
 		}
 	}
-
-
 
 	private onDidRegisterExtensions(): void {
 		// this.hasExtensionsRegistered = true;
@@ -368,6 +367,7 @@ export class OutletPart extends Part implements IActivityBarService {
 			activityHoverOptions: {
 				position: () => this.layoutService.getSideBarPosition() === Position.LEFT ? HoverPosition.LEFT : HoverPosition.RIGHT
 			},
+			openViewContainerEvenIfEmpty: true,
 			showIndicator: true,
 			preventLoopNavigation: true,
 			openComposite: compositeId => this.viewsService.openViewContainer(compositeId, true),
@@ -376,7 +376,7 @@ export class OutletPart extends Part implements IActivityBarService {
 			getOnCompositeClickAction: compositeId => toAction({ id: compositeId, label: '', run: async () => this.viewsService.isViewContainerVisible(compositeId) ? this.viewsService.closeViewContainer(compositeId) : this.viewsService.openViewContainer(compositeId) }),
 			fillExtraContextMenuActions: () => { /** do nothing */ },
 			getContextMenuActionsForComposite: compositeId => this.getContextMenuActionsForComposite(compositeId),
-			getDefaultCompositeId: () => this.viewDescriptorService.getDefaultViewContainer(this.location)!.id,
+			getDefaultCompositeId: () => this.viewDescriptorService.getDefaultViewContainer(this.location)?.id || '',
 			hidePart: () => this.layoutService.setThirdLayoutHidden(true),
 			dndHandler: new CompositeDragAndDrop(this.viewDescriptorService, ViewContainerLocation.ThirdPanel,
 				(id: string, focus?: boolean) => this.viewsService.openViewContainer(id, focus),
