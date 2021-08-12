@@ -8,7 +8,7 @@ import * as UUID from 'vs/base/common/uuid';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
-import { CellEditState, CellFindMatch, ICellOutputViewModel, ICellViewModel, MarkdownCellLayoutChangeEvent, MarkdownCellLayoutInfo, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFindMatch, CodeCellLayoutState, ICellOutputViewModel, ICellViewModel, MarkdownCellLayoutChangeEvent, MarkdownCellLayoutInfo, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
 import { NotebookCellStateChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
@@ -127,7 +127,8 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 				? this.viewContext.notebookOptions.computeMarkdownCellEditorWidth(initialNotebookLayoutInfo.width)
 				: 0,
 			bottomToolbarOffset: bottomToolbarGap,
-			totalHeight: 0
+			totalHeight: 100,
+			layoutState: CodeCellLayoutState.Uninitialized
 		};
 
 		this._register(this.onDidChangeState(e => {
@@ -190,7 +191,9 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 			const editorWidth = state.outerWidth !== undefined
 				? this.viewContext.notebookOptions.computeMarkdownCellEditorWidth(state.outerWidth)
 				: this._layoutInfo.editorWidth;
-			const totalHeight = state.totalHeight === undefined ? this._layoutInfo.totalHeight : state.totalHeight;
+			const totalHeight = state.totalHeight === undefined
+				? (this._layoutInfo.layoutState === CodeCellLayoutState.Uninitialized ? 100 : this._layoutInfo.totalHeight)
+				: state.totalHeight;
 			const previewHeight = this._previewHeight;
 
 			this._layoutInfo = {
@@ -199,7 +202,8 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 				previewHeight,
 				editorHeight: this._editorHeight,
 				bottomToolbarOffset: this.viewContext.notebookOptions.computeBottomToolbarOffset(totalHeight, this.viewType),
-				totalHeight
+				totalHeight,
+				layoutState: CodeCellLayoutState.Measured
 			};
 		} else {
 			const editorWidth = state.outerWidth !== undefined
@@ -215,7 +219,8 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 				editorHeight: this._editorHeight,
 				previewHeight: this._previewHeight,
 				bottomToolbarOffset: this.viewContext.notebookOptions.computeBottomToolbarOffset(totalHeight, this.viewType),
-				totalHeight
+				totalHeight,
+				layoutState: CodeCellLayoutState.Measured
 			};
 		}
 
@@ -225,14 +230,15 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 	override restoreEditorViewState(editorViewStates: editorCommon.ICodeEditorViewState | null, totalHeight?: number) {
 		super.restoreEditorViewState(editorViewStates);
 		// we might already warmup the viewport so the cell has a total height computed
-		if (totalHeight !== undefined && this._layoutInfo.totalHeight === 0) {
+		if (totalHeight !== undefined && this.layoutInfo.layoutState === CodeCellLayoutState.Uninitialized) {
 			this._layoutInfo = {
 				fontInfo: this._layoutInfo.fontInfo,
 				editorWidth: this._layoutInfo.editorWidth,
 				previewHeight: this._layoutInfo.previewHeight,
 				bottomToolbarOffset: this._layoutInfo.bottomToolbarOffset,
 				totalHeight: totalHeight,
-				editorHeight: this._editorHeight
+				editorHeight: this._editorHeight,
+				layoutState: CodeCellLayoutState.FromCache
 			};
 			this.layoutChange({});
 		}
@@ -243,7 +249,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 	}
 
 	getHeight(lineHeight: number) {
-		if (this._layoutInfo.totalHeight === 0) {
+		if (this._layoutInfo.layoutState === CodeCellLayoutState.Uninitialized) {
 			return 100;
 		} else {
 			return this._layoutInfo.totalHeight;

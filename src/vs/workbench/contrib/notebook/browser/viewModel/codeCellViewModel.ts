@@ -146,7 +146,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			outputTotalHeight: 0,
 			outputShowMoreContainerHeight: 0,
 			outputShowMoreContainerOffset: 0,
-			totalHeight: 0,
+			totalHeight: this.computeTotalHeight(17, 0, 0),
 			indicatorHeight: 0,
 			bottomToolbarOffset: 0,
 			layoutState: CodeCellLayoutState.Uninitialized
