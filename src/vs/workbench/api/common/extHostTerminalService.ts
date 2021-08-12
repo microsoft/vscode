@@ -326,16 +326,18 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	public get activeTerminal(): vscode.Terminal | undefined { return this._activeTerminal?.value; }
 	public get terminals(): vscode.Terminal[] { return this._terminals.map(term => term.value); }
 
-	protected readonly _onDidCloseTerminal: Emitter<vscode.Terminal> = new Emitter<vscode.Terminal>();
-	public get onDidCloseTerminal(): Event<vscode.Terminal> { return this._onDidCloseTerminal && this._onDidCloseTerminal.event; }
-	protected readonly _onDidOpenTerminal: Emitter<vscode.Terminal> = new Emitter<vscode.Terminal>();
-	public get onDidOpenTerminal(): Event<vscode.Terminal> { return this._onDidOpenTerminal && this._onDidOpenTerminal.event; }
-	protected readonly _onDidChangeActiveTerminal: Emitter<vscode.Terminal | undefined> = new Emitter<vscode.Terminal | undefined>();
-	public get onDidChangeActiveTerminal(): Event<vscode.Terminal | undefined> { return this._onDidChangeActiveTerminal && this._onDidChangeActiveTerminal.event; }
-	protected readonly _onDidChangeTerminalDimensions: Emitter<vscode.TerminalDimensionsChangeEvent> = new Emitter<vscode.TerminalDimensionsChangeEvent>();
-	public get onDidChangeTerminalDimensions(): Event<vscode.TerminalDimensionsChangeEvent> { return this._onDidChangeTerminalDimensions && this._onDidChangeTerminalDimensions.event; }
+	protected readonly _onDidCloseTerminal = new Emitter<vscode.Terminal>();
+	readonly onDidCloseTerminal = this._onDidCloseTerminal.event;
+	protected readonly _onDidOpenTerminal = new Emitter<vscode.Terminal>();
+	readonly onDidOpenTerminal = this._onDidOpenTerminal.event;
+	protected readonly _onDidChangeActiveTerminal = new Emitter<vscode.Terminal | undefined>();
+	readonly onDidChangeActiveTerminal = this._onDidChangeActiveTerminal.event;
+	protected readonly _onDidChangeTerminalDimensions = new Emitter<vscode.TerminalDimensionsChangeEvent>();
+	readonly onDidChangeTerminalDimensions = this._onDidChangeTerminalDimensions.event;
+	protected readonly _onDidChangeTerminalState = new Emitter<vscode.TerminalDimensionsChangeEvent>();
+	readonly onDidChangeTerminalState = this._onDidChangeTerminalState.event;
 	protected readonly _onDidWriteTerminalData: Emitter<vscode.TerminalDataWriteEvent>;
-	public get onDidWriteTerminalData(): Event<vscode.TerminalDataWriteEvent> { return this._onDidWriteTerminalData && this._onDidWriteTerminalData.event; }
+	readonly onDidWriteTerminalData: Event<vscode.TerminalDataWriteEvent>;
 
 	constructor(
 		supportsProcesses: boolean,
@@ -348,6 +350,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			onFirstListenerAdd: () => this._proxy.$startSendingDataEvents(),
 			onLastListenerRemove: () => this._proxy.$stopSendingDataEvents()
 		});
+		this.onDidWriteTerminalData = this._onDidWriteTerminalData.event;
 		this._proxy.$registerProcessSupport(supportsProcesses);
 		this._register({
 			dispose: () => {
