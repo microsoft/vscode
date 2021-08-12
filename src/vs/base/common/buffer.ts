@@ -85,7 +85,7 @@ export class VSBuffer {
 		// IMPORTANT: use subarray instead of slice because TypedArray#slice
 		// creates shallow copy and NodeBuffer#slice doesn't. The use of subarray
 		// ensures the same, performance, behaviour.
-		return new VSBuffer(this.buffer.subarray(start!/*bad lib.d.ts*/, end));
+		return new VSBuffer(this.buffer.subarray(start, end));
 	}
 
 	set(array: VSBuffer, offset?: number): void;
