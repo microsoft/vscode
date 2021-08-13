@@ -9,7 +9,7 @@ import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux } from 'vs/base/common/platform';
-import { basename, extUri, isEqual } from 'vs/base/common/resources';
+import { extUri, extUriIgnorePathCase } from 'vs/base/common/resources';
 import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -26,6 +26,8 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 	//#endregion
 
 	//#region File Capabilities
+
+	private extUri = isLinux ? extUri : extUriIgnorePathCase;
 
 	private _capabilities: FileSystemProviderCapabilities | undefined;
 	get capabilities(): FileSystemProviderCapabilities {
@@ -200,7 +202,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 					throw createFileSystemProviderError(new Error(`No such parent directory, writeFile '${resource.toString(true)}'`), FileSystemProviderErrorCode.FileNotFound);
 				}
 
-				handle = await parent.getFileHandle(basename(resource), { create: true });
+				handle = await parent.getFileHandle(this.extUri.basename(resource), { create: true });
 				if (!handle) {
 					throw createFileSystemProviderError(new Error(`Unable to create file , writeFile '${resource.toString(true)}'`), FileSystemProviderErrorCode.Unknown);
 				}
@@ -226,7 +228,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 				throw createFileSystemProviderError(new Error(`No such parent directory, mkdir '${resource.toString(true)}'`), FileSystemProviderErrorCode.FileNotFound);
 			}
 
-			await parent.getDirectoryHandle(basename(resource), { create: true });
+			await parent.getDirectoryHandle(this.extUri.basename(resource), { create: true });
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		}
@@ -239,7 +241,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 				throw createFileSystemProviderError(new Error(`No such parent directory, delete '${resource.toString(true)}'`), FileSystemProviderErrorCode.FileNotFound);
 			}
 
-			return parent.removeEntry(basename(resource), { recursive: opts.recursive });
+			return parent.removeEntry(this.extUri.basename(resource), { recursive: opts.recursive });
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		}
@@ -247,7 +249,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 
 	async rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
 		try {
-			if (isEqual(from, to)) {
+			if (this.extUri.isEqual(from, to)) {
 				return; // no-op if the paths are the same
 			}
 
@@ -316,11 +318,12 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 		if (!handle) {
 			const parent = await this.getParentHandle(resource);
 			if (parent) {
+				const name = extUri.basename(resource);
 				try {
-					handle = await parent.getFileHandle(extUri.basename(resource));
+					handle = await parent.getFileHandle(name);
 				} catch (error) {
 					try {
-						handle = await parent.getDirectoryHandle(extUri.basename(resource));
+						handle = await parent.getDirectoryHandle(name);
 					} catch (error) {
 						// Ignore
 					}
