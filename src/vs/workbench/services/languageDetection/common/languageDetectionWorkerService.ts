@@ -22,12 +22,6 @@ export interface ILanguageDetectionService {
 	 * @returns the language mode for the given resource or undefined if the model is not confident enough.
 	 */
 	detectLanguage(resource: URI): Promise<string | undefined>;
-
-	/**
-	 * @param resource The resource to detect the language for.
-	 * @returns all possible language modes detected in this resource.
-	 */
-	detectLanguages(resource: URI): Promise<string[]>;
 }
 
 //#region Telemetry events
@@ -35,13 +29,11 @@ export interface ILanguageDetectionService {
 export const AutomaticLanguageDetectionLikelyWrongId = 'automaticlanguagedetection.likelywrong';
 
 export interface IAutomaticLanguageDetectionLikelyWrongData {
-	choseOtherGuessedLanguage: boolean;
 	currentLanguageId: string;
 	nextLanguageId: string;
 }
 
 export type AutomaticLanguageDetectionLikelyWrongClassification = {
-	choseOtherGuessedLanguage: { classification: 'SystemMetaData', purpose: 'FeatureInsight' },
 	currentLanguageId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' },
 	nextLanguageId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' }
 };
