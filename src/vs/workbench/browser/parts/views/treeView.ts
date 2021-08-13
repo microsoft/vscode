@@ -428,6 +428,8 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 				DOM.hide(this.tree.getHTMLElement()); // make sure the tree goes out of the tabindex world by hiding it
 			}
 
+			console.log('visibility changed');
+			console.log(this.elementsToRefresh);
 			if (this.isVisible && this.elementsToRefresh.length) {
 				this.doRefresh(this.elementsToRefresh);
 				this.elementsToRefresh = [];
@@ -804,6 +806,8 @@ class TreeDataSource implements IAsyncDataSource<ITreeItem, ITreeItem> {
 
 	async getChildren(element: ITreeItem): Promise<ITreeItem[]> {
 		let result: ITreeItem[] = [];
+		console.log('getting children');
+		console.log(element);
 		if (this.treeView.dataProvider) {
 			try {
 				result = await this.withProgress(this.treeView.dataProvider.getChildren(element));
