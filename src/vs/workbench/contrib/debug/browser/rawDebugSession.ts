@@ -18,6 +18,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { Schemas } from 'vs/base/common/network';
 
 /**
  * This interface represents a single command line argument split into a "prefix" and a "path" half.
@@ -713,9 +714,12 @@ export class RawDebugSession implements IDisposable {
 		const url = error?.url;
 		if (error && url) {
 			const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
+			const uri = URI.parse(url);
+			// Use a suffixed id if uri invokes a command, so default 'Open launch.json' command is suppressed on dialog
+			const actionId = uri.scheme === Schemas.command ? 'debug.moreInfo.command' : 'debug.moreInfo';
 			return errors.createErrorWithActions(userMessage, {
-				actions: [new Action('debug.moreInfo', label, undefined, true, async () => {
-					this.openerService.open(URI.parse(url), { allowCommands: true });
+				actions: [new Action(actionId, label, undefined, true, async () => {
+					this.openerService.open(uri, { allowCommands: true });
 				})]
 			});
 		}
