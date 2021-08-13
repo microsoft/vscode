@@ -1298,7 +1298,8 @@ registerAction2(class InsertMarkdownCellAboveAction extends InsertCellCommand {
 				}
 			},
 			CellKind.Markup,
-			'above');
+			'above',
+			true);
 	}
 });
 
@@ -1314,7 +1315,8 @@ registerAction2(class InsertMarkdownCellBelowAction extends InsertCellCommand {
 				}
 			},
 			CellKind.Markup,
-			'below');
+			'below',
+			true);
 	}
 });
 
