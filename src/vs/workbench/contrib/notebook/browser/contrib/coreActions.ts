@@ -686,6 +686,7 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 
 		if (context.cell.cellKind === CellKind.Markup) {
 			const nextCell = context.notebookEditor.viewModel.cellAt(idx + 1);
+			context.cell.updateEditState(CellEditState.Preview, EXECUTE_CELL_SELECT_BELOW);
 			if (nextCell) {
 				context.notebookEditor.focusNotebookCell(nextCell, 'container');
 			} else {
