@@ -65,10 +65,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	webview: WebviewElement | undefined = undefined;
 	insetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
 	readonly markupPreviewMapping = new Map<string, IMarkupCellInitialization>();
-	hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();
-	reversedInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
-	localResourceRootsCache: URI[] | undefined = undefined;
-	rendererRootsCache: URI[] = [];
+	private hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();
+	private reversedInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
+	private localResourceRootsCache: URI[] | undefined = undefined;
 	private readonly _onMessage = this._register(new Emitter<INotebookWebviewMessage>());
 	private readonly _preloadsCache = new Set<string>();
 	public readonly onMessage: Event<INotebookWebviewMessage> = this._onMessage.event;
@@ -1130,7 +1129,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 
 		const mixedResourceRoots = [
 			...(this.localResourceRootsCache || []),
-			...this.rendererRootsCache,
 			...(this._currentKernel ? [this._currentKernel.localResourceRoot] : []),
 		];
 
