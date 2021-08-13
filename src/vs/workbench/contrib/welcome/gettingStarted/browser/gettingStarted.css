@@ -535,9 +535,9 @@
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent>.getting-started-footer {
-    grid-area: footer;
-    align-self: flex-end;
-    justify-self: center;
+	grid-area: footer;
+	align-self: flex-end;
+	justify-self: center;
 	text-align: center;
 }
 

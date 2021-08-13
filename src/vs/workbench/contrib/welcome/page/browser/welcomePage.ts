@@ -54,10 +54,9 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 
 			// Ensure Welcome page for first-launch, no matter what is open.
 			// FIXME: Logic inspired by contrib/welcome/telemetryOptOut/browser/telemetryOptOut.ts.
-			// FIXME: Migrate telemetryOptOutUrl to boolean telemetryOptOut
-			if (this.productService.telemetryOptOutUrl && !this.storageService.get(telemetryOptOutStorageKey, StorageScope.GLOBAL)) {
+			// FIXME: Use telemetryOptOutUrl?
+			if (this.configurationService.getValue('telemetry.enableTelemetry') && !this.storageService.get(telemetryOptOutStorageKey, StorageScope.GLOBAL)) {
 				this.storageService.store(telemetryOptOutStorageKey, true, StorageScope.GLOBAL, StorageTarget.USER);
-				// FIXME: If we want to focus
 				await this.openWelcome();
 			}
 		}

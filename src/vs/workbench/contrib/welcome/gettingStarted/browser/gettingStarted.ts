@@ -63,6 +63,7 @@ import { coalesce, flatten } from 'vs/base/common/arrays';
 import { ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from 'vs/workbench/common/theme';
 import { Codicon } from 'vs/base/common/codicons';
+import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -1320,9 +1321,12 @@ export class GettingStartedPage extends EditorPane {
 		const stepListComponent = this.detailsScrollbar.getDomNode();
 
 		const categoryFooter = $('.getting-started-footer');
-		// FIXME: This rendering doesn't actually work and is probably not right anwyays.
-		categoryFooter.append(renderFormattedText(localize('telemetryFooter',
-			"VS Code collects usage data. Read our [privacy statement](command:{0}) and learn how to [opt out]({1}).", 'workbench.action.openPrivacyStatementUrl', 'command:settings.filterByTelemetry'), { inline: true }));
+		if (telemetryFooter && this.configurationService.getValue('telemetry.enableTelemetry')) {
+			const mdRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
+			const text = localize('telemetryFooter',
+				"VS Code collects usage data. Read our [privacy statement](command:{0}) and learn how to [opt out]({1}).", 'workbench.action.openPrivacyStatementUrl', 'command:settings.filterByTelemetry');
+			categoryFooter.append(mdRenderer.render({ value: text, isTrusted: true }).element);
+		}
 
 		reset(this.stepsContent, categoryDescriptorComponent, stepListComponent, this.stepMediaComponent, categoryFooter);
 
