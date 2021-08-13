@@ -350,7 +350,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	protected readonly _onDidChangeTerminalState = new Emitter<vscode.TerminalStateChangeEvent>();
 	readonly onDidChangeTerminalState = this._onDidChangeTerminalState.event;
 	protected readonly _onDidWriteTerminalData: Emitter<vscode.TerminalDataWriteEvent>;
-	readonly onDidWriteTerminalData: Event<vscode.TerminalDataWriteEvent>;
+	get onDidWriteTerminalData(): Event<vscode.TerminalDataWriteEvent> { return this._onDidWriteTerminalData.event; }
 
 	constructor(
 		supportsProcesses: boolean,
@@ -363,7 +363,6 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			onFirstListenerAdd: () => this._proxy.$startSendingDataEvents(),
 			onLastListenerRemove: () => this._proxy.$stopSendingDataEvents()
 		});
-		this.onDidWriteTerminalData = this._onDidWriteTerminalData.event;
 		this._proxy.$registerProcessSupport(supportsProcesses);
 		this._register({
 			dispose: () => {
