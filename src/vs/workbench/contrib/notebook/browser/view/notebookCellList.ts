@@ -548,9 +548,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			return [];
 		}
 
-		const top = clamp(this.getViewScrollTop() - this.renderHeight, 0, this.scrollHeight);
 		const bottom = clamp(this.getViewScrollBottom() + this.renderHeight, 0, this.scrollHeight);
-		const topViewIndex = clamp(this.view.indexAt(top), 0, this.view.length - 1);
+		const topViewIndex = this.firstVisibleIndex;
 		const topElement = this.view.element(topViewIndex);
 		const topModelIndex = this._viewModel!.getCellIndex(topElement);
 		const bottomViewIndex = clamp(this.view.indexAt(bottom), 0, this.view.length - 1);
