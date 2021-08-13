@@ -232,11 +232,11 @@ import { assertNoRpc } from '../utils';
 			const terminal = window.createTerminal();
 			deepStrictEqual(terminal.state, { interactedWith: false });
 			const eventState = await new Promise<TerminalState>(r => {
-				window.onDidChangeTerminalState(e => {
+				disposables.push(window.onDidChangeTerminalState(e => {
 					if (e.terminal === terminal) {
 						r(e.state);
 					}
-				});
+				}));
 				terminal.sendText('test');
 			});
 			deepStrictEqual(eventState, { interactedWith: true });
