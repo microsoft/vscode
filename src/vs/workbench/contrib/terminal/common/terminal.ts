@@ -444,6 +444,7 @@ export const enum TerminalCommandId {
 	MoveToEditor = 'workbench.action.terminal.moveToEditor',
 	MoveToEditorInstance = 'workbench.action.terminal.moveToEditorInstance',
 	MoveToTerminalPanel = 'workbench.action.terminal.moveToTerminalPanel',
+	SetDimensions = 'workbench.action.terminal.setDimensions',
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [

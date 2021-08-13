@@ -135,6 +135,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _terminalA11yTreeFocusContextKey: IContextKey<boolean>;
 	private _cols: number = 0;
 	private _rows: number = 0;
+	private _fixedCols: number | undefined = undefined;
+	private _fixedRows: number | undefined = undefined;
 	private _dimensionsOverride: ITerminalDimensionsOverride | undefined;
 	private _xtermReadyPromise: Promise<XTermTerminal>;
 	private _titleReadyPromise: Promise<string>;
@@ -166,6 +168,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get instanceId(): number { return this._instanceId; }
 	get resource(): URI { return this._resource; }
 	get cols(): number {
+		if (this._fixedCols !== undefined) {
+			return this._fixedCols;
+		}
 		if (this._dimensionsOverride && this._dimensionsOverride.cols) {
 			if (this._dimensionsOverride.forceExactSize) {
 				return this._dimensionsOverride.cols;
@@ -175,6 +180,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this._cols;
 	}
 	get rows(): number {
+		if (this._fixedRows !== undefined) {
+			return this._fixedRows;
+		}
 		if (this._dimensionsOverride && this._dimensionsOverride.rows) {
 			if (this._dimensionsOverride.forceExactSize) {
 				return this._dimensionsOverride.rows;
@@ -1793,6 +1801,41 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		} else {
 			this._resize();
 		}
+	}
+
+	async setFixedDimensions(): Promise<void> {
+		const cols = await this._quickInputService.input({
+			// TODO: nls
+			title: 'Set Fixed Dimensions: Column',
+			placeHolder: 'Enter a number or leave empty size automatically',
+			validateInput: async (text) => text.length > 0 && !text.match(/^\d+$/) ? { content: 'Enter a number or leave empty size automatically', severity: Severity.Error } : undefined
+		});
+		if (cols === undefined) {
+			return;
+		}
+		this._fixedCols = this._parseFixedDimension(cols);
+		const rows = await this._quickInputService.input({
+			// TODO: nls
+			title: 'Set Fixed Dimensions: Row',
+			placeHolder: 'Enter a number or leave empty size automatically',
+			validateInput: async (text) => text.length > 0 && !text.match(/^\d+$/) ? { content: 'Enter a number or leave empty size automatically', severity: Severity.Error } : undefined
+		});
+		if (rows === undefined) {
+			return;
+		}
+		this._fixedRows = this._parseFixedDimension(rows);
+		this._resize();
+	}
+
+	private _parseFixedDimension(value: string): number | undefined {
+		if (value === '') {
+			return undefined;
+		}
+		const parsed = parseInt(value);
+		if (parsed <= 0) {
+			throw new Error(`Could not parse dimension "${value}"`);
+		}
+		return parsed;
 	}
 
 	private _setResolvedShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig): void {

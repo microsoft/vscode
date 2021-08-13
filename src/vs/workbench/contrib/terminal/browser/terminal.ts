@@ -717,7 +717,11 @@ export interface ITerminalInstance {
 
 	waitForTitle(): Promise<string>;
 
+	// TODO: Clarify name
 	setDimensions(dimensions: ITerminalDimensions): void;
+
+	// TODO: Doc
+	setFixedDimensions(): Promise<void>;
 
 	addDisposable(disposable: IDisposable): void;
 
