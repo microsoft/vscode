@@ -105,9 +105,6 @@ import 'vs/workbench/contrib/debug/electron-sandbox/extensionHostDebugService';
 // Extensions Management
 import 'vs/workbench/contrib/extensions/electron-sandbox/extensions.contribution';
 
-// Telemetry Opt Out
-import 'vs/workbench/contrib/welcome/telemetryOptOut/electron-sandbox/telemetryOptOut.contribution';
-
 // Issues
 import 'vs/workbench/contrib/issue/electron-sandbox/issue.contribution';
 
