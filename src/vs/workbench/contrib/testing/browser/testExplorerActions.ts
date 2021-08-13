@@ -1075,7 +1075,7 @@ export class SearchForTestExtension extends Action2 {
 	public async run(accessor: ServicesAccessor) {
 		const viewletService = accessor.get(IViewletService);
 		const viewlet = (await viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer;
-		viewlet.search('tag:testing @sort:installs');
+		viewlet.search('@category:"testing"');
 		viewlet.focus();
 	}
 }
