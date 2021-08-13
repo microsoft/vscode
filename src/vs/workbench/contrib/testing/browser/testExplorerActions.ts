@@ -13,7 +13,6 @@ import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyFalseExpr, ContextKeyGreaterExpr, ContextKeyTrueExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IFileService } from 'vs/platform/files/common/files';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -22,14 +21,12 @@ import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { FocusedViewContext } from 'vs/workbench/common/views';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
 import { IActionableTestTreeElement, TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
-import { ITestExplorerFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import type { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
 import { TestExplorerViewMode, TestExplorerViewSorting, Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { InternalTestItem, ITestItem, ITestRunProfile, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { InternalTestItem, ITestRunProfile, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
@@ -640,56 +637,6 @@ export class GoToTest extends Action2 {
 		if (element && element instanceof TestItemTreeElement) {
 			accessor.get(ICommandService).executeCommand('vscode.revealTest', element.test.item.extId, preserveFocus);
 		}
-	}
-
-	/**
-	 * @override
-	 */
-	public runInView(accessor: ServicesAccessor, view: TestingExplorerView) {
-		const selected = view.viewModel.tree.getFocus().find(isDefined);
-		if (selected instanceof TestItemTreeElement) {
-			this.runForTest(accessor, selected.test.item, false);
-		}
-	}
-
-	/**
-	 * @override
-	 */
-	private async runForTest(accessor: ServicesAccessor, test: ITestItem, preserveFocus = true) {
-		if (!test.uri) {
-			return;
-		}
-
-		const commandService = accessor.get(ICommandService);
-		const fileService = accessor.get(IFileService);
-		const editorService = accessor.get(IEditorService);
-
-		accessor.get(ITestExplorerFilterState).reveal.value = test.extId;
-		accessor.get(ITestingPeekOpener).closeAllPeeks();
-
-		let isFile = true;
-		try {
-			if (!(await fileService.resolve(test.uri)).isFile) {
-				isFile = false;
-			}
-		} catch {
-			// ignored
-		}
-
-		if (!isFile) {
-			await commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, test.uri);
-			return;
-		}
-
-		await editorService.openEditor({
-			resource: test.uri,
-			options: {
-				selection: test.range
-					? { startColumn: test.range.startColumn, startLineNumber: test.range.startLineNumber }
-					: undefined,
-				preserveFocus,
-			},
-		});
 	}
 }
 

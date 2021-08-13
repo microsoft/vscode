@@ -13,6 +13,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
@@ -149,14 +150,14 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: 'vscode.revealTest',
-	handler: async (accessor: ServicesAccessor, extId: string, preserveFocus?: boolean) => {
+	handler: async (accessor: ServicesAccessor, extId: string) => {
 		const test = accessor.get(ITestService).collection.getNodeById(extId);
 		if (!test) {
 			return;
 		}
 		const commandService = accessor.get(ICommandService);
 		const fileService = accessor.get(IFileService);
-		const editorService = accessor.get(IEditorService);
+		const openerService = accessor.get(IOpenerService);
 
 		const { range, uri } = test.item;
 		if (!uri) {
@@ -180,15 +181,10 @@ CommandsRegistry.registerCommand({
 			return;
 		}
 
-		await editorService.openEditor({
-			resource: uri,
-			options: {
-				selection: range
-					? { startColumn: range.startColumn, startLineNumber: range.startLineNumber }
-					: undefined,
-				preserveFocus: preserveFocus === true,
-			},
-		});
+		await openerService.open(range
+			? uri.with({ fragment: `L${range.startLineNumber}:${range.startColumn}` })
+			: uri
+		);
 	}
 });
 
