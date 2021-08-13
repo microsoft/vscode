@@ -81,6 +81,11 @@ class TestDto {
 	public readonly messageUri: URI;
 	public readonly revealLocation: IRichLocation | undefined;
 
+	public get isDiffable() {
+		const message = this.messages[this.messageIndex];
+		return message.type === TestMessageType.Error && isDiffable(message);
+	}
+
 	constructor(public readonly resultId: string, test: TestResultItem, public readonly taskIndex: number, public readonly messageIndex: number) {
 		this.test = test.item;
 		this.messages = test.tasks[taskIndex].messages;
@@ -364,6 +369,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 
 	constructor(
 		private readonly editor: ICodeEditor,
+		@IEditorService private readonly editorService: IEditorService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITestResultService private readonly testResults: ITestResultService,
@@ -384,6 +390,25 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 			this.peek.clear();
 		} else {
 			this.show(uri);
+		}
+	}
+
+	public openCurrentInEditor() {
+		const current = this.peek.value?.current;
+		if (!current) {
+			return;
+		}
+
+		const options = { pinned: false, revealIfOpened: true };
+
+		if (current.isDiffable) {
+			this.editorService.openEditor({
+				original: { resource: current.expectedUri },
+				modified: { resource: current.actualUri },
+				options,
+			});
+		} else {
+			this.editorService.openEditor({ resource: current.messageUri, options });
 		}
 	}
 
@@ -1575,5 +1600,23 @@ export class GoToPreviousMessageAction extends EditorAction2 {
 
 	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor) {
 		TestingOutputPeekController.get(getPeekedEditor(accessor, editor)).previous();
+	}
+}
+
+export class OpenMessageInEditorAction extends EditorAction2 {
+	public static readonly ID = 'testing.openMessageInEditor';
+	constructor() {
+		super({
+			id: OpenMessageInEditorAction.ID,
+			f1: false,
+			title: localize('testing.openMessageInEditor', "Open in Editor"),
+			icon: Codicon.linkExternal,
+			category: CATEGORIES.Test,
+			menu: [{ id: MenuId.TestPeekTitle }],
+		});
+	}
+
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor) {
+		TestingOutputPeekController.get(getPeekedEditor(accessor, editor)).openCurrentInEditor();
 	}
 }
