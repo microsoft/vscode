@@ -8,7 +8,7 @@
  * @param {string} name
  * @param {string[]} exclude
  */
-exports.createModuleDescription = function createModuleDescription(name, exclude) {
+function createModuleDescription(name, exclude) {
 
 	let excludes = ['vs/css', 'vs/nls'];
 	if (Array.isArray(exclude) && exclude.length > 0) {
@@ -20,11 +20,14 @@ exports.createModuleDescription = function createModuleDescription(name, exclude
 		include: [],
 		exclude: excludes
 	};
-};
+}
 
 /**
  * @param {string} name
  */
-exports.createEditorWorkerModuleDescription = function createEditorWorkerModuleDescription(name) {
+function createEditorWorkerModuleDescription(name) {
 	return createModuleDescription(name, ['vs/base/common/worker/simpleWorker', 'vs/editor/common/services/editorSimpleWorker']);
-};
+}
+
+exports.createModuleDescription = createModuleDescription;
+exports.createEditorWorkerModuleDescription = createEditorWorkerModuleDescription;
