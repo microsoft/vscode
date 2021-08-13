@@ -114,13 +114,13 @@ export const refreshComputedState = <T>(
 
 	if (isDurationAccessor(accessor)) {
 		for (const parent of Iterable.concat(Iterable.single(node), accessor.getParents(node))) {
-			const oldDuration = accessor.getCurrentComputedDuration(node);
-			const newDuration = getComputedDuration(accessor, node, true);
+			const oldDuration = accessor.getCurrentComputedDuration(parent);
+			const newDuration = getComputedDuration(accessor, parent, true);
 			if (oldDuration === newDuration) {
 				break;
 			}
 
-			accessor.setComputedDuration(parent, newState);
+			accessor.setComputedDuration(parent, newDuration);
 			toUpdate.add(parent);
 		}
 	}
