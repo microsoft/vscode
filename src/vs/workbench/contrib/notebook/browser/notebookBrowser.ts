@@ -444,7 +444,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	 */
 	getLayoutInfo(): NotebookLayoutInfo;
 
-	getVisibleRangesPlusViewportAboveBelow(): ICellRange[];
+	getVisibleRangesPlusViewportBelow(): ICellRange[];
 
 	/**
 	 * Fetch the output renderers for notebook outputs.
@@ -704,7 +704,7 @@ export interface INotebookCellList {
 	getViewIndex2(modelIndex: number): number | undefined;
 	getModelIndex(cell: CellViewModel): number | undefined;
 	getModelIndex2(viewIndex: number): number | undefined;
-	getVisibleRangesPlusViewportAboveBelow(): ICellRange[];
+	getVisibleRangesPlusViewportBelow(): ICellRange[];
 	focusElement(element: ICellViewModel): void;
 	selectElements(elements: ICellViewModel[]): void;
 	getFocusedElements(): ICellViewModel[];

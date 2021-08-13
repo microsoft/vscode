@@ -543,7 +543,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		return reduceCellRanges(ranges);
 	}
 
-	getVisibleRangesPlusViewportAboveBelow() {
+	getVisibleRangesPlusViewportBelow() {
 		if (this.view.length <= 0) {
 			return [];
 		}
