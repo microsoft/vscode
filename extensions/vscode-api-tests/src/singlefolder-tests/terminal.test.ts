@@ -241,6 +241,14 @@ import { assertNoRpc } from '../utils';
 			});
 			deepStrictEqual(eventState, { interactedWith: true });
 			deepStrictEqual(terminal.state, { interactedWith: true });
+			await new Promise<void>(r => {
+				disposables.push(window.onDidCloseTerminal(t => {
+					if (t === terminal) {
+						r();
+					}
+				}));
+				terminal.dispose();
+			});
 		});
 
 		// test('onDidChangeActiveTerminal should fire when new terminals are created', (done) => {
