@@ -40,10 +40,14 @@ export class LocalSearchService extends SearchService {
 		@INativeWorkbenchEnvironmentService readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IInstantiationService readonly instantiationService: IInstantiationService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(modelService, editorService, telemetryService, logService, extensionService, fileService, uriIdentityService);
 
-		this.diskSearch = instantiationService.createInstance(DiskSearch, !environmentService.isBuilt || environmentService.verbose, parseSearchPort(environmentService.args, environmentService.isBuilt));
+		const forceEHSearch = configurationService.getValue('search.experimental.forceExtensionHostSearch');
+		if (!forceEHSearch) {
+			this.diskSearch = instantiationService.createInstance(DiskSearch, !environmentService.isBuilt || environmentService.verbose, parseSearchPort(environmentService.args, environmentService.isBuilt));
+		}
 	}
 }
 

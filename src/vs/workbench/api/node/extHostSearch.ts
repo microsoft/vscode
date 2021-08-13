@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IFileQuery, IRawFileQuery, ISearchCompleteStats, isSerializedFileMatch, ISerializedSearchProgressItem, ITextQuery } from 'vs/workbench/services/search/common/search';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { ExtHostSearch, reviveQuery } from 'vs/workbench/api/common/extHostSearch';
+import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
+import { IFileQuery, IRawFileQuery, ISearchCompleteStats, ISerializedSearchProgressItem, isSerializedFileMatch, ITextQuery } from 'vs/workbench/services/search/common/search';
+import { TextSearchManager } from 'vs/workbench/services/search/common/textSearchManager';
 import { SearchService } from 'vs/workbench/services/search/node/rawSearchService';
 import { RipgrepSearchProvider } from 'vs/workbench/services/search/node/ripgrepSearchProvider';
 import { OutputChannel } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
-import type * as vscode from 'vscode';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { ExtHostSearch, reviveQuery } from 'vs/workbench/api/common/extHostSearch';
-import { Schemas } from 'vs/base/common/network';
 import { NativeTextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
-import { TextSearchManager } from 'vs/workbench/services/search/common/textSearchManager';
+import type * as vscode from 'vscode';
 
 export class NativeExtHostSearch extends ExtHostSearch {
 
@@ -37,9 +37,8 @@ export class NativeExtHostSearch extends ExtHostSearch {
 
 		const outputChannel = new OutputChannel('RipgrepSearchUD', this._logService);
 		this.registerTextSearchProvider(Schemas.userData, new RipgrepSearchProvider(outputChannel));
-		if (initData.remote.isRemote && initData.remote.authority) {
-			this._registerEHSearchProviders();
-		}
+
+		this._registerEHSearchProviders();
 	}
 
 	private _registerEHSearchProviders(): void {
