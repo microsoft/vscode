@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
+import { URI } from 'vs/base/common/uri';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
@@ -12,7 +14,6 @@ import { normalize } from 'vs/base/common/path';
 import { isLinux } from 'vs/base/common/platform';
 import { extUri, extUriIgnorePathCase } from 'vs/base/common/resources';
 import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
-import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { createFileSystemProviderError, FileDeleteOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 
@@ -266,7 +267,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 
 			// File API does not support any real rename otherwise
 			else {
-				throw this.createFileSystemProviderError(from, 'Rename is unsupported for folders', FileSystemProviderErrorCode.Unavailable);
+				throw this.createFileSystemProviderError(from, localize('fileSystemRenameError', "Rename is only supported for files."), FileSystemProviderErrorCode.Unavailable);
 			}
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
@@ -341,7 +342,12 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 
 		const handleId = resource.query;
 
-		return this.files.get(handleId) || this.directories.get(handleId);
+		const handle = this.files.get(handleId) || this.directories.get(handleId);
+		if (!handle) {
+			throw this.createFileSystemProviderError(resource, 'No file system handle registered', FileSystemProviderErrorCode.Unavailable);
+		}
+
+		return handle;
 	}
 
 	private async getFileHandle(resource: URI): Promise<FileSystemFileHandle | undefined> {
@@ -381,7 +387,13 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 			return error; // avoid double conversion
 		}
 
-		return createFileSystemProviderError(error, FileSystemProviderErrorCode.Unknown);
+		let code = FileSystemProviderErrorCode.Unknown;
+		if (error.name === 'NotAllowedError') {
+			error = new Error(localize('fileSystemNotAllowedError', "Insufficient permissions. Please retry and allow the operation."));
+			code = FileSystemProviderErrorCode.Unavailable;
+		}
+
+		return createFileSystemProviderError(error, code);
 	}
 
 	private createFileSystemProviderError(resource: URI, msg: string, code: FileSystemProviderErrorCode): FileSystemProviderError {
