@@ -73,6 +73,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 	constructor(
 		private readonly editor: ICodeEditor,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITestService private readonly testService: ITestService,
 		@ITestResultService private readonly results: ITestResultService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -127,6 +128,12 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 			}
 		}));
 
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TestingConfigKeys.GutterEnabled)) {
+				this.setDecorations(this.currentUri);
+			}
+		}));
+
 		this._register(Event.any(
 			this.results.onResultsChanged,
 			this.testService.excluded.onTestExclusionsChanged,
@@ -167,21 +174,25 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 			return;
 		}
 
+		const gutterEnabled = getTestingConfiguration(this.configurationService, TestingConfigKeys.GutterEnabled);
+
 		this.editor.changeDecorations(accessor => {
 			const newDecorations: ITestDecoration[] = [];
-			for (const test of this.testService.collection.all) {
-				if (!test.item.range || test.item.uri?.toString() !== uri.toString()) {
-					continue;
-				}
+			if (gutterEnabled) {
+				for (const test of this.testService.collection.all) {
+					if (!test.item.range || test.item.uri?.toString() !== uri.toString()) {
+						continue;
+					}
 
-				const stateLookup = this.results.getStateById(test.item.extId);
-				const line = test.item.range.startLineNumber;
-				const resultItem = stateLookup?.[1];
-				const existing = newDecorations.findIndex(d => d instanceof RunTestDecoration && d.line === line);
-				if (existing !== -1) {
-					newDecorations[existing] = (newDecorations[existing] as RunTestDecoration).merge(test, resultItem);
-				} else {
-					newDecorations.push(this.instantiationService.createInstance(RunSingleTestDecoration, test, this.editor, stateLookup?.[1]));
+					const stateLookup = this.results.getStateById(test.item.extId);
+					const line = test.item.range.startLineNumber;
+					const resultItem = stateLookup?.[1];
+					const existing = newDecorations.findIndex(d => d instanceof RunTestDecoration && d.line === line);
+					if (existing !== -1) {
+						newDecorations[existing] = (newDecorations[existing] as RunTestDecoration).merge(test, resultItem);
+					} else {
+						newDecorations.push(this.instantiationService.createInstance(RunSingleTestDecoration, test, this.editor, stateLookup?.[1]));
+					}
 				}
 			}
 

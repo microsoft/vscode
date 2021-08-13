@@ -14,6 +14,7 @@ export const enum TestingConfigKeys {
 	AutoOpenPeekViewDuringAutoRun = 'testing.automaticallyOpenPeekViewDuringAutoRun',
 	FollowRunningTest = 'testing.followRunningTest',
 	DefaultGutterClickAction = 'testing.defaultGutterClickAction',
+	GutterEnabled = 'testing.gutterEnabled',
 }
 
 export const enum AutoOpenPeekViewWhen {
@@ -92,6 +93,11 @@ export const testingConfiguation: IConfigurationNode = {
 			],
 			default: DefaultGutterClickAction.Run,
 		},
+		[TestingConfigKeys.GutterEnabled]: {
+			description: localize('testing.gutterEnabled', 'Controls whether test decorations are shown in the editor gutter.'),
+			type: 'boolean',
+			default: true,
+		},
 	}
 };
 
@@ -102,6 +108,7 @@ export interface ITestingConfiguration {
 	[TestingConfigKeys.AutoOpenPeekViewDuringAutoRun]: boolean;
 	[TestingConfigKeys.FollowRunningTest]: boolean;
 	[TestingConfigKeys.DefaultGutterClickAction]: DefaultGutterClickAction;
+	[TestingConfigKeys.GutterEnabled]: boolean;
 }
 
 export const getTestingConfiguration = <K extends TestingConfigKeys>(config: IConfigurationService, key: K) => config.getValue<ITestingConfiguration[K]>(key);
