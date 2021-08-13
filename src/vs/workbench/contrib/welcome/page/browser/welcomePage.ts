@@ -20,7 +20,6 @@ import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { GettingStartedInput, gettingStartedInputTypeId } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 const configurationKey = 'workbench.startupEditor';
@@ -40,7 +39,6 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IProductService private readonly productService: IProductService,
 		@IStorageService private readonly storageService: IStorageService
 	) {
 		this.run().then(undefined, onUnexpectedError);
@@ -52,9 +50,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 			const hasBackups = await this.workingCopyBackupService.hasBackups();
 			if (hasBackups) { return; }
 
-			// Ensure Welcome page for first-launch, no matter what is open.
-			// FIXME: Logic inspired by contrib/welcome/telemetryOptOut/browser/telemetryOptOut.ts.
-			// FIXME: Use telemetryOptOutUrl?
+			// Always open Welcome page for first-launch, no matter what is open or which startupEditor is set.
 			if (this.configurationService.getValue('telemetry.enableTelemetry') && !this.storageService.get(telemetryOptOutStorageKey, StorageScope.GLOBAL)) {
 				this.storageService.store(telemetryOptOutStorageKey, true, StorageScope.GLOBAL, StorageTarget.USER);
 				await this.openWelcome();
