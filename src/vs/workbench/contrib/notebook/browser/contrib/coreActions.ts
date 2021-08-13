@@ -52,6 +52,8 @@ const RENDER_ALL_MARKDOWN_CELLS = 'notebook.renderAllMarkdownCells';
 // Cell Commands
 const INSERT_CODE_CELL_ABOVE_COMMAND_ID = 'notebook.cell.insertCodeCellAbove';
 const INSERT_CODE_CELL_BELOW_COMMAND_ID = 'notebook.cell.insertCodeCellBelow';
+const INSERT_CODE_CELL_ABOVE_AND_FOCUS_CONTAINER_COMMAND_ID = 'notebook.cell.insertCodeCellAboveAndFocusContainer';
+const INSERT_CODE_CELL_BELOW_AND_FOCUS_CONTAINER_COMMAND_ID = 'notebook.cell.insertCodeCellBelowAndFocusContainer';
 const INSERT_CODE_CELL_AT_TOP_COMMAND_ID = 'notebook.cell.insertCodeCellAtTop';
 const INSERT_MARKDOWN_CELL_ABOVE_COMMAND_ID = 'notebook.cell.insertMarkdownCellAbove';
 const INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID = 'notebook.cell.insertMarkdownCellBelow';
@@ -1064,7 +1066,8 @@ abstract class InsertCellCommand extends NotebookAction {
 	constructor(
 		desc: Readonly<IAction2Options>,
 		private kind: CellKind,
-		private direction: 'above' | 'below'
+		private direction: 'above' | 'below',
+		private focusEditor: boolean
 	) {
 		super(desc);
 	}
@@ -1084,7 +1087,7 @@ abstract class InsertCellCommand extends NotebookAction {
 		}
 
 		if (newCell) {
-			context.notebookEditor.focusNotebookCell(newCell, 'editor');
+			context.notebookEditor.focusNotebookCell(newCell, this.focusEditor ? 'editor' : 'container');
 		}
 	}
 }
@@ -1106,7 +1109,21 @@ registerAction2(class InsertCodeCellAboveAction extends InsertCellCommand {
 				}
 			},
 			CellKind.Code,
-			'above');
+			'above',
+			true);
+	}
+});
+
+registerAction2(class InsertCodeCellAboveAndFocusContainerAction extends InsertCellCommand {
+	constructor() {
+		super(
+			{
+				id: INSERT_CODE_CELL_ABOVE_AND_FOCUS_CONTAINER_COMMAND_ID,
+				title: localize('notebookActions.insertCodeCellAboveAndFocusContainer', "Insert Code Cell Above and Focus Container")
+			},
+			CellKind.Code,
+			'above',
+			false);
 	}
 });
 
@@ -1127,7 +1144,21 @@ registerAction2(class InsertCodeCellBelowAction extends InsertCellCommand {
 				}
 			},
 			CellKind.Code,
-			'below');
+			'below',
+			true);
+	}
+});
+
+registerAction2(class InsertCodeCellBelowAndFocusContainerAction extends InsertCellCommand {
+	constructor() {
+		super(
+			{
+				id: INSERT_CODE_CELL_BELOW_AND_FOCUS_CONTAINER_COMMAND_ID,
+				title: localize('notebookActions.insertCodeCellBelowAndFocusContainer', "Insert Code Cell Below and Focus Container"),
+			},
+			CellKind.Code,
+			'below',
+			false);
 	}
 });
 
