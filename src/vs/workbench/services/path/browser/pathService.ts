@@ -19,9 +19,13 @@ export class BrowserPathService extends AbstractPathService {
 	) {
 		super(URI.from({
 			scheme: AbstractPathService.findDefaultUriScheme(environmentService, contextService),
-			authority: environmentService.remoteAuthority, path: '/'
+			authority: environmentService.remoteAuthority,
+			path: '/'
 		}),
-			remoteAgentService, environmentService, contextService);
+			remoteAgentService,
+			environmentService,
+			contextService
+		);
 	}
 }
 
