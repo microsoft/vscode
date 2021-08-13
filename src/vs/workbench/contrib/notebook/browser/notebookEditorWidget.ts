@@ -78,6 +78,10 @@ export class ListViewInfoAccessor extends Disposable {
 		super();
 	}
 
+	setScrollTop(scrollTop: number) {
+		this.list.scrollTop = scrollTop;
+	}
+
 	scrollToBottom() {
 		this.list.scrollToBottom();
 	}
@@ -1797,6 +1801,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	getVisibleRangesPlusViewportBelow(): ICellRange[] {
 		return this._listViewInfoAccessor.getVisibleRangesPlusViewportBelow();
+	}
+
+	setScrollTop(scrollTop: number) {
+		this._listViewInfoAccessor.setScrollTop(scrollTop);
 	}
 
 	triggerScroll(event: IMouseWheelEvent) {

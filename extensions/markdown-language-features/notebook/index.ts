@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 const MarkdownIt = require('markdown-it');
+import type * as markdownIt from 'markdown-it';
 
 export function activate() {
 	let markdownIt = new MarkdownIt({
 		html: true
 	});
+	addNamedHeaderRendering(markdownIt);
 
 	const style = document.createElement('style');
 	style.textContent = `
@@ -180,4 +182,50 @@ export function activate() {
 			f(markdownIt);
 		}
 	};
+}
+
+
+function addNamedHeaderRendering(md: markdownIt.MarkdownIt): void {
+	const slugCounter = new Map<string, number>();
+
+	const originalHeaderOpen = md.renderer.rules.heading_open;
+	md.renderer.rules.heading_open = (tokens: markdownIt.Token[], idx: number, options: any, env: any, self: any) => {
+		const title = tokens[idx + 1].children.reduce((acc: string, t: any) => acc + t.content, '');
+		let slug = slugFromHeading(title);
+
+		if (slugCounter.has(slug)) {
+			const count = slugCounter.get(slug)!;
+			slugCounter.set(slug, count + 1);
+			slug = slugFromHeading(slug + '-' + (count + 1));
+		} else {
+			slugCounter.set(slug, 0);
+		}
+
+		tokens[idx].attrs = tokens[idx].attrs || [];
+		tokens[idx].attrs.push(['id', slug]);
+
+		if (originalHeaderOpen) {
+			return originalHeaderOpen(tokens, idx, options, env, self);
+		} else {
+			return self.renderToken(tokens, idx, options, env, self);
+		}
+	};
+
+	const originalRender = md.render;
+	md.render = function () {
+		slugCounter.clear();
+		return originalRender.apply(this, arguments as any);
+	};
+}
+
+function slugFromHeading(heading: string): string {
+	const slugifiedHeading = encodeURI(
+		heading.trim()
+			.toLowerCase()
+			.replace(/\s+/g, '-') // Replace whitespace with -
+			.replace(/[\]\[\!\'\#\$\%\&\(\)\*\+\,\.\/\:\;\<\=\>\?\@\\\^\_\{\|\}\~\`。，、；：？！…—·ˉ¨‘’“”々～‖∶＂＇｀｜〃〔〕〈〉《》「」『』．〖〗【】（）［］｛｝]/g, '') // Remove known punctuators
+			.replace(/^\-+/, '') // Remove leading -
+			.replace(/\-+$/, '') // Remove trailing -
+	);
+	return slugifiedHeading;
 }

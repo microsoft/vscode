@@ -462,6 +462,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						// console.log('ack top ', top, ' version: ', data.version, ' - ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
 						break;
 					}
+				case 'scroll-to-reveal':
+					{
+						this.notebookEditor.setScrollTop(data.scrollTop);
+						break;
+					}
 				case 'did-scroll-wheel':
 					{
 						this.notebookEditor.triggerScroll({

@@ -651,6 +651,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		return new Promise<void>(resolve => { r = resolve; });
 	}
 
+	setScrollTop(scrollTop: number): void {
+		this._list.scrollTop = scrollTop;
+	}
+
 	triggerScroll(event: IMouseWheelEvent) {
 		this._list.triggerScrollFromMouseWheelEvent(event);
 	}
