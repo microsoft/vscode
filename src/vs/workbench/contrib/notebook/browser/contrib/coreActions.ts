@@ -37,6 +37,8 @@ import { Iterable } from 'vs/base/common/iterator';
 import { flatten, maxIndex, minIndex } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
 import { Mimes } from 'vs/base/common/mime';
+import { TypeConstraint } from 'vs/base/common/types';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 // Kernel Command
 export const SELECT_KERNEL_ID = 'notebook.selectKernel';
@@ -61,6 +63,7 @@ const EDIT_CELL_COMMAND_ID = 'notebook.cell.edit';
 const DELETE_CELL_COMMAND_ID = 'notebook.cell.delete';
 
 const CANCEL_CELL_COMMAND_ID = 'notebook.cell.cancelExecution';
+const EXECUTE_CELL_FOCUS_CONTAINER_COMMAND_ID = 'notebook.cell.executeAndFocusContainer';
 const EXECUTE_CELL_SELECT_BELOW = 'notebook.cell.executeAndSelectBelow';
 const EXECUTE_CELL_INSERT_BELOW = 'notebook.cell.executeAndInsertBelow';
 const EXECUTE_CELL_AND_BELOW = 'notebook.cell.executeCellAndBelow';
@@ -503,6 +506,51 @@ registerAction2(class ExecuteCellAndBelow extends NotebookMultiCellAction<INoteb
 	}
 });
 
+const cellExecutionArgs: ReadonlyArray<{
+	readonly name: string;
+	readonly isOptional?: boolean;
+	readonly description?: string;
+	readonly constraint?: TypeConstraint;
+	readonly schema?: IJSONSchema;
+}> = [
+		{
+			isOptional: true,
+			name: 'options',
+			description: 'The cell range options',
+			schema: {
+				'type': 'object',
+				'required': ['ranges'],
+				'properties': {
+					'ranges': {
+						'type': 'array',
+						items: [
+							{
+								'type': 'object',
+								'required': ['start', 'end'],
+								'properties': {
+									'start': {
+										'type': 'number'
+									},
+									'end': {
+										'type': 'number'
+									}
+								}
+							}
+						]
+					},
+					'document': {
+						'type': 'object',
+						'description': 'The document uri',
+					},
+					'autoReveal': {
+						'type': 'boolean',
+						'description': 'Whether the cell should be revealed into view automatically'
+					}
+				}
+			}
+		}
+	];
+
 registerAction2(class ExecuteCell extends NotebookMultiCellAction<INotebookActionContext> {
 	constructor() {
 		super({
@@ -524,44 +572,7 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction<INotebookActio
 			},
 			description: {
 				description: localize('notebookActions.execute', "Execute Cell"),
-				args: [
-					{
-						isOptional: true,
-						name: 'options',
-						description: 'The cell range options',
-						schema: {
-							'type': 'object',
-							'required': ['ranges'],
-							'properties': {
-								'ranges': {
-									'type': 'array',
-									items: [
-										{
-											'type': 'object',
-											'required': ['start', 'end'],
-											'properties': {
-												'start': {
-													'type': 'number'
-												},
-												'end': {
-													'type': 'number'
-												}
-											}
-										}
-									]
-								},
-								'document': {
-									'type': 'object',
-									'description': 'The document uri',
-								},
-								'autoReveal': {
-									'type': 'boolean',
-									'description': 'Whether the cell should be revealed into view automatically'
-								}
-							}
-						}
-					}
-				]
+				args: cellExecutionArgs
 			},
 			icon: icons.executeIcon
 		});
@@ -573,6 +584,39 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction<INotebookActio
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
 		return runCell(accessor, context);
+	}
+});
+
+registerAction2(class ExecuteCellFocusContainer extends NotebookMultiCellAction<INotebookActionContext> {
+	constructor() {
+		super({
+			id: EXECUTE_CELL_FOCUS_CONTAINER_COMMAND_ID,
+			precondition: executeThisCellCondition,
+			title: localize('notebookActions.executeAndFocusContainer', "Execute Cell and Focus Container"),
+			description: {
+				description: localize('notebookActions.executeAndFocusContainer', "Execute Cell and Focus Container"),
+				args: cellExecutionArgs
+			},
+			icon: icons.executeIcon
+		});
+	}
+
+	parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookActionContext | undefined {
+		return parseMultiCellExecutionArgs(accessor, ...args);
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
+		await runCell(accessor, context);
+
+		if (context.ui && context.cell) {
+			context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
+		} else if (context.selectedCells) {
+			const firstCell = context.selectedCells[0];
+
+			if (firstCell) {
+				context.notebookEditor.focusNotebookCell(firstCell, 'container', { skipReveal: true });
+			}
+		}
 	}
 });
 
