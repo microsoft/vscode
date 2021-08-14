@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { CharCode } from 'vs/base/common/charCode';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { MarshalledId, MarshalledObject } from 'vs/base/common/marshalling';
 import { IURITransformer, transformIncomingURIs } from 'vs/base/common/uriIpc';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { LazyPromise } from 'vs/workbench/services/extensions/common/lazyPromise';
-import { IRPCProtocol, ProxyIdentifier, getStringIdentifierForProxy } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { MarshalledId } from 'vs/base/common/marshalling';
+import { getStringIdentifierForProxy, IRPCProtocol, ProxyIdentifier, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
 export interface JSONStringifyReplacer {
 	(key: string, value: any): any;
@@ -27,6 +27,55 @@ function safeStringify(obj: any, replacer: JSONStringifyReplacer | null): string
 		return 'null';
 	}
 }
+
+const refSymbolName = '$$ref$$';
+const undefinedRef = { [refSymbolName]: -1 } as const;
+
+class StringifiedJsonWithBufferRefs {
+	constructor(
+		public readonly jsonString: string,
+		public readonly referencedBuffers: readonly VSBuffer[],
+	) { }
+}
+
+export function stringifyJsonWithBufferRefs<T>(obj: T, replacer: JSONStringifyReplacer | null = null, useSafeStringify = false): StringifiedJsonWithBufferRefs {
+	const foundBuffers: VSBuffer[] = [];
+	const serialized = (useSafeStringify ? safeStringify : JSON.stringify)(obj, (key, value) => {
+		if (typeof value === 'undefined') {
+			return undefinedRef; // JSON.stringify normally converts 'undefined' to 'null'
+		} else if (typeof value === 'object') {
+			if (value instanceof VSBuffer) {
+				const bufferIndex = foundBuffers.push(value) - 1;
+				return { [refSymbolName]: bufferIndex };
+			}
+			if (replacer) {
+				return replacer(key, value);
+			}
+		}
+		return value;
+	});
+	return {
+		jsonString: serialized,
+		referencedBuffers: foundBuffers
+	};
+}
+
+export function parseJsonAndRestoreBufferRefs(jsonString: string, buffers: readonly VSBuffer[], uriTransformer: IURITransformer | null): any {
+	return JSON.parse(jsonString, (_key, value) => {
+		if (value) {
+			const ref = value[refSymbolName];
+			if (typeof ref === 'number') {
+				return buffers[ref];
+			}
+
+			if (uriTransformer && (<MarshalledObject>value).$mid === MarshalledId.Uri) {
+				return uriTransformer.transformIncoming(value);
+			}
+		}
+		return value;
+	});
+}
+
 
 function stringify(obj: any, replacer: JSONStringifyReplacer | null): string {
 	return JSON.stringify(obj, <(key: string, value: any) => any>replacer);
@@ -275,6 +324,11 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 				if (this._uriTransformer) {
 					value = transformIncomingURIs(value, this._uriTransformer);
 				}
+				this._receiveReply(msgLength, req, value);
+				break;
+			}
+			case MessageType.ReplyOKJSONWithBuffers: {
+				const value = MessageIO.deserializeReplyOKJSONWithBuffers(buff, this._uriTransformer);
 				this._receiveReply(msgLength, req, value);
 				break;
 			}
@@ -558,19 +612,25 @@ class MessageBuffer {
 		return buff;
 	}
 
-	public static sizeMixedArray(arr: VSBuffer[], arrType: ArgType[]): number {
+	public static sizeMixedArray(arr: readonly MixedArg[]): number {
 		let size = 0;
 		size += 1; // arr length
 		for (let i = 0, len = arr.length; i < len; i++) {
 			const el = arr[i];
-			const elType = arrType[i];
 			size += 1; // arg type
-			switch (elType) {
+			switch (el.type) {
 				case ArgType.String:
-					size += this.sizeLongString(el);
+					size += this.sizeLongString(el.value);
 					break;
 				case ArgType.VSBuffer:
-					size += this.sizeVSBuffer(el);
+					size += this.sizeVSBuffer(el.value);
+					break;
+				case ArgType.SerializedObjectWithBuffers:
+					size += this.sizeUInt8(); // buffer count
+					size += this.sizeLongString(el.value);
+					for (let i = 0; i < el.buffers.length; ++i) {
+						size += this.sizeVSBuffer(el.buffers[i]);
+					}
 					break;
 				case ArgType.Undefined:
 					// empty...
@@ -580,19 +640,26 @@ class MessageBuffer {
 		return size;
 	}
 
-	public writeMixedArray(arr: VSBuffer[], arrType: ArgType[]): void {
+	public writeMixedArray(arr: readonly MixedArg[]): void {
 		this._buff.writeUInt8(arr.length, this._offset); this._offset += 1;
 		for (let i = 0, len = arr.length; i < len; i++) {
 			const el = arr[i];
-			const elType = arrType[i];
-			switch (elType) {
+			switch (el.type) {
 				case ArgType.String:
 					this.writeUInt8(ArgType.String);
-					this.writeLongString(el);
+					this.writeLongString(el.value);
 					break;
 				case ArgType.VSBuffer:
 					this.writeUInt8(ArgType.VSBuffer);
-					this.writeVSBuffer(el);
+					this.writeVSBuffer(el.value);
+					break;
+				case ArgType.SerializedObjectWithBuffers:
+					this.writeUInt8(ArgType.SerializedObjectWithBuffers);
+					this.writeUInt8(el.buffers.length);
+					this.writeLongString(el.value);
+					for (let i = 0; i < el.buffers.length; ++i) {
+						this.writeBuffer(el.buffers[i]);
+					}
 					break;
 				case ArgType.Undefined:
 					this.writeUInt8(ArgType.Undefined);
@@ -601,9 +668,9 @@ class MessageBuffer {
 		}
 	}
 
-	public readMixedArray(): Array<string | VSBuffer | undefined> {
+	public readMixedArray(): Array<string | VSBuffer | SerializableObjectWithBuffers<any> | undefined> {
 		const arrLen = this._buff.readUInt8(this._offset); this._offset += 1;
-		let arr: Array<string | VSBuffer | undefined> = new Array(arrLen);
+		let arr: Array<string | VSBuffer | SerializableObjectWithBuffers<any> | undefined> = new Array(arrLen);
 		for (let i = 0; i < arrLen; i++) {
 			const argType = <ArgType>this.readUInt8();
 			switch (argType) {
@@ -612,6 +679,15 @@ class MessageBuffer {
 					break;
 				case ArgType.VSBuffer:
 					arr[i] = this.readVSBuffer();
+					break;
+				case ArgType.SerializedObjectWithBuffers:
+					const bufferCount = this.readUInt8();
+					const jsonString = this.readLongString();
+					const buffers: VSBuffer[] = [];
+					for (let i = 0; i < bufferCount; ++i) {
+						buffers.push(this.readVSBuffer());
+					}
+					arr[i] = new SerializableObjectWithBuffers(parseJsonAndRestoreBufferRefs(jsonString, buffers, null));
 					break;
 				case ArgType.Undefined:
 					arr[i] = undefined;
@@ -622,13 +698,24 @@ class MessageBuffer {
 	}
 }
 
-type SerializedRequestArguments = { type: 'mixed'; args: VSBuffer[]; argsType: ArgType[]; } | { type: 'simple'; args: string; };
+const enum SerializedRequestArgumentType {
+	Simple,
+	Mixed,
+}
+
+type SerializedRequestArguments =
+	| { readonly type: SerializedRequestArgumentType.Simple; args: string; }
+	| { readonly type: SerializedRequestArgumentType.Mixed; args: MixedArg[] };
+
 
 class MessageIO {
 
-	private static _arrayContainsBufferOrUndefined(arr: any[]): boolean {
+	private static _useMixedArgSerialization(arr: any[]): boolean {
 		for (let i = 0, len = arr.length; i < len; i++) {
 			if (arr[i] instanceof VSBuffer) {
+				return true;
+			}
+			if (arr[i] instanceof SerializableObjectWithBuffers) {
 				return true;
 			}
 			if (typeof arr[i] === 'undefined') {
@@ -639,39 +726,39 @@ class MessageIO {
 	}
 
 	public static serializeRequestArguments(args: any[], replacer: JSONStringifyReplacer | null): SerializedRequestArguments {
-		if (this._arrayContainsBufferOrUndefined(args)) {
-			let massagedArgs: VSBuffer[] = [];
-			let massagedArgsType: ArgType[] = [];
+		if (this._useMixedArgSerialization(args)) {
+			const massagedArgs: MixedArg[] = [];
 			for (let i = 0, len = args.length; i < len; i++) {
 				const arg = args[i];
 				if (arg instanceof VSBuffer) {
-					massagedArgs[i] = arg;
-					massagedArgsType[i] = ArgType.VSBuffer;
+					massagedArgs[i] = { type: ArgType.VSBuffer, value: arg };
 				} else if (typeof arg === 'undefined') {
-					massagedArgs[i] = VSBuffer.alloc(0);
-					massagedArgsType[i] = ArgType.Undefined;
+					massagedArgs[i] = { type: ArgType.Undefined };
+				} else if (arg instanceof SerializableObjectWithBuffers) {
+					const { jsonString, referencedBuffers } = stringifyJsonWithBufferRefs(arg.value, replacer);
+					massagedArgs[i] = { type: ArgType.SerializedObjectWithBuffers, value: VSBuffer.fromString(jsonString), buffers: referencedBuffers };
 				} else {
-					massagedArgs[i] = VSBuffer.fromString(stringify(arg, replacer));
-					massagedArgsType[i] = ArgType.String;
+					massagedArgs[i] = { type: ArgType.String, value: VSBuffer.fromString(stringify(arg, replacer)) };
 				}
 			}
 			return {
-				type: 'mixed',
+				type: SerializedRequestArgumentType.Mixed,
 				args: massagedArgs,
-				argsType: massagedArgsType
 			};
 		}
 		return {
-			type: 'simple',
+			type: SerializedRequestArgumentType.Simple,
 			args: stringify(args, replacer)
 		};
 	}
 
 	public static serializeRequest(req: number, rpcId: number, method: string, serializedArgs: SerializedRequestArguments, usesCancellationToken: boolean): VSBuffer {
-		if (serializedArgs.type === 'mixed') {
-			return this._requestMixedArgs(req, rpcId, method, serializedArgs.args, serializedArgs.argsType, usesCancellationToken);
+		switch (serializedArgs.type) {
+			case SerializedRequestArgumentType.Simple:
+				return this._requestJSONArgs(req, rpcId, method, serializedArgs.args, usesCancellationToken);
+			case SerializedRequestArgumentType.Mixed:
+				return this._requestMixedArgs(req, rpcId, method, serializedArgs.args, usesCancellationToken);
 		}
-		return this._requestJSONArgs(req, rpcId, method, serializedArgs.args, usesCancellationToken);
 	}
 
 	private static _requestJSONArgs(req: number, rpcId: number, method: string, args: string, usesCancellationToken: boolean): VSBuffer {
@@ -701,18 +788,18 @@ class MessageIO {
 		};
 	}
 
-	private static _requestMixedArgs(req: number, rpcId: number, method: string, args: VSBuffer[], argsType: ArgType[], usesCancellationToken: boolean): VSBuffer {
+	private static _requestMixedArgs(req: number, rpcId: number, method: string, args: readonly MixedArg[], usesCancellationToken: boolean): VSBuffer {
 		const methodBuff = VSBuffer.fromString(method);
 
 		let len = 0;
 		len += MessageBuffer.sizeUInt8();
 		len += MessageBuffer.sizeShortString(methodBuff);
-		len += MessageBuffer.sizeMixedArray(args, argsType);
+		len += MessageBuffer.sizeMixedArray(args);
 
 		let result = MessageBuffer.alloc(usesCancellationToken ? MessageType.RequestMixedArgsWithCancellation : MessageType.RequestMixedArgs, req, len);
 		result.writeUInt8(rpcId);
 		result.writeShortString(methodBuff);
-		result.writeMixedArray(args, argsType);
+		result.writeMixedArray(args);
 		return result.buffer;
 	}
 
@@ -747,11 +834,14 @@ class MessageIO {
 	public static serializeReplyOK(req: number, res: any, replacer: JSONStringifyReplacer | null): VSBuffer {
 		if (typeof res === 'undefined') {
 			return this._serializeReplyOKEmpty(req);
-		}
-		if (res instanceof VSBuffer) {
+		} else if (res instanceof VSBuffer) {
 			return this._serializeReplyOKVSBuffer(req, res);
+		} else if (res instanceof SerializableObjectWithBuffers) {
+			const { jsonString, referencedBuffers } = stringifyJsonWithBufferRefs(res.value, replacer, true);
+			return this._serializeReplyOKJSONWithBuffers(req, jsonString, referencedBuffers);
+		} else {
+			return this._serializeReplyOKJSON(req, safeStringify(res, replacer));
 		}
-		return this._serializeReplyOKJSON(req, safeStringify(res, replacer));
 	}
 
 	private static _serializeReplyOKEmpty(req: number): VSBuffer {
@@ -782,9 +872,41 @@ class MessageIO {
 		return result.buffer;
 	}
 
+	private static _serializeReplyOKJSONWithBuffers(req: number, res: string, buffers: readonly VSBuffer[]): VSBuffer {
+		const resBuff = VSBuffer.fromString(res);
+
+		let len = 0;
+		len += MessageBuffer.sizeUInt8(); // buffer count
+		len += MessageBuffer.sizeLongString(resBuff);
+		for (const buffer of buffers) {
+			len += MessageBuffer.sizeVSBuffer(buffer);
+		}
+
+		let result = MessageBuffer.alloc(MessageType.ReplyOKJSONWithBuffers, req, len);
+		result.writeUInt8(buffers.length);
+		result.writeLongString(resBuff);
+		for (const buffer of buffers) {
+			result.writeBuffer(buffer);
+		}
+
+		return result.buffer;
+	}
+
 	public static deserializeReplyOKJSON(buff: MessageBuffer): any {
 		const res = buff.readLongString();
 		return JSON.parse(res);
+	}
+
+	public static deserializeReplyOKJSONWithBuffers(buff: MessageBuffer, uriTransformer: IURITransformer | null): SerializableObjectWithBuffers<any> {
+		const bufferCount = buff.readUInt8();
+		const res = buff.readLongString();
+
+		const buffers: VSBuffer[] = [];
+		for (let i = 0; i < bufferCount; ++i) {
+			buffers.push(buff.readVSBuffer());
+		}
+
+		return new SerializableObjectWithBuffers(parseJsonAndRestoreBufferRefs(res, buffers, uriTransformer));
 	}
 
 	public static serializeReplyErr(req: number, err: any): VSBuffer {
@@ -825,12 +947,22 @@ const enum MessageType {
 	ReplyOKEmpty = 7,
 	ReplyOKVSBuffer = 8,
 	ReplyOKJSON = 9,
-	ReplyErrError = 10,
-	ReplyErrEmpty = 11,
+	ReplyOKJSONWithBuffers = 10,
+	ReplyErrError = 11,
+	ReplyErrEmpty = 12,
 }
 
 const enum ArgType {
 	String = 1,
 	VSBuffer = 2,
-	Undefined = 3
+	SerializedObjectWithBuffers = 3,
+	Undefined = 4,
 }
+
+
+type MixedArg =
+	| { readonly type: ArgType.String, readonly value: VSBuffer }
+	| { readonly type: ArgType.VSBuffer, readonly value: VSBuffer }
+	| { readonly type: ArgType.SerializedObjectWithBuffers, readonly value: VSBuffer, readonly buffers: readonly VSBuffer[] }
+	| { readonly type: ArgType.Undefined }
+	;

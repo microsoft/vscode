@@ -1017,7 +1017,7 @@ class OutputSequence implements ISequence {
 		return this.outputs.map(output => {
 			return hash(output.outputs.map(output => ({
 				mime: output.mime,
-				data: Array.from(output.data)
+				data: output.data
 			})));
 		});
 	}
