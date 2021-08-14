@@ -2992,6 +2992,11 @@ declare namespace monaco.editor {
 		 */
 		multiCursorPaste?: 'spread' | 'full';
 		/**
+		 * Enable word selection with the mouse and a key modifier. This replaces the click link to gesture feature.
+		 * Defaults to false
+		 */
+		wordSelection?: boolean;
+		/**
 		 * Configure the editor's accessibility support.
 		 * Defaults to 'auto'. It is best to leave this to 'auto'.
 		 */
@@ -4184,22 +4189,23 @@ declare namespace monaco.editor {
 		unusualLineTerminators = 112,
 		useShadowDOM = 113,
 		useTabStops = 114,
-		wordSeparators = 115,
-		wordWrap = 116,
-		wordWrapBreakAfterCharacters = 117,
-		wordWrapBreakBeforeCharacters = 118,
-		wordWrapColumn = 119,
-		wordWrapOverride1 = 120,
-		wordWrapOverride2 = 121,
-		wrappingIndent = 122,
-		wrappingStrategy = 123,
-		showDeprecated = 124,
-		inlayHints = 125,
-		editorClassName = 126,
-		pixelRatio = 127,
-		tabFocusMode = 128,
-		layoutInfo = 129,
-		wrappingInfo = 130
+		wordSelection = 115,
+		wordSeparators = 116,
+		wordWrap = 117,
+		wordWrapBreakAfterCharacters = 118,
+		wordWrapBreakBeforeCharacters = 119,
+		wordWrapColumn = 120,
+		wordWrapOverride1 = 121,
+		wordWrapOverride2 = 122,
+		wrappingIndent = 123,
+		wrappingStrategy = 124,
+		showDeprecated = 125,
+		inlayHints = 126,
+		editorClassName = 127,
+		pixelRatio = 128,
+		tabFocusMode = 129,
+		layoutInfo = 130,
+		wrappingInfo = 131
 	}
 	export const EditorOptions: {
 		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
@@ -4272,6 +4278,7 @@ declare namespace monaco.editor {
 		multiCursorMergeOverlapping: IEditorOption<EditorOption.multiCursorMergeOverlapping, boolean>;
 		multiCursorModifier: IEditorOption<EditorOption.multiCursorModifier, 'altKey' | 'metaKey' | 'ctrlKey'>;
 		multiCursorPaste: IEditorOption<EditorOption.multiCursorPaste, 'spread' | 'full'>;
+		wordSelection: IEditorOption<EditorOption.wordSelection, boolean>;
 		occurrencesHighlight: IEditorOption<EditorOption.occurrencesHighlight, boolean>;
 		overviewRulerBorder: IEditorOption<EditorOption.overviewRulerBorder, boolean>;
 		overviewRulerLanes: IEditorOption<EditorOption.overviewRulerLanes, number>;

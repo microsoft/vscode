@@ -127,6 +127,10 @@ export class ViewController {
 		}
 	}
 
+	private _hasWordSelectionModifier(data: IMouseDispatchData): boolean {
+		return this.configuration.options.get(EditorOption.wordSelection) && this._hasNonMulticursorModifier(data);
+	}
+
 	public dispatchMouse(data: IMouseDispatchData): void {
 		const options = this.configuration.options;
 		const selectionClipboardIsOn = (platform.isLinux && options.get(EditorOption.selectionClipboard));
@@ -187,6 +191,12 @@ export class ViewController {
 							this._createCursor(data.position, false);
 						}
 					}
+				}
+			} else if (this._hasWordSelectionModifier(data)) {
+				if (data.inSelectionMode) {
+					this._wordSelectDrag(data.position);
+				} else {
+					this._wordSelect(data.position);
 				}
 			} else {
 				if (data.inSelectionMode) {
