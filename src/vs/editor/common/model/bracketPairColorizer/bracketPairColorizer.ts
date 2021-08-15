@@ -26,47 +26,55 @@ import { FastTokenizer, TextBufferTokenizer } from './tokenizer';
 
 export class BracketPairColorizer extends Disposable implements DecorationProvider {
 	private readonly didChangeDecorationsEmitter = new Emitter<void>();
-	// All views for a single text model currently share the same config.
-	private config: NormalizedBracketPairColorizerConfig = NormalizedBracketPairColorizerConfig.default();
 	private readonly cache = this._register(new MutableDisposable<IReference<BracketPairColorizerImpl>>());
-	private readonly enabledOwnsers = new Set<number>();
+	private tokenizationState: TokenizationState = 'uninitialized';
+
+	get isDocumentSupported() {
+		// 30k lines of each 50 characters
+		const maxSupportedDocumentLength = 30000 * 50;
+		return this.textModel.getValueLength() <= maxSupportedDocumentLength;
+	}
 
 	constructor(private readonly textModel: TextModel) {
 		super();
 
 		this._register(LanguageConfigurationRegistry.onDidChange((e) => {
-			if (this.cache.value?.object.usesLanguageId(e.languageIdentifier.id)) {
+			if (this.cache.value?.object.didLanguageChange(e.languageIdentifier.id)) {
+				this.cache.clear();
 				this.updateCache();
+			}
+		}));
+
+		this._register(textModel.onDidChangeOptions(e => {
+			this.cache.clear();
+			this.updateCache();
+		}));
+
+		this._register(textModel.onDidChangeAttached(() => {
+			this.updateCache();
+		}));
+
+		this._register(textModel.onDidChangeTokens(({ ranges, backgroundTokenizationCompleted }) => {
+			if (backgroundTokenizationCompleted || this.tokenizationState === 'completed') {
+				this.tokenizationState = 'completed';
+			} else {
+				this.tokenizationState = 'inProgress';
 			}
 		}));
 	}
 
-	configureBracketPairColorization(owner: number, config: BracketPairColorizerConfig | 'disabled'): void {
-		if (config !== 'disabled') {
-			const newConfig = NormalizedBracketPairColorizerConfig.from(config);
-			if (JSON.stringify(newConfig) !== JSON.stringify(this.config)) {
-				this.config = newConfig;
-				this.cache.clear();
-			}
-			this.enabledOwnsers.add(owner);
-		} else {
-			this.enabledOwnsers.delete(owner);
-			// don't clear the cache, so that reopen is fast.
-			// The cache will be disposed with the text model!
-		}
-
-		if (!this.cache.value) {
-			this.updateCache();
-		}
-
-		this.didChangeDecorationsEmitter.fire();
-	}
-
 	private updateCache() {
-		if (this.enabledOwnsers.size > 0) {
-			const store = new DisposableStore();
-			this.cache.value = createDisposableRef(store.add(new BracketPairColorizerImpl(this.textModel, this.config)), store);
-			store.add(this.cache.value.object.onDidChangeDecorations(e => this.didChangeDecorationsEmitter.fire(e)));
+		const options = this.textModel.getOptions().bracketPairColorizationOptions;
+		if (this.textModel.isAttachedToEditor() && this.isDocumentSupported && options.enabled) {
+			if (!this.cache.value) {
+				const store = new DisposableStore();
+				this.cache.value = createDisposableRef(store.add(new BracketPairColorizerImpl(this.textModel, this.tokenizationState)), store);
+				store.add(this.cache.value.object.onDidChangeDecorations(e => this.didChangeDecorationsEmitter.fire(e)));
+				this.didChangeDecorationsEmitter.fire();
+			}
+		} else {
+			this.cache.clear();
+			this.didChangeDecorationsEmitter.fire();
 		}
 	}
 
@@ -78,20 +86,14 @@ export class BracketPairColorizer extends Disposable implements DecorationProvid
 		if (ownerId === undefined) {
 			return [];
 		}
-		if (!this.enabledOwnsers.has(ownerId)) {
-			return [];
-		}
-		return this.cache.value!.object.getDecorationsInRange(range, ownerId, filterOutValidation);
+		return this.cache.value?.object.getDecorationsInRange(range, ownerId, filterOutValidation) || [];
 	}
 
 	getAllDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[] {
 		if (ownerId === undefined) {
 			return [];
 		}
-		if (!this.enabledOwnsers.has(ownerId)) {
-			return [];
-		}
-		return this.cache.value!.object.getAllDecorations(ownerId, filterOutValidation);
+		return this.cache.value?.object.getAllDecorations(ownerId, filterOutValidation) || [];
 	}
 
 	onDidChangeDecorations(listener: () => void): IDisposable {
@@ -106,23 +108,7 @@ function createDisposableRef<T>(object: T, disposable?: IDisposable): IReference
 	};
 }
 
-export interface BracketPairColorizerConfig {
-	readonly customBracketPairs?: readonly [string, string][];
-}
-
-class NormalizedBracketPairColorizerConfig implements BracketPairColorizerConfig {
-	public static default(): NormalizedBracketPairColorizerConfig {
-		return new NormalizedBracketPairColorizerConfig([]);
-	}
-
-	public static from(config: BracketPairColorizerConfig): NormalizedBracketPairColorizerConfig {
-		return new NormalizedBracketPairColorizerConfig(config.customBracketPairs || []);
-	}
-
-	constructor(
-		public readonly customBracketPairs: readonly [string, string][]
-	) { }
-}
+type TokenizationState = 'uninitialized' | 'inProgress' | 'completed';
 
 class BracketPairColorizerImpl extends Disposable implements DecorationProvider {
 	private readonly didChangeDecorationsEmitter = new Emitter<void>();
@@ -140,18 +126,19 @@ class BracketPairColorizerImpl extends Disposable implements DecorationProvider 
 	private initialAstWithoutTokens: AstNode | undefined;
 	private astWithTokens: AstNode | undefined;
 
-	private readonly brackets = new LanguageAgnosticBracketTokens(this.config.customBracketPairs);
+	private readonly brackets = new LanguageAgnosticBracketTokens([]);
 	private readonly denseKeyProvider = new DenseKeyProvider<number>();
 
-	public usesLanguageId(languageId: LanguageId): boolean {
-		return this.brackets.usesLanguageId(languageId);
+	public didLanguageChange(languageId: LanguageId): boolean {
+		return this.brackets.didLanguageChange(languageId);
 	}
 
-	constructor(private readonly textModel: TextModel, private readonly config: NormalizedBracketPairColorizerConfig) {
+	constructor(private readonly textModel: TextModel, tokenizationState: TokenizationState) {
 		super();
 
 		this._register(textModel.onDidChangeTokens(({ ranges, backgroundTokenizationCompleted }) => {
 			if (backgroundTokenizationCompleted) {
+				// Clear the initial tree as we can use the tree with token information now.
 				this.initialAstWithoutTokens = undefined;
 			}
 
@@ -168,10 +155,21 @@ class BracketPairColorizerImpl extends Disposable implements DecorationProvider 
 			}
 		}));
 
-		const brackets = this.brackets.getSingleLanguageBracketTokens(this.textModel.getLanguageIdentifier().id);
-		const tokenizer = new FastTokenizer(this.textModel.getValue(), brackets);
-		this.initialAstWithoutTokens = parseDocument(tokenizer, [], undefined, this.denseKeyProvider);
-		this.astWithTokens = this.initialAstWithoutTokens.clone();
+		if (tokenizationState === 'uninitialized') {
+			// There are no token information yet
+			const brackets = this.brackets.getSingleLanguageBracketTokens(this.textModel.getLanguageIdentifier().id);
+			const tokenizer = new FastTokenizer(this.textModel.getValue(), brackets);
+			this.initialAstWithoutTokens = parseDocument(tokenizer, [], undefined, this.denseKeyProvider);
+			this.astWithTokens = this.initialAstWithoutTokens.clone();
+		} else if (tokenizationState === 'completed') {
+			// Skip the initial ast, as there is no flickering.
+			// Directly create the tree with token information.
+			this.initialAstWithoutTokens = undefined;
+			this.astWithTokens = this.parseDocumentFromTextBuffer([], undefined);
+		} else if (tokenizationState === 'inProgress') {
+			this.initialAstWithoutTokens = this.parseDocumentFromTextBuffer([], undefined);
+			this.astWithTokens = this.initialAstWithoutTokens.clone();
+		}
 	}
 
 	handleContentChanged(change: IModelContentChangedEvent) {
