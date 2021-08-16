@@ -9,6 +9,7 @@ import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { firstOrDefault } from 'vs/base/common/arrays';
 import { IEditorInput, EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane, IUntypedEditorInput, EditorResourceAccessor, AbstractEditorInput, isEditorInput } from 'vs/workbench/common/editor';
 import { isEqual } from 'vs/base/common/resources';
+import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 
 /**
  * Editor inputs are lightweight objects that can be passed to the workbench API to open inside the editor part.
@@ -95,6 +96,8 @@ export abstract class EditorInput extends AbstractEditorInput implements IEditor
 	async resolve(): Promise<IEditorModel | null> {
 		return null;
 	}
+
+	confirm?(): Promise<ConfirmResult>;
 
 	async save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		return this;

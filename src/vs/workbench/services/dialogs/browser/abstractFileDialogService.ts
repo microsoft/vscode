@@ -113,7 +113,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		return this.doShowSaveConfirm(fileNamesOrResources);
 	}
 
-	protected async doShowSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult> {
+	private async doShowSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult> {
 		if (fileNamesOrResources.length === 0) {
 			return ConfirmResult.DONT_SAVE;
 		}
@@ -145,7 +145,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		}
 	}
 
-	protected addFileSchemaIfNeeded(schema: string): string[] {
+	private addFileSchemaIfNeeded(schema: string): string[] {
 		return schema === Schemas.untitled ? [Schemas.file] : (schema !== Schemas.file ? [schema, Schemas.file] : [schema]);
 	}
 
@@ -255,7 +255,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		return this.getSimpleFileDialog().showSaveDialog(options);
 	}
 
-	protected getSchemeFilterForWindow(defaultUriScheme?: string): string {
+	private getSchemeFilterForWindow(defaultUriScheme?: string): string {
 		return defaultUriScheme ?? this.pathService.defaultUriScheme;
 	}
 

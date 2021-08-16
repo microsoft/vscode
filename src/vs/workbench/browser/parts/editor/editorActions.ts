@@ -597,8 +597,10 @@ abstract class AbstractCloseAllAction extends Action {
 				dirtyEditorsToAutoSave.add(editor);
 			}
 
-			// No auto-save on focus change: ask user
-			else {
+			// No auto-save on focus change: collect for
+			// asking the user, but only if no custom
+			// `confirm` method is implemented.
+			else if (typeof editor.confirm !== 'function') {
 				let name: string;
 				if (editor instanceof SideBySideEditorInput) {
 					name = editor.primary.getName(); // prefer shorter names by using primary's name in this case
@@ -633,7 +635,6 @@ abstract class AbstractCloseAllAction extends Action {
 				result = await this.editorService.saveAll({ reason: saveReason, includeUntitled: true, excludeSticky: this.excludeSticky });
 				break;
 		}
-
 
 		// Only continue to close editors if we either have no more dirty
 		// editors or the result from the save/revert was successful

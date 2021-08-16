@@ -21,6 +21,7 @@ import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce } from 'vs/base/common/arrays';
 import { IExtUri } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
+import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 
 // Static values for editor contributions
 export const EditorExtensions = {
@@ -555,6 +556,17 @@ export interface IEditorInput extends IDisposable {
 	 * the save is scheduled to happen anyway.
 	 */
 	isSaving(): boolean;
+
+	/**
+	 * Optional: if this method is implemented, allows an editor to
+	 * control what should happen when the editor is dirty and there
+	 * is an intent to close it.
+	 *
+	 * By default a file specific dialog will open. If the editor is
+	 * not dealing with files, this method should be implemented to
+	 * show a different dialog.
+	 */
+	confirm?(): Promise<ConfirmResult>;
 
 	/**
 	 * Saves the editor. The provided groupId helps implementors
