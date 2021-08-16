@@ -45,16 +45,18 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 	}
 
 	private async run() {
+
+		// Always open Welcome page for first-launch, no matter what is open or which startupEditor is set.
+		if (this.configurationService.getValue('telemetry.enableTelemetry') && !this.storageService.get(telemetryOptOutStorageKey, StorageScope.GLOBAL)) {
+			this.storageService.store(telemetryOptOutStorageKey, true, StorageScope.GLOBAL, StorageTarget.USER);
+			await this.openWelcome(true);
+			return;
+		}
+
 		const enabled = isWelcomePageEnabled(this.configurationService, this.contextService, this.environmentService);
 		if (enabled && this.lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
 			const hasBackups = await this.workingCopyBackupService.hasBackups();
 			if (hasBackups) { return; }
-
-			// Always open Welcome page for first-launch, no matter what is open or which startupEditor is set.
-			if (this.configurationService.getValue('telemetry.enableTelemetry') && !this.storageService.get(telemetryOptOutStorageKey, StorageScope.GLOBAL)) {
-				this.storageService.store(telemetryOptOutStorageKey, true, StorageScope.GLOBAL, StorageTarget.USER);
-				await this.openWelcome();
-			}
 		}
 
 		// Open the welcome even if we opened a set of default editors
@@ -99,7 +101,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		}
 	}
 
-	private async openWelcome() {
+	private async openWelcome(showTelemetryNotice?: boolean) {
 		const startupEditorTypeID = gettingStartedInputTypeId;
 		const editor = this.editorService.activeEditor;
 
@@ -110,7 +112,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 
 		const options: IEditorOptions = editor ? { pinned: false, index: 0 } : { pinned: false };
 		if (startupEditorTypeID === gettingStartedInputTypeId) {
-			this.editorService.openEditor(this.instantiationService.createInstance(GettingStartedInput, {}), options);
+			this.editorService.openEditor(this.instantiationService.createInstance(GettingStartedInput, { showTelemetryNotice }), options);
 		}
 	}
 }

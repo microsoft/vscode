@@ -931,10 +931,7 @@ export class GettingStartedPage extends EditorPane {
 				if (first) {
 					this.currentWalkthrough = first;
 					this.editorInput.selectedCategory = this.currentWalkthrough?.id;
-					// FIXME: Clarify if this should be in buildCategorySlide.
-					// FIXME: telemetryFooter as extra argument could be improved.
-					// FIXME: This logic between firstSessionDateString and welcomePage.ts' check for telemetryOptOutStorageKey
-					this.buildCategorySlide(this.editorInput.selectedCategory, undefined, true);
+					this.buildCategorySlide(this.editorInput.selectedCategory, undefined);
 					this.setSlide('details');
 					return;
 				}
@@ -1276,7 +1273,7 @@ export class GettingStartedPage extends EditorPane {
 		super.clearInput();
 	}
 
-	private buildCategorySlide(categoryID: string, selectedStep?: string, telemetryFooter?: boolean) {
+	private buildCategorySlide(categoryID: string, selectedStep?: string) {
 		if (this.detailsScrollbar) { this.detailsScrollbar.dispose(); }
 
 		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
@@ -1349,7 +1346,7 @@ export class GettingStartedPage extends EditorPane {
 		const stepListComponent = this.detailsScrollbar.getDomNode();
 
 		const categoryFooter = $('.getting-started-footer');
-		if (telemetryFooter && this.configurationService.getValue('telemetry.enableTelemetry')) {
+		if (this.editorInput.showTelemetryNotice && this.configurationService.getValue('telemetry.enableTelemetry')) {
 			const mdRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 			const text = localize('telemetryFooter',
 				"VS Code collects usage data. Read our [privacy statement](command:{0}) and learn how to [opt out]({1}).", 'workbench.action.openPrivacyStatementUrl', 'command:settings.filterByTelemetry');
