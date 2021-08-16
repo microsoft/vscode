@@ -43,6 +43,7 @@ import { ILocalTerminalService, IOffProcessTerminalService, IRemoteTerminalAttac
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { formatMessageForTerminal, terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -1164,18 +1165,27 @@ export class TerminalService implements ITerminalService {
 		this._evaluateLocalCwd(shellLaunchConfig);
 
 		let instance: ITerminalInstance;
-		const target = options?.target || this.configHelper.config.defaultLocation;
-		if (options?.instanceToSplit) {
-			if (target === TerminalLocation.Editor || options?.instanceToSplit?.target === TerminalLocation.Editor) {
-				instance = this._terminalEditorService.splitInstance(options.instanceToSplit, shellLaunchConfig);
+
+		let target = options?.target || this._getLocation(options?.location) || this.configHelper.config.defaultLocation;
+
+		const splitParent = this._getSplitParent(options?.target);
+		const parent = options?.instanceToSplit || splitParent;
+
+		const editorOptions = this._getEditorOptions(options?.target);
+
+		if (parent) {
+			if (target === TerminalLocation.Editor || parent.target === TerminalLocation.Editor) {
+				instance = this._terminalEditorService.splitInstance(parent, shellLaunchConfig);
 			} else {
-				const group = this._terminalGroupService.getGroupForInstance(options.instanceToSplit);
+				const group = this._terminalGroupService.getGroupForInstance(parent);
 				if (!group) {
-					throw new Error(`Cannot split a terminal without a group ${options.instanceToSplit}`);
+					throw new Error(`Cannot split a terminal without a group ${parent}`);
 				}
 				instance = group.split(shellLaunchConfig);
 				this._terminalGroupService.groups.forEach((g, i) => g.setVisible(i === this._terminalGroupService.activeGroupIndex));
 			}
+		} else if (editorOptions) {
+			instance = this._terminalEditorService.splitInstance(undefined, shellLaunchConfig, editorOptions);
 		} else {
 			if (target === TerminalLocation.Editor) {
 				instance = this._terminalInstanceService.createInstance(shellLaunchConfig, undefined, options?.resource);
@@ -1188,6 +1198,33 @@ export class TerminalService implements ITerminalService {
 			}
 		}
 		return instance;
+	}
+
+	private _getLocation(location?: TerminalLocation | { viewColumn: EditorGroupColumn, preserveFocus?: boolean } | { parentTerminal: { target: TerminalLocation, processId: number } }): TerminalLocation | undefined {
+		if (!location) {
+			return location;
+		} else if (typeof location === 'object' && 'parentTerminal' in location) {
+			return location.parentTerminal.target;
+		} else if (typeof location === 'object' && 'viewColumn' in location) {
+			// TODO - use
+			return TerminalLocation.Editor;
+		}
+		return location;
+	}
+
+	private _getSplitParent(location?: TerminalLocation | { viewColumn: EditorGroupColumn, preserveFocus?: boolean } | { parentTerminal: { target: TerminalLocation, processId: number } }): ITerminalInstance | undefined {
+		if (location && typeof location === 'object' && 'parentTerminal' in location) {
+			return this.instances.find(t => t.processId === location.parentTerminal.processId);
+		}
+		return undefined;
+	}
+
+
+	private _getEditorOptions(location?: TerminalLocation | { viewColumn: EditorGroupColumn, preserveFocus?: boolean } | { parentTerminal: { target: TerminalLocation, processId: number } }): { viewColumn: EditorGroupColumn, preserveFocus?: boolean } | undefined {
+		if (location && typeof location === 'object' && 'viewColumn' in location) {
+			return location;
+		}
+		return undefined;
 	}
 
 	private _evaluateLocalCwd(shellLaunchConfig: IShellLaunchConfig) {

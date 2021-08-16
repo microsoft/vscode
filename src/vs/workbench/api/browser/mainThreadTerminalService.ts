@@ -150,7 +150,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			if (!terminal) {
 				terminal = await this._terminalService.createTerminal({
 					config: shellLaunchConfig,
-					target: launchConfig.target
+					target: launchConfig.target,
+					location: launchConfig.location
 				});
 			}
 			r(terminal);

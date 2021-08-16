@@ -20,6 +20,7 @@ import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { IEditableData } from 'vs/workbench/common/views';
 import { DeserializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
+import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
@@ -201,7 +202,7 @@ export interface ITerminalEditorService extends ITerminalInstanceHost, ITerminal
 	openEditor(instance: ITerminalInstance, sideGroup?: boolean): Promise<void>;
 	detachActiveEditorInstance(): ITerminalInstance;
 	detachInstance(instance: ITerminalInstance): void;
-	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
+	splitInstance(instanceToSplit?: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig, editorOptions?: { viewColumn: EditorGroupColumn, preserveFocus?: boolean }): ITerminalInstance;
 	revealActiveEditor(preserveFocus?: boolean): void;
 	resolveResource(instance: ITerminalInstance | URI): URI;
 	reviveInput(deserializedInput: DeserializedTerminalEditorInput): TerminalEditorInput;
@@ -236,7 +237,13 @@ export interface ICreateTerminalOptions {
 	 * The terminal instance to split
 	 */
 	instanceToSplit?: ITerminalInstance;
+
+	/**
+	 * The location at which to create the terminal
+	 */
+	location?: TerminalLocation | { viewColumn: EditorGroupColumn, preserveFocus?: boolean } | { parentTerminal: any };
 }
+
 
 /**
  * This service is responsible for managing terminal groups, that is the terminals that are hosted

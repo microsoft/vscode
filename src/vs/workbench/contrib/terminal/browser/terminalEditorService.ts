@@ -17,6 +17,7 @@ import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/termi
 import { DeserializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
 import { getInstanceFromResource, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { ILocalTerminalService, IOffProcessTerminalService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -234,8 +235,8 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		return getInstanceFromResource(this.instances, resource);
 	}
 
-	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig: IShellLaunchConfig = {}): ITerminalInstance {
-		if (instanceToSplit.target === TerminalLocation.Editor) {
+	splitInstance(instanceToSplit?: ITerminalInstance, shellLaunchConfig: IShellLaunchConfig = {}, editorOptions?: { viewColumn: EditorGroupColumn, preserveFocus?: boolean }): ITerminalInstance {
+		if (instanceToSplit?.target === TerminalLocation.Editor) {
 			// Make sure the instance to split's group is active
 			const group = this._editorInputs.get(instanceToSplit.resource.path)?.group;
 			if (group) {
@@ -250,10 +251,11 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 				options:
 				{
 					pinned: true,
-					forceReload: true
-				}
+					forceReload: true,
+					preserveFocus: editorOptions?.preserveFocus
+				},
 			},
-				SIDE_GROUP);
+				editorOptions?.viewColumn || SIDE_GROUP);
 		}
 		return instance;
 	}
