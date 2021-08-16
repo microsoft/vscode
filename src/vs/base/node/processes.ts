@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
+import { Stats } from 'fs';
 import { IStringDictionary } from 'vs/base/common/collections';
 import * as extpath from 'vs/base/common/extpath';
 import { FileAccess } from 'vs/base/common/network';
@@ -457,7 +458,16 @@ export namespace win32 {
 
 		async function fileExists(path: string): Promise<boolean> {
 			if (await pfs.Promises.exists(path)) {
-				return !((await pfs.Promises.stat(path)).isDirectory());
+				let statValue: Stats | undefined;
+				try {
+					statValue = await pfs.Promises.stat(path);
+				} catch (e) {
+					if (e.message.startsWith('EACCES')) {
+						// it might be symlink
+						statValue = await pfs.Promises.lstat(path);
+					}
+				}
+				return statValue ? !statValue.isDirectory() : false;
 			}
 			return false;
 		}
