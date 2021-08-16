@@ -18,7 +18,10 @@ import { assertType } from 'vs/base/common/types';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
-
+export const enum TypeHierarchyDirection {
+	Subtypes = 'subtypes',
+	Supertypes = 'supertypes'
+}
 
 export interface TypeHierarchyItem {
 	_sessionId: string;
