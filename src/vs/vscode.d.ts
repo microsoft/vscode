@@ -502,7 +502,7 @@ declare module 'vscode' {
 		constructor(anchorLine: number, anchorCharacter: number, activeLine: number, activeCharacter: number);
 
 		/**
-		 * A selection is reversed if {@link Selection.active active}.isBefore({@link Selection.anchor anchor}).
+		 * A selection is reversed if its {@link Selection.anchor anchor} is the {@link Selection.end end} position.
 		 */
 		isReversed: boolean;
 	}
