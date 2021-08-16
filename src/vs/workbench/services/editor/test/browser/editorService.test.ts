@@ -1807,6 +1807,7 @@ suite('EditorService', () => {
 		await service.openEditor(input, { pinned: true });
 		await service.openEditor(failingInput, { inactive: true });
 
+		failingInput.setFailToOpen();
 		let failingEditor = await service.openEditor(failingInput);
 		assert.ok(failingEditor instanceof UnavailableEditor);
 	});
