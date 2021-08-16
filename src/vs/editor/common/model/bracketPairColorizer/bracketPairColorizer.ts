@@ -31,8 +31,7 @@ export class BracketPairColorizer extends Disposable implements DecorationProvid
 	private tokenizationState: TokenizationState = 'uninitialized';
 
 	get isDocumentSupported() {
-		// 30k lines of each 50 characters
-		const maxSupportedDocumentLength = 30000 * 50;
+		const maxSupportedDocumentLength = /* max lines */ 50_000 * /* average column count */ 100;
 		return this.textModel.getValueLength() <= maxSupportedDocumentLength;
 	}
 
