@@ -58,7 +58,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 			open: async (uri: URI, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken) => {
 				const data = await this._proxy.$openNotebook(viewType, uri, backupId, untitledDocumentData, token);
 				return {
-					data: NotebookDto.fromNotebookDataDto(data),
+					data: NotebookDto.fromNotebookDataDto(data.value),
 					transientOptions: contentOptions
 				};
 			},

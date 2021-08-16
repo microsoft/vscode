@@ -355,13 +355,13 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 	// --- open, save, saveAs, backup
 
-	async $openNotebook(viewType: string, uri: UriComponents, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken): Promise<NotebookDataDto> {
+	async $openNotebook(viewType: string, uri: UriComponents, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken): Promise<SerializableObjectWithBuffers<NotebookDataDto>> {
 		const { provider } = this._getProviderData(viewType);
 		const data = await provider.openNotebook(URI.revive(uri), { backupId, untitledDocumentData: untitledDocumentData?.buffer }, token);
-		return {
+		return new SerializableObjectWithBuffers({
 			metadata: data.metadata ?? Object.create(null),
 			cells: data.cells.map(typeConverters.NotebookCellData.from),
-		};
+		});
 	}
 
 	async $saveNotebook(viewType: string, uri: UriComponents, token: CancellationToken): Promise<boolean> {
