@@ -214,7 +214,7 @@ export namespace TaskHandleDTO {
 	}
 }
 export namespace TaskGroupDTO {
-	export function from(value: vscode.TaskGroup2): tasks.TaskGroupDTO | undefined {
+	export function from(value: vscode.TaskGroup): tasks.TaskGroupDTO | undefined {
 		if (value === undefined || value === null) {
 			return undefined;
 		}
@@ -276,7 +276,7 @@ export namespace TaskDTO {
 			},
 			execution: execution!,
 			isBackground: value.isBackground,
-			group: TaskGroupDTO.from(value.group as vscode.TaskGroup2),
+			group: TaskGroupDTO.from(value.group as vscode.TaskGroup),
 			presentationOptions: TaskPresentationOptionsDTO.from(value.presentationOptions),
 			problemMatchers: value.problemMatchers,
 			hasDefinedMatchers: (value as types.Task).hasDefinedMatchers,
