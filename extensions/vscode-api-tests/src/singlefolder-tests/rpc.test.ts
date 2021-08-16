@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertNoRpcFromEntry, assertNoRpc, disposeAll } from '../utils';
 import * as vscode from 'vscode';
+import { assertNoRpc, assertNoRpcFromEntry, disposeAll } from '../utils';
 
 suite('vscode', function () {
 

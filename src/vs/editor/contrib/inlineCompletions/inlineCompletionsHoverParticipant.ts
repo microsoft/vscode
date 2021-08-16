@@ -154,7 +154,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 				this._hover.onContentsChanged();
 			}));
 
-			const inlineSuggestionAvailable = nls.localize('inlineSuggestionFollows', "Inline Suggestion:");
+			const inlineSuggestionAvailable = nls.localize('inlineSuggestionFollows', "Suggestion:");
 			const renderedContents = disposableStore.add(renderer.render(new MarkdownString().appendText(inlineSuggestionAvailable).appendCodeblock('text', code)));
 			hoverContentsElement.replaceChildren(renderedContents.element);
 		};

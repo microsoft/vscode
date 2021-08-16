@@ -132,7 +132,7 @@ export function compareFileExtensions(one: string | null, other: string | null):
 	return result;
 }
 
-/** Compares filenames by extenson, then by full filename. Mixes uppercase and lowercase names together. */
+/** Compares filenames by extension, then by full filename. Mixes uppercase and lowercase names together. */
 export function compareFileExtensionsDefault(one: string | null, other: string | null): number {
 	one = one || '';
 	other = other || '';

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DEFAULT_LOG_LEVEL, LogLevel, AdapterLogger, ILogger } from 'vs/platform/log/common/log';
+import { AdapterLogger, DEFAULT_LOG_LEVEL, ILogger, LogLevel } from 'vs/platform/log/common/log';
 
 export interface IAutomatedWindow {
 	codeAutomationLog(type: string, args: any[]): void;

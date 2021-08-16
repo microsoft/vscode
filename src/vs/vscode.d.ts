@@ -9484,6 +9484,13 @@ declare module 'vscode' {
 		 * The icon path or {@link ThemeIcon} for the terminal.
 		 */
 		iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
+
+		/**
+		 * The icon {@link ThemeColor} for the terminal.
+		 * The `terminal.ansi*` theme keys are
+		 * recommended for the best contrast and consistency across themes.
+		 */
+		color?: ThemeColor;
 	}
 
 	/**
@@ -9505,6 +9512,13 @@ declare module 'vscode' {
 		 * The icon path or {@link ThemeIcon} for the terminal.
 		 */
 		iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
+
+		/**
+		 * The icon {@link ThemeColor} for the terminal.
+		 * The standard `terminal.ansi*` theme keys are
+		 * recommended for the best contrast and consistency across themes.
+		 */
+		color?: ThemeColor;
 	}
 
 	/**
@@ -11673,7 +11687,7 @@ declare module 'vscode' {
 		readonly executionOrder?: number;
 
 		/**
-		 * If the exclusive finished successfully.
+		 * If the execution finished successfully.
 		 */
 		readonly success?: boolean;
 
@@ -13921,7 +13935,7 @@ declare module 'vscode' {
 
 		/**
 		 * A collection of "top-level" {@link TestItem} instances, which can in
-		 * turn have their own {@link TestItem.children | children} to form the
+		 * turn have their own {@link TestItem.children children} to form the
 		 * "test tree."
 		 *
 		 * The extension controls when to add tests. For example, extensions should

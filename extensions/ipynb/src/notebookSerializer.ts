@@ -74,10 +74,10 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 	}
 
 	public serializeNotebook(data: vscode.NotebookData, _token: vscode.CancellationToken): Uint8Array {
-		return new TextEncoder().encode(this.serialize(data));
+		return new TextEncoder().encode(this.serializeNotebookToString(data));
 	}
 
-	private serialize(data: vscode.NotebookData): string {
+	public serializeNotebookToString(data: vscode.NotebookData): string {
 		const notebookContent: Partial<nbformat.INotebookContent> = data.metadata?.custom || {};
 		notebookContent.cells = notebookContent.cells || [];
 		notebookContent.nbformat = notebookContent.nbformat || 4;

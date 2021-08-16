@@ -2911,9 +2911,7 @@ export class FileDecoration {
 	badge?: string;
 	tooltip?: string;
 	color?: vscode.ThemeColor;
-	priority?: number;
 	propagate?: boolean;
-
 
 	constructor(badge?: string, tooltip?: string, color?: ThemeColor) {
 		this.badge = badge;
@@ -3302,13 +3300,6 @@ export enum TestResultState {
 	Errored = 6
 }
 
-export enum TestMessageSeverity {
-	Error = 0,
-	Warning = 1,
-	Information = 2,
-	Hint = 3
-}
-
 export enum TestRunProfileKind {
 	Run = 1,
 	Debug = 2,
@@ -3337,6 +3328,14 @@ export class TestMessage implements vscode.TestMessage {
 	}
 
 	constructor(public message: string | vscode.MarkdownString) { }
+}
+
+@es5ClassCompat
+export class TestTag implements vscode.TestTag {
+	constructor(
+		public readonly id: string,
+		public readonly label?: string,
+	) { }
 }
 
 //#endregion

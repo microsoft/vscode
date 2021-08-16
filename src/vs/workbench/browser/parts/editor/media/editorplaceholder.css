@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workspace-trust-required-editor:focus {
+.monaco-editor-pane-placeholder:focus {
 	outline: none !important;
 }
 
-.monaco-workspace-trust-required-editor {
+.monaco-editor-pane-placeholder {
 	padding: 5px 0 0 10px;
 	box-sizing: border-box;
 }
 
-.monaco-workspace-trust-required-editor .embedded-link,
-.monaco-workspace-trust-required-editor .embedded-link:hover {
+.monaco-editor-pane-placeholder .embedded-link,
+.monaco-editor-pane-placeholder .embedded-link:hover {
 	cursor: pointer;
 	text-decoration: underline;
 	margin-left: 5px;

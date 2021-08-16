@@ -37,6 +37,10 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 			role = accessibilityInformation.role;
 		} else {
 			ariaLabel = getCodiconAriaLabel(text);
+			if (tooltip) {
+				const tooltipString = typeof tooltip === 'string' ? tooltip : tooltip.value;
+				ariaLabel += `, ${tooltipString}`;
+			}
 		}
 		const entry: IStatusbarEntry = { name, text, tooltip, command, color, backgroundColor, ariaLabel, role };
 

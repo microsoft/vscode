@@ -360,6 +360,18 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true
 		},
+		[TerminalSettingId.PersistentSessionScrollback]: {
+			scope: ConfigurationScope.APPLICATION,
+			markdownDescription: localize('terminal.integrated.persistentSessionScrollback', "Controls the maximum amount of lines that will be restored when reconnecting to a persistent terminal session. Increasing this will restore more lines of scrollback at the cost of more memory and increase the time it takes to connect to terminals on start up. This setting requires a restart to take effect and should be set to a value less than or equal to `#terminal.integrated.scrollback#`."),
+			type: 'number',
+			default: 100
+		},
+		[TerminalSettingId.PersistentSessionExperimentalSerializer]: {
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('terminal.integrated.persistentSessionExperimentalSerializer', "Whether to use a more efficient experimental approach for restoring the terminal's buffer. This setting requires a restart to take effect."),
+			type: 'boolean',
+			default: true
+		},
 		[TerminalSettingId.ShowLinkHover]: {
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('terminal.integrated.showLinkHover', "Whether to show hovers for links in the terminal output."),

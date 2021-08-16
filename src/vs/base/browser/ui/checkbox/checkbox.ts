@@ -173,7 +173,7 @@ export class Checkbox extends Widget {
 	}
 
 	width(): number {
-		return 2 /*marginleft*/ + 2 /*border*/ + 2 /*padding*/ + 16 /* icon width */;
+		return 2 /*margin left*/ + 2 /*border*/ + 2 /*padding*/ + 16 /* icon width */;
 	}
 
 	style(styles: ICheckboxStyles): void {

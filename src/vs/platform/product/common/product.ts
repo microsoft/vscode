@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FileAccess } from 'vs/base/common/network';
-import { isWeb, globals } from 'vs/base/common/platform';
+import { globals, isWeb } from 'vs/base/common/platform';
 import { env } from 'vs/base/common/process';
-import { dirname, joinPath } from 'vs/base/common/resources';
 import { IProductConfiguration } from 'vs/base/common/product';
+import { dirname, joinPath } from 'vs/base/common/resources';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 
 let product: IProductConfiguration;

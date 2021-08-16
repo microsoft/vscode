@@ -45,10 +45,10 @@ function buildDriver(browser: playwright.Browser, context: playwright.BrowserCon
 		exitApplication: async () => {
 			try {
 				await context.tracing.stop({ path: join(logsPath, `playwright-trace-${traceCounter++}.zip`) });
-				await browser.close();
 			} catch (error) {
-				console.error(error); // do not fail the build when this fails
+				console.warn(`Failed to stop playwright tracing.`); // do not fail the build when this fails
 			}
+			await browser.close();
 			await teardown();
 
 			return false;
@@ -120,7 +120,7 @@ export async function launch(userDataDir: string, _workspacePath: string, codeSe
 		...process.env
 	};
 
-	const args = ['--port', `${port++}`, '--browser', 'none', '--driver', 'web', '--extensions-dir', extPath];
+	const args = ['--disable-telemetry', '--port', `${port++}`, '--browser', 'none', '--driver', 'web', '--extensions-dir', extPath];
 
 	let serverLocation: string | undefined;
 	if (codeServerPath) {
@@ -191,7 +191,11 @@ export function connect(options: Options = {}): Promise<{ client: IDisposable, d
 	return new Promise(async (c) => {
 		const browser = await playwright[options.browser ?? 'chromium'].launch({ headless: options.headless ?? false });
 		const context = await browser.newContext();
-		await context.tracing.start({ screenshots: true, snapshots: true });
+		try {
+			await context.tracing.start({ screenshots: true, snapshots: true });
+		} catch (error) {
+			console.warn(`Failed to start playwright tracing.`); // do not fail the build when this fails
+		}
 		const page = await context.newPage();
 		await page.setViewportSize({ width, height });
 		page.on('pageerror', async error => console.error(`Playwright ERROR: page error: ${error}`));

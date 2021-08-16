@@ -46,6 +46,11 @@ export interface IOutputBlurMessage extends BaseToWebviewMessage {
 	readonly id: string;
 }
 
+export interface IScrollToRevealMessage extends BaseToWebviewMessage {
+	readonly type: 'scroll-to-reveal';
+	readonly scrollTop: number;
+}
+
 export interface IWheelMessage extends BaseToWebviewMessage {
 	readonly type: 'did-scroll-wheel';
 	readonly payload: any;
@@ -332,6 +337,7 @@ export type FromWebviewMessage = WebviewIntialized |
 	IMouseLeaveMessage |
 	IOutputFocusMessage |
 	IOutputBlurMessage |
+	IScrollToRevealMessage |
 	IWheelMessage |
 	IScrollAckMessage |
 	IBlurOutputMessage |

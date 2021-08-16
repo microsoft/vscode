@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { UriComponents } from 'vs/base/common/uri';
-import { ProcessItem } from 'vs/base/common/processes';
-import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { IMainProcessInfo } from 'vs/platform/launch/common/launch';
+import { ProcessItem } from 'vs/base/common/processes';
+import { UriComponents } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IMainProcessInfo } from 'vs/platform/launch/common/launch';
+import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 
 export const ID = 'diagnosticsService';
 export const IDiagnosticsService = createDecorator<IDiagnosticsService>(ID);

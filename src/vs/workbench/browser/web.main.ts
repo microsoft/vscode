@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mark } from 'vs/base/common/performance';
-import { domContentLoaded, detectFullscreen, getCookieValue } from 'vs/base/browser/dom';
+import { domContentLoaded, detectFullscreen, getCookieValue, WebFileSystemAccess } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService, ConsoleLogger, MultiplexLogService, getLogLevel } from 'vs/platform/log/common/log';
 import { ConsoleLogInAutomationLogger } from 'vs/platform/log/browser/log';
@@ -334,7 +334,9 @@ class BrowserMain extends Disposable {
 			});
 		}
 
-		fileService.registerProvider(Schemas.file, new HTMLFileSystemProvider());
+		if (WebFileSystemAccess.supported(window)) {
+			fileService.registerProvider(Schemas.file, new HTMLFileSystemProvider());
+		}
 		fileService.registerProvider(Schemas.tmp, new InMemoryFileSystemProvider());
 	}
 

@@ -154,11 +154,15 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			return undefined;
 		}
 
-		const dialogPath = this.hasCapability(EditorInputCapabilities.Untitled) ? await this._suggestName(this.labelService.getUriBasenameLabel(this.resource)) : this._editorModelReference.object.resource;
-
-		const target = await this._fileDialogService.pickFileToSave(dialogPath, options?.availableFileSystems);
-		if (!target) {
-			return undefined; // save cancelled
+		const pathCandidate = this.hasCapability(EditorInputCapabilities.Untitled) ? await this._suggestName(this.labelService.getUriBasenameLabel(this.resource)) : this._editorModelReference.object.resource;
+		let target: URI | undefined;
+		if (this._editorModelReference.object.hasAssociatedFilePath()) {
+			target = pathCandidate;
+		} else {
+			target = await this._fileDialogService.pickFileToSave(pathCandidate, options?.availableFileSystems);
+			if (!target) {
+				return undefined; // save cancelled
+			}
 		}
 
 		if (!provider.matches(target)) {
@@ -171,7 +175,12 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 					return `${pattern} (base ${pattern.base})`;
 				}
 
-				return `${pattern.include} (exclude: ${pattern.exclude})`;
+				if (pattern.exclude) {
+					return `${pattern.include} (exclude: ${pattern.exclude})`;
+				} else {
+					return `${pattern.include}`;
+				}
+
 			}).join(', ');
 			throw new Error(`File name ${target} is not supported by ${provider.providerDisplayName}.\n\nPlease make sure the file name matches following patterns:\n${patterns}`);
 		}

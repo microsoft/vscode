@@ -11,7 +11,7 @@ import { Protocol as ElectronProtocol } from 'vs/base/parts/ipc/common/ipc.elect
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 
 /**
- * An implemention of `IPCClient` on top of Electron `ipcRenderer` IPC communication
+ * An implementation of `IPCClient` on top of Electron `ipcRenderer` IPC communication
  * provided from sandbox globals (via preload script).
  */
 export class Client extends IPCClient implements IDisposable {

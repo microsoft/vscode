@@ -458,6 +458,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 
 	constructor(
 		readonly resource: URI,
+		private readonly _hasAssociatedFilePath: boolean,
 		readonly viewType: string,
 		private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -520,7 +521,11 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 
 		if (!this._workingCopy) {
 			if (this.resource.scheme === Schemas.untitled) {
-				this._workingCopy = await this._workingCopyManager.resolve({ untitledResource: this.resource });
+				if (this._hasAssociatedFilePath) {
+					this._workingCopy = await this._workingCopyManager.resolve({ associatedResource: this.resource });
+				} else {
+					this._workingCopy = await this._workingCopyManager.resolve({ untitledResource: this.resource });
+				}
 			} else {
 				this._workingCopy = await this._workingCopyManager.resolve(this.resource, { forceReadFromFile: options?.forceReadFromFile });
 				this._workingCopyListeners.add(this._workingCopy.onDidSave(() => this._onDidSave.fire()));

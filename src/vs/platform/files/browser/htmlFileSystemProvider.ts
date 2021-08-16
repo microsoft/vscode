@@ -3,85 +3,62 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { IFileSystemProviderWithFileReadWriteCapability, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileOverwriteOptions, FileType, FileDeleteOptions, FileWriteOptions } from 'vs/platform/files/common/files';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import { extUri } from 'vs/base/common/resources';
+import { Schemas } from 'vs/base/common/network';
+import { normalize } from 'vs/base/common/path';
+import { isLinux } from 'vs/base/common/platform';
+import { extUri, extUriIgnorePathCase } from 'vs/base/common/resources';
+import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
+import { generateUuid } from 'vs/base/common/uuid';
+import { createFileSystemProviderError, FileDeleteOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 
-function split(path: string): [string, string] | undefined {
-	const match = /^(.*)\/([^/]+)$/.exec(path);
+export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileReadStreamCapability {
 
-	if (!match) {
-		return undefined;
-	}
-
-	const [, parentPath, name] = match;
-	return [parentPath, name];
-}
-
-function getRootUUID(uri: URI): string | undefined {
-	const match = /^\/([^/]+)\/[^/]+\/?$/.exec(uri.path);
-
-	if (!match) {
-		return undefined;
-	}
-
-	return match[1];
-}
-
-export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability {
-
-	private readonly files = new Map<string, FileSystemFileHandle>();
-	private readonly directories = new Map<string, FileSystemDirectoryHandle>();
-
-	readonly capabilities: FileSystemProviderCapabilities =
-		FileSystemProviderCapabilities.FileReadWrite
-		| FileSystemProviderCapabilities.PathCaseSensitive;
+	//#region Events (unsupported)
 
 	readonly onDidChangeCapabilities = Event.None;
+	readonly onDidChangeFile = Event.None;
+	readonly onDidErrorOccur = Event.None;
 
-	private readonly _onDidChangeFile = new Emitter<readonly IFileChange[]>();
-	readonly onDidChangeFile = this._onDidChangeFile.event;
+	//#endregion
 
-	private readonly _onDidErrorOccur = new Emitter<string>();
-	readonly onDidErrorOccur = this._onDidErrorOccur.event;
+	//#region File Capabilities
 
-	async readFile(resource: URI): Promise<Uint8Array> {
-		const handle = await this.getFileHandle(resource);
+	private extUri = isLinux ? extUri : extUriIgnorePathCase;
 
-		if (!handle) {
-			throw new Error('File not found.');
+	private _capabilities: FileSystemProviderCapabilities | undefined;
+	get capabilities(): FileSystemProviderCapabilities {
+		if (!this._capabilities) {
+			this._capabilities =
+				FileSystemProviderCapabilities.FileReadWrite |
+				FileSystemProviderCapabilities.FileReadStream;
+
+			if (isLinux) {
+				this._capabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
+			}
 		}
 
-		const file = await handle.getFile();
-		return new Uint8Array(await file.arrayBuffer());
+		return this._capabilities;
 	}
 
-	async writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
-		const handle = await this.getFileHandle(resource);
+	//#endregion
 
-		if (!handle) {
-			throw new Error('File not found.');
-		}
-
-		const writable = await handle.createWritable();
-		await writable.write(content);
-		await writable.close();
-	}
-
-	watch(resource: URI, opts: IWatchOptions): IDisposable {
-		return Disposable.None;
-	}
+	//#region File Metadata Resolving
 
 	async stat(resource: URI): Promise<IStat> {
-		const rootUUID = getRootUUID(resource);
+		try {
+			const handle = await this.getHandle(resource);
+			if (!handle) {
+				throw this.createFileSystemProviderError(resource, 'No such file or directory, stat', FileSystemProviderErrorCode.FileNotFound);
+			}
 
-		if (rootUUID) {
-			const fileHandle = this.files.get(rootUUID);
-
-			if (fileHandle) {
-				const file = await fileHandle.getFile();
+			if (handle.kind === 'file') {
+				const file = await handle.getFile();
 
 				return {
 					type: FileType.File,
@@ -91,120 +68,335 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 				};
 			}
 
-			const directoryHandle = this.directories.get(rootUUID);
+			return {
+				type: FileType.Directory,
+				mtime: 0,
+				ctime: 0,
+				size: 0
+			};
+		} catch (error) {
+			throw this.toFileSystemProviderError(error);
+		}
+	}
 
-			if (directoryHandle) {
-				return {
-					type: FileType.Directory,
-					mtime: 0,
-					ctime: 0,
-					size: 0
-				};
+	async readdir(resource: URI): Promise<[string, FileType][]> {
+		try {
+			const handle = await this.getDirectoryHandle(resource);
+			if (!handle) {
+				throw this.createFileSystemProviderError(resource, 'No such file or directory, readdir', FileSystemProviderErrorCode.FileNotFound);
 			}
+
+			const result: [string, FileType][] = [];
+
+			for await (const [name, child] of handle) {
+				result.push([name, child.kind === 'file' ? FileType.File : FileType.Directory]);
+			}
+
+			return result;
+		} catch (error) {
+			throw this.toFileSystemProviderError(error);
 		}
+	}
 
-		const parent = await this.getParentDirectoryHandle(resource);
+	//#endregion
 
-		if (!parent) {
-			throw new Error('Stat error: no parent found');
+	//#region File Reading/Writing
+
+	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
+		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer, {
+			// Set a highWaterMark to prevent the stream
+			// for file upload to produce large buffers
+			// in-memory
+			highWaterMark: 10
+		});
+
+		(async () => {
+			try {
+				const handle = await this.getFileHandle(resource);
+				if (!handle) {
+					throw this.createFileSystemProviderError(resource, 'No such file or directory, readFile', FileSystemProviderErrorCode.FileNotFound);
+				}
+
+				const file = await handle.getFile();
+
+				// Partial file: implemented simply via `readFile`
+				if (typeof opts.length === 'number' || typeof opts.position === 'number') {
+					let buffer = new Uint8Array(await file.arrayBuffer());
+
+					if (typeof opts?.position === 'number') {
+						buffer = buffer.slice(opts.position);
+					}
+
+					if (typeof opts?.length === 'number') {
+						buffer = buffer.slice(0, opts.length);
+					}
+
+					stream.end(buffer);
+				}
+
+				// Entire file
+				else {
+					const reader: ReadableStreamDefaultReader<Uint8Array> = file.stream().getReader();
+
+					let res = await reader.read();
+					while (!res.done) {
+						if (token.isCancellationRequested) {
+							break;
+						}
+
+						// Write buffer into stream but make sure to wait
+						// in case the `highWaterMark` is reached
+						await stream.write(res.value);
+
+						if (token.isCancellationRequested) {
+							break;
+						}
+
+						res = await reader.read();
+					}
+					stream.end(undefined);
+				}
+			} catch (error) {
+				stream.error(this.toFileSystemProviderError(error));
+				stream.end();
+			}
+		})();
+
+		return stream;
+	}
+
+	async readFile(resource: URI): Promise<Uint8Array> {
+		try {
+			const handle = await this.getFileHandle(resource);
+			if (!handle) {
+				throw this.createFileSystemProviderError(resource, 'No such file or directory, readFile', FileSystemProviderErrorCode.FileNotFound);
+			}
+
+			const file = await handle.getFile();
+
+			return new Uint8Array(await file.arrayBuffer());
+		} catch (error) {
+			throw this.toFileSystemProviderError(error);
 		}
+	}
 
-		const name = extUri.basename(resource);
-		for await (const [childName, child] of parent) {
-			if (childName === name) {
-				if (child.kind === 'file') {
-					const file = await child.getFile();
+	async writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
+		try {
+			let handle = await this.getFileHandle(resource);
 
-					return {
-						type: FileType.File,
-						mtime: file.lastModified,
-						ctime: 0,
-						size: file.size
-					};
+			// Validate target unless { create: true, overwrite: true }
+			if (!opts.create || !opts.overwrite) {
+				if (handle) {
+					if (!opts.overwrite) {
+						throw this.createFileSystemProviderError(resource, 'File already exists, writeFile', FileSystemProviderErrorCode.FileExists);
+					}
 				} else {
-					return {
-						type: FileType.Directory,
-						mtime: 0,
-						ctime: 0,
-						size: 0
-					};
+					if (!opts.create) {
+						throw this.createFileSystemProviderError(resource, 'No such file, writeFile', FileSystemProviderErrorCode.FileNotFound);
+					}
+				}
+			}
+
+			// Create target as needed
+			if (!handle) {
+				const parent = await this.getDirectoryHandle(this.extUri.dirname(resource));
+				if (!parent) {
+					throw this.createFileSystemProviderError(resource, 'No such parent directory, writeFile', FileSystemProviderErrorCode.FileNotFound);
+				}
+
+				handle = await parent.getFileHandle(this.extUri.basename(resource), { create: true });
+				if (!handle) {
+					throw this.createFileSystemProviderError(resource, 'Unable to create file , writeFile', FileSystemProviderErrorCode.Unknown);
+				}
+			}
+
+			// Write to target overwriting any existing contents
+			const writable = await handle.createWritable();
+			await writable.write(content);
+			await writable.close();
+		} catch (error) {
+			throw this.toFileSystemProviderError(error);
+		}
+	}
+
+	//#endregion
+
+	//#region Move/Copy/Delete/Create Folder
+
+	async mkdir(resource: URI): Promise<void> {
+		try {
+			const parent = await this.getDirectoryHandle(this.extUri.dirname(resource));
+			if (!parent) {
+				throw this.createFileSystemProviderError(resource, 'No such parent directory, mkdir', FileSystemProviderErrorCode.FileNotFound);
+			}
+
+			await parent.getDirectoryHandle(this.extUri.basename(resource), { create: true });
+		} catch (error) {
+			throw this.toFileSystemProviderError(error);
+		}
+	}
+
+	async delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
+		try {
+			const parent = await this.getDirectoryHandle(this.extUri.dirname(resource));
+			if (!parent) {
+				throw this.createFileSystemProviderError(resource, 'No such parent directory, delete', FileSystemProviderErrorCode.FileNotFound);
+			}
+
+			return parent.removeEntry(this.extUri.basename(resource), { recursive: opts.recursive });
+		} catch (error) {
+			throw this.toFileSystemProviderError(error);
+		}
+	}
+
+	async rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
+		try {
+			if (this.extUri.isEqual(from, to)) {
+				return; // no-op if the paths are the same
+			}
+
+			// Implement file rename by write + delete
+			let fileHandle = await this.getFileHandle(from);
+			if (fileHandle) {
+				const file = await fileHandle.getFile();
+				const contents = new Uint8Array(await file.arrayBuffer());
+
+				await this.writeFile(to, contents, { create: true, overwrite: opts.overwrite, unlock: false });
+				await this.delete(from, { recursive: false, useTrash: false });
+			}
+
+			// File API does not support any real rename otherwise
+			else {
+				throw this.createFileSystemProviderError(from, localize('fileSystemRenameError', "Rename is only supported for files."), FileSystemProviderErrorCode.Unavailable);
+			}
+		} catch (error) {
+			throw this.toFileSystemProviderError(error);
+		}
+	}
+
+	//#endregion
+
+	//#region File Watching (unsupported)
+
+	watch(resource: URI, opts: IWatchOptions): IDisposable {
+		return Disposable.None;
+	}
+
+	//#endregion
+
+	//#region File/Directoy Handle Registry
+
+	private readonly files = new Map<string, FileSystemFileHandle>();
+	private readonly directories = new Map<string, FileSystemDirectoryHandle>();
+
+	registerFileHandle(handle: FileSystemFileHandle): URI {
+		const handleId = generateUuid();
+		this.files.set(handleId, handle);
+
+		return this.toHandleUri(handle, handleId);
+	}
+
+	registerDirectoryHandle(handle: FileSystemDirectoryHandle): URI {
+		const handleId = generateUuid();
+		this.directories.set(handleId, handle);
+
+		return this.toHandleUri(handle, handleId);
+	}
+
+	private toHandleUri(handle: FileSystemHandle, handleId: string): URI {
+		return URI.from({ scheme: Schemas.file, path: `/${handle.name}`, query: handleId });
+	}
+
+	private async getHandle(resource: URI): Promise<FileSystemHandle | undefined> {
+
+		// First: try to find a well known handle first
+		let handle = this.getHandleSync(resource);
+
+		// Second: walk up parent directories and resolve handle if possible
+		if (!handle) {
+			const parent = await this.getDirectoryHandle(this.extUri.dirname(resource));
+			if (parent) {
+				const name = extUri.basename(resource);
+				try {
+					handle = await parent.getFileHandle(name);
+				} catch (error) {
+					try {
+						handle = await parent.getDirectoryHandle(name);
+					} catch (error) {
+						// Ignore
+					}
 				}
 			}
 		}
 
-		throw new Error('Stat error: entry not found');
+		return handle;
 	}
 
-	mkdir(resource: URI): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
+	private getHandleSync(resource: URI): FileSystemHandle | undefined {
 
-	async readdir(resource: URI): Promise<[string, FileType][]> {
-		const parent = await this.getDirectoryHandle(resource);
-
-		if (!parent) {
-			throw new Error('Stat error: no parent found');
-		}
-
-		const result: [string, FileType][] = [];
-
-		for await (const [name, child] of parent) {
-			result.push([name, child.kind === 'file' ? FileType.File : FileType.Directory]);
-		}
-
-		return result;
-	}
-
-	delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
-		throw new Error('Method not implemented: delete');
-	}
-
-	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
-		throw new Error('Method not implemented: rename');
-	}
-
-	private async getDirectoryHandle(uri: URI): Promise<FileSystemDirectoryHandle | undefined> {
-		const rootUUID = getRootUUID(uri);
-
-		if (rootUUID) {
-			return this.directories.get(rootUUID);
-		}
-
-		const splitResult = split(uri.path);
-
-		if (!splitResult) {
+		// We store file system handles with the `handle.name`
+		// and as such require the resource to be on the root
+		if (this.extUri.dirname(resource).path !== '/') {
 			return undefined;
 		}
 
-		const parent = await this.getDirectoryHandle(URI.from({ ...uri, path: splitResult[0] }));
-		return await parent?.getDirectoryHandle(extUri.basename(uri));
-	}
+		const handleId = resource.query;
 
-	private async getParentDirectoryHandle(uri: URI): Promise<FileSystemDirectoryHandle | undefined> {
-		return this.getDirectoryHandle(URI.from({ ...uri, path: extUri.dirname(uri).path }));
-	}
-
-	private async getFileHandle(uri: URI): Promise<FileSystemFileHandle | undefined> {
-		const rootUUID = getRootUUID(uri);
-
-		if (rootUUID) {
-			return this.files.get(rootUUID);
+		const handle = this.files.get(handleId) || this.directories.get(handleId);
+		if (!handle) {
+			throw this.createFileSystemProviderError(resource, 'No file system handle registered', FileSystemProviderErrorCode.Unavailable);
 		}
 
-		const parent = await this.getParentDirectoryHandle(uri);
-		const name = extUri.basename(uri);
-		return await parent?.getFileHandle(name);
+		return handle;
 	}
 
-	registerFileHandle(uuid: string, handle: FileSystemFileHandle): void {
-		this.files.set(uuid, handle);
+	private async getFileHandle(resource: URI): Promise<FileSystemFileHandle | undefined> {
+		const handle = this.getHandleSync(resource);
+		if (handle instanceof FileSystemFileHandle) {
+			return handle;
+		}
+
+		const parent = await this.getDirectoryHandle(this.extUri.dirname(resource));
+
+		try {
+			return await parent?.getFileHandle(extUri.basename(resource));
+		} catch (error) {
+			return undefined; // guard against possible DOMException
+		}
 	}
 
-	registerDirectoryHandle(uuid: string, handle: FileSystemDirectoryHandle): void {
-		this.directories.set(uuid, handle);
+	private async getDirectoryHandle(resource: URI): Promise<FileSystemDirectoryHandle | undefined> {
+		const handle = this.getHandleSync(resource);
+		if (handle instanceof FileSystemDirectoryHandle) {
+			return handle;
+		}
+
+		const parent = await this.getDirectoryHandle(this.extUri.dirname(resource));
+
+		try {
+			return await parent?.getDirectoryHandle(extUri.basename(resource));
+		} catch (error) {
+			return undefined; // guard against possible DOMException
+		}
 	}
 
-	dispose(): void {
-		this._onDidChangeFile.dispose();
+	//#endregion
+
+	private toFileSystemProviderError(error: Error): FileSystemProviderError {
+		if (error instanceof FileSystemProviderError) {
+			return error; // avoid double conversion
+		}
+
+		let code = FileSystemProviderErrorCode.Unknown;
+		if (error.name === 'NotAllowedError') {
+			error = new Error(localize('fileSystemNotAllowedError', "Insufficient permissions. Please retry and allow the operation."));
+			code = FileSystemProviderErrorCode.Unavailable;
+		}
+
+		return createFileSystemProviderError(error, code);
+	}
+
+	private createFileSystemProviderError(resource: URI, msg: string, code: FileSystemProviderErrorCode): FileSystemProviderError {
+		return createFileSystemProviderError(new Error(`${msg} (${normalize(resource.path)})`), code);
 	}
 }

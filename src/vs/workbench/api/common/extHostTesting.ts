@@ -21,7 +21,7 @@ import { InvalidTestItemError, TestItemImpl, TestItemRootImpl } from 'vs/workben
 import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
 import { TestRunProfileKind, TestRunRequest } from 'vs/workbench/api/common/extHostTypes';
 import { SingleUseTestCollection } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
-import { AbstractIncrementalTestCollection, CoverageDetails, IFileCoverage, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, ISerializedTestResults, ITestIdWithSrc, ITestItem, RunTestForControllerRequest, TestResultState, TestRunProfileBitset, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { AbstractIncrementalTestCollection, CoverageDetails, IFileCoverage, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, ISerializedTestResults, ITestItem, ITestTagDisplayInfo, RunTestForControllerRequest, TestResultState, TestRunProfileBitset, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestId, TestIdPathParts, TestPosition } from 'vs/workbench/contrib/testing/common/testId';
 import type * as vscode from 'vscode';
 
@@ -80,7 +80,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			get id() {
 				return controllerId;
 			},
-			createRunProfile: (label, group, runHandler, isDefault) => {
+			createRunProfile: (label, group, runHandler, isDefault, tag?: vscode.TestTag | undefined) => {
 				// Derive the profile ID from a hash so that the same profile will tend
 				// to have the same hashes, allowing re-run requests to work across reloads.
 				let profileId = hash(label);
@@ -88,7 +88,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 					profileId++;
 				}
 
-				const profile = new TestRunProfileImpl(this.proxy, controllerId, profileId, label, group, runHandler, isDefault);
+				const profile = new TestRunProfileImpl(this.proxy, controllerId, profileId, label, group, runHandler, isDefault, tag);
 				profiles.set(profileId, profile);
 				return profile;
 			},
@@ -153,7 +153,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 				profileId: profile.profileId,
 				controllerId: profile.controllerId,
 			}],
-			exclude: req.exclude?.map(t => ({ testId: t.id, controllerId: profile.controllerId })),
+			exclude: req.exclude?.map(t => t.id),
 		}, token);
 	}
 
@@ -176,6 +176,29 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		this.controllers.get(controllerId)?.profiles.get(profileId)?.configureHandler?.();
 	}
 
+	/** @inheritdoc */
+	$getTestTags(controllerId: string) {
+		const record = this.controllers.get(controllerId);
+		if (!record) {
+			return Promise.resolve([]);
+		}
+
+		const tags = new Map<string, ITestTagDisplayInfo>();
+		for (const profile of record.profiles.values()) {
+			if (profile.tag) {
+				const display = Convert.TestTag.display(controllerId, profile.tag);
+				tags.set(display.id, display);
+			}
+		}
+
+		for (const tag of record.collection.tags()) {
+			const display = Convert.TestTag.display(controllerId, tag);
+			tags.set(display.id, display);
+		}
+
+		return Promise.resolve([...tags.values()]);
+	}
+
 	/**
 	 * Updates test results shown to extensions.
 	 * @override
@@ -196,8 +219,8 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	 * Expands the nodes in the test tree. If levels is less than zero, it will
 	 * be treated as infinite.
 	 */
-	public async $expandTest({ controllerId, testId }: ITestIdWithSrc, levels: number) {
-		const collection = this.controllers.get(controllerId)?.collection;
+	public async $expandTest(testId: string, levels: number) {
+		const collection = this.controllers.get(TestId.fromString(testId).controllerId)?.collection;
 		if (collection) {
 			await collection.expand(testId, levels < 0 ? Infinity : levels);
 			collection.flushDiff();
@@ -375,10 +398,26 @@ class TestRunTracker extends Disposable {
 				this.proxy.$updateTestStateInRun(runId, taskId, TestId.fromExtHostTestItem(test, this.dto.controllerId).toString(), TestResultState.Passed, duration);
 			}),
 			//#endregion
-			appendOutput: output => {
-				if (!ended) {
-					this.proxy.$appendOutputToRun(runId, taskId, VSBuffer.fromString(output));
+			appendOutput: (output, location?: vscode.Location, test?: vscode.TestItem) => {
+				if (ended) {
+					return;
 				}
+
+				if (test) {
+					if (this.dto.isIncluded(test)) {
+						this.ensureTestIsKnown(test);
+					} else {
+						test = undefined;
+					}
+				}
+
+				this.proxy.$appendOutputToRun(
+					runId,
+					taskId,
+					VSBuffer.fromString(output),
+					location && Convert.location.from(location),
+					test && TestId.fromExtHostTestItem(test, ctrlId).toString(),
+				);
 			},
 			end: () => {
 				if (ended) {
@@ -862,6 +901,19 @@ export class TestRunProfileImpl implements vscode.TestRunProfile {
 		}
 	}
 
+	public get tag() {
+		return this._tag;
+	}
+
+	public set tag(tag: vscode.TestTag | undefined) {
+		if (tag?.id !== this._tag?.id) {
+			this._tag = tag;
+			this.#proxy.$updateTestRunConfig(this.controllerId, this.profileId, {
+				tag: tag ? Convert.TestTag.namespace(this.controllerId, tag.id) : null,
+			});
+		}
+	}
+
 	public get configureHandler() {
 		return this._configureHandler;
 	}
@@ -881,6 +933,7 @@ export class TestRunProfileImpl implements vscode.TestRunProfile {
 		public readonly kind: vscode.TestRunProfileKind,
 		public runHandler: (request: vscode.TestRunRequest, token: vscode.CancellationToken) => Thenable<void> | void,
 		private _isDefault = false,
+		public _tag: vscode.TestTag | undefined = undefined,
 	) {
 		this.#proxy = proxy;
 
@@ -892,6 +945,7 @@ export class TestRunProfileImpl implements vscode.TestRunProfile {
 		this.#proxy.$publishTestRunProfile({
 			profileId: profileId,
 			controllerId,
+			tag: _tag ? Convert.TestTag.namespace(this.controllerId, _tag.id) : null,
 			label: _label,
 			group: groupBitset,
 			isDefault: _isDefault,

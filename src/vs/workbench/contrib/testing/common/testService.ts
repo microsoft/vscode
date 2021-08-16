@@ -11,8 +11,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { AbstractIncrementalTestCollection, IncrementalTestCollectionItem, InternalTestItem, ITestIdWithSrc, ITestItemContext, ResolvedTestRunRequest, RunTestForControllerRequest, TestItemExpandState, TestRunProfileBitset, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { IObservableValue, MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
+import { AbstractIncrementalTestCollection, IncrementalTestCollectionItem, InternalTestItem, ITestItemContext, ITestTagDisplayInfo, ResolvedTestRunRequest, RunTestForControllerRequest, TestItemExpandState, TestRunProfileBitset, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestExclusions } from 'vs/workbench/contrib/testing/common/testExclusions';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
@@ -22,8 +22,9 @@ export const ITestService = createDecorator<ITestService>('testService');
 export interface IMainThreadTestController {
 	readonly id: string;
 	readonly label: IObservableValue<string>;
+	getTags(): Promise<ITestTagDisplayInfo[]>;
 	configureRunProfile(profileId: number): void;
-	expandTest(src: ITestIdWithSrc, levels: number): Promise<void>;
+	expandTest(id: string, levels: number): Promise<void>;
 	runTests(request: RunTestForControllerRequest, token: CancellationToken): Promise<void>;
 }
 
@@ -194,9 +195,9 @@ export interface AmbiguousRunTestsRequest {
 	/** Group to run */
 	group: TestRunProfileBitset;
 	/** Tests to run. Allowed to be from different controllers */
-	tests: ITestIdWithSrc[];
+	tests: readonly InternalTestItem[];
 	/** Tests to exclude. If not given, the current UI excluded tests are used */
-	exclude?: ITestIdWithSrc[];
+	exclude?: InternalTestItem[];
 	/** Whether this was triggered from an auto run. */
 	isAutoRun?: boolean;
 }
@@ -223,6 +224,11 @@ export interface ITestService {
 	 * Event that fires after a diff is processed.
 	 */
 	readonly onDidProcessDiff: Event<TestsDiff>;
+
+	/**
+	 * Whether inline editor decorations should be visible.
+	 */
+	readonly showInlineOutput: MutableObservableValue<boolean>;
 
 	/**
 	 * Registers an interface that runs tests for the given provider ID.

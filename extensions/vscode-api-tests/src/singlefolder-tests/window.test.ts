@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind, QuickPickItem, TextEditor, StatusBarAlignment } from 'vscode';
 import { join } from 'path';
-import { closeAllEditors, pathEquals, createRandomFile, assertNoRpc } from '../utils';
+import { CancellationTokenSource, commands, Position, QuickPickItem, Selection, StatusBarAlignment, TextEditor, TextEditorSelectionChangeKind, TextEditorViewColumnChangeEvent, Uri, ViewColumn, window, workspace } from 'vscode';
+import { assertNoRpc, closeAllEditors, createRandomFile, pathEquals } from '../utils';
 
 
 suite('vscode API - window', () => {

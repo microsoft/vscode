@@ -135,6 +135,7 @@ function schemaShouldMaintainUndoRedoElements(resource: URI) {
 		resource.scheme === Schemas.file
 		|| resource.scheme === Schemas.vscodeRemote
 		|| resource.scheme === Schemas.userData
+		|| resource.scheme === Schemas.vscodeNotebookCell
 		|| resource.scheme === 'fake-fs' // for tests
 	);
 }

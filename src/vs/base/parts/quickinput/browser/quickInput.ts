@@ -846,7 +846,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		let veto = false;
 		this.onWillAcceptEmitter.fire({ veto: () => veto = true });
 
-		// Continue with `onDidAccpet` if no veto
+		// Continue with `onDidAccept` if no veto
 		if (!veto) {
 			this.onDidAcceptEmitter.fire({ inBackground });
 		}

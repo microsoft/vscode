@@ -65,17 +65,6 @@ export function setup(opts: minimist.ParsedArgs) {
 			await app.workbench.problems.waitForProblemsView();
 		});
 
-		it(`verifies that 'Tweet us feedback' pop-up appears when clicking on 'Feedback' icon`, async function () {
-			const app = this.app as Application;
-
-			if (app.quality === Quality.Dev) {
-				return this.skip();
-			}
-
-			await app.workbench.statusbar.clickOn(StatusBarElement.FEEDBACK_ICON);
-			await app.code.waitForElement('.feedback-form');
-		});
-
 		it(`checks if 'Go to Line' works if called from the status bar`, async function () {
 			const app = this.app as Application;
 
@@ -98,6 +87,17 @@ export function setup(opts: minimist.ParsedArgs) {
 			await app.workbench.quickinput.selectQuickInputElement(1);
 
 			await app.workbench.statusbar.waitForEOL('CRLF');
+		});
+
+		it(`verifies that 'Tweet us feedback' pop-up appears when clicking on 'Feedback' icon`, async function () {
+			const app = this.app as Application;
+
+			if (app.quality === Quality.Dev) {
+				return this.skip();
+			}
+
+			await app.workbench.statusbar.clickOn(StatusBarElement.FEEDBACK_ICON);
+			await app.code.waitForElement('.feedback-form');
 		});
 	});
 }

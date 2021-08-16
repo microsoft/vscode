@@ -34,7 +34,7 @@
 	},
 	{
 		"c": "$$",
-		"t": "text.html.markdown markup.math.block.markdown",
+		"t": "text.html.markdown markup.math.block.markdown punctuation.definition.math.begin.markdown",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -78,7 +78,7 @@
 	},
 	{
 		"c": "$$",
-		"t": "text.html.markdown markup.math.block.markdown",
+		"t": "text.html.markdown markup.math.block.markdown punctuation.definition.math.begin.markdown",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -155,62 +155,62 @@
 	},
 	{
 		"c": "$$",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown punctuation.definition.math.end.markdown",
 		"r": {
-			"dark_plus": "meta.embedded: #D4D4D4",
-			"light_plus": "meta.embedded: #000000",
-			"dark_vs": "meta.embedded: #D4D4D4",
-			"light_vs": "meta.embedded: #000000",
-			"hc_black": "meta.embedded: #FFFFFF"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "**",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.math.operator.latex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.bold.markdown punctuation.definition.bold.markdown",
 		"r": {
-			"dark_plus": "meta.embedded: #D4D4D4",
-			"light_plus": "meta.embedded: #000000",
-			"dark_vs": "meta.embedded: #D4D4D4",
-			"light_vs": "meta.embedded: #000000",
-			"hc_black": "meta.embedded: #FFFFFF"
+			"dark_plus": "markup.bold: #569CD6",
+			"light_plus": "markup.bold: #000080",
+			"dark_vs": "markup.bold: #569CD6",
+			"light_vs": "markup.bold: #000080",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "a",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.bold.markdown",
 		"r": {
-			"dark_plus": "meta.embedded: #D4D4D4",
-			"light_plus": "meta.embedded: #000000",
-			"dark_vs": "meta.embedded: #D4D4D4",
-			"light_vs": "meta.embedded: #000000",
-			"hc_black": "meta.embedded: #FFFFFF"
+			"dark_plus": "markup.bold: #569CD6",
+			"light_plus": "markup.bold: #000080",
+			"dark_vs": "markup.bold: #569CD6",
+			"light_vs": "markup.bold: #000080",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "**",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.math.operator.latex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.bold.markdown punctuation.definition.bold.markdown",
 		"r": {
-			"dark_plus": "meta.embedded: #D4D4D4",
-			"light_plus": "meta.embedded: #000000",
-			"dark_vs": "meta.embedded: #D4D4D4",
-			"light_vs": "meta.embedded: #000000",
-			"hc_black": "meta.embedded: #FFFFFF"
+			"dark_plus": "markup.bold: #569CD6",
+			"light_plus": "markup.bold: #000080",
+			"dark_vs": "markup.bold: #569CD6",
+			"light_vs": "markup.bold: #000080",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "$$",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown punctuation.definition.math.begin.markdown",
 		"r": {
-			"dark_plus": "meta.embedded: #D4D4D4",
-			"light_plus": "meta.embedded: #000000",
-			"dark_vs": "meta.embedded: #D4D4D4",
-			"light_vs": "meta.embedded: #000000",
-			"hc_black": "meta.embedded: #FFFFFF"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -221,7 +221,7 @@
 	},
 	{
 		"c": "relax",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -232,7 +232,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -243,7 +243,7 @@
 	},
 	{
 		"c": "x",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex meta.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -254,7 +254,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -265,7 +265,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.math.begin.bracket.curly",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.begin.bracket.curly",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -276,7 +276,7 @@
 	},
 	{
 		"c": "1",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -287,7 +287,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.end.bracket.curly",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -683,7 +683,7 @@
 	},
 	{
 		"c": "$",
-		"t": "text.html.markdown markup.math.block.markdown",
+		"t": "text.html.markdown markup.math.block.markdown punctuation.definition.math.begin.markdown",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -793,7 +793,7 @@
 	},
 	{
 		"c": "$",
-		"t": "text.html.markdown markup.math.block.markdown",
+		"t": "text.html.markdown markup.math.block.markdown punctuation.definition.math.begin.markdown",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1035,7 +1035,7 @@
 	},
 	{
 		"c": "$",
-		"t": "text.html.markdown markup.math.block.markdown",
+		"t": "text.html.markdown markup.math.block.markdown punctuation.definition.math.begin.markdown",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1552,7 +1552,7 @@
 	},
 	{
 		"c": "$",
-		"t": "text.html.markdown markup.math.block.markdown",
+		"t": "text.html.markdown markup.math.block.markdown punctuation.definition.math.begin.markdown",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3901,6 +3901,534 @@
 			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "<!--",
+		"t": "text.html.markdown comment.block.html punctuation.definition.comment.html",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": " #128411 ",
+		"t": "text.html.markdown comment.block.html",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "-->",
+		"t": "text.html.markdown comment.block.html punctuation.definition.comment.html",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "-",
+		"t": "text.html.markdown markup.list.unnumbered.markdown punctuation.definition.list.begin.markdown",
+		"r": {
+			"dark_plus": "punctuation.definition.list.begin.markdown: #6796E6",
+			"light_plus": "punctuation.definition.list.begin.markdown: #0451A5",
+			"dark_vs": "punctuation.definition.list.begin.markdown: #6796E6",
+			"light_vs": "punctuation.definition.list.begin.markdown: #0451A5",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "text.html.markdown markup.list.unnumbered.markdown",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "list item",
+		"t": "text.html.markdown markup.list.unnumbered.markdown meta.paragraph.markdown",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "text.html.markdown markup.list.unnumbered.markdown",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "**",
+		"t": "text.html.markdown markup.list.unnumbered.markdown meta.paragraph.markdown markup.bold.markdown punctuation.definition.bold.markdown",
+		"r": {
+			"dark_plus": "markup.bold: #569CD6",
+			"light_plus": "markup.bold: #000080",
+			"dark_vs": "markup.bold: #569CD6",
+			"light_vs": "markup.bold: #000080",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "abc",
+		"t": "text.html.markdown markup.list.unnumbered.markdown meta.paragraph.markdown markup.bold.markdown",
+		"r": {
+			"dark_plus": "markup.bold: #569CD6",
+			"light_plus": "markup.bold: #000080",
+			"dark_vs": "markup.bold: #569CD6",
+			"light_vs": "markup.bold: #000080",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "**",
+		"t": "text.html.markdown markup.list.unnumbered.markdown meta.paragraph.markdown markup.bold.markdown punctuation.definition.bold.markdown",
+		"r": {
+			"dark_plus": "markup.bold: #569CD6",
+			"light_plus": "markup.bold: #000080",
+			"dark_vs": "markup.bold: #569CD6",
+			"light_vs": "markup.bold: #000080",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "text.html.markdown markup.list.unnumbered.markdown",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "$$",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown punctuation.definition.math.begin.markdown",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "text.html.markdown markup.list.unnumbered.markdown",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\\",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"r": {
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": "begin",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"r": {
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "entity.name.function: #DCDCAA"
+		}
+	},
+	{
+		"c": "{",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"r": {
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
+		}
+	},
+	{
+		"c": "aligned",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"r": {
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
+		}
+	},
+	{
+		"c": "}",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"r": {
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "text.html.markdown markup.list.unnumbered.markdown",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "    &",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"r": {
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
+		}
+	},
+	{
+		"c": "\\",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"r": {
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": "text",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"r": {
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "entity.name.function: #DCDCAA"
+		}
+	},
+	{
+		"c": "{",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"r": {
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
+		}
+	},
+	{
+		"c": "Any equation",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"r": {
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
+		}
+	},
+	{
+		"c": "}",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"r": {
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "text.html.markdown markup.list.unnumbered.markdown",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"r": {
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
+		}
+	},
+	{
+		"c": "\\\\",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown line.separator.math.tex punctuation.line.separator.math.tex",
+		"r": {
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "text.html.markdown markup.list.unnumbered.markdown",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "    &",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"r": {
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
+		}
+	},
+	{
+		"c": "\\",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
+		"r": {
+			"dark_plus": "constant.character: #569CD6",
+			"light_plus": "constant.character: #0000FF",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "constant.character: #569CD6"
+		}
+	},
+	{
+		"c": "text",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown constant.character.math.tex",
+		"r": {
+			"dark_plus": "constant.character: #569CD6",
+			"light_plus": "constant.character: #0000FF",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "constant.character: #569CD6"
+		}
+	},
+	{
+		"c": " ",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"r": {
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
+		}
+	},
+	{
+		"c": "{",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.begin.bracket.curly",
+		"r": {
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
+		}
+	},
+	{
+		"c": "Inconsistent KaTeX keyword highlighting",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"r": {
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
+		}
+	},
+	{
+		"c": "}",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.end.bracket.curly",
+		"r": {
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "text.html.markdown markup.list.unnumbered.markdown",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\\",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"r": {
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": "end",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"r": {
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "entity.name.function: #DCDCAA"
+		}
+	},
+	{
+		"c": "{",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"r": {
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
+		}
+	},
+	{
+		"c": "aligned",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"r": {
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
+		}
+	},
+	{
+		"c": "}",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"r": {
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "text.html.markdown markup.list.unnumbered.markdown",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "$$",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown punctuation.definition.math.end.markdown",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "text.html.markdown markup.list.unnumbered.markdown",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "**",
+		"t": "text.html.markdown markup.list.unnumbered.markdown meta.paragraph.markdown markup.bold.markdown punctuation.definition.bold.markdown",
+		"r": {
+			"dark_plus": "markup.bold: #569CD6",
+			"light_plus": "markup.bold: #000080",
+			"dark_vs": "markup.bold: #569CD6",
+			"light_vs": "markup.bold: #000080",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "xyz",
+		"t": "text.html.markdown markup.list.unnumbered.markdown meta.paragraph.markdown markup.bold.markdown",
+		"r": {
+			"dark_plus": "markup.bold: #569CD6",
+			"light_plus": "markup.bold: #000080",
+			"dark_vs": "markup.bold: #569CD6",
+			"light_vs": "markup.bold: #000080",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "**",
+		"t": "text.html.markdown markup.list.unnumbered.markdown meta.paragraph.markdown markup.bold.markdown punctuation.definition.bold.markdown",
+		"r": {
+			"dark_plus": "markup.bold: #569CD6",
+			"light_plus": "markup.bold: #000080",
+			"dark_vs": "markup.bold: #569CD6",
+			"light_vs": "markup.bold: #000080",
 			"hc_black": "default: #FFFFFF"
 		}
 	}

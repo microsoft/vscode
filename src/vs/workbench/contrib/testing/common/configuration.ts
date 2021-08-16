@@ -14,11 +14,13 @@ export const enum TestingConfigKeys {
 	AutoOpenPeekViewDuringAutoRun = 'testing.automaticallyOpenPeekViewDuringAutoRun',
 	FollowRunningTest = 'testing.followRunningTest',
 	DefaultGutterClickAction = 'testing.defaultGutterClickAction',
+	GutterEnabled = 'testing.gutterEnabled',
 }
 
 export const enum AutoOpenPeekViewWhen {
 	FailureVisible = 'failureInVisibleDocument',
 	FailureAnywhere = 'failureAnywhere',
+	Never = 'never',
 }
 
 export const enum AutoRunMode {
@@ -61,11 +63,13 @@ export const testingConfiguation: IConfigurationNode = {
 			enum: [
 				AutoOpenPeekViewWhen.FailureAnywhere,
 				AutoOpenPeekViewWhen.FailureVisible,
+				AutoOpenPeekViewWhen.Never,
 			],
 			default: AutoOpenPeekViewWhen.FailureVisible,
 			enumDescriptions: [
 				localize('testing.automaticallyOpenPeekView.failureAnywhere', "Open automatically no matter where the failure is."),
-				localize('testing.automaticallyOpenPeekView.failureInVisibleDocument', "Open automatically when a test fails in a visible document.")
+				localize('testing.automaticallyOpenPeekView.failureInVisibleDocument', "Open automatically when a test fails in a visible document."),
+				localize('testing.automaticallyOpenPeekView.never', "Never automatically open."),
 			],
 		},
 		[TestingConfigKeys.AutoOpenPeekViewDuringAutoRun]: {
@@ -92,6 +96,11 @@ export const testingConfiguation: IConfigurationNode = {
 			],
 			default: DefaultGutterClickAction.Run,
 		},
+		[TestingConfigKeys.GutterEnabled]: {
+			description: localize('testing.gutterEnabled', 'Controls whether test decorations are shown in the editor gutter.'),
+			type: 'boolean',
+			default: true,
+		},
 	}
 };
 
@@ -102,6 +111,7 @@ export interface ITestingConfiguration {
 	[TestingConfigKeys.AutoOpenPeekViewDuringAutoRun]: boolean;
 	[TestingConfigKeys.FollowRunningTest]: boolean;
 	[TestingConfigKeys.DefaultGutterClickAction]: DefaultGutterClickAction;
+	[TestingConfigKeys.GutterEnabled]: boolean;
 }
 
 export const getTestingConfiguration = <K extends TestingConfigKeys>(config: IConfigurationService, key: K) => config.getValue<ITestingConfiguration[K]>(key);

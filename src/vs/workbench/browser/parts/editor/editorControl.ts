@@ -17,8 +17,9 @@ import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIM
 import { Emitter } from 'vs/base/common/event';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { WorkspaceTrustRequiredEditor } from 'vs/workbench/browser/parts/editor/workspaceTrustRequiredEditor';
+import { UnavailableEditor, WorkspaceTrustRequiredEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export interface IOpenEditorResult {
 	readonly editorPane: EditorPane;
@@ -55,6 +56,7 @@ export class EditorControl extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
@@ -83,6 +85,31 @@ export class EditorControl extends Disposable {
 
 		// Editor descriptor
 		const descriptor = this.getEditorPaneDescriptor(editor);
+
+		try {
+			return await this.doOpenEditor(descriptor, editor, options, context);
+		} catch (error) {
+			if (!context.newInGroup) {
+				this.logService.error(error);
+
+				// The editor is restored (as opposed to being newly opened) and as
+				// such we want to preserve the fact that an editor was opened here
+				// before by falling back to a editor placeholder that allows the
+				// user to retry the operation.
+				//
+				// This is especially important when an editor is dirty and fails to
+				// restore after a restart to prevent the impression that any user
+				// data is lost.
+				//
+				// Related: https://github.com/microsoft/vscode/issues/110062
+				return this.doOpenEditor(UnavailableEditor.DESCRIPTOR, editor, options, context);
+			}
+
+			throw error;
+		}
+	}
+
+	private async doOpenEditor(descriptor: IEditorPaneDescriptor, editor: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {
 
 		// Editor pane
 		const editorPane = this.doShowEditorPane(descriptor);

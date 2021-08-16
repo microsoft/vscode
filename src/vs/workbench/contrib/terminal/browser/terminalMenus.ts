@@ -578,8 +578,8 @@ export function getTerminalActionBarArgs(target: TerminalLocation, profiles: ITe
 	className: string,
 	dropdownIcon?: string
 } {
-	const dropdownActions: IAction[] = [];
-	const submenuActions: IAction[] = [];
+	let dropdownActions: IAction[] = [];
+	let submenuActions: IAction[] = [];
 
 	for (const p of profiles) {
 		const isDefault = p.profileName === defaultProfileName;
@@ -634,6 +634,18 @@ export function getTerminalActionBarArgs(target: TerminalLocation, profiles: ITe
 				dropdownActions.push(action);
 			}
 		}
+	}
+
+	const defaultProfileAction = dropdownActions.find(d => d.label.endsWith('(Default)'));
+	if (defaultProfileAction) {
+		dropdownActions = dropdownActions.filter(d => d !== defaultProfileAction);
+		dropdownActions.unshift(defaultProfileAction);
+	}
+
+	const defaultSubmenuProfileAction = submenuActions.find(d => d.label.endsWith('(Default)'));
+	if (defaultSubmenuProfileAction) {
+		submenuActions = submenuActions.filter(d => d !== defaultSubmenuProfileAction);
+		submenuActions.unshift(defaultSubmenuProfileAction);
 	}
 
 	const primaryAction = instantiationService.createInstance(

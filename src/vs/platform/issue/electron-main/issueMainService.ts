@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { BrowserWindow, Display, ipcMain, IpcMainEvent, screen } from 'electron';
 import { arch, release, type } from 'os';
-import product from 'vs/platform/product/common/product';
-import { ICommonIssueService, IssueReporterWindowConfiguration, IssueReporterData, ProcessExplorerData, ProcessExplorerWindowConfiguration } from 'vs/platform/issue/common/issue';
-import { BrowserWindow, ipcMain, screen, IpcMainEvent, Display } from 'electron';
-import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
-import { IDiagnosticsService, PerformanceInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWindowState } from 'vs/platform/windows/electron-main/windows';
-import { listProcesses } from 'vs/base/node/ps';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
-import { FileAccess } from 'vs/base/common/network';
-import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
-import { IIPCObjectUrl, IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { FileAccess } from 'vs/base/common/network';
+import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
+import { listProcesses } from 'vs/base/node/ps';
+import { localize } from 'vs/nls';
+import { IDiagnosticsService, isRemoteDiagnosticError, PerformanceInfo } from 'vs/platform/diagnostics/common/diagnostics';
+import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ICommonIssueService, IssueReporterData, IssueReporterWindowConfiguration, ProcessExplorerData, ProcessExplorerWindowConfiguration } from 'vs/platform/issue/common/issue';
+import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
+import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IIPCObjectUrl, IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
+import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
+import { IWindowState } from 'vs/platform/windows/electron-main/windows';
 
 export const IIssueMainService = createDecorator<IIssueMainService>('issueMainService');
 

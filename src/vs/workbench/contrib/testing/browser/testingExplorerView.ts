@@ -48,7 +48,7 @@ import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
-import { HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
+import { ByNameTestItemElement, HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
 import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
@@ -56,17 +56,17 @@ import { ITestExplorerFilterState, TestExplorerFilterState, TestingExplorerFilte
 import { ITestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { labelForTestInState, TestExplorerStateFilter, TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
-import { identifyTest, ITestRunProfile, TestItemExpandState, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
+import { InternalTestItem, ITestRunProfile, TestItemExpandState, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { cmpPriority, isFailedState, isStateWithResult } from 'vs/workbench/contrib/testing/common/testingStates';
+import { canUseProfileWithTest, ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestCollection, ITestService, testCollectionIsEmpty } from 'vs/workbench/contrib/testing/common/testService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ConfigureTestProfilesAction, DebugAllAction, RunAllAction, SelectDefaultTestProfiles } from './testExplorerActions';
+import { ConfigureTestProfilesAction, DebugSelectedAction, RunSelectedAction, SelectDefaultTestProfiles } from './testExplorerActions';
 
 export class TestingExplorerView extends ViewPane {
 	public viewModel!: TestingExplorerViewModel;
@@ -117,6 +117,92 @@ export class TestingExplorerView extends ViewPane {
 		return this.viewModel?.welcomeExperience === WelcomeExperience.ForWorkspace ?? true;
 	}
 
+	public getSelectedOrVisibleItems(profile?: ITestRunProfile) {
+		const projection = this.viewModel.projection.value;
+		if (!projection) {
+			return { include: [], exclude: [] };
+		}
+
+		if (projection instanceof ByNameTestItemElement) {
+			return {
+				include: [...this.testService.collection.rootItems],
+				exclude: [],
+			};
+		}
+
+		// To calculate includes and excludes, we include the first children that
+		// have a majority of their items included too, and then apply exclusions.
+		const include: InternalTestItem[] = [];
+		const exclude: InternalTestItem[] = [];
+
+		const attempt = (element: TestExplorerTreeElement, alreadyIncluded: boolean) => {
+			// sanity check hasElement since updates are debounced and they may exist
+			// but not be rendered yet
+			if (!(element instanceof TestItemTreeElement) || !this.viewModel.tree.hasElement(element)) {
+				return;
+			}
+
+			// If the current node is not visible or runnable in the current profile, it's excluded
+			const inTree = this.viewModel.tree.getNode(element);
+			if (!inTree.visible) {
+				if (alreadyIncluded) { exclude.push(element.test); }
+				return;
+			}
+
+			// If it's not already included but most of its children are, then add it
+			// if it can be run under the current profile (when specified)
+			if (
+				// If it's not already included...
+				!alreadyIncluded
+				// And it can be run using the current profile (if any)
+				&& (!profile || canUseProfileWithTest(profile, element.test))
+				// And either it's a leaf node or most children are included, the  include it.
+				&& (inTree.children.length === 0 || inTree.visibleChildrenCount * 2 >= inTree.children.length)
+				// And not if we're only showing a single of its children, since it
+				// probably fans out later. (Worse case we'll directly include its single child)
+				&& inTree.visibleChildrenCount !== 1
+			) {
+				include.push(element.test);
+				alreadyIncluded = true;
+			}
+
+			// Recurse ✨
+			for (const child of element.children) {
+				attempt(child, alreadyIncluded);
+			}
+		};
+
+		for (const root of this.testService.collection.rootItems) {
+			const element = projection.getElementByTestId(root.item.extId);
+			if (!element) {
+				continue;
+			}
+
+			if (profile && !canUseProfileWithTest(profile, root)) {
+				continue;
+			}
+
+			// single controllers won't have visible root ID nodes, handle that  case specially
+			if (!this.viewModel.tree.hasElement(element)) {
+				const visibleChildren = [...element.children].reduce((acc, c) =>
+					this.viewModel.tree.hasElement(c) && this.viewModel.tree.getNode(c).visible ? acc + 1 : acc, 0);
+
+				// note we intentionally check children > 0 here, unlike above, since
+				// we don't want to bother dispatching to controllers who have no discovered tests
+				if (element.children.size > 0 && visibleChildren * 2 >= element.children.size) {
+					include.push(element.test);
+					element.children.forEach(c => attempt(c, true));
+				} else {
+					element.children.forEach(c => attempt(c, false));
+				}
+			} else {
+				attempt(element, false);
+			}
+		}
+
+		return { include, exclude };
+	}
+
 	/**
 	 * @override
 	 */
@@ -157,10 +243,7 @@ export class TestingExplorerView extends ViewPane {
 		this.viewModel = this.instantiationService.createInstance(TestingExplorerViewModel, listContainer, this.onDidChangeBodyVisibility);
 		this._register(this.viewModel.onChangeWelcomeVisibility(() => this._onDidChangeViewWelcomeState.fire()));
 		this._register(this.viewModel);
-
-		if (this.viewModel.welcomeExperience !== WelcomeExperience.ForWorkspace) {
-			this._onDidChangeViewWelcomeState.fire();
-		}
+		this._onDidChangeViewWelcomeState.fire();
 	}
 
 	/** @override  */
@@ -168,9 +251,9 @@ export class TestingExplorerView extends ViewPane {
 		switch (action.id) {
 			case Testing.FilterActionId:
 				return this.instantiationService.createInstance(TestingExplorerFilter, action);
-			case RunAllAction.ID:
+			case RunSelectedAction.ID:
 				return this.getRunGroupDropdown(TestRunProfileBitset.Run, action);
-			case DebugAllAction.ID:
+			case DebugSelectedAction.ID:
 				return this.getRunGroupDropdown(TestRunProfileBitset.Debug, action);
 			default:
 				return super.getActionViewItem(action);
@@ -204,16 +287,18 @@ export class TestingExplorerView extends ViewPane {
 					defaults.includes(profile) ? localize('defaultTestProfile', '{0} (Default)', profile.label) : profile.label,
 					undefined,
 					undefined,
-					() => this.testService.runResolvedTests({
-						targets: [{
-							profileGroup: profile.group,
-							profileId: profile.profileId,
-							controllerId: profile.controllerId,
-							testIds: this.getSelectedOrVisibleItems()
-								.filter(i => i.controllerId === profile.controllerId)
-								.map(i => i.item.extId),
-						}]
-					}),
+					() => {
+						const { include, exclude } = this.getSelectedOrVisibleItems(profile);
+						this.testService.runResolvedTests({
+							exclude: exclude.map(e => e.item.extId),
+							targets: [{
+								profileGroup: profile.group,
+								profileId: profile.profileId,
+								controllerId: profile.controllerId,
+								testIds: include.map(i => i.item.extId),
+							}]
+						});
+					},
 				));
 			}
 		}
@@ -254,14 +339,6 @@ export class TestingExplorerView extends ViewPane {
 		super.saveState();
 	}
 
-	/**
-	 * If items in the tree are selected, returns them. Otherwise, returns
-	 * visible tests.
-	 */
-	private getSelectedOrVisibleItems() {
-		return [...this.testService.collection.rootItems]; // todo
-	}
-
 	private getRunGroupDropdown(group: TestRunProfileBitset, defaultAction: IAction) {
 		const dropdownActions = this.getTestConfigGroupActions(group);
 		if (dropdownActions.length < 2) {
@@ -283,6 +360,7 @@ export class TestingExplorerView extends ViewPane {
 			primaryAction, dropdownAction, dropdownActions,
 			'',
 			this.contextMenuService,
+			{}
 		);
 	}
 
@@ -590,7 +668,7 @@ export class TestingExplorerViewModel extends Disposable {
 			// If the node or any of its children are excluded, flip on the 'show
 			// excluded tests' checkbox automatically.
 			for (let n: TestItemTreeElement | null = element; n instanceof TestItemTreeElement; n = n.parent) {
-				if (n.test && this.testService.excluded.contains(identifyTest(n.test))) {
+				if (n.test && this.testService.excluded.contains(n.test)) {
 					this.filterState.showExcludedTests.value = true;
 					break;
 				}
@@ -674,7 +752,7 @@ export class TestingExplorerViewModel extends Disposable {
 		if (toRun.length) {
 			this.testService.runTests({
 				group: TestRunProfileBitset.Run,
-				tests: toRun.map(t => identifyTest(t.test)),
+				tests: toRun.map(t => t.test),
 			});
 		}
 	}
@@ -814,7 +892,7 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 		if (
 			element.test
 			&& !this.state.showExcludedTests.value
-			&& this.testService.excluded.contains(identifyTest(element.test))
+			&& this.testService.excluded.contains(element.test)
 		) {
 			return TreeVisibility.Hidden;
 		}
@@ -1147,7 +1225,7 @@ class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
 		const options: IResourceLabelOptions = {};
 		data.label.setResource(label, options);
 
-		const testHidden = this.testService.excluded.contains(identifyTest(node.element.test));
+		const testHidden = this.testService.excluded.contains(node.element.test);
 		data.wrapper.classList.toggle('test-is-hidden', testHidden);
 
 		const icon = icons.testingStatesToIcons.get(
@@ -1197,8 +1275,8 @@ const getActionableElementActions = (
 	const test = element instanceof TestItemTreeElement ? element.test : undefined;
 	const contextOverlay = contextKeyService.createOverlay([
 		['view', Testing.ExplorerViewId],
-		[TestingContextKeys.testItemIsHidden.key, !!test && testService.excluded.contains(identifyTest(test))],
-		...getTestItemContextOverlay(test, test ? profiles.controllerCapabilities(test.controllerId) : 0),
+		[TestingContextKeys.testItemIsHidden.key, !!test && testService.excluded.contains(test)],
+		...getTestItemContextOverlay(test, test ? profiles.capabilitiesForTest(test) : 0),
 	]);
 	const menu = menuService.createMenu(MenuId.TestItem, contextOverlay);
 

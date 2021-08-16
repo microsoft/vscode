@@ -261,8 +261,8 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 					if (translated === undefined && originalMessages) {
 						translated = originalMessages[messageKey];
 					}
-					let message: string = typeof translated === 'string' ? translated : (typeof translated.message === 'string' ? translated.message : value);
-					if (message) {
+					let message: string | undefined = typeof translated === 'string' ? translated : (typeof translated?.message === 'string' ? translated.message : undefined);
+					if (message !== undefined) {
 						if (nlsConfig.pseudo) {
 							// FF3B and FF3D is the Unicode zenkaku representation for [ and ]
 							message = '\uFF3B' + message.replace(/[aouei]/g, '$&$&') + '\uFF3D';

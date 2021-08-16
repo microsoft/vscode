@@ -206,7 +206,7 @@ function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: strin
 			score += separatorBonus;
 
 			// if (DEBUG) {
-			// console.log(`After separtor bonus: +${separatorBonus}`);
+			// console.log(`After separator bonus: +${separatorBonus}`);
 			// }
 		}
 
@@ -232,7 +232,7 @@ function considerAsEqual(a: string, b: string): boolean {
 		return true;
 	}
 
-	// Special case path spearators: ignore platform differences
+	// Special case path separators: ignore platform differences
 	if (a === '/' || a === '\\') {
 		return b === '/' || b === '\\';
 	}

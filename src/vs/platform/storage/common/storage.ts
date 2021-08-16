@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event, Emitter, PauseableEmitter } from 'vs/base/common/event';
+import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
+import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
 import { Disposable, dispose, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isUndefinedOrNull } from 'vs/base/common/types';
-import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { InMemoryStorageDatabase, IStorage, Storage } from 'vs/base/parts/storage/common/storage';
-import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 
 export const IS_NEW_KEY = '__$__isNewStorageMarker';
 const TARGET_KEY = '__$__targetStorageMarker';

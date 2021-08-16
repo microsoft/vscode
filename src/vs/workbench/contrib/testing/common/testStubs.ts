@@ -16,7 +16,7 @@ export { TestItemImpl } from 'vs/workbench/api/common/extHostTestingPrivateApi';
  * roots/stubs.
  */
 export const getInitializedMainTestCollection = async (singleUse = testStubs.nested()) => {
-	const c = new MainThreadTestCollection(async (t, l) => singleUse.expand(t.testId, l));
+	const c = new MainThreadTestCollection(async (t, l) => singleUse.expand(t, l));
 	await singleUse.expand(singleUse.root.id, Infinity);
 	c.apply(singleUse.collectDiff());
 	return c;

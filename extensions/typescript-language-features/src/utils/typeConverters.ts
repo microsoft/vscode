@@ -128,7 +128,6 @@ export namespace SymbolKind {
 }
 
 export namespace CompletionTriggerKind {
-	// TODO: once 4.4 protocol is available, replace number literals in return statements.
 	export function toProtocolCompletionTriggerKind(kind: vscode.CompletionTriggerKind): Proto.CompletionTriggerKind {
 		switch (kind) {
 			case vscode.CompletionTriggerKind.Invoke: return 1;

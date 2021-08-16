@@ -4,27 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { TestRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
-import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
-import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { mock } from 'vs/workbench/test/common/workbenchTestServices';
-import { CellExecuteEditDto, INotebookKernelDto2, MainContext, MainThreadCommandsShape, MainThreadNotebookDocumentsShape, MainThreadNotebookKernelsShape, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostNotebookKernels } from 'vs/workbench/api/common/extHostNotebookKernels';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { ExtHostNotebookDocument } from 'vs/workbench/api/common/extHostNotebookDocument';
-import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { CellEditType, CellKind, CellUri, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ExtHostNotebookDocuments } from 'vs/workbench/api/common/extHostNotebookDocuments';
-import { NotebookCellOutput, NotebookCellOutputItem } from 'vs/workbench/api/common/extHostTypes';
 import { Barrier } from 'vs/base/common/async';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { ICellExecuteUpdateDto, INotebookKernelDto2, MainContext, MainThreadCommandsShape, MainThreadNotebookDocumentsShape, MainThreadNotebookKernelsShape, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
+import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
+import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
+import { ExtHostNotebookDocument } from 'vs/workbench/api/common/extHostNotebookDocument';
+import { ExtHostNotebookDocuments } from 'vs/workbench/api/common/extHostNotebookDocuments';
+import { ExtHostNotebookKernels } from 'vs/workbench/api/common/extHostNotebookKernels';
+import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
+import { NotebookCellOutput, NotebookCellOutputItem } from 'vs/workbench/api/common/extHostTypes';
+import { CellKind, CellUri, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
+import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { TestRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
+import { mock } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('NotebookKernel', function () {
 
@@ -40,13 +41,13 @@ suite('NotebookKernel', function () {
 	const kernelData = new Map<number, INotebookKernelDto2>();
 	const disposables = new DisposableStore();
 
-	const cellExecuteEdits: CellExecuteEditDto[] = [];
+	const cellExecuteUpdates: ICellExecuteUpdateDto[] = [];
 
 	teardown(function () {
 		disposables.clear();
 	});
 	setup(async function () {
-		cellExecuteEdits.length = 0;
+		cellExecuteUpdates.length = 0;
 		kernelData.clear();
 
 		rpcProtocol = new TestRPCProtocol();
@@ -64,8 +65,8 @@ suite('NotebookKernel', function () {
 				assert.strictEqual(kernelData.has(handle), true);
 				kernelData.set(handle, { ...kernelData.get(handle)!, ...data, });
 			}
-			override async $applyExecutionEdits(resource: UriComponents, _edits: CellExecuteEditDto[]) {
-				cellExecuteEdits.push(..._edits);
+			override $updateExecutions(data: ICellExecuteUpdateDto[]): void {
+				cellExecuteUpdates.push(...data);
 			}
 		});
 		rpcProtocol.set(MainContext.MainThreadNotebookDocuments, new class extends mock<MainThreadNotebookDocumentsShape>() {
@@ -260,16 +261,16 @@ suite('NotebookKernel', function () {
 			b.open(); // use barrier to signal that cancellation has happened
 		});
 
-		cellExecuteEdits.length = 0;
+		cellExecuteUpdates.length = 0;
 		await extHostNotebookKernels.$cancelCells(0, notebook.uri, [0]);
 
 		await b.wait();
 
-		assert.strictEqual(cellExecuteEdits.length > 0, true);
+		assert.strictEqual(cellExecuteUpdates.length > 0, true);
 
 		let found = false;
-		for (let edit of cellExecuteEdits) {
-			if (edit.editType === CellEditType.Output) {
+		for (let edit of cellExecuteUpdates) {
+			if (edit.editType === CellExecutionUpdateType.Output) {
 				assert.strictEqual(edit.append, false);
 				assert.strictEqual(edit.outputs.length, 1);
 				assert.strictEqual(edit.outputs[0].items.length, 1);
@@ -296,14 +297,14 @@ suite('NotebookKernel', function () {
 			task.end(true);
 		};
 
-		cellExecuteEdits.length = 0;
+		cellExecuteUpdates.length = 0;
 		await extHostNotebookKernels.$cancelCells(0, notebook.uri, [0]);
 
-		assert.strictEqual(cellExecuteEdits.length > 0, true);
+		assert.strictEqual(cellExecuteUpdates.length > 0, true);
 
 		let found = false;
-		for (let edit of cellExecuteEdits) {
-			if (edit.editType === CellEditType.Output) {
+		for (let edit of cellExecuteUpdates) {
+			if (edit.editType === CellExecutionUpdateType.Output) {
 				assert.strictEqual(edit.append, false);
 				assert.strictEqual(edit.outputs.length, 1);
 				assert.strictEqual(edit.outputs[0].items.length, 1);
