@@ -229,3 +229,20 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		}
 	}
 });
+
+Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+	'id': TELEMETRY_SECTION_ID,
+	'order': 110,
+	title: localize('telemetryConfigurationTitle', "Telemetry"),
+	'type': 'object',
+	'properties': {
+		'telemetry.enableCrashReporter': {
+			'type': 'boolean',
+			'description': localize('telemetry.enableCrashReporting', "Enable crash reports to be collected. This helps us improve stability. \nThis option requires restart to take effect."),
+			'default': false,
+			'restricted': true,
+			'scope': ConfigurationScope.APPLICATION,
+			'tags': ['usesOnlineServices', 'telemetry']
+		}
+	}
+});

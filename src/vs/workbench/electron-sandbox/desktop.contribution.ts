@@ -222,22 +222,6 @@ import { EditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/c
 		}
 	});
 
-	// Telemetry
-	registry.registerConfiguration({
-		'id': 'telemetry',
-		'order': 110,
-		title: localize('telemetryConfigurationTitle', "Telemetry"),
-		'type': 'object',
-		'properties': {
-			'telemetry.enableCrashReporter': {
-				'type': 'boolean',
-				'description': localize('telemetry.enableCrashReporting', "Enable crash reports to be collected. This helps us improve stability. \nThis option requires restart to take effect."),
-				'default': true,
-				'tags': ['usesOnlineServices', 'telemetry']
-			}
-		}
-	});
-
 	// Keybinding
 	registry.registerConfiguration({
 		'id': 'keyboard',
