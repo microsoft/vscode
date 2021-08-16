@@ -266,10 +266,13 @@ export class TextModelTokenization extends Disposable {
 		}
 	}
 
-	private _revalidateTokensNow(toLineNumber: number = this._textModel.getLineCount()): void {
+	private _revalidateTokensNow(): void {
+		const textModelLastLineNumber = this._textModel.getLineCount();
+
 		const MAX_ALLOWED_TIME = 1;
 		const builder = new MultilineTokensBuilder();
 		const sw = StopWatch.create(false);
+		let tokenizedLineNumber = -1;
 
 		while (this._hasLinesToTokenize()) {
 			if (sw.elapsed() > MAX_ALLOWED_TIME) {
@@ -277,15 +280,15 @@ export class TextModelTokenization extends Disposable {
 				break;
 			}
 
-			const tokenizedLineNumber = this._tokenizeOneInvalidLine(builder);
+			tokenizedLineNumber = this._tokenizeOneInvalidLine(builder);
 
-			if (tokenizedLineNumber >= toLineNumber) {
+			if (tokenizedLineNumber >= textModelLastLineNumber) {
 				break;
 			}
 		}
 
 		this._beginBackgroundTokenization();
-		this._textModel.setTokens(builder.tokens);
+		this._textModel.setTokens(builder.tokens, tokenizedLineNumber >= textModelLastLineNumber);
 	}
 
 	public tokenizeViewport(startLineNumber: number, endLineNumber: number): void {

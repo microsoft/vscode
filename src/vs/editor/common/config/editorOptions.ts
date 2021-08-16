@@ -3274,6 +3274,51 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 
 //#endregion
 
+//#region bracketPairColorization
+
+export interface IBracketPairColorizationOptions {
+	/**
+	 * Enable or disable bracket pair colorization.
+	*/
+	enabled?: boolean;
+}
+
+export type InternalBracketPairColorizationOptions = Readonly<Required<IBracketPairColorizationOptions>>;
+
+/**
+ * Configuration options for inline suggestions
+ */
+class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairColorization, InternalBracketPairColorizationOptions> {
+	constructor() {
+		const defaults: InternalBracketPairColorizationOptions = {
+			enabled: false
+		};
+
+		super(
+			EditorOption.bracketPairColorization, 'bracketPairColorization', defaults,
+			{
+				'editor.bracketPairColorization.enabled': {
+					type: 'boolean',
+					default: defaults.enabled,
+					description: nls.localize('bracketPairColorization.enabled', "Controls whether bracket pair colorization is enabled or not.")
+				}
+			}
+		);
+	}
+
+	public validate(_input: any): InternalBracketPairColorizationOptions {
+		if (!_input || typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as IBracketPairColorizationOptions;
+		return {
+			enabled: boolean(input.enabled, this.defaultValue.enabled)
+		};
+	}
+}
+
+//#endregion
+
 //#region suggest
 
 /**
@@ -3896,7 +3941,8 @@ export const EDITOR_MODEL_DEFAULTS = {
 	insertSpaces: true,
 	detectIndentation: true,
 	trimAutoWhitespace: true,
-	largeFileOptimizations: true
+	largeFileOptimizations: true,
+	bracketPairColorizationOptions: { enabled: false }
 };
 
 /**
@@ -3922,6 +3968,7 @@ export const enum EditorOption {
 	autoIndent,
 	automaticLayout,
 	autoSurround,
+	bracketPairColorization,
 	codeLens,
 	codeLensFontFamily,
 	codeLensFontSize,
@@ -4172,6 +4219,7 @@ export const EditorOptions = {
 			description: nls.localize('autoSurround', "Controls whether the editor should automatically surround selections when typing quotes or brackets.")
 		}
 	)),
+	bracketPairColorization: register(new BracketPairColorization()),
 	stickyTabStops: register(new EditorBooleanOption(
 		EditorOption.stickyTabStops, 'stickyTabStops', false,
 		{ description: nls.localize('stickyTabStops', "Emulate selection behavior of tab characters when using spaces for indentation. Selection will stick to tab stops.") }
