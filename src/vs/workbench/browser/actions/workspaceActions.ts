@@ -114,7 +114,8 @@ class OpenWorkspaceAction extends Action2 {
 			id: OpenWorkspaceAction.ID,
 			title: { value: localize('openWorkspaceAction', "Open Workspace..."), original: 'Open Workspace...' },
 			category: fileCategory,
-			f1: true
+			f1: true,
+			precondition: EnterMultiRootWorkspaceSupportContext
 		});
 	}
 
@@ -135,6 +136,7 @@ class CloseWorkspaceAction extends Action2 {
 			title: { value: localize('closeWorkspace', "Close Workspace"), original: 'Close Workspace' },
 			category: workspacesCategory,
 			f1: true,
+			precondition: ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('empty'), EmptyWorkspaceSupportContext),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: EmptyWorkspaceSupportContext,
@@ -240,7 +242,8 @@ class SaveWorkspaceAsAction extends Action2 {
 			id: SaveWorkspaceAsAction.ID,
 			title: { value: localize('saveWorkspaceAsAction', "Save Workspace As..."), original: 'Save Workspace As...' },
 			category: workspacesCategory,
-			f1: true
+			f1: true,
+			precondition: EnterMultiRootWorkspaceSupportContext
 		});
 	}
 
@@ -271,7 +274,8 @@ class DuplicateWorkspaceInNewWindowAction extends Action2 {
 			id: DuplicateWorkspaceInNewWindowAction.ID,
 			title: { value: localize('duplicateWorkspaceInNewWindow', "Duplicate As Workspace in New Window"), original: 'Duplicate As Workspace in New Window' },
 			category: workspacesCategory,
-			f1: true
+			f1: true,
+			precondition: EnterMultiRootWorkspaceSupportContext
 		});
 	}
 
