@@ -148,7 +148,8 @@ export class ExtHostTerminal {
 			isExtensionOwnedTerminal: true,
 			useShellEnvironment: withNullAsUndefined(internalOptions?.useShellEnvironment),
 			isSplitTerminal: internalOptions?.isSplitTerminal,
-			target: internalOptions?.target
+			target: internalOptions?.target,
+			location: withNullAsUndefined(options.location)
 		});
 	}
 

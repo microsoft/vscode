@@ -386,7 +386,7 @@ export function registerTerminalActions() {
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
 			const terminalGroupService = accessor.get(ITerminalGroupService);
-			const instance = terminalService.activeInstance || await terminalService.createTerminal({ target: TerminalLocation.TerminalView });
+			const instance = terminalService.activeInstance || await terminalService.createTerminal({ target: TerminalLocation.Panel });
 			if (!instance) {
 				return;
 			}

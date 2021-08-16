@@ -395,9 +395,9 @@ export interface ICreateContributedTerminalProfileOptions {
 	isSplitTerminal?: boolean;
 }
 
-export const enum TerminalLocation {
-	TerminalView = 'view',
-	Editor = 'editor'
+export enum TerminalLocation {
+	Panel = 0,
+	Editor = 1,
 }
 
 export type TerminalIcon = ThemeIcon | URI | { light: URI; dark: URI };

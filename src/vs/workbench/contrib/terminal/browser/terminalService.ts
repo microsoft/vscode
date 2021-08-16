@@ -412,7 +412,7 @@ export class TerminalService implements ITerminalService {
 							// create group and terminal
 							terminalInstance = await this.createTerminal({
 								config: { attachPersistentProcess: terminalLayout.terminal! },
-								target: TerminalLocation.TerminalView
+								target: TerminalLocation.Panel
 							});
 							group = this._terminalGroupService.getGroupForInstance(terminalInstance);
 							if (groupLayout.isActive) {
@@ -646,7 +646,7 @@ export class TerminalService implements ITerminalService {
 			await this._localTerminalsInitPromise;
 		}
 		if (this._terminalGroupService.groups.length === 0 && this.isProcessSupportRegistered) {
-			this.createTerminal({ target: TerminalLocation.TerminalView });
+			this.createTerminal({ target: TerminalLocation.Panel });
 		}
 	}
 
@@ -679,7 +679,7 @@ export class TerminalService implements ITerminalService {
 		if (source.target !== TerminalLocation.Editor) {
 			return;
 		}
-		source.target = TerminalLocation.TerminalView;
+		source.target = TerminalLocation.Panel;
 
 		let group: ITerminalGroup | undefined;
 		if (target) {

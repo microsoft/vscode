@@ -78,7 +78,7 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.DefaultLocation]: {
 			type: 'string',
-			enum: [TerminalLocation.Editor, TerminalLocation.TerminalView],
+			enum: [TerminalLocation.Editor, TerminalLocation.Panel],
 			enumDescriptions: [
 				localize('terminal.integrated.defaultLocation.editor', "Create terminals in the editor"),
 				localize('terminal.integrated.defaultLocation.view', "Create terminals in the terminal view")

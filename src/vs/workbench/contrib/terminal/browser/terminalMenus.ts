@@ -651,7 +651,7 @@ export function getTerminalActionBarArgs(target: TerminalLocation, profiles: ITe
 	const primaryAction = instantiationService.createInstance(
 		MenuItemAction,
 		{
-			id: target === TerminalLocation.TerminalView ? TerminalCommandId.New : TerminalCommandId.CreateTerminalEditor,
+			id: target === TerminalLocation.Panel ? TerminalCommandId.New : TerminalCommandId.CreateTerminalEditor,
 			title: localize('terminal.new', "New Terminal"),
 			icon: Codicon.plus
 		},
