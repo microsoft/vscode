@@ -2911,9 +2911,7 @@ export class FileDecoration {
 	badge?: string;
 	tooltip?: string;
 	color?: vscode.ThemeColor;
-	priority?: number;
 	propagate?: boolean;
-
 
 	constructor(badge?: string, tooltip?: string, color?: ThemeColor) {
 		this.badge = badge;
