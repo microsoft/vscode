@@ -209,7 +209,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 
 			const preferredKb = this._keybindingService.lookupKeybinding(this._preferredFixActionId);
 			if (preferredKb) {
-				this.title = nls.localize('prefferedQuickFixWithKb', "Show Fixes. Preferred Fix Available ({0})", preferredKb.getLabel());
+				this.title = nls.localize('preferredcodeActionWithKb', "Show Code Actions. Preferred Quick Fix Available ({0})", preferredKb.getLabel());
 				return;
 			}
 		}
@@ -220,9 +220,9 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 
 		const kb = this._keybindingService.lookupKeybinding(this._quickFixActionId);
 		if (kb) {
-			this.title = nls.localize('quickFixWithKb', "Show Fixes ({0})", kb.getLabel());
+			this.title = nls.localize('codeActionWithKb', "Show Code Actions ({0})", kb.getLabel());
 		} else {
-			this.title = nls.localize('quickFix', "Show Fixes");
+			this.title = nls.localize('codeAction', "Show Code Actions");
 		}
 	}
 
