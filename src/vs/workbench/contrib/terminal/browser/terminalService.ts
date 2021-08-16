@@ -1141,15 +1141,6 @@ export class TerminalService implements ITerminalService {
 			shellLaunchConfig.cwd = options.cwd;
 		}
 
-		// Use the URI from the base instance if it exists, this will correctly split local terminals
-		if (options?.instanceToSplit && typeof shellLaunchConfig.cwd !== 'object' && typeof options.instanceToSplit.shellLaunchConfig.cwd === 'object') {
-			shellLaunchConfig.cwd = URI.from({
-				scheme: options.instanceToSplit.shellLaunchConfig.cwd.scheme,
-				authority: options.instanceToSplit.shellLaunchConfig.cwd.authority,
-				path: shellLaunchConfig.cwd || options.instanceToSplit.shellLaunchConfig.cwd.path
-			});
-		}
-
 		if (!shellLaunchConfig.customPtyImplementation && !this.isProcessSupportRegistered) {
 			throw new Error('Could not create terminal when process support is not registered');
 		}
@@ -1168,8 +1159,17 @@ export class TerminalService implements ITerminalService {
 
 		let target = options?.target || this._getLocation(options?.location) || this.configHelper.config.defaultLocation;
 
-		const splitParent = this._getSplitParent(options?.target);
+		const splitParent = this._getSplitParent(options?.location);
 		const parent = options?.instanceToSplit || splitParent;
+
+		// Use the URI from the base instance if it exists, this will correctly split local terminals
+		if (parent && typeof shellLaunchConfig.cwd !== 'object' && typeof parent.shellLaunchConfig.cwd === 'object') {
+			shellLaunchConfig.cwd = URI.from({
+				scheme: parent.shellLaunchConfig.cwd.scheme,
+				authority: parent.shellLaunchConfig.cwd.authority,
+				path: shellLaunchConfig.cwd || parent.shellLaunchConfig.cwd.path
+			});
+		}
 
 		const editorOptions = this._getEditorOptions(options?.target);
 

@@ -921,6 +921,10 @@ declare module 'vscode' {
 		location?: TerminalLocation | TerminalEditorLocationOptions | TerminalSplitLocationOptions;
 	}
 
+	export interface ExtensionTerminalOptions {
+		location?: TerminalLocation | TerminalEditorLocationOptions | TerminalSplitLocationOptions;
+	}
+
 	export enum TerminalLocation {
 		Panel = 0,
 		Editor = 1,
