@@ -37,10 +37,7 @@
 			recordStats: true,
 			trustedTypesPolicy: window.trustedTypes?.createPolicy('amdLoader', {
 				createScriptURL(value) {
-					if(value.startsWith(window.location.origin)) {
-						return value;
-					}
-					throw new Error(`Invalid script url: ${value}`)
+					return value;
 				}
 			}),
 			paths: self.webPackagePaths
