@@ -53,6 +53,7 @@ export interface ITerminalInternalOptions {
 	useShellEnvironment?: boolean;
 	isSplitTerminal?: boolean;
 	target?: TerminalLocation;
+	parentTerminal?: ExtHostTerminal;
 }
 
 export const IExtHostTerminalService = createDecorator<IExtHostTerminalService>('IExtHostTerminalService');
@@ -149,8 +150,22 @@ export class ExtHostTerminal {
 			useShellEnvironment: withNullAsUndefined(internalOptions?.useShellEnvironment),
 			isSplitTerminal: internalOptions?.isSplitTerminal,
 			target: internalOptions?.target,
-			location: withNullAsUndefined(options.location)
+			location: this._getLocation(internalOptions?.parentTerminal, withNullAsUndefined(options.location))
 		});
+	}
+
+
+
+	private _getLocation(terminal?: ExtHostTerminal, location?: TerminalLocation | vscode.TerminalEditorLocationOptions | vscode.TerminalSplitLocationOptions): TerminalLocation | vscode.TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminal } | undefined {
+		if (!location) {
+			return location;
+		} else if (typeof location === 'object' && 'parentTerminal' in location) {
+			return terminal ? { parentTerminal: terminal } : undefined;
+		} else if (typeof location === 'object' && 'viewColumn' in location) {
+			// TODO - use
+			return TerminalLocation.Editor;
+		}
+		return location;
 	}
 
 	public async createExtensionTerminal(isSplitTerminal?: boolean, target?: TerminalLocation, iconPath?: TerminalIcon, color?: ThemeColor): Promise<number> {
@@ -393,9 +408,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		terminal.createExtensionTerminal(internalOptions?.isSplitTerminal, internalOptions?.target, asTerminalIcon(options.iconPath), asTerminalColor(options.color)).then(id => {
 			const disposable = this._setupExtHostProcessListeners(id, p);
 			this._terminalProcessDisposables[id] = disposable;
-			console.log(id);
 		});
-		console.log('returning', terminal.value);
 		this._terminals.push(terminal);
 		return terminal.value;
 	}

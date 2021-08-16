@@ -20,7 +20,8 @@ import { IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, ITerminal
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
-import { TerminalEditorLocationOptions, TerminalSplitLocationOptions } from 'vscode';
+import { TerminalEditorLocationOptions } from 'vscode';
+import { ExtHostTerminal } from 'vs/workbench/api/common/extHostTerminalService';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -159,14 +160,13 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		}));
 	}
 
-	private async _getLocation(location?: TerminalLocation | TerminalEditorLocationOptions | TerminalSplitLocationOptions): Promise<TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ITerminalInstance } | undefined> {
+	private async _getLocation(location?: TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminal }): Promise<TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ITerminalInstance } | undefined> {
 		if (!location) {
 			return location;
 		} else if (typeof location === 'object' && 'parentTerminal' in location) {
-			const extHostTerminal = await this._proxy.$getExtHostTerminal(location.parentTerminal);
-			if (extHostTerminal) {
-				const parentTerminal = await this._getTerminalInstance(extHostTerminal?._id);
-				return parentTerminal ? { parentTerminal } : undefined;
+			const t = await this._extHostTerminals.get(location.parentTerminal._id.toString());
+			if (t) {
+				return { parentTerminal: t };
 			} else {
 				return undefined;
 			}
