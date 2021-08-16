@@ -61,7 +61,10 @@ export class BracketTokens {
 		if (this.isEmpty) {
 			return null;
 		} else {
-			return [...this.map.keys()].map(k => escapeRegExpCharacters(k)).join('|');
+			const keys = [...this.map.keys()];
+			keys.sort();
+			keys.reverse();
+			return keys.map(k => escapeRegExpCharacters(k)).join('|');
 		}
 	}
 
