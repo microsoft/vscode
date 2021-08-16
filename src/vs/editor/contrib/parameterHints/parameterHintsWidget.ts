@@ -263,6 +263,9 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 			if (param.documentation) {
 				labelToAnnounce += typeof param.documentation === 'string' ? `, ${param.documentation}` : `, ${param.documentation.value}`;
 			}
+			if (signature.documentation) {
+				labelToAnnounce += typeof signature.documentation === 'string' ? `, ${signature.documentation}` : `, ${signature.documentation.value}`;
+			}
 
 			// Select method gets called on every user type while parameter hints are visible.
 			// We do not want to spam the user with same announcements, so we only announce if the current parameter changed.
