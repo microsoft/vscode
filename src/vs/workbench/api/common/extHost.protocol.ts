@@ -46,6 +46,7 @@ import { IExtensionIdWithVersion } from 'vs/platform/userDataSync/common/extensi
 import { WorkspaceTrustRequestOptions } from 'vs/platform/workspace/common/workspaceTrust';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ExtHostInteractive } from 'vs/workbench/api/common/extHostInteractive';
+import { ExtHostTerminal } from 'vs/workbench/api/common/extHostTerminalService';
 import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 import * as tasks from 'vs/workbench/api/common/shared/tasks';
@@ -69,7 +70,7 @@ import { createExtHostContextProxyIdentifier as createExtId, createMainContextPr
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import * as search from 'vs/workbench/services/search/common/search';
 import * as statusbar from 'vs/workbench/services/statusbar/common/statusbar';
-import { TerminalEditorLocationOptions, TerminalSplitLocationOptions } from 'vscode';
+import { Terminal, TerminalEditorLocationOptions, TerminalSplitLocationOptions } from 'vscode';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -1768,6 +1769,7 @@ export interface ExtHostTerminalServiceShape {
 	$initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void;
 	$acceptDefaultProfile(profile: ITerminalProfile, automationProfile: ITerminalProfile): void;
 	$createContributedProfileTerminal(id: string, options: ICreateContributedTerminalProfileOptions): Promise<void>;
+	$getExtHostTerminal(terminal: Terminal): Promise<ExtHostTerminal | undefined>
 }
 
 export interface ExtHostSCMShape {

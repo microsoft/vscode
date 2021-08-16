@@ -241,7 +241,7 @@ export interface ICreateTerminalOptions {
 	/**
 	 * The location at which to create the terminal
 	 */
-	location?: TerminalLocation | { viewColumn: EditorGroupColumn, preserveFocus?: boolean } | { parentTerminal: any };
+	location?: TerminalLocation | { viewColumn: EditorGroupColumn, preserveFocus?: boolean } | { parentTerminal: ITerminalInstance };
 }
 
 

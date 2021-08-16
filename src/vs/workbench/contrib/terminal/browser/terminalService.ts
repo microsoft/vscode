@@ -1157,23 +1157,22 @@ export class TerminalService implements ITerminalService {
 
 		let instance: ITerminalInstance;
 
-		let target = options?.target || this._getLocation(options?.location) || this.configHelper.config.defaultLocation;
+		const target = options?.target || this._getLocation(options?.location) || this.configHelper.config.defaultLocation;
 
 		const splitParent = this._getSplitParent(options?.location);
 		const parent = options?.instanceToSplit || splitParent;
 
-		// Use the URI from the base instance if it exists, this will correctly split local terminals
-		if (parent && typeof shellLaunchConfig.cwd !== 'object' && typeof parent.shellLaunchConfig.cwd === 'object') {
-			shellLaunchConfig.cwd = URI.from({
-				scheme: parent.shellLaunchConfig.cwd.scheme,
-				authority: parent.shellLaunchConfig.cwd.authority,
-				path: shellLaunchConfig.cwd || parent.shellLaunchConfig.cwd.path
-			});
-		}
-
 		const editorOptions = this._getEditorOptions(options?.target);
 
 		if (parent) {
+			// Use the URI from the base instance if it exists, this will correctly split local terminals
+			if (typeof shellLaunchConfig.cwd !== 'object' && typeof parent.shellLaunchConfig.cwd === 'object') {
+				shellLaunchConfig.cwd = URI.from({
+					scheme: parent.shellLaunchConfig.cwd.scheme,
+					authority: parent.shellLaunchConfig.cwd.authority,
+					path: shellLaunchConfig.cwd || parent.shellLaunchConfig.cwd.path
+				});
+			}
 			if (target === TerminalLocation.Editor || parent.target === TerminalLocation.Editor) {
 				instance = this._terminalEditorService.splitInstance(parent, shellLaunchConfig);
 			} else {
@@ -1200,7 +1199,7 @@ export class TerminalService implements ITerminalService {
 		return instance;
 	}
 
-	private _getLocation(location?: TerminalLocation | { viewColumn: EditorGroupColumn, preserveFocus?: boolean } | { parentTerminal: { target: TerminalLocation, processId: number } }): TerminalLocation | undefined {
+	private _getLocation(location?: TerminalLocation | { viewColumn: EditorGroupColumn, preserveFocus?: boolean } | { parentTerminal: ITerminalInstance }): TerminalLocation | undefined {
 		if (!location) {
 			return location;
 		} else if (typeof location === 'object' && 'parentTerminal' in location) {
@@ -1212,15 +1211,14 @@ export class TerminalService implements ITerminalService {
 		return location;
 	}
 
-	private _getSplitParent(location?: TerminalLocation | { viewColumn: EditorGroupColumn, preserveFocus?: boolean } | { parentTerminal: { target: TerminalLocation, processId: number } }): ITerminalInstance | undefined {
+	private _getSplitParent(location?: TerminalLocation | { viewColumn: EditorGroupColumn, preserveFocus?: boolean } | { parentTerminal: ITerminalInstance }): ITerminalInstance | undefined {
 		if (location && typeof location === 'object' && 'parentTerminal' in location) {
-			return this.instances.find(t => t.processId === location.parentTerminal.processId);
+			return location.parentTerminal;
 		}
 		return undefined;
 	}
 
-
-	private _getEditorOptions(location?: TerminalLocation | { viewColumn: EditorGroupColumn, preserveFocus?: boolean } | { parentTerminal: { target: TerminalLocation, processId: number } }): { viewColumn: EditorGroupColumn, preserveFocus?: boolean } | undefined {
+	private _getEditorOptions(location?: TerminalLocation | { viewColumn: EditorGroupColumn, preserveFocus?: boolean } | { parentTerminal: ITerminalInstance }): { viewColumn: EditorGroupColumn, preserveFocus?: boolean } | undefined {
 		if (location && typeof location === 'object' && 'viewColumn' in location) {
 			return location;
 		}

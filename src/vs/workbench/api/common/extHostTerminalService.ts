@@ -393,7 +393,9 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		terminal.createExtensionTerminal(internalOptions?.isSplitTerminal, internalOptions?.target, asTerminalIcon(options.iconPath), asTerminalColor(options.color)).then(id => {
 			const disposable = this._setupExtHostProcessListeners(id, p);
 			this._terminalProcessDisposables[id] = disposable;
+			console.log(id);
 		});
+		console.log('returning', terminal.value);
 		this._terminals.push(terminal);
 		return terminal.value;
 	}
@@ -465,6 +467,10 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			terminal.setExitCode(exitCode);
 			this._onDidCloseTerminal.fire(terminal.value);
 		}
+	}
+
+	public async $getExtHostTerminal(terminal: vscode.Terminal): Promise<ExtHostTerminal | undefined> {
+		return this._terminals.find(t => t.value === terminal);
 	}
 
 	public $acceptTerminalOpened(id: number, extHostTerminalId: string | undefined, name: string, shellLaunchConfigDto: IShellLaunchConfigDto): void {

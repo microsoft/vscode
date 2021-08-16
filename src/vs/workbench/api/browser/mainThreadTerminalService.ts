@@ -20,6 +20,7 @@ import { IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, ITerminal
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
+import { TerminalEditorLocationOptions, TerminalSplitLocationOptions } from 'vscode';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -151,11 +152,29 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 				terminal = await this._terminalService.createTerminal({
 					config: shellLaunchConfig,
 					target: launchConfig.target,
-					location: launchConfig.location
+					location: await this._getLocation(launchConfig.location)
 				});
 			}
 			r(terminal);
 		}));
+	}
+
+	private async _getLocation(location?: TerminalLocation | TerminalEditorLocationOptions | TerminalSplitLocationOptions): Promise<TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ITerminalInstance } | undefined> {
+		if (!location) {
+			return location;
+		} else if (typeof location === 'object' && 'parentTerminal' in location) {
+			const extHostTerminal = await this._proxy.$getExtHostTerminal(location.parentTerminal);
+			if (extHostTerminal) {
+				const parentTerminal = await this._getTerminalInstance(extHostTerminal?._id);
+				return parentTerminal ? { parentTerminal } : undefined;
+			} else {
+				return undefined;
+			}
+		} else if (typeof location === 'object' && 'viewColumn' in location) {
+			// TODO - use
+			return TerminalLocation.Editor;
+		}
+		return location;
 	}
 
 	public async $show(id: TerminalIdentifier, preserveFocus: boolean): Promise<void> {
