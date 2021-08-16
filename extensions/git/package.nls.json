@@ -7,6 +7,7 @@
 	"command.init": "Initialize Repository",
 	"command.openRepository": "Open Repository",
 	"command.close": "Close Repository",
+	"command.closeOthers": "Close Other Repositories",
 	"command.refresh": "Refresh",
 	"command.openChange": "Open Changes",
 	"command.openAllChanges": "Open All Changes",
