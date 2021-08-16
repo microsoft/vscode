@@ -92,8 +92,13 @@ export class LanguageAgnosticBracketTokens {
 	constructor(private readonly customBracketPairs: readonly [string, string][]) {
 	}
 
-	public usesLanguageId(languageId: LanguageId): boolean {
-		return this.languageIdToBracketTokens.has(languageId);
+	public didLanguageChange(languageId: LanguageId): boolean {
+		const existing = this.languageIdToBracketTokens.get(languageId);
+		if (!existing) {
+			return false;
+		}
+		const newRegExpStr = BracketTokens.createFromLanguage(languageId, this.customBracketPairs).getRegExpStr();
+		return existing.getRegExpStr() !== newRegExpStr;
 	}
 
 	getSingleLanguageBracketTokens(languageId: LanguageId): BracketTokens {

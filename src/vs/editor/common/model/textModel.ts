@@ -40,7 +40,7 @@ import { Constants } from 'vs/base/common/uint';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 import { listenStream } from 'vs/base/common/stream';
 import { ArrayQueue } from 'vs/base/common/arrays';
-import { BracketPairColorizer, BracketPairColorizerConfig } from 'vs/editor/common/model/bracketPairColorizer/bracketPairColorizer';
+import { BracketPairColorizer } from 'vs/editor/common/model/bracketPairColorizer/bracketPairColorizer';
 import { DecorationProvider } from 'vs/editor/common/model/decorationProvider';
 
 function createTextBufferBuilder() {
@@ -194,6 +194,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		defaultEOL: model.DefaultEndOfLine.LF,
 		trimAutoWhitespace: EDITOR_MODEL_DEFAULTS.trimAutoWhitespace,
 		largeFileOptimizations: EDITOR_MODEL_DEFAULTS.largeFileOptimizations,
+		bracketPairColorizationOptions: EDITOR_MODEL_DEFAULTS.bracketPairColorizationOptions,
 	};
 
 	public static resolveOptions(textBuffer: model.ITextBuffer, options: model.ITextModelCreationOptions): model.TextModelResolvedOptions {
@@ -204,7 +205,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				indentSize: guessedIndentation.tabSize, // TODO@Alex: guess indentSize independent of tabSize
 				insertSpaces: guessedIndentation.insertSpaces,
 				trimAutoWhitespace: options.trimAutoWhitespace,
-				defaultEOL: options.defaultEOL
+				defaultEOL: options.defaultEOL,
+				bracketPairColorizationOptions: options.bracketPairColorizationOptions,
 			});
 		}
 
@@ -213,7 +215,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			indentSize: options.indentSize,
 			insertSpaces: options.insertSpaces,
 			trimAutoWhitespace: options.trimAutoWhitespace,
-			defaultEOL: options.defaultEOL
+			defaultEOL: options.defaultEOL,
+			bracketPairColorizationOptions: options.bracketPairColorizationOptions,
 		});
 
 	}
@@ -636,13 +639,15 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		let indentSize = (typeof _newOpts.indentSize !== 'undefined') ? _newOpts.indentSize : this._options.indentSize;
 		let insertSpaces = (typeof _newOpts.insertSpaces !== 'undefined') ? _newOpts.insertSpaces : this._options.insertSpaces;
 		let trimAutoWhitespace = (typeof _newOpts.trimAutoWhitespace !== 'undefined') ? _newOpts.trimAutoWhitespace : this._options.trimAutoWhitespace;
+		let bracketPairColorizationOptions = (typeof _newOpts.bracketColorizationOptions !== 'undefined') ? _newOpts.bracketColorizationOptions : this._options.bracketPairColorizationOptions;
 
 		let newOpts = new model.TextModelResolvedOptions({
 			tabSize: tabSize,
 			indentSize: indentSize,
 			insertSpaces: insertSpaces,
 			defaultEOL: this._options.defaultEOL,
-			trimAutoWhitespace: trimAutoWhitespace
+			trimAutoWhitespace: trimAutoWhitespace,
+			bracketPairColorizationOptions,
 		});
 
 		if (this._options.equals(newOpts)) {
@@ -3161,10 +3166,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	public getLineIndentColumn(lineNumber: number): number {
 		// Columns start with 1.
 		return indentOfLine(this.getLineContent(lineNumber)) + 1;
-	}
-
-	public configureBracketPairColorization(owner: number, config: BracketPairColorizerConfig | 'disabled'): void {
-		this._bracketPairColorizer.configureBracketPairColorization(owner, config);
 	}
 }
 

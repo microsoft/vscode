@@ -12,7 +12,6 @@ import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { isArray, isStringArray } from 'vs/base/common/types';
 
 //#region typed options
 
@@ -3282,11 +3281,6 @@ export interface IBracketPairColorizationOptions {
 	 * Enable or disable bracket pair colorization.
 	*/
 	enabled?: boolean;
-
-	/**
-	 * Configures custom bracket pairs that are not provided by the language.
-	*/
-	customBracketPairs?: [string, string][];
 }
 
 export type InternalBracketPairColorizationOptions = Readonly<Required<IBracketPairColorizationOptions>>;
@@ -3297,8 +3291,7 @@ export type InternalBracketPairColorizationOptions = Readonly<Required<IBracketP
 class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairColorization, InternalBracketPairColorizationOptions> {
 	constructor() {
 		const defaults: InternalBracketPairColorizationOptions = {
-			enabled: false,
-			customBracketPairs: []
+			enabled: false
 		};
 
 		super(
@@ -3308,20 +3301,7 @@ class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairC
 					type: 'boolean',
 					default: defaults.enabled,
 					description: nls.localize('bracketPairColorization.enabled', "Controls whether bracket pair colorization is enabled or not.")
-				},
-				'editor.bracketPairColorization.customBracketPairs': {
-					type: 'array',
-					items: {
-						type: 'array',
-						minLength: 2,
-						maxLength: 2,
-						items: {
-							type: 'string'
-						}
-					},
-					default: defaults.customBracketPairs,
-					description: nls.localize('bracketPairColorization.customBracketPairs', "Custom bracket pairs that get highlighted.")
-				},
+				}
 			}
 		);
 	}
@@ -3332,21 +3312,8 @@ class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairC
 		}
 		const input = _input as IBracketPairColorizationOptions;
 		return {
-			enabled: boolean(input.enabled, this.defaultValue.enabled),
-			customBracketPairs: this.validateBracketPairs(input.customBracketPairs, this.defaultValue.customBracketPairs)
+			enabled: boolean(input.enabled, this.defaultValue.enabled)
 		};
-	}
-
-	private validateBracketPairs(input: any, defaultValue: [string, string][]): [string, string][] {
-		if (!isArray(input)) {
-			return defaultValue;
-		}
-
-		if (!input.every(i => isStringArray(i) && i.length === 2)) {
-			return defaultValue;
-		}
-
-		return input;
 	}
 }
 
@@ -3974,7 +3941,8 @@ export const EDITOR_MODEL_DEFAULTS = {
 	insertSpaces: true,
 	detectIndentation: true,
 	trimAutoWhitespace: true,
-	largeFileOptimizations: true
+	largeFileOptimizations: true,
+	bracketPairColorizationOptions: { enabled: false }
 };
 
 /**

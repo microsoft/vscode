@@ -102,8 +102,6 @@ export class ViewModel extends Disposable implements IViewModel {
 			);
 		}
 
-		this.updateBracketPairColorization();
-
 		this.coordinatesConverter = this._lines.createCoordinatesConverter();
 
 		this._cursor = this._register(new CursorsController(model, this, this.coordinatesConverter, this.cursorConfig));
@@ -154,8 +152,6 @@ export class ViewModel extends Disposable implements IViewModel {
 		this.invalidateMinimapColorCache();
 		this._viewportStartLineTrackedRange = this.model._setTrackedRange(this._viewportStartLineTrackedRange, null, TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
 		this._eventDispatcher.dispose();
-
-		this.model.configureBracketPairColorization(this._editorId, 'disabled');
 	}
 
 	public createLineBreaksComputer(): ILineBreaksComputer {
@@ -251,17 +247,6 @@ export class ViewModel extends Disposable implements IViewModel {
 			this.cursorConfig = new CursorConfiguration(this.model.getLanguageIdentifier(), this.model.getOptions(), this._configuration);
 			this._cursor.updateConfiguration(this.cursorConfig);
 		}
-
-		if (e.hasChanged(EditorOption.bracketPairColorization)) {
-			this.updateBracketPairColorization();
-		}
-	}
-
-	private updateBracketPairColorization(): void {
-		const config = this._configuration.options.get(EditorOption.bracketPairColorization);
-		this.model.configureBracketPairColorization(this._editorId, config.enabled ? {
-			customBracketPairs: config.customBracketPairs
-		} : 'disabled');
 	}
 
 	private _registerModelEvents(): void {

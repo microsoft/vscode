@@ -1638,6 +1638,11 @@ declare namespace monaco.editor {
 		readonly insertSpaces: boolean;
 		readonly defaultEOL: DefaultEndOfLine;
 		readonly trimAutoWhitespace: boolean;
+		readonly bracketPairColorizationOptions: BracketPairColorizationOptions;
+	}
+
+	export interface BracketPairColorizationOptions {
+		enabled: boolean;
 	}
 
 	export interface ITextModelUpdateOptions {
@@ -1645,6 +1650,7 @@ declare namespace monaco.editor {
 		indentSize?: number;
 		insertSpaces?: boolean;
 		trimAutoWhitespace?: boolean;
+		bracketColorizationOptions?: BracketPairColorizationOptions;
 	}
 
 	export class FindMatch {
@@ -3878,10 +3884,6 @@ declare namespace monaco.editor {
 		 * Enable or disable bracket pair colorization.
 		*/
 		enabled?: boolean;
-		/**
-		 * Configures custom bracket pairs that are not provided by the language.
-		*/
-		customBracketPairs?: [string, string][];
 	}
 
 	export type InternalBracketPairColorizationOptions = Readonly<Required<IBracketPairColorizationOptions>>;
