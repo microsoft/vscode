@@ -726,8 +726,10 @@ export class RawDebugSession implements IDisposable {
 		if (error && error.format && error.showUser) {
 			this.notificationService.error(userMessage);
 		}
+		const result = new Error(userMessage);
+		(<any>result).showUser = error?.showUser;
 
-		return new Error(userMessage);
+		return result;
 	}
 
 	private mergeCapabilities(capabilities: DebugProtocol.Capabilities | undefined): void {

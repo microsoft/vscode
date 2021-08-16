@@ -586,7 +586,10 @@ export class DebugService implements IDebugService {
 			}
 
 			const errorMessage = error instanceof Error ? error.message : error;
-			await this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []);
+			if (error.showUser !== false) {
+				// Only show the error when showUser is either not defined, or is true #128484
+				await this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []);
+			}
 			return false;
 		}
 	}
