@@ -98,7 +98,7 @@ export interface IWalkthroughsService {
 	getWalkthroughs(): IResolvedWalkthrough[]
 	getWalkthrough(id: string): IResolvedWalkthrough
 
-	registerWalkthrough(categoryDescriptor: IWalkthrough): void;
+	registerWalkthrough(descriptor: IWalkthrough): void;
 
 	progressByEvent(eventName: string): void;
 	progressStep(id: string): void;
