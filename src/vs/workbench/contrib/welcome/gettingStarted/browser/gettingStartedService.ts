@@ -18,9 +18,8 @@ import { joinPath } from 'vs/base/common/resources';
 import { FileAccess } from 'vs/base/common/network';
 import { DefaultIconPath, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { BuiltinGettingStartedCategory, BuiltinGettingStartedStep, BuiltinGettingStartedStartEntry, startEntries, walkthroughs } from 'vs/workbench/contrib/welcome/gettingStarted/common/gettingStartedContent';
+import { walkthroughs } from 'vs/workbench/contrib/welcome/gettingStarted/common/gettingStartedContent';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
-import { assertIsDefined } from 'vs/base/common/types';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILink, LinkedText, parseLinkedText } from 'vs/base/common/linkedText';
@@ -37,7 +36,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 export const WorkspacePlatform = new RawContextKey<'mac' | 'linux' | 'windows' | undefined>('workspacePlatform', undefined, localize('workspacePlatform', "The platform of the current workspace, which in remote contexts may be different from the platform of the UI"));
 export const HasMultipleNewFileEntries = new RawContextKey<boolean>('hasMultipleNewFileEntries', false);
 
-export const IGettingStartedService = createDecorator<IGettingStartedService>('gettingStartedService');
+export const IWalkthroughsService = createDecorator<IWalkthroughsService>('walkthroughsService');
 
 export const hiddenEntriesConfigurationKey = 'workbench.welcomePage.hiddenCategories';
 
@@ -46,25 +45,35 @@ export type WalkthroughMetaDataType = Map<string, { firstSeen: number; stepIDs: 
 
 const BUILT_IN_SOURCE = localize('builtin', "Built-In");
 
-export const enum GettingStartedCategory {
-	Beginner = 'Beginner',
-	Intermediate = 'Intermediate',
-	Advanced = 'Advanced'
+export interface IWalkthrough {
+	id: string
+	title: string
+	description: string
+	order: number
+	source: string
+	isFeatured: boolean
+	next?: string
+	when: ContextKeyExpression
+	steps: IWalkthroughStep[]
+	icon:
+	| { type: 'icon', icon: ThemeIcon }
+	| { type: 'image', path: string }
 }
 
-type LegacyButtonConfig =
-	| { title: string, command?: never, link: string }
-	| { title: string, command: string, link?: never, sideBySide?: boolean };
+export interface IResolvedWalkthrough extends IWalkthrough {
+	steps: IResolvedWalkthroughStep[]
+	newItems: boolean
+	recencyBonus: number
+	newEntry: boolean
+}
 
-export interface IGettingStartedStep {
+export interface IWalkthroughStep {
 	id: string
 	title: string
 	description: LinkedText[]
-	category: GettingStartedCategory | string
+	category: string
 	when: ContextKeyExpression
 	order: number
-	/** @deprecated */
-	doneOn?: { commandExecuted: string, eventFired?: never } | { eventFired: string, commandExecuted?: never }
 	completionEvents: string[]
 	media:
 	| { type: 'image', path: { hc: URI, light: URI, dark: URI }, altText: string }
@@ -72,126 +81,56 @@ export interface IGettingStartedStep {
 	| { type: 'markdown', path: URI, base: URI, root: URI }
 }
 
-export interface IGettingStartedWalkthroughDescriptor {
-	id: GettingStartedCategory | string
-	title: string
-	description: string
-	isFeatured: boolean
-	order: number
-	source: string
-	next?: string
-	icon:
-	| { type: 'icon', icon: ThemeIcon }
-	| { type: 'image', path: string }
-	when: ContextKeyExpression
-	content:
-	| { type: 'steps' }
-}
+type StepProgress = { done: boolean; };
 
-export interface IGettingStartedStartEntryDescriptor {
-	id: GettingStartedCategory | string
-	title: string
-	description: string
-	source: string
-	order: number
-	icon:
-	| { type: 'icon', icon: ThemeIcon }
-	| { type: 'image', path: string }
-	when: ContextKeyExpression
-	content:
-	| { type: 'startEntry', command: string }
-}
+export interface IResolvedWalkthroughStep extends IWalkthroughStep, StepProgress { }
 
-export interface IGettingStartedCategory {
-	id: GettingStartedCategory | string
-	title: string
-	description: string
-	isFeatured: boolean
-	order: number
-	source: string
-	next?: string
-	icon:
-	| { type: 'icon', icon: ThemeIcon }
-	| { type: 'image', path: string }
-	when: ContextKeyExpression
-	content:
-	| { type: 'steps', steps: IGettingStartedStep[] }
-	| { type: 'startEntry', command: string }
-}
-
-type StepProgress = { done?: boolean; };
-export interface IGettingStartedStepWithProgress extends IGettingStartedStep, Required<StepProgress> { }
-
-export interface IGettingStartedCategoryWithProgress extends Omit<IGettingStartedCategory, 'content'> {
-	priority: number
-	content:
-	| {
-		type: 'steps',
-		steps: IGettingStartedStepWithProgress[],
-		accolades: 'newCategory' | 'newContent' | 'featured' | undefined
-		done: boolean;
-		stepsComplete: number
-		stepsTotal: number
-	}
-	| { type: 'startEntry', command: string }
-}
-
-export interface IGettingStartedService {
+export interface IWalkthroughsService {
 	_serviceBrand: undefined,
 
-	readonly onDidAddCategory: Event<void>
-	readonly onDidRemoveCategory: Event<void>
+	readonly onDidAddWalkthrough: Event<IResolvedWalkthrough>
+	readonly onDidRemoveWalkthrough: Event<string>
+	readonly onDidChangeWalkthrough: Event<IResolvedWalkthrough>
+	readonly onDidProgressStep: Event<IResolvedWalkthroughStep>
 
-	readonly onDidChangeStep: Event<IGettingStartedStepWithProgress>
-	readonly onDidChangeCategory: Event<IGettingStartedCategoryWithProgress>
+	readonly installedExtensionsRegistered: Promise<void>;
 
-	readonly onDidProgressStep: Event<IGettingStartedStepWithProgress>
+	getWalkthroughs(): IResolvedWalkthrough[]
+	getWalkthrough(id: string): IResolvedWalkthrough
 
-	getCategories(): IGettingStartedCategoryWithProgress[]
-
-	registerWalkthrough(categoryDescriptor: IGettingStartedWalkthroughDescriptor, steps: IGettingStartedStep[]): void;
+	registerWalkthrough(categoryDescriptor: IWalkthrough): void;
 
 	progressByEvent(eventName: string): void;
 	progressStep(id: string): void;
 	deprogressStep(id: string): void;
 
 	markWalkthroughOpened(id: string): void;
-
-	installedExtensionsRegistered: Promise<void>;
 }
 
 // Show walkthrough as "new" for 7 days after first install
-const NEW_WALKTHROUGH_TIME = 7 * 24 * 60 * 60 * 1000;
+const DAYS = 24 * 60 * 60 * 1000;
+const NEW_WALKTHROUGH_TIME = 7 * DAYS;
 
-export class GettingStartedService extends Disposable implements IGettingStartedService {
+export class GettingStartedService extends Disposable implements IWalkthroughsService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidAddNewEntry = new Emitter<void>();
-	onDidAddNewEntry: Event<void> = this._onDidAddNewEntry.event;
-
-	private readonly _onDidAddCategory = new Emitter<void>();
-	onDidAddCategory: Event<void> = this._onDidAddCategory.event;
-
-	private readonly _onDidRemoveCategory = new Emitter<void>();
-	onDidRemoveCategory: Event<void> = this._onDidRemoveCategory.event;
-
-	private readonly _onDidChangeCategory = new Emitter<IGettingStartedCategoryWithProgress>();
-	onDidChangeCategory: Event<IGettingStartedCategoryWithProgress> = this._onDidChangeCategory.event;
-
-	private readonly _onDidChangeStep = new Emitter<IGettingStartedStepWithProgress>();
-	onDidChangeStep: Event<IGettingStartedStepWithProgress> = this._onDidChangeStep.event;
-
-	private readonly _onDidProgressStep = new Emitter<IGettingStartedStepWithProgress>();
-	onDidProgressStep: Event<IGettingStartedStepWithProgress> = this._onDidProgressStep.event;
+	private readonly _onDidAddWalkthrough = new Emitter<IResolvedWalkthrough>();
+	readonly onDidAddWalkthrough: Event<IResolvedWalkthrough> = this._onDidAddWalkthrough.event;
+	private readonly _onDidRemoveWalkthrough = new Emitter<string>();
+	readonly onDidRemoveWalkthrough: Event<string> = this._onDidRemoveWalkthrough.event;
+	private readonly _onDidChangeWalkthrough = new Emitter<IResolvedWalkthrough>();
+	readonly onDidChangeWalkthrough: Event<IResolvedWalkthrough> = this._onDidChangeWalkthrough.event;
+	private readonly _onDidProgressStep = new Emitter<IResolvedWalkthroughStep>();
+	readonly onDidProgressStep: Event<IResolvedWalkthroughStep> = this._onDidProgressStep.event;
 
 	private memento: Memento;
-	private stepProgress: Record<string, StepProgress>;
+	private stepProgress: Record<string, StepProgress | undefined>;
 
 	private sessionEvents = new Set<string>();
 	private completionListeners = new Map<string, Set<string>>();
 
-	private gettingStartedContributions = new Map<string, IGettingStartedCategory>();
-	private steps = new Map<string, IGettingStartedStep>();
+	private gettingStartedContributions = new Map<string, IWalkthrough>();
+	private steps = new Map<string, IWalkthroughStep>();
 
 	private tasExperimentService?: ITASExperimentService;
 	private sessionInstalledExtensions = new Set<string>();
@@ -209,7 +148,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		@IStorageService private readonly storageService: IStorageService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextKeyService private readonly contextService: IContextKeyService,
-		@IUserDataAutoSyncEnablementService  readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
+		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IHostService private readonly hostService: IHostService,
@@ -229,18 +168,91 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		this.memento = new Memento('gettingStartedService', this.storageService);
 		this.stepProgress = this.memento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
 
-		walkthroughsExtensionPoint.setHandler((_, { added, removed }) => {
-			added.forEach(e => this.registerExtensionWalkthroughContributions(e.description));
-			removed.forEach(e => this.unregisterExtensionWalkthroughContributions(e.description));
+		walkthroughsExtensionPoint.setHandler(async (_, { added, removed }) => {
+			await Promise.all(
+				[...added.map(e => this.registerExtensionWalkthroughContributions(e.description)),
+				...removed.map(e => this.unregisterExtensionWalkthroughContributions(e.description))]);
+			this.triggerInstalledExtensionsRegistered();
 		});
 
+		this.initCompletionEventListeners();
+		this.initWorkspacePlatformContextKey();
+
+		HasMultipleNewFileEntries.bindTo(this.contextService).set(false);
+
+		this.installedExtensionsRegistered = new Promise(r => this.triggerInstalledExtensionsRegistered = r);
+
+		walkthroughs.forEach(async (category, index) => {
+			this.registerWalkthrough({
+				...category,
+				icon: { type: 'icon', icon: category.icon },
+				order: walkthroughs.length - index,
+				source: BUILT_IN_SOURCE,
+				when: ContextKeyExpr.deserialize(category.when) ?? ContextKeyExpr.true(),
+				steps:
+					category.content.steps.map((step, index) => {
+						return ({
+							...step,
+							completionEvents: step.completionEvents ?? [],
+							description: parseDescription(step.description),
+							category: category.id,
+							order: index,
+							when: ContextKeyExpr.deserialize(step.when) ?? ContextKeyExpr.true(),
+							media: step.media.type === 'image'
+								? {
+									type: 'image',
+									altText: step.media.altText,
+									path: convertInternalMediaPathsToBrowserURIs(step.media.path)
+								}
+								: step.media.type === 'svg'
+									? {
+										type: 'svg',
+										altText: step.media.altText,
+										path: convertInternalMediaPathToFileURI(step.media.path).with({ query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcome/gettingStarted/common/media/' + step.media.path }) })
+									}
+									: {
+										type: 'markdown',
+										path: convertInternalMediaPathToFileURI(step.media.path).with({ query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcome/gettingStarted/common/media/' + step.media.path }) }),
+										base: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/', require),
+										root: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/', require),
+									},
+						});
+					})
+			});
+		});
+	}
+
+	private initWorkspacePlatformContextKey() {
+		this.remoteAgentService.getEnvironment().then(env => {
+			const remoteOS = env?.os;
+
+			const remotePlatform = remoteOS === OS.Macintosh ? 'mac'
+				: remoteOS === OS.Windows ? 'windows'
+					: remoteOS === OS.Linux ? 'linux'
+						: undefined;
+
+			if (remotePlatform) {
+				WorkspacePlatform.bindTo(this.contextService).set(remotePlatform);
+			} else if (isMacintosh) {
+				WorkspacePlatform.bindTo(this.contextService).set('mac');
+			} else if (isLinux) {
+				WorkspacePlatform.bindTo(this.contextService).set('linux');
+			} else if (isWindows) {
+				WorkspacePlatform.bindTo(this.contextService).set('windows');
+			} else {
+				WorkspacePlatform.bindTo(this.contextService).set(undefined);
+			}
+		});
+	}
+
+	private initCompletionEventListeners() {
 		this._register(this.commandService.onDidExecuteCommand(command => this.progressByEvent(`onCommand:${command.commandId}`)));
 
 		this.extensionManagementService.getInstalled().then(installed => {
 			installed.forEach(ext => this.progressByEvent(`extensionInstalled:${ext.identifier.id.toLowerCase()}`));
 		});
 
-		this._register(this.extensionManagementService.onDidInstallExtensions(async result => {
+		this._register(this.extensionManagementService.onDidInstallExtensions(async (result) => {
 			const hadLastFoucs = await this.hostService.hadLastFocus();
 			for (const e of result) {
 				if (hadLastFoucs) {
@@ -251,7 +263,6 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		}));
 
 		this._register(this.contextService.onDidChangeContext(event => {
-			if (event.affectsSome(this.categoryVisibilityContextKeys)) { this._onDidAddCategory.fire(); }
 			if (event.affectsSome(this.stepCompletionContextKeys)) {
 				this.stepCompletionContextKeyExpressions.forEach(expression => {
 					if (event.affectsSome(new Set(expression.keys())) && this.contextService.contextMatchesRules(expression)) {
@@ -269,132 +280,19 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			e.affectedKeys.forEach(key => { this.progressByEvent('onSettingChanged:' + key); });
 		}));
 
-		HasMultipleNewFileEntries.bindTo(this.contextService).set(false);
-
-		this.remoteAgentService.getEnvironment().then(env => {
-			const remoteOS = env?.os;
-
-			const remotePlatform =
-				remoteOS === OS.Macintosh ? 'mac'
-					: remoteOS === OS.Windows ? 'windows'
-						: remoteOS === OS.Linux ? 'linux'
-							: undefined;
-
-			if (remotePlatform) {
-				WorkspacePlatform.bindTo(this.contextService).set(remotePlatform);
-			} else if (isMacintosh) {
-				WorkspacePlatform.bindTo(this.contextService).set('mac');
-			} else if (isLinux) {
-				WorkspacePlatform.bindTo(this.contextService).set('linux');
-			} else if (isWindows) {
-				WorkspacePlatform.bindTo(this.contextService).set('windows');
-			} else {
-				WorkspacePlatform.bindTo(this.contextService).set(undefined);
-			}
-		});
-
-		if (userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('onEvent:sync-enabled'); }
-		this._register(userDataAutoSyncEnablementService.onDidChangeEnablement(() => {
-			if (userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('onEvent:sync-enabled'); }
+		if (this.userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('onEvent:sync-enabled'); }
+		this._register(this.userDataAutoSyncEnablementService.onDidChangeEnablement(() => {
+			if (this.userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('onEvent:sync-enabled'); }
 		}));
-
-		this.installedExtensionsRegistered = new Promise(r => this.triggerInstalledExtensionsRegistered = r);
-
-		startEntries.forEach(async (entry, index) => {
-			this.getCategoryOverrides(entry);
-			this.registerStartEntry({
-				...entry,
-				icon: { type: 'icon', icon: entry.icon },
-				order: index,
-				source: BUILT_IN_SOURCE,
-				when: ContextKeyExpr.deserialize(entry.when) ?? ContextKeyExpr.true()
-			});
-		});
-
-		walkthroughs.forEach(async (category, index) => {
-			this.getCategoryOverrides(category);
-			this.registerWalkthrough({
-				...category,
-				icon: { type: 'icon', icon: category.icon },
-				order: index,
-				source: BUILT_IN_SOURCE,
-				when: ContextKeyExpr.deserialize(category.when) ?? ContextKeyExpr.true()
-			},
-				category.content.steps.map((step, index) => {
-					this.getStepOverrides(step, category.id);
-					return ({
-						...step,
-						completionEvents: step.completionEvents ?? [],
-						description: parseDescription(step.description),
-						category: category.id,
-						order: index,
-						when: ContextKeyExpr.deserialize(step.when) ?? ContextKeyExpr.true(),
-						media: step.media.type === 'image'
-							? {
-								type: 'image',
-								altText: step.media.altText,
-								path: convertInternalMediaPathsToBrowserURIs(step.media.path)
-							}
-							: step.media.type === 'svg'
-								? {
-									type: 'svg',
-									altText: step.media.altText,
-									path: convertInternalMediaPathToFileURI(step.media.path).with({ query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcome/gettingStarted/common/media/' + step.media.path }) })
-								}
-								: {
-									type: 'markdown',
-									path: convertInternalMediaPathToFileURI(step.media.path).with({ query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcome/gettingStarted/common/media/' + step.media.path }) }),
-									base: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/', require),
-									root: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/', require),
-								},
-					});
-				}));
-		});
-	}
-
-	private async getCategoryOverrides(category: BuiltinGettingStartedCategory | BuiltinGettingStartedStartEntry) {
-		if (!this.tasExperimentService) { return; }
-
-		const [title, description] = await Promise.all([
-			this.tasExperimentService.getTreatment<string>(`gettingStarted.overrideCategory.${category.id}.title`),
-			this.tasExperimentService.getTreatment<string>(`gettingStarted.overrideCategory.${category.id}.description`),
-		]);
-
-		if (!(title || description)) { return; }
-
-		const existing = assertIsDefined(this.gettingStartedContributions.get(category.id));
-		existing.title = title ?? existing.title;
-		existing.description = description ?? existing.description;
-		this._onDidChangeCategory.fire(this.getCategoryProgress(existing));
-	}
-
-	private async getStepOverrides(step: BuiltinGettingStartedStep, categoryId: string) {
-		if (!this.tasExperimentService) { return; }
-
-		const [title, description, media] = await Promise.all([
-			this.tasExperimentService.getTreatment<string>(`gettingStarted.overrideStep.${step.id}.title`),
-			this.tasExperimentService.getTreatment<string>(`gettingStarted.overrideStep.${step.id}.description`),
-			this.tasExperimentService.getTreatment<string>(`gettingStarted.overrideStep.${step.id}.media`),
-		]);
-
-		if (!(title || description || media)) { return; }
-
-		const existingCategory = assertIsDefined(this.gettingStartedContributions.get(categoryId));
-		if (existingCategory.content.type === 'startEntry') { throw Error('Unexpected content type'); }
-		const existingStep = assertIsDefined(existingCategory.content.steps.find(_step => _step.id === step.id));
-
-		existingStep.title = title ?? existingStep.title;
-		existingStep.description = description ? parseDescription(description) : existingStep.description;
-		existingStep.media.path = media ? convertInternalMediaPathsToBrowserURIs(media) : existingStep.media.path;
-		this._onDidChangeStep.fire(this.getStepProgress(existingStep));
 	}
 
 	markWalkthroughOpened(id: string) {
 		const walkthrough = this.gettingStartedContributions.get(id);
 		const prior = this.metadata.get(id);
-		if (prior && walkthrough && walkthrough.content.type === 'steps') {
-			this.metadata.set(id, { ...prior, manaullyOpened: true, stepIDs: walkthrough.content.steps.map(s => s.id) });
+		if (prior && walkthrough) {
+			this.metadata.set(id, { ...prior, manaullyOpened: true, stepIDs: walkthrough.steps.map(s => s.id) });
 		}
+
 		this.storageService.store(walkthroughMetadataConfigurationKey, JSON.stringify([...this.metadata.entries()]), StorageScope.GLOBAL, StorageTarget.USER);
 	}
 
@@ -450,32 +348,16 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				}
 			}
 
-			const walkthoughDescriptior: IGettingStartedWalkthroughDescriptor = {
-				content: { type: 'steps' },
-				description: walkthrough.description,
-				title: walkthrough.title,
-				id: categoryID,
-				isFeatured: false,
-				source: extension.displayName ?? extension.name,
-				order: Math.min(),
-				icon: {
-					type: 'image',
-					path: extension.icon
-						? FileAccess.asBrowserUri(joinPath(extension.extensionLocation, extension.icon)).toString(true)
-						: DefaultIconPath
-				},
-				when: ContextKeyExpr.deserialize(override ?? walkthrough.when) ?? ContextKeyExpr.true(),
-			} as const;
 
-			const steps = (walkthrough.steps ?? (walkthrough as any).tasks).map((step, index) => {
+			const steps = walkthrough.steps.map((step, index) => {
 				const description = parseDescription(step.description || '');
-				const buttonDescription = (step as any as { button: LegacyButtonConfig }).button;
-				if (buttonDescription) {
-					description.push({ nodes: [{ href: buttonDescription.link ?? `command:${buttonDescription.command}`, label: buttonDescription.title }] });
-				}
 				const fullyQualifiedID = extension.identifier.value + '#' + walkthrough.id + '#' + step.id;
 
-				let media: IGettingStartedStep['media'];
+				let media: IWalkthroughStep['media'];
+
+				if (!step.media) {
+					throw Error('missing media in walkthrough step: ' + walkthrough.id + '@' + step.id);
+				}
 
 				if (step.media.image) {
 					const altText = (step.media as any).altText;
@@ -524,12 +406,30 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				});
 			});
 
-			this.registerWalkthrough(walkthoughDescriptior, steps);
+			const walkthoughDescriptor: IWalkthrough = {
+				description: walkthrough.description,
+				title: walkthrough.title,
+				id: categoryID,
+				isFeatured: false,
+				source: extension.displayName ?? extension.name,
+				order: 0,
+				steps,
+				icon: {
+					type: 'image',
+					path: extension.icon
+						? FileAccess.asBrowserUri(joinPath(extension.extensionLocation, extension.icon)).toString(true)
+						: DefaultIconPath
+				},
+				when: ContextKeyExpr.deserialize(override ?? walkthrough.when) ?? ContextKeyExpr.true(),
+			} as const;
+
+			this.registerWalkthrough(walkthoughDescriptor);
+
+			this._onDidAddWalkthrough.fire(this.resolveWalkthrough(walkthoughDescriptor));
 		}));
 
 		this.storageService.store(walkthroughMetadataConfigurationKey, JSON.stringify([...this.metadata.entries()]), StorageScope.GLOBAL, StorageTarget.USER);
 
-		this.triggerInstalledExtensionsRegistered();
 
 		if (sectionToOpen && this.configurationService.getValue<string>('workbench.welcomePage.walkthroughs.openOnInstall')) {
 			type GettingStartedAutoOpenClassification = {
@@ -555,14 +455,123 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				this.steps.delete(fullyQualifiedID);
 			});
 			this.gettingStartedContributions.delete(categoryID);
-			this._onDidRemoveCategory.fire();
+			this._onDidRemoveWalkthrough.fire(categoryID);
 		});
 	}
 
-	private registerDoneListeners(step: IGettingStartedStep) {
-		if (step.doneOn) {
-			if (step.doneOn.commandExecuted) { step.completionEvents.push(`onCommand:${step.doneOn.commandExecuted}`); }
-			if (step.doneOn.eventFired) { step.completionEvents.push(`onEvent:${step.doneOn.eventFired}`); }
+	getWalkthrough(id: string) {
+		const walkthrough = this.gettingStartedContributions.get(id);
+		if (!walkthrough) { throw Error('Trying to get unknown walkthrough: ' + id); }
+		return this.resolveWalkthrough(walkthrough);
+	}
+
+	getWalkthroughs(): IResolvedWalkthrough[] {
+		const registeredCategories = [...this.gettingStartedContributions.values()];
+		const categoriesWithCompletion = registeredCategories
+			.map(category => {
+				return {
+					...category,
+					content: {
+						type: 'steps' as const,
+						steps: category.steps
+					}
+				};
+			})
+			.filter(category => category.content.type !== 'steps' || category.content.steps.length)
+			.map(category => this.resolveWalkthrough(category));
+		// .sort((a, b) => b.order - a.order);
+		return categoriesWithCompletion;
+	}
+
+	private resolveWalkthrough(category: IWalkthrough): IResolvedWalkthrough {
+
+		const stepsWithProgress = category.steps.map(step => this.getStepProgress(step));
+
+		const hasOpened = this.metadata.get(category.id)?.manaullyOpened;
+		const firstSeenDate = this.metadata.get(category.id)?.firstSeen;
+		const isNew = firstSeenDate && firstSeenDate > (+new Date() - NEW_WALKTHROUGH_TIME);
+
+		const lastStepIDs = this.metadata.get(category.id)?.stepIDs;
+		const rawCategory = this.gettingStartedContributions.get(category.id);
+		if (!rawCategory) { throw Error('Could not find walkthrough with id ' + category.id); }
+
+		const currentStepIds: string[] = rawCategory.steps.map(s => s.id);
+
+		const hasNewSteps = lastStepIDs && (currentStepIds.length !== lastStepIDs.length || currentStepIds.some((id, index) => id !== lastStepIDs[index]));
+
+		let recencyBonus = 0;
+		if (firstSeenDate) {
+			const currentDate = +new Date();
+			const timeSinceFirstSeen = currentDate - firstSeenDate;
+			recencyBonus = Math.max(0, (NEW_WALKTHROUGH_TIME - timeSinceFirstSeen) / NEW_WALKTHROUGH_TIME);
+		}
+
+		return {
+			...category,
+			recencyBonus,
+			steps: stepsWithProgress,
+			newItems: !!hasNewSteps,
+			newEntry: !!(isNew && !hasOpened),
+		};
+	}
+
+	private getStepProgress(step: IWalkthroughStep): IResolvedWalkthroughStep {
+		return {
+			...step,
+			done: false,
+			...this.stepProgress[step.id]
+		};
+	}
+
+	progressStep(id: string) {
+		const oldProgress = this.stepProgress[id];
+		if (!oldProgress || oldProgress.done !== true) {
+			this.stepProgress[id] = { done: true };
+			this.memento.saveMemento();
+			const step = this.getStep(id);
+			if (!step) { throw Error('Tried to progress unknown step'); }
+
+			this._onDidProgressStep.fire(this.getStepProgress(step));
+		}
+	}
+
+	deprogressStep(id: string) {
+		delete this.stepProgress[id];
+		this.memento.saveMemento();
+		const step = this.getStep(id);
+		this._onDidProgressStep.fire(this.getStepProgress(step));
+	}
+
+	progressByEvent(event: string): void {
+		if (this.sessionEvents.has(event)) { return; }
+
+		this.sessionEvents.add(event);
+		this.completionListeners.get(event)?.forEach(id => this.progressStep(id));
+	}
+
+	registerWalkthrough(walkthroughDescriptor: IWalkthrough): void {
+		const oldCategory = this.gettingStartedContributions.get(walkthroughDescriptor.id);
+		if (oldCategory) {
+			console.error(`Skipping attempt to overwrite walkthrough. (${walkthroughDescriptor.id})`);
+			return;
+		}
+
+		this.gettingStartedContributions.set(walkthroughDescriptor.id, walkthroughDescriptor);
+
+		walkthroughDescriptor.steps.forEach(step => {
+			if (this.steps.has(step.id)) { throw Error('Attempting to register step with id ' + step.id + ' twice. Second is dropped.'); }
+			this.steps.set(step.id, step);
+			step.when.keys().forEach(key => this.categoryVisibilityContextKeys.add(key));
+			this.registerDoneListeners(step);
+		});
+
+		walkthroughDescriptor.when.keys().forEach(key => this.categoryVisibilityContextKeys.add(key));
+	}
+
+	private registerDoneListeners(step: IWalkthroughStep) {
+		if ((step as any).doneOn) {
+			console.error(`wakthrough step`, step, `uses deprecated 'doneOn' property. Adopt 'completionEvents' to silence this warning`);
+			return;
 		}
 
 		if (!step.completionEvents.length) {
@@ -630,174 +639,14 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		}
 	}
 
-	private registerCompletionListener(event: string, step: IGettingStartedStep) {
+	private registerCompletionListener(event: string, step: IWalkthroughStep) {
 		if (!this.completionListeners.has(event)) {
 			this.completionListeners.set(event, new Set());
 		}
 		this.completionListeners.get(event)?.add(step.id);
 	}
 
-	getCategories(): IGettingStartedCategoryWithProgress[] {
-		const registeredCategories = [...this.gettingStartedContributions.values()];
-		const categoriesWithCompletion = registeredCategories
-			.filter(category => this.contextService.contextMatchesRules(category.when))
-			.map(category => {
-				if (category.content.type === 'steps') {
-					return {
-						...category,
-						content: {
-							type: 'steps' as const,
-							steps: category.content.steps.filter(step => this.contextService.contextMatchesRules(step.when))
-						}
-					};
-				}
-				return category;
-			})
-			.filter(category => category.content.type !== 'steps' || category.content.steps.length)
-			.map(category => this.getCategoryProgress(category))
-			.sort((a, b) => b.priority - a.priority);
-		return categoriesWithCompletion;
-	}
-
-	private getCategoryProgress(category: IGettingStartedCategory): IGettingStartedCategoryWithProgress {
-		if (category.content.type === 'startEntry') {
-			return { ...category, content: category.content, priority: 0 };
-		}
-		const stepsWithProgress = category.content.steps.map(step => this.getStepProgress(step));
-		const stepsComplete = stepsWithProgress.filter(step => step.done);
-
-		const isFeatured = category.isFeatured;
-
-		const hasOpened = this.metadata.get(category.id)?.manaullyOpened;
-		const firstSeenDate = this.metadata.get(category.id)?.firstSeen;
-		const isNew = firstSeenDate && firstSeenDate > (+new Date() - NEW_WALKTHROUGH_TIME);
-
-		const lastStepIDs = this.metadata.get(category.id)?.stepIDs;
-		const rawCategory = this.gettingStartedContributions.get(category.id);
-		let currentStepIds: string[] = [];
-		if (rawCategory?.content.type === 'steps') {
-			currentStepIds = rawCategory.content.steps.map(s => s.id);
-		}
-		const hasNewSteps = lastStepIDs && (currentStepIds.length !== lastStepIDs.length || currentStepIds.some((id, index) => id !== lastStepIDs[index]));
-
-		let priority = 0;
-
-		if (isFeatured) {
-			priority += 20;
-		}
-
-		if (isNew && firstSeenDate) {
-			priority += 10 + (NEW_WALKTHROUGH_TIME - (+new Date() - firstSeenDate)) / (24 * 60 * 60 * 1000);
-		}
-
-		if (hasNewSteps) {
-			priority += 1;
-		}
-
-		return {
-			...category,
-			priority,
-			content: {
-				type: 'steps',
-				steps: stepsWithProgress,
-				accolades:
-					isFeatured ? 'featured'
-						: (isNew && !hasOpened) ? 'newCategory'
-							: hasNewSteps ? 'newContent'
-								: undefined,
-
-				// accolades: Math.random() < 0.333 ? 'featured' : Math.random() < 0.5 ? 'newCategory' : 'newContent',
-				stepsComplete: stepsComplete.length,
-				stepsTotal: stepsWithProgress.length,
-				done: stepsComplete.length === stepsWithProgress.length,
-			}
-		};
-	}
-
-	private getStepProgress(step: IGettingStartedStep): IGettingStartedStepWithProgress {
-		return {
-			...step,
-			done: false,
-			...this.stepProgress[step.id]
-		};
-	}
-
-	progressStep(id: string) {
-		const oldProgress = this.stepProgress[id];
-		if (!oldProgress || oldProgress.done !== true) {
-			this.stepProgress[id] = { done: true };
-			this.memento.saveMemento();
-			const step = this.getStep(id);
-			this._onDidProgressStep.fire(this.getStepProgress(step));
-		}
-	}
-
-	deprogressStep(id: string) {
-		delete this.stepProgress[id];
-		this.memento.saveMemento();
-		const step = this.getStep(id);
-		this._onDidProgressStep.fire(this.getStepProgress(step));
-	}
-
-	progressByEvent(event: string): void {
-		if (this.sessionEvents.has(event)) { return; }
-
-		this.sessionEvents.add(event);
-		this.completionListeners.get(event)?.forEach(id => this.progressStep(id));
-	}
-
-	private registerStartEntry(categoryDescriptor: IGettingStartedStartEntryDescriptor): void {
-		const oldCategory = this.gettingStartedContributions.get(categoryDescriptor.id);
-		if (oldCategory) {
-			console.error(`Skipping attempt to overwrite walkthrough. (${categoryDescriptor})`);
-			return;
-		}
-
-		const category: IGettingStartedCategory = { ...categoryDescriptor, isFeatured: false };
-
-		this.gettingStartedContributions.set(categoryDescriptor.id, category);
-		this._onDidAddCategory.fire();
-	}
-
-	registerWalkthrough(categoryDescriptor: IGettingStartedWalkthroughDescriptor, steps: IGettingStartedStep[]): void {
-		const oldCategory = this.gettingStartedContributions.get(categoryDescriptor.id);
-		if (oldCategory) {
-			console.error(`Skipping attempt to overwrite walkthrough. (${categoryDescriptor.id})`);
-			return;
-		}
-
-		const category: IGettingStartedCategory = { ...categoryDescriptor, content: { type: 'steps', steps } };
-
-		this.gettingStartedContributions.set(categoryDescriptor.id, category);
-		steps.forEach(step => {
-			if (this.steps.has(step.id)) { throw Error('Attempting to register step with id ' + step.id + ' twice. Second is dropped.'); }
-			this.steps.set(step.id, step);
-			this.registerDoneListeners(step);
-			step.when.keys().forEach(key => this.categoryVisibilityContextKeys.add(key));
-		});
-
-		if (this.contextService.contextMatchesRules(category.when)) {
-			this._onDidAddCategory.fire();
-		}
-
-		this.tasExperimentService?.getTreatment<string>(`gettingStarted.overrideCategory.${categoryDescriptor.id.replace('#', '.')}.when`).then(override => {
-			if (override) {
-				const old = category.when;
-				const gnu = ContextKeyExpr.deserialize(override) ?? old;
-				this.categoryVisibilityContextKeys.add(override);
-				category.when = gnu;
-
-				if (this.contextService.contextMatchesRules(old) && !this.contextService.contextMatchesRules(gnu)) {
-					this._onDidRemoveCategory.fire();
-				} else if (!this.contextService.contextMatchesRules(old) && this.contextService.contextMatchesRules(gnu)) {
-					this._onDidAddCategory.fire();
-				}
-			}
-		});
-		category.when.keys().forEach(key => this.categoryVisibilityContextKeys.add(key));
-	}
-
-	private getStep(id: string): IGettingStartedStep {
+	private getStep(id: string): IWalkthroughStep {
 		const step = this.steps.get(id);
 		if (!step) { throw Error('Attempting to access step which does not exist in registry ' + id); }
 		return step;
@@ -838,7 +687,7 @@ registerAction2(class extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor) {
-		const gettingStartedService = accessor.get(IGettingStartedService);
+		const gettingStartedService = accessor.get(IWalkthroughsService);
 		const storageService = accessor.get(IStorageService);
 
 		storageService.store(
@@ -868,4 +717,4 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerSingleton(IGettingStartedService, GettingStartedService);
+registerSingleton(IWalkthroughsService, GettingStartedService);
