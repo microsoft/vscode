@@ -55,6 +55,9 @@ export const overviewRulerInfo = registerColor('editorOverviewRuler.infoForegrou
 export const editorBracketHighlightingForeground1 = registerColor('editorBracketHighlight.foreground1', { dark: '#FFD700', light: '#9A6D03', hc: '#FFD700' }, nls.localize('editorBracketHighlightForeground1', 'Foreground color of brackets (1).'));
 export const editorBracketHighlightingForeground2 = registerColor('editorBracketHighlight.foreground2', { dark: '#DA70D6', light: '#C433BF', hc: '#DA70D6' }, nls.localize('editorBracketHighlightForeground2', 'Foreground color of brackets (2).'));
 export const editorBracketHighlightingForeground3 = registerColor('editorBracketHighlight.foreground3', { dark: '#87CEFA', light: '#0879BF', hc: '#87CEFA' }, nls.localize('editorBracketHighlightForeground3', 'Foreground color of brackets (3).'));
+export const editorBracketHighlightingForeground4 = registerColor('editorBracketHighlight.foreground4', { dark: '#00000000', light: '#00000000', hc: '#00000000' }, nls.localize('editorBracketHighlightForeground4', 'Foreground color of brackets (4).'));
+export const editorBracketHighlightingForeground5 = registerColor('editorBracketHighlight.foreground5', { dark: '#00000000', light: '#00000000', hc: '#00000000' }, nls.localize('editorBracketHighlightForeground5', 'Foreground color of brackets (5).'));
+export const editorBracketHighlightingForeground6 = registerColor('editorBracketHighlight.foreground6', { dark: '#00000000', light: '#00000000', hc: '#00000000' }, nls.localize('editorBracketHighlightForeground6', 'Foreground color of brackets (6).'));
 
 // contains all color rules that used to defined in editor/browser/widget/editor.css
 registerThemingParticipant((theme, collector) => {

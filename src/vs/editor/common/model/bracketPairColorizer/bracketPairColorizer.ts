@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Color } from 'vs/base/common/color';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
@@ -14,7 +15,7 @@ import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvent
 import { LanguageId } from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {
-	editorBracketHighlightingForeground1, editorBracketHighlightingForeground2, editorBracketHighlightingForeground3
+	editorBracketHighlightingForeground1, editorBracketHighlightingForeground2, editorBracketHighlightingForeground3, editorBracketHighlightingForeground4, editorBracketHighlightingForeground5, editorBracketHighlightingForeground6
 } from 'vs/editor/common/view/editorColorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { AstNode, AstNodeKind } from './ast';
@@ -262,20 +263,34 @@ export class BracketInfo {
 
 class ColorProvider {
 	getInlineClassName(bracket: BracketInfo): string {
-		return `bracket-highlighting-${(bracket.level) % 3}`;
+		return this.getInlineClassNameOfLevel(bracket.level);
+	}
+
+	getInlineClassNameOfLevel(level: number): string {
+		// To support a dynamic amount of colors up to 6 colors,
+		// we use a number that is a lcm of all numbers from 1 to 6.
+		return `bracket-highlighting-${level % 30}`;
 	}
 }
 
 registerThemingParticipant((theme, collector) => {
-	// TODO support a dynamic amount of colors.
-	const colors = [editorBracketHighlightingForeground1, editorBracketHighlightingForeground2, editorBracketHighlightingForeground3];
+	const colors = [
+		editorBracketHighlightingForeground1,
+		editorBracketHighlightingForeground2,
+		editorBracketHighlightingForeground3,
+		editorBracketHighlightingForeground4,
+		editorBracketHighlightingForeground5,
+		editorBracketHighlightingForeground6
+	];
+	const colorProvider = new ColorProvider();
 
-	let idx = 0;
-	for (const color of colors) {
-		const bracketMatchBackground = theme.getColor(color);
-		if (bracketMatchBackground) {
-			collector.addRule(`.monaco-editor .bracket-highlighting-${idx} { color: ${bracketMatchBackground}; }`);
-		}
-		idx++;
+	let colorValues = colors
+		.map(c => theme.getColor(c))
+		.filter((c): c is Color => !!c)
+		.filter(c => !c.isTransparent());
+
+	for (let level = 0; level < 30; level++) {
+		const color = colorValues[level % colorValues.length];
+		collector.addRule(`.monaco-editor .${colorProvider.getInlineClassNameOfLevel(level)} { color: ${color}; }`);
 	}
 });
