@@ -643,7 +643,8 @@ const editorOptionsCustomizationSchema: IConfigurationPropertySchema = {
 		// 		}
 		// 	}
 		// }
-	]
+	],
+	tags: ['notebookLayout']
 };
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
@@ -688,7 +689,8 @@ configurationRegistry.registerConfiguration({
 		[NotebookTextDiffEditorPreview]: {
 			description: nls.localize('notebook.diff.enablePreview.description', "Whether to use the enhanced text diff editor for notebook."),
 			type: 'boolean',
-			default: true
+			default: true,
+			tags: ['notebookLayout']
 		},
 		[CellToolbarVisibility]: {
 			markdownDescription: nls.localize('notebook.cellToolbarVisibility.description', "Whether the cell toolbar should appear on hover or click."),
@@ -773,7 +775,8 @@ configurationRegistry.registerConfiguration({
 		[TextOutputLineLimit]: {
 			description: nls.localize('notebook.textOutputLineLimit', "Control how many lines of text in a text output is rendered."),
 			type: 'number',
-			default: 30
+			default: 30,
+			tags: ['notebookLayout']
 		},
 		[NotebookCellEditorOptionsCustomizations]: editorOptionsCustomizationSchema
 	}
