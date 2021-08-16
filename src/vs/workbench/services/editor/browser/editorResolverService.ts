@@ -171,7 +171,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		if (activeEditor && isActive) {
 			return { editor: activeEditor, options, group };
 		}
-		const input = this.doResolveEditor(untypedEditor, group, selectedEditor);
+		const input = await this.doResolveEditor(untypedEditor, group, selectedEditor);
 		if (conflictingDefault && input) {
 			// Show the conflicting default dialog
 			await this.doHandleConflictingDefaults(resource, selectedEditor.editorInfo.label, untypedEditor, input.editor, group);
@@ -349,7 +349,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		};
 	}
 
-	private doResolveEditor(editor: IUntypedEditorInput, group: IEditorGroup, selectedEditor: RegisteredEditor): IEditorInputWithOptions | undefined {
+	private async doResolveEditor(editor: IUntypedEditorInput, group: IEditorGroup, selectedEditor: RegisteredEditor): Promise<IEditorInputWithOptions | undefined> {
 		let options = editor.options;
 		const resource = EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		// If no activation option is provided, populate it.
@@ -362,7 +362,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			if (!selectedEditor.createDiffEditorInput) {
 				return;
 			}
-			const inputWithOptions = selectedEditor.createDiffEditorInput(editor, group);
+			const inputWithOptions = await selectedEditor.createDiffEditorInput(editor, group);
 			return { editor: inputWithOptions.editor, options: inputWithOptions.options ?? options };
 		}
 
@@ -370,7 +370,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			if (!selectedEditor.createUntitledEditorInput) {
 				return;
 			}
-			const inputWithOptions = selectedEditor.createUntitledEditorInput(editor, group);
+			const inputWithOptions = await selectedEditor.createUntitledEditorInput(editor, group);
 			return { editor: inputWithOptions.editor, options: inputWithOptions.options ?? options };
 		}
 
@@ -380,7 +380,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}
 
 		// Respect options passed back
-		const inputWithOptions = selectedEditor.createEditorInput(editor, group);
+		const inputWithOptions = await selectedEditor.createEditorInput(editor, group);
 		options = inputWithOptions.options ?? options;
 		const input = inputWithOptions.editor;
 

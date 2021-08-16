@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
@@ -89,6 +89,8 @@ export const enum TerminalSettingId {
 	LocalEchoExcludePrograms = 'terminal.integrated.localEchoExcludePrograms',
 	LocalEchoStyle = 'terminal.integrated.localEchoStyle',
 	EnablePersistentSessions = 'terminal.integrated.enablePersistentSessions',
+	PersistentSessionScrollback = 'terminal.integrated.persistentSessionScrollback',
+	PersistentSessionExperimentalSerializer = 'terminal.integrated.persistentSessionExperimentalSerializer',
 	InheritEnv = 'terminal.integrated.inheritEnv',
 	ShowLinkHover = 'terminal.integrated.showLinkHover',
 }
@@ -386,35 +388,9 @@ export interface IShellLaunchConfig {
 	color?: string;
 }
 
-export interface ICreateTerminalOptions {
-	/**
-	 * The shell launch config or profile to launch with, when not specified the default terminal
-	 * profile will be used.
-	 */
-	config?: IShellLaunchConfig | ITerminalProfile | IExtensionTerminalProfile;
-	/**
-	 * The current working directory to start with, this will override IShellLaunchConfig.cwd if
-	 * specified.
-	 */
-	cwd?: string | URI;
-	/**
-	 * Where to create the terminal, when not specified the default target will be used.
-	 */
-	target?: TerminalLocation;
-	/**
-	 * Creates a split terminal without requiring a terminal instance to split, for example when splitting
-	 * a terminal editor
-	 */
-	forceSplit?: boolean;
-	/**
-	 * The terminal's resource, passed when the terminal has moved windows.
-	 */
-	resource?: URI;
-}
-
 export interface ICreateContributedTerminalProfileOptions {
 	target?: TerminalLocation;
-	icon?: string;
+	icon?: URI | string | { light: URI, dark: URI };
 	color?: string;
 	isSplitTerminal?: boolean;
 }
@@ -515,8 +491,10 @@ export interface ITerminalChildProcess {
 }
 
 export interface IReconnectConstants {
-	GraceTime: number,
-	ShortGraceTime: number
+	graceTime: number;
+	shortGraceTime: number;
+	scrollback: number;
+	useExperimentalSerialization: boolean;
 }
 
 export const enum LocalReconnectConstants {
@@ -623,7 +601,7 @@ export interface ITerminalContributions {
 export interface ITerminalProfileContribution {
 	title: string;
 	id: string;
-	icon?: string;
+	icon?: URI | { light: URI, dark: URI } | string;
 	color?: string;
 }
 

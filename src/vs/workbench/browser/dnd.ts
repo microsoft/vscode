@@ -29,6 +29,7 @@ import { Emitter } from 'vs/base/common/event';
 import { coalesce } from 'vs/base/common/arrays';
 import { parse, stringify } from 'vs/base/common/marshalling';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 //#region Editor / Resources DND
 
@@ -152,7 +153,8 @@ export class ResourcesDropHandler {
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService private readonly hostService: IHostService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 	}
 
@@ -177,8 +179,12 @@ export class ResourcesDropHandler {
 		}
 
 		// Add external ones to recently open list unless dropped resource is a workspace
+		// and only for resources that are outside of the currently opened workspace
 		if (externalLocalFiles.length) {
-			this.workspacesService.addRecentlyOpened(externalLocalFiles.map(resource => ({ fileUri: resource })));
+			this.workspacesService.addRecentlyOpened(externalLocalFiles
+				.filter(resource => !this.contextService.isInsideWorkspace(resource))
+				.map(resource => ({ fileUri: resource }))
+			);
 		}
 
 		// Open in Editor
@@ -285,13 +291,17 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 	const lineDelimiter = isWindows ? '\r\n' : '\n';
 	event.dataTransfer.setData(DataTransfers.TEXT, fileSystemResources.map(({ resource }) => labelService.getUriLabel(resource, { noPrefix: true })).join(lineDelimiter));
 
-	// Download URL: enables support to drag a tab as file to desktop (only single file supported)
+	// Download URL: enables support to drag a tab as file to desktop
+	// Requirements:
+	// - Chrome/Edge only
+	// - only a single file is supported
+	// - only file:/ resources are supported
 	const firstFile = fileSystemResources.find(({ isDirectory }) => !isDirectory);
 	if (firstFile) {
-		// TODO@sandbox this will no longer work when `vscode-file`
-		// is enabled because we block loading resources that are not
-		// inside installation dir
-		event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [Mimes.binary, basename(firstFile.resource), FileAccess.asBrowserUri(firstFile.resource).toString()].join(':'));
+		const firstFileUri = FileAccess.asFileUri(firstFile.resource); // enforce `file:` URIs
+		if (firstFileUri.scheme === Schemas.file) {
+			event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [Mimes.binary, basename(firstFile.resource), firstFileUri.toString()].join(':'));
+		}
 	}
 
 	// Resource URLs: allows to drop multiple file resources to a target in VS Code

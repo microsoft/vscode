@@ -28,7 +28,11 @@
 	</body>
 
 	<!-- Startup (do not modify order of script tags!) -->
+	<script src="./static/out/vs/webPackagePaths.js"></script>
 	<script>
+		Object.keys(self.webPackagePaths).map(function (key, index) {
+			self.webPackagePaths[key] = `${window.location.origin}/static/remote/web/node_modules/${key}/${self.webPackagePaths[key]}`;
+		});
 		self.require = {
 			baseUrl: `${window.location.origin}/static/out`,
 			recordStats: true,
@@ -40,18 +44,7 @@
 					throw new Error(`Invalid script url: ${value}`)
 				}
 			}),
-			paths: {
-				'@vscode/vscode-languagedetection': `${window.location.origin}/static/remote/web/node_modules/@vscode/vscode-languagedetection/dist/lib/index.js`,
-				'vscode-textmate': `${window.location.origin}/static/remote/web/node_modules/vscode-textmate/release/main`,
-				'vscode-oniguruma': `${window.location.origin}/static/remote/web/node_modules/vscode-oniguruma/release/main`,
-				'xterm': `${window.location.origin}/static/remote/web/node_modules/xterm/lib/xterm.js`,
-				'xterm-addon-search': `${window.location.origin}/static/remote/web/node_modules/xterm-addon-search/lib/xterm-addon-search.js`,
-				'xterm-addon-unicode11': `${window.location.origin}/static/remote/web/node_modules/xterm-addon-unicode11/lib/xterm-addon-unicode11.js`,
-				'xterm-addon-webgl': `${window.location.origin}/static/remote/web/node_modules/xterm-addon-webgl/lib/xterm-addon-webgl.js`,
-				'tas-client-umd': `${window.location.origin}/static/remote/web/node_modules/tas-client-umd/lib/tas-client-umd.js`,
-				'iconv-lite-umd': `${window.location.origin}/static/remote/web/node_modules/iconv-lite-umd/lib/iconv-lite-umd.js`,
-				'jschardet': `${window.location.origin}/static/remote/web/node_modules/jschardet/dist/jschardet.min.js`,
-			}
+			paths: self.webPackagePaths
 		};
 	</script>
 	<script src="./static/out/vs/loader.js"></script>

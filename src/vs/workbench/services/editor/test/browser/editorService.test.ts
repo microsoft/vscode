@@ -33,6 +33,7 @@ import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspac
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { UnavailableEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
 
 suite('EditorService', () => {
 
@@ -1795,6 +1796,20 @@ suite('EditorService', () => {
 
 		let failingEditor = await service.openEditor(failingInput);
 		assert.ok(!failingEditor);
+	});
+
+	test('openEditor shows placeholder when restoring fails', async function () {
+		const [, service] = await createEditorService();
+
+		const input = new TestFileEditorInput(URI.parse('my://resource-active'), TEST_EDITOR_INPUT_ID);
+		const failingInput = new TestFileEditorInput(URI.parse('my://resource-failing'), TEST_EDITOR_INPUT_ID);
+
+		await service.openEditor(input, { pinned: true });
+		await service.openEditor(failingInput, { inactive: true });
+
+		failingInput.setFailToOpen();
+		let failingEditor = await service.openEditor(failingInput);
+		assert.ok(failingEditor instanceof UnavailableEditor);
 	});
 
 	test('save, saveAll, revertAll', async function () {

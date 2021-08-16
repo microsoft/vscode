@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 
 export function getRemoteAuthority(uri: URI): string | undefined {

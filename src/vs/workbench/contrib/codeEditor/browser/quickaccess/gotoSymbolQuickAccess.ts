@@ -56,11 +56,11 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 	}
 
 	protected get activeTextEditorControl() {
-		// TODO@bpasero this distinction should go away by adopting `IOutlineService`
+
+		// TODO: this distinction should go away by adopting `IOutlineService`
 		// for all editors (either text based ones or not). Currently text based
 		// editors are not yet using the new outline service infrastructure but the
 		// "classical" document symbols approach.
-
 		if (isCompositeEditor(this.editorService.activeEditorPane?.getControl())) {
 			return undefined;
 		}

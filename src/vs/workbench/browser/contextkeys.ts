@@ -26,6 +26,8 @@ import { IEditorResolverService } from 'vs/workbench/services/editor/common/edit
 
 export const WorkbenchStateContext = new RawContextKey<string>('workbenchState', undefined, { type: 'string', description: localize('workbenchState', "The kind of workspace opened in the window, either 'empty' (no workspace), 'folder' (single folder) or 'workspace' (multi-root workspace)") });
 export const WorkspaceFolderCountContext = new RawContextKey<number>('workspaceFolderCount', 0, localize('workspaceFolderCount', "The number of root folders in the workspace"));
+
+export const EnterMultiRootWorkspaceSupportContext = new RawContextKey<boolean>('enterMultiRootWorkspaceSupport', true, true);
 export const EmptyWorkspaceSupportContext = new RawContextKey<boolean>('emptyWorkspaceSupport', true, true);
 
 export const DirtyWorkingCopiesContext = new RawContextKey<boolean>('dirtyWorkingCopies', false, localize('dirtyWorkingCopies', "Whether there are any dirty working copies"));
@@ -60,7 +62,9 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 	private workbenchStateContext: IContextKey<string>;
 	private workspaceFolderCountContext: IContextKey<number>;
+
 	private emptyWorkspaceSupportContext: IContextKey<boolean>;
+	private enterMultiRootWorkspaceSupportContext: IContextKey<boolean>;
 
 	private inZenModeContext: IContextKey<boolean>;
 	private isFullscreenContext: IContextKey<boolean>;
@@ -135,11 +139,23 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this.workspaceFolderCountContext = WorkspaceFolderCountContext.bindTo(this.contextKeyService);
 		this.updateWorkspaceFolderCountContextKey();
 
-		// Empty workspace support: empty workspaces require a default "local" file
-		// system to operate with. We always have one when running natively or when
-		// we have a remote connection.
+		// Empty workspace support: empty workspaces require built-in file system
+		// providers to be available that allow to enter a workspace or open loose
+		// files. This condition is met:
+		// - desktop: always
+		// -     web: only when connected to a remote
 		this.emptyWorkspaceSupportContext = EmptyWorkspaceSupportContext.bindTo(this.contextKeyService);
 		this.emptyWorkspaceSupportContext.set(isNative || typeof this.environmentService.remoteAuthority === 'string');
+
+		// Entering a multi root workspace support: support for entering a multi-root
+		// workspace (e.g. "Open Workspace...", "Duplicate Workspace", "Save Workspace")
+		// is driven by the ability to resolve a workspace configuration file (*.code-workspace)
+		// with a built-in file system provider.
+		// This condition is met:
+		// - desktop: always
+		// -     web: only when connected to a remote
+		this.enterMultiRootWorkspaceSupportContext = EnterMultiRootWorkspaceSupportContext.bindTo(this.contextKeyService);
+		this.enterMultiRootWorkspaceSupportContext.set(isNative || typeof this.environmentService.remoteAuthority === 'string');
 
 		// Editor Layout
 		this.splitEditorsVerticallyContext = SplitEditorsVertically.bindTo(this.contextKeyService);

@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChildProcess, spawn } from 'child_process';
-import { FileChangeType } from 'vs/platform/files/common/files';
-import { LineDecoder } from 'vs/base/node/decoder';
 import { parse, ParsedPattern } from 'vs/base/common/glob';
-import { IDiskFileChange, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
 import { FileAccess } from 'vs/base/common/network';
+import { LineDecoder } from 'vs/base/node/decoder';
+import { FileChangeType } from 'vs/platform/files/common/files';
+import { IDiskFileChange, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
 
 export class OutOfProcessWin32FolderWatcher {
 

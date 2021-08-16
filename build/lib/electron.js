@@ -12,7 +12,7 @@ const filter = require("gulp-filter");
 const _ = require("underscore");
 const util = require("./util");
 function isDocumentSuffix(str) {
-    return str != undefined && (str === 'document' || str === 'script' || str === 'file' || str === 'source code');
+    return str === 'document' || str === 'script' || str === 'file' || str === 'source code';
 }
 const root = path.dirname(path.dirname(__dirname));
 const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));

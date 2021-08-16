@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GestureEvent } from 'vs/base/browser/touch';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { GestureEvent } from 'vs/base/browser/touch';
 
 export interface IListVirtualDelegate<T> {
 	getHeight(element: T): number;

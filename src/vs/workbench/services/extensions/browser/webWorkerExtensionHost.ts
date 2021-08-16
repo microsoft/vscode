@@ -83,8 +83,9 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 	}
 
 	private _webWorkerExtensionHostIframeSrc(): string | null {
+		const suffix = this._environmentService.debugExtensionHost && this._environmentService.debugRenderer ? '?debugged=1' : '?';
 		if (this._environmentService.options && this._environmentService.options.webWorkerExtensionHostIframeSrc) {
-			return this._environmentService.options.webWorkerExtensionHostIframeSrc;
+			return this._environmentService.options.webWorkerExtensionHostIframeSrc + suffix;
 		}
 
 		const forceHTTPS = (location.protocol === 'https:');
@@ -100,11 +101,13 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 						.replace('{{commit}}', commit)
 						.replace('{{quality}}', quality)
 				);
-				return (
+				const base = (
 					forceHTTPS
 						? `${baseUrl}/out/vs/workbench/services/extensions/worker/httpsWebWorkerExtensionHostIframe.html`
 						: `${baseUrl}/out/vs/workbench/services/extensions/worker/httpWebWorkerExtensionHostIframe.html`
 				);
+
+				return base + suffix;
 			}
 		}
 
@@ -116,11 +119,13 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			if (this._productService.commit) {
 				baseUrl += `/${this._productService.commit}`;
 			}
-			return (
+			const base = (
 				forceHTTPS
 					? `${baseUrl}/out/vs/workbench/services/extensions/worker/httpsWebWorkerExtensionHostIframe.html`
 					: `${baseUrl}/out/vs/workbench/services/extensions/worker/httpWebWorkerExtensionHostIframe.html`
 			);
+
+			return base + suffix;
 		}
 		return null;
 	}
@@ -152,7 +157,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		iframe.style.display = 'none';
 
 		const vscodeWebWorkerExtHostId = generateUuid();
-		iframe.setAttribute('src', `${webWorkerExtensionHostIframeSrc}?vscodeWebWorkerExtHostId=${vscodeWebWorkerExtHostId}`);
+		iframe.setAttribute('src', `${webWorkerExtensionHostIframeSrc}&vscodeWebWorkerExtHostId=${vscodeWebWorkerExtHostId}`);
 
 		const barrier = new Barrier();
 		let port!: MessagePort;
@@ -242,7 +247,8 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 
 		const nestedWorker = new Map<string, Worker>();
 
-		const worker = new DefaultWorkerFactory('WorkerExtensionHost').create(
+		const name = this._environmentService.debugRenderer && this._environmentService.debugExtensionHost ? 'DebugWorkerExtensionHost' : 'WorkerExtensionHost';
+		const worker = new DefaultWorkerFactory(name).create(
 			'vs/workbench/services/extensions/worker/extensionHostWorker',
 			(data: MessagePort | NewWorkerMessage | TerminateWorkerMessage | any) => {
 
@@ -369,6 +375,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			environment: {
 				isExtensionDevelopmentDebug: this._environmentService.debugRenderer,
 				appName: this._productService.nameLong,
+				embedderIdentifier: this._productService.embedderIdentifier || 'web',
 				appUriScheme: this._productService.urlProtocol,
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,

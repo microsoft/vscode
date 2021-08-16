@@ -182,6 +182,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			const focus = this.getFocusedElements()[0];
 
 			if (focus && focus.cellKind === CellKind.Markup && !focus.metadata.inputCollapsed && !this._viewModel?.options.isReadOnly) {
+				// scroll the cell into view if out of viewport
+				this.revealElementInView(focus);
 				focus.updateEditState(CellEditState.Editing, 'dbclick');
 				focus.focusMode = CellFocusMode.Editor;
 			}
@@ -541,14 +543,13 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		return reduceCellRanges(ranges);
 	}
 
-	getVisibleRangesPlusViewportAboveBelow() {
+	getVisibleRangesPlusViewportBelow() {
 		if (this.view.length <= 0) {
 			return [];
 		}
 
-		const top = clamp(this.getViewScrollTop() - this.renderHeight, 0, this.scrollHeight);
 		const bottom = clamp(this.getViewScrollBottom() + this.renderHeight, 0, this.scrollHeight);
-		const topViewIndex = clamp(this.view.indexAt(top), 0, this.view.length - 1);
+		const topViewIndex = this.firstVisibleIndex;
 		const topElement = this.view.element(topViewIndex);
 		const topModelIndex = this._viewModel!.getCellIndex(topElement);
 		const bottomViewIndex = clamp(this.view.indexAt(bottom), 0, this.view.length - 1);

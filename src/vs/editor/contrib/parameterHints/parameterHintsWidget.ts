@@ -253,7 +253,20 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 			String(hints.activeSignature + 1).padStart(hints.signatures.length.toString().length, '0') + '/' + hints.signatures.length;
 
 		if (activeParameter) {
-			const labelToAnnounce = this.getParameterLabel(signature, activeParameterIndex);
+			let labelToAnnounce = '';
+			const param = signature.parameters[activeParameterIndex];
+			if (Array.isArray(param.label)) {
+				labelToAnnounce = signature.label.substring(param.label[0], param.label[1]);
+			} else {
+				labelToAnnounce = param.label;
+			}
+			if (param.documentation) {
+				labelToAnnounce += typeof param.documentation === 'string' ? `, ${param.documentation}` : `, ${param.documentation.value}`;
+			}
+			if (signature.documentation) {
+				labelToAnnounce += typeof signature.documentation === 'string' ? `, ${signature.documentation}` : `, ${signature.documentation.value}`;
+			}
+
 			// Select method gets called on every user type while parameter hints are visible.
 			// We do not want to spam the user with same announcements, so we only announce if the current parameter changed.
 
@@ -307,15 +320,6 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		afterSpan.textContent = signature.label.substring(end);
 
 		dom.append(parent, beforeSpan, paramSpan, afterSpan);
-	}
-
-	private getParameterLabel(signature: modes.SignatureInformation, paramIdx: number): string {
-		const param = signature.parameters[paramIdx];
-		if (Array.isArray(param.label)) {
-			return signature.label.substring(param.label[0], param.label[1]);
-		} else {
-			return param.label;
-		}
 	}
 
 	private getParameterLabelOffsets(signature: modes.SignatureInformation, paramIdx: number): [number, number] {

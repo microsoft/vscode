@@ -12,15 +12,20 @@ import { Range } from 'vs/editor/common/core/range';
 import { localize } from 'vs/nls';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
 import { IObservableValue, MutableObservableValue, staticObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { ISerializedTestResults, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, ResolvedTestRunRequest, TestItemExpandState, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
+import { IRichLocation, ISerializedTestResults, ITestItem, ITestMessage, ITestOutputMessage, ITestRunTask, ITestTaskState, ResolvedTestRunRequest, TestItemExpandState, TestMessageType, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { maxPriority, statesInOrder } from 'vs/workbench/contrib/testing/common/testingStates';
 
-export interface ITestRunTaskWithCoverage extends ITestRunTask {
+export interface ITestRunTaskResults extends ITestRunTask {
 	/**
 	 * Contains test coverage for the result, if it's available.
 	 */
 	readonly coverage: IObservableValue<TestCoverage | undefined>;
+
+	/**
+	 * Messages from the task not associated with any specific test.
+	 */
+	readonly otherMessages: ITestOutputMessage[];
 }
 
 export interface ITestResult {
@@ -58,7 +63,7 @@ export interface ITestResult {
 	/**
 	 * List of this result's subtasks.
 	 */
-	tasks: ReadonlyArray<ITestRunTaskWithCoverage>;
+	tasks: ReadonlyArray<ITestRunTaskResults>;
 
 	/**
 	 * Gets the state of the test by its extension-assigned ID.
@@ -133,6 +138,14 @@ export class LiveOutputController {
 
 	private readonly dataEmitter = new Emitter<VSBuffer>();
 	private readonly endEmitter = new Emitter<void>();
+	private _offset = 0;
+
+	/**
+	 * Gets the number of written bytes.
+	 */
+	public get offset() {
+		return this._offset;
+	}
 
 	constructor(
 		private readonly writer: Lazy<[VSBufferWriteableStream, Promise<void>]>,
@@ -149,6 +162,7 @@ export class LiveOutputController {
 
 		this.previouslyWritten?.push(data);
 		this.dataEmitter.fire(data);
+		this._offset += data.byteLength;
 
 		return this.writer.getValue()[0].write(data);
 	}
@@ -243,7 +257,7 @@ export class LiveTestResult implements ITestResult {
 
 	public readonly onChange = this.changeEmitter.event;
 	public readonly onComplete = this.completeEmitter.event;
-	public readonly tasks: ITestRunTaskWithCoverage[] = [];
+	public readonly tasks: ITestRunTaskResults[] = [];
 	public readonly name = localize('runFinished', 'Test run at {0}', new Date().toLocaleString());
 
 	/**
@@ -302,11 +316,31 @@ export class LiveTestResult implements ITestResult {
 	}
 
 	/**
+	 * Appends output that occurred during the test run.
+	 */
+	public appendOutput(output: VSBuffer, taskId: string, location?: IRichLocation, testId?: string): void {
+		this.output.append(output);
+		const message: ITestOutputMessage = {
+			location,
+			message: output.toString(),
+			offset: this.output.offset,
+			type: TestMessageType.Info,
+		};
+
+		const index = this.mustGetTaskIndex(taskId);
+		if (testId) {
+			this.testById.get(testId)?.tasks[index].messages.push(message);
+		} else {
+			this.tasks[index].otherMessages.push(message);
+		}
+	}
+
+	/**
 	 * Adds a new run task to the results.
 	 */
 	public addTask(task: ITestRunTask) {
 		const index = this.tasks.length;
-		this.tasks.push({ ...task, coverage: new MutableObservableValue(undefined) });
+		this.tasks.push({ ...task, coverage: new MutableObservableValue(undefined), otherMessages: [] });
 
 		for (const test of this.tests) {
 			test.tasks.push({ duration: undefined, messages: [], state: TestResultState.Unset });
@@ -504,7 +538,7 @@ export class LiveTestResult implements ITestResult {
 	private readonly doSerialize = new Lazy((): ISerializedTestResults => ({
 		id: this.id,
 		completedAt: this.completedAt!,
-		tasks: this.tasks,
+		tasks: this.tasks.map(t => ({ id: t.id, name: t.name, messages: t.otherMessages })),
 		name: this.name,
 		request: this.request,
 		items: [...this.testById.values()].map(entry => ({
@@ -538,7 +572,7 @@ export class HydratedTestResult implements ITestResult {
 	/**
 	 * @inheritdoc
 	 */
-	public readonly tasks: ITestRunTaskWithCoverage[];
+	public readonly tasks: ITestRunTaskResults[];
 
 	/**
 	 * @inheritdoc
@@ -566,7 +600,21 @@ export class HydratedTestResult implements ITestResult {
 	) {
 		this.id = serialized.id;
 		this.completedAt = serialized.completedAt;
-		this.tasks = serialized.tasks.map(task => ({ ...task, coverage: staticObservableValue(undefined) }));
+		this.tasks = serialized.tasks.map((task, i) => ({
+			id: task.id,
+			name: task.name,
+			running: false,
+			coverage: staticObservableValue(undefined),
+			otherMessages: task.messages.map(m => ({
+				message: m.message,
+				type: m.type,
+				offset: m.offset,
+				location: m.location && {
+					uri: URI.revive(m.location.uri),
+					range: Range.lift(m.location.range)
+				},
+			}))
+		}));
 		this.name = serialized.name;
 		this.request = serialized.request;
 

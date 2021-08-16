@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as extpath from 'vs/base/common/extpath';
-import * as paths from 'vs/base/common/path';
-import { URI, uriToFsPath } from 'vs/base/common/uri';
-import { equalsIgnoreCase, compare as strCompare } from 'vs/base/common/strings';
-import { Schemas } from 'vs/base/common/network';
-import { isWindows, isLinux } from 'vs/base/common/platform';
 import { CharCode } from 'vs/base/common/charCode';
+import * as extpath from 'vs/base/common/extpath';
+import { Schemas } from 'vs/base/common/network';
+import * as paths from 'vs/base/common/path';
+import { isLinux, isWindows } from 'vs/base/common/platform';
+import { compare as strCompare, equalsIgnoreCase } from 'vs/base/common/strings';
+import { URI, uriToFsPath } from 'vs/base/common/uri';
 
 export function originalFSPath(uri: URI): string {
 	return uriToFsPath(uri, true);
@@ -195,7 +195,9 @@ export class ExtUri implements IExtUri {
 	}
 
 	extname(resource: URI): string {
-		return paths.posix.extname(resource.path);
+		const resourceExt = paths.posix.extname(resource.path);
+		const queryStringLocation = resourceExt.indexOf('?');
+		return queryStringLocation !== -1 ? resourceExt.substr(0, queryStringLocation) : resourceExt;
 	}
 
 	dirname(resource: URI): URI {

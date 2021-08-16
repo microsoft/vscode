@@ -453,13 +453,13 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 			return;
 		}
 
+		e.preventDefault();
+		e.stopImmediatePropagation();
 		if (this.model.getSelected() === targetIdx) {
 			return;
 		}
 
 		this.selectRow(targetIdx);
-		e.preventDefault();
-		e.stopPropagation();
 	}
 
 	private onListDoubleClick(e: MouseEvent): void {
@@ -769,6 +769,8 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 			this.listDisposables.add(
 				DOM.addStandardDisposableListener(siblingInput.inputElement, DOM.EventType.KEY_DOWN, onKeyDown)
 			);
+		} else if (valueInput instanceof InputBox) {
+			valueInput.element.classList.add('no-sibling');
 		}
 
 		const okButton = this._register(new Button(rowElement));
@@ -794,8 +796,8 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 		this.listDisposables.add(
 			disposableTimeout(() => {
 				valueInput.focus();
-				if (item.value.type === 'string') {
-					(valueInput as InputBox).select();
+				if (valueInput instanceof InputBox) {
+					valueInput.select();
 				}
 			})
 		);
@@ -1201,17 +1203,17 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 
 	private renderEnumEditWidget(
 		keyOrValue: IObjectEnumData,
-		{ isKey, originalItem, update }: IObjectRenderEditWidgetOptions,
+		{ isKey, changedItem, update }: IObjectRenderEditWidgetOptions,
 	) {
 		const selectBox = this.createBasicSelectBox(keyOrValue);
 
-		const originalKeyOrValue = isKey ? originalItem.key : originalItem.value;
+		const changedKeyOrValue = isKey ? changedItem.key : changedItem.value;
 		this.listDisposables.add(
 			selectBox.onDidSelect(({ selected }) =>
 				update(
-					originalKeyOrValue.type === 'boolean'
-						? { ...originalKeyOrValue, data: selected === 'true' ? true : false }
-						: { ...originalKeyOrValue, data: selected },
+					changedKeyOrValue.type === 'boolean'
+						? { ...changedKeyOrValue, data: selected === 'true' ? true : false }
+						: { ...changedKeyOrValue, data: selected },
 				)
 			)
 		);
@@ -1227,10 +1229,13 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 		const selected = keyOrValue.options.findIndex(option => keyOrValue.data === option.value);
 		if (selected === -1 && keyOrValue.options.length) {
 			update(
-				originalKeyOrValue.type === 'boolean'
-					? { ...originalKeyOrValue, data: true }
-					: { ...originalKeyOrValue, data: keyOrValue.options[0].value }
+				changedKeyOrValue.type === 'boolean'
+					? { ...changedKeyOrValue, data: true }
+					: { ...changedKeyOrValue, data: keyOrValue.options[0].value }
 			);
+		} else if (changedKeyOrValue.type === 'boolean') {
+			// https://github.com/microsoft/vscode/issues/129581
+			update({ ...changedKeyOrValue, data: keyOrValue.data === 'true' });
 		}
 
 		return { widget: selectBox, element: wrapper };

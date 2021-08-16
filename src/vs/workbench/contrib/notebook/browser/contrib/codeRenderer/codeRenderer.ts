@@ -15,6 +15,7 @@ import { IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCom
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 
 abstract class CodeRendererContrib extends Disposable implements IOutputTransformContribution {
 	getType() {
@@ -37,6 +38,26 @@ abstract class CodeRendererContrib extends Disposable implements IOutputTransfor
 	protected _render(output: ICellOutputViewModel, container: HTMLElement, value: string, modeId: string): IRenderOutput {
 		const disposable = new DisposableStore();
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, getOutputSimpleEditorOptions(), { isSimpleWidget: true, contributions: this.notebookEditor.creationOptions.cellEditorContributions });
+
+		if (output.cellViewModel instanceof CodeCellViewModel) {
+			disposable.add(output.cellViewModel.viewContext.eventDispatcher.onDidChangeLayout(() => {
+				const outputWidth = this.notebookEditor.getCellOutputLayoutInfo(output.cellViewModel).width;
+				const fontInfo = this.notebookEditor.getCellOutputLayoutInfo(output.cellViewModel).fontInfo;
+				const editorHeight = Math.min(16 * (fontInfo.lineHeight || 18), editor.getLayoutInfo().height);
+
+				editor.layout({ height: editorHeight, width: outputWidth });
+				container.style.height = `${editorHeight + 8}px`;
+			}));
+		}
+
+		disposable.add(editor.onDidContentSizeChange(e => {
+			const outputWidth = this.notebookEditor.getCellOutputLayoutInfo(output.cellViewModel).width;
+			const fontInfo = this.notebookEditor.getCellOutputLayoutInfo(output.cellViewModel).fontInfo;
+			const editorHeight = Math.min(16 * (fontInfo.lineHeight || 18), e.contentHeight);
+
+			editor.layout({ height: editorHeight, width: outputWidth });
+			container.style.height = `${editorHeight + 8}px`;
+		}));
 
 		const mode = this.modeService.create(modeId);
 		const textModel = this.modelService.createModel(value, mode, undefined, false);

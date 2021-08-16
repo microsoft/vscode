@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mark } from 'vs/base/common/performance';
-import { domContentLoaded, detectFullscreen, getCookieValue } from 'vs/base/browser/dom';
+import { domContentLoaded, detectFullscreen, getCookieValue, WebFileSystemAccess } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService, ConsoleLogger, MultiplexLogService, getLogLevel } from 'vs/platform/log/common/log';
 import { ConsoleLogInAutomationLogger } from 'vs/platform/log/browser/log';
@@ -201,7 +201,7 @@ class BrowserMain extends Disposable {
 				return service;
 			}),
 
-			this.createStorageService(payload, environmentService, fileService, logService).then(service => {
+			this.createStorageService(payload, logService).then(service => {
 
 				// Storage
 				serviceCollection.set(IStorageService, service);
@@ -334,12 +334,14 @@ class BrowserMain extends Disposable {
 			});
 		}
 
-		fileService.registerProvider(Schemas.file, new HTMLFileSystemProvider());
+		if (WebFileSystemAccess.supported(window)) {
+			fileService.registerProvider(Schemas.file, new HTMLFileSystemProvider());
+		}
 		fileService.registerProvider(Schemas.tmp, new InMemoryFileSystemProvider());
 	}
 
-	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService): Promise<BrowserStorageService> {
-		const storageService = new BrowserStorageService(payload, logService, environmentService, fileService);
+	private async createStorageService(payload: IWorkspaceInitializationPayload, logService: ILogService): Promise<BrowserStorageService> {
+		const storageService = new BrowserStorageService(payload, logService);
 
 		try {
 			await storageService.initialize();

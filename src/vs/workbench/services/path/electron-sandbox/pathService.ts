@@ -20,6 +20,4 @@ export class NativePathService extends AbstractPathService {
 	}
 }
 
-
-
 registerSingleton(IPathService, NativePathService, true);

@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { localize } from 'vs/nls';
-import { IWorkspaceFolder, IWorkspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
-import { extname, isAbsolute } from 'vs/base/common/path';
-import { extname as resourceExtname, extUriBiasedIgnorePathCase, IExtUri } from 'vs/base/common/resources';
-import * as jsonEdit from 'vs/base/common/jsonEdit';
-import * as json from 'vs/base/common/json';
-import { Schemas } from 'vs/base/common/network';
-import { normalizeDriveLetter } from 'vs/base/common/labels';
-import { toSlashes } from 'vs/base/common/extpath';
-import { FormattingOptions } from 'vs/base/common/jsonFormatter';
-import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
-import { ILogService } from 'vs/platform/log/common/log';
 import { Event } from 'vs/base/common/event';
+import { toSlashes } from 'vs/base/common/extpath';
+import * as json from 'vs/base/common/json';
+import * as jsonEdit from 'vs/base/common/jsonEdit';
+import { FormattingOptions } from 'vs/base/common/jsonFormatter';
+import { normalizeDriveLetter } from 'vs/base/common/labels';
+import { Schemas } from 'vs/base/common/network';
+import { extname, isAbsolute } from 'vs/base/common/path';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { extname as resourceExtname, extUriBiasedIgnorePathCase, IExtUri } from 'vs/base/common/resources';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
+import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
+import { IWorkspace, IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 export const WORKSPACE_EXTENSION = 'code-workspace';
 const WORKSPACE_SUFFIX = `.${WORKSPACE_EXTENSION}`;

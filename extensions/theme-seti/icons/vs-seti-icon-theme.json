@@ -1216,11 +1216,11 @@
 		},
 		"_shell_light": {
 			"fontCharacter": "\\E087",
-			"fontColor": "#455155"
+			"fontColor": "#7fae42"
 		},
 		"_shell": {
 			"fontCharacter": "\\E087",
-			"fontColor": "#4d5a5e"
+			"fontColor": "#8dc149"
 		},
 		"_slim_light": {
 			"fontCharacter": "\\E088",
@@ -1597,7 +1597,6 @@
 		"nim": "_nim",
 		"nims": "_nim",
 		"github-issues": "_github",
-		"ipynb": "_notebook",
 		"njk": "_nunjucks",
 		"nunjucks": "_nunjucks",
 		"nunjs": "_nunjucks",
@@ -1708,6 +1707,7 @@
 		"codeclimate.yml": "_code-climate",
 		"eslintrc": "_eslint",
 		"eslintrc.js": "_eslint",
+		"eslintrc.cjs": "_eslint",
 		"eslintrc.yaml": "_eslint",
 		"eslintrc.yml": "_eslint",
 		"eslintrc.json": "_eslint",
@@ -1730,6 +1730,9 @@
 		"htaccess": "_config",
 		"key": "_lock",
 		"cert": "_lock",
+		"cer": "_lock",
+		"crt": "_lock",
+		"pem": "_lock",
 		"ds_store": "_ignored"
 	},
 	"fileNames": {
@@ -1812,6 +1815,7 @@
 		"handlebars": "_mustache",
 		"html": "_html_3",
 		"properties": "_java",
+		"jupyter": "_notebook",
 		"java": "_java",
 		"javascriptreact": "_react",
 		"javascript": "_javascript",
@@ -1959,7 +1963,6 @@
 			"nim": "_nim_light",
 			"nims": "_nim_light",
 			"github-issues": "_github_light",
-			"ipynb": "_notebook_light",
 			"njk": "_nunjucks_light",
 			"nunjucks": "_nunjucks_light",
 			"nunjs": "_nunjucks_light",
@@ -2070,6 +2073,7 @@
 			"codeclimate.yml": "_code-climate_light",
 			"eslintrc": "_eslint_light",
 			"eslintrc.js": "_eslint_light",
+			"eslintrc.cjs": "_eslint_light",
 			"eslintrc.yaml": "_eslint_light",
 			"eslintrc.yml": "_eslint_light",
 			"eslintrc.json": "_eslint_light",
@@ -2092,6 +2096,9 @@
 			"htaccess": "_config_light",
 			"key": "_lock_light",
 			"cert": "_lock_light",
+			"cer": "_lock_light",
+			"crt": "_lock_light",
+			"pem": "_lock_light",
 			"ds_store": "_ignored_light"
 		},
 		"languageIds": {
@@ -2113,6 +2120,7 @@
 			"handlebars": "_mustache_light",
 			"html": "_html_3_light",
 			"properties": "_java_light",
+			"jupyter": "_notebook_light",
 			"java": "_java_light",
 			"javascriptreact": "_react_light",
 			"javascript": "_javascript_light",
@@ -2228,5 +2236,5 @@
 			"npm-debug.log": "_npm_ignored_light"
 		}
 	},
-	"version": "https://github.com/jesseweed/seti-ui/commit/4800f7711c3db865a5076b0cc5d7b184d1e9c7fc"
+	"version": "https://github.com/jesseweed/seti-ui/commit/b484fa778f564e71c81f22ee4c006c4664d66a47"
 }

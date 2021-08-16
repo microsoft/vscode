@@ -5,11 +5,11 @@
 
 import { basename } from 'path';
 import * as vscode from 'vscode';
+import { CommandManager } from './commands/commandManager';
 import { DiagnosticKind } from './languageFeatures/diagnostics';
 import FileConfigurationManager from './languageFeatures/fileConfigurationManager';
 import { CachedResponse } from './tsServer/cachedResponse';
 import TypeScriptServiceClient from './typescriptServiceClient';
-import { CommandManager } from './commands/commandManager';
 import { Disposable } from './utils/dispose';
 import { DocumentSelector } from './utils/documentSelector';
 import * as fileSchemes from './utils/fileSchemes';

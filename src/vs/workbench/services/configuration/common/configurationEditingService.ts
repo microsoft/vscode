@@ -20,7 +20,7 @@ import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/se
 import { OVERRIDE_PROPERTY_PATTERN, IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { IOpenSettingsOptions, IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { withUndefinedAsNull, withNullAsUndefined } from 'vs/base/common/types';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
@@ -312,21 +312,22 @@ export class ConfigurationEditingService {
 	}
 
 	private openSettings(operation: IConfigurationEditOperation): void {
+		const options: IOpenSettingsOptions = { jsonEditor: true };
 		switch (operation.target) {
 			case EditableConfigurationTarget.USER_LOCAL:
-				this.preferencesService.openGlobalSettings(true);
+				this.preferencesService.openUserSettings(options);
 				break;
 			case EditableConfigurationTarget.USER_REMOTE:
-				this.preferencesService.openRemoteSettings();
+				this.preferencesService.openRemoteSettings(options);
 				break;
 			case EditableConfigurationTarget.WORKSPACE:
-				this.preferencesService.openWorkspaceSettings(true);
+				this.preferencesService.openWorkspaceSettings(options);
 				break;
 			case EditableConfigurationTarget.WORKSPACE_FOLDER:
 				if (operation.resource) {
 					const workspaceFolder = this.contextService.getWorkspaceFolder(operation.resource);
 					if (workspaceFolder) {
-						this.preferencesService.openFolderSettings(workspaceFolder.uri, true);
+						this.preferencesService.openFolderSettings({ folderUri: workspaceFolder.uri, jsonEditor: true });
 					}
 				}
 				break;

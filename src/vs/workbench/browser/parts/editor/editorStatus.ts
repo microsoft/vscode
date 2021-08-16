@@ -55,7 +55,7 @@ import { ThemeColor, themeColorFromId } from 'vs/platform/theme/common/themeServ
 import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { ILanguageStatus, ILanguageStatusService } from 'vs/editor/common/services/languageStatusService';
-import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetection';
+import { AutomaticLanguageDetectionLikelyWrongClassification, AutomaticLanguageDetectionLikelyWrongId, IAutomaticLanguageDetectionLikelyWrongData, ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
@@ -1161,21 +1161,14 @@ export class ChangeModeAction extends Action {
 		}
 
 		let hasLanguageSupport = !!resource;
-		let detectedLanguages: string[] = [];
 		if (resource?.scheme === Schemas.untitled && !this.textFileService.untitled.get(resource)?.hasAssociatedFilePath) {
 			hasLanguageSupport = false; // no configuration for untitled resources (e.g. "Untitled-1")
-
-			// Detect languages since we are in an untitled file
-			detectedLanguages = await this.languageDetectionService.detectLanguages(resource);
 		}
 
 		// All languages are valid picks
 		const languages = this.modeService.getRegisteredLanguageNames();
 		const picks: QuickPickInput[] = languages.sort()
-			.filter(lang => {
-				const modeId = this.modeService.getModeIdForLanguageName(lang.toLowerCase()) || 'unknown';
-				return (detectedLanguages.indexOf(modeId) === -1);
-			}).map(lang => {
+			.map(lang => {
 				const modeId = this.modeService.getModeIdForLanguageName(lang.toLowerCase()) || 'unknown';
 				const extensions = this.modeService.getExtensions(lang).join(' ');
 				let description: string;
@@ -1217,29 +1210,7 @@ export class ChangeModeAction extends Action {
 		const autoDetectMode: IQuickPickItem = {
 			label: localize('autoDetect', "Auto Detect")
 		};
-
-		if (hasLanguageSupport) {
-			picks.unshift(autoDetectMode);
-		} else if (detectedLanguages) {
-			// Add untitled detected languages
-			for (const modeId of detectedLanguages.reverse()) {
-				const lang = this.modeService.getLanguageName(modeId) || 'unknown';
-				let description: string;
-				if (currentLanguageId === lang) {
-					description = localize('languageDescriptionCurrent', "({0}) - Current Language", modeId);
-				} else {
-					description = localize('languageDescriptionConfigured', "({0})", modeId);
-				}
-
-				picks.unshift({
-					label: lang,
-					iconClasses: getIconClassesForModeId(modeId),
-					description
-				});
-			}
-
-			picks.unshift({ type: 'separator', label: localize('detectedLanguagesPicks', "detected languages (identifier)") });
-		}
+		picks.unshift(autoDetectMode);
 
 		const pick = await this.quickInputService.pick(picks, { placeHolder: localize('pickLanguage', "Select Language Mode"), matchOnDescription: true });
 		if (!pick) {
@@ -1261,7 +1232,7 @@ export class ChangeModeAction extends Action {
 
 		// User decided to configure settings for current language
 		if (pick === configureModeSettings) {
-			this.preferencesService.openGlobalSettings(true, { revealSetting: { key: `[${withUndefinedAsNull(currentModeId)}]`, edit: true } });
+			this.preferencesService.openUserSettings({ jsonEditor: true, revealSetting: { key: `[${withUndefinedAsNull(currentModeId)}]`, edit: true } });
 			return;
 		}
 
@@ -1273,15 +1244,39 @@ export class ChangeModeAction extends Action {
 
 				// Find mode
 				let languageSelection: ILanguageSelection | undefined;
+				let detectedLanguage: string | undefined;
 				if (pick === autoDetectMode) {
 					if (textModel) {
 						const resource = EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 						if (resource) {
-							languageSelection = this.modeService.createByFilepathOrFirstLine(resource, textModel.getLineContent(1));
+							// Detect languages since we are in an untitled file
+							let modeId: string | undefined = withNullAsUndefined(this.modeService.getModeIdByFilepathOrFirstLine(resource, textModel.getLineContent(1)));
+							if (!modeId) {
+								detectedLanguage = await this.languageDetectionService.detectLanguage(resource);
+								modeId = detectedLanguage;
+							}
+							if (modeId) {
+								languageSelection = this.modeService.create(modeId);
+							}
 						}
 					}
 				} else {
 					languageSelection = this.modeService.createByLanguageName(pick.label);
+
+					if (resource) {
+						// fire and forget to not slow things down
+						this.languageDetectionService.detectLanguage(resource).then(detectedModeId => {
+							const chosenModeId = this.modeService.getModeIdForLanguageName(pick.label.toLowerCase()) || 'unknown';
+							if (detectedModeId === currentModeId && currentModeId !== chosenModeId) {
+								// If they didn't choose the detected language (which should also be the active language if automatic detection is enabled)
+								// then the automatic language detection was likely wrong and the user is correcting it. In this case, we want telemetry.
+								this.telemetryService.publicLog2<IAutomaticLanguageDetectionLikelyWrongData, AutomaticLanguageDetectionLikelyWrongClassification>(AutomaticLanguageDetectionLikelyWrongId, {
+									currentLanguageId: currentLanguageId ?? 'unknown',
+									nextLanguageId: pick.label
+								});
+							}
+						});
+					}
 				}
 
 				// Change mode

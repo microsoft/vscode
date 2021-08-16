@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, IGalleryExtension, DidUninstallExtensionEvent, IExtensionIdentifier, IGalleryMetadata, IReportedExtension, IExtensionTipsService, InstallOptions, UninstallOptions, InstallVSIXOptions, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Emitter, Event } from 'vs/base/common/event';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IURITransformer, DefaultURITransformer, transformAndReviveIncomingURIs } from 'vs/base/common/uriIpc';
-import { cloneAndChange } from 'vs/base/common/objects';
-import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { cloneAndChange } from 'vs/base/common/objects';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { DefaultURITransformer, IURITransformer, transformAndReviveIncomingURIs } from 'vs/base/common/uriIpc';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
+import { DidUninstallExtensionEvent, IExtensionIdentifier, IExtensionManagementService, IExtensionTipsService, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallExtensionEvent, InstallExtensionResult, InstallOptions, InstallVSIXOptions, IReportedExtension, UninstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 
 function transformIncomingURI(uri: UriComponents, transformer: IURITransformer | null): URI {
 	return URI.revive(transformer ? transformer.transformIncoming(uri) : uri);

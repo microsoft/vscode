@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as os from 'os';
-import * as path from 'vs/base/common/path';
-import * as process from 'vs/base/common/process';
-import * as pfs from 'vs/base/node/pfs';
-import { isString } from 'vs/base/common/types';
 import { getCaseInsensitive } from 'vs/base/common/objects';
+import * as path from 'vs/base/common/path';
 import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
+import * as process from 'vs/base/common/process';
+import { isString } from 'vs/base/common/types';
+import * as pfs from 'vs/base/node/pfs';
 
 export function getWindowsBuildNumber(): number {
 	const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());

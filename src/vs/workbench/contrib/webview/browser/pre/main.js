@@ -199,7 +199,7 @@ function getVsCodeApiScript(allowMultipleAPIAcquire, state) {
 /** @type {Promise<void>} */
 const workerReady = new Promise(async (resolve, reject) => {
 	if (!areServiceWorkersEnabled()) {
-		return reject(new Error('Service Workers are not enabled in browser. Webviews will not work.'));
+		return reject(new Error('Service Workers are not enabled. Webviews will not work. Try disabling private/incognito mode.'));
 	}
 
 	const swPath = `service-worker.js${self.location.search}`;
@@ -429,7 +429,7 @@ const handleInnerClick = (event) => {
 	for (const pathElement of event.composedPath()) {
 		/** @type {any} */
 		const node = pathElement;
-		if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
+		if (node.tagName === 'A' && node.href) {
 			if (node.getAttribute('href') === '#') {
 				event.view.scrollTo(0, 0);
 			} else if (node.hash && (node.getAttribute('href') === node.hash || (baseElement && node.href === baseElement.href + node.hash))) {
@@ -460,7 +460,7 @@ const handleAuxClick =
 			for (const pathElement of event.composedPath()) {
 				/** @type {any} */
 				const node = pathElement;
-				if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
+				if (node.tagName === 'A' && node.href) {
 					event.preventDefault();
 					return;
 				}

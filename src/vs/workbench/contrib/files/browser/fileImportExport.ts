@@ -318,16 +318,16 @@ export class BrowserFileUpload {
 			let res = await reader.read();
 			while (!res.done) {
 				if (token.isCancellationRequested) {
-					return undefined;
+					break;
 				}
 
 				// Write buffer into stream but make sure to wait
-				// in case the highWaterMark is reached
+				// in case the `highWaterMark` is reached
 				const buffer = VSBuffer.wrap(res.value);
 				await writeableStream.write(buffer);
 
 				if (token.isCancellationRequested) {
-					return undefined;
+					break;
 				}
 
 				// Report progress

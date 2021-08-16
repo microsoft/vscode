@@ -344,7 +344,7 @@ export type ISelectionState = ISelectionHandleState | ISelectionIndexState;
 export type NotebookTextModelChangedEvent = {
 	readonly rawEvents: NotebookRawContentEvent[];
 	readonly versionId: number;
-	readonly synchronous: boolean;
+	readonly synchronous: boolean | undefined;
 	readonly endSelectionState: ISelectionState | undefined;
 };
 

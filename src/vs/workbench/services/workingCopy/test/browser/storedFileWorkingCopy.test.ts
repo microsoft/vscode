@@ -98,7 +98,7 @@ suite('StoredFileWorkingCopy', function () {
 	let workingCopy: StoredFileWorkingCopy<TestStoredFileWorkingCopyModel>;
 
 	function createWorkingCopy(uri: URI = resource) {
-		return new StoredFileWorkingCopy<TestStoredFileWorkingCopyModel>('testStoredFileWorkingCopyType', uri, basename(uri), factory, accessor.fileService, accessor.logService, accessor.textFileService, accessor.filesConfigurationService, accessor.workingCopyBackupService, accessor.workingCopyService, accessor.notificationService, accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService);
+		return new StoredFileWorkingCopy<TestStoredFileWorkingCopyModel>('testStoredFileWorkingCopyType', uri, basename(uri), factory, accessor.fileService, accessor.logService, accessor.workingCopyFileService, accessor.filesConfigurationService, accessor.workingCopyBackupService, accessor.workingCopyService, accessor.notificationService, accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService);
 	}
 
 	setup(() => {
@@ -599,6 +599,35 @@ suite('StoredFileWorkingCopy', function () {
 		}
 
 		assert.ok(error);
+	});
+
+	test('save participant', async () => {
+		await workingCopy.resolve();
+
+		assert.strictEqual(accessor.workingCopyFileService.hasSaveParticipants, false);
+
+		let participationCounter = 0;
+		const disposable = accessor.workingCopyFileService.addSaveParticipant({
+			participate: async (wc) => {
+				if (workingCopy === wc) {
+					participationCounter++;
+				}
+			}
+		});
+
+		assert.strictEqual(accessor.workingCopyFileService.hasSaveParticipants, true);
+
+		await workingCopy.save({ force: true });
+		assert.strictEqual(participationCounter, 1);
+
+		await workingCopy.save({ force: true, skipSaveParticipants: true });
+		assert.strictEqual(participationCounter, 1);
+
+		disposable.dispose();
+		assert.strictEqual(accessor.workingCopyFileService.hasSaveParticipants, false);
+
+		await workingCopy.save({ force: true });
+		assert.strictEqual(participationCounter, 1);
 	});
 
 	test('revert', async () => {

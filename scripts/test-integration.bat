@@ -31,6 +31,7 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 					compile-extension:html-language-features-server^
 					compile-extension:json-language-features-server^
 					compile-extension:git^
+					compile-extension:ipynb^
 					compile-extension-media
 
 	:: Configuration for more verbose output
@@ -75,6 +76,11 @@ for /f "delims=" %%i in ('node -p "require('fs').realpathSync.native(require('os
 set GITWORKSPACE=%TEMPDIR%\git-%RANDOM%
 mkdir %GITWORKSPACE%
 call "%INTEGRATION_TEST_ELECTRON_PATH%" %GITWORKSPACE% --extensionDevelopmentPath=%~dp0\..\extensions\git --extensionTestsPath=%~dp0\..\extensions\git\out\test --enable-proposed-api=vscode.git %ALL_PLATFORMS_API_TESTS_EXTRA_ARGS%
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+set IPYNBWORKSPACE=%TEMPDIR%\ipynb-%RANDOM%
+mkdir %IPYNBWORKSPACE%
+call "%INTEGRATION_TEST_ELECTRON_PATH%" %IPYNBWORKSPACE% --extensionDevelopmentPath=%~dp0\..\extensions\ipynb --extensionTestsPath=%~dp0\..\extensions\ipynb\out\test %ALL_PLATFORMS_API_TESTS_EXTRA_ARGS%
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 

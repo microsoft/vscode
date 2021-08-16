@@ -38,13 +38,16 @@ export interface InlayHintsData {
 export async function getInlayHints(model: ITextModel, ranges: Range[], token: CancellationToken): Promise<InlayHintsData[]> {
 	const datas: InlayHintsData[] = [];
 	const providers = InlayHintsProviderRegistry.ordered(model).reverse();
-	const promises = flatten(providers.map(provider => ranges.map(range => Promise.resolve(provider.provideInlayHints(model, range, token)).then(result => {
-		if (result) {
-			datas.push({ list: result, provider });
-		}
-	}, err => {
-		onUnexpectedExternalError(err);
-	}))));
+	const promises = flatten(providers.map(provider => ranges.map(range => {
+		return Promise.resolve(provider.provideInlayHints(model, range, token)).then(result => {
+			const itemsInRange = result?.filter(hint => range.containsPosition(hint.position));
+			if (itemsInRange?.length) {
+				datas.push({ list: itemsInRange, provider });
+			}
+		}, err => {
+			onUnexpectedExternalError(err);
+		});
+	})));
 
 	await Promise.all(promises);
 
@@ -168,6 +171,7 @@ export class InlayHintsController implements IEditorContribution {
 					fontFamily: `var(${fontFamilyVar})`,
 					padding: `0px ${(fontSize / 4) | 0}px`,
 					borderRadius: `${(fontSize / 4) | 0}px`,
+					verticalAlign: 'middle',
 				};
 				const key = 'inlayHints-' + hash(before).toString(16);
 				this._codeEditorService.registerDecorationType('inlay-hints-controller', key,

@@ -23,7 +23,6 @@ const fileService = new TestFileService();
 export const mockUriIdentityService = new UriIdentityService(fileService);
 
 export class MockDebugService implements IDebugService {
-
 	_serviceBrand: undefined;
 
 	get state(): State {
@@ -163,6 +162,10 @@ export class MockDebugService implements IDebugService {
 
 	tryToAutoFocusStackFrame(thread: IThread): Promise<any> {
 		throw new Error('not implemented');
+	}
+
+	runTo(uri: uri, lineNumber: number, column?: number): Promise<void> {
+		throw new Error('Method not implemented.');
 	}
 }
 
@@ -387,6 +390,9 @@ export class MockSession implements IDebugSession {
 		throw new Error('Method not implemented.');
 	}
 	setVariable(variablesReference: number, name: string, value: string): Promise<DebugProtocol.SetVariableResponse> {
+		throw new Error('Method not implemented.');
+	}
+	setExpression(frameId: number, expression: string, value: string): Promise<DebugProtocol.SetExpressionResponse | undefined> {
 		throw new Error('Method not implemented.');
 	}
 	loadSource(resource: uri): Promise<DebugProtocol.SourceResponse> {

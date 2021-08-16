@@ -84,10 +84,10 @@ suite('Inline Completions', () => {
 		});
 	});
 
-	test('Does not trigger automatically by default', async function () {
+	test('Does trigger automatically if disabled', async function () {
 		const provider = new MockInlineCompletionsProvider();
 		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
-			{ fakeClock: true, provider },
+			{ fakeClock: true, provider, inlineSuggest: { enabled: false } },
 			async ({ editor, editorViewModel, model, context }) => {
 				model.setActive(true);
 

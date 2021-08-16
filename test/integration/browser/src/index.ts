@@ -38,6 +38,14 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 	const page = await context.newPage();
 	await page.setViewportSize({ width, height });
 
+	page.on('pageerror', async error => console.error(`Playwright ERROR: page error: ${error}`));
+	page.on('crash', page => console.error('Playwright ERROR: page crash'));
+	page.on('response', async response => {
+		if (response.status() >= 400) {
+			console.error(`Playwright ERROR: HTTP status ${response.status()} for ${response.url()}`);
+		}
+	});
+
 	const host = endpoint.host;
 	const protocol = 'vscode-remote';
 
@@ -98,7 +106,7 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 	const root = path.join(__dirname, '..', '..', '..', '..');
 	const logsPath = path.join(root, '.build', 'logs', 'integration-tests-browser');
 
-	const serverArgs = ['--browser', 'none', '--driver', 'web', '--enable-proposed-api'];
+	const serverArgs = ['--browser', 'none', '--driver', 'web', '--enable-proposed-api', '--disable-telemetry'];
 
 	let serverLocation: string;
 	if (process.env.VSCODE_REMOTE_SERVER_PATH) {

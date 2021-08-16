@@ -72,6 +72,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._toDispose.add(_terminalService.onDidRequestStartExtensionTerminal(e => this._onRequestStartExtensionTerminal(e)));
 		this._toDispose.add(_terminalService.onDidChangeActiveInstance(instance => this._onActiveTerminalChanged(instance ? instance.instanceId : null)));
 		this._toDispose.add(_terminalService.onDidChangeInstanceTitle(instance => instance && this._onTitleChanged(instance.instanceId, instance.title)));
+		this._toDispose.add(_terminalService.onDidInputInstanceData(instance => this._proxy.$acceptTerminalInteraction(instance.instanceId)));
 
 		// Set initial ext host state
 		this._terminalService.instances.forEach(t => {
@@ -143,7 +144,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			if (launchConfig.isSplitTerminal) {
 				const activeInstance = this._terminalService.getInstanceHost(launchConfig.target).activeInstance;
 				if (activeInstance) {
-					terminal = withNullAsUndefined(await this._terminalService.splitInstance(activeInstance, shellLaunchConfig));
+					terminal = withNullAsUndefined(await this._terminalService.createTerminal({ instanceToSplit: activeInstance, config: shellLaunchConfig }));
 				}
 			}
 			if (!terminal) {
@@ -273,7 +274,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private _onInstanceMaximumDimensionsChanged(instance: ITerminalInstance): void {
 		this._proxy.$acceptTerminalMaximumDimensions(instance.instanceId, instance.maxCols, instance.maxRows);
 	}
-
 
 	private _onRequestStartExtensionTerminal(request: IStartExtensionTerminalRequest): void {
 		const proxy = request.proxy;

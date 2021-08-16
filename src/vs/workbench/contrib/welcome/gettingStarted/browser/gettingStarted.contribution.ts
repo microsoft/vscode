@@ -15,7 +15,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IGettingStartedService } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedService';
+import { IWalkthroughsService } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedService';
 import { GettingStartedInput } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -140,58 +140,6 @@ CommandsRegistry.registerCommand({
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'gettingStarted.next',
-			title: localize('gettingStarted.goNext', "Next"),
-			category,
-			keybinding: {
-				weight: KeybindingWeight.EditorContrib,
-				primary: KeyCode.DownArrow,
-				secondary: [KeyCode.RightArrow],
-				when: inWelcomeContext
-			},
-			precondition: ContextKeyEqualsExpr.create('activeEditor', 'gettingStartedPage'),
-			f1: true
-		});
-	}
-
-	run(accessor: ServicesAccessor) {
-		const editorService = accessor.get(IEditorService);
-		const editorPane = editorService.activeEditorPane;
-		if (editorPane instanceof GettingStartedPage) {
-			editorPane.focusNext();
-		}
-	}
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'gettingStarted.prev',
-			title: localize('gettingStarted.goPrev', "Previous"),
-			category,
-			keybinding: {
-				weight: KeybindingWeight.EditorContrib,
-				primary: KeyCode.UpArrow,
-				secondary: [KeyCode.LeftArrow],
-				when: inWelcomeContext
-			},
-			precondition: ContextKeyEqualsExpr.create('activeEditor', 'gettingStartedPage'),
-			f1: true
-		});
-	}
-
-	run(accessor: ServicesAccessor) {
-		const editorService = accessor.get(IEditorService);
-		const editorPane = editorService.activeEditorPane;
-		if (editorPane instanceof GettingStartedPage) {
-			editorPane.focusPrevious();
-		}
-	}
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
 			id: 'welcome.markStepComplete',
 			title: localize('welcome.markStepComplete', "Mark Step Complete"),
 			category,
@@ -200,7 +148,7 @@ registerAction2(class extends Action2 {
 
 	run(accessor: ServicesAccessor, arg: string) {
 		if (!arg) { return; }
-		const gettingStartedService = accessor.get(IGettingStartedService);
+		const gettingStartedService = accessor.get(IWalkthroughsService);
 		gettingStartedService.progressStep(arg);
 	}
 });
@@ -216,7 +164,7 @@ registerAction2(class extends Action2 {
 
 	run(accessor: ServicesAccessor, arg: string) {
 		if (!arg) { return; }
-		const gettingStartedService = accessor.get(IGettingStartedService);
+		const gettingStartedService = accessor.get(IWalkthroughsService);
 		gettingStartedService.deprogressStep(arg);
 	}
 });
@@ -234,8 +182,8 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor) {
 		const commandService = accessor.get(ICommandService);
 		const quickInputService = accessor.get(IQuickInputService);
-		const gettingStartedService = accessor.get(IGettingStartedService);
-		const categories = gettingStartedService.getCategories().filter(x => x.content.type === 'steps');
+		const gettingStartedService = accessor.get(IWalkthroughsService);
+		const categories = gettingStartedService.getWalkthroughs();
 		const selection = await quickInputService.pick(categories.map(x => ({
 			id: x.id,
 			label: x.title,
@@ -275,7 +223,7 @@ const prefersStandardMotionConfig = {
 class WorkbenchConfigurationContribution {
 	constructor(
 		@IInstantiationService _instantiationService: IInstantiationService,
-		@IGettingStartedService _gettingStartedService: IGettingStartedService,
+		@IWalkthroughsService _gettingStartedService: IWalkthroughsService,
 		@IConfigurationService _configurationService: IConfigurationService,
 		@ITASExperimentService _experimentSevice: ITASExperimentService,
 	) {

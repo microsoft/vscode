@@ -113,7 +113,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 						return Promise.resolve(schemaModel);
 					}
 				}
-				return this.preferencesService.resolveModel(uri);
+				return Promise.resolve(this.preferencesService.resolveModel(uri));
 			}
 		});
 	}

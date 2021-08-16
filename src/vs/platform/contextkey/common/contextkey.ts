@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import { isLinux, isMacintosh, isWeb, isWindows, userAgent } from 'vs/base/common/platform';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { userAgent, isMacintosh, isLinux, isWindows, isWeb } from 'vs/base/common/platform';
 
 let _userAgent = userAgent || '';
 const STATIC_VALUES = new Map<string, boolean>();
