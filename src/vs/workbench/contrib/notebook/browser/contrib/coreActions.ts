@@ -37,6 +37,8 @@ import { Iterable } from 'vs/base/common/iterator';
 import { flatten, maxIndex, minIndex } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
 import { Mimes } from 'vs/base/common/mime';
+import { TypeConstraint } from 'vs/base/common/types';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 // Kernel Command
 export const SELECT_KERNEL_ID = 'notebook.selectKernel';
@@ -50,6 +52,8 @@ const RENDER_ALL_MARKDOWN_CELLS = 'notebook.renderAllMarkdownCells';
 // Cell Commands
 const INSERT_CODE_CELL_ABOVE_COMMAND_ID = 'notebook.cell.insertCodeCellAbove';
 const INSERT_CODE_CELL_BELOW_COMMAND_ID = 'notebook.cell.insertCodeCellBelow';
+const INSERT_CODE_CELL_ABOVE_AND_FOCUS_CONTAINER_COMMAND_ID = 'notebook.cell.insertCodeCellAboveAndFocusContainer';
+const INSERT_CODE_CELL_BELOW_AND_FOCUS_CONTAINER_COMMAND_ID = 'notebook.cell.insertCodeCellBelowAndFocusContainer';
 const INSERT_CODE_CELL_AT_TOP_COMMAND_ID = 'notebook.cell.insertCodeCellAtTop';
 const INSERT_MARKDOWN_CELL_ABOVE_COMMAND_ID = 'notebook.cell.insertMarkdownCellAbove';
 const INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID = 'notebook.cell.insertMarkdownCellBelow';
@@ -61,6 +65,7 @@ const EDIT_CELL_COMMAND_ID = 'notebook.cell.edit';
 const DELETE_CELL_COMMAND_ID = 'notebook.cell.delete';
 
 const CANCEL_CELL_COMMAND_ID = 'notebook.cell.cancelExecution';
+const EXECUTE_CELL_FOCUS_CONTAINER_COMMAND_ID = 'notebook.cell.executeAndFocusContainer';
 const EXECUTE_CELL_SELECT_BELOW = 'notebook.cell.executeAndSelectBelow';
 const EXECUTE_CELL_INSERT_BELOW = 'notebook.cell.executeAndInsertBelow';
 const EXECUTE_CELL_AND_BELOW = 'notebook.cell.executeCellAndBelow';
@@ -503,6 +508,51 @@ registerAction2(class ExecuteCellAndBelow extends NotebookMultiCellAction<INoteb
 	}
 });
 
+const cellExecutionArgs: ReadonlyArray<{
+	readonly name: string;
+	readonly isOptional?: boolean;
+	readonly description?: string;
+	readonly constraint?: TypeConstraint;
+	readonly schema?: IJSONSchema;
+}> = [
+		{
+			isOptional: true,
+			name: 'options',
+			description: 'The cell range options',
+			schema: {
+				'type': 'object',
+				'required': ['ranges'],
+				'properties': {
+					'ranges': {
+						'type': 'array',
+						items: [
+							{
+								'type': 'object',
+								'required': ['start', 'end'],
+								'properties': {
+									'start': {
+										'type': 'number'
+									},
+									'end': {
+										'type': 'number'
+									}
+								}
+							}
+						]
+					},
+					'document': {
+						'type': 'object',
+						'description': 'The document uri',
+					},
+					'autoReveal': {
+						'type': 'boolean',
+						'description': 'Whether the cell should be revealed into view automatically'
+					}
+				}
+			}
+		}
+	];
+
 registerAction2(class ExecuteCell extends NotebookMultiCellAction<INotebookActionContext> {
 	constructor() {
 		super({
@@ -524,44 +574,7 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction<INotebookActio
 			},
 			description: {
 				description: localize('notebookActions.execute', "Execute Cell"),
-				args: [
-					{
-						isOptional: true,
-						name: 'options',
-						description: 'The cell range options',
-						schema: {
-							'type': 'object',
-							'required': ['ranges'],
-							'properties': {
-								'ranges': {
-									'type': 'array',
-									items: [
-										{
-											'type': 'object',
-											'required': ['start', 'end'],
-											'properties': {
-												'start': {
-													'type': 'number'
-												},
-												'end': {
-													'type': 'number'
-												}
-											}
-										}
-									]
-								},
-								'document': {
-									'type': 'object',
-									'description': 'The document uri',
-								},
-								'autoReveal': {
-									'type': 'boolean',
-									'description': 'Whether the cell should be revealed into view automatically'
-								}
-							}
-						}
-					}
-				]
+				args: cellExecutionArgs
 			},
 			icon: icons.executeIcon
 		});
@@ -573,6 +586,39 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction<INotebookActio
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
 		return runCell(accessor, context);
+	}
+});
+
+registerAction2(class ExecuteCellFocusContainer extends NotebookMultiCellAction<INotebookActionContext> {
+	constructor() {
+		super({
+			id: EXECUTE_CELL_FOCUS_CONTAINER_COMMAND_ID,
+			precondition: executeThisCellCondition,
+			title: localize('notebookActions.executeAndFocusContainer', "Execute Cell and Focus Container"),
+			description: {
+				description: localize('notebookActions.executeAndFocusContainer', "Execute Cell and Focus Container"),
+				args: cellExecutionArgs
+			},
+			icon: icons.executeIcon
+		});
+	}
+
+	parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookActionContext | undefined {
+		return parseMultiCellExecutionArgs(accessor, ...args);
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
+		await runCell(accessor, context);
+
+		if (context.ui && context.cell) {
+			context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
+		} else if (context.selectedCells) {
+			const firstCell = context.selectedCells[0];
+
+			if (firstCell) {
+				context.notebookEditor.focusNotebookCell(firstCell, 'container', { skipReveal: true });
+			}
+		}
 	}
 });
 
@@ -686,6 +732,7 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 
 		if (context.cell.cellKind === CellKind.Markup) {
 			const nextCell = context.notebookEditor.viewModel.cellAt(idx + 1);
+			context.cell.updateEditState(CellEditState.Preview, EXECUTE_CELL_SELECT_BELOW);
 			if (nextCell) {
 				context.notebookEditor.focusNotebookCell(nextCell, 'container');
 			} else {
@@ -1019,7 +1066,8 @@ abstract class InsertCellCommand extends NotebookAction {
 	constructor(
 		desc: Readonly<IAction2Options>,
 		private kind: CellKind,
-		private direction: 'above' | 'below'
+		private direction: 'above' | 'below',
+		private focusEditor: boolean
 	) {
 		super(desc);
 	}
@@ -1039,7 +1087,7 @@ abstract class InsertCellCommand extends NotebookAction {
 		}
 
 		if (newCell) {
-			context.notebookEditor.focusNotebookCell(newCell, 'editor');
+			context.notebookEditor.focusNotebookCell(newCell, this.focusEditor ? 'editor' : 'container');
 		}
 	}
 }
@@ -1061,7 +1109,21 @@ registerAction2(class InsertCodeCellAboveAction extends InsertCellCommand {
 				}
 			},
 			CellKind.Code,
-			'above');
+			'above',
+			true);
+	}
+});
+
+registerAction2(class InsertCodeCellAboveAndFocusContainerAction extends InsertCellCommand {
+	constructor() {
+		super(
+			{
+				id: INSERT_CODE_CELL_ABOVE_AND_FOCUS_CONTAINER_COMMAND_ID,
+				title: localize('notebookActions.insertCodeCellAboveAndFocusContainer', "Insert Code Cell Above and Focus Container")
+			},
+			CellKind.Code,
+			'above',
+			false);
 	}
 });
 
@@ -1082,7 +1144,21 @@ registerAction2(class InsertCodeCellBelowAction extends InsertCellCommand {
 				}
 			},
 			CellKind.Code,
-			'below');
+			'below',
+			true);
+	}
+});
+
+registerAction2(class InsertCodeCellBelowAndFocusContainerAction extends InsertCellCommand {
+	constructor() {
+		super(
+			{
+				id: INSERT_CODE_CELL_BELOW_AND_FOCUS_CONTAINER_COMMAND_ID,
+				title: localize('notebookActions.insertCodeCellBelowAndFocusContainer', "Insert Code Cell Below and Focus Container"),
+			},
+			CellKind.Code,
+			'below',
+			false);
 	}
 });
 
@@ -1222,7 +1298,8 @@ registerAction2(class InsertMarkdownCellAboveAction extends InsertCellCommand {
 				}
 			},
 			CellKind.Markup,
-			'above');
+			'above',
+			true);
 	}
 });
 
@@ -1238,7 +1315,8 @@ registerAction2(class InsertMarkdownCellBelowAction extends InsertCellCommand {
 				}
 			},
 			CellKind.Markup,
-			'below');
+			'below',
+			true);
 	}
 });
 

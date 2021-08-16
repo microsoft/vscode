@@ -357,7 +357,6 @@ flakySuite('IndexedDB File Service', function () {
 		assert.strictEqual(event!.operation, FileOperation.DELETE);
 	});
 
-
 	test('deleteFolder (non recursive)', async () => {
 		await initFixtures();
 		const resource = userdataURIFromPaths(['fixtures', 'service', 'deep']);

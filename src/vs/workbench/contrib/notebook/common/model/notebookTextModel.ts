@@ -338,7 +338,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	override dispose() {
 		this._onWillDispose.fire();
-		(this._operationManager as any) = null;
 		this._undoService.removeElements(this.uri);
 		dispose(this._cellListeners.values());
 		dispose(this._cells);

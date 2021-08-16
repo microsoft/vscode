@@ -81,6 +81,11 @@ class TestDto {
 	public readonly messageUri: URI;
 	public readonly revealLocation: IRichLocation | undefined;
 
+	public get isDiffable() {
+		const message = this.messages[this.messageIndex];
+		return message.type === TestMessageType.Error && isDiffable(message);
+	}
+
 	constructor(public readonly resultId: string, test: TestResultItem, public readonly taskIndex: number, public readonly messageIndex: number) {
 		this.test = test.item;
 		this.messages = test.tasks[taskIndex].messages;
@@ -217,11 +222,19 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 
 		// don't show the peek if the user asked to only auto-open peeks for visible tests,
 		// and this test is not in any of the editors' models.
-		if (cfg === AutoOpenPeekViewWhen.FailureVisible) {
-			const editorUris = new Set(editors.map(e => e.getModel()?.uri.toString()));
-			if (!Iterable.some(resultItemParents(evt.result, evt.item), i => i.item.uri && editorUris.has(i.item.uri.toString()))) {
-				return;
-			}
+		switch (cfg) {
+			case AutoOpenPeekViewWhen.FailureVisible:
+				const editorUris = new Set(editors.map(e => e.getModel()?.uri.toString()));
+				if (!Iterable.some(resultItemParents(evt.result, evt.item), i => i.item.uri && editorUris.has(i.item.uri.toString()))) {
+					return;
+				}
+				break; //continue
+
+			case AutoOpenPeekViewWhen.FailureAnywhere:
+				break; //continue
+
+			default:
+				return; // never show
 		}
 
 		const controllers = editors.map(TestingOutputPeekController.get);
@@ -364,6 +377,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 
 	constructor(
 		private readonly editor: ICodeEditor,
+		@IEditorService private readonly editorService: IEditorService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITestResultService private readonly testResults: ITestResultService,
@@ -384,6 +398,25 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 			this.peek.clear();
 		} else {
 			this.show(uri);
+		}
+	}
+
+	public openCurrentInEditor() {
+		const current = this.peek.value?.current;
+		if (!current) {
+			return;
+		}
+
+		const options = { pinned: false, revealIfOpened: true };
+
+		if (current.isDiffable) {
+			this.editorService.openEditor({
+				original: { resource: current.expectedUri },
+				modified: { resource: current.actualUri },
+				options,
+			});
+		} else {
+			this.editorService.openEditor({ resource: current.messageUri, options });
 		}
 	}
 
@@ -659,7 +692,7 @@ class TestingOutputPeek extends PeekViewWidget {
 			return this.showInPlace(dto);
 		}
 
-		this.show(dto.revealLocation.range, hintDiffPeekHeight(message));
+		this.show(dto.revealLocation.range, hintMessagePeekHeight(message));
 		this.editor.revealPositionNearTop(dto.revealLocation.range.getStartPosition(), ScrollType.Smooth);
 		this.editor.focus();
 
@@ -906,8 +939,10 @@ class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
 	}
 }
 
-const hintDiffPeekHeight = (message: ITestErrorMessage) =>
-	Math.max(hintPeekStrHeight(message.actual), hintPeekStrHeight(message.expected));
+const hintMessagePeekHeight = (msg: ITestErrorMessage) =>
+	isDiffable(msg)
+		? Math.max(hintPeekStrHeight(msg.actual), hintPeekStrHeight(msg.expected))
+		: hintPeekStrHeight(typeof msg.message === 'string' ? msg.message : msg.message.value);
 
 const firstLine = (str: string) => {
 	const index = str.indexOf('\n');
@@ -915,7 +950,7 @@ const firstLine = (str: string) => {
 };
 
 const isMultiline = (str: string | undefined) => !!str && str.includes('\n');
-const hintPeekStrHeight = (str: string | undefined) => clamp(count(str || '', '\n'), 8, 20);
+const hintPeekStrHeight = (str: string | undefined) => clamp(count(str || '', '\n') + 3, 8, 20);
 
 class SimpleDiffEditorModel extends EditorModel {
 	public readonly original = this._original.object.textEditorModel;
@@ -1495,6 +1530,27 @@ const navWhen = ContextKeyAndExpr.create([
 	TestingContextKeys.isPeekVisible,
 ]);
 
+/**
+ * Gets the editor where the peek may be shown, bubbling upwards if the given
+ * editor is embedded (i.e. inside a peek already).
+ */
+const getPeekedEditor = (accessor: ServicesAccessor, editor: ICodeEditor) => {
+	if (TestingOutputPeekController.get(editor).isVisible) {
+		return editor;
+	}
+
+	if (editor instanceof EmbeddedCodeEditorWidget) {
+		return editor.getParentEditor();
+	}
+
+	const outer = getOuterEditorFromDiffEditor(accessor);
+	if (outer) {
+		return outer;
+	}
+
+	return editor;
+};
+
 export class GoToNextMessageAction extends EditorAction2 {
 	public static readonly ID = 'testing.goToNextMessage';
 	constructor() {
@@ -1520,8 +1576,8 @@ export class GoToNextMessageAction extends EditorAction2 {
 		});
 	}
 
-	public runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor): any {
-		TestingOutputPeekController.get(editor).next();
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor) {
+		TestingOutputPeekController.get(getPeekedEditor(accessor, editor)).next();
 	}
 }
 
@@ -1550,7 +1606,25 @@ export class GoToPreviousMessageAction extends EditorAction2 {
 		});
 	}
 
-	public runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor): any {
-		TestingOutputPeekController.get(editor).previous();
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor) {
+		TestingOutputPeekController.get(getPeekedEditor(accessor, editor)).previous();
+	}
+}
+
+export class OpenMessageInEditorAction extends EditorAction2 {
+	public static readonly ID = 'testing.openMessageInEditor';
+	constructor() {
+		super({
+			id: OpenMessageInEditorAction.ID,
+			f1: false,
+			title: localize('testing.openMessageInEditor', "Open in Editor"),
+			icon: Codicon.linkExternal,
+			category: CATEGORIES.Test,
+			menu: [{ id: MenuId.TestPeekTitle }],
+		});
+	}
+
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor) {
+		TestingOutputPeekController.get(getPeekedEditor(accessor, editor)).openCurrentInEditor();
 	}
 }

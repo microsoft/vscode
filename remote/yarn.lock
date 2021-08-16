@@ -424,10 +424,15 @@ ms@2.1.2, ms@^2.1.1:
   resolved "https://registry.yarnpkg.com/ms/-/ms-2.1.2.tgz#d09d1f357b443f493382a8eb3ccd183872ae6009"
   integrity sha512-sGkPx+VjMtmA6MX27oA4FBFELFCZZ4S4XqeGOXCv68tT+jb3vk/RyaKWP0PTKyWtmLSM0b+adUTEvbs1PEaH2w==
 
-nan@^2.13.2, nan@^2.14.0:
+nan@^2.13.2:
   version "2.14.2"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.14.2.tgz#f5376400695168f4cc694ac9393d0c9585eeea19"
   integrity sha512-M2ufzIiINKCuDfBSAUr1vWQ+vuVcA9kqx8JJUsbQi6yf1uGRyb7HfpdfUr5qLXf3B/t8dPvcjhKMmlfnP47EzQ==
+
+nan@^2.14.0:
+  version "2.15.0"
+  resolved "https://registry.yarnpkg.com/nan/-/nan-2.15.0.tgz#3f34a473ff18e15c1b5626b62903b5ad6e665fee"
+  integrity sha512-8ZtvEnA2c5aYCZYd1cvgdnU6cqwixRoYg70xPLWUws5ORTa/lnw+u4amixRS/Ac5U5mQVgp9pnlSUnbNWFaWZQ==
 
 native-watchdog@1.3.0:
   version "1.3.0"
@@ -523,9 +528,9 @@ socks@^2.3.3:
     smart-buffer "^4.1.0"
 
 spdlog@^0.13.0:
-  version "0.13.5"
-  resolved "https://registry.yarnpkg.com/spdlog/-/spdlog-0.13.5.tgz#a31027dcccbe032e9a53579f42cb45428af08bad"
-  integrity sha512-D1xA5tRXw7eZOoFBCAnOxCxLN3JpHVDjpPJG/xjJ0nFZvtfOUTAzK66MVxJCDht/ZFwjLcBAltvzjfz4JTuSEw==
+  version "0.13.6"
+  resolved "https://registry.yarnpkg.com/spdlog/-/spdlog-0.13.6.tgz#26b2e13d46cbf8f2334c12ba2a8cc82de5a28f02"
+  integrity sha512-iGqDoA88G3Rv3lkbVQglTulp3nv12FzND6LDC7cOZ+OoFvWnXVb3+Ebhed60oZ6+IWWGwDtjXK6ympwr7C1XmQ==
   dependencies:
     bindings "^1.5.0"
     mkdirp "^0.5.5"
@@ -629,6 +634,11 @@ xterm-addon-webgl@0.12.0-beta.5:
   version "0.12.0-beta.5"
   resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.12.0-beta.5.tgz#97524d1a455d15096c1999b8ce73ab0c6ecc8efa"
   integrity sha512-Od9yFikC414E4Fm1W8akhSiNDUWat+RLsEYJMwvcEW4HprUVJije6n2Lrzj4roNl4pnSPUhF89zG6NY4lZXqDg==
+
+xterm-headless@4.14.0-beta.3:
+  version "4.14.0-beta.3"
+  resolved "https://registry.yarnpkg.com/xterm-headless/-/xterm-headless-4.14.0-beta.3.tgz#c737c1c700cc3dd6207294d9c233acf1676970da"
+  integrity sha512-DVzUVTJBHQ906p08fsLkVyWA+UC7faKaudgjmGpMOcJjQTXNGmcQQhpoUq8mYCukD4ONjmJ9UOq5snBTASR+mw==
 
 xterm@4.14.0-beta.6:
   version "4.14.0-beta.6"

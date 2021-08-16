@@ -21,7 +21,7 @@ import { EditorWorkerClient, EditorWorkerHost } from 'vs/editor/common/services/
 const moduleLocation = '../../../../../../node_modules/@vscode/vscode-languagedetection';
 const moduleLocationAsar = '../../../../../../node_modules.asar/@vscode/vscode-languagedetection';
 export class LanguageDetectionService extends Disposable implements ILanguageDetectionService {
-	static readonly enablementSettingKey = 'workbench.editor.untitled.experimentalLanguageDetection';
+	static readonly enablementSettingKey = 'workbench.editor.untitled.languageDetection';
 
 	_serviceBrand: undefined;
 
@@ -69,16 +69,6 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		}
 		return undefined;
 	}
-
-	async detectLanguages(resource: URI): Promise<string[]> {
-		const languages: Array<string | undefined> = await this._languageDetectionWorkerClient.detectLanguages(resource);
-		for (let i = 0; i < languages.length; i++) {
-			const modeId = this.getModeId(languages[i]);
-			languages[i] = modeId ? modeId : undefined;
-		}
-
-		return languages.filter(<T>(l?: T): l is T => Boolean(l));
-	}
 }
 
 export interface IWorkerClient<W> {
@@ -124,7 +114,7 @@ export class LanguageDetectionWorkerHost {
 }
 
 export class LanguageDetectionWorkerClient extends EditorWorkerClient {
-	private worker: IWorkerClient<LanguageDetectionSimpleWorker> | undefined;
+	private workerPromise: Promise<IWorkerClient<LanguageDetectionSimpleWorker>> | undefined;
 
 	constructor(
 		modelService: IModelService,
@@ -136,20 +126,24 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 		super(modelService, true, 'languageDetectionWorkerService');
 	}
 
-	private _getOrCreateLanguageDetectionWorker(): IWorkerClient<LanguageDetectionSimpleWorker> {
-		if (!this.worker) {
+	private _getOrCreateLanguageDetectionWorker(): Promise<IWorkerClient<LanguageDetectionSimpleWorker>> {
+		if (this.workerPromise) {
+			return this.workerPromise;
+		}
 
-			this.worker = this._register(new SimpleWorkerClient<LanguageDetectionSimpleWorker, EditorWorkerHost>(
+		this.workerPromise = new Promise((resolve, reject) => {
+			resolve(this._register(new SimpleWorkerClient<LanguageDetectionSimpleWorker, EditorWorkerHost>(
 				this._workerFactory,
 				'vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker',
 				new EditorWorkerHost(this)
-			));
-		}
-		return this.worker;
+			)));
+		});
+
+		return this.workerPromise;
 	}
 
 	override async _getProxy(): Promise<LanguageDetectionSimpleWorker> {
-		return await this._getOrCreateLanguageDetectionWorker().getProxyObject();
+		return (await this._getOrCreateLanguageDetectionWorker()).getProxyObject();
 	}
 
 	// foreign host request
@@ -191,10 +185,6 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 	public async detectLanguage(resource: URI): Promise<string | undefined> {
 		await this._withSyncedResources([resource]);
 		return (await this._getProxy()).detectLanguage(resource.toString());
-	}
-	public async detectLanguages(resource: URI): Promise<string[]> {
-		await this._withSyncedResources([resource]);
-		return (await this._getProxy()).detectLanguages(resource.toString());
 	}
 }
 

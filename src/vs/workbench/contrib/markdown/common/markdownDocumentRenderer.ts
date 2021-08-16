@@ -90,8 +90,6 @@ blockquote {
 
 code {
 	font-family: "SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace;
-	font-size: 14px;
-	line-height: 19px;
 }
 
 pre code {

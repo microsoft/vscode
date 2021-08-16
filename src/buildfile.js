@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-function entrypoint(name) {
-	return [{ name: name, include: [], exclude: ['vs/css', 'vs/nls'] }];
-}
+const { createModuleDescription, createEditorWorkerModuleDescription } = require('./vs/base/buildfile');
 
 exports.base = [{
 	name: 'vs/base/common/worker/simpleWorker',
@@ -15,19 +13,19 @@ exports.base = [{
 	dest: 'vs/base/worker/workerMain.js'
 }];
 
-exports.workerExtensionHost = [entrypoint('vs/workbench/services/extensions/worker/extensionHostWorker')];
-exports.workerNotebook = [entrypoint('vs/workbench/contrib/notebook/common/services/notebookSimpleWorker')];
-exports.workerLanguageDetection = [entrypoint('vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker')];
+exports.workerExtensionHost = [createEditorWorkerModuleDescription('vs/workbench/services/extensions/worker/extensionHostWorker')];
+exports.workerNotebook = [createEditorWorkerModuleDescription('vs/workbench/contrib/notebook/common/services/notebookSimpleWorker')];
+exports.workerLanguageDetection = [createEditorWorkerModuleDescription('vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker')];
 
 exports.workbenchDesktop = require('./vs/workbench/buildfile.desktop').collectModules();
 exports.workbenchWeb = require('./vs/workbench/buildfile.web').collectModules();
 
 exports.keyboardMaps = [
-	entrypoint('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.linux'),
-	entrypoint('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.darwin'),
-	entrypoint('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.win')
+	createModuleDescription('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.linux'),
+	createModuleDescription('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.darwin'),
+	createModuleDescription('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.win')
 ];
 
 exports.code = require('./vs/code/buildfile').collectModules();
 
-exports.entrypoint = entrypoint;
+exports.entrypoint = createModuleDescription;

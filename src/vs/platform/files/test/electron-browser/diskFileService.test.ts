@@ -348,12 +348,20 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(deep!.children!.length, 4);
 	});
 
-	test('resolve directory - resolveTo multiple directories', async () => {
+	test('resolve directory - resolveTo multiple directories', () => {
+		return testResolveDirectoryWithTarget(false);
+	});
+
+	test('resolve directory - resolveTo with a URI that has query parameter (https://github.com/microsoft/vscode/issues/128151)', () => {
+		return testResolveDirectoryWithTarget(true);
+	});
+
+	async function testResolveDirectoryWithTarget(withQueryParam: boolean): Promise<void> {
 		const resolverFixturesPath = getPathFromAmdModule(require, './fixtures/resolver');
-		const result = await service.resolve(URI.file(resolverFixturesPath), {
+		const result = await service.resolve(URI.file(resolverFixturesPath).with({ query: withQueryParam ? 'test' : undefined }), {
 			resolveTo: [
-				URI.file(join(resolverFixturesPath, 'other/deep')),
-				URI.file(join(resolverFixturesPath, 'examples'))
+				URI.file(join(resolverFixturesPath, 'other/deep')).with({ query: withQueryParam ? 'test' : undefined }),
+				URI.file(join(resolverFixturesPath, 'examples')).with({ query: withQueryParam ? 'test' : undefined })
 			]
 		});
 
@@ -378,7 +386,7 @@ flakySuite('Disk File Service', function () {
 		assert.ok(examples);
 		assert.ok(examples!.children!.length > 0);
 		assert.strictEqual(examples!.children!.length, 4);
-	});
+	}
 
 	test('resolve directory - resolveSingleChildFolders', async () => {
 		const resolverFixturesPath = getPathFromAmdModule(require, './fixtures/resolver/other');

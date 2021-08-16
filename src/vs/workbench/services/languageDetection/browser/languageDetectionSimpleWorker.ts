@@ -27,16 +27,6 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 	private _loadFailed: boolean = false;
 
 	public async detectLanguage(uri: string): Promise<string | undefined> {
-		const stopWatch = new StopWatch(true);
-		for await (const language of this.detectLanguagesImpl(uri)) {
-			stopWatch.stop();
-			this._host.fhr('sendTelemetryEvent', [[language.languageId], [language.confidence], stopWatch.elapsed()]);
-			return language.languageId;
-		}
-		return undefined;
-	}
-
-	public async detectLanguages(uri: string): Promise<string[]> {
 		const languages: string[] = [];
 		const confidences: number[] = [];
 		const stopWatch = new StopWatch(true);
@@ -46,8 +36,11 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 		}
 		stopWatch.stop();
 
-		this._host.fhr('sendTelemetryEvent', [languages, confidences, stopWatch.elapsed()]);
-		return languages;
+		if (languages.length) {
+			this._host.fhr('sendTelemetryEvent', [languages, confidences, stopWatch.elapsed()]);
+			return languages[0];
+		}
+		return undefined;
 	}
 
 	private async getModelOperations(): Promise<ModelOperations> {

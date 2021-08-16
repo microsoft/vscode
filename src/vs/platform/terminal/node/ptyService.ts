@@ -15,8 +15,10 @@ import { RequestStore } from 'vs/platform/terminal/common/requestStore';
 import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, TerminalShellType, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
+import { Terminal as XtermTerminal } from 'xterm-headless';
+import { SerializeAddon } from 'vs/platform/terminal/node/serializeAddon';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto } from 'vs/platform/terminal/common/terminalProcess';
-import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
+import { ITerminalSerializer, TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
 
@@ -307,7 +309,6 @@ export class PersistentTerminalProcess extends Disposable {
 
 	private readonly _pendingCommands = new Map<number, { resolve: (data: any) => void; reject: (err: any) => void; }>();
 
-	private readonly _recorder: TerminalRecorder;
 	private _isStarted: boolean = false;
 
 	private _orphanQuestionBarrier: AutoOpenBarrier | null;
@@ -337,6 +338,7 @@ export class PersistentTerminalProcess extends Disposable {
 	private _cwd = '';
 	private _title: string | undefined;
 	private _titleSource: TitleEventSource = TitleEventSource.Process;
+	private _serializer: ITerminalSerializer;
 
 	get pid(): number { return this._pid; }
 	get title(): string { return this._title || this._terminalProcess.currentTitle; }
@@ -360,7 +362,8 @@ export class PersistentTerminalProcess extends Disposable {
 		readonly workspaceId: string,
 		readonly workspaceName: string,
 		readonly shouldPersistTerminal: boolean,
-		cols: number, rows: number,
+		cols: number,
+		rows: number,
 		reconnectConstants: IReconnectConstants,
 		private readonly _logService: ILogService,
 		private _icon?: TerminalIcon,
@@ -368,17 +371,26 @@ export class PersistentTerminalProcess extends Disposable {
 	) {
 		super();
 		this._logService.trace('persistentTerminalProcess#ctor', _persistentProcessId, arguments);
-		this._recorder = new TerminalRecorder(cols, rows);
+
+		if (reconnectConstants.useExperimentalSerialization) {
+			this._serializer = new XtermSerializer(
+				cols,
+				rows,
+				reconnectConstants.scrollback
+			);
+		} else {
+			this._serializer = new TerminalRecorder(cols, rows);
+		}
 		this._orphanQuestionBarrier = null;
 		this._orphanQuestionReplyTime = 0;
 		this._disconnectRunner1 = this._register(new RunOnceScheduler(() => {
-			this._logService.info(`Persistent process "${this._persistentProcessId}": The reconnection grace time of ${printTime(reconnectConstants.GraceTime)} has expired, shutting down pid "${this._pid}"`);
+			this._logService.info(`Persistent process "${this._persistentProcessId}": The reconnection grace time of ${printTime(reconnectConstants.graceTime)} has expired, shutting down pid "${this._pid}"`);
 			this.shutdown(true);
-		}, reconnectConstants.GraceTime));
+		}, reconnectConstants.graceTime));
 		this._disconnectRunner2 = this._register(new RunOnceScheduler(() => {
-			this._logService.info(`Persistent process "${this._persistentProcessId}": The short reconnection grace time of ${printTime(reconnectConstants.ShortGraceTime)} has expired, shutting down pid ${this._pid}`);
+			this._logService.info(`Persistent process "${this._persistentProcessId}": The short reconnection grace time of ${printTime(reconnectConstants.shortGraceTime)} has expired, shutting down pid ${this._pid}`);
 			this.shutdown(true);
-		}, reconnectConstants.ShortGraceTime));
+		}, reconnectConstants.shortGraceTime));
 
 		this._register(this._terminalProcess.onProcessReady(e => {
 			this._pid = e.pid;
@@ -394,7 +406,7 @@ export class PersistentTerminalProcess extends Disposable {
 		this._register(this._terminalProcess.onProcessExit(() => this._bufferer.stopBuffering(this._persistentProcessId)));
 
 		// Data recording for reconnect
-		this._register(this.onProcessData(e => this._recorder.recordData(e)));
+		this._register(this.onProcessData(e => this._serializer.handleData(e)));
 	}
 
 	attach(): void {
@@ -445,7 +457,7 @@ export class PersistentTerminalProcess extends Disposable {
 		if (this._inReplay) {
 			return;
 		}
-		this._recorder.recordResize(cols, rows);
+		this._serializer.handleResize(cols, rows);
 
 		// Buffered events should flush when a resize occurs
 		this._bufferer.flushBuffer(this._persistentProcessId);
@@ -468,12 +480,11 @@ export class PersistentTerminalProcess extends Disposable {
 	}
 
 	triggerReplay(): void {
-		const ev = this._recorder.generateReplayEvent();
+		const ev = this._serializer.generateReplayEvent();
 		let dataLength = 0;
 		for (const e of ev.events) {
 			dataLength += e.data.length;
 		}
-
 		this._logService.info(`Persistent process "${this._persistentProcessId}": Replaying ${dataLength} chars and ${ev.events.length} size events`);
 		this._onProcessReplay.fire(ev);
 		this._terminalProcess.clearUnacknowledgedChars();
@@ -527,6 +538,36 @@ export class PersistentTerminalProcess extends Disposable {
 
 		await this._orphanQuestionBarrier.wait();
 		return (Date.now() - this._orphanQuestionReplyTime > 500);
+	}
+}
+
+class XtermSerializer implements ITerminalSerializer {
+	private _xterm: XtermTerminal;
+	constructor(cols: number, rows: number, scrollback: number) {
+		this._xterm = new XtermTerminal({ cols, rows, scrollback });
+	}
+
+	handleData(data: string): void {
+		this._xterm.write(data);
+	}
+
+	handleResize(cols: number, rows: number): void {
+		this._xterm.resize(cols, rows);
+	}
+
+	generateReplayEvent(): IPtyHostProcessReplayEvent {
+		const serialize = new SerializeAddon();
+		this._xterm.loadAddon(serialize);
+		const serialized = serialize.serialize(this._xterm.getOption('scrollback'));
+		return {
+			events: [
+				{
+					cols: this._xterm.getOption('cols'),
+					rows: this._xterm.getOption('rows'),
+					data: serialized
+				}
+			]
+		};
 	}
 }
 

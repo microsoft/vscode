@@ -243,10 +243,7 @@ export class TestingExplorerView extends ViewPane {
 		this.viewModel = this.instantiationService.createInstance(TestingExplorerViewModel, listContainer, this.onDidChangeBodyVisibility);
 		this._register(this.viewModel.onChangeWelcomeVisibility(() => this._onDidChangeViewWelcomeState.fire()));
 		this._register(this.viewModel);
-
-		if (this.viewModel.welcomeExperience !== WelcomeExperience.ForWorkspace) {
-			this._onDidChangeViewWelcomeState.fire();
-		}
+		this._onDidChangeViewWelcomeState.fire();
 	}
 
 	/** @override  */

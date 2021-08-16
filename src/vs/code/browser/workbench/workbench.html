@@ -30,7 +30,7 @@
 	<script src="./static/out/vs/webPackagePaths.js"></script>
 	<script>
 		Object.keys(self.webPackagePaths).map(function (key, index) {
-			self.webPackagePaths[key] = `${window.location.origin}/static/remote/web/node_modules/${key}/${self.webPackagePaths[key]}`;
+			self.webPackagePaths[key] = `${window.location.origin}/static/node_modules/${key}/${self.webPackagePaths[key]}`;
 		});
 		self.require = {
 			baseUrl: `${window.location.origin}/static/out`,

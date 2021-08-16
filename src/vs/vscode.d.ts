@@ -13935,7 +13935,7 @@ declare module 'vscode' {
 
 		/**
 		 * A collection of "top-level" {@link TestItem} instances, which can in
-		 * turn have their own {@link TestItem.children | children} to form the
+		 * turn have their own {@link TestItem.children children} to form the
 		 * "test tree."
 		 *
 		 * The extension controls when to add tests. For example, extensions should

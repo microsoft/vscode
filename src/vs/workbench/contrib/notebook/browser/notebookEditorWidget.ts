@@ -78,6 +78,10 @@ export class ListViewInfoAccessor extends Disposable {
 		super();
 	}
 
+	setScrollTop(scrollTop: number) {
+		this.list.scrollTop = scrollTop;
+	}
+
 	scrollToBottom() {
 		this.list.scrollToBottom();
 	}
@@ -186,8 +190,8 @@ export class ListViewInfoAccessor extends Disposable {
 		return this.list.setHiddenAreas(_ranges, true);
 	}
 
-	getVisibleRangesPlusViewportAboveBelow(): ICellRange[] {
-		return this.list?.getVisibleRangesPlusViewportAboveBelow() ?? [];
+	getVisibleRangesPlusViewportBelow(): ICellRange[] {
+		return this.list?.getVisibleRangesPlusViewportBelow() ?? [];
 	}
 
 	triggerScroll(event: IMouseWheelEvent) {
@@ -1795,8 +1799,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._listViewInfoAccessor.setHiddenAreas(_ranges);
 	}
 
-	getVisibleRangesPlusViewportAboveBelow(): ICellRange[] {
-		return this._listViewInfoAccessor.getVisibleRangesPlusViewportAboveBelow();
+	getVisibleRangesPlusViewportBelow(): ICellRange[] {
+		return this._listViewInfoAccessor.getVisibleRangesPlusViewportBelow();
+	}
+
+	setScrollTop(scrollTop: number) {
+		this._listViewInfoAccessor.setScrollTop(scrollTop);
 	}
 
 	triggerScroll(event: IMouseWheelEvent) {
