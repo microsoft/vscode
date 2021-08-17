@@ -43,10 +43,16 @@ export interface PreloadOptions {
 	dragAndDropEnabled: boolean;
 }
 
+interface PreloadContext {
+	readonly style: PreloadStyles;
+	readonly options: PreloadOptions;
+	readonly rendererData: readonly RendererMetadata[];
+}
+
 declare function __import(path: string): Promise<any>;
 
-async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, rendererData: readonly RendererMetadata[]) {
-	let currentOptions = options;
+async function webviewPreloads(ctx: PreloadContext) {
+	let currentOptions = ctx.options;
 
 	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
@@ -230,7 +236,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 					if (entry.target.id === observedElementInfo.id && entry.contentRect) {
 						if (observedElementInfo.output) {
 							if (entry.contentRect.height !== 0) {
-								entry.target.style.padding = `${style.outputNodePadding}px 0 ${style.outputNodePadding}px 0`;
+								entry.target.style.padding = `${ctx.style.outputNodePadding}px 0 ${ctx.style.outputNodePadding}px 0`;
 							} else {
 								entry.target.style.padding = `0px`;
 							}
@@ -576,12 +582,12 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 					if (offsetHeight !== 0 && cps.padding === '0px') {
 						// we set padding to zero if the output height is zero (then we can have a zero-height output DOM node)
 						// thus we need to ensure the padding is accounted when updating the init height of the output
-						dimensionUpdater.updateHeight(outputId, offsetHeight + style.outputNodePadding * 2, {
+						dimensionUpdater.updateHeight(outputId, offsetHeight + ctx.style.outputNodePadding * 2, {
 							isOutput: true,
 							init: true,
 						});
 
-						outputNode.style.padding = `${style.outputNodePadding}px 0 ${style.outputNodePadding}px 0`;
+						outputNode.style.padding = `${ctx.style.outputNodePadding}px 0 ${ctx.style.outputNodePadding}px 0`;
 					} else {
 						dimensionUpdater.updateHeight(outputId, outputNode.offsetHeight, {
 							isOutput: true,
@@ -749,7 +755,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 			// Squash any errors extends errors. They won't prevent the renderer
 			// itself from working, so just log them.
-			await Promise.all(rendererData
+			await Promise.all(ctx.rendererData
 				.filter(d => d.extends === this.data.id)
 				.map(d => this.loadExtension(d.id).catch(console.error)),
 			);
@@ -834,7 +840,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		private readonly _renderers = new Map</* id */ string, Renderer>();
 
 		constructor() {
-			for (const renderer of rendererData) {
+			for (const renderer of ctx.rendererData) {
 				this._renderers.set(renderer.id, new Renderer(renderer, async (extensionId) => {
 					const ext = this._renderers.get(extensionId);
 					if (!ext) {
@@ -1438,13 +1444,16 @@ export interface RendererMetadata {
 }
 
 export function preloadsScriptStr(styleValues: PreloadStyles, options: PreloadOptions, renderers: readonly RendererMetadata[]) {
-	// TS will try compiling `import()` in webviePreloads, so use an helper function instead
+	const ctx: PreloadContext = {
+		style: styleValues,
+		options,
+		rendererData: renderers
+	};
+	// TS will try compiling `import()` in webviewPreloads, so use an helper function instead
 	// of using `import(...)` directly
 	return `
 		const __import = (x) => import(x);
 		(${webviewPreloads})(
-				JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(styleValues))}")),
-				JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(options))}")),
-				JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(renderers))}"))
-			)\n//# sourceURL=notebookWebviewPreloads.js\n`;
+			JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(ctx))}"))
+		)\n//# sourceURL=notebookWebviewPreloads.js\n`;
 }
