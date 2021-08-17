@@ -12,7 +12,7 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { StandardTokenType } from 'vs/editor/common/modes';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ILanguageStatus, ILanguageStatusService } from 'vs/editor/common/services/languageStatusService';
+import { ILanguageStatus, ILanguageStatusService } from 'vs/workbench/services/languageStatus/common/languageStatusService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguages)
