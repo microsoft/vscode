@@ -5,7 +5,7 @@
 
 import { ChildProcess, spawn, SpawnOptions } from 'child_process';
 import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync } from 'fs';
-import { homedir } from 'os';
+import { homedir, platform } from 'os';
 import type { ProfilingSession, Target } from 'v8-inspect-profiler';
 import { Event } from 'vs/base/common/event';
 import { isAbsolute, join } from 'vs/base/common/path';
@@ -337,7 +337,42 @@ export async function main(argv: string[]): Promise<any> {
 			options['stdio'] = 'ignore';
 		}
 
-		const child = spawn(process.execPath, argv.slice(2), options);
+		let child: ChildProcess;
+		if (platform() !== 'darwin') {
+			child = spawn(process.execPath, argv.slice(2), options);
+
+			if (args.wait && waitMarkerFilePath) {
+				return new Promise<void>(resolve => {
+
+					// Complete when process exits
+					child.once('exit', () => resolve(undefined));
+
+					// Complete when wait marker file is deleted
+					whenDeleted(waitMarkerFilePath!).then(resolve, resolve);
+				}).then(() => {
+
+					// Make sure to delete the tmp stdin file if we have any
+					if (stdinFilePath) {
+						unlinkSync(stdinFilePath);
+					}
+				});
+			}
+		} else {
+			const envVars: string[] = [];
+			for (const envKey in env) {
+				// if (envKey === '_') {
+				// 	continue;
+				// }
+				const value = env[envKey];
+				envVars.push('--env');
+				envVars.push(envKey + '=' + value ?? '');
+			}
+			const argsArr = ['-b', 'com.microsoft.VSCode', ...envVars, '-n', '--args', ...argv.slice(2)];
+			// console.log('open ' + argsArr.join(' '));
+			// console.log(JSON.stringify(argsArr));
+
+			child = spawn('open', argsArr, options);
+		}
 
 		return Promise.all(processCallbacks.map(callback => callback(child)));
 	}
