@@ -27,7 +27,6 @@ import { getCharContainingOffset } from 'vs/base/common/strings';
 import { UTF8 } from 'vs/workbench/services/textfile/common/encoding';
 import { bufferToStream, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { ThrottledDelayer } from 'vs/base/common/async';
 
 export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport, IEncodingSupport, IWorkingCopy {
@@ -132,16 +131,12 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IEditorService private readonly editorService: IEditorService,
-		@ILanguageDetectionService private readonly languageDetectionService: ILanguageDetectionService
+		@ILanguageDetectionService languageDetectionService: ILanguageDetectionService
 	) {
-		super(modelService, modeService);
+		super(modelService, modeService, languageDetectionService, undefined, preferredMode);
 
 		// Make known to working copy service
 		this._register(this.workingCopyService.registerWorkingCopy(this));
-
-		if (preferredMode) {
-			this.setModeInternal(preferredMode);
-		}
 
 		// Fetch config
 		this.onConfigurationChange(false);
@@ -181,17 +176,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	//#region Mode
 
-	private _hasModeSetExplicitly: boolean = false;
-	get hasModeSetExplicitly(): boolean { return this._hasModeSetExplicitly; }
-
 	override setMode(mode: string): void {
-		// Remember that an explicit mode was set
-		this._hasModeSetExplicitly = true;
-
-		this.setModeInternal(mode);
-	}
-
-	private setModeInternal(mode: string): void {
 		let actualMode: string | undefined = undefined;
 		if (mode === '${activeEditorLanguage}') {
 			// support the special '${activeEditorLanguage}' mode by
@@ -380,21 +365,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 		// Try to detect language from content (debounced by some time to reduce pressure).
 		this._autoDetectLanguageThrottler.trigger(() => this.autoDetectLanguage());
-	}
-
-	private async autoDetectLanguage() {
-		if (this.hasModeSetExplicitly || !this.languageDetectionService.isEnabledForMode(this.getMode() ?? PLAINTEXT_MODE_ID)) {
-			return;
-		}
-
-		const lang = await this.languageDetectionService.detectLanguage(this.resource);
-		if (!lang) {
-			return;
-		}
-
-		if (!this.isDisposed()) {
-			this.setModeInternal(lang);
-		}
 	}
 
 	private updateNameFromFirstLine(textEditorModel: ITextModel): void {
