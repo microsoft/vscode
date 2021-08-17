@@ -86,6 +86,7 @@ export abstract class TitleControl extends Themable {
 	private readonly editorToolBarMenuDisposables = this._register(new DisposableStore());
 
 	private contextMenu: IMenu;
+	private renderDropdownAsChildElement: boolean;
 
 	constructor(
 		parent: HTMLElement,
@@ -110,6 +111,7 @@ export abstract class TitleControl extends Themable {
 		this.editorStickyContext = ActiveEditorStickyContext.bindTo(contextKeyService);
 
 		this.contextMenu = this._register(this.menuService.createMenu(MenuId.EditorTitleContext, this.contextKeyService));
+		this.renderDropdownAsChildElement = false;
 
 		this.create(parent);
 	}
@@ -153,7 +155,8 @@ export abstract class TitleControl extends Themable {
 			ariaLabel: localize('ariaLabelEditorActions', "Editor actions"),
 			getKeyBinding: action => this.getKeybinding(action),
 			actionRunner: this._register(new EditorCommandsContextActionRunner(context)),
-			anchorAlignmentProvider: () => AnchorAlignment.RIGHT
+			anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
+			renderDropdownAsChildElement: this.renderDropdownAsChildElement
 		}));
 
 		// Context
@@ -185,7 +188,7 @@ export abstract class TitleControl extends Themable {
 		}
 
 		// Check extensions
-		return createActionViewItem(this.instantiationService, action);
+		return createActionViewItem(this.instantiationService, action, { menuAsChild: this.renderDropdownAsChildElement });
 	}
 
 	protected updateEditorActionsToolbar(): void {
