@@ -17,6 +17,7 @@ import { ICreateTerminalOptions, ITerminalService } from 'vs/workbench/contrib/t
 import { TerminalCommandId, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys, TerminalContextKeyStrings } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 const enum ContextMenuGroup {
 	Create = '1_create',
@@ -608,17 +609,16 @@ export function getTerminalActionBarArgs(location: TerminalLocation, profiles: I
 				id: contributed.id,
 				title
 			},
-			forceSplit: false,
 			location
 		})));
+		const splitLocation = location === TerminalLocation.Editor ? { viewColumn: SIDE_GROUP } : location;
 		submenuActions.push(new Action(TerminalCommandId.NewWithProfile, title, undefined, true, () => terminalService.createTerminal({
 			config: {
 				extensionIdentifier: contributed.extensionIdentifier,
 				id: contributed.id,
 				title
 			},
-			forceSplit: true,
-			location
+			location: splitLocation
 		})));
 	}
 

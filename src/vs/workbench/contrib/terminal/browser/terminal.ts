@@ -209,6 +209,8 @@ export interface ITerminalEditorService extends ITerminalInstanceHost, ITerminal
 	getInputFromResource(resource: URI): TerminalEditorInput;
 }
 
+export type ITerminalLocationOptions = TerminalLocation | TerminalEditorLocation | { parentTerminal: ITerminalInstance };
+
 export interface ICreateTerminalOptions {
 	/**
 	 * The shell launch config or profile to launch with, when not specified the default terminal
@@ -221,23 +223,14 @@ export interface ICreateTerminalOptions {
 	 */
 	cwd?: string | URI;
 	/**
-	 * Creates a split terminal without requiring a terminal instance to split, for example when splitting
-	 * a terminal editor
-	 */
-	forceSplit?: boolean;
-	/**
 	 * The terminal's resource, passed when the terminal has moved windows.
 	 */
 	resource?: URI;
-	/**
-	 * The terminal instance to split
-	 */
-	instanceToSplit?: ITerminalInstance;
 
 	/**
 	 * The location at which to create the terminal
 	 */
-	location?: TerminalLocation | TerminalEditorLocation | { parentTerminal: ITerminalInstance };
+	location?: ITerminalLocationOptions;
 }
 
 export interface TerminalEditorLocation {

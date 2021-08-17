@@ -146,20 +146,20 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			if (launchConfig.isSplitTerminal) {
 				const activeInstance = this._terminalService.getInstanceHost(launchConfig.target).activeInstance;
 				if (activeInstance) {
-					terminal = withNullAsUndefined(await this._terminalService.createTerminal({ instanceToSplit: activeInstance, config: shellLaunchConfig }));
+					terminal = withNullAsUndefined(await this._terminalService.createTerminal({ location: { parentTerminal: activeInstance }, config: shellLaunchConfig }));
 				}
 			}
 			if (!terminal) {
 				terminal = await this._terminalService.createTerminal({
 					config: shellLaunchConfig,
-					location: launchConfig.location ? await this._getLocation(launchConfig.location) : undefined
+					location: launchConfig.location ? await this._resolveMainThreadLocation(launchConfig.location) : undefined
 				});
 			}
 			r(terminal);
 		}));
 	}
 
-	private async _getLocation(location: TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminal }): Promise<TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ITerminalInstance } | undefined> {
+	private async _resolveMainThreadLocation(location: TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminal }): Promise<TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ITerminalInstance } | undefined> {
 		if (typeof location === 'object' && 'parentTerminal' in location) {
 			const parentTerminal = await this._extHostTerminals.get(location.parentTerminal._id.toString());
 			return parentTerminal ? { parentTerminal } : undefined;

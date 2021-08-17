@@ -170,7 +170,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 					preserveFocus: editorOptions?.preserveFocus
 				}
 			},
-				editorOptions?.viewColumn || sideGroup ? SIDE_GROUP : undefined);
+				editorOptions?.viewColumn || (sideGroup ? SIDE_GROUP : undefined));
 		}
 	}
 

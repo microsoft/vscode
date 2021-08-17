@@ -148,11 +148,11 @@ export class ExtHostTerminal {
 			isExtensionOwnedTerminal: true,
 			useShellEnvironment: withNullAsUndefined(internalOptions?.useShellEnvironment),
 			isSplitTerminal: internalOptions?.isSplitTerminal,
-			location: options.location ? this._getLocation(options.location, internalOptions?.parentTerminal) : undefined
+			location: options.location ? this._resolveExtHostLocation(options.location, internalOptions?.parentTerminal) : undefined
 		});
 	}
 
-	private _getLocation(location: TerminalLocation | vscode.TerminalEditorLocationOptions | vscode.TerminalSplitLocationOptions, parentTerminal?: ExtHostTerminal): TerminalLocation | vscode.TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminal } | undefined {
+	private _resolveExtHostLocation(location: TerminalLocation | vscode.TerminalEditorLocationOptions | vscode.TerminalSplitLocationOptions, parentTerminal?: ExtHostTerminal): TerminalLocation | vscode.TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminal } | undefined {
 		if (typeof location === 'object' && 'parentTerminal' in location) {
 			// use the ExtHostTerminal with value = to the parentTerminal
 			return parentTerminal ? { parentTerminal } : undefined;
