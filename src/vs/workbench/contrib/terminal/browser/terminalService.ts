@@ -1153,46 +1153,45 @@ export class TerminalService implements ITerminalService {
 		}
 
 		this._evaluateLocalCwd(shellLaunchConfig);
-
-		let instance: ITerminalInstance;
-
-		const target = this._getLocation(options?.location) || this.configHelper.config.defaultLocation;
-
+		const location = this._getLocation(options?.location) || this.configHelper.config.defaultLocation;
 		const parent = options?.instanceToSplit || this._getSplitParent(options?.location);
+		return parent ? this._splitTerminal(shellLaunchConfig, location, parent) : this._createTerminal(shellLaunchConfig, location, options);
+	}
 
-		const editorOptions = this._getEditorOptions(options?.location);
-
-		if (parent) {
-			// Use the URI from the base instance if it exists, this will correctly split local terminals
-			if (typeof shellLaunchConfig.cwd !== 'object' && typeof parent.shellLaunchConfig.cwd === 'object') {
-				shellLaunchConfig.cwd = URI.from({
-					scheme: parent.shellLaunchConfig.cwd.scheme,
-					authority: parent.shellLaunchConfig.cwd.authority,
-					path: shellLaunchConfig.cwd || parent.shellLaunchConfig.cwd.path
-				});
-			}
-			if (target === TerminalLocation.Editor || parent.target === TerminalLocation.Editor) {
-				instance = this._terminalEditorService.splitInstance(parent, shellLaunchConfig);
-			} else {
-				const group = this._terminalGroupService.getGroupForInstance(parent);
-				if (!group) {
-					throw new Error(`Cannot split a terminal without a group ${parent}`);
-				}
-				instance = group.split(shellLaunchConfig);
-				this._terminalGroupService.groups.forEach((g, i) => g.setVisible(i === this._terminalGroupService.activeGroupIndex));
-			}
-		} else if (editorOptions) {
-			instance = this._terminalEditorService.splitInstance(undefined, shellLaunchConfig, editorOptions);
+	private _splitTerminal(shellLaunchConfig: IShellLaunchConfig, location: TerminalLocation, parent: ITerminalInstance): ITerminalInstance {
+		let instance;
+		// Use the URI from the base instance if it exists, this will correctly split local terminals
+		if (typeof shellLaunchConfig.cwd !== 'object' && typeof parent.shellLaunchConfig.cwd === 'object') {
+			shellLaunchConfig.cwd = URI.from({
+				scheme: parent.shellLaunchConfig.cwd.scheme,
+				authority: parent.shellLaunchConfig.cwd.authority,
+				path: shellLaunchConfig.cwd || parent.shellLaunchConfig.cwd.path
+			});
+		}
+		if (location === TerminalLocation.Editor || parent.target === TerminalLocation.Editor) {
+			instance = this._terminalEditorService.splitInstance(parent, shellLaunchConfig);
 		} else {
-			if (target === TerminalLocation.Editor) {
-				instance = this._terminalInstanceService.createInstance(shellLaunchConfig, undefined, options?.resource);
-				instance.target = TerminalLocation.Editor;
-				this._terminalEditorService.openEditor(instance, options?.forceSplit || !!options?.instanceToSplit);
-			} else {
-				// TODO: pass resource?
-				const group = this._terminalGroupService.createGroup(shellLaunchConfig);
-				instance = group.terminalInstances[0];
+			const group = this._terminalGroupService.getGroupForInstance(parent);
+			if (!group) {
+				throw new Error(`Cannot split a terminal without a group ${parent}`);
 			}
+			instance = group.split(shellLaunchConfig);
+			this._terminalGroupService.groups.forEach((g, i) => g.setVisible(i === this._terminalGroupService.activeGroupIndex));
+		}
+		return instance;
+	}
+
+	private _createTerminal(shellLaunchConfig: IShellLaunchConfig, location: TerminalLocation, options?: ICreateTerminalOptions): ITerminalInstance {
+		let instance;
+		const editorOptions = this._getEditorOptions(options?.location);
+		if (location === TerminalLocation.Editor) {
+			instance = this._terminalInstanceService.createInstance(shellLaunchConfig, undefined, options?.resource);
+			instance.target = TerminalLocation.Editor;
+			this._terminalEditorService.openEditor(instance, options?.forceSplit || !!options?.instanceToSplit, editorOptions);
+		} else {
+			// TODO: pass resource?
+			const group = this._terminalGroupService.createGroup(shellLaunchConfig);
+			instance = group.terminalInstances[0];
 		}
 		return instance;
 	}
