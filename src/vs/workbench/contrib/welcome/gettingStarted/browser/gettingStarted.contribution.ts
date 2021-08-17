@@ -9,7 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyEqualsExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -27,6 +27,9 @@ import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/c
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { isLinux, isMacintosh, isWindows, OperatingSystem as OS } from 'vs/base/common/platform';
+import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 
 
 export * as icons from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedIcons';
@@ -246,6 +249,43 @@ class WorkbenchConfigurationContribution {
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(WorkbenchConfigurationContribution, LifecyclePhase.Restored);
+
+export const WorkspacePlatform = new RawContextKey<'mac' | 'linux' | 'windows' | 'webworker' | undefined>('workspacePlatform', undefined, localize('workspacePlatform', "The platform of the current workspace, which in remote or serverless contexts may be different from the platform of the UI"));
+class WorkspacePlatformContribution {
+	constructor(
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
+		@IContextKeyService private readonly contextService: IContextKeyService,
+	) {
+		this.remoteAgentService.getEnvironment().then(env => {
+			const remoteOS = env?.os;
+
+			const remotePlatform = remoteOS === OS.Macintosh ? 'mac'
+				: remoteOS === OS.Windows ? 'windows'
+					: remoteOS === OS.Linux ? 'linux'
+						: undefined;
+
+			if (remotePlatform) {
+				WorkspacePlatform.bindTo(this.contextService).set(remotePlatform);
+			} else if (this.extensionManagementServerService.localExtensionManagementServer) {
+				if (isMacintosh) {
+					WorkspacePlatform.bindTo(this.contextService).set('mac');
+				} else if (isLinux) {
+					WorkspacePlatform.bindTo(this.contextService).set('linux');
+				} else if (isWindows) {
+					WorkspacePlatform.bindTo(this.contextService).set('windows');
+				}
+			} else if (this.extensionManagementServerService.webExtensionManagementServer) {
+				WorkspacePlatform.bindTo(this.contextService).set('webworker');
+			} else {
+				console.error('Error: Unable to detect workspace platform');
+			}
+		});
+	}
+}
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+	.registerWorkbenchContribution(WorkspacePlatformContribution, LifecyclePhase.Restored);
 
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
