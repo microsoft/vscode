@@ -47,6 +47,7 @@ interface PreloadContext {
 	readonly style: PreloadStyles;
 	readonly options: PreloadOptions;
 	readonly rendererData: readonly RendererMetadata[];
+	readonly isWorkspaceTrusted: boolean;
 }
 
 declare function __import(path: string): Promise<any>;
@@ -162,6 +163,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		getRenderer(id: string): Promise<any | undefined>;
 		postMessage?(message: unknown): void;
 		onDidReceiveMessage?: Event<unknown>;
+		readonly workspace: { readonly isTrusted: boolean };
 	}
 
 	interface ScriptModule {
@@ -733,6 +735,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 				// TODO: This is async so that we can return a promise to the API in the future.
 				// Currently the API is always resolved before we call `createRendererContext`.
 				getRenderer: async (id: string) => renderers.getRenderer(id)?.api,
+				workspace: {
+					isTrusted: ctx.isWorkspaceTrusted,
+				}
 			};
 
 			if (messaging) {
@@ -1443,11 +1448,12 @@ export interface RendererMetadata {
 	readonly messaging: boolean;
 }
 
-export function preloadsScriptStr(styleValues: PreloadStyles, options: PreloadOptions, renderers: readonly RendererMetadata[]) {
+export function preloadsScriptStr(styleValues: PreloadStyles, options: PreloadOptions, renderers: readonly RendererMetadata[], isWorkspaceTrusted: boolean) {
 	const ctx: PreloadContext = {
 		style: styleValues,
 		options,
-		rendererData: renderers
+		rendererData: renderers,
+		isWorkspaceTrusted
 	};
 	// TS will try compiling `import()` in webviewPreloads, so use an helper function instead
 	// of using `import(...)` directly

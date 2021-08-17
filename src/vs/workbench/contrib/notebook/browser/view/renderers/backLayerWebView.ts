@@ -24,6 +24,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
 import { CellEditState, ICellOutputViewModel, ICommonCellInfo, ICommonNotebookEditor, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IGenericCellViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { preloadsScriptStr, RendererMetadata } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
@@ -101,6 +102,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
@@ -181,6 +183,12 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 
 	private generateContent(baseUrl: string) {
 		const renderersData = this.getRendererData();
+		const preloadScript = preloadsScriptStr(
+			this.options,
+			{ dragAndDropEnabled: this.options.dragAndDropEnabled },
+			renderersData,
+			this.workspaceTrustManagementService.isWorkspaceTrusted());
+
 		return html`
 		<html lang="en">
 			<head>
@@ -301,7 +309,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			</head>
 			<body style="overflow: hidden;">
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
-				<script type="module">${preloadsScriptStr(this.options, { dragAndDropEnabled: this.options.dragAndDropEnabled }, renderersData)}</script>
+				<script type="module">${preloadScript}</script>
 			</body>
 		</html>`;
 	}
