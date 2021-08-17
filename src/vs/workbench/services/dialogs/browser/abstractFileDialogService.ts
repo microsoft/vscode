@@ -40,7 +40,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IFileService protected readonly fileService: IFileService,
 		@IOpenerService protected readonly openerService: IOpenerService,
-		@IDialogService private readonly dialogService: IDialogService,
+		@IDialogService protected readonly dialogService: IDialogService,
 		@IModeService private readonly modeService: IModeService,
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@ILabelService private readonly labelService: ILabelService,

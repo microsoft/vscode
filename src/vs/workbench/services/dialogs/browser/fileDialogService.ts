@@ -13,6 +13,8 @@ import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystem
 import { localize } from 'vs/nls';
 import { getMediaOrTextMime } from 'vs/base/common/mime';
 import { basename } from 'vs/base/common/resources';
+import { WebFileSystemAccess } from 'vs/base/browser/dom';
+import Severity from 'vs/base/common/severity';
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
 
@@ -44,6 +46,10 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 
 		if (this.shouldUseSimplified(schema)) {
 			return this.pickFileAndOpenSimplified(schema, options, false);
+		}
+
+		if (!WebFileSystemAccess.supported(window)) {
+			return this.showUnsupportedBrowserWarning();
 		}
 
 		let fileHandle: FileSystemHandle | undefined = undefined;
@@ -95,6 +101,10 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return this.pickFileToSaveSimplified(schema, options);
 		}
 
+		if (!WebFileSystemAccess.supported(window)) {
+			return this.showUnsupportedBrowserWarning();
+		}
+
 		let fileHandle: FileSystemHandle | undefined = undefined;
 		try {
 			fileHandle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters), ...{ suggestedName: basename(defaultUri) } });
@@ -126,6 +136,10 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return this.showSaveDialogSimplified(schema, options);
 		}
 
+		if (!WebFileSystemAccess.supported(window)) {
+			return this.showUnsupportedBrowserWarning();
+		}
+
 		let fileHandle: FileSystemHandle | undefined = undefined;
 		try {
 			fileHandle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters), ...options.defaultUri ? { suggestedName: basename(options.defaultUri) } : undefined });
@@ -141,6 +155,10 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 
 		if (this.shouldUseSimplified(schema)) {
 			return this.showOpenDialogSimplified(schema, options);
+		}
+
+		if (!WebFileSystemAccess.supported(window)) {
+			return this.showUnsupportedBrowserWarning();
 		}
 
 		let uri: URI | undefined;
@@ -159,6 +177,24 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		return uri ? [uri] : undefined;
+	}
+
+	private async showUnsupportedBrowserWarning(): Promise<undefined> {
+		const res = await this.dialogService.show(
+			Severity.Warning,
+			localize('unsupportedBrowserMessage', "Accessing local files is unsupported in your current browser."),
+			[localize('learnMore', "Learn More"), localize('cancel', "Cancel")],
+			{
+				detail: localize('unsupportedBrowserDetail', "Click 'Learn More' to see a list of supported browsers."),
+				cancelId: 1
+			}
+		);
+
+		if (res.choice === 0) {
+			this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2151362');
+		}
+
+		return undefined;
 	}
 
 	private shouldUseSimplified(scheme: string): boolean {
