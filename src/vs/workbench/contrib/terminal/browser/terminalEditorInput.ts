@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import { dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { IEditorIdentifier, IEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -103,7 +103,7 @@ export class TerminalEditorInput extends EditorInput {
 		return false;
 	}
 
-	override async confirm(): Promise<ConfirmResult> {
+	override async confirm(terminals?: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult> {
 		const { choice } = await this._dialogService.show(
 			Severity.Warning,
 			localize('confirmDirtyTerminal.message', "Do you want to terminate running processes?"),
@@ -113,7 +113,9 @@ export class TerminalEditorInput extends EditorInput {
 			],
 			{
 				cancelId: 1,
-				detail: localize('confirmDirtyTerminal.detail', "Closing will terminate the running processes in this terminal.")
+				detail: terminals && terminals.length > 1 ?
+					terminals.map(terminal => terminal.editor.getName()).join('\n') + '\n\n' + localize('confirmDirtyTerminals.detail', "Closing will terminate the running processes in the terminals.") :
+					localize('confirmDirtyTerminal.detail', "Closing will terminate the running processes in this terminal.")
 			}
 		);
 
