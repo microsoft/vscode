@@ -72,6 +72,11 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	private static readonly FIRST_LINE_NAME_MAX_LENGTH = 40;
 	private static readonly FIRST_LINE_NAME_CANDIDATE_MAX_LENGTH = UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH * 10;
 
+	// support the special '${activeEditorLanguage}' mode by
+	// looking up the language mode from the currently
+	// active text editor if any
+	private static readonly ACTIVE_EDITOR_LANGUAGE_MODE = '${activeEditorLanguage}';
+
 	//#region Events
 
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
@@ -133,7 +138,14 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		@IEditorService private readonly editorService: IEditorService,
 		@ILanguageDetectionService languageDetectionService: ILanguageDetectionService
 	) {
-		super(modelService, modeService, languageDetectionService, undefined, preferredMode);
+		super(
+			modelService,
+			modeService,
+			languageDetectionService,
+			undefined,
+			preferredMode = preferredMode === UntitledTextEditorModel.ACTIVE_EDITOR_LANGUAGE_MODE
+				? editorService.activeTextEditorMode
+				: preferredMode);
 
 		// Make known to working copy service
 		this._register(this.workingCopyService.registerWorkingCopy(this));
@@ -177,16 +189,9 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	//#region Mode
 
 	override setMode(mode: string): void {
-		let actualMode: string | undefined = undefined;
-		if (mode === '${activeEditorLanguage}') {
-			// support the special '${activeEditorLanguage}' mode by
-			// looking up the language mode from the currently
-			// active text editor if any
-			actualMode = this.editorService.activeTextEditorMode;
-		} else {
-			actualMode = mode;
-		}
-
+		let actualMode: string | undefined = mode === UntitledTextEditorModel.ACTIVE_EDITOR_LANGUAGE_MODE
+			? this.editorService.activeTextEditorMode
+			: mode;
 		this.preferredMode = actualMode;
 
 		if (actualMode) {
