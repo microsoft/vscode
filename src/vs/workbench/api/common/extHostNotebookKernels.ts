@@ -21,6 +21,7 @@ import { NotebookCellOutput } from 'vs/workbench/api/common/extHostTypes';
 import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import * as vscode from 'vscode';
 
 interface IKernelData {
@@ -362,7 +363,7 @@ class NotebookCellExecutionTask extends Disposable {
 
 	private async update(update: ICellExecuteUpdateDto | ICellExecuteUpdateDto[]): Promise<void> {
 		const updates = Array.isArray(update) ? update : [update];
-		return this._proxy.$updateExecutions(updates);
+		return this._proxy.$updateExecutions(new SerializableObjectWithBuffers(updates));
 	}
 
 	private verifyStateForOutput() {

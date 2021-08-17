@@ -86,6 +86,9 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		}
 		this._localPtyService.acknowledgeDataEvent(this.id, charCount);
 	}
+	setUnicodeVersion(version: '6' | '11'): Promise<void> {
+		return this._localPtyService.setUnicodeVersion(this.id, version);
+	}
 
 	handleData(e: string | IProcessDataEvent) {
 		this._onProcessData.fire(e);

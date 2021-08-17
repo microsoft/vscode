@@ -188,7 +188,6 @@ export class GettingStartedPage extends EditorPane {
 
 		const rerender = () => {
 			this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
-			console.log(this.gettingStartedCategories);
 			if (this.currentWalkthrough) {
 				const existingSteps = this.currentWalkthrough.steps.map(step => step.id);
 				const newCategory = this.gettingStartedCategories.find(category => this.currentWalkthrough?.id === category.id);

@@ -887,4 +887,45 @@ suite('Folding Model', () => {
 		}
 
 	});
+
+	test('fold jumping issue #129503', () => {
+		let lines = [
+			/* 1*/	'',
+			/* 2*/	'if True:',
+			/* 3*/	'  print(1)',
+			/* 4*/	'if True:',
+			/* 5*/	'  print(1)',
+			/* 6*/	''
+		];
+
+		let textModel = createTextModel(lines.join('\n'));
+		try {
+			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+
+			let ranges = computeRanges(textModel, false, undefined);
+			foldingModel.update(ranges);
+
+			let r1 = r(2, 3, false);
+			let r2 = r(4, 6, false);
+			assertRanges(foldingModel, [r1, r2]);
+
+			// Test jump to next.
+			assert.strictEqual(getNextFoldLine(1, foldingModel), 2);
+			assert.strictEqual(getNextFoldLine(2, foldingModel), 4);
+			assert.strictEqual(getNextFoldLine(3, foldingModel), 4);
+			assert.strictEqual(getNextFoldLine(4, foldingModel), null);
+			assert.strictEqual(getNextFoldLine(5, foldingModel), null);
+			assert.strictEqual(getNextFoldLine(6, foldingModel), null);
+
+			// Test jump to previous.
+			assert.strictEqual(getPreviousFoldLine(1, foldingModel), null);
+			assert.strictEqual(getPreviousFoldLine(2, foldingModel), null);
+			assert.strictEqual(getPreviousFoldLine(3, foldingModel), 2);
+			assert.strictEqual(getPreviousFoldLine(4, foldingModel), 2);
+			assert.strictEqual(getPreviousFoldLine(5, foldingModel), 4);
+			assert.strictEqual(getPreviousFoldLine(6, foldingModel), 4);
+		} finally {
+			textModel.dispose();
+		}
+	});
 });

@@ -35,10 +35,18 @@ export interface IMessage {
 	extensionPointId: string;
 }
 
+export const enum ExtensionRunningLocation {
+	None,
+	LocalProcess,
+	LocalWebWorker,
+	Remote
+}
+
 export interface IExtensionsStatus {
 	messages: IMessage[];
 	activationTimes: ActivationTimes | undefined;
 	runtimeErrors: Error[];
+	runningLocation: ExtensionRunningLocation;
 }
 
 export class MissingExtensionDependency {

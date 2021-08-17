@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IStartEntry, IWalkthrough } from 'vs/platform/extensions/common/extensions';
+import { IWalkthrough } from 'vs/platform/extensions/common/extensions';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
 const titleTranslated = localize('title', "Title");
@@ -31,15 +31,16 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 					type: 'string',
 					description: localize('walkthroughs.description', "Description of walkthrough.")
 				},
-				primary: {
-					deprecationMessage: localize('walkthroughs.primary.deprecated', "Deprecated. The first walkthrough with a satisfied when condition will be opened on install.")
+				featuredFor: {
+					type: 'array',
+					description: localize('walkthroughs.featuredFor', "Walkthroughs that match one of these glob patterns appear as 'featured' in workspaces with the specified files. For example, a walkthrough for TypeScript projects might specify `tsconfig.json` here."),
+					items: {
+						type: 'string'
+					},
 				},
 				when: {
 					type: 'string',
 					description: localize('walkthroughs.when', "Context key expression to control the visibility of this walkthrough.")
-				},
-				tasks: {
-					deprecationMessage: localize('usesteps', "Deprecated. Use `steps` instead")
 				},
 				steps: {
 					type: 'array',
@@ -193,12 +194,5 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 				}
 			}
 		}
-	}
-});
-
-ExtensionsRegistry.registerExtensionPoint<IStartEntry[]>({
-	extensionPoint: 'startEntries',
-	jsonSchema: {
-		deprecationMessage: localize('removed', "Removed, use the menus => file/newFile contribution point instead"),
 	}
 });

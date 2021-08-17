@@ -29,30 +29,6 @@
     }
   },
   "contributes": {
-    "commands": [
-      {
-        "command": "github.provide-token",
-        "title": "Manually Provide Token",
-        "category": "GitHub"
-      },
-      {
-        "command": "github-enterprise.provide-token",
-        "title": "Manually Provide Token",
-        "category": "GitHub Enterprise"
-      }
-    ],
-    "menus": {
-      "commandPalette": [
-        {
-          "command": "github.provide-token",
-          "when": "false"
-        },
-        {
-          "command": "github-enterprise.provide-token",
-          "when": "false"
-        }
-      ]
-    },
     "authentication": [
       {
         "label": "GitHub",

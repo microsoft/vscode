@@ -6,7 +6,21 @@
 import * as vscode from 'vscode';
 import { GitHubAuthenticationProvider, AuthProviderType } from './github';
 
-export async function activate(context: vscode.ExtensionContext) {
+export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(new GitHubAuthenticationProvider(context, AuthProviderType.github));
-	context.subscriptions.push(new GitHubAuthenticationProvider(context, AuthProviderType.githubEnterprise));
+
+	let githubEnterpriseAuthProvider: GitHubAuthenticationProvider | undefined;
+	if (vscode.workspace.getConfiguration().get<string>('github-enterprise.uri')) {
+		githubEnterpriseAuthProvider = new GitHubAuthenticationProvider(context, AuthProviderType.githubEnterprise);
+		context.subscriptions.push(githubEnterpriseAuthProvider);
+	}
+
+	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(async e => {
+		if (e.affectsConfiguration('github-enterprise.uri')) {
+			if (!githubEnterpriseAuthProvider && vscode.workspace.getConfiguration().get<string>('github-enterprise.uri')) {
+				githubEnterpriseAuthProvider = new GitHubAuthenticationProvider(context, AuthProviderType.githubEnterprise);
+				context.subscriptions.push(githubEnterpriseAuthProvider);
+			}
+		}
+	}));
 }

@@ -5,22 +5,23 @@
 
 import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IDiffChange, LcsDiff } from 'vs/base/common/diff/diff';
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
+import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, InlineCompletionsProviderRegistry, InlineCompletionTriggerKind } from 'vs/editor/common/modes';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
-import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
-import { IDiffChange, LcsDiff } from 'vs/base/common/diff/diff';
-import { GhostTextWidgetModel, GhostText, BaseGhostTextWidgetModel, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/ghostText';
+import { inlineSuggestCommitId } from './consts';
+import { BaseGhostTextWidgetModel, GhostText, GhostTextPart, GhostTextWidgetModel } from './ghostText';
 
 export class InlineCompletionsModel extends Disposable implements GhostTextWidgetModel {
 	protected readonly onDidChangeEmitter = new Emitter<void>();
@@ -44,7 +45,9 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 				RedoCommand.id,
 				CoreEditingCommands.Tab.id,
 				CoreEditingCommands.DeleteLeft.id,
-				CoreEditingCommands.DeleteRight.id
+				CoreEditingCommands.DeleteRight.id,
+				inlineSuggestCommitId,
+				'acceptSelectedSuggestion'
 			]);
 			if (commands.has(e.commandId) && editor.hasTextFocus()) {
 				this.handleUserInput();

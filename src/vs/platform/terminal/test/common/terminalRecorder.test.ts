@@ -7,44 +7,44 @@ import * as assert from 'assert';
 import { ReplayEntry } from 'vs/platform/terminal/common/terminalProcess';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 
-function eventsEqual(recorder: TerminalRecorder, expected: ReplayEntry[]) {
-	const actual = recorder.generateReplayEvent().events;
+async function eventsEqual(recorder: TerminalRecorder, expected: ReplayEntry[]) {
+	const actual = (await recorder.generateReplayEvent()).events;
 	for (let i = 0; i < expected.length; i++) {
 		assert.deepStrictEqual(actual[i], expected[i]);
 	}
 }
 
 suite('TerminalRecorder', () => {
-	test('should record dimensions', () => {
+	test('should record dimensions', async () => {
 		const recorder = new TerminalRecorder(1, 2);
-		eventsEqual(recorder, [
+		await eventsEqual(recorder, [
 			{ cols: 1, rows: 2, data: '' }
 		]);
 		recorder.handleData('a');
 		recorder.handleResize(3, 4);
-		eventsEqual(recorder, [
+		await eventsEqual(recorder, [
 			{ cols: 1, rows: 2, data: 'a' },
 			{ cols: 3, rows: 4, data: '' }
 		]);
 	});
-	test('should ignore resize events without data', () => {
+	test('should ignore resize events without data', async () => {
 		const recorder = new TerminalRecorder(1, 2);
-		eventsEqual(recorder, [
+		await eventsEqual(recorder, [
 			{ cols: 1, rows: 2, data: '' }
 		]);
 		recorder.handleResize(3, 4);
-		eventsEqual(recorder, [
+		await eventsEqual(recorder, [
 			{ cols: 3, rows: 4, data: '' }
 		]);
 	});
-	test('should record data and combine it into the previous resize event', () => {
+	test('should record data and combine it into the previous resize event', async () => {
 		const recorder = new TerminalRecorder(1, 2);
 		recorder.handleData('a');
 		recorder.handleData('b');
 		recorder.handleResize(3, 4);
 		recorder.handleData('c');
 		recorder.handleData('d');
-		eventsEqual(recorder, [
+		await eventsEqual(recorder, [
 			{ cols: 1, rows: 2, data: 'ab' },
 			{ cols: 3, rows: 4, data: 'cd' }
 		]);

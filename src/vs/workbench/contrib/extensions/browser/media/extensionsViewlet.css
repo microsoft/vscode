@@ -53,11 +53,6 @@
 	display: none;
 }
 
-.extensions-viewlet > .extensions .extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item,
-.extensions-viewlet > .extensions .extension-list-item .monaco-action-bar > .actions-container > .action-item:not(.action-dropdown-item) > .extension-action {
-	margin-left: 6px;
-}
-
 .extensions-viewlet > .extensions .extensions-list.hidden,
 .extensions-viewlet > .extensions .message-container.hidden {
 	display: none;

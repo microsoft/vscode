@@ -175,10 +175,10 @@ export class UnavailableEditor extends EditorPanePlaceholder {
 		if (group && input) {
 			const link = append(label, $('a.embedded-link'));
 			link.setAttribute('role', 'button');
-			link.textContent = localize('retry', "Try Open Again");
+			link.textContent = localize('retry', "Try Again");
 
 			disposables.add(addDisposableListener(link, EventType.CLICK, () => {
-				group.openEditor(input, { ...this.options, forceReload: true });
+				group.openEditor(input, this.options);
 			}));
 		}
 	}

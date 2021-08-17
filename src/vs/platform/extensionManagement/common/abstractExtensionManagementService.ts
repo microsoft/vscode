@@ -469,7 +469,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		for (const extension of extensionsToUninstall) {
 			const dependents = this.getDependents(extension, installed);
 			if (dependents.length) {
-				const remainingDependents = dependents.filter(dependent => extensionsToUninstall.indexOf(dependent) === -1);
+				const remainingDependents = dependents.filter(dependent => !extensionsToUninstall.some(e => areSameExtensions(e.identifier, dependent.identifier)));
 				if (remainingDependents.length) {
 					throw new Error(this.getDependentsErrorMessage(extension, remainingDependents, extensionToUninstall));
 				}
