@@ -53,6 +53,14 @@ const orderOfMimeTypes = [
 	'text/plain'
 ];
 
+function isEmptyVendoredMimeType(outputItem: NotebookCellOutputItem) {
+	if (outputItem.mime.startsWith('application/vnd.')) {
+		try {
+			return Buffer.from(outputItem.data).toString().length === 0;
+		} catch { }
+	}
+	return false;
+}
 function sortOutputItemsBasedOnDisplayOrder(outputItems: NotebookCellOutputItem[]): NotebookCellOutputItem[] {
 	return outputItems.sort((outputItemA, outputItemB) => {
 		const isMimeTypeMatch = (value: string, compareWith: string) => {
@@ -61,8 +69,19 @@ function sortOutputItemsBasedOnDisplayOrder(outputItems: NotebookCellOutputItem[
 			}
 			return compareWith.startsWith(value);
 		};
-		const indexOfMimeTypeA = orderOfMimeTypes.findIndex(mime => isMimeTypeMatch(outputItemA.mime, mime));
-		const indexOfMimeTypeB = orderOfMimeTypes.findIndex(mime => isMimeTypeMatch(outputItemB.mime, mime));
+		let indexOfMimeTypeA = orderOfMimeTypes.findIndex((mime) => isMimeTypeMatch(mime, outputItemA.mime));
+		let indexOfMimeTypeB = orderOfMimeTypes.findIndex((mime) => isMimeTypeMatch(mime, outputItemB.mime));
+		// Sometimes we can have mime types with empty data, e.g. when using holoview we can have `application/vnd.holoviews_load.v0+json` with empty value.
+		// & in these cases we have HTML/JS and those take precedence.
+		// https://github.com/microsoft/vscode-jupyter/issues/6109
+		if (isEmptyVendoredMimeType(outputItemA)) {
+			indexOfMimeTypeA = -1;
+		}
+		if (isEmptyVendoredMimeType(outputItemB)) {
+			indexOfMimeTypeB = -1;
+		}
+		indexOfMimeTypeA = indexOfMimeTypeA === -1 ? 100 : indexOfMimeTypeA;
+		indexOfMimeTypeB = indexOfMimeTypeB === -1 ? 100 : indexOfMimeTypeB;
 		return indexOfMimeTypeA - indexOfMimeTypeB;
 	});
 }
@@ -237,7 +256,7 @@ cellOutputMappers.set('update_display_data', translateDisplayDataOutput);
 cellOutputMappers.set('error', translateErrorOutput);
 cellOutputMappers.set('stream', translateStreamOutput);
 
-function jupyterCellOutputToCellOutput(output: nbformat.IOutput): NotebookCellOutput {
+export function jupyterCellOutputToCellOutput(output: nbformat.IOutput): NotebookCellOutput {
 	/**
 	 * Stream, `application/x.notebook.stream`
 	 * Error, `application/x.notebook.error-traceback`
