@@ -169,8 +169,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			} else {
 				return undefined;
 			}
-		} else if (typeof location === 'object' && 'viewColumn' in location) {
-			return location;
 		}
 		return location;
 	}

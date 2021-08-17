@@ -951,8 +951,6 @@ declare module 'vscode' {
 		 * is in the panel or the editor area.
 		 */
 		parentTerminal: Terminal;
-
-		// TODO: Do we need to specify a side?
 	}
 
 	/**

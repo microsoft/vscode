@@ -70,7 +70,6 @@ import { createExtHostContextProxyIdentifier as createExtId, createMainContextPr
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import * as search from 'vs/workbench/services/search/common/search';
 import * as statusbar from 'vs/workbench/services/statusbar/common/statusbar';
-import { TerminalEditorLocationOptions } from 'vscode';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -489,7 +488,7 @@ export interface TerminalLaunchConfig {
 	useShellEnvironment?: boolean;
 	isSplitTerminal?: boolean;
 	target?: TerminalLocation;
-	location?: TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminal };
+	location?: TerminalLocation | { viewColumn: number, preserveFocus?: boolean } | { parentTerminal: ExtHostTerminal };
 }
 
 export interface MainThreadTerminalServiceShape extends IDisposable {

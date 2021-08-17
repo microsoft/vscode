@@ -235,8 +235,8 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		return getInstanceFromResource(this.instances, resource);
 	}
 
-	splitInstance(instanceToSplit?: ITerminalInstance, shellLaunchConfig: IShellLaunchConfig = {}): ITerminalInstance {
-		if (instanceToSplit?.target === TerminalLocation.Editor) {
+	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig: IShellLaunchConfig = {}): ITerminalInstance {
+		if (instanceToSplit.target === TerminalLocation.Editor) {
 			// Make sure the instance to split's group is active
 			const group = this._editorInputs.get(instanceToSplit.resource.path)?.group;
 			if (group) {

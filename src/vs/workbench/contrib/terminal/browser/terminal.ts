@@ -202,7 +202,7 @@ export interface ITerminalEditorService extends ITerminalInstanceHost, ITerminal
 	openEditor(instance: ITerminalInstance, sideGroup?: boolean, editorOptions?: TerminalEditorLocation): Promise<void>;
 	detachActiveEditorInstance(): ITerminalInstance;
 	detachInstance(instance: ITerminalInstance): void;
-	splitInstance(instanceToSplit?: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
+	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
 	revealActiveEditor(preserveFocus?: boolean): void;
 	resolveResource(instance: ITerminalInstance | URI): URI;
 	reviveInput(deserializedInput: DeserializedTerminalEditorInput): TerminalEditorInput;
