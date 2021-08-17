@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
-import { CSSIcon } from 'vs/base/common/codicons';
-import { Emitter, Event } from 'vs/base/common/event';
+ { Action, IAction, Separator, SubmenuAction }  'vs/base/common/actions'
+ { CSSIcon }  'vs/base/common/codicons'
+ { Emitter, Event }  'vs/base/common/event'
 import { Iterable } from 'vs/base/common/iterator';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
