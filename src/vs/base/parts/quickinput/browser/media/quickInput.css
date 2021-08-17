@@ -26,6 +26,8 @@
 .quick-input-title {
 	padding: 3px 0px;
 	text-align: center;
+	text-overflow: ellipsis;
+	overflow: hidden;
 }
 
 .quick-input-right-action-bar {
@@ -53,7 +55,6 @@
 }
 
 .quick-input-header {
-	display: flex;
 	padding: 6px 6px 0px 6px;
 	margin-bottom: -2px;
 }
@@ -127,6 +128,8 @@
 .quick-input-message {
 	margin-top: -1px;
 	padding: 5px 5px 2px 5px;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .quick-input-message > .codicon {
