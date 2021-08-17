@@ -164,15 +164,14 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		if (!location) {
 			return location;
 		} else if (typeof location === 'object' && 'parentTerminal' in location) {
-			const t = await this._extHostTerminals.get(location.parentTerminal._id.toString());
-			if (t) {
-				return { parentTerminal: t };
+			const parentTerminal = await this._extHostTerminals.get(location.parentTerminal._id.toString());
+			if (parentTerminal) {
+				return { parentTerminal };
 			} else {
 				return undefined;
 			}
 		} else if (typeof location === 'object' && 'viewColumn' in location) {
-			// TODO - use
-			return TerminalLocation.Editor;
+			return location;
 		}
 		return location;
 	}

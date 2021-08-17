@@ -24,11 +24,11 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		const terminal = new ExtHostTerminal(this._proxy, generateUuid(), options, options.name);
 		this._terminals.push(terminal);
 		if (options.location && typeof options.location === 'object' && 'parentTerminal' in options.location) {
-			const p = options.location.parentTerminal;
-			if (p) {
-				const t = this._terminals.find(t => t.value === p);
+			const parentTerminal = options.location.parentTerminal;
+			if (parentTerminal) {
+				const parentExtHostTerminal = this._terminals.find(t => t.value === parentTerminal);
 				internalOptions = internalOptions ? internalOptions : {};
-				internalOptions.parentTerminal = t;
+				internalOptions.parentTerminal = parentExtHostTerminal;
 			}
 		}
 		terminal.create(options, internalOptions);

@@ -31,7 +31,7 @@ import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
 import { IEditableData, IViewsService } from 'vs/workbench/common/views';
-import { ICreateTerminalOptions, IRemoteTerminalService, IRequestAddInstanceToGroupEvent, ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalFindHost, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalProfileProvider, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ICreateTerminalOptions, IRemoteTerminalService, IRequestAddInstanceToGroupEvent, ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalFindHost, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalProfileProvider, ITerminalService, TerminalConnectionState, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { refreshTerminalActions } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
@@ -43,7 +43,6 @@ import { ILocalTerminalService, IOffProcessTerminalService, IRemoteTerminalAttac
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { formatMessageForTerminal, terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -1157,10 +1156,9 @@ export class TerminalService implements ITerminalService {
 
 		let instance: ITerminalInstance;
 
-		const target = options?.target || this._getLocation(options?.location) || this.configHelper.config.defaultLocation;
+		const target = options?.target || this._getTarget(options?.location) || this.configHelper.config.defaultLocation;
 
-		const splitParent = this._getSplitParent(options?.location);
-		const parent = options?.instanceToSplit || splitParent;
+		const parent = options?.instanceToSplit || this._getSplitParent(options?.location);
 
 		const editorOptions = this._getEditorOptions(options?.target);
 
@@ -1199,26 +1197,25 @@ export class TerminalService implements ITerminalService {
 		return instance;
 	}
 
-	private _getLocation(location?: TerminalLocation | { viewColumn: EditorGroupColumn, preserveFocus?: boolean } | { parentTerminal: ITerminalInstance }): TerminalLocation | undefined {
+	private _getTarget(location?: TerminalLocation | TerminalEditorLocation | { parentTerminal: ITerminalInstance }): TerminalLocation | undefined {
 		if (!location) {
 			return location;
 		} else if (typeof location === 'object' && 'parentTerminal' in location) {
 			return location.parentTerminal.target;
 		} else if (typeof location === 'object' && 'viewColumn' in location) {
-			// TODO - use
 			return TerminalLocation.Editor;
 		}
 		return location;
 	}
 
-	private _getSplitParent(location?: TerminalLocation | { viewColumn: EditorGroupColumn, preserveFocus?: boolean } | { parentTerminal: ITerminalInstance }): ITerminalInstance | undefined {
+	private _getSplitParent(location?: TerminalLocation | TerminalEditorLocation | { parentTerminal: ITerminalInstance }): ITerminalInstance | undefined {
 		if (location && typeof location === 'object' && 'parentTerminal' in location) {
 			return location.parentTerminal;
 		}
 		return undefined;
 	}
 
-	private _getEditorOptions(location?: TerminalLocation | { viewColumn: EditorGroupColumn, preserveFocus?: boolean } | { parentTerminal: ITerminalInstance }): { viewColumn: EditorGroupColumn, preserveFocus?: boolean } | undefined {
+	private _getEditorOptions(location?: TerminalLocation | TerminalEditorLocation | { parentTerminal: ITerminalInstance }): TerminalEditorLocation | undefined {
 		if (location && typeof location === 'object' && 'viewColumn' in location) {
 			return location;
 		}

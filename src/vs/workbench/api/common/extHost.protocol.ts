@@ -46,6 +46,7 @@ import { IExtensionIdWithVersion } from 'vs/platform/userDataSync/common/extensi
 import { WorkspaceTrustRequestOptions } from 'vs/platform/workspace/common/workspaceTrust';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ExtHostInteractive } from 'vs/workbench/api/common/extHostInteractive';
+import { ExtHostTerminal } from 'vs/workbench/api/common/extHostTerminalService';
 import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 import * as tasks from 'vs/workbench/api/common/shared/tasks';
@@ -488,7 +489,7 @@ export interface TerminalLaunchConfig {
 	useShellEnvironment?: boolean;
 	isSplitTerminal?: boolean;
 	target?: TerminalLocation;
-	location?: TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: any };
+	location?: TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminal };
 }
 
 export interface MainThreadTerminalServiceShape extends IDisposable {

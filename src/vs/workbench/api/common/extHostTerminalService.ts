@@ -150,20 +150,18 @@ export class ExtHostTerminal {
 			useShellEnvironment: withNullAsUndefined(internalOptions?.useShellEnvironment),
 			isSplitTerminal: internalOptions?.isSplitTerminal,
 			target: internalOptions?.target,
-			location: this._getLocation(internalOptions?.parentTerminal, withNullAsUndefined(options.location))
+			location: this._getLocation(withNullAsUndefined(options.location), internalOptions?.parentTerminal)
 		});
 	}
 
-
-
-	private _getLocation(terminal?: ExtHostTerminal, location?: TerminalLocation | vscode.TerminalEditorLocationOptions | vscode.TerminalSplitLocationOptions): TerminalLocation | vscode.TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminal } | undefined {
+	private _getLocation(location?: TerminalLocation | vscode.TerminalEditorLocationOptions | vscode.TerminalSplitLocationOptions, parentTerminal?: ExtHostTerminal): TerminalLocation | vscode.TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminal } | undefined {
 		if (!location) {
 			return location;
 		} else if (typeof location === 'object' && 'parentTerminal' in location) {
-			return terminal ? { parentTerminal: terminal } : undefined;
+			// use the ExtHostTerminal with value = to the parentTerminal
+			return parentTerminal ? { parentTerminal } : undefined;
 		} else if (typeof location === 'object' && 'viewColumn' in location) {
-			// TODO - use
-			return TerminalLocation.Editor;
+			return location;
 		}
 		return location;
 	}
@@ -480,10 +478,6 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			terminal.setExitCode(exitCode);
 			this._onDidCloseTerminal.fire(terminal.value);
 		}
-	}
-
-	public async $getExtHostTerminal(terminal: vscode.Terminal): Promise<ExtHostTerminal | undefined> {
-		return this._terminals.find(t => t.value === terminal);
 	}
 
 	public $acceptTerminalOpened(id: number, extHostTerminalId: string | undefined, name: string, shellLaunchConfigDto: IShellLaunchConfigDto): void {

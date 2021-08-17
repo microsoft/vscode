@@ -202,7 +202,7 @@ export interface ITerminalEditorService extends ITerminalInstanceHost, ITerminal
 	openEditor(instance: ITerminalInstance, sideGroup?: boolean): Promise<void>;
 	detachActiveEditorInstance(): ITerminalInstance;
 	detachInstance(instance: ITerminalInstance): void;
-	splitInstance(instanceToSplit?: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig, editorOptions?: { viewColumn: EditorGroupColumn, preserveFocus?: boolean }): ITerminalInstance;
+	splitInstance(instanceToSplit?: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig, editorOptions?: TerminalEditorLocation): ITerminalInstance;
 	revealActiveEditor(preserveFocus?: boolean): void;
 	resolveResource(instance: ITerminalInstance | URI): URI;
 	reviveInput(deserializedInput: DeserializedTerminalEditorInput): TerminalEditorInput;
@@ -241,9 +241,13 @@ export interface ICreateTerminalOptions {
 	/**
 	 * The location at which to create the terminal
 	 */
-	location?: TerminalLocation | { viewColumn: EditorGroupColumn, preserveFocus?: boolean } | { parentTerminal: ITerminalInstance };
+	location?: TerminalLocation | TerminalEditorLocation | { parentTerminal: ITerminalInstance };
 }
 
+export interface TerminalEditorLocation {
+	viewColumn: EditorGroupColumn,
+	preserveFocus?: boolean
+}
 
 /**
  * This service is responsible for managing terminal groups, that is the terminals that are hosted
