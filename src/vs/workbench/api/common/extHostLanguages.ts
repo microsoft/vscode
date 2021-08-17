@@ -11,6 +11,7 @@ import { StandardTokenType, Range, Position, LanguageStatusSeverity } from 'vs/w
 import Severity from 'vs/base/common/severity';
 import { disposableTimeout } from 'vs/base/common/async';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export class ExtHostLanguages {
 
@@ -67,12 +68,12 @@ export class ExtHostLanguages {
 
 	private _handlePool: number = 0;
 
-	createLanguageStatusItem(selector: vscode.DocumentSelector): vscode.LanguageStatusItem {
+	createLanguageStatusItem(extension: IExtensionDescription, selector: vscode.DocumentSelector): vscode.LanguageStatusItem {
 
 		const handle = this._handlePool++;
 		const proxy = this._proxy;
 
-		const data: { selector: any, text: string, detail: string | vscode.MarkdownString, severity: vscode.LanguageStatusSeverity } = {
+		const data: { selector: any, text: string, detail: string, severity: vscode.LanguageStatusSeverity } = {
 			selector,
 			text: '',
 			detail: '',
@@ -84,9 +85,9 @@ export class ExtHostLanguages {
 			soonHandle?.dispose();
 			soonHandle = disposableTimeout(() => {
 				this._proxy.$setLanguageStatus(handle, {
+					source: extension.displayName ?? extension.name,
 					selector: data.selector,
-					text: data.text,
-					message: typeof data.detail === 'string' ? data.detail : typeConvert.MarkdownString.from(data.detail),
+					message: data.detail,
 					severity: data.severity === LanguageStatusSeverity.Error ? Severity.Error : data.severity === LanguageStatusSeverity.Warning ? Severity.Warning : Severity.Info
 				});
 			}, 0);
@@ -98,13 +99,6 @@ export class ExtHostLanguages {
 			},
 			set selector(value) {
 				data.selector = value;
-				updateAsync();
-			},
-			get text() {
-				return data.text;
-			},
-			set text(value) {
-				data.text = value;
 				updateAsync();
 			},
 			get detail() {

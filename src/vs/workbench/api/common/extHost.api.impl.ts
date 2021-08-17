@@ -509,7 +509,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			createLanguageStatusItem(selector: vscode.DocumentSelector): vscode.LanguageStatusItem {
 				checkProposedApiEnabled(extension);
-				return extHostLanguages.createLanguageStatusItem(selector);
+				return extHostLanguages.createLanguageStatusItem(extension, selector);
 			}
 		};
 

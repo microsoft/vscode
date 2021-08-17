@@ -1,0 +1,22 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .language-status {
+	margin: 8px;
+	cursor: default;
+	box-shadow: var(--code-widget-shadow) 0 0 8px 2px;
+}
+
+.monaco-workbench .language-status .list-container .status-element {
+	padding: 10px 5px;
+}
+
+.monaco-workbench .language-status .list-container .status-element div.detail {
+	font-size: smaller;
+}
+
+.monaco-workbench .language-status .list-container .monaco-list-row[data-last-element="false"].status-element {
+	border-bottom: 1px solid var(--code-notifications-border);
+}
