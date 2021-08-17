@@ -7,7 +7,6 @@ import 'vs/workbench/workbench.web.main';
 import { main } from 'vs/workbench/browser/web.main';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { IWebSocketFactory, IWebSocket } from 'vs/platform/remote/browser/browserSocketFactory';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { IUpdateProvider, IUpdate } from 'vs/workbench/services/update/browser/updateService';
@@ -22,12 +21,6 @@ import { TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
-}
-
-interface IStaticExtension {
-	packageJSON: IExtensionManifest;
-	extensionLocation: UriComponents;
-	isBuiltin?: boolean;
 }
 
 /**
@@ -352,12 +345,6 @@ interface IWorkbenchConstructionOptions {
 	readonly credentialsProvider?: ICredentialsProvider;
 
 	/**
-	 * Add static extensions that cannot be uninstalled but only be disabled.
-	 * @deprecated. Use `additionalBuiltinExtensions` instead.
-	 */
-	readonly staticExtensions?: readonly IStaticExtension[];
-
-	/**
 	 * Additional builtin extensions that cannot be uninstalled but only be disabled.
 	 * It can be one of the following:
 	 * 	- `ExtensionId`: id of the extension that is available in Marketplace
@@ -678,10 +665,6 @@ export {
 
 	// Credentials
 	ICredentialsProvider,
-
-	// Static Extensions
-	IStaticExtension,
-	IExtensionManifest,
 
 	// Callbacks
 	IURLCallbackProvider,
