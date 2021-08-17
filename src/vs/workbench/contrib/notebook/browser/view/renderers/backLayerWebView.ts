@@ -980,7 +980,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					type: RenderOutputType.Extension,
 					outputId: output.outputId,
 					mimeType: first.mime,
-					valueBytes: first.data,
+					valueBytes: first.data.buffer,
 					metadata: output.metadata,
 				},
 			};

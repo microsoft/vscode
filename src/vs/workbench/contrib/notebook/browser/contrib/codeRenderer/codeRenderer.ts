@@ -95,7 +95,7 @@ export class NotebookCodeRendererContribution extends Disposable {
 				}
 
 				render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement): IRenderOutput {
-					const str = getStringValue(item);
+					const str = item.data.toString();
 					return this._render(output, container, str, languageId);
 				}
 			});
@@ -121,10 +121,6 @@ workbenchContributionsRegistry.registerWorkbenchContribution(NotebookCodeRendere
 
 
 // --- utils ---
-function getStringValue(item: IOutputItemDto): string {
-	// todo@jrieken NOT proper, should be VSBuffer
-	return new TextDecoder().decode(item.data);
-}
 
 function getOutputSimpleEditorOptions(): IEditorConstructionOptions {
 	return {

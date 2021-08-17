@@ -13,7 +13,7 @@ export namespace NotebookDto {
 	export function toNotebookOutputItemDto(item: notebookCommon.IOutputItemDto): extHostProtocol.NotebookOutputItemDto {
 		return {
 			mime: item.mime,
-			valueBytes: Array.from(item.data)
+			valueBytes: item.data
 		};
 	}
 
@@ -47,7 +47,7 @@ export namespace NotebookDto {
 	export function fromNotebookOutputItemDto(item: extHostProtocol.NotebookOutputItemDto): notebookCommon.IOutputItemDto {
 		return {
 			mime: item.mime,
-			data: new Uint8Array(item.valueBytes)
+			data: item.valueBytes
 		};
 	}
 

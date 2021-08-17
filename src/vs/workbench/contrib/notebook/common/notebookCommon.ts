@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDiffResult, ISequence } from 'vs/base/common/diff/diff';
 import { Event } from 'vs/base/common/event';
@@ -157,7 +158,7 @@ export interface IOrderedMimeType {
 
 export interface IOutputItemDto {
 	readonly mime: string;
-	readonly data: Uint8Array;
+	readonly data: VSBuffer;
 }
 
 export interface IOutputDto {

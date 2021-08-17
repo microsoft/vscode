@@ -16,6 +16,7 @@ import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookB
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { INotebookCellExecution, INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookKernel, INotebookKernelChangeEvent, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtHostContext, ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, IExtHostContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
 
 abstract class MainThreadKernel implements INotebookKernel {
@@ -233,7 +234,8 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		this._executions.set(handle, execution);
 	}
 
-	$updateExecutions(updates: ICellExecuteUpdateDto[]): void {
+	$updateExecutions(data: SerializableObjectWithBuffers<ICellExecuteUpdateDto[]>): void {
+		const updates = data.value;
 		const groupedUpdates = groupBy(updates, (a, b) => a.executionHandle - b.executionHandle);
 		groupedUpdates.forEach(datas => {
 			const first = datas[0];

@@ -104,7 +104,7 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 											outputId: output.outputId,
 											outputs: output.outputs.map(ot => ({
 												mime: ot.mime,
-												data: Uint8Array.from(ot.data)
+												data: ot.data
 											}))
 										}))
 										: [],
@@ -145,7 +145,7 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 								outputId: output.outputId,
 								outputs: output.outputs.map(ot => ({
 									mime: ot.mime,
-									data: Array.from(ot.data)
+									data: ot.data
 								}))
 							};
 						}),

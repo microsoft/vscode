@@ -8,6 +8,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
+import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
 
 export class ExtHostNotebookDocuments implements extHostProtocol.ExtHostNotebookDocumentsShape {
@@ -23,9 +24,9 @@ export class ExtHostNotebookDocuments implements extHostProtocol.ExtHostNotebook
 		private readonly _notebooksAndEditors: ExtHostNotebookController,
 	) { }
 
-	$acceptModelChanged(uri: UriComponents, event: extHostProtocol.NotebookCellsChangedEventDto, isDirty: boolean): void {
+	$acceptModelChanged(uri: UriComponents, event: SerializableObjectWithBuffers<extHostProtocol.NotebookCellsChangedEventDto>, isDirty: boolean): void {
 		const document = this._notebooksAndEditors.getNotebookDocument(URI.revive(uri));
-		document.acceptModelChanged(event, isDirty);
+		document.acceptModelChanged(event.value, isDirty);
 	}
 
 	$acceptDirtyStateChanged(uri: UriComponents, isDirty: boolean): void {

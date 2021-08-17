@@ -515,12 +515,12 @@ function outputsEqual(original: ICellOutput[], modified: ICellOutput[]) {
 				return false;
 			}
 
-			if (aOutputItem.data.length !== bOutputItem.data.length) {
+			if (aOutputItem.data.buffer.length !== bOutputItem.data.buffer.length) {
 				return false;
 			}
 
-			for (let k = 0; k < aOutputItem.data.length; k++) {
-				if (aOutputItem.data[k] !== bOutputItem.data[k]) {
+			for (let k = 0; k < aOutputItem.data.buffer.length; k++) {
+				if (aOutputItem.data.buffer[k] !== bOutputItem.data.buffer[k]) {
 					return false;
 				}
 			}
