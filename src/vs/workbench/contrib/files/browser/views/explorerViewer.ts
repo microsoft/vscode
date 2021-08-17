@@ -1214,10 +1214,10 @@ function getFileOrFolderLabelSufix(items: ExplorerItem[]): string {
 	}
 
 	if (items.every(i => i.isDirectory)) {
-		return `${items.length} folders`;
+		return localize('numberOfFolder', "{0} folders", items.length);
 	}
 	if (items.every(i => !i.isDirectory)) {
-		return `${items.length} files`;
+		return localize('numberOfFiles', "{0} files", items.length);
 	}
 
 	return `${items.length} files and folders`;
