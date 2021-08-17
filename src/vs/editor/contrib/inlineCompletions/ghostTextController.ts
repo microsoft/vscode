@@ -16,6 +16,7 @@ import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/c
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { GhostTextModel } from 'vs/editor/contrib/inlineCompletions/ghostTextModel';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { inlineSuggestCommitId } from 'vs/editor/contrib/inlineCompletions/consts';
 
 export class GhostTextController extends Disposable {
 	public static readonly inlineSuggestionVisible = new RawContextKey<boolean>('inlineSuggestionVisible', false, nls.localize('inlineSuggestionVisible', "Whether an inline suggestion is visible"));
@@ -168,7 +169,7 @@ export class ActiveGhostTextController extends Disposable {
 const GhostTextCommand = EditorCommand.bindToContribution(GhostTextController.get);
 
 export const commitInlineSuggestionAction = new GhostTextCommand({
-	id: 'editor.action.inlineSuggest.commit',
+	id: inlineSuggestCommitId,
 	precondition: GhostTextController.inlineSuggestionVisible,
 	handler(x) {
 		x.commit();
