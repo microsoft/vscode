@@ -15,7 +15,7 @@ import { IWebExtensionsScannerService, IWorkbenchExtensionEnablementService } fr
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ActivationTimes, ExtensionPointContribution, IExtensionService, IExtensionsStatus, IMessage, IWillActivateEvent, IResponsiveStateChangeEvent, toExtension, IExtensionHost, ActivationKind, ExtensionHostKind, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { ActivationTimes, ExtensionPointContribution, IExtensionService, IExtensionsStatus, IMessage, IWillActivateEvent, IResponsiveStateChangeEvent, toExtension, IExtensionHost, ActivationKind, ExtensionHostKind, toExtensionDescription, ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
@@ -43,13 +43,6 @@ class DeltaExtensionsQueueItem {
 		public readonly toAdd: IExtension[],
 		public readonly toRemove: string[] | IExtension[]
 	) { }
-}
-
-export const enum ExtensionRunningLocation {
-	None,
-	LocalProcess,
-	LocalWebWorker,
-	Remote
 }
 
 export const enum ExtensionRunningPreference {
@@ -731,6 +724,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 					messages: this._extensionsMessages.get(extensionKey) || [],
 					activationTimes: this._extensionHostActivationTimes.get(extensionKey),
 					runtimeErrors: this._extensionHostExtensionRuntimeErrors.get(extensionKey) || [],
+					runningLocation: this._runningLocation.get(extensionKey) || ExtensionRunningLocation.None,
 				};
 			}
 		}
