@@ -16,13 +16,17 @@ import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanc
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { Terminal as XtermTerminal } from 'xterm-headless';
-import { SerializeAddon } from 'xterm-addon-serialize';
+import type { SerializeAddon as XtermSerializeAddon } from 'xterm-addon-serialize';
+import type { Unicode11Addon as XtermUnicode11Addon } from 'xterm-addon-unicode11';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto } from 'vs/platform/terminal/common/terminalProcess';
 import { ITerminalSerializer, TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
 
 type WorkspaceId = string;
+
+let SerializeAddon: typeof XtermSerializeAddon;
+let Unicode11Addon: typeof XtermUnicode11Addon;
 
 export class PtyService extends Disposable implements IPtyService {
 	declare readonly _serviceBrand: undefined;
@@ -102,6 +106,7 @@ export class PtyService extends Disposable implements IPtyService {
 		cwd: string,
 		cols: number,
 		rows: number,
+		unicodeVersion: '6' | '11',
 		env: IProcessEnvironment,
 		executableEnv: IProcessEnvironment,
 		windowsEnableConpty: boolean,
@@ -125,7 +130,7 @@ export class PtyService extends Disposable implements IPtyService {
 		if (process.onDidChangeHasChildProcesses) {
 			process.onDidChangeHasChildProcesses(event => this._onProcessDidChangeHasChildProcesses.fire({ id, event }));
 		}
-		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, this._reconnectConstants, this._logService, shellLaunchConfig.icon);
+		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, unicodeVersion, this._reconnectConstants, this._logService, shellLaunchConfig.icon);
 		process.onProcessExit(() => {
 			persistentProcess.dispose();
 			this._ptys.delete(id);
@@ -203,6 +208,9 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 	async acknowledgeDataEvent(id: number, charCount: number): Promise<void> {
 		return this._throwIfNoPty(id).acknowledgeDataEvent(charCount);
+	}
+	async setUnicodeVersion(id: number, version: '6' | '11'): Promise<void> {
+		return this._throwIfNoPty(id).setUnicodeVersion(version);
 	}
 	async getLatency(id: number): Promise<number> {
 		return 0;
@@ -364,6 +372,7 @@ export class PersistentTerminalProcess extends Disposable {
 		readonly shouldPersistTerminal: boolean,
 		cols: number,
 		rows: number,
+		unicodeVersion: '6' | '11',
 		reconnectConstants: IReconnectConstants,
 		private readonly _logService: ILogService,
 		private _icon?: TerminalIcon,
@@ -376,7 +385,8 @@ export class PersistentTerminalProcess extends Disposable {
 			this._serializer = new XtermSerializer(
 				cols,
 				rows,
-				reconnectConstants.scrollback
+				reconnectConstants.scrollback,
+				unicodeVersion
 			);
 		} else {
 			this._serializer = new TerminalRecorder(cols, rows);
@@ -463,6 +473,10 @@ export class PersistentTerminalProcess extends Disposable {
 		this._bufferer.flushBuffer(this._persistentProcessId);
 		return this._terminalProcess.resize(cols, rows);
 	}
+	setUnicodeVersion(version: '6' | '11'): void {
+		this._serializer.setUnicodeVersion?.(version);
+		// TODO: Pass in unicode version in ctor
+	}
 	acknowledgeDataEvent(charCount: number): void {
 		if (this._inReplay) {
 			return;
@@ -479,8 +493,8 @@ export class PersistentTerminalProcess extends Disposable {
 		return this._terminalProcess.getLatency();
 	}
 
-	triggerReplay(): void {
-		const ev = this._serializer.generateReplayEvent();
+	async triggerReplay(): Promise<void> {
+		const ev = await this._serializer.generateReplayEvent();
 		let dataLength = 0;
 		for (const e of ev.events) {
 			dataLength += e.data.length;
@@ -543,8 +557,16 @@ export class PersistentTerminalProcess extends Disposable {
 
 class XtermSerializer implements ITerminalSerializer {
 	private _xterm: XtermTerminal;
-	constructor(cols: number, rows: number, scrollback: number) {
+	private _unicodeAddon?: XtermUnicode11Addon;
+
+	constructor(
+		cols: number,
+		rows: number,
+		scrollback: number,
+		unicodeVersion: '6' | '11'
+	) {
 		this._xterm = new XtermTerminal({ cols, rows, scrollback });
+		this.setUnicodeVersion(unicodeVersion);
 	}
 
 	handleData(data: string): void {
@@ -555,8 +577,8 @@ class XtermSerializer implements ITerminalSerializer {
 		this._xterm.resize(cols, rows);
 	}
 
-	generateReplayEvent(): IPtyHostProcessReplayEvent {
-		const serialize = new SerializeAddon();
+	async generateReplayEvent(): Promise<IPtyHostProcessReplayEvent> {
+		const serialize = new (await this._getSerializeConstructor());
 		this._xterm.loadAddon(serialize);
 		const serialized = serialize.serialize(this._xterm.getOption('scrollback'));
 		return {
@@ -568,6 +590,34 @@ class XtermSerializer implements ITerminalSerializer {
 				}
 			]
 		};
+	}
+
+	async setUnicodeVersion(version: '6' | '11'): Promise<void> {
+		if (this._xterm.unicode.activeVersion === version) {
+			return;
+		}
+		if (version === '11') {
+			this._unicodeAddon = new (await this._getUnicode11Constructor());
+			this._xterm.loadAddon(this._unicodeAddon);
+		} else {
+			this._unicodeAddon?.dispose();
+			this._unicodeAddon = undefined;
+		}
+		this._xterm.unicode.activeVersion = version;
+	}
+
+	async _getUnicode11Constructor(): Promise<typeof Unicode11Addon> {
+		if (!Unicode11Addon) {
+			Unicode11Addon = (await import('xterm-addon-unicode11')).Unicode11Addon;
+		}
+		return Unicode11Addon;
+	}
+
+	async _getSerializeConstructor(): Promise<typeof SerializeAddon> {
+		if (!SerializeAddon) {
+			SerializeAddon = (await import('xterm-addon-serialize')).SerializeAddon;
+		}
+		return SerializeAddon;
 	}
 }
 

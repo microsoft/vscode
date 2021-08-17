@@ -263,12 +263,16 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 	}
 
 	async processBinary(data: string): Promise<void> {
-		// No-op, processBinary is not supported in extextion owned terminals.
+		// No-op, processBinary is not supported in extension owned terminals.
 	}
 
 	acknowledgeDataEvent(charCount: number): void {
 		// No-op, flow control is not supported in extension owned terminals. If this is ever
 		// implemented it will need new pause and resume VS Code APIs.
+	}
+
+	async setUnicodeVersion(version: '6' | '11'): Promise<void> {
+		// No-op, xterm-headless isn't used for extension owned terminals.
 	}
 
 	getInitialCwd(): Promise<string> {

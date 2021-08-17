@@ -320,7 +320,15 @@ export interface ITerminalFindHost {
 }
 
 export interface IRemoteTerminalService extends IOffProcessTerminalService {
-	createProcess(shellLaunchConfig: IShellLaunchConfig, configuration: ICompleteTerminalConfiguration, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper): Promise<ITerminalChildProcess>;
+	createProcess(
+		shellLaunchConfig: IShellLaunchConfig,
+		configuration: ICompleteTerminalConfiguration,
+		activeWorkspaceRootUri: URI | undefined,
+		cols: number,
+		rows: number,
+		unicodeVersion: '6' | '11',
+		shouldPersist: boolean
+	): Promise<ITerminalChildProcess>;
 }
 
 /**

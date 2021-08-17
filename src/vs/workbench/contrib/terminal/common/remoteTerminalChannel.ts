@@ -62,6 +62,7 @@ export interface ICreateTerminalProcessArguments {
 	shouldPersistTerminal: boolean;
 	cols: number;
 	rows: number;
+	unicodeVersion: '6' | '11';
 	resolverEnv: { [key: string]: string | null; } | undefined
 }
 
@@ -141,7 +142,7 @@ export class RemoteTerminalChannelClient {
 		return this._channel.call('$restartPtyHost', []);
 	}
 
-	async createProcess(shellLaunchConfig: IShellLaunchConfigDto, configuration: ICompleteTerminalConfiguration, activeWorkspaceRootUri: URI | undefined, shouldPersistTerminal: boolean, cols: number, rows: number): Promise<ICreateTerminalProcessResult> {
+	async createProcess(shellLaunchConfig: IShellLaunchConfigDto, configuration: ICompleteTerminalConfiguration, activeWorkspaceRootUri: URI | undefined, shouldPersistTerminal: boolean, cols: number, rows: number, unicodeVersion: '6' | '11'): Promise<ICreateTerminalProcessResult> {
 		// Be sure to first wait for the remote configuration
 		await this._configurationService.whenRemoteConfigurationLoaded();
 
@@ -196,6 +197,7 @@ export class RemoteTerminalChannelClient {
 			shouldPersistTerminal,
 			cols,
 			rows,
+			unicodeVersion,
 			resolverEnv
 		};
 		return await this._channel.call<ICreateTerminalProcessResult>('$createProcess', args);
@@ -230,6 +232,9 @@ export class RemoteTerminalChannelClient {
 	}
 	acknowledgeDataEvent(id: number, charCount: number): Promise<void> {
 		return this._channel.call('$acknowledgeDataEvent', [id, charCount]);
+	}
+	setUnicodeVersion(id: number, version: '6' | '11'): Promise<void> {
+		return this._channel.call('$setUnicodeVersion', [id, version]);
 	}
 	shutdown(id: number, immediate: boolean): Promise<void> {
 		return this._channel.call('$shutdown', [id, immediate]);
