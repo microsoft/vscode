@@ -152,23 +152,17 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			if (!terminal) {
 				terminal = await this._terminalService.createTerminal({
 					config: shellLaunchConfig,
-					location: await this._getLocation(launchConfig.location)
+					location: !launchConfig.location ? undefined : await this._getLocation(launchConfig.location)
 				});
 			}
 			r(terminal);
 		}));
 	}
 
-	private async _getLocation(location?: TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminal }): Promise<TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ITerminalInstance } | undefined> {
-		if (!location) {
-			return location;
-		} else if (typeof location === 'object' && 'parentTerminal' in location) {
+	private async _getLocation(location: TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminal }): Promise<TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ITerminalInstance } | undefined> {
+		if (typeof location === 'object' && 'parentTerminal' in location) {
 			const parentTerminal = await this._extHostTerminals.get(location.parentTerminal._id.toString());
-			if (parentTerminal) {
-				return { parentTerminal };
-			} else {
-				return undefined;
-			}
+			return parentTerminal ? { parentTerminal } : undefined;
 		}
 		return location;
 	}
