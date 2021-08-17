@@ -7,6 +7,7 @@ import { nbformat } from '@jupyterlab/coreutils';
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { jupyterCellOutputToCellOutput, jupyterNotebookModelToNotebookData } from '../deserializers';
+import { detectIndent } from '../notebookSerializer';
 
 function deepStripProperties(obj: any, props: string[]) {
 	for (let prop in obj) {
@@ -53,6 +54,31 @@ suite('ipynb serializer', () => {
 		assert.deepStrictEqual(notebook.cells, [expectedCodeCell, expectedMarkdownCell]);
 	});
 
+	suite('Indentation detection', () => {
+		const ipynbNotebook: nbformat.INotebookContent = {
+			cells: [{ cell_type: 'raw', metadata: {}, source: [] }],
+			metadata: {
+				orig_nbformat: 4
+			},
+			nbformat: 4,
+			nbformat_minor: 0
+		};
+		test('JSON with no indents', () => {
+			assert.deepStrictEqual(detectIndent(JSON.stringify(ipynbNotebook, undefined, '')), '');
+		});
+		test('JSON with 1 indent', () => {
+			assert.deepStrictEqual(detectIndent(JSON.stringify(ipynbNotebook, undefined, ' ')), ' ');
+		});
+		test('JSON with 4 indent', () => {
+			assert.deepStrictEqual(detectIndent(JSON.stringify(ipynbNotebook, undefined, '    ')), '    ');
+		});
+		test('JSON with 1 tab indent', () => {
+			assert.deepStrictEqual(detectIndent(JSON.stringify(ipynbNotebook, undefined, '	')), '	');
+		});
+		test('JSON with 3 tab indent', () => {
+			assert.deepStrictEqual(detectIndent(JSON.stringify(ipynbNotebook, undefined, '			')), '			');
+		});
+	});
 	suite('Outputs', () => {
 		function validateCellOutputTranslation(
 			outputs: nbformat.IOutput[],
