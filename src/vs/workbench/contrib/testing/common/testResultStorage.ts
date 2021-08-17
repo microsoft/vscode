@@ -43,7 +43,12 @@ export interface ITestResultStorage {
 
 export const ITestResultStorage = createDecorator('ITestResultStorage');
 
-const currentRevision = 0;
+/**
+ * Data revision this version of VS Code deals with. Should be bumped whenever
+ * a breaking change is made to the stored results, which will cause previous
+ * revisions to be discarded.
+ */
+const currentRevision = 1;
 
 export abstract class BaseTestResultStorage implements ITestResultStorage {
 	declare readonly _serviceBrand: undefined;

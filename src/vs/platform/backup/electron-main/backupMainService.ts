@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
 import { createHash } from 'crypto';
-import { join } from 'vs/base/common/path';
-import { isLinux } from 'vs/base/common/platform';
-import { writeFileSync, RimRafMode, Promises } from 'vs/base/node/pfs';
-import { IBackupMainService, IWorkspaceBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
-import { IBackupWorkspacesFormat, IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { URI } from 'vs/base/common/uri';
+import * as fs from 'fs';
 import { isEqual } from 'vs/base/common/extpath';
 import { Schemas } from 'vs/base/common/network';
+import { join } from 'vs/base/common/path';
+import { isLinux } from 'vs/base/common/platform';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { Promises, RimRafMode, writeFileSync } from 'vs/base/node/pfs';
+import { IBackupMainService, isWorkspaceBackupInfo, IWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
+import { IBackupWorkspacesFormat, IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { HotExitConfiguration, IFilesConfiguration } from 'vs/platform/files/common/files';
+import { ILogService } from 'vs/platform/log/common/log';
+import { isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export class BackupMainService implements IBackupMainService {
 

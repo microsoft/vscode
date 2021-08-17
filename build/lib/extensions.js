@@ -21,6 +21,8 @@ const fancyLog = require("fancy-log");
 const ansiColors = require("ansi-colors");
 const buffer = require('gulp-buffer');
 const jsoncParser = require("jsonc-parser");
+const dependencies_1 = require("./dependencies");
+const _ = require("underscore");
 const util = require('./util');
 const root = path.dirname(path.dirname(__dirname));
 const commit = util.getVersion(root);
@@ -242,8 +244,10 @@ function packageLocalExtensionsStream(forWeb) {
         result = localExtensionsStream;
     }
     else {
-        // also include shared node modules
-        result = es.merge(localExtensionsStream, gulp.src('extensions/node_modules/**', { base: '.' }));
+        // also include shared production node modules
+        const productionDependencies = (0, dependencies_1.getProductionDependencies)('extensions/');
+        const dependenciesSrc = _.flatten(productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]));
+        result = es.merge(localExtensionsStream, gulp.src(dependenciesSrc, { base: '.' }));
     }
     return (result
         .pipe(util2.setExecutableBit(['**/*.sh'])));

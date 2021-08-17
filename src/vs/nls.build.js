@@ -89,7 +89,7 @@ var NLSBuildLoaderPlugin;
                                     return 'NLS error: unknown key ' + moduleKey;
                                 var mk = keyMap[moduleKey].keys;
                                 if (index >= mk.length)
-                                    return 'NLS error unknow index ' + index;
+                                    return 'NLS error unknown index ' + index;
                                 var subKey = mk[index];
                                 var args = [];
                                 args[0] = moduleKey + '_' + subKey;

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import * as extpath from 'vs/base/common/extpath';
-import * as paths from 'vs/base/common/path';
-import { LRUCache } from 'vs/base/common/map';
-import { CharCode } from 'vs/base/common/charCode';
 import { isThenable } from 'vs/base/common/async';
+import { CharCode } from 'vs/base/common/charCode';
+import * as extpath from 'vs/base/common/extpath';
+import { LRUCache } from 'vs/base/common/map';
+import * as paths from 'vs/base/common/path';
+import * as strings from 'vs/base/common/strings';
 
 export interface IExpression {
 	[pattern: string]: boolean | SiblingClause;
@@ -229,7 +229,7 @@ function parseRegExp(pattern: string): string {
 	return regEx;
 }
 
-// regexes to check for trival glob patterns that just check for String#endsWith
+// regexes to check for trivial glob patterns that just check for String#endsWith
 const T1 = /^\*\*\/\*\.[\w\.-]+$/; 						   			// **/*.something
 const T2 = /^\*\*\/([\w\.-]+)\/?$/; 							   			// **/something
 const T3 = /^{\*\*\/[\*\.]?[\w\.-]+\/?(,\*\*\/[\*\.]?[\w\.-]+\/?)*}$/; 	// {**/*.something,**/*.else} or {**/package.json,**/project.json}
@@ -296,7 +296,7 @@ function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): P
 		return wrapRelativePattern(parsedPattern, arg1);
 	}
 
-	// Check for Trivias
+	// Check for Trivials
 	let match: RegExpExecArray | null;
 	if (T1.test(pattern)) { // common pattern: **/*.txt just need endsWith check
 		const base = pattern.substr(4); // '**/*'.length === 4

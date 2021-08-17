@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as https from 'https';
 import * as http from 'http';
-import * as streams from 'vs/base/common/stream';
-import { createGunzip } from 'zlib';
+import * as https from 'https';
 import { parse as parseUrl } from 'url';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isBoolean, isNumber } from 'vs/base/common/types';
-import { canceled } from 'vs/base/common/errors';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IRequestService, IHTTPConfiguration } from 'vs/platform/request/common/request';
-import { IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/request';
-import { getProxyAgent, Agent } from 'vs/platform/request/node/proxy';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
 import { streamToBufferReadableStream } from 'vs/base/common/buffer';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { canceled } from 'vs/base/common/errors';
+import { Disposable } from 'vs/base/common/lifecycle';
+import * as streams from 'vs/base/common/stream';
+import { isBoolean, isNumber } from 'vs/base/common/types';
+import { IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { resolveShellEnv } from 'vs/platform/environment/node/shellEnv';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IHTTPConfiguration, IRequestService } from 'vs/platform/request/common/request';
+import { Agent, getProxyAgent } from 'vs/platform/request/node/proxy';
+import { createGunzip } from 'zlib';
 
 export interface IRawRequestFunction {
 	(options: http.RequestOptions, callback?: (res: http.IncomingMessage) => void): http.ClientRequest;

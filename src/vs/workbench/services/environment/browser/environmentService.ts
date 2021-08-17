@@ -17,6 +17,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { parseLineAndColumnAware } from 'vs/base/common/extpath';
 import { LogLevelToString } from 'vs/platform/log/common/log';
 import { ExtensionKind } from 'vs/platform/extensions/common/extensions';
+import { isUndefined } from 'vs/base/common/types';
 
 class BrowserWorkbenchConfiguration implements IWindowConfiguration {
 
@@ -44,8 +45,7 @@ class BrowserWorkbenchConfiguration implements IWindowConfiguration {
 
 					return [{
 						fileUri: fileUri.with({ path: pathColumnAware.path }),
-						lineNumber: pathColumnAware.line,
-						columnNumber: pathColumnAware.column
+						selection: !isUndefined(pathColumnAware.line) ? { startLineNumber: pathColumnAware.line, startColumn: pathColumnAware.column || 1 } : undefined
 					}];
 				}
 
@@ -225,6 +225,8 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	}
 
 	get disableExtensions() { return this.payload?.get('disableExtensions') === 'true'; }
+
+	get enableExtensions() { return this.options.enabledExtensions; }
 
 	@memoize
 	get webviewExternalEndpoint(): string {

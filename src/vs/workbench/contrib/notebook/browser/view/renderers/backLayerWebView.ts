@@ -9,8 +9,8 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { getExtensionForMimeType } from 'vs/base/common/mime';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { isMacintosh, isWeb } from 'vs/base/common/platform';
+import { Schemas } from 'vs/base/common/network';
+import { isMacintosh } from 'vs/base/common/platform';
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
@@ -35,7 +35,7 @@ import { IScopedRendererMessaging } from 'vs/workbench/contrib/notebook/common/n
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ICreationRequestMessage, IMarkupCellInitialization, FromWebviewMessage, IClickedDataUrlMessage, IContentWidgetTopRequest, IControllerPreload, ToWebviewMessage, IAckOutputHeight } from './webviewMessages';
+import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, IContentWidgetTopRequest, IControllerPreload, ICreationRequestMessage, IMarkupCellInitialization, ToWebviewMessage } from './webviewMessages';
 
 export interface ICachedInset<K extends ICommonCellInfo> {
 	outputId: string;
@@ -65,10 +65,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	webview: WebviewElement | undefined = undefined;
 	insetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
 	readonly markupPreviewMapping = new Map<string, IMarkupCellInitialization>();
-	hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();
-	reversedInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
-	localResourceRootsCache: URI[] | undefined = undefined;
-	rendererRootsCache: URI[] = [];
+	private hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();
+	private reversedInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
+	private localResourceRootsCache: URI[] | undefined = undefined;
 	private readonly _onMessage = this._register(new Emitter<INotebookWebviewMessage>());
 	private readonly _preloadsCache = new Set<string>();
 	public readonly onMessage: Event<INotebookWebviewMessage> = this._onMessage.event;
@@ -111,14 +110,21 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		this.element.style.position = 'absolute';
 
 		if (rendererMessaging) {
-			this._register(rendererMessaging.onDidReceiveMessage(evt => {
+			this._register(rendererMessaging);
+			rendererMessaging.receiveMessageHandler = (rendererId, message) => {
+				if (!this.webview || this._disposed) {
+					return Promise.resolve(false);
+				}
+
 				this._sendMessageToWebview({
 					__vscode_notebook_message: true,
 					type: 'customRendererMessage',
-					rendererId: evt.rendererId,
-					message: evt.message
+					rendererId: rendererId,
+					message: message
 				});
-			}));
+
+				return Promise.resolve(true);
+			};
 		}
 	}
 
@@ -270,7 +276,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					}
 
 					table, th, tr {
-						vertical-align: top;
+						vertical-align: middle;
 						text-align: right;
 					}
 
@@ -454,6 +460,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						// const date = new Date();
 						// const top = data.data.top;
 						// console.log('ack top ', top, ' version: ', data.version, ' - ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
+						break;
+					}
+				case 'scroll-to-reveal':
+					{
+						this.notebookEditor.setScrollTop(data.scrollTop);
 						break;
 					}
 				case 'did-scroll-wheel':
@@ -652,15 +663,12 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	}
 
 	private _createInset(webviewService: IWebviewService, content: string) {
-		const rootPath = isWeb ? FileAccess.asBrowserUri('', require) : FileAccess.asFileUri('', require);
-
 		const workspaceFolders = this.contextService.getWorkspace().folders.map(x => x.uri);
 
 		this.localResourceRootsCache = [
 			...this.notebookService.getNotebookProviderResourceRoots(),
 			...this.notebookService.getRenderers().map(x => dirname(x.entrypoint)),
 			...workspaceFolders,
-			rootPath,
 		];
 
 		const webview = webviewService.createWebviewElement(this.id, {
@@ -1123,7 +1131,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 
 		const mixedResourceRoots = [
 			...(this.localResourceRootsCache || []),
-			...this.rendererRootsCache,
 			...(this._currentKernel ? [this._currentKernel.localResourceRoot] : []),
 		];
 

@@ -39,6 +39,7 @@ else
 				compile-extension:html-language-features-server \
 				compile-extension:json-language-features-server \
 				compile-extension:git \
+				compile-extension:ipynb \
 				compile-extension-media
 
 	# Configuration for more verbose output
@@ -87,6 +88,9 @@ after_suite
 after_suite
 
 "$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $(mktemp -d 2>/dev/null) --enable-proposed-api=vscode.git --extensionDevelopmentPath=$ROOT/extensions/git --extensionTestsPath=$ROOT/extensions/git/out/test $ALL_PLATFORMS_API_TESTS_EXTRA_ARGS
+after_suite
+
+"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$ROOT/extensions/ipynb --extensionTestsPath=$ROOT/extensions/ipynb/out/test $ALL_PLATFORMS_API_TESTS_EXTRA_ARGS
 after_suite
 
 

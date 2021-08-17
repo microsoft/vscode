@@ -4,28 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Stats } from 'fs';
-import { IDisposable, Disposable, toDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
-import { FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, FileSystemProviderErrorCode, createFileSystemProviderError, FileSystemProviderError, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, FileReadStreamOptions, IFileSystemProviderWithFileFolderCopyCapability, isFileOpenForWriteOptions } from 'vs/platform/files/common/files';
-import { URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { SymlinkSupport, RimRafMode, IDirent, Promises } from 'vs/base/node/pfs';
-import { normalize, basename, dirname } from 'vs/base/common/path';
-import { joinPath } from 'vs/base/common/resources';
-import { isEqual } from 'vs/base/common/extpath';
-import { retry, ThrottledDelayer } from 'vs/base/common/async';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { localize } from 'vs/nls';
-import { IDiskFileChange, toFileChanges, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
-import { FileWatcher as UnixWatcherService } from 'vs/platform/files/node/watcher/unix/watcherService';
-import { FileWatcher as WindowsWatcherService } from 'vs/platform/files/node/watcher/win32/watcherService';
-import { FileWatcher as NsfwWatcherService } from 'vs/platform/files/node/watcher/nsfw/watcherService';
-import { FileWatcher as NodeJSWatcherService } from 'vs/platform/files/node/watcher/nodejs/watcherService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ReadableStreamEvents, newWriteableStream } from 'vs/base/common/stream';
-import { readFileIntoStream } from 'vs/platform/files/common/io';
 import { insert } from 'vs/base/common/arrays';
+import { retry, ThrottledDelayer } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Emitter, Event } from 'vs/base/common/event';
+import { isEqual } from 'vs/base/common/extpath';
+import { combinedDisposable, Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { basename, dirname, normalize } from 'vs/base/common/path';
+import { isLinux, isWindows } from 'vs/base/common/platform';
+import { joinPath } from 'vs/base/common/resources';
+import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
+import { URI } from 'vs/base/common/uri';
+import { IDirent, Promises, RimRafMode, SymlinkSupport } from 'vs/base/node/pfs';
+import { localize } from 'vs/nls';
+import { createFileSystemProviderError, FileDeleteOptions, FileOpenOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileChange, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+import { readFileIntoStream } from 'vs/platform/files/common/io';
+import { FileWatcher as NodeJSWatcherService } from 'vs/platform/files/node/watcher/nodejs/watcherService';
+import { FileWatcher as NsfwWatcherService } from 'vs/platform/files/node/watcher/nsfw/watcherService';
+import { FileWatcher as UnixWatcherService } from 'vs/platform/files/node/watcher/unix/watcherService';
+import { IDiskFileChange, ILogMessage, toFileChanges } from 'vs/platform/files/node/watcher/watcher';
+import { FileWatcher as WindowsWatcherService } from 'vs/platform/files/node/watcher/win32/watcherService';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 
 export interface IWatcherOptions {
 	pollingInterval?: number;

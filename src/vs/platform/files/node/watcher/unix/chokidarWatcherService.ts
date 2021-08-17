@@ -6,18 +6,18 @@
 import * as chokidar from 'chokidar';
 import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
-import { match, ParsedPattern, parse } from 'vs/base/common/glob';
-import { isEqualOrParent } from 'vs/base/common/extpath';
-import { FileChangeType } from 'vs/platform/files/common/files';
-import { ThrottledDelayer } from 'vs/base/common/async';
-import { normalizeNFC } from 'vs/base/common/normalization';
-import { realcaseSync } from 'vs/base/node/extpath';
-import { isMacintosh, isLinux } from 'vs/base/common/platform';
-import { IDiskFileChange, normalizeFileChanges, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
-import { IWatcherRequest, IWatcherService, IWatcherOptions } from 'vs/platform/files/node/watcher/unix/watcher';
-import { Emitter } from 'vs/base/common/event';
 import { equals } from 'vs/base/common/arrays';
+import { ThrottledDelayer } from 'vs/base/common/async';
+import { Emitter } from 'vs/base/common/event';
+import { isEqualOrParent } from 'vs/base/common/extpath';
+import { match, parse, ParsedPattern } from 'vs/base/common/glob';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { normalizeNFC } from 'vs/base/common/normalization';
+import { isLinux, isMacintosh } from 'vs/base/common/platform';
+import { realcaseSync } from 'vs/base/node/extpath';
+import { FileChangeType } from 'vs/platform/files/common/files';
+import { IWatcherOptions, IWatcherRequest, IWatcherService } from 'vs/platform/files/node/watcher/unix/watcher';
+import { IDiskFileChange, ILogMessage, normalizeFileChanges } from 'vs/platform/files/node/watcher/watcher';
 
 gracefulFs.gracefulify(fs); // enable gracefulFs
 

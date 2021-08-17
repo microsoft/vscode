@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import type * as WindowsProcessTreeType from 'windows-process-tree';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { debounce } from 'vs/base/common/decorators';
 import { timeout } from 'vs/base/common/async';
+import { debounce } from 'vs/base/common/decorators';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isWindows, platform } from 'vs/base/common/platform';
+import { TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import type * as WindowsProcessTreeType from 'windows-process-tree';
 
 export interface IWindowsShellHelper extends IDisposable {
 	readonly onShellNameChanged: Event<string>;

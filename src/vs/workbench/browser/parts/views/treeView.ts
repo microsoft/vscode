@@ -274,8 +274,8 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 						children = node.children;
 					} else {
 						node = node ?? self.root;
-						children = await (node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node));
-						node.children = children;
+						node.children = await (node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node));
+						children = node.children ?? [];
 					}
 					if (node instanceof Root) {
 						const oldEmpty = this._isEmpty;
@@ -806,7 +806,7 @@ class TreeDataSource implements IAsyncDataSource<ITreeItem, ITreeItem> {
 		let result: ITreeItem[] = [];
 		if (this.treeView.dataProvider) {
 			try {
-				result = await this.withProgress(this.treeView.dataProvider.getChildren(element));
+				result = (await this.withProgress(this.treeView.dataProvider.getChildren(element))) ?? [];
 			} catch (e) {
 				if (!(<string>e.message).startsWith('Bad progress location:')) {
 					throw e;

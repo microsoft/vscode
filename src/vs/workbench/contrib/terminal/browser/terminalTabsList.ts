@@ -33,7 +33,6 @@ import { disposableTimeout } from 'vs/base/common/async';
 import { ElementsDragAndDropData, NativeDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { URI } from 'vs/base/common/uri';
 import { getColorClass, getIconId, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
-import { Schemas } from 'vs/base/common/network';
 import { IEditableData } from 'vs/workbench/common/views';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -41,12 +40,12 @@ import { once } from 'vs/base/common/functional';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { containsDragType } from 'vs/workbench/browser/dnd';
+import { CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { getTerminalResourcesFromDragEvent, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 
 const $ = DOM.$;
 
@@ -132,7 +131,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		this.onMouseDblClick(async e => {
 			const focus = this.getFocus();
 			if (focus.length === 0) {
-				const instance = this._terminalService.createTerminal({ target: TerminalLocation.TerminalView });
+				const instance = await this._terminalService.createTerminal({ target: TerminalLocation.TerminalView });
 				this._terminalGroupService.setActiveInstance(instance);
 				await instance.focusWhenReady();
 			}
@@ -143,9 +142,9 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 
 		// on left click, if focus mode = single click, focus the element
 		// unless multi-selection is in progress
-		this.onMouseClick(e => {
+		this.onMouseClick(async e => {
 			if (e.browserEvent.altKey && e.element) {
-				this._terminalService.splitInstance(e.element);
+				await this._terminalService.createTerminal({ instanceToSplit: e.element });
 			} else if (this._getFocusMode() === 'singleClick') {
 				if (this.getSelection().length <= 1) {
 					e.element?.focus(true);
@@ -460,7 +459,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		// If the instance is within the selection, split all selected
 		const actions = [
 			new Action(TerminalCommandId.SplitInstance, terminalStrings.split.short, ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => {
-				this._runForSelectionOrInstance(instance, e => this._terminalService.splitInstance(e));
+				this._runForSelectionOrInstance(instance, e => this._terminalService.createTerminal({ instanceToSplit: e }));
 			}),
 			new Action(TerminalCommandId.KillInstance, terminalStrings.kill.short, ThemeIcon.asClassName(Codicon.trashcan), true, async () => {
 				this._runForSelectionOrInstance(instance, e => e.dispose());
@@ -544,16 +543,12 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
 		this._offProcessTerminalService = _terminalService.getOffProcessTerminalService();
 	}
 
 	getDragURI(instance: ITerminalInstance): string | null {
-		return URI.from({
-			scheme: Schemas.vscodeTerminal,
-			path: `/${this._workspaceContextService.getWorkspace().id}/${instance.instanceId.toString()}`
-		}).toString();
+		return instance.resource.toString();
 	}
 
 	getDragLabel?(elements: ITerminalInstance[], originalEvent: DragEvent): string | undefined {
@@ -577,14 +572,13 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		// Attach terminals type to event
 		const terminals: ITerminalInstance[] = dndData.filter(e => 'instanceId' in (e as any));
 		if (terminals.length > 0) {
-			originalEvent.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(terminals.map(e => e.resource.toString())));
-			originalEvent.dataTransfer.setData(DataTransfers.TERMINALS, JSON.stringify(terminals.map(e => e.instanceId)));
+			originalEvent.dataTransfer.setData(DataTransfers.TERMINALS, JSON.stringify(terminals.map(e => e.resource.toString())));
 		}
 	}
 
 	onDragOver(data: IDragAndDropData, targetInstance: ITerminalInstance | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | IListDragOverReaction {
 		if (data instanceof NativeDragAndDropData) {
-			if (!containsDragType(originalEvent, DataTransfers.FILES, DataTransfers.RESOURCES, DataTransfers.TERMINALS)) {
+			if (!containsDragType(originalEvent, DataTransfers.FILES, DataTransfers.RESOURCES, DataTransfers.TERMINALS, CodeDataTransfers.FILES)) {
 				return false;
 			}
 		}
@@ -618,29 +612,32 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		this._autoFocusInstance = undefined;
 
 		let sourceInstances: ITerminalInstance[] | undefined;
-		const terminalResources = originalEvent.dataTransfer?.getData(DataTransfers.RESOURCES);
-		const terminals = originalEvent.dataTransfer?.getData(DataTransfers.TERMINALS);
 		let promises: Promise<IProcessDetails | undefined>[] = [];
-		if (terminals && terminalResources) {
-			const json = JSON.parse(terminalResources);
-			for (const entry of json) {
-				const uri = URI.parse(entry);
-				const [, workspaceId, instanceId] = uri.path.split('/');
-				if (workspaceId && instanceId) {
-					const instance = this._terminalService.instances.find(e => e.resource.path === instanceId);
-					if (instance) {
-						sourceInstances = [instance];
-						this._terminalService.moveToTerminalView(instance);
-					} else if (this._offProcessTerminalService && workspaceId !== this._workspaceContextService.getWorkspace().id) {
-						promises.push(this._offProcessTerminalService.requestDetachInstance(workspaceId, Number.parseInt(instanceId)));
+		const resources = getTerminalResourcesFromDragEvent(originalEvent);
+		if (resources) {
+			for (const uri of resources) {
+				const instance = this._terminalService.getInstanceFromResource(uri);
+				if (instance) {
+					sourceInstances = [instance];
+					this._terminalService.moveToTerminalView(instance);
+				} else if (this._offProcessTerminalService) {
+					const terminalIdentifier = parseTerminalUri(uri);
+					if (terminalIdentifier.instanceId) {
+						promises.push(this._offProcessTerminalService.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId));
 					}
 				}
 			}
+		}
+
+		if (promises.length) {
 			let processes = await Promise.all(promises);
 			processes = processes.filter(p => p !== undefined);
+			let lastInstance: ITerminalInstance | undefined;
 			for (const attachPersistentProcess of processes) {
-				const instance = this._terminalService.createTerminal({ config: { attachPersistentProcess } });
-				this._terminalService.setActiveInstance(instance);
+				lastInstance = await this._terminalService.createTerminal({ config: { attachPersistentProcess } });
+			}
+			if (lastInstance) {
+				this._terminalService.setActiveInstance(lastInstance);
 			}
 			return;
 		}
@@ -686,10 +683,17 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 
 		// Check if files were dragged from the tree explorer
 		let path: string | undefined;
-		const resources = e.dataTransfer.getData(DataTransfers.RESOURCES);
-		if (resources) {
-			path = URI.parse(JSON.parse(resources)[0]).fsPath;
-		} else if (e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].path /* Electron only */) {
+		const rawResources = e.dataTransfer.getData(DataTransfers.RESOURCES);
+		if (rawResources) {
+			path = URI.parse(JSON.parse(rawResources)[0]).fsPath;
+		}
+
+		const rawCodeFiles = e.dataTransfer.getData(CodeDataTransfers.FILES);
+		if (!path && rawCodeFiles) {
+			path = URI.file(JSON.parse(rawCodeFiles)[0]).fsPath;
+		}
+
+		if (!path && e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].path /* Electron only */) {
 			// Check if the file was dragged from the filesystem
 			path = URI.file(e.dataTransfer.files[0].path).fsPath;
 		}

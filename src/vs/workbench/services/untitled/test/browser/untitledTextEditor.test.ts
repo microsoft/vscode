@@ -279,7 +279,6 @@ suite('Untitled text editors', () => {
 		const service = accessor.untitledTextEditorService;
 		const input = instantiationService.createInstance(UntitledTextEditorInput, service.create({ mode }));
 
-		assert.ok(input.model.hasModeSetExplicitly);
 		assert.strictEqual(input.getMode(), mode);
 
 		const model = await input.resolve();

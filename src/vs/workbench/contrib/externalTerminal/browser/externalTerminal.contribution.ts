@@ -30,7 +30,7 @@ import { IExternalTerminalConfiguration, IExternalTerminalService } from 'vs/pla
 const OPEN_IN_TERMINAL_COMMAND_ID = 'openInTerminal';
 CommandsRegistry.registerCommand({
 	id: OPEN_IN_TERMINAL_COMMAND_ID,
-	handler: (accessor, resource: URI) => {
+	handler: async (accessor, resource: URI) => {
 		const configurationService = accessor.get(IConfigurationService);
 		const editorService = accessor.get(IEditorService);
 		const fileService = accessor.get(IFileService);
@@ -48,7 +48,7 @@ CommandsRegistry.registerCommand({
 			if (useIntegratedTerminal) {
 				// TODO: Use uri for cwd in createterminal
 				const opened: { [path: string]: boolean } = {};
-				targets.map(({ stat }) => {
+				const cwds = targets.map(({ stat }) => {
 					const resource = stat!.resource;
 					if (stat!.isDirectory) {
 						return resource;
@@ -60,17 +60,18 @@ CommandsRegistry.registerCommand({
 						query: resource.query,
 						path: dirname(resource.path)
 					});
-				}).forEach(cwd => {
+				});
+				for (const cwd of cwds) {
 					if (opened[cwd.path]) {
 						return;
 					}
 					opened[cwd.path] = true;
-					const instance = integratedTerminalService.createTerminal({ config: { cwd } });
+					const instance = await integratedTerminalService.createTerminal({ config: { cwd } });
 					if (instance && (resources.length === 1 || !resource || cwd.path === resource.path || cwd.path === dirname(resource.path))) {
 						integratedTerminalService.setActiveInstance(instance);
 						terminalGroupService.showPanel(true);
 					}
-				});
+				}
 			} else {
 				distinct(targets.map(({ stat }) => stat!.isDirectory ? stat!.resource.fsPath : dirname(stat!.resource.fsPath))).forEach(cwd => {
 					terminalService!.openTerminal(config.terminal.external, cwd);

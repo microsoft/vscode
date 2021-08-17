@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { extname } from 'path';
-
 import { Command } from '../commandManager';
 import { MarkdownEngine } from '../markdownEngine';
 import { TableOfContentsProvider } from '../tableOfContentsProvider';
 import { isMarkdownFile } from '../util/file';
+import { extname } from '../util/path';
 
 
 type UriComponents = {
@@ -100,13 +99,14 @@ export class OpenDocumentLinkCommand implements Command {
 		let stat: vscode.FileStat;
 		try {
 			stat = await vscode.workspace.fs.stat(resource);
+			if (stat.type === vscode.FileType.Directory) {
+				await vscode.commands.executeCommand('revealInExplorer', resource);
+				return true;
+			}
 		} catch {
-			return false;
-		}
-
-		if (stat.type === vscode.FileType.Directory) {
-			await vscode.commands.executeCommand('revealInExplorer', resource);
-			return true;
+			// noop
+			// If resource doesn't exist, execute `vscode.open` either way so an error
+			// notification is shown to the user with a create file action #113475
 		}
 
 		try {

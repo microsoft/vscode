@@ -378,7 +378,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('sortOrderLexicographicOptions.lower', 'Lowercase names are grouped together before uppercase names.'),
 				nls.localize('sortOrderLexicographicOptions.unicode', 'Names are sorted in unicode order.')
 			],
-			'description': nls.localize('sortOrderLexicographicOptions', "Controls the lexicographic sorting of file and folder names in the explorer.")
+			'description': nls.localize('sortOrderLexicographicOptions', "Controls the lexicographic sorting of file and folder names in the Explorer.")
 		},
 		'explorer.decorations.colors': {
 			type: 'boolean',

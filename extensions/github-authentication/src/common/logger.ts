@@ -4,14 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { AuthProviderType } from '../github';
 
 type LogLevel = 'Trace' | 'Info' | 'Error';
 
-class Log {
+export class Log {
 	private output: vscode.OutputChannel;
 
-	constructor() {
-		this.output = vscode.window.createOutputChannel('GitHub Authentication');
+	constructor(private readonly type: AuthProviderType) {
+		const friendlyName = this.type === AuthProviderType.github ? 'GitHub' : 'GitHub Enterprise';
+		this.output = vscode.window.createOutputChannel(`${friendlyName} Authentication`);
 	}
 
 	private data2String(data: any): string {
@@ -54,6 +56,3 @@ class Log {
 function padLeft(s: string, n: number, pad = ' ') {
 	return pad.repeat(Math.max(0, n - s.length)) + s;
 }
-
-const Logger = new Log();
-export default Logger;

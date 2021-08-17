@@ -10,7 +10,7 @@ import { MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tree';
-import { ActionRunner, IAction } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
 import { Color, RGBA } from 'vs/base/common/color';
 import * as errors from 'vs/base/common/errors';
@@ -1579,8 +1579,8 @@ export class SearchView extends ViewPane {
 	private openSettings(query: string): Promise<IEditorPane | undefined> {
 		const options: ISettingsEditorOptions = { query };
 		return this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ?
-			this.preferencesService.openWorkspaceSettings(undefined, options) :
-			this.preferencesService.openGlobalSettings(undefined, options);
+			this.preferencesService.openWorkspaceSettings(options) :
+			this.preferencesService.openUserSettings(options);
 	}
 
 	private onLearnMore(): void {
@@ -1659,20 +1659,10 @@ export class SearchView extends ViewPane {
 		const textEl = dom.append(this.searchWithoutFolderMessageElement,
 			$('p', undefined, nls.localize('searchWithoutFolder', "You have not opened or specified a folder. Only open files are currently searched - ")));
 
-		const actionRunner = this.messageDisposables.add(new ActionRunner());
 		const openFolderButton = this.messageDisposables.add(new SearchLinkButton(
 			nls.localize('openFolder', "Open Folder"),
 			() => {
-				const action = env.isMacintosh ?
-					this.instantiationService.createInstance(OpenFileFolderAction, OpenFileFolderAction.ID, OpenFileFolderAction.LABEL) :
-					this.instantiationService.createInstance(OpenFolderAction, OpenFolderAction.ID, OpenFolderAction.LABEL);
-
-				actionRunner.run(action).then(() => {
-					action.dispose();
-				}, err => {
-					action.dispose();
-					errors.onUnexpectedError(err);
-				});
+				this.commandService.executeCommand(env.isMacintosh && env.isNative ? OpenFileFolderAction.ID : OpenFolderAction.ID).catch(err => errors.onUnexpectedError(err));
 			}));
 		dom.append(textEl, openFolderButton.element);
 	}

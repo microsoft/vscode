@@ -9,6 +9,7 @@ import * as uuid from 'vs/base/common/uuid';
 import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
 import { mixin } from 'vs/base/common/objects';
 import { firstSessionDateStorageKey, lastSessionDateStorageKey, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
+import { Gesture } from 'vs/base/browser/touch';
 
 export async function resolveWorkbenchCommonProperties(
 	storageService: IStorageService,
@@ -55,6 +56,8 @@ export async function resolveWorkbenchCommonProperties(
 	result['common.product'] = productIdentifier ?? 'web';
 	// __GDPR__COMMON__ "common.userAgent" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.userAgent'] = Platform.userAgent;
+	// __GDPR__COMMON__ "common.isTouchDevice" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	result['common.isTouchDevice'] = String(Gesture.isTouchDevice());
 
 	// dynamic properties which value differs on each call
 	let seq = 0;

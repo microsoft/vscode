@@ -106,7 +106,7 @@ export class EditorGroupModel extends Disposable {
 
 	private preview: EditorInput | null = null; // editor in preview state
 	private active: EditorInput | null = null;  // editor in active state
-	private sticky: number = -1; // index of first editor in sticky state
+	private sticky = -1; // index of first editor in sticky state
 
 	private editorOpenPositioning: ('left' | 'right' | 'first' | 'last') | undefined;
 	private focusRecentEditorAfterClose: boolean | undefined;

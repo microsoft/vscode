@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ipcRenderer, webFrame, context, process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { context, ipcRenderer, process, webFrame } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 
 suite('Sandbox', () => {
 	test('globals', async () => {

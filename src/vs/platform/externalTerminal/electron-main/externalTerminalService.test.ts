@@ -5,7 +5,7 @@
 
 import { deepEqual, equal } from 'assert';
 import { DEFAULT_TERMINAL_OSX } from 'vs/platform/externalTerminal/common/externalTerminal';
-import { WindowsExternalTerminalService, MacExternalTerminalService, LinuxExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
+import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
 
 suite('ExternalTerminalService', () => {
 	let mockOnExit: Function;

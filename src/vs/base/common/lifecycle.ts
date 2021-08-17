@@ -210,24 +210,24 @@ export class DisposableStore implements IDisposable {
 		}
 	}
 
-	public add<T extends IDisposable>(t: T): T {
-		if (!t) {
-			return t;
+	public add<T extends IDisposable>(o: T): T {
+		if (!o) {
+			return o;
 		}
-		if ((t as unknown as DisposableStore) === this) {
+		if ((o as unknown as DisposableStore) === this) {
 			throw new Error('Cannot register a disposable on itself!');
 		}
 
-		setParentOfDisposable(t, this);
+		setParentOfDisposable(o, this);
 		if (this._isDisposed) {
 			if (!DisposableStore.DISABLE_DISPOSED_WARNING) {
 				console.warn(new Error('Trying to add a disposable to a DisposableStore that has already been disposed of. The added object will be leaked!').stack);
 			}
 		} else {
-			this._toDispose.add(t);
+			this._toDispose.add(o);
 		}
 
-		return t;
+		return o;
 	}
 }
 
@@ -248,11 +248,11 @@ export abstract class Disposable implements IDisposable {
 		this._store.dispose();
 	}
 
-	protected _register<T extends IDisposable>(t: T): T {
-		if ((t as unknown as Disposable) === this) {
+	protected _register<T extends IDisposable>(o: T): T {
+		if ((o as unknown as Disposable) === this) {
 			throw new Error('Cannot register a disposable on itself!');
 		}
-		return this._store.add(t);
+		return this._store.add(o);
 	}
 }
 

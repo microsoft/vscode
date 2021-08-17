@@ -289,7 +289,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	detachFromProcess(): Promise<void>;
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<ITerminalLaunchError | undefined>;
 	relaunch(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean, reset: boolean): Promise<ITerminalLaunchError | undefined>;
-	write(data: string): void;
+	write(data: string): Promise<void>;
 	setDimensions(cols: number, rows: number): Promise<void>;
 	setDimensions(cols: number, rows: number, sync: false): Promise<void>;
 	setDimensions(cols: number, rows: number, sync: true): void;
@@ -388,6 +388,7 @@ export const enum TerminalCommandId {
 	FocusPreviousPane = 'workbench.action.terminal.focusPreviousPane',
 	ShowTabs = 'workbench.action.terminal.showTabs',
 	CreateTerminalEditor = 'workbench.action.createTerminalEditor',
+	CreateTerminalEditorSide = 'workbench.action.createTerminalEditorSide',
 	FocusTabs = 'workbench.action.terminal.focusTabs',
 	FocusNextPane = 'workbench.action.terminal.focusNextPane',
 	ResizePaneLeft = 'workbench.action.terminal.resizePaneLeft',
@@ -570,16 +571,6 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.toggleMaximizedPanel'
 ];
 
-export interface ITerminalContributions {
-	profiles?: ITerminalProfileContribution[];
-}
-
-export interface ITerminalProfileContribution {
-	title: string;
-	id: string;
-	icon?: string;
-}
-
 export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
 	extensionPoint: 'terminal',
 	defaultExtensionKind: ['workspace'],
@@ -603,8 +594,23 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
 							type: 'string',
 						},
 						icon: {
-							description: nls.localize('vscode.extension.contributes.terminal.types.icon', "A codicon to associate with this terminal type."),
-							type: 'string',
+							description: nls.localize('vscode.extension.contributes.terminal.types.icon', "A codicon, URI, or light and dark URIs to associate with this terminal type."),
+							anyOf: [{
+								type: 'string',
+							},
+							{
+								type: 'object',
+								properties: {
+									light: {
+										description: nls.localize('vscode.extension.contributes.terminal.types.icon.light', 'Icon path when a light theme is used'),
+										type: 'string'
+									},
+									dark: {
+										description: nls.localize('vscode.extension.contributes.terminal.types.icon.dark', 'Icon path when a dark theme is used'),
+										type: 'string'
+									}
+								}
+							}]
 						},
 					},
 				},
@@ -631,8 +637,23 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
 							type: 'string',
 						},
 						icon: {
-							description: nls.localize('vscode.extension.contributes.terminal.profiles.icon', "A codicon to associate with this terminal profile."),
-							type: 'string',
+							description: nls.localize('vscode.extension.contributes.terminal.types.icon', "A codicon, URI, or light and dark URIs to associate with this terminal type."),
+							anyOf: [{
+								type: 'string',
+							},
+							{
+								type: 'object',
+								properties: {
+									light: {
+										description: nls.localize('vscode.extension.contributes.terminal.types.icon.light', 'Icon path when a light theme is used'),
+										type: 'string'
+									},
+									dark: {
+										description: nls.localize('vscode.extension.contributes.terminal.types.icon.dark', 'Icon path when a dark theme is used'),
+										type: 'string'
+									}
+								}
+							}]
 						},
 					},
 				},

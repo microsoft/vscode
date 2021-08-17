@@ -8,17 +8,16 @@ import { MarshalledId } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { TestMessageSeverity, TestResultState } from 'vs/workbench/api/common/extHostTypes';
 
-export { TestResultState } from 'vs/workbench/api/common/extHostTypes';
-
-export interface ITestIdWithSrc {
-	testId: string;
-	controllerId: string;
+export const enum TestResultState {
+	Unset = 0,
+	Queued = 1,
+	Running = 2,
+	Passed = 3,
+	Failed = 4,
+	Skipped = 5,
+	Errored = 6
 }
-
-export const identifyTest = (test: { controllerId: string, item: { extId: string } }): ITestIdWithSrc =>
-	({ testId: test.item.extId, controllerId: test.controllerId });
 
 export const enum TestRunProfileBitset {
 	Run = 1 << 1,
@@ -47,6 +46,7 @@ export interface ITestRunProfile {
 	label: string;
 	group: TestRunProfileBitset;
 	isDefault: boolean;
+	tag: string | null;
 	hasConfigurationHandler: boolean;
 }
 
@@ -61,7 +61,7 @@ export interface ResolvedTestRunRequest {
 		profileGroup: TestRunProfileBitset;
 		profileId: number;
 	}[]
-	exclude?: ITestIdWithSrc[];
+	exclude?: string[];
 	isAutoRun?: boolean;
 }
 
@@ -96,13 +96,27 @@ export interface IRichLocation {
 	uri: URI;
 }
 
-export interface ITestMessage {
+export const enum TestMessageType {
+	Error,
+	Info
+}
+
+export interface ITestErrorMessage {
 	message: string | IMarkdownString;
-	severity: TestMessageSeverity;
-	expectedOutput: string | undefined;
-	actualOutput: string | undefined;
+	type: TestMessageType.Error;
+	expected: string | undefined;
+	actual: string | undefined;
 	location: IRichLocation | undefined;
 }
+
+export interface ITestOutputMessage {
+	message: string;
+	type: TestMessageType.Info;
+	offset: number;
+	location: IRichLocation | undefined;
+}
+
+export type ITestMessage = ITestErrorMessage | ITestOutputMessage;
 
 export interface ITestTaskState {
 	state: TestResultState;
@@ -116,6 +130,17 @@ export interface ITestRunTask {
 	running: boolean;
 }
 
+export interface ITestTag {
+	id: string;
+	label?: string;
+}
+
+export interface ITestTagDisplayInfo {
+	id: string;
+	displayId: string;
+	label?: string;
+}
+
 /**
  * The TestItem from .d.ts, as a plain object without children.
  */
@@ -123,6 +148,7 @@ export interface ITestItem {
 	/** ID of the test given by the test controller */
 	extId: string;
 	label: string;
+	tags: string[];
 	busy?: boolean;
 	children?: never;
 	uri?: URI;
@@ -142,9 +168,13 @@ export const enum TestItemExpandState {
  * TestItem-like shape, butm with an ID and children as strings.
  */
 export interface InternalTestItem {
+	/** Controller ID from whence this test came */
 	controllerId: string;
+	/** Expandability state */
 	expand: TestItemExpandState;
+	/** Parent ID, if any */
 	parent: string | null;
+	/** Raw test item properties */
 	item: ITestItem;
 }
 
@@ -169,11 +199,7 @@ export const applyTestItemUpdate = (internal: InternalTestItem | ITestItemUpdate
 /**
  * Test result item used in the main thread.
  */
-export interface TestResultItem {
-	/** Parent ID, if any */
-	parent: string | null;
-	/** Raw test item properties */
-	item: ITestItem;
+export interface TestResultItem extends InternalTestItem {
 	/** State of this test in various tasks */
 	tasks: ITestTaskState[];
 	/** State of this test as a computation of its tasks */
@@ -184,8 +210,6 @@ export interface TestResultItem {
 	retired: boolean;
 	/** Max duration of the item's tasks (if run directly) */
 	ownDuration?: number;
-	/** Controller ID from whence this test came */
-	controllerId: string;
 }
 
 export type SerializedTestResultItem = Omit<TestResultItem, 'children' | 'expandable' | 'retired'>
@@ -199,12 +223,10 @@ export interface ISerializedTestResults {
 	id: string;
 	/** Time the results were compelted */
 	completedAt: number;
-	/** Raw output, given for tests published by extensiosn */
-	output?: string;
 	/** Subset of test result items */
 	items: SerializedTestResultItem[];
 	/** Tasks involved in the run. */
-	tasks: ITestRunTask[];
+	tasks: { id: string; name: string | undefined; messages: ITestOutputMessage[] }[];
 	/** Human-readable name of the test run. */
 	name: string;
 	/** Test trigger informaton */

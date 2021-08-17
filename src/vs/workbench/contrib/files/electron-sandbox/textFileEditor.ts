@@ -71,7 +71,7 @@ export class NativeTextFileEditor extends TextFileEditor {
 					}),
 					toAction({
 						id: 'workbench.window.action.configureMemoryLimit', label: localize('configureMemoryLimit', 'Configure Memory Limit'), run: () => {
-							return this.preferencesService.openGlobalSettings(undefined, { query: 'files.maxMemoryForLargeFilesMB' });
+							return this.preferencesService.openUserSettings({ query: 'files.maxMemoryForLargeFilesMB' });
 						}
 					}),
 				]

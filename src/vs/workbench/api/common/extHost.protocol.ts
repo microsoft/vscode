@@ -24,6 +24,7 @@ import { EndOfLineSequence, ISingleEditOperation } from 'vs/editor/common/model'
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
 import * as modes from 'vs/editor/common/modes';
 import { CharacterPair, CommentRule, EnterAction } from 'vs/editor/common/modes/languageConfiguration';
+import { ILanguageStatus } from 'vs/editor/common/services/languageStatusService';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationChange, IConfigurationData, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
@@ -46,19 +47,20 @@ import { WorkspaceTrustRequestOptions } from 'vs/platform/workspace/common/works
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ExtHostInteractive } from 'vs/workbench/api/common/extHostInteractive';
 import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
-import { DebugConfigurationProviderTriggerKind, TestResultState } from 'vs/workbench/api/common/extHostTypes';
-import { TreeDataTransferDTO } from 'vs/workbench/api/common/shared/treeDataTransfer';
+import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 import * as tasks from 'vs/workbench/api/common/shared/tasks';
+import { TreeDataTransferDTO } from 'vs/workbench/api/common/shared/treeDataTransfer';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { IRevealOptions, ITreeItem } from 'vs/workbench/common/views';
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { IAdapterDescriptor, IConfig, IDebugSessionReplMode } from 'vs/workbench/contrib/debug/common/debug';
 import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellExecutionUpdateType, ICellExecutionComplete, ICellExecutionStateUpdate } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { ExtensionRunTestsRequest, ISerializedTestResults, ITestItem, ITestMessage, ITestRunTask, RunTestForControllerRequest, ResolvedTestRunRequest, ITestIdWithSrc, TestsDiff, IFileCoverage, CoverageDetails, ITestRunProfile } from 'vs/workbench/contrib/testing/common/testCollection';
+import { CoverageDetails, ExtensionRunTestsRequest, IFileCoverage, ISerializedTestResults, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ITestTagDisplayInfo, ResolvedTestRunRequest, RunTestForControllerRequest, TestResultState, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { InternalTimelineOptions, Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
 import { TypeHierarchyItem } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
@@ -71,6 +73,7 @@ import * as statusbar from 'vs/workbench/services/statusbar/common/statusbar';
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
 	appName: string;
+	embedderIdentifier: string;
 	appRoot?: URI;
 	appLanguage: string;
 	appUriScheme: string;
@@ -172,7 +175,7 @@ export interface MainThreadAuthenticationShape extends IDisposable {
 	$unregisterAuthenticationProvider(id: string): void;
 	$ensureProvider(id: string): Promise<void>;
 	$sendDidChangeSessions(providerId: string, event: modes.AuthenticationSessionsChangeEvent): void;
-	$getSession(providerId: string, scopes: readonly string[], extensionId: string, extensionName: string, options: { createIfNone?: boolean, clearSessionPreference?: boolean }): Promise<modes.AuthenticationSession | undefined>;
+	$getSession(providerId: string, scopes: readonly string[], extensionId: string, extensionName: string, options: { createIfNone?: boolean, forceNewSession?: boolean | { detail: string }, clearSessionPreference?: boolean }): Promise<modes.AuthenticationSession | undefined>;
 	$removeSession(providerId: string, sessionId: string): Promise<void>;
 }
 
@@ -424,6 +427,8 @@ export interface MainThreadLanguagesShape extends IDisposable {
 	$getLanguages(): Promise<string[]>;
 	$changeLanguage(resource: UriComponents, languageId: string): Promise<void>;
 	$tokensAtPosition(resource: UriComponents, position: IPosition): Promise<undefined | { type: modes.StandardTokenType, range: IRange }>;
+	$setLanguageStatus(handle: number, status: ILanguageStatus): void;
+	$removeLanguageStatus(handle: number): void;
 }
 
 export interface MainThreadMessageOptions {
@@ -512,12 +517,11 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 
 export interface TransferQuickPickItems extends quickInput.IQuickPickItem {
 	handle: number;
+	buttons?: TransferQuickInputButton[];
 }
 
-export interface TransferQuickInputButton {
+export interface TransferQuickInputButton extends quickInput.IQuickInputButton {
 	handle: number;
-	iconPath: { dark: URI; light?: URI; } | { id: string; };
-	tooltip?: string;
 }
 
 export type TransferQuickInput = TransferQuickPick | TransferInputBox;
@@ -906,21 +910,31 @@ export interface INotebookKernelDto2 {
 	preloads?: { uri: UriComponents; provides: string[] }[];
 }
 
-export interface CellExecuteOutputEditDto {
-	editType: notebookCommon.CellEditType.Output;
+export interface ICellExecuteOutputEditDto {
+	editType: CellExecutionUpdateType.Output;
+	executionHandle: number;
+	cellHandle: number;
 	append?: boolean;
-	handle: number;
 	outputs: NotebookOutputDto[]
 }
 
-export interface CellExecuteOutputItemEditDto {
-	editType: notebookCommon.CellEditType.OutputItems;
+export interface ICellExecuteOutputItemEditDto {
+	editType: CellExecutionUpdateType.OutputItems;
+	executionHandle: number;
 	append?: boolean;
 	outputId: string;
 	items: NotebookOutputItemDto[]
 }
 
-export type CellExecuteEditDto = CellExecuteOutputEditDto | CellExecuteOutputItemEditDto | notebookCommon.ICellPartialInternalMetadataEditByHandle;
+export interface ICellExecutionStateUpdateDto extends ICellExecutionStateUpdate {
+	executionHandle: number;
+}
+
+export interface ICellExecutionCompleteDto extends ICellExecutionComplete {
+	executionHandle: number;
+}
+
+export type ICellExecuteUpdateDto = ICellExecuteOutputEditDto | ICellExecuteOutputItemEditDto | ICellExecutionStateUpdateDto | ICellExecutionCompleteDto;
 
 export interface MainThreadNotebookKernelsShape extends IDisposable {
 	$postMessage(handle: number, editorId: string | undefined, message: any): Promise<boolean>;
@@ -929,11 +943,13 @@ export interface MainThreadNotebookKernelsShape extends IDisposable {
 	$removeKernel(handle: number): void;
 	$updateNotebookPriority(handle: number, uri: UriComponents, value: number | undefined): void;
 
-	$applyExecutionEdits(resource: UriComponents, edits: CellExecuteEditDto[]): Promise<void>;
+	$addExecution(handle: number, uri: UriComponents, cellHandle: number): void;
+	$updateExecutions(data: ICellExecuteUpdateDto[]): void;
+	$removeExecution(handle: number): void;
 }
 
 export interface MainThreadNotebookRenderersShape extends IDisposable {
-	$postMessage(editorId: string, rendererId: string, message: unknown): void;
+	$postMessage(editorId: string | undefined, rendererId: string, message: unknown): Promise<boolean>;
 }
 
 export interface MainThreadInteractiveShape extends IDisposable {
@@ -1079,7 +1095,7 @@ export interface MainThreadSCMShape extends IDisposable {
 	$setInputBoxPlaceholder(sourceControlHandle: number, placeholder: string): void;
 	$setInputBoxVisibility(sourceControlHandle: number, visible: boolean): void;
 	$setInputBoxFocus(sourceControlHandle: number): void;
-	$showValidationMessage(sourceControlHandle: number, message: string, type: InputValidationType): void;
+	$showValidationMessage(sourceControlHandle: number, message: string | IMarkdownString, type: InputValidationType): void;
 	$setValidationProviderIsEnabled(sourceControlHandle: number, enabled: boolean): void;
 }
 
@@ -1094,9 +1110,13 @@ export interface IDebugConfiguration {
 
 export interface IStartDebuggingOptions {
 	parentSessionID?: DebugSessionUUID;
+	lifecycleManagedByParent?: boolean;
 	repl?: IDebugSessionReplMode;
 	noDebug?: boolean;
 	compact?: boolean;
+	debugUI?: {
+		simple?: boolean;
+	};
 }
 
 export interface MainThreadDebugServiceShape extends IDisposable {
@@ -1240,7 +1260,7 @@ export interface ExtHostDocumentsAndEditorsShape {
 }
 
 export interface ExtHostTreeViewsShape {
-	$getChildren(treeViewId: string, treeItemHandle?: string): Promise<ITreeItem[]>;
+	$getChildren(treeViewId: string, treeItemHandle?: string): Promise<ITreeItem[] | undefined>;
 	$onDrop(treeViewId: string, treeDataTransfer: TreeDataTransferDTO, newParentTreeItemHandle: string): Promise<void>;
 	$setExpanded(treeViewId: string, treeItemHandle: string, expanded: boolean): void;
 	$setSelection(treeViewId: string, treeItemHandles: string[]): void;
@@ -1698,6 +1718,7 @@ export interface ExtHostQuickOpenShape {
 	$onDidAccept(sessionId: number): void;
 	$onDidChangeValue(sessionId: number, value: string): void;
 	$onDidTriggerButton(sessionId: number, handle: number): void;
+	$onDidTriggerItemButton(sessionId: number, itemHandle: number, buttonHandle: number): void;
 	$onDidHide(sessionId: number): void;
 }
 
@@ -1731,6 +1752,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptTerminalTitleChange(id: number, name: string): void;
 	$acceptTerminalDimensions(id: number, cols: number, rows: number): void;
 	$acceptTerminalMaximumDimensions(id: number, cols: number, rows: number): void;
+	$acceptTerminalInteraction(id: number): void;
 	$startExtensionTerminal(id: number, initialDimensions: ITerminalDimensionsDto | undefined): Promise<ITerminalLaunchError | undefined>;
 	$acceptProcessAckDataEvent(id: number, charCount: number): void;
 	$acceptProcessInput(id: number, data: string): void;
@@ -1750,7 +1772,7 @@ export interface ExtHostSCMShape {
 	$provideOriginalResource(sourceControlHandle: number, uri: UriComponents, token: CancellationToken): Promise<UriComponents | null>;
 	$onInputBoxValueChange(sourceControlHandle: number, value: string): void;
 	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number, preserveFocus: boolean): Promise<void>;
-	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): Promise<[string, number] | undefined>;
+	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): Promise<[string | IMarkdownString, number] | undefined>;
 	$setSelectedSourceControl(selectedSourceControlHandle: number | undefined): Promise<void>;
 }
 
@@ -2090,7 +2112,7 @@ export interface ExtHostTestingShape {
 	/** Publishes that a test run finished. */
 	$publishTestResults(results: ISerializedTestResults[]): void;
 	/** Expands a test item's children, by the given number of levels. */
-	$expandTest(src: ITestIdWithSrc, levels: number): Promise<void>;
+	$expandTest(testId: string, levels: number): Promise<void>;
 	/** Requests file coverage for a test run. Errors if not available. */
 	$provideFileCoverage(runId: string, taskId: string, token: CancellationToken): Promise<IFileCoverage[]>;
 	/**
@@ -2100,6 +2122,8 @@ export interface ExtHostTestingShape {
 	$resolveFileCoverage(runId: string, taskId: string, fileIndex: number, token: CancellationToken): Promise<CoverageDetails[]>;
 	/** Configures a test run config. */
 	$configureRunProfile(controllerId: string, configId: number): void;
+	/** Gets all in-use tags from the controller. */
+	$getTestTags(controllerId: string): Promise<ITestTagDisplayInfo[]>;
 }
 
 export interface MainThreadTestingShape {
@@ -2140,9 +2164,9 @@ export interface MainThreadTestingShape {
 	/** Updates the state of a test run in the given run. */
 	$updateTestStateInRun(runId: string, taskId: string, testId: string, state: TestResultState, duration?: number): void;
 	/** Appends a message to a test in the run. */
-	$appendTestMessageInRun(runId: string, taskId: string, testId: string, message: ITestMessage): void;
+	$appendTestMessagesInRun(runId: string, taskId: string, testId: string, messages: ITestMessage[]): void;
 	/** Appends raw output to the test run.. */
-	$appendOutputToRun(runId: string, taskId: string, output: VSBuffer): void;
+	$appendOutputToRun(runId: string, taskId: string, output: VSBuffer, location?: ILocationDto, testId?: string): void;
 	/** Triggered when coverage is added to test results. */
 	$signalCoverageAvailable(runId: string, taskId: string): void;
 	/** Signals a task in a test run started. */

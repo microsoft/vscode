@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as path from 'vs/base/common/path';
 import { tmpdir } from 'os';
-import { extract } from 'vs/base/node/zip';
-import { Promises } from 'vs/base/node/pfs';
 import { createCancelablePromise } from 'vs/base/common/async';
-import { getRandomTestPath, getPathFromAmdModule } from 'vs/base/test/node/testUtils';
+import * as path from 'vs/base/common/path';
+import { Promises } from 'vs/base/node/pfs';
+import { extract } from 'vs/base/node/zip';
+import { getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
 
 suite('Zip', () => {
 

@@ -96,6 +96,7 @@ import 'vs/workbench/services/authentication/browser/authenticationService';
 import 'vs/workbench/services/hover/browser/hoverService';
 import 'vs/workbench/services/experiment/common/experimentService';
 import 'vs/workbench/services/outline/browser/outlineService';
+import 'vs/workbench/services/languageDetection/browser/languageDetectionWorkerServiceImpl';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -319,5 +320,8 @@ import 'vs/workbench/contrib/workspace/browser/workspace.contribution';
 
 // Workspaces
 import 'vs/workbench/contrib/workspaces/browser/workspaces.contribution';
+
+// List
+import 'vs/workbench/contrib/list/browser/list.contribution';
 
 //#endregion

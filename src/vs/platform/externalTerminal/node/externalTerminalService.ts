@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
+import { FileAccess } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
+import * as env from 'vs/base/common/platform';
+import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
+import * as pfs from 'vs/base/node/pfs';
 import * as processes from 'vs/base/node/processes';
 import * as nls from 'vs/nls';
-import * as pfs from 'vs/base/node/pfs';
-import * as env from 'vs/base/common/platform';
-import { IExternalTerminalSettings, DEFAULT_TERMINAL_OSX, ITerminalForPlatform, IExternalTerminalMainService } from 'vs/platform/externalTerminal/common/externalTerminal';
-import { FileAccess } from 'vs/base/common/network';
+import { DEFAULT_TERMINAL_OSX, IExternalTerminalMainService, IExternalTerminalSettings, ITerminalForPlatform } from 'vs/platform/externalTerminal/common/externalTerminal';
 import { ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
-import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
 
 const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
 
@@ -312,7 +312,7 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 }
 
 function getSanitizedEnvironment(process: NodeJS.Process) {
-	const env = process.env;
+	const env = { ...process.env };
 	sanitizeProcessEnvironment(env);
 	return env;
 }

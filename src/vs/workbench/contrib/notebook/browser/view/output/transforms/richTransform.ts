@@ -9,6 +9,7 @@ import { Mimes } from 'vs/base/common/mime';
 import { dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -18,7 +19,7 @@ import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { ICellOutputViewModel, ICommonNotebookEditor, IOutputTransformContribution as IOutputRendererContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { OutputRendererRegistry } from 'vs/workbench/contrib/notebook/browser/view/output/rendererRegistry';
 import { truncatedArrayOfString } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/textHelper';
-import { IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IOutputItemDto, TextOutputLineLimit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 
 class JavaScriptRendererContrib extends Disposable implements IOutputRendererContribution {
@@ -63,6 +64,7 @@ class StreamRendererContrib extends Disposable implements IOutputRendererContrib
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 	}
@@ -72,7 +74,8 @@ class StreamRendererContrib extends Disposable implements IOutputRendererContrib
 
 		const text = getStringValue(item);
 		const contentNode = DOM.$('span.output-stream');
-		truncatedArrayOfString(notebookUri, output.cellViewModel, contentNode, [text], linkDetector, this.openerService, this.themeService);
+		const lineLimit = this.configurationService.getValue<number>(TextOutputLineLimit) ?? 30;
+		truncatedArrayOfString(notebookUri, output.cellViewModel, Math.max(lineLimit, 6), contentNode, [text], linkDetector, this.openerService, this.themeService);
 		container.appendChild(contentNode);
 
 		return { type: RenderOutputType.Mainframe };
@@ -161,6 +164,7 @@ class PlainTextRendererContrib extends Disposable implements IOutputRendererCont
 		public notebookEditor: ICommonNotebookEditor,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IThemeService private readonly themeService: IThemeService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
@@ -171,7 +175,8 @@ class PlainTextRendererContrib extends Disposable implements IOutputRendererCont
 
 		const str = getStringValue(item);
 		const contentNode = DOM.$('.output-plaintext');
-		truncatedArrayOfString(notebookUri, output.cellViewModel, contentNode, [str], linkDetector, this.openerService, this.themeService);
+		const lineLimit = this.configurationService.getValue<number>(TextOutputLineLimit) ?? 30;
+		truncatedArrayOfString(notebookUri, output.cellViewModel, Math.max(lineLimit, 6), contentNode, [str], linkDetector, this.openerService, this.themeService);
 		container.appendChild(contentNode);
 
 		return { type: RenderOutputType.Mainframe, supportAppend: true };

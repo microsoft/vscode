@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { isWindows, isLinux } from 'vs/base/common/platform';
-import { FileChangesEvent, FileChangeType, IFileChange } from 'vs/platform/files/common/files';
+import { Emitter, Event } from 'vs/base/common/event';
+import { isLinux, isWindows } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
+import { FileChangesEvent, FileChangeType, IFileChange } from 'vs/platform/files/common/files';
 import { IDiskFileChange, normalizeFileChanges, toFileChanges } from 'vs/platform/files/node/watcher/watcher';
-import { Event, Emitter } from 'vs/base/common/event';
 
 function toFileChangesEvent(changes: IDiskFileChange[]): FileChangesEvent {
 	return new FileChangesEvent(toFileChanges(changes), !isLinux);

@@ -9,7 +9,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { ITestIdWithSrc } from 'vs/workbench/contrib/testing/common/testCollection';
+import { InternalTestItem } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export class TestExclusions extends Disposable {
 	private readonly excluded = this._register(
@@ -43,30 +43,26 @@ export class TestExclusions extends Disposable {
 	/**
 	 * Gets all excluded tests.
 	 */
-	public get all() {
-		return Iterable.map(this.excluded.value, v => {
-			const [controllerId, testId] = JSON.parse(v);
-			return { controllerId, testId };
-		});
+	public get all(): Iterable<string> {
+		return this.excluded.value;
 	}
 
 	/**
 	 * Sets whether a test is excluded.
 	 */
-	public toggle(test: ITestIdWithSrc, exclude?: boolean): void {
-		const slug = this.identify(test);
-		if (exclude !== true && this.excluded.value.has(slug)) {
-			this.excluded.value = new Set(Iterable.filter(this.excluded.value, e => e !== slug));
-		} else if (exclude !== false && !this.excluded.value.has(slug)) {
-			this.excluded.value = new Set([...this.excluded.value, slug]);
+	public toggle(test: InternalTestItem, exclude?: boolean): void {
+		if (exclude !== true && this.excluded.value.has(test.item.extId)) {
+			this.excluded.value = new Set(Iterable.filter(this.excluded.value, e => e !== test.item.extId));
+		} else if (exclude !== false && !this.excluded.value.has(test.item.extId)) {
+			this.excluded.value = new Set([...this.excluded.value, test.item.extId]);
 		}
 	}
 
 	/**
 	 * Gets whether a test is excluded.
 	 */
-	public contains(test: ITestIdWithSrc): boolean {
-		return this.excluded.value.has(this.identify(test));
+	public contains(test: InternalTestItem): boolean {
+		return this.excluded.value.has(test.item.extId);
 	}
 
 	/**
@@ -74,9 +70,5 @@ export class TestExclusions extends Disposable {
 	 */
 	public clear(): void {
 		this.excluded.value = new Set();
-	}
-
-	private identify(test: ITestIdWithSrc) {
-		return JSON.stringify([test.controllerId, test.testId]);
 	}
 }

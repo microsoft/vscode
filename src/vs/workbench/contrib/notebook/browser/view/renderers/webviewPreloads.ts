@@ -63,7 +63,30 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 					handleBlobUrlClick(node.href, node.download);
 				} else if (node.href.startsWith('data:')) {
 					handleDataUrl(node.href, node.download);
+				} else if (node.hash && node.getAttribute('href') === node.hash) {
+					// Scrolling to location within current doc
+					const targetId = node.hash.substr(1, node.hash.length - 1);
+
+					// Check outer document first
+					let scrollTarget: Element | null | undefined = event.view.document.getElementById(targetId);
+
+					if (!scrollTarget) {
+						// Fallback to checking preview shadow doms
+						for (const preview of event.view.document.querySelectorAll('.preview')) {
+							scrollTarget = preview.shadowRoot?.getElementById(targetId);
+							if (scrollTarget) {
+								break;
+							}
+						}
+					}
+
+					if (scrollTarget) {
+						const scrollTop = scrollTarget.getBoundingClientRect().top + event.view.scrollY;
+						postNotebookMessage<webviewMessages.IScrollToRevealMessage>('scroll-to-reveal', { scrollTop });
+						return;
+					}
 				}
+
 				event.preventDefault();
 				return;
 			}
@@ -253,7 +276,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		return false;
 	}
 
-	const handleWheel = (event: WheelEvent) => {
+	const handleWheel = (event: WheelEvent & { wheelDeltaX?: number, wheelDeltaY?: number, wheelDelta?: number }) => {
 		if (event.defaultPrevented || scrollWillGoToParent(event)) {
 			return;
 		}
@@ -263,7 +286,11 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				deltaX: event.deltaX,
 				deltaY: event.deltaY,
 				deltaZ: event.deltaZ,
+				wheelDelta: event.wheelDelta,
+				wheelDeltaX: event.wheelDeltaX,
+				wheelDeltaY: event.wheelDeltaY,
 				detail: event.detail,
+				shiftKey: event.shiftKey,
 				type: event.type
 			}
 		});
@@ -1398,6 +1425,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				cellId: cellId
 			});
 		}
+
 	}();
 }
 

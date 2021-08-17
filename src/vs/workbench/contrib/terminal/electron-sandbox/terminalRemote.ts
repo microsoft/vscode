@@ -50,7 +50,7 @@ export class CreateNewLocalTerminalAction extends Action {
 		if (!cwd) {
 			cwd = this._nativeEnvironmentService.userHome;
 		}
-		const instance = this._terminalService.createTerminal({ cwd });
+		const instance = await this._terminalService.createTerminal({ cwd });
 		if (!instance) {
 			return Promise.resolve(undefined);
 		}

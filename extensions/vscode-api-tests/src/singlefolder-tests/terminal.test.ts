@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget, Disposable, UIKind, env, EnvironmentVariableMutatorType, EnvironmentVariableMutator, extensions, ExtensionContext, TerminalOptions, ExtensionTerminalOptions, Terminal } from 'vscode';
-import { doesNotThrow, equal, deepEqual, throws, strictEqual } from 'assert';
+import { deepEqual, deepStrictEqual, doesNotThrow, equal, strictEqual, throws } from 'assert';
+import { ConfigurationTarget, Disposable, env, EnvironmentVariableMutator, EnvironmentVariableMutatorType, EventEmitter, ExtensionContext, extensions, ExtensionTerminalOptions, Pseudoterminal, Terminal, TerminalDimensions, TerminalOptions, TerminalState, UIKind, window, workspace } from 'vscode';
 import { assertNoRpc } from '../utils';
 
 // Disable terminal tests:
@@ -221,6 +221,29 @@ import { assertNoRpc } from '../utils';
 				disposables.push(window.onDidCloseTerminal(t => {
 					if (t === terminal) {
 						deepEqual(t.exitStatus, { code: undefined });
+						r();
+					}
+				}));
+				terminal.dispose();
+			});
+		});
+
+		test('onDidChangeTerminalState should fire after writing to a terminal', async () => {
+			const terminal = window.createTerminal();
+			deepStrictEqual(terminal.state, { interactedWith: false });
+			const eventState = await new Promise<TerminalState>(r => {
+				disposables.push(window.onDidChangeTerminalState(e => {
+					if (e.terminal === terminal) {
+						r(e.state);
+					}
+				}));
+				terminal.sendText('test');
+			});
+			deepStrictEqual(eventState, { interactedWith: true });
+			deepStrictEqual(terminal.state, { interactedWith: true });
+			await new Promise<void>(r => {
+				disposables.push(window.onDidCloseTerminal(t => {
+					if (t === terminal) {
 						r();
 					}
 				}));
@@ -468,7 +491,7 @@ import { assertNoRpc } from '../utils';
 			// 	const terminal = window.createTerminal({ name: 'foo', pty });
 			// });
 
-			test.skip('should respect dimension overrides', (done) => {
+			test('should respect dimension overrides', (done) => {
 				disposables.push(window.onDidOpenTerminal(term => {
 					try {
 						equal(terminal, term);

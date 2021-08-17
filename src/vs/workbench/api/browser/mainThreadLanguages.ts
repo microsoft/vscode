@@ -12,6 +12,8 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { StandardTokenType } from 'vs/editor/common/modes';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ILanguageStatus, ILanguageStatusService } from 'vs/editor/common/services/languageStatusService';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguages)
 export class MainThreadLanguages implements MainThreadLanguagesShape {
@@ -21,8 +23,8 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 		@IModeService private readonly _modeService: IModeService,
 		@IModelService private readonly _modelService: IModelService,
 		@ITextModelService private _resolverService: ITextModelService,
-	) {
-	}
+		@ILanguageStatusService private readonly _languageStatusService: ILanguageStatusService,
+	) { }
 
 	dispose(): void {
 		// nothing
@@ -61,5 +63,18 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 			type: tokens.getStandardTokenType(idx),
 			range: new Range(position.lineNumber, 1 + tokens.getStartOffset(idx), position.lineNumber, 1 + tokens.getEndOffset(idx))
 		};
+	}
+
+	// --- language status
+
+	private readonly _status = new Map<number, IDisposable>();
+
+	$setLanguageStatus(handle: number, status: ILanguageStatus): void {
+		this._status.get(handle)?.dispose();
+		this._status.set(handle, this._languageStatusService.addStatus(status));
+	}
+
+	$removeLanguageStatus(handle: number): void {
+		this._status.get(handle)?.dispose();
 	}
 }

@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import product from 'vs/platform/product/common/product';
-import { localize } from 'vs/nls';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
-import { optional } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IConfigurationRegistry, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { cloneAndChange, mixin } from 'vs/base/common/objects';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
+import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { optional } from 'vs/platform/instantiation/common/instantiation';
+import product from 'vs/platform/product/common/product';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
+import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
+import { ITelemetryData, ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export interface ITelemetryServiceConfig {
 	appender: ITelemetryAppender;
@@ -220,8 +220,8 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			'type': 'boolean',
 			'markdownDescription':
 				!product.privacyStatementUrl ?
-					localize('telemetry.enableTelemetry', "Enable usage data and errors to be sent to a Microsoft online service.") :
-					localize('telemetry.enableTelemetryMd', "Enable usage data and errors to be sent to a Microsoft online service. Read our privacy statement [here]({0}).", product.privacyStatementUrl),
+					localize('telemetry.enableTelemetry', "Enable diagnostic data to be collected. This helps us to better understand how {0} is performing and where improvements need to be made.", product.nameLong) :
+					localize('telemetry.enableTelemetryMd', "Enable diagnostic data to be collected. This helps us to better understand how {0} is performing and where improvements need to be made. [Read more]({1}) about what we collect and our privacy statement.", product.nameLong, product.privacyStatementUrl),
 			'default': true,
 			'restricted': true,
 			'scope': ConfigurationScope.APPLICATION,

@@ -114,36 +114,26 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	canChangeEnablement(extension: IExtension): boolean {
 		try {
 			this.throwErrorIfCannotChangeEnablement(extension);
+			return true;
 		} catch (error) {
 			return false;
 		}
-
-		switch (this.getEnablementState(extension)) {
-			case EnablementState.DisabledByEnvironment:
-			case EnablementState.DisabledByVirtualWorkspace:
-			case EnablementState.DisabledByExtensionKind:
-				return false;
-			case EnablementState.DisabledByExtensionDependency:
-				// Can be changed only when all its dependencies enablements can be changed
-				return getExtensionDependencies(this.extensionsManager.extensions, extension).every(e => this.canChangeEnablement(e));
-		}
-
-		return true;
 	}
 
 	canChangeWorkspaceEnablement(extension: IExtension): boolean {
 		if (!this.canChangeEnablement(extension)) {
 			return false;
 		}
+
 		try {
 			this.throwErrorIfCannotChangeWorkspaceEnablement(extension);
+			return true;
 		} catch (error) {
 			return false;
 		}
-		return true;
 	}
 
-	private throwErrorIfCannotChangeEnablement(extension: IExtension): void {
+	private throwErrorIfCannotChangeEnablement(extension: IExtension, donotCheckDependencies?: boolean): void {
 		if (isLanguagePackExtension(extension.manifest)) {
 			throw new Error(localize('cannot disable language pack extension', "Cannot change enablement of {0} extension because it contributes language packs.", extension.manifest.displayName || extension.identifier.id));
 		}
@@ -151,6 +141,34 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		if (this.userDataAutoSyncEnablementService.isEnabled() && this.userDataSyncAccountService.account &&
 			isAuthenticaionProviderExtension(extension.manifest) && extension.manifest.contributes!.authentication!.some(a => a.id === this.userDataSyncAccountService.account!.authenticationProviderId)) {
 			throw new Error(localize('cannot disable auth extension', "Cannot change enablement {0} extension because Settings Sync depends on it.", extension.manifest.displayName || extension.identifier.id));
+		}
+
+		if (this._isEnabledInEnv(extension)) {
+			throw new Error(localize('cannot change enablement environment', "Cannot change enablement of {0} extension because it is enabled in environment", extension.manifest.displayName || extension.identifier.id));
+		}
+
+		switch (this.getEnablementState(extension)) {
+			case EnablementState.DisabledByEnvironment:
+				throw new Error(localize('cannot change disablement environment', "Cannot change enablement of {0} extension because it is disabled in environment", extension.manifest.displayName || extension.identifier.id));
+			case EnablementState.DisabledByVirtualWorkspace:
+				throw new Error(localize('cannot change enablement virtual workspace', "Cannot change enablement of {0} extension because it does not support virtual workspaces", extension.manifest.displayName || extension.identifier.id));
+			case EnablementState.DisabledByExtensionKind:
+				throw new Error(localize('cannot change enablement extension kind', "Cannot change enablement of {0} extension because of its extension kind", extension.manifest.displayName || extension.identifier.id));
+			case EnablementState.DisabledByExtensionDependency:
+				if (donotCheckDependencies) {
+					break;
+				}
+				// Can be changed only when all its dependencies enablements can be changed
+				for (const dependency of getExtensionDependencies(this.extensionsManager.extensions, extension)) {
+					if (this.isEnabled(dependency)) {
+						continue;
+					}
+					try {
+						this.throwErrorIfCannotChangeEnablement(dependency, true);
+					} catch (error) {
+						throw new Error(localize('cannot change enablement dependency', "Cannot enable '{0}' extension because it depends on '{1}' extension that cannot be enabled", extension.manifest.displayName || extension.identifier.id, dependency.manifest.displayName || dependency.identifier.id));
+					}
+				}
 		}
 	}
 
@@ -227,7 +245,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	}
 
 	isEnabledEnablementState(enablementState: EnablementState): boolean {
-		return enablementState === EnablementState.EnabledWorkspace || enablementState === EnablementState.EnabledGlobally;
+		return enablementState === EnablementState.EnabledByEnvironment || enablementState === EnablementState.EnabledWorkspace || enablementState === EnablementState.EnabledGlobally;
 	}
 
 	isDisabledGlobally(extension: IExtension): boolean {
@@ -267,6 +285,10 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			enablementState = EnablementState.DisabledByExtensionDependency;
 		}
 
+		else if (!this.isEnabledEnablementState(enablementState) && this._isEnabledInEnv(extension)) {
+			enablementState = EnablementState.EnabledByEnvironment;
+		}
+
 		computedEnablementStates.set(extension, enablementState);
 		return enablementState;
 	}
@@ -286,6 +308,14 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			return true;
 		}
 
+		return false;
+	}
+
+	private _isEnabledInEnv(extension: IExtension): boolean {
+		const enabledExtensions = this.environmentService.enableExtensions;
+		if (Array.isArray(enabledExtensions)) {
+			return enabledExtensions.some(id => areSameExtensions({ id }, extension.identifier));
+		}
 		return false;
 	}
 

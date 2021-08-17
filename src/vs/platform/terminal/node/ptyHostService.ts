@@ -3,21 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalsLayoutInfo, TerminalIpcChannels, IHeartbeatService, HeartbeatConstants, TerminalShellType, ITerminalProfile, IRequestResolveVariablesEvent, TitleEventSource, TerminalIcon, IReconnectConstants } from 'vs/platform/terminal/common/terminal';
-import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
-import { FileAccess } from 'vs/base/common/network';
-import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { Emitter } from 'vs/base/common/event';
-import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
-import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { detectAvailableProfiles } from 'vs/platform/terminal/node/terminalProfiles';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { FileAccess } from 'vs/base/common/network';
+import { IProcessEnvironment, isWindows, OperatingSystem } from 'vs/base/common/platform';
+import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
+import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
+import { resolveShellEnv } from 'vs/platform/environment/node/shellEnv';
+import { ILogService } from 'vs/platform/log/common/log';
+import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
+import { HeartbeatConstants, IHeartbeatService, IProcessDataEvent, IPtyService, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, TerminalIcon, TerminalIpcChannels, TerminalShellType, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
+import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { detectAvailableProfiles } from 'vs/platform/terminal/node/terminalProfiles';
 
 enum Constants {
 	MaxRestarts = 5
@@ -40,6 +41,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 	// ProxyChannel is not used here because events get lost when forwarding across multiple proxies
 	private _proxy: IPtyService;
 
+	private readonly _shellEnv: Promise<typeof process.env>;
 	private readonly _resolveVariablesRequestStore: RequestStore<string[], { workspaceId: string, originalText: string[] }>;
 	private _restartCount = 0;
 	private _isResponsive = true;
@@ -94,6 +96,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 		// remote server).
 		registerTerminalPlatformConfiguration();
 
+		this._shellEnv = isWindows ? Promise.resolve(process.env) : resolveShellEnv(this._logService, { _: [] }, process.env);
+
 		this._register(toDisposable(() => this._disposePtyHost()));
 
 		this._resolveVariablesRequestStore = this._register(new RequestStore(undefined, this._logService));
@@ -113,8 +117,10 @@ export class PtyHostService extends Disposable implements IPtyService {
 					VSCODE_AMD_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
 					VSCODE_PIPE_LOGGING: 'true',
 					VSCODE_VERBOSE_LOGGING: 'true', // transmit console logs from server to client,
-					VSCODE_RECONNECT_GRACE_TIME: this._reconnectConstants.GraceTime,
-					VSCODE_RECONNECT_SHORT_GRACE_TIME: this._reconnectConstants.ShortGraceTime
+					VSCODE_RECONNECT_GRACE_TIME: this._reconnectConstants.graceTime,
+					VSCODE_RECONNECT_SHORT_GRACE_TIME: this._reconnectConstants.shortGraceTime,
+					VSCODE_RECONNECT_SCROLLBACK: this._reconnectConstants.scrollback,
+					VSCODE_RECONNECT_EXPERIMENTAL_SERIALIZATION: this._reconnectConstants.useExperimentalSerialization ? 1 : 0
 				}
 			}
 		);
@@ -232,7 +238,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 		return this._proxy.getDefaultSystemShell(osOverride);
 	}
 	async getProfiles(workspaceId: string, profiles: unknown, defaultProfile: unknown, includeDetectedProfiles: boolean = false): Promise<ITerminalProfile[]> {
-		return detectAvailableProfiles(profiles, defaultProfile, includeDetectedProfiles, this._configurationService, undefined, this._logService, this._resolveVariables.bind(this, workspaceId));
+		const shellEnv = await this._shellEnv;
+		return detectAvailableProfiles(profiles, defaultProfile, includeDetectedProfiles, this._configurationService, shellEnv, undefined, this._logService, this._resolveVariables.bind(this, workspaceId));
 	}
 	getEnvironment(): Promise<IProcessEnvironment> {
 		return this._proxy.getEnvironment();

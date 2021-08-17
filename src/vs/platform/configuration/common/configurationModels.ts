@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as json from 'vs/base/common/json';
-import { ResourceMap, getOrSet } from 'vs/base/common/map';
 import * as arrays from 'vs/base/common/arrays';
-import * as types from 'vs/base/common/types';
-import * as objects from 'vs/base/common/objects';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { OVERRIDE_PROPERTY_PATTERN, ConfigurationScope, IConfigurationRegistry, Extensions, IConfigurationPropertySchema, overrideIdentifierFromKey } from 'vs/platform/configuration/common/configurationRegistry';
-import { IOverrides, addToValueTree, toValuesTree, IConfigurationModel, getConfigurationValue, IConfigurationOverrides, IConfigurationData, getDefaultValues, getConfigurationKeys, removeFromValueTree, toOverrides, IConfigurationValue, ConfigurationTarget, compare, IConfigurationChangeEvent, IConfigurationChange } from 'vs/platform/configuration/common/configuration';
-import { Workspace } from 'vs/platform/workspace/common/workspace';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IFileService } from 'vs/platform/files/common/files';
+import * as json from 'vs/base/common/json';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { getOrSet, ResourceMap } from 'vs/base/common/map';
+import * as objects from 'vs/base/common/objects';
 import { IExtUri } from 'vs/base/common/resources';
+import * as types from 'vs/base/common/types';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { addToValueTree, compare, ConfigurationTarget, getConfigurationKeys, getConfigurationValue, getDefaultValues, IConfigurationChange, IConfigurationChangeEvent, IConfigurationData, IConfigurationModel, IConfigurationOverrides, IConfigurationValue, IOverrides, removeFromValueTree, toOverrides, toValuesTree } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationScope, Extensions, IConfigurationPropertySchema, IConfigurationRegistry, overrideIdentifierFromKey, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
+import { IFileService } from 'vs/platform/files/common/files';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Workspace } from 'vs/platform/workspace/common/workspace';
 
 export class ConfigurationModel implements IConfigurationModel {
 
@@ -270,7 +270,7 @@ export class ConfigurationModelParser {
 		function onValue(value: any) {
 			if (Array.isArray(currentParent)) {
 				(<any[]>currentParent).push(value);
-			} else if (currentProperty) {
+			} else if (currentProperty !== null) {
 				currentParent[currentProperty] = value;
 			}
 		}

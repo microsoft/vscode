@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { join } from 'vs/base/common/path';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { env } from 'vs/base/common/process';
-import { IFileService } from 'vs/platform/files/common/files';
-import { isWindows } from 'vs/base/common/platform';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { IExecutableBasedExtensionTip, IExtensionManagementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { forEach, IStringDictionary } from 'vs/base/common/collections';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ExtensionTipsService as BaseExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionTipsService';
 import { disposableTimeout, timeout } from 'vs/base/common/async';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
-import { localize } from 'vs/nls';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { forEach, IStringDictionary } from 'vs/base/common/collections';
 import { Event } from 'vs/base/common/event';
+import { join } from 'vs/base/common/path';
+import { isWindows } from 'vs/base/common/platform';
+import { env } from 'vs/base/common/process';
+import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IExecutableBasedExtensionTip, IExtensionManagementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionTipsService as BaseExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionTipsService';
+import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
+import { IFileService } from 'vs/platform/files/common/files';
+import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IRequestService } from 'vs/platform/request/common/request';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 type ExeExtensionRecommendationsClassification = {
 	extensionId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };

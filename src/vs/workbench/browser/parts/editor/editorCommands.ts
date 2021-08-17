@@ -605,6 +605,10 @@ function registerFocusEditorGroupAtIndexCommands(): void {
 				// Group does not exist: create new by splitting the active one of the last group
 				const direction = preferredSideBySideGroupDirection(configurationService);
 				const lastGroup = editorGroupService.findGroup({ location: GroupLocation.LAST });
+				if (!lastGroup) {
+					return;
+				}
+
 				const newGroup = editorGroupService.addGroup(lastGroup, direction);
 
 				// Focus

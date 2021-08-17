@@ -45,7 +45,6 @@ export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey
 
 // Is Notebook
 export const NOTEBOOK_IS_ACTIVE_EDITOR = ContextKeyExpr.equals('activeEditor', NOTEBOOK_EDITOR_ID);
-export const NOTEBOOK_DIFF_IS_ACTIVE_EDITOR = ContextKeyExpr.equals('activeEditor', NOTEBOOK_DIFF_EDITOR_ID);
 
 // Editor keys
 export const NOTEBOOK_EDITOR_FOCUSED = new RawContextKey<boolean>('notebookEditorFocused', false);
@@ -59,21 +58,22 @@ export const NOTEBOOK_BREAKPOINT_MARGIN_ACTIVE = new RawContextKey<boolean>('not
 // Cell keys
 export const NOTEBOOK_VIEW_TYPE = new RawContextKey<string>('notebookType', undefined);
 export const NOTEBOOK_CELL_TYPE = new RawContextKey<'code' | 'markup'>('notebookCellType', undefined);
-export const NOTEBOOK_CELL_EDITABLE = new RawContextKey<boolean>('notebookCellEditable', false); // bool
-export const NOTEBOOK_CELL_FOCUSED = new RawContextKey<boolean>('notebookCellFocused', false); // bool
-export const NOTEBOOK_CELL_EDITOR_FOCUSED = new RawContextKey<boolean>('notebookCellEditorFocused', false); // bool
-export const NOTEBOOK_CELL_MARKDOWN_EDIT_MODE = new RawContextKey<boolean>('notebookCellMarkdownEditMode', false); // bool
-export const NOTEBOOK_CELL_LINE_NUMBERS = new RawContextKey<'on' | 'off' | 'inherit'>('notebookCellLineNumbers', 'inherit'); // off, none, inherit
+export const NOTEBOOK_CELL_EDITABLE = new RawContextKey<boolean>('notebookCellEditable', false);
+export const NOTEBOOK_CELL_FOCUSED = new RawContextKey<boolean>('notebookCellFocused', false);
+export const NOTEBOOK_CELL_EDITOR_FOCUSED = new RawContextKey<boolean>('notebookCellEditorFocused', false);
+export const NOTEBOOK_CELL_MARKDOWN_EDIT_MODE = new RawContextKey<boolean>('notebookCellMarkdownEditMode', false);
+export const NOTEBOOK_CELL_LINE_NUMBERS = new RawContextKey<'on' | 'off' | 'inherit'>('notebookCellLineNumbers', 'inherit');
 export type NotebookCellExecutionStateContext = 'idle' | 'pending' | 'executing' | 'succeeded' | 'failed';
 export const NOTEBOOK_CELL_EXECUTION_STATE = new RawContextKey<NotebookCellExecutionStateContext>('notebookCellExecutionState', undefined);
-export const NOTEBOOK_CELL_HAS_OUTPUTS = new RawContextKey<boolean>('notebookCellHasOutputs', false); // bool
-export const NOTEBOOK_CELL_INPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellInputIsCollapsed', false); // bool
-export const NOTEBOOK_CELL_OUTPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellOutputIsCollapsed', false); // bool
+export const NOTEBOOK_CELL_EXECUTING = new RawContextKey<boolean>('notebookCellExecuting', false); // This only exists to simplify a context key expression, see #129625
+export const NOTEBOOK_CELL_HAS_OUTPUTS = new RawContextKey<boolean>('notebookCellHasOutputs', false);
+export const NOTEBOOK_CELL_INPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellInputIsCollapsed', false);
+export const NOTEBOOK_CELL_OUTPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellOutputIsCollapsed', false);
 // Kernels
 export const NOTEBOOK_KERNEL_COUNT = new RawContextKey<number>('notebookKernelCount', 0);
 export const NOTEBOOK_KERNEL_SELECTED = new RawContextKey<boolean>('notebookKernelSelected', false);
 export const NOTEBOOK_INTERRUPTIBLE_KERNEL = new RawContextKey<boolean>('notebookInterruptibleKernel', false);
-
+export const NOTEBOOK_MISSING_KERNEL_EXTENSION = new RawContextKey<boolean>('notebookMissingKernelExtension', false);
 export const NOTEBOOK_HAS_OUTPUTS = new RawContextKey<boolean>('notebookHasOutputs', false);
 
 //#endregion
@@ -83,6 +83,19 @@ export const EXPAND_CELL_INPUT_COMMAND_ID = 'notebook.cell.expandCellInput';
 export const EXECUTE_CELL_COMMAND_ID = 'notebook.cell.execute';
 export const CHANGE_CELL_LANGUAGE = 'notebook.cell.changeLanguage';
 export const QUIT_EDIT_CELL_COMMAND_ID = 'notebook.cell.quitEdit';
+export const EXPAND_CELL_OUTPUT_COMMAND_ID = 'notebook.cell.expandCellOutput';
+
+
+//#endregion
+
+//#region Notebook extensions
+
+// Hardcoding viewType/extension ID for now. TODO these should be replaced once we can
+// look them up in the marketplace dynamically.
+export const JUPYTER_EXTENSION_ID = 'ms-toolsai.jupyter';
+export const KERNEL_EXTENSIONS = new Map<string, string>([
+	['jupyter-notebook', JUPYTER_EXTENSION_ID],
+]);
 
 //#endregion
 
@@ -177,6 +190,7 @@ export interface IFocusNotebookCellOptions {
 export interface ICommonNotebookEditor {
 	readonly creationOptions: INotebookEditorCreationOptions;
 	getCellOutputLayoutInfo(cell: IGenericCellViewModel): INotebookCellOutputLayoutInfo;
+	setScrollTop(scrollTop: number): void;
 	triggerScroll(event: IMouseWheelEvent): void;
 	getCellByInfo(cellInfo: ICommonCellInfo): IGenericCellViewModel;
 	getCellById(cellId: string): IGenericCellViewModel | undefined;
@@ -207,7 +221,7 @@ export interface NotebookLayoutChangeEvent {
 	fontInfo?: boolean;
 }
 
-export enum CodeCellLayoutState {
+export enum CellLayoutState {
 	Uninitialized,
 	Estimated,
 	FromCache,
@@ -225,7 +239,7 @@ export interface CodeCellLayoutInfo {
 	readonly outputShowMoreContainerOffset: number;
 	readonly indicatorHeight: number;
 	readonly bottomToolbarOffset: number;
-	readonly layoutState: CodeCellLayoutState;
+	readonly layoutState: CellLayoutState;
 }
 
 export interface CodeCellLayoutChangeEvent {
@@ -245,6 +259,7 @@ export interface MarkdownCellLayoutInfo {
 	readonly previewHeight: number;
 	readonly bottomToolbarOffset: number;
 	readonly totalHeight: number;
+	readonly layoutState: CellLayoutState;
 }
 
 export interface MarkdownCellLayoutChangeEvent {
@@ -356,6 +371,7 @@ export interface INotebookEditorCreationOptions {
 		cellTopInsertToolbar: MenuId;
 		cellExecuteToolbar: MenuId;
 	};
+	readonly options?: NotebookOptions;
 }
 
 export interface IActiveNotebookEditor extends INotebookEditor {
@@ -429,7 +445,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	 */
 	getLayoutInfo(): NotebookLayoutInfo;
 
-	getVisibleRangesPlusViewportAboveBelow(): ICellRange[];
+	getVisibleRangesPlusViewportBelow(): ICellRange[];
 
 	/**
 	 * Fetch the output renderers for notebook outputs.
@@ -689,12 +705,13 @@ export interface INotebookCellList {
 	getViewIndex2(modelIndex: number): number | undefined;
 	getModelIndex(cell: CellViewModel): number | undefined;
 	getModelIndex2(viewIndex: number): number | undefined;
-	getVisibleRangesPlusViewportAboveBelow(): ICellRange[];
+	getVisibleRangesPlusViewportBelow(): ICellRange[];
 	focusElement(element: ICellViewModel): void;
 	selectElements(elements: ICellViewModel[]): void;
 	getFocusedElements(): ICellViewModel[];
 	getSelectedElements(): ICellViewModel[];
 	revealElementsInView(range: ICellRange): void;
+	scrollToBottom(): void;
 	revealElementInView(element: ICellViewModel): void;
 	revealElementInViewAtTop(element: ICellViewModel): void;
 	revealElementInCenterIfOutsideViewport(element: ICellViewModel): void;
@@ -724,8 +741,7 @@ export interface INotebookCellList {
 export interface BaseCellRenderTemplate {
 	rootContainer: HTMLElement;
 	editorPart: HTMLElement;
-	collapsedPart: HTMLElement;
-	expandButton: HTMLElement;
+	cellInputCollapsedContainer: HTMLElement;
 	contextKeyService: IContextKeyService;
 	container: HTMLElement;
 	cellContainer: HTMLElement;
@@ -756,10 +772,12 @@ export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
 	runButtonContainer: HTMLElement;
 	executionOrderLabel: HTMLElement;
 	outputContainer: HTMLElement;
+	cellOutputCollapsedContainer: HTMLElement;
 	outputShowMoreContainer: HTMLElement;
 	focusSinkElement: HTMLElement;
 	editor: ICodeEditor;
 	progressBar: ProgressBar;
+	collapsedProgressBar: ProgressBar;
 	focusIndicatorRight: HTMLElement;
 	focusIndicatorBottom: HTMLElement;
 	dragHandle: HTMLElement;

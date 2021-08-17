@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI as uri } from 'vs/base/common/uri';
-import { FileChangeType, isParent, IFileChange } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
+import { URI as uri } from 'vs/base/common/uri';
+import { FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
 
 export interface IDiskFileChange {
 	type: FileChangeType;

@@ -13,8 +13,8 @@
   "main": "./out/node/jsonServerMain",
   "dependencies": {
     "jsonc-parser": "^3.0.0",
-    "request-light": "^0.5.3",
-    "vscode-json-languageservice": "^4.1.5",
+    "request-light": "^0.5.4",
+    "vscode-json-languageservice": "^4.1.6",
     "vscode-languageserver": "^7.0.0",
     "vscode-uri": "^3.0.2"
   },

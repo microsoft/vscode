@@ -62,7 +62,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		};
 	}
 
-	async pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
+	async pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<void> {
 		const schema = this.getFileSystemSchema(options);
 
 		if (!options.defaultUri) {
@@ -76,7 +76,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		return this.nativeHostService.pickFileFolderAndOpen(this.toNativeOpenDialogOptions(options));
 	}
 
-	async pickFileAndOpen(options: IPickAndOpenOptions): Promise<any> {
+	async pickFileAndOpen(options: IPickAndOpenOptions): Promise<void> {
 		const schema = this.getFileSystemSchema(options);
 
 		if (!options.defaultUri) {
@@ -90,7 +90,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		return this.nativeHostService.pickFileAndOpen(this.toNativeOpenDialogOptions(options));
 	}
 
-	async pickFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
+	async pickFolderAndOpen(options: IPickAndOpenOptions): Promise<void> {
 		const schema = this.getFileSystemSchema(options);
 
 		if (!options.defaultUri) {

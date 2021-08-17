@@ -69,12 +69,30 @@ steps:
 
   - script: |
       set -e
+      yarn --cwd build
+      yarn --cwd build compile
+    displayName: Compile build tools
+
+  - script: |
+      set -e
       export npm_config_arch=$(NPM_ARCH)
       export npm_config_build_from_source=true
 
       if [ -z "$CC" ] || [ -z "$CXX" ]; then
-        export CC=$(which gcc-5)
-        export CXX=$(which g++-5)
+        # Download clang based on chromium revision used by vscode
+        curl -s https://raw.githubusercontent.com/chromium/chromium/91.0.4472.164/tools/clang/scripts/update.py | python - --output-dir=$PWD/.build/CR_Clang --host-os=linux
+        # Download libcxx headers and objects from upstream electron releases
+        DEBUG=libcxx-fetcher \
+        VSCODE_LIBCXX_OBJECTS_DIR=$PWD/.build/libcxx-objects \
+        VSCODE_LIBCXX_HEADERS_DIR=$PWD/.build/libcxx_headers  \
+        VSCODE_LIBCXXABI_HEADERS_DIR=$PWD/.build/libcxxabi_headers \
+        VSCODE_ARCH="$(NPM_ARCH)" \
+        node build/linux/libcxx-fetcher.js
+        # Set compiler toolchain
+        export CC=$PWD/.build/CR_Clang/bin/clang
+        export CXX=$PWD/.build/CR_Clang/bin/clang++
+        export CXXFLAGS="-nostdinc++ -D_LIBCPP_HAS_NO_VENDOR_AVAILABILITY_ANNOTATIONS -isystem$PWD/.build/libcxx_headers/include -isystem$PWD/.build/libcxxabi_headers/include -fPIC -flto=thin -fsplit-lto-unit"
+        export LDFLAGS="-stdlib=libc++ -fuse-ld=lld -flto=thin -fsplit-lto-unit -L$PWD/.build/libcxx-objects -lc++abi"
       fi
 
       if [ "$VSCODE_ARCH" == "x64" ]; then
@@ -194,7 +212,7 @@ steps:
   - script: |
       set -e
       APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
-      yarn smoketest-no-compile --build "$APP_PATH" --electronArgs="--disable-dev-shm-usage --use-gl=swiftshader"
+      yarn smoketest-no-compile --build "$APP_PATH" --electronArgs="--disable-dev-shm-usage --use-gl=swiftshader" --screenshots .build/logs/smoke-tests
     timeoutInMinutes: 5
     displayName: Run smoke tests (Electron)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
@@ -203,7 +221,7 @@ steps:
       set -e
       APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)" \
-      yarn smoketest-no-compile --build "$APP_PATH" --remote --electronArgs="--disable-dev-shm-usage --use-gl=swiftshader"
+      yarn smoketest-no-compile --build "$APP_PATH" --remote --electronArgs="--disable-dev-shm-usage --use-gl=swiftshader" --screenshots .build/logs/smoke-tests
     timeoutInMinutes: 5
     displayName: Run smoke tests (Remote)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
