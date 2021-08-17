@@ -3,11 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from 'vs/base/common/buffer';
+
+export type RpcProxy<T> = {
+	[K in keyof T]: K extends `$${infer _}` ? RpcProxyFunc<T[K]> : never;
+};
+
+type RpcProxyFunc<T> = T extends (...args: infer P) => infer R
+	? (...args: { [K in keyof P]: SerializableArgument<P[K]> }) => SerializableReturnValue<R>
+	: never;
+
+type SerializableArgument<T> = T extends VSBuffer ? T : SerializableValue<T>;
+
+type SerializableValue<T> =
+	T extends string | number | boolean | null | undefined | void ? T
+	: T extends VSBuffer ? never
+	: T extends Function ? never
+	: T extends [infer P1, infer P2] ? [SerializableValue<P1>, SerializableValue<P2>]
+	: T extends Array<infer P> ? Array<SerializableValue<P>>
+	: T extends Object ? { [K in keyof T]: SerializableValue<T[K]> }
+	: never;
+
+type SerializableReturnValue<T> =
+	T extends VSBuffer ? T
+	: T extends Promise<infer P> ? Promise<SerializableReturnValue<P>>
+	: SerializableValue<T>;
+
 export interface IRPCProtocol {
 	/**
 	 * Returns a proxy to an object addressable/named in the extension host process or in the renderer process.
 	 */
-	getProxy<T>(identifier: ProxyIdentifier<T>): T;
+	getProxy<T>(identifier: ProxyIdentifier<T>): RpcProxy<T>;
 
 	/**
 	 * Register manually created instance.

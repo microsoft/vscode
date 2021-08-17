@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { isThenable } from 'vs/base/common/async';
 import { CharCode } from 'vs/base/common/charCode';
 import { IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
-import { isThenable } from 'vs/base/common/async';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
+import { ProxyIdentifier, RpcProxy } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
 export function SingleProxyRPCProtocol(thing: any): IExtHostContext & IExtHostRpcService {
 	return {
@@ -78,7 +78,7 @@ export class TestRPCProtocol implements IExtHostContext, IExtHostRpcService {
 		});
 	}
 
-	public getProxy<T>(identifier: ProxyIdentifier<T>): T {
+	public getProxy<T>(identifier: ProxyIdentifier<T>): RpcProxy<T> {
 		if (!this._proxies[identifier.sid]) {
 			this._proxies[identifier.sid] = this._createProxy(identifier.sid);
 		}

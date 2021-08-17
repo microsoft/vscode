@@ -13,13 +13,14 @@ import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostAp
 import { serializeWebviewMessage, deserializeWebviewMessage } from 'vs/workbench/api/common/extHostWebviewMessaging';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { asWebviewUri, webviewGenericCspSource, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
+import { RpcProxy } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
 import * as extHostProtocol from './extHost.protocol';
 
 export class ExtHostWebview implements vscode.Webview {
 
 	readonly #handle: extHostProtocol.WebviewHandle;
-	readonly #proxy: extHostProtocol.MainThreadWebviewsShape;
+	readonly #proxy: RpcProxy<extHostProtocol.MainThreadWebviewsShape>;
 	readonly #deprecationService: IExtHostApiDeprecationService;
 
 	readonly #initData: WebviewInitData;
@@ -35,7 +36,7 @@ export class ExtHostWebview implements vscode.Webview {
 
 	constructor(
 		handle: extHostProtocol.WebviewHandle,
-		proxy: extHostProtocol.MainThreadWebviewsShape,
+		proxy: RpcProxy<extHostProtocol.MainThreadWebviewsShape>,
 		options: vscode.WebviewOptions,
 		initData: WebviewInitData,
 		workspace: IExtHostWorkspace | undefined,
@@ -131,7 +132,7 @@ export function shouldSerializeBuffersForPostMessage(extension: IExtensionDescri
 
 export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 
-	private readonly _webviewProxy: extHostProtocol.MainThreadWebviewsShape;
+	private readonly _webviewProxy: RpcProxy<extHostProtocol.MainThreadWebviewsShape>;
 
 	private readonly _webviews = new Map<extHostProtocol.WebviewHandle, ExtHostWebview>();
 
