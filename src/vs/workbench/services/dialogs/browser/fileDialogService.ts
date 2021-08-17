@@ -191,7 +191,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		);
 
 		if (res.choice === 0) {
-			this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2151362');
+			this.openerService.open('https://aka.ms/VSCodeWebLocalFileSystemAccess');
 		}
 
 		return undefined;
