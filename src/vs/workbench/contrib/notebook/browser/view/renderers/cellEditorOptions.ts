@@ -165,20 +165,19 @@ registerAction2(class ToggleLineNumberAction extends Action2 {
 			id: 'notebook.toggleLineNumbers',
 			title: { value: localize('notebook.toggleLineNumbers', "Toggle Notebook Line Numbers"), original: 'Toggle Notebook Line Numbers' },
 			precondition: NOTEBOOK_EDITOR_FOCUSED,
-			menu: [{
-				id: MenuId.EditorTitle,
-				group: 'notebookLayout',
-				order: 2,
-				when: ContextKeyExpr.and(
-					NOTEBOOK_IS_ACTIVE_EDITOR,
-					ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
-				)
-			}, {
-				id: MenuId.NotebookToolbar,
-				group: 'notebookLayout',
-				order: 2,
-				when: ContextKeyExpr.equals('config.notebook.globalToolbar', true)
-			}],
+			menu: [
+				{
+					id: MenuId.NotebookEditorLayoutConfigure,
+					group: 'notebookLayoutDetails',
+					order: 1,
+					when: NOTEBOOK_IS_ACTIVE_EDITOR
+				},
+				{
+					id: MenuId.NotebookToolbar,
+					group: 'notebookLayout',
+					order: 2,
+					when: ContextKeyExpr.equals('config.notebook.globalToolbar', true)
+				}],
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			f1: true,
 			toggled: {
