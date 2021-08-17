@@ -342,9 +342,9 @@ export async function main(argv: string[]): Promise<any> {
 		} else {
 			const envVars: string[] = [];
 			for (const envKey in env) {
-				// if (envKey === '_') {
-				// 	continue;
-				// }
+				if (envKey === '_') {
+					continue;
+				}
 				const value = env[envKey];
 				envVars.push('--env');
 				envVars.push(envKey + '=' + value ?? '');
