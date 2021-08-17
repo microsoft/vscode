@@ -1810,11 +1810,18 @@ export class Repository {
 		}
 	}
 
-	getStatus(opts?: { limit?: number, ignoreSubmodules?: boolean }): Promise<{ status: IFileStatus[]; didHitLimit: boolean; }> {
+	getStatus(opts?: { limit?: number, ignoreSubmodules?: boolean, untrackedChanges?: 'mixed' | 'separate' | 'hidden' }): Promise<{ status: IFileStatus[]; didHitLimit: boolean; }> {
 		return new Promise<{ status: IFileStatus[]; didHitLimit: boolean; }>((c, e) => {
 			const parser = new GitStatusParser();
 			const env = { GIT_OPTIONAL_LOCKS: '0' };
-			const args = ['status', '-z', '-u'];
+
+			const args = ['status', '-z'];
+
+			if (opts?.untrackedChanges === 'hidden') {
+				args.push('-uno');
+			} else {
+				args.push('-uall');
+			}
 
 			if (opts?.ignoreSubmodules) {
 				args.push('--ignore-submodules');
