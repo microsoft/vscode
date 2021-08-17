@@ -66,6 +66,8 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	private emptyWorkspaceSupportContext: IContextKey<boolean>;
 	private enterMultiRootWorkspaceSupportContext: IContextKey<boolean>;
 
+	private virtualWorkspaceContext: IContextKey<string>;
+
 	private inZenModeContext: IContextKey<boolean>;
 	private isFullscreenContext: IContextKey<boolean>;
 	private isCenteredLayoutContext: IContextKey<boolean>;
@@ -74,8 +76,6 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	private panelPositionContext: IContextKey<string>;
 	private panelVisibleContext: IContextKey<boolean>;
 	private panelMaximizedContext: IContextKey<boolean>;
-
-	private vitualWorkspaceContext: IContextKey<string>;
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -102,7 +102,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		RemoteNameContext.bindTo(this.contextKeyService).set(getRemoteName(this.environmentService.remoteAuthority) || '');
 
-		this.vitualWorkspaceContext = VirtualWorkspaceContext.bindTo(this.contextKeyService);
+		this.virtualWorkspaceContext = VirtualWorkspaceContext.bindTo(this.contextKeyService);
 		this.updateVirtualWorkspaceContextKey();
 
 		// Capabilities
@@ -319,6 +319,6 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	}
 
 	private updateVirtualWorkspaceContextKey(): void {
-		this.vitualWorkspaceContext.set(getVirtualWorkspaceScheme(this.contextService.getWorkspace()) || '');
+		this.virtualWorkspaceContext.set(getVirtualWorkspaceScheme(this.contextService.getWorkspace()) || '');
 	}
 }

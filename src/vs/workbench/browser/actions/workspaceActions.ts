@@ -10,11 +10,10 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/commo
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
-import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { MenuRegistry, MenuId, Action2, registerAction2, ILocalizedString } from 'vs/platform/actions/common/actions';
 import { EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext, WorkspaceFolderCountContext } from 'vs/workbench/browser/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import Severity from 'vs/base/common/severity';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -39,7 +38,6 @@ export class OpenFileAction extends Action2 {
 			precondition: IsMacNativeContext.toNegated(),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: IsMacNativeContext.toNegated(),
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_O
 			}
 		});
@@ -65,7 +63,6 @@ export class OpenFolderAction extends Action2 {
 			precondition: IsMacNativeContext.toNegated(),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: IsMacNativeContext.toNegated(),
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_O)
 			}
 		});
@@ -92,7 +89,6 @@ export class OpenFileFolderAction extends Action2 {
 			precondition: IsMacNativeContext,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: IsMacNativeContext,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_O
 			}
 		});
@@ -139,22 +135,14 @@ class CloseWorkspaceAction extends Action2 {
 			precondition: ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('empty'), EmptyWorkspaceSupportContext),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: EmptyWorkspaceSupportContext,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_F)
 			}
 		});
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const contextService = accessor.get(IWorkspaceContextService);
-		const dialogService = accessor.get(IDialogService);
 		const hostService = accessor.get(IHostService);
 		const environmentService = accessor.get(IWorkbenchEnvironmentService);
-
-		if (contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			dialogService.show(Severity.Error, localize('noWorkspaceOrFolderOpened', "There is currently no workspace or folder opened in this instance to close."));
-			return;
-		}
 
 		return hostService.openWindow({ forceReuseWindow: true, remoteAuthority: environmentService.remoteAuthority });
 	}
@@ -194,7 +182,8 @@ export class AddRootFolderAction extends Action2 {
 			id: AddRootFolderAction.ID,
 			title: ADD_ROOT_FOLDER_LABEL,
 			category: workspacesCategory,
-			f1: true
+			f1: true,
+			precondition: ContextKeyExpr.or(EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext.isEqualTo('workspace'))
 		});
 	}
 
@@ -207,28 +196,25 @@ export class AddRootFolderAction extends Action2 {
 
 class RemoveRootFolderAction extends Action2 {
 
+	static readonly ID = 'workbench.action.removeRootFolder';
+
 	constructor() {
 		super({
-			id: 'workbench.action.removeRootFolder',
+			id: RemoveRootFolderAction.ID,
 			title: { value: localize('globalRemoveFolderFromWorkspace', "Remove Folder from Workspace..."), original: 'Remove Folder from Workspace...' },
 			category: workspacesCategory,
-			f1: true
+			f1: true,
+			precondition: ContextKeyExpr.and(WorkspaceFolderCountContext.notEqualsTo('0'), ContextKeyExpr.or(EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext.isEqualTo('workspace')))
 		});
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const contextService = accessor.get(IWorkspaceContextService);
 		const commandService = accessor.get(ICommandService);
 		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
 
-		const state = contextService.getWorkbenchState();
-
-		// Workspace / Folder
-		if (state === WorkbenchState.WORKSPACE || state === WorkbenchState.FOLDER) {
-			const folder = await commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID);
-			if (folder) {
-				await workspaceEditingService.removeFolders([folder.uri]);
-			}
+		const folder = await commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID);
+		if (folder) {
+			await workspaceEditingService.removeFolders([folder.uri]);
 		}
 	}
 }
@@ -357,6 +343,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		id: ADD_ROOT_FOLDER_COMMAND_ID,
 		title: localize({ key: 'miAddFolderToWorkspace', comment: ['&& denotes a mnemonic'] }, "A&&dd Folder to Workspace...")
 	},
+	when: ContextKeyExpr.or(EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext.isEqualTo('workspace')),
 	order: 1
 });
 
@@ -384,11 +371,10 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '6_close',
 	command: {
 		id: CloseWorkspaceAction.ID,
-		title: localize({ key: 'miCloseFolder', comment: ['&& denotes a mnemonic'] }, "Close &&Folder"),
-		precondition: WorkspaceFolderCountContext.notEqualsTo('0')
+		title: localize({ key: 'miCloseFolder', comment: ['&& denotes a mnemonic'] }, "Close &&Folder")
 	},
 	order: 3,
-	when: ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('workspace'), EmptyWorkspaceSupportContext)
+	when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('folder'), EmptyWorkspaceSupportContext)
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
