@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, optional, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IInstantiationService, optional, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Memento } from 'vs/workbench/common/memento';
@@ -32,6 +32,9 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { isLinux, isMacintosh, isWindows, OperatingSystem as OS } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { checkGlobFileExists } from 'vs/workbench/api/common/shared/workspaceContains';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export const WorkspacePlatform = new RawContextKey<'mac' | 'linux' | 'windows' | undefined>('workspacePlatform', undefined, localize('workspacePlatform', "The platform of the current workspace, which in remote contexts may be different from the platform of the UI"));
 export const HasMultipleNewFileEntries = new RawContextKey<boolean>('hasMultipleNewFileEntries', false);
@@ -147,6 +150,8 @@ export class GettingStartedService extends Disposable implements IWalkthroughsSe
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IContextKeyService private readonly contextService: IContextKeyService,
 		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -406,11 +411,19 @@ export class GettingStartedService extends Disposable implements IWalkthroughsSe
 				});
 			});
 
+			let isFeatured = false;
+			if (walkthrough.featuredFor) {
+				const folders = this.workspaceContextService.getWorkspace().folders.map(f => f.uri);
+				const token = new CancellationTokenSource();
+				setTimeout(() => token.cancel(), 2000);
+				isFeatured = await this.instantiationService.invokeFunction(a => checkGlobFileExists(a, folders, walkthrough.featuredFor!, token.token));
+			}
+
 			const walkthoughDescriptor: IWalkthrough = {
 				description: walkthrough.description,
 				title: walkthrough.title,
 				id: categoryID,
-				isFeatured: false,
+				isFeatured,
 				source: extension.displayName ?? extension.name,
 				order: 0,
 				steps,
@@ -459,7 +472,7 @@ export class GettingStartedService extends Disposable implements IWalkthroughsSe
 		});
 	}
 
-	getWalkthrough(id: string) {
+	getWalkthrough(id: string): IResolvedWalkthrough {
 		const walkthrough = this.gettingStartedContributions.get(id);
 		if (!walkthrough) { throw Error('Trying to get unknown walkthrough: ' + id); }
 		return this.resolveWalkthrough(walkthrough);
@@ -479,7 +492,7 @@ export class GettingStartedService extends Disposable implements IWalkthroughsSe
 			})
 			.filter(category => category.content.type !== 'steps' || category.content.steps.length)
 			.map(category => this.resolveWalkthrough(category));
-		// .sort((a, b) => b.order - a.order);
+
 		return categoriesWithCompletion;
 	}
 

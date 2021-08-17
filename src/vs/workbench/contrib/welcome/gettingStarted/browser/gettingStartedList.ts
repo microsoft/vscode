@@ -32,7 +32,7 @@ export class GettingStartedIndexList<T extends { id: string; when?: ContextKeyEx
 
 	private entries: T[];
 
-	private lastRendered: string[];
+	private lastRendered: string[] | undefined;
 
 	public itemCount: number;
 
@@ -49,7 +49,6 @@ export class GettingStartedIndexList<T extends { id: string; when?: ContextKeyEx
 		this.contextService = options.contextService;
 
 		this.entries = [];
-		this.lastRendered = [];
 
 		this.itemCount = 0;
 		this.list = $('ul');
@@ -101,7 +100,6 @@ export class GettingStartedIndexList<T extends { id: string; when?: ContextKeyEx
 		if (ranker) {
 			entries = entries.filter(e => ranker(e) !== null);
 			entries.sort((a, b) => ranker(b)! - ranker(a)!);
-			console.log(entries, entries.map(ranker));
 		}
 
 
