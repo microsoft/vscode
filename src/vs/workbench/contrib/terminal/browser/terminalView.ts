@@ -136,7 +136,7 @@ export class TerminalViewPane extends ViewPane {
 				if (this._terminalService.isProcessSupportRegistered) {
 					if (this._terminalsInitialized) {
 						if (!hadTerminals) {
-							this._terminalService.createTerminal({ target: TerminalLocation.Panel });
+							this._terminalService.createTerminal({ location: TerminalLocation.Panel });
 						}
 					} else {
 						this._terminalsInitialized = true;

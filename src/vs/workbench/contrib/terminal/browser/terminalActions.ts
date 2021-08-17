@@ -122,7 +122,7 @@ export function registerTerminalActions() {
 			const terminalService = accessor.get(ITerminalService);
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 			if (terminalService.isProcessSupportRegistered) {
-				const instance = await terminalService.createTerminal({ target: terminalService.configHelper.config.defaultLocation });
+				const instance = await terminalService.createTerminal({ location: terminalService.configHelper.config.defaultLocation });
 				if (!instance) {
 					return;
 				}
@@ -148,7 +148,7 @@ export function registerTerminalActions() {
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
 			const instance = await terminalService.createTerminal({
-				target: TerminalLocation.Editor
+				location: TerminalLocation.Editor
 			});
 			instance.focusWhenReady();
 		}
@@ -167,7 +167,7 @@ export function registerTerminalActions() {
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
 			const instance = await terminalService.createTerminal({
-				target: TerminalLocation.Editor,
+				location: TerminalLocation.Editor,
 				forceSplit: true
 			});
 			instance.focusWhenReady();
@@ -386,7 +386,7 @@ export function registerTerminalActions() {
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
 			const terminalGroupService = accessor.get(ITerminalGroupService);
-			const instance = terminalService.activeInstance || await terminalService.createTerminal({ target: TerminalLocation.Panel });
+			const instance = terminalService.activeInstance || await terminalService.createTerminal({ location: TerminalLocation.Panel });
 			if (!instance) {
 				return;
 			}
@@ -1425,7 +1425,7 @@ export function registerTerminalActions() {
 			const terminalService = accessor.get(ITerminalService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const options = convertOptionsOrProfileToOptions(optionsOrProfile);
-			const activeInstance = terminalService.getInstanceHost(options?.target).activeInstance;
+			const activeInstance = terminalService.getInstanceHost(options?.location === TerminalLocation.Editor ? TerminalLocation.Editor : TerminalLocation.Panel).activeInstance;
 			if (!activeInstance) {
 				return;
 			}
@@ -1433,7 +1433,7 @@ export function registerTerminalActions() {
 			if (cwd === undefined) {
 				return undefined;
 			}
-			const instance = await terminalService.createTerminal({ instanceToSplit: activeInstance, config: options?.config, cwd, target: activeInstance.target });
+			const instance = await terminalService.createTerminal({ instanceToSplit: activeInstance, config: options?.config, cwd, location: activeInstance.target });
 			if (instance) {
 				if (instance.target === TerminalLocation.Editor) {
 					instance.focusWhenReady();
@@ -1620,7 +1620,7 @@ export function registerTerminalActions() {
 
 			if (terminalService.isProcessSupportRegistered) {
 				eventOrOptions = !eventOrOptions || eventOrOptions instanceof MouseEvent ? {} : eventOrOptions;
-				eventOrOptions.target = eventOrOptions.target || terminalService.configHelper.config.defaultLocation;
+				eventOrOptions.location = eventOrOptions.location || terminalService.configHelper.config.defaultLocation;
 				let instance: ITerminalInstance | undefined;
 				if (folders.length <= 1) {
 					// Allow terminal service to handle the path when there is only a

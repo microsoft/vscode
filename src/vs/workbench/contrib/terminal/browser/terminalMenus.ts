@@ -571,7 +571,7 @@ export function setupTerminalMenus(): void {
 	});
 }
 
-export function getTerminalActionBarArgs(target: TerminalLocation, profiles: ITerminalProfile[], defaultProfileName: string, contributedProfiles: readonly IExtensionTerminalProfile[], instantiationService: IInstantiationService, terminalService: ITerminalService, contextKeyService: IContextKeyService, commandService: ICommandService, dropdownMenu: IMenu): {
+export function getTerminalActionBarArgs(location: TerminalLocation, profiles: ITerminalProfile[], defaultProfileName: string, contributedProfiles: readonly IExtensionTerminalProfile[], instantiationService: IInstantiationService, terminalService: ITerminalService, contextKeyService: IContextKeyService, commandService: ICommandService, dropdownMenu: IMenu): {
 	primaryAction: MenuItemAction,
 	dropdownAction: IAction,
 	dropdownMenuActions: IAction[],
@@ -586,7 +586,7 @@ export function getTerminalActionBarArgs(target: TerminalLocation, profiles: ITe
 		const options: IMenuActionOptions = {
 			arg: {
 				config: p,
-				target
+				location
 			} as ICreateTerminalOptions,
 			shouldForwardArgs: true
 		};
@@ -609,7 +609,7 @@ export function getTerminalActionBarArgs(target: TerminalLocation, profiles: ITe
 				title
 			},
 			forceSplit: false,
-			target
+			location
 		})));
 		submenuActions.push(new Action(TerminalCommandId.NewWithProfile, title, undefined, true, () => terminalService.createTerminal({
 			config: {
@@ -618,7 +618,7 @@ export function getTerminalActionBarArgs(target: TerminalLocation, profiles: ITe
 				title
 			},
 			forceSplit: true,
-			target
+			location
 		})));
 	}
 
@@ -651,7 +651,7 @@ export function getTerminalActionBarArgs(target: TerminalLocation, profiles: ITe
 	const primaryAction = instantiationService.createInstance(
 		MenuItemAction,
 		{
-			id: target === TerminalLocation.Panel ? TerminalCommandId.New : TerminalCommandId.CreateTerminalEditor,
+			id: location === TerminalLocation.Panel ? TerminalCommandId.New : TerminalCommandId.CreateTerminalEditor,
 			title: localize('terminal.new', "New Terminal"),
 			icon: Codicon.plus
 		},
@@ -662,7 +662,7 @@ export function getTerminalActionBarArgs(target: TerminalLocation, profiles: ITe
 		},
 		{
 			shouldForwardArgs: true,
-			arg: { target } as ICreateTerminalOptions,
+			arg: { target: location } as ICreateTerminalOptions,
 		});
 
 	const dropdownAction = new Action('refresh profiles', 'Launch Profile...', 'codicon-chevron-down', true);

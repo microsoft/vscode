@@ -412,7 +412,7 @@ export class TerminalService implements ITerminalService {
 							// create group and terminal
 							terminalInstance = await this.createTerminal({
 								config: { attachPersistentProcess: terminalLayout.terminal! },
-								target: TerminalLocation.Panel
+								location: TerminalLocation.Panel
 							});
 							group = this._terminalGroupService.getGroupForInstance(terminalInstance);
 							if (groupLayout.isActive) {
@@ -646,7 +646,7 @@ export class TerminalService implements ITerminalService {
 			await this._localTerminalsInitPromise;
 		}
 		if (this._terminalGroupService.groups.length === 0 && this.isProcessSupportRegistered) {
-			this.createTerminal({ target: TerminalLocation.Panel });
+			this.createTerminal({ location: TerminalLocation.Panel });
 		}
 	}
 
@@ -946,7 +946,7 @@ export class TerminalService implements ITerminalService {
 					// create split, only valid if there's an active instance
 					instance = await this.createTerminal({ instanceToSplit: activeInstance, config: value.profile });
 				} else {
-					instance = await this.createTerminal({ target: this.configHelper.config.defaultLocation, config: value.profile, cwd });
+					instance = await this.createTerminal({ location: this.configHelper.config.defaultLocation, config: value.profile, cwd });
 				}
 			}
 
@@ -1127,10 +1127,10 @@ export class TerminalService implements ITerminalService {
 			await this._createContributedTerminalProfile(contributedProfile.extensionIdentifier, contributedProfile.id, {
 				isSplitTerminal: options?.forceSplit || !!options?.instanceToSplit,
 				icon: contributedProfile.icon,
-				target: options?.target,
+				target: options?.location === TerminalLocation.Editor ? TerminalLocation.Editor : TerminalLocation.Panel,
 				color: contributedProfile.color
 			});
-			const instanceHost = options?.target === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
+			const instanceHost = options?.location === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
 			const instance = instanceHost.instances[instanceHost.instances.length - 1];
 			await instance.focusWhenReady();
 			return instance;
@@ -1156,11 +1156,11 @@ export class TerminalService implements ITerminalService {
 
 		let instance: ITerminalInstance;
 
-		const target = options?.target || this._getTarget(options?.location) || this.configHelper.config.defaultLocation;
+		const target = this._getLocation(options?.location) || this.configHelper.config.defaultLocation;
 
 		const parent = options?.instanceToSplit || this._getSplitParent(options?.location);
 
-		const editorOptions = this._getEditorOptions(options?.target);
+		const editorOptions = this._getEditorOptions(options?.location);
 
 		if (parent) {
 			// Use the URI from the base instance if it exists, this will correctly split local terminals
@@ -1197,7 +1197,7 @@ export class TerminalService implements ITerminalService {
 		return instance;
 	}
 
-	private _getTarget(location?: TerminalLocation | TerminalEditorLocation | { parentTerminal: ITerminalInstance }): TerminalLocation | undefined {
+	private _getLocation(location?: TerminalLocation | TerminalEditorLocation | { parentTerminal: ITerminalInstance }): TerminalLocation | undefined {
 		if (!location) {
 			return location;
 		} else if (typeof location === 'object' && 'parentTerminal' in location) {

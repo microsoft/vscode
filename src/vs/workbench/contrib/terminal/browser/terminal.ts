@@ -221,10 +221,6 @@ export interface ICreateTerminalOptions {
 	 */
 	cwd?: string | URI;
 	/**
-	 * Where to create the terminal, when not specified the default target will be used.
-	 */
-	target?: TerminalLocation;
-	/**
 	 * Creates a split terminal without requiring a terminal instance to split, for example when splitting
 	 * a terminal editor
 	 */
