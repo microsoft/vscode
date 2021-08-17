@@ -20,6 +20,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextBuffer, ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
+import { isDefined } from 'vs/base/common/types';
 
 
 class StackOperation implements IWorkspaceUndoRedoElement {
@@ -392,9 +393,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	private _doApplyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, computeUndoRedo: boolean): void {
-
-		// compress all edits which have no side effects on cell index
-		const edits = this._mergeCellEdits(rawEdits.map((edit, index) => {
+		const editsWithDetails = rawEdits.map((edit, index) => {
 			let cellIndex: number = -1;
 			if ('index' in edit) {
 				cellIndex = edit.index;
@@ -403,7 +402,9 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				this._assertIndex(cellIndex);
 			} else if ('outputId' in edit) {
 				cellIndex = this._getCellIndexWithOutputIdHandle(edit.outputId);
-				this._assertIndex(cellIndex);
+				if (!this._indexIsValid(cellIndex)) {
+					return null;
+				}
 			} else if (edit.editType !== CellEditType.DocumentMetadata) {
 				throw new Error('Invalid cell edit');
 			}
@@ -417,46 +418,50 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 						: (edit.editType === CellEditType.Replace ? edit.index + edit.count : cellIndex),
 				originalIndex: index
 			};
-		})).sort((a, b) => {
-			if (a.end === undefined) {
-				return -1;
-			}
+		}).filter(isDefined);
 
-			if (b.end === undefined) {
-				return -1;
-			}
+		// compress all edits which have no side effects on cell index
+		const edits = this._mergeCellEdits(editsWithDetails)
+			.sort((a, b) => {
+				if (a.end === undefined) {
+					return -1;
+				}
 
-			return b.end - a.end || b.originalIndex - a.originalIndex;
-		}).reduce((prev, curr) => {
-			if (!prev.length) {
-				// empty
-				prev.push([curr]);
-			} else {
-				const last = prev[prev.length - 1];
-				const index = last[0].cellIndex;
+				if (b.end === undefined) {
+					return -1;
+				}
 
-				if (curr.cellIndex === index) {
-					last.push(curr);
-				} else {
+				return b.end - a.end || b.originalIndex - a.originalIndex;
+			}).reduce((prev, curr) => {
+				if (!prev.length) {
+					// empty
 					prev.push([curr]);
-				}
-			}
-
-			return prev;
-		}, [] as TransformedEdit[][]).map(editsOnSameIndex => {
-			const replaceEdits: TransformedEdit[] = [];
-			const otherEdits: TransformedEdit[] = [];
-
-			editsOnSameIndex.forEach(edit => {
-				if (edit.edit.editType === CellEditType.Replace) {
-					replaceEdits.push(edit);
 				} else {
-					otherEdits.push(edit);
-				}
-			});
+					const last = prev[prev.length - 1];
+					const index = last[0].cellIndex;
 
-			return [...otherEdits.reverse(), ...replaceEdits];
-		});
+					if (curr.cellIndex === index) {
+						last.push(curr);
+					} else {
+						prev.push([curr]);
+					}
+				}
+
+				return prev;
+			}, [] as TransformedEdit[][]).map(editsOnSameIndex => {
+				const replaceEdits: TransformedEdit[] = [];
+				const otherEdits: TransformedEdit[] = [];
+
+				editsOnSameIndex.forEach(edit => {
+					if (edit.edit.editType === CellEditType.Replace) {
+						replaceEdits.push(edit);
+					} else {
+						otherEdits.push(edit);
+					}
+				});
+
+				return [...otherEdits.reverse(), ...replaceEdits];
+			});
 
 		const flattenEdits = flatten(edits);
 
@@ -1003,9 +1008,13 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	private _assertIndex(index: number) {
-		if (index < 0 || index >= this._cells.length) {
+		if (!this._indexIsValid(index)) {
 			throw new Error(`model index out of range ${index}`);
 		}
+	}
+
+	private _indexIsValid(index: number): boolean {
+		return index < 0 || index >= this._cells.length;
 	}
 }
 
