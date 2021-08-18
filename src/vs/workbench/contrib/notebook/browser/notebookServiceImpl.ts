@@ -347,6 +347,9 @@ export class NotebookService extends Disposable implements INotebookService {
 	readonly onDidRemoveNotebookDocument = this._onDidRemoveNotebookDocument.event;
 	readonly onWillRemoveNotebookDocument = this._onWillRemoveNotebookDocument.event;
 
+	private readonly _onAddViewType = this._register(new Emitter<string>());
+	readonly onAddViewType = this._onAddViewType.event;
+
 	private readonly _onWillRemoveViewType = this._register(new Emitter<string>());
 	readonly onWillRemoveViewType = this._onWillRemoveViewType.event;
 
@@ -464,14 +467,32 @@ export class NotebookService extends Disposable implements INotebookService {
 		}));
 	}
 
-	async canResolve(viewType: string): Promise<boolean> {
-		await this._extensionService.activateByEvent(`onNotebook:*`);
+	private _postDocumentOpenActivation(viewType: string) {
+		// send out activations on notebook text model creation
+		this._extensionService.activateByEvent(`onNotebook:${viewType}`);
+		this._extensionService.activateByEvent(`onNotebook:*`);
+	}
 
-		if (!this._notebookProviders.has(viewType)) {
-			await this._extensionService.whenInstalledExtensionsRegistered();
-			// this awaits full activation of all matching extensions
-			await this._extensionService.activateByEvent(`onNotebook:${viewType}`);
+	async canResolve(viewType: string): Promise<boolean> {
+		if (this._notebookProviders.has(viewType)) {
+			return true;
 		}
+
+		const info = this._notebookProviderInfoStore?.get(viewType);
+		const waitFor: Promise<any>[] = [];
+		if (info && info.extension) {
+			waitFor.push(this._extensionService._activateById(info.extension, { startup: false, activationEvent: `onNotebook:${viewType}}`, extensionId: info.extension }));
+		}
+
+		waitFor.push(Event.toPromise(Event.filter(this.onAddViewType, () => {
+			return this._notebookProviders.has(viewType);
+		})));
+
+		await Promise.all([
+			this._extensionService.whenInstalledExtensionsRegistered(),
+			Promise.race(waitFor)
+		]);
+
 		return this._notebookProviders.has(viewType);
 	}
 
@@ -503,6 +524,7 @@ export class NotebookService extends Disposable implements INotebookService {
 			throw new Error(`notebook provider for viewtype '${viewType}' already exists`);
 		}
 		this._notebookProviders.set(viewType, data);
+		this._onAddViewType.fire(viewType);
 		return toDisposable(() => {
 			this._onWillRemoveViewType.fire(viewType);
 			this._notebookProviders.delete(viewType);
@@ -556,6 +578,7 @@ export class NotebookService extends Disposable implements INotebookService {
 		this._models.set(uri, new ModelData(notebookModel, this._onWillDisposeDocument.bind(this)));
 		this._onWillAddNotebookDocument.fire(notebookModel);
 		this._onDidAddNotebookDocument.fire(notebookModel);
+		this._postDocumentOpenActivation(viewType);
 		return notebookModel;
 	}
 
