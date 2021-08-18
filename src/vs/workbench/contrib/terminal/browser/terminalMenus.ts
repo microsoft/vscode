@@ -662,7 +662,7 @@ export function getTerminalActionBarArgs(location: TerminalLocation, profiles: I
 		},
 		{
 			shouldForwardArgs: true,
-			arg: { target: location } as ICreateTerminalOptions,
+			arg: { location } as ICreateTerminalOptions,
 		});
 
 	const dropdownAction = new Action('refresh profiles', 'Launch Profile...', 'codicon-chevron-down', true);

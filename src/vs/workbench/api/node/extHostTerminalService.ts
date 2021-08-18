@@ -29,7 +29,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 				const parentExtHostTerminal = this._terminals.find(t => t.value === parentTerminal);
 				internalOptions = internalOptions ? internalOptions : {};
 				if (parentExtHostTerminal) {
-					internalOptions.parentTerminal = parentExtHostTerminal;
+					internalOptions.resolvedExtHostTerminal = parentExtHostTerminal;
 				}
 			}
 		}

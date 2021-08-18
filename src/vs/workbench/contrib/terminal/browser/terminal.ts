@@ -235,7 +235,7 @@ export interface ICreateTerminalOptions {
 	resource?: URI;
 
 	/**
-	 * The location at which to create the terminal
+	 * The terminal's location (editor or panel), it's terminal parent (split to the right), or editor group
 	 */
 	location?: ITerminalLocationOptions;
 }

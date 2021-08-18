@@ -1032,16 +1032,12 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
-	private _resolveOptions(options: any): ICreateContributedTerminalProfileOptions {
-		const opts: ICreateContributedTerminalProfileOptions = {};
-		opts.icon = options.icon;
-		opts.color = options.color;
-		if (options.location && typeof options.location === 'object' && 'splitActive' in options.location) {
-			if (this.activeInstance) {
-				opts.location = { parentTerminal: this.activeInstance };
-			}
+	private _resolveOptions(options: ICreateContributedTerminalProfileOptions): ICreateContributedTerminalProfileOptions {
+		const profileOptions: ICreateContributedTerminalProfileOptions = { icon: options?.icon, color: options?.color };
+		if (options.location && typeof options.location === 'object' && 'splitActive' in options.location && this.activeInstance) {
+			profileOptions.location = { parentTerminal: this.activeInstance };
 		}
-		return opts;
+		return profileOptions;
 	}
 
 	private async _registerContributedProfile(extensionIdentifier: string, id: string, title: string, options: ICreateContributedTerminalProfileOptions): Promise<void> {
@@ -1177,9 +1173,7 @@ export class TerminalService implements ITerminalService {
 		if (options?.location && typeof options.location === 'object') {
 			if ('viewColumn' in options.location) {
 				return options.location.viewColumn === SIDE_GROUP;
-			} else if ('parentTerminal' in options.location) {
-				return true;
-			} else if ('splitActive' in options.location) {
+			} else if ('parentTerminal' in options.location || 'splitActive' in options.location) {
 				return true;
 			}
 		}

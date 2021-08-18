@@ -142,13 +142,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			useShellEnvironment: launchConfig.useShellEnvironment,
 		};
 		this._extHostTerminals.set(extHostTerminalId, new Promise(async r => {
-			let terminal: ITerminalInstance | undefined;
-			if (!terminal) {
-				terminal = await this._terminalService.createTerminal({
-					config: shellLaunchConfig,
-					location: await this._resolveMainThreadLocation(launchConfig.location)
-				});
-			}
+			const terminal = await this._terminalService.createTerminal({
+				config: shellLaunchConfig,
+				location: await this._resolveMainThreadLocation(launchConfig.location)
+			});
 			r(terminal);
 		}));
 	}
@@ -225,8 +222,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		// Proxy profile provider requests through the extension host
 		this._profileProviders.set(id, this._terminalService.registerTerminalProfileProvider(extensionIdentifier, id, {
 			createContributedTerminalProfile: async (options) => {
-				const resolvedOptions = this._resolveOptions(options);
-				return this._proxy.$createContributedProfileTerminal(id, resolvedOptions);
+				return this._proxy.$createContributedProfileTerminal(id, this._resolveOptions(options));
 			}
 		}));
 	}
