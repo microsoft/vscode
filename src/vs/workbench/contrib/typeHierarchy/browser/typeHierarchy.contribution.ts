@@ -14,7 +14,6 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { PeekContext } from 'vs/editor/contrib/peekView/peekView';
 import { localize } from 'vs/nls';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -183,11 +182,6 @@ registerAction2(class extends EditorAction2 {
 					_ctxHasTypeHierarchyProvider,
 					PeekContext.notInPeekEditor
 				),
-			},
-			keybinding: {
-				when: EditorContextKeys.editorTextFocus,
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.Shift + KeyMod.Alt + KeyCode.KEY_H // TODO: to specify a proper keybinding?
 			},
 			precondition: ContextKeyExpr.and(
 				_ctxHasTypeHierarchyProvider,
