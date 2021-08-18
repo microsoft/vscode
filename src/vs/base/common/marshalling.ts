@@ -51,6 +51,7 @@ function replacer(key: string, value: any): any {
 
 
 type Deserialize<T> = T extends UriComponents ? URI
+	: T extends VSBuffer ? VSBuffer
 	: T extends object
 	? Revived<T>
 	: T;

@@ -2025,12 +2025,9 @@ registerAction2(class NotebookConfigureLayoutAction extends Action2 {
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			menu: [
 				{
-					id: MenuId.EditorTitle,
+					id: MenuId.NotebookEditorLayoutConfigure,
 					group: 'notebookLayout',
-					when: ContextKeyExpr.and(
-						NOTEBOOK_IS_ACTIVE_EDITOR,
-						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
-					),
+					when: NOTEBOOK_IS_ACTIVE_EDITOR,
 					order: 1
 				},
 				{
@@ -2045,6 +2042,34 @@ registerAction2(class NotebookConfigureLayoutAction extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		accessor.get(IPreferencesService).openSettings({ jsonEditor: false, query: '@tag:notebookLayout' });
 	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	submenu: MenuId.NotebookEditorLayoutConfigure,
+	rememberDefaultAction: false,
+	title: { value: localize('customizeNotebook', "Customize Notebook..."), original: 'Customize Notebook...', },
+	icon: Codicon.settingsGear,
+	group: 'navigation',
+	order: -1,
+	when: NOTEBOOK_IS_ACTIVE_EDITOR
+});
+
+MenuRegistry.appendMenuItem(MenuId.NotebookEditorLayoutConfigure, {
+	command: {
+		id: 'breadcrumbs.toggle',
+		title: { value: localize('cmd.toggle', "Toggle Breadcrumbs"), original: 'Toggle Breadcrumbs' },
+	},
+	group: 'notebookLayoutDetails',
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
+	command: {
+		id: 'breadcrumbs.toggle',
+		title: { value: localize('cmd.toggle', "Toggle Breadcrumbs"), original: 'Toggle Breadcrumbs' },
+	},
+	group: 'notebookLayout',
+	order: 2
 });
 
 CommandsRegistry.registerCommand('_resolveNotebookContentProvider', (accessor, args): {

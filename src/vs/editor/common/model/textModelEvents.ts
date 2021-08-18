@@ -89,10 +89,6 @@ export interface IModelDecorationsChangedEvent {
 export interface IModelTokensChangedEvent {
 	readonly tokenizationSupportChanged: boolean;
 	readonly semanticTokensApplied: boolean;
-	/**
-	 * Indicates that future token updates are not caused by the background tokenization any more.
-	*/
-	readonly backgroundTokenizationCompleted: boolean;
 	readonly ranges: {
 		/**
 		 * The start of the range (inclusive)

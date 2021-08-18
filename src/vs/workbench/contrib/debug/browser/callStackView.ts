@@ -519,7 +519,7 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 				if (action instanceof MenuItemAction) {
 					return this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined);
 				} else if (action instanceof SubmenuItemAction) {
-					return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action);
+					return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action, undefined);
 				}
 
 				return undefined;

@@ -24,6 +24,7 @@ import { NotebookCellOutput, NotebookCellOutputItem } from 'vs/workbench/api/com
 import { CellKind, CellUri, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { TestRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
 import { mock } from 'vs/workbench/test/common/workbenchTestServices';
 
@@ -65,8 +66,8 @@ suite('NotebookKernel', function () {
 				assert.strictEqual(kernelData.has(handle), true);
 				kernelData.set(handle, { ...kernelData.get(handle)!, ...data, });
 			}
-			override $updateExecutions(data: ICellExecuteUpdateDto[]): void {
-				cellExecuteUpdates.push(...data);
+			override $updateExecutions(data: SerializableObjectWithBuffers<ICellExecuteUpdateDto[]>): void {
+				cellExecuteUpdates.push(...data.value);
 			}
 		});
 		rpcProtocol.set(MainContext.MainThreadNotebookDocuments, new class extends mock<MainThreadNotebookDocumentsShape>() {
@@ -87,7 +88,7 @@ suite('NotebookKernel', function () {
 
 		extHostNotebookDocuments = new ExtHostNotebookDocuments(new NullLogService(), extHostNotebooks);
 
-		extHostNotebooks.$acceptDocumentAndEditorsDelta({
+		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({
 			addedDocuments: [{
 				uri: notebookUri,
 				viewType: 'test',
@@ -116,8 +117,8 @@ suite('NotebookKernel', function () {
 				selections: [{ start: 0, end: 1 }],
 				visibleRanges: []
 			}]
-		});
-		extHostNotebooks.$acceptDocumentAndEditorsDelta({ newActiveEditor: '_notebook_editor_0' });
+		}));
+		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({ newActiveEditor: '_notebook_editor_0' }));
 
 		notebook = extHostNotebooks.notebookDocuments[0]!;
 
@@ -206,13 +207,13 @@ suite('NotebookKernel', function () {
 		const cell1 = notebook.apiNotebook.cellAt(0);
 
 		extHostNotebookKernels.$acceptNotebookAssociation(0, notebook.uri, true);
-		extHostNotebookDocuments.$acceptModelChanged(notebook.uri, {
+		extHostNotebookDocuments.$acceptModelChanged(notebook.uri, new SerializableObjectWithBuffers({
 			versionId: 12,
 			rawEvents: [{
 				kind: NotebookCellsChangeType.ModelChange,
 				changes: [[0, notebook.apiNotebook.cellCount, []]]
 			}]
-		}, true);
+		}), true);
 
 		assert.strictEqual(cell1.index, -1);
 
@@ -274,7 +275,7 @@ suite('NotebookKernel', function () {
 				assert.strictEqual(edit.append, false);
 				assert.strictEqual(edit.outputs.length, 1);
 				assert.strictEqual(edit.outputs[0].items.length, 1);
-				assert.deepStrictEqual(edit.outputs[0].items[0].valueBytes, Array.from(new TextEncoder().encode('canceled')));
+				assert.deepStrictEqual(Array.from(edit.outputs[0].items[0].valueBytes.buffer), Array.from(new TextEncoder().encode('canceled')));
 				found = true;
 			}
 		}
@@ -308,7 +309,7 @@ suite('NotebookKernel', function () {
 				assert.strictEqual(edit.append, false);
 				assert.strictEqual(edit.outputs.length, 1);
 				assert.strictEqual(edit.outputs[0].items.length, 1);
-				assert.deepStrictEqual(edit.outputs[0].items[0].valueBytes, Array.from(new TextEncoder().encode('interrupted')));
+				assert.deepStrictEqual(Array.from(edit.outputs[0].items[0].valueBytes.buffer), Array.from(new TextEncoder().encode('interrupted')));
 				found = true;
 			}
 		}

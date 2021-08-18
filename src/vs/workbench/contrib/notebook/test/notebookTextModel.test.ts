@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { Mimes } from 'vs/base/common/mime';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
@@ -426,7 +427,7 @@ suite('NotebookTextModel', () => {
 			const success1 = model.applyEdits(
 				[{
 					editType: CellEditType.Output, index: 0, outputs: [
-						{ outputId: 'out1', outputs: [{ mime: 'application/x.notebook.stream', data: new Uint8Array([1]) }] }
+						{ outputId: 'out1', outputs: [{ mime: 'application/x.notebook.stream', data: VSBuffer.wrap(new Uint8Array([1])) }] }
 					],
 					append: false
 				}], true, undefined, () => undefined, undefined, false
@@ -438,7 +439,7 @@ suite('NotebookTextModel', () => {
 			const success2 = model.applyEdits(
 				[{
 					editType: CellEditType.Output, index: 0, outputs: [
-						{ outputId: 'out2', outputs: [{ mime: 'application/x.notebook.stream', data: new Uint8Array([1]) }] }
+						{ outputId: 'out2', outputs: [{ mime: 'application/x.notebook.stream', data: VSBuffer.wrap(new Uint8Array([1])) }] }
 					],
 					append: true
 				}], true, undefined, () => undefined, undefined, false
@@ -465,7 +466,7 @@ suite('NotebookTextModel', () => {
 				const success = model.applyEdits(
 					[{
 						editType: CellEditType.Output, index: 0, outputs: [
-							{ outputId: 'out1', outputs: [{ mime: 'application/x.notebook.stream', data: new Uint8Array([1]) }] }
+							{ outputId: 'out1', outputs: [{ mime: 'application/x.notebook.stream', data: VSBuffer.wrap(new Uint8Array([1])) }] }
 						],
 						append: false
 					}], true, undefined, () => undefined, undefined, false

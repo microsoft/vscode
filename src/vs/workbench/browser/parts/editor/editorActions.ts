@@ -5,7 +5,8 @@
 
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { IEditorInput, IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, EditorInputCapabilities, IEditorFactoryRegistry, EditorExtensions, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { firstOrDefault } from 'vs/base/common/arrays';
+import { IEditorInput, IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, EditorInputCapabilities, IEditorFactoryRegistry, EditorExtensions, DEFAULT_EDITOR_ASSOCIATION, GroupIdentifier } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -18,7 +19,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ItemActivation, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { AllEditorsByMostRecentlyUsedQuickAccess, ActiveGroupEditorsByMostRecentlyUsedQuickAccess, AllEditorsByAppearanceQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
 import { Codicon } from 'vs/base/common/codicons';
@@ -540,7 +540,6 @@ abstract class AbstractCloseAllAction extends Action {
 		id: string,
 		label: string,
 		clazz: string | undefined,
-		private workingCopyService: IWorkingCopyService,
 		private fileDialogService: IFileDialogService,
 		protected editorGroupService: IEditorGroupsService,
 		private editorService: IEditorService,
@@ -565,86 +564,125 @@ abstract class AbstractCloseAllAction extends Action {
 
 	override async run(): Promise<void> {
 
-		// Just close all if there are no dirty editors
-		if (!this.workingCopyService.hasDirty) {
-			return this.doCloseAll();
-		}
+		// Depending on the editor and auto save configuration,
+		// split dirty editors into buckets
 
-		// Otherwise ask for combined confirmation and make sure
-		// to bring each dirty editor to the front so that the user
-		// can review if the files should be changed or not.
-		await Promise.all(this.groupsToClose.map(groupToClose => {
-			for (const editor of groupToClose.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, { excludeSticky: this.excludeSticky })) {
-				if (editor.isDirty() && !editor.isSaving() /* ignore editors that are being saved */) {
-					return groupToClose.openEditor(editor);
-				}
-			}
+		const dirtyEditorsWithDefaultConfirm = new Set<IEditorIdentifier>();
+		const dirtyAutoSaveableEditors = new Set<IEditorIdentifier>();
+		const dirtyEditorsWithCustomConfirm = new Map<string /* typeId */, Set<IEditorIdentifier>>();
 
-			return undefined;
-		}));
-
-		const dirtyEditorsToConfirm = new Set<string>();
-		const dirtyEditorsToAutoSave = new Set<IEditorInput>();
-
-		for (const editor of this.editorService.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: this.excludeSticky }).map(({ editor }) => editor)) {
+		for (const { editor, groupId } of this.editorService.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: this.excludeSticky })) {
 			if (!editor.isDirty() || editor.isSaving()) {
-				continue; // only interested in dirty editors (unless in the process of saving)
+				continue; // only interested in dirty editors that are not in the process of saving
 			}
 
-			// Auto-save on focus change: assume to Save unless the editor is untitled
-			// because bringing up a dialog would save in this case anyway.
-			if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE && !editor.hasCapability(EditorInputCapabilities.Untitled)) {
-				dirtyEditorsToAutoSave.add(editor);
-			}
-
-			// No auto-save on focus change: ask user
-			else {
-				let name: string;
-				if (editor instanceof SideBySideEditorInput) {
-					name = editor.primary.getName(); // prefer shorter names by using primary's name in this case
-				} else {
-					name = editor.getName();
+			// Editor has custom confirm implementation
+			if (typeof editor.confirm === 'function') {
+				let customEditorsToConfirm = dirtyEditorsWithCustomConfirm.get(editor.typeId);
+				if (!customEditorsToConfirm) {
+					customEditorsToConfirm = new Set();
+					dirtyEditorsWithCustomConfirm.set(editor.typeId, customEditorsToConfirm);
 				}
 
-				dirtyEditorsToConfirm.add(name);
+				customEditorsToConfirm.add({ editor, groupId });
+			}
+
+			// Editor will be saved on focus change when a
+			// dialog appears, so just track that separate
+			else if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE && !editor.hasCapability(EditorInputCapabilities.Untitled)) {
+				dirtyAutoSaveableEditors.add({ editor, groupId });
+			}
+
+			// Editor will show in generic file based dialog
+			else {
+				dirtyEditorsWithDefaultConfirm.add({ editor, groupId });
 			}
 		}
 
-		let confirmation: ConfirmResult;
-		let saveReason = SaveReason.EXPLICIT;
-		if (dirtyEditorsToConfirm.size > 0) {
-			confirmation = await this.fileDialogService.showSaveConfirm(Array.from(dirtyEditorsToConfirm.values()));
-		} else if (dirtyEditorsToAutoSave.size > 0) {
-			confirmation = ConfirmResult.SAVE;
-			saveReason = SaveReason.FOCUS_CHANGE;
-		} else {
-			confirmation = ConfirmResult.DONT_SAVE;
+		// 1.) Show default file based dialog
+		if (dirtyEditorsWithDefaultConfirm.size > 0) {
+			const editors = Array.from(dirtyEditorsWithDefaultConfirm.values());
+
+			await this.revealDirtyEditors(editors); // help user make a decision by revealing editors
+
+			const confirmation = await this.fileDialogService.showSaveConfirm(editors.map(({ editor }) => {
+				if (editor instanceof SideBySideEditorInput) {
+					return editor.primary.getName(); // prefer shorter names by using primary's name in this case
+				}
+
+				return editor.getName();
+			}));
+
+			switch (confirmation) {
+				case ConfirmResult.CANCEL:
+					return;
+				case ConfirmResult.DONT_SAVE:
+					await this.editorService.revert(editors, { soft: true });
+					break;
+				case ConfirmResult.SAVE:
+					await this.editorService.save(editors, { reason: SaveReason.EXPLICIT });
+					break;
+			}
 		}
 
-		// Handle result from asking user
-		let result: boolean | undefined = undefined;
-		switch (confirmation) {
-			case ConfirmResult.CANCEL:
-				return;
-			case ConfirmResult.DONT_SAVE:
-				result = await this.editorService.revertAll({ soft: true, includeUntitled: true, excludeSticky: this.excludeSticky });
-				break;
-			case ConfirmResult.SAVE:
-				result = await this.editorService.saveAll({ reason: saveReason, includeUntitled: true, excludeSticky: this.excludeSticky });
-				break;
+		// 2.) Show custom confirm based dialog
+		for (const [, editorIdentifiers] of dirtyEditorsWithCustomConfirm) {
+			const editors = Array.from(editorIdentifiers.values());
+
+			await this.revealDirtyEditors(editors); // help user make a decision by revealing editors
+
+			const confirmation = await firstOrDefault(editors)?.editor.confirm?.(editors);
+			if (typeof confirmation === 'number') {
+				switch (confirmation) {
+					case ConfirmResult.CANCEL:
+						return;
+					case ConfirmResult.DONT_SAVE:
+						await this.editorService.revert(editors, { soft: true });
+						break;
+					case ConfirmResult.SAVE:
+						await this.editorService.save(editors, { reason: SaveReason.EXPLICIT });
+						break;
+				}
+			}
 		}
 
+		// 3.) Save autosaveable editors
+		if (dirtyAutoSaveableEditors.size > 0) {
+			const editors = Array.from(dirtyAutoSaveableEditors.values());
 
-		// Only continue to close editors if we either have no more dirty
-		// editors or the result from the save/revert was successful
-		if (!this.workingCopyService.hasDirty || result) {
-			return this.doCloseAll();
+			await this.editorService.save(editors, { reason: SaveReason.FOCUS_CHANGE });
+		}
+
+		// 4.) Finally close all editors: even if an editor failed to
+		// save or revert and still reports dirty, the editor part makes
+		// sure to bring up another confirm dialog for those editors
+		// specifically.
+		return this.doCloseAll();
+	}
+
+	private async revealDirtyEditors(editors: ReadonlyArray<IEditorIdentifier>): Promise<void> {
+		try {
+			const handledGroups = new Set<GroupIdentifier>();
+			for (const { editor, groupId } of editors) {
+				if (handledGroups.has(groupId)) {
+					continue;
+				}
+
+				handledGroups.add(groupId);
+
+				const group = this.editorGroupService.getGroup(groupId);
+				await group?.openEditor(editor);
+			}
+		} catch (error) {
+			// ignore any error as the revealing is just convinience
 		}
 	}
 
 	protected abstract get excludeSticky(): boolean;
 
-	protected abstract doCloseAll(): Promise<void>;
+	protected async doCloseAll(): Promise<void> {
+		await Promise.all(this.groupsToClose.map(group => group.closeAllEditors({ excludeSticky: this.excludeSticky })));
+	}
 }
 
 export class CloseAllEditorsAction extends AbstractCloseAllAction {
@@ -655,21 +693,16 @@ export class CloseAllEditorsAction extends AbstractCloseAllAction {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(id, label, Codicon.closeAll.classNames, workingCopyService, fileDialogService, editorGroupService, editorService, filesConfigurationService);
+		super(id, label, Codicon.closeAll.classNames, fileDialogService, editorGroupService, editorService, filesConfigurationService);
 	}
 
 	protected get excludeSticky(): boolean {
-		return true;
-	}
-
-	protected async doCloseAll(): Promise<void> {
-		await Promise.all(this.groupsToClose.map(group => group.closeAllEditors({ excludeSticky: true })));
+		return true; // exclude sticky from this mass-closing operation
 	}
 }
 
@@ -681,21 +714,20 @@ export class CloseAllEditorGroupsAction extends AbstractCloseAllAction {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(id, label, undefined, workingCopyService, fileDialogService, editorGroupService, editorService, filesConfigurationService);
+		super(id, label, undefined, fileDialogService, editorGroupService, editorService, filesConfigurationService);
 	}
 
 	protected get excludeSticky(): boolean {
-		return false;
+		return false; // the intent to close groups means, even sticky are included
 	}
 
-	protected async doCloseAll(): Promise<void> {
-		await Promise.all(this.groupsToClose.map(group => group.closeAllEditors()));
+	protected override async doCloseAll(): Promise<void> {
+		await super.doCloseAll();
 
 		for (const groupToClose of this.groupsToClose) {
 			this.editorGroupService.removeGroup(groupToClose);

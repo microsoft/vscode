@@ -103,7 +103,7 @@ export class ToolBar extends Disposable {
 							keybindingProvider: this.options.getKeyBinding,
 							classNames: action.class,
 							anchorAlignmentProvider: this.options.anchorAlignmentProvider,
-							menuAsChild: true
+							menuAsChild: !!this.options.renderDropdownAsChildElement
 						}
 					);
 					result.setActionContext(this.actionBar.context);

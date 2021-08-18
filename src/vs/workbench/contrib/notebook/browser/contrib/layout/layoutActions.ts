@@ -21,6 +21,10 @@ export class ToggleCellToolbarPositionAction extends Action2 {
 				id: MenuId.NotebookCellTitle,
 				group: 'View',
 				order: 1
+			}, {
+				id: MenuId.NotebookEditorLayoutConfigure,
+				group: 'notebookLayoutDetails',
+				order: 3
 			}],
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			f1: false

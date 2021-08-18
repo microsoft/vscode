@@ -12,7 +12,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Dimension, size, clearNode, append, addDisposableListener, EventType, $ } from 'vs/base/browser/dom';
+import { Dimension, size, clearNode, append } from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -22,6 +22,8 @@ import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/pla
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { EditorPaneDescriptor } from 'vs/workbench/browser/editor';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Link } from 'vs/platform/opener/browser/link';
 
 abstract class EditorPanePlaceholder extends EditorPane {
 
@@ -130,7 +132,8 @@ export class WorkspaceTrustRequiredEditor extends EditorPanePlaceholder {
 		@IThemeService themeService: IThemeService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(WorkspaceTrustRequiredEditor.ID, WorkspaceTrustRequiredEditor.LABEL, telemetryService, themeService, storageService);
 	}
@@ -141,13 +144,14 @@ export class WorkspaceTrustRequiredEditor extends EditorPanePlaceholder {
 			localize('requiresFolderTrustText', "The file is not displayed in the editor because trust has not been granted to the folder.") :
 			localize('requiresWorkspaceTrustText', "The file is not displayed in the editor because trust has not been granted to the workspace.");
 
-		const link = append(label, $('a.embedded-link'));
-		link.setAttribute('role', 'button');
-		link.textContent = localize('manageTrust', "Manage Workspace Trust");
-
-		disposables.add(addDisposableListener(link, EventType.CLICK, async () => {
-			await this.commandService.executeCommand('workbench.trust.manage');
+		const link = this._register(this.instantiationService.createInstance(Link, {
+			label: localize('manageTrust', "Manage Workspace Trust"),
+			href: ''
+		}, {
+			opener: () => this.commandService.executeCommand('workbench.trust.manage')
 		}));
+
+		append(label, link.el);
 	}
 }
 
@@ -160,7 +164,8 @@ export class UnavailableEditor extends EditorPanePlaceholder {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(UnavailableEditor.ID, UnavailableEditor.LABEL, telemetryService, themeService, storageService);
 	}
@@ -173,13 +178,14 @@ export class UnavailableEditor extends EditorPanePlaceholder {
 		const group = this.group;
 		const input = this.input;
 		if (group && input) {
-			const link = append(label, $('a.embedded-link'));
-			link.setAttribute('role', 'button');
-			link.textContent = localize('retry', "Try Again");
-
-			disposables.add(addDisposableListener(link, EventType.CLICK, () => {
-				group.openEditor(input, this.options);
+			const link = this._register(this.instantiationService.createInstance(Link, {
+				label: localize('retry', "Try Again"),
+				href: ''
+			}, {
+				opener: () => group.openEditor(input, this.options)
 			}));
+
+			append(label, link.el);
 		}
 	}
 }

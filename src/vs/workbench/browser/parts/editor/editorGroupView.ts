@@ -1473,14 +1473,22 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// Switch to editor that we want to handle and confirm to save/revert
 			await this.openEditor(editor);
 
-			let name: string;
-			if (editor instanceof SideBySideEditorInput) {
-				name = editor.primary.getName(); // prefer shorter names by using primary's name in this case
-			} else {
-				name = editor.getName();
+			// Let editor handle confirmation if implemented
+			if (typeof editor.confirm === 'function') {
+				confirmation = await editor.confirm();
 			}
 
-			confirmation = await this.fileDialogService.showSaveConfirm([name]);
+			// Show a file specific confirmation
+			else {
+				let name: string;
+				if (editor instanceof SideBySideEditorInput) {
+					name = editor.primary.getName(); // prefer shorter names by using primary's name in this case
+				} else {
+					name = editor.getName();
+				}
+
+				confirmation = await this.fileDialogService.showSaveConfirm([name]);
+			}
 		}
 
 		// It could be that the editor saved meanwhile or is saving, so we check

@@ -12,8 +12,8 @@
 	box-sizing: border-box;
 }
 
-.monaco-editor-pane-placeholder .embedded-link,
-.monaco-editor-pane-placeholder .embedded-link:hover {
+.monaco-editor-pane-placeholder .monaco-link,
+.monaco-editor-pane-placeholder .monaco-link:hover {
 	cursor: pointer;
 	text-decoration: underline;
 	margin-left: 5px;
