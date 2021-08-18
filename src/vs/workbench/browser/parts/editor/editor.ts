@@ -54,7 +54,16 @@ export function getEditorPartOptions(configurationService: IConfigurationService
 
 	const config = configurationService.getValue<IWorkbenchEditorConfiguration>();
 	if (config?.workbench?.editor) {
+
+		// Assign all primitive configuration over
 		Object.assign(options, config.workbench.editor);
+
+		// Special handle array types and convert to Set
+		if (Array.isArray(config.workbench.editor.experimentalAutoLockGroups)) {
+			options.experimentalAutoLockGroups = new Set(config.workbench.editor.experimentalAutoLockGroups);
+		} else {
+			options.experimentalAutoLockGroups = undefined;
+		}
 	}
 
 	return options;

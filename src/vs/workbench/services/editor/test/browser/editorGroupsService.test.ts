@@ -12,6 +12,8 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { MockScopableContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 suite('EditorGroupsService', () => {
 
@@ -1437,5 +1439,46 @@ suite('EditorGroupsService', () => {
 		part.removeGroup(rightGroup2);
 
 		assert.strictEqual(rightGroup.isLocked, false);
+	});
+
+	test('locked groups - auto locking via setting', async () => {
+		const instantiationService = workbenchInstantiationService();
+		const configurationService = new TestConfigurationService();
+		await configurationService.setUserConfiguration('workbench', { 'editor': { 'experimentalAutoLockGroups': [TEST_EDITOR_INPUT_ID] } });
+		instantiationService.stub(IConfigurationService, configurationService);
+
+		const [part] = await createPart(instantiationService);
+
+		const rootGroup = part.activeGroup;
+		let rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+
+		let input1 = new TestFileEditorInput(URI.file('foo/bar1'), TEST_EDITOR_INPUT_ID);
+		let input2 = new TestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID);
+
+		// First editor opens in right group: Locked=true
+		await rightGroup.openEditor(input1, { pinned: true });
+		assert.strictEqual(rightGroup.isLocked, true);
+
+		// Second editors opens in now unlocked right group: Locked=false
+		rightGroup.lock(false);
+		await rightGroup.openEditor(input2, { pinned: true });
+		assert.strictEqual(rightGroup.isLocked, false);
+
+		//First editor opens in root group without other groups being opened: Locked=false
+		await rightGroup.closeAllEditors();
+		part.removeGroup(rightGroup);
+		await rootGroup.closeAllEditors();
+
+		input1 = new TestFileEditorInput(URI.file('foo/bar1'), TEST_EDITOR_INPUT_ID);
+		input2 = new TestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID);
+
+		await rootGroup.openEditor(input1, { pinned: true });
+		assert.strictEqual(rootGroup.isLocked, false);
+		rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+		assert.strictEqual(rootGroup.isLocked, false);
+		const leftGroup = part.addGroup(rootGroup, GroupDirection.LEFT);
+		assert.strictEqual(rootGroup.isLocked, false);
+		part.removeGroup(leftGroup);
+		assert.strictEqual(rootGroup.isLocked, false);
 	});
 });

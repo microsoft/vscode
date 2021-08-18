@@ -480,7 +480,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	private restoreEditors(from: IEditorGroupView | ISerializedEditorGroupModel | null): Promise<void> | undefined {
-		if (this.model.count === 0) {
+		if (this.count === 0) {
 			return; // nothing to show
 		}
 
@@ -769,7 +769,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	get isEmpty(): boolean {
-		return this.model.count === 0;
+		return this.count === 0;
 	}
 
 	get titleHeight(): IEditorGroupTitleHeight {
@@ -961,7 +961,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			index: options ? options.index : undefined,
 			pinned: options?.sticky || !this.accessor.partOptions.enablePreview || editor.isDirty() || (options?.pinned ?? typeof options?.index === 'number' /* unless specified, prefer to pin when opening with index */) || (typeof options?.index === 'number' && this.model.isSticky(options.index)),
 			sticky: options?.sticky || (typeof options?.index === 'number' && this.model.isSticky(options.index)),
-			active: this.model.count === 0 || !options || !options.inactive
+			active: this.count === 0 || !options || !options.inactive
 		};
 
 		if (options?.sticky && typeof options?.index === 'number' && !this.model.isSticky(options.index)) {
@@ -1014,6 +1014,20 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// the model. It is possible that the editor was already opened and we
 		// want to ensure that we use the existing instance in that case.
 		const { editor: openedEditor, isNew } = this.model.openEditor(editor, openEditorOptions);
+
+		// Conditionally lock the group
+		if (
+			isNew &&							// only if this editor was new for the group
+			this.count === 1 &&					// only when this editor was the first editor in the group
+			this.accessor.groups.length > 1 &&	// only when there are more than one groups open
+			// only when settings are configured to lock a group for the given editor
+			(
+				this.accessor.partOptions.experimentalAutoLockGroups?.has(editor.typeId) ||
+				this.accessor.partOptions.experimentalAutoLockGroups?.has(`${editor.typeId}:${editor.editorId}`)
+			)
+		) {
+			this.lock(true);
+		}
 
 		// Show editor
 		const showEditorResult = this.doShowEditor(openedEditor, { active: !!openEditorOptions.active, isNew }, options);
@@ -1326,7 +1340,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// event because it became empty, only to then trigger another one when the next
 		// group gets active.
 		const closeEmptyGroup = this.accessor.partOptions.closeEmptyGroups;
-		if (closeEmptyGroup && this.active && this.model.count === 1) {
+		if (closeEmptyGroup && this.active && this.count === 1) {
 			const mostRecentlyActiveGroups = this.accessor.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 			const nextActiveGroup = mostRecentlyActiveGroups[1]; // [0] will be the current one, so take [1]
 			if (nextActiveGroup) {
