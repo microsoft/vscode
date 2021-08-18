@@ -33,7 +33,6 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 				}
 			}
 		}
-		console.log(internalOptions?.parentTerminal);
 		terminal.create(options, internalOptions);
 		return terminal.value;
 	}
