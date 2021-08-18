@@ -4,47 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 const MarkdownIt = require('markdown-it');
-const insane = require('insane');
-import type { InsaneOptions } from 'insane';
+import * as DOMPurify from 'dompurify';
 import type * as markdownIt from 'markdown-it';
 
-function _extInsaneOptions(opts: InsaneOptions, allowedAttributesForAll: string[]): InsaneOptions {
-	const allowedAttributes: Record<string, string[]> = opts.allowedAttributes ?? {};
-	if (opts.allowedTags) {
-		for (const tag of opts.allowedTags) {
-			let array = allowedAttributes[tag];
-			if (!array) {
-				array = allowedAttributesForAll;
-			} else {
-				array = array.concat(allowedAttributesForAll);
-			}
-			allowedAttributes[tag] = array;
-		}
-	}
-
-	return { ...opts, allowedAttributes };
-}
-
-const insaneOptions: InsaneOptions = _extInsaneOptions({
-	allowedTags: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'img', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
-	allowedAttributes: {
-		'a': ['href', 'x-dispatch'],
-		'button': ['data-href', 'x-dispatch'],
-		'img': ['src'],
-		'input': ['type', 'placeholder', 'checked', 'required'],
-		'label': ['for'],
-		'select': ['required'],
-		'span': ['data-command', 'role'],
-		'textarea': ['name', 'placeholder', 'required'],
-	},
-	allowedSchemes: ['http', 'https']
-}, [
-	'align',
-	'class',
-	'id',
-	'style',
-	'aria-hidden',
-]);
+const sanitizerOptions: DOMPurify.Config = {
+	ALLOWED_TAGS: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'img', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
+};
 
 export function activate(ctx: { workspace: { isTrusted: boolean } }) {
 	let markdownIt = new MarkdownIt({
@@ -217,7 +182,7 @@ export function activate(ctx: { workspace: { isTrusted: boolean } }) {
 				const unsanitizedRenderedMarkdown = markdownIt.render(text);
 				previewNode.innerHTML = ctx.workspace.isTrusted
 					? unsanitizedRenderedMarkdown
-					: insane(unsanitizedRenderedMarkdown, insaneOptions);
+					: DOMPurify.sanitize(unsanitizedRenderedMarkdown, sanitizerOptions);
 			}
 		},
 		extendMarkdownIt: (f: (md: typeof markdownIt) => void) => {
