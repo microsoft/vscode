@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/editorgroupview';
 import { EditorGroupModel, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroupModel, isSerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
-import { GroupIdentifier, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, EditorResourceAccessor, IEditorMoveEvent, EditorInputCapabilities, IEditorOpenEvent, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { GroupIdentifier, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, EditorResourceAccessor, IEditorMoveEvent, EditorInputCapabilities, IEditorOpenEvent, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, ActiveEditorGroupLockedContext } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
@@ -25,7 +25,7 @@ import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { EditorProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
 import { localize } from 'vs/nls';
 import { isErrorWithActions, isPromiseCanceledError } from 'vs/base/common/errors';
-import { dispose, MutableDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, dispose, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -161,6 +161,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		//#region create()
 		{
+			// Scoped context key service
+			this.scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
+
 			// Container
 			this.element.classList.add('editor-group-container');
 
@@ -183,8 +186,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this._register(attachProgressBarStyler(this.progressBar, this.themeService));
 			this.progressBar.hide();
 
-			// Scoped services
-			this.scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
+			// Scoped instantiation service
 			this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
 				[IContextKeyService, this.scopedContextKeyService],
 				[IEditorProgressService, this._register(new EditorProgressIndicator(this.progressBar, this))]
@@ -240,6 +242,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const groupActiveEditorPinnedContext = ActiveEditorPinnedContext.bindTo(this.scopedContextKeyService);
 		const groupActiveEditorStickyContext = ActiveEditorStickyContext.bindTo(this.scopedContextKeyService);
 		const groupEditorsCountContext = EditorGroupEditorsCountContext.bindTo(this.scopedContextKeyService);
+		const groupLockedContext = ActiveEditorGroupLockedContext.bindTo(this.scopedContextKeyService);
 
 		const activeEditorListener = new MutableDisposable();
 
@@ -274,6 +277,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 					if (e.editor && e.editor === this.model.activeEditor) {
 						groupActiveEditorStickyContext.set(this.model.isSticky(this.model.activeEditor));
 					}
+					break;
+				case GroupChangeKind.GROUP_LOCKED:
+					groupLockedContext.set(this.isLocked);
 					break;
 			}
 
@@ -325,15 +331,22 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}));
 
 		// Toolbar actions
-		const containerToolbarMenu = this._register(this.menuService.createMenu(MenuId.EmptyEditorGroup, this.contextKeyService));
+		const containerToolbarMenu = this._register(this.menuService.createMenu(MenuId.EmptyEditorGroup, this.scopedContextKeyService));
 		const updateContainerToolbar = () => {
 			const actions: { primary: IAction[], secondary: IAction[] } = { primary: [], secondary: [] };
 
-			this.containerToolBarMenuDisposables.value = createAndFillInActionBarActions(
-				containerToolbarMenu,
-				{ arg: { groupId: this.id }, shouldForwardArgs: true },
-				actions,
-				'navigation'
+			this.containerToolBarMenuDisposables.value = combinedDisposable(
+
+				// Clear old actions
+				toDisposable(() => containerToolbar.clear()),
+
+				// Create new actions
+				createAndFillInActionBarActions(
+					containerToolbarMenu,
+					{ arg: { groupId: this.id }, shouldForwardArgs: true },
+					actions,
+					'navigation'
+				)
 			);
 
 			for (const action of [...actions.primary, ...actions.secondary]) {
