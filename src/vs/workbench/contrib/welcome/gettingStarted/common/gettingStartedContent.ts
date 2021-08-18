@@ -329,7 +329,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'scmInstall',
 					title: localize('gettingStarted.scmInstall.title', "Install Git"),
-					description: localize('gettingStarted.scmInstall.description.interpolated', "Install Git track your changes and collaborate with others.\n{0}", Button(localize('installGit', "Install Git"), 'https://aka.ms/vscode-install-git')),
+					description: localize('gettingStarted.scmInstall.description.interpolated', "Install Git to track your project changes and collaborate with others.\n{0}", Button(localize('installGit', "Install Git"), 'https://aka.ms/vscode-install-git')),
 					when: 'git.missing',
 					media: {
 						type: 'svg', altText: 'Source Control view.', path: 'git.svg',
