@@ -402,7 +402,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				this._assertIndex(cellIndex);
 			} else if ('outputId' in edit) {
 				cellIndex = this._getCellIndexWithOutputIdHandle(edit.outputId);
-				if (!this._indexIsValid(cellIndex)) {
+				if (this._indexIsInvalid(cellIndex)) {
 					return null;
 				}
 			} else if (edit.editType !== CellEditType.DocumentMetadata) {
@@ -1008,12 +1008,12 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	private _assertIndex(index: number) {
-		if (!this._indexIsValid(index)) {
+		if (this._indexIsInvalid(index)) {
 			throw new Error(`model index out of range ${index}`);
 		}
 	}
 
-	private _indexIsValid(index: number): boolean {
+	private _indexIsInvalid(index: number): boolean {
 		return index < 0 || index >= this._cells.length;
 	}
 }
