@@ -1169,6 +1169,7 @@ export class TerminalService implements ITerminalService {
 		return parent ? this._splitTerminal(shellLaunchConfig, location, parent) : this._createTerminal(shellLaunchConfig, location, options);
 	}
 
+	//TODO - is this needed?
 	private _isSplitTerminal(options?: ICreateTerminalOptions): boolean {
 		if (options?.location && typeof options.location === 'object') {
 			if ('viewColumn' in options.location) {
