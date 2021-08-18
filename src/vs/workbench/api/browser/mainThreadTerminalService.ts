@@ -139,27 +139,22 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			extHostTerminalId,
 			isFeatureTerminal: launchConfig.isFeatureTerminal,
 			isExtensionOwnedTerminal: launchConfig.isExtensionOwnedTerminal,
-			useShellEnvironment: launchConfig.useShellEnvironment
+			useShellEnvironment: launchConfig.useShellEnvironment,
 		};
+		const location = await this._resolveMainThreadLocation(launchConfig.location);
 		this._extHostTerminals.set(extHostTerminalId, new Promise(async r => {
 			let terminal: ITerminalInstance | undefined;
-			if (launchConfig.isSplitTerminal) {
-				const activeInstance = this._terminalService.getInstanceHost(launchConfig.target).activeInstance;
-				if (activeInstance) {
-					terminal = withNullAsUndefined(await this._terminalService.createTerminal({ location: { parentTerminal: activeInstance }, config: shellLaunchConfig }));
-				}
-			}
 			if (!terminal) {
 				terminal = await this._terminalService.createTerminal({
 					config: shellLaunchConfig,
-					location: launchConfig.location ? await this._resolveMainThreadLocation(launchConfig.location) : undefined
+					location
 				});
 			}
 			r(terminal);
 		}));
 	}
 
-	private async _resolveMainThreadLocation(location: TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminal }): Promise<TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ITerminalInstance } | undefined> {
+	private async _resolveMainThreadLocation(location?: TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminal }): Promise<TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ITerminalInstance } | undefined> {
 		if (typeof location === 'object' && 'parentTerminal' in location) {
 			const parentTerminal = await this._extHostTerminals.get(location.parentTerminal._id.toString());
 			return parentTerminal ? { parentTerminal } : undefined;

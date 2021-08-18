@@ -1179,6 +1179,8 @@ export class TerminalService implements ITerminalService {
 				return options.location.viewColumn === SIDE_GROUP;
 			} else if ('parentTerminal' in options.location) {
 				return true;
+			} else if ('splitActive' in options.location) {
+				return true;
 			}
 		}
 		return false;

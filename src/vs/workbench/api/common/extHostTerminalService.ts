@@ -51,7 +51,7 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 export interface ITerminalInternalOptions {
 	isFeatureTerminal?: boolean;
 	useShellEnvironment?: boolean;
-	location?: TerminalLocation | vscode.TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminal };
+	parentTerminal?: ExtHostTerminal;
 }
 
 export const IExtHostTerminalService = createDecorator<IExtHostTerminalService>('IExtHostTerminalService');
@@ -146,11 +146,11 @@ export class ExtHostTerminal {
 			isFeatureTerminal: withNullAsUndefined(internalOptions?.isFeatureTerminal),
 			isExtensionOwnedTerminal: true,
 			useShellEnvironment: withNullAsUndefined(internalOptions?.useShellEnvironment),
-			location: options.location ? this._resolveExtHostLocation(options.location) : undefined
+			location: this._resolveExtHostLocation(options.location, internalOptions?.parentTerminal)
 		});
 	}
 
-	private _resolveExtHostLocation(location: TerminalLocation | vscode.TerminalEditorLocationOptions | vscode.TerminalSplitLocationOptions, parentTerminal?: ExtHostTerminal): TerminalLocation | vscode.TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminal } | undefined {
+	private _resolveExtHostLocation(location?: TerminalLocation | vscode.TerminalEditorLocationOptions | vscode.TerminalSplitLocationOptions, parentTerminal?: ExtHostTerminal): TerminalLocation | vscode.TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminal } | undefined {
 		if (typeof location === 'object' && 'parentTerminal' in location) {
 			// use the ExtHostTerminal with value = to the parentTerminal
 			return parentTerminal ? { parentTerminal } : undefined;
@@ -158,7 +158,7 @@ export class ExtHostTerminal {
 		return location;
 	}
 
-	public async createExtensionTerminal(iconPath?: TerminalIcon, color?: ThemeColor): Promise<number> {
+	public async createExtensionTerminal(location?: TerminalLocation | vscode.TerminalEditorLocationOptions, parentTerminal?: ExtHostTerminal, iconPath?: TerminalIcon, color?: ThemeColor): Promise<number> {
 		if (typeof this._id !== 'string') {
 			throw new Error('Terminal has already been created');
 		}
@@ -166,7 +166,8 @@ export class ExtHostTerminal {
 			name: this._name,
 			isExtensionCustomPtyTerminal: true,
 			icon: iconPath,
-			color: ThemeColor.isThemeColor(color) ? color.id : undefined
+			color: ThemeColor.isThemeColor(color) ? color.id : undefined,
+			location: this._resolveExtHostLocation(location, parentTerminal)
 		});
 		// At this point, the id has been set via `$acceptTerminalOpened`
 		if (typeof this._id === 'string') {
@@ -397,12 +398,19 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	public createExtensionTerminal(options: vscode.ExtensionTerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, generateUuid(), options, options.name);
 		const p = new ExtHostPseudoterminal(options.pty);
-		terminal.createExtensionTerminal(asTerminalIcon(options.iconPath), asTerminalColor(options.color)).then(id => {
+		terminal.createExtensionTerminal(this._resolveLocation(options.location), internalOptions?.parentTerminal, asTerminalIcon(options.iconPath), asTerminalColor(options.color)).then(id => {
 			const disposable = this._setupExtHostProcessListeners(id, p);
 			this._terminalProcessDisposables[id] = disposable;
 		});
 		this._terminals.push(terminal);
 		return terminal.value;
+	}
+
+	private _resolveLocation(location?: TerminalLocation | vscode.TerminalEditorLocationOptions | vscode.TerminalSplitLocationOptions): undefined | TerminalLocation | vscode.TerminalEditorLocationOptions {
+		if (typeof location === 'object' && 'parentTerminal' in location) {
+			return undefined;
+		}
+		return location;
 	}
 
 	public attachPtyToTerminal(id: number, pty: vscode.Pseudoterminal): void {
@@ -649,7 +657,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			if (id) {
 				const index = this._getTerminalObjectIndexById(this._terminals, id);
 				if (index) {
-					opts.location = { parentTerminal: this._terminals[index] };
+					opts.parentTerminal = this._terminals[index];
 				}
 			}
 		}
