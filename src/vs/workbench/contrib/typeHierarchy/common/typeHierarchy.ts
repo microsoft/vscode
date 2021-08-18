@@ -26,8 +26,8 @@ export const enum TypeHierarchyDirection {
 export interface TypeHierarchyItem {
 	_sessionId: string;
 	_itemId: string;
-	name: string;
 	kind: SymbolKind;
+	name: string;
 	detail?: string;
 	uri: URI;
 	range: IRange;

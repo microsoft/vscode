@@ -286,7 +286,12 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			},
 			(event: any) => {
 				console.error(event.message, event.error);
-				this._onDidExit.fire([ExtensionHostExitCode.UnexpectedError, event.message || event.error]);
+
+				if (!barrier.isOpen()) {
+					// Only terminate the web worker extension host when an error occurs during handshake
+					// and setup. All other errors can be normal uncaught exceptions
+					this._onDidExit.fire([ExtensionHostExitCode.UnexpectedError, event.message || event.error]);
+				}
 			}
 		);
 
