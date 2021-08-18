@@ -20,9 +20,11 @@ import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { GettingStartedInput, gettingStartedInputTypeId } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 const configurationKey = 'workbench.startupEditor';
 const oldConfigurationKey = 'workbench.welcome.enabled';
+const telemetryOptOutStorageKey = 'workbench.telemetryOptOutShown';
 
 export class WelcomePageContribution implements IWorkbenchContribution {
 
@@ -36,31 +38,40 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		this.run().then(undefined, onUnexpectedError);
 	}
 
 	private async run() {
+
+		// Always open Welcome page for first-launch, no matter what is open or which startupEditor is set.
+		if (this.configurationService.getValue('telemetry.enableTelemetry') && !this.storageService.get(telemetryOptOutStorageKey, StorageScope.GLOBAL)) {
+			this.storageService.store(telemetryOptOutStorageKey, true, StorageScope.GLOBAL, StorageTarget.USER);
+			await this.openWelcome(true);
+			return;
+		}
+
 		const enabled = isWelcomePageEnabled(this.configurationService, this.contextService, this.environmentService);
 		if (enabled && this.lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
 			const hasBackups = await this.workingCopyBackupService.hasBackups();
 			if (hasBackups) { return; }
+		}
 
-			// Open the welcome even if we opened a set of default editors
-			if (!this.editorService.activeEditor || this.layoutService.openedDefaultEditors) {
-				const startupEditorSetting = this.configurationService.inspect<string>(configurationKey);
+		// Open the welcome even if we opened a set of default editors
+		if (!this.editorService.activeEditor || this.layoutService.openedDefaultEditors) {
+			const startupEditorSetting = this.configurationService.inspect<string>(configurationKey);
 
-				// 'readme' should not be set in workspace settings to prevent tracking,
-				// but it can be set as a default (as in codespaces) or a user setting
-				const openWithReadme = startupEditorSetting.value === 'readme' &&
-					(startupEditorSetting.userValue === 'readme' || startupEditorSetting.defaultValue === 'readme');
+			// 'readme' should not be set in workspace settings to prevent tracking,
+			// but it can be set as a default (as in codespaces) or a user setting
+			const openWithReadme = startupEditorSetting.value === 'readme' &&
+				(startupEditorSetting.userValue === 'readme' || startupEditorSetting.defaultValue === 'readme');
 
-				if (openWithReadme) {
-					await this.openReadme();
-				} else {
-					await this.openWelcome();
-				}
+			if (openWithReadme) {
+				await this.openReadme();
+			} else {
+				await this.openWelcome();
 			}
 		}
 	}
@@ -90,7 +101,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		}
 	}
 
-	private async openWelcome() {
+	private async openWelcome(showTelemetryNotice?: boolean) {
 		const startupEditorTypeID = gettingStartedInputTypeId;
 		const editor = this.editorService.activeEditor;
 
@@ -101,7 +112,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 
 		const options: IEditorOptions = editor ? { pinned: false, index: 0 } : { pinned: false };
 		if (startupEditorTypeID === gettingStartedInputTypeId) {
-			this.editorService.openEditor(this.instantiationService.createInstance(GettingStartedInput, {}), options);
+			this.editorService.openEditor(this.instantiationService.createInstance(GettingStartedInput, { showTelemetryNotice }), options);
 		}
 	}
 }

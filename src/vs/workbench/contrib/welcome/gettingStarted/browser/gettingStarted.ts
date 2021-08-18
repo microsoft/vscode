@@ -61,8 +61,10 @@ import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { coalesce, equals, flatten } from 'vs/base/common/arrays';
 import { ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from 'vs/workbench/common/theme';
+import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { startEntries } from 'vs/workbench/contrib/welcome/gettingStarted/common/gettingStartedContent';
 import { GettingStartedIndexList } from './gettingStartedList';
+import product from 'vs/platform/product/common/product';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -929,7 +931,7 @@ export class GettingStartedPage extends EditorPane {
 				if (first) {
 					this.currentWalkthrough = first;
 					this.editorInput.selectedCategory = this.currentWalkthrough?.id;
-					this.buildCategorySlide(this.editorInput.selectedCategory);
+					this.buildCategorySlide(this.editorInput.selectedCategory, undefined);
 					this.setSlide('details');
 					return;
 				}
@@ -1343,7 +1345,23 @@ export class GettingStartedPage extends EditorPane {
 		this.detailsScrollbar = this._register(new DomScrollableElement(stepsContainer, { className: 'steps-container' }));
 		const stepListComponent = this.detailsScrollbar.getDomNode();
 
-		reset(this.stepsContent, categoryDescriptorComponent, stepListComponent, this.stepMediaComponent);
+		const categoryFooter = $('.getting-started-footer');
+		if (this.editorInput.showTelemetryNotice && this.configurationService.getValue('telemetry.enableTelemetry') && product.enableTelemetry) {
+			const mdRenderer = this._register(this.instantiationService.createInstance(MarkdownRenderer, {}));
+
+			const privacyStatementCopy = localize('privacy statement', "privacy statement");
+			const privacyStatementButton = `[${privacyStatementCopy}](command:workbench.action.openPrivacyStatementUrl)`;
+
+			const optOutCopy = localize('optOut', "opt out");
+			const optOutButton = `[${optOutCopy}](command:settings.filterByTelemetry)`;
+
+			const text = localize({ key: 'footer', comment: ['fist substitution is "vs code", second is "privacy statement", third is "opt out".'] },
+				"{0} collects usage data. Read our {1} and learn how to {2}.", product.nameShort, privacyStatementButton, optOutButton);
+
+			categoryFooter.append(mdRenderer.render({ value: text, isTrusted: true }).element);
+		}
+
+		reset(this.stepsContent, categoryDescriptorComponent, stepListComponent, this.stepMediaComponent, categoryFooter);
 
 		const toExpand = category.steps.find(step => this.contextService.contextMatchesRules(step.when) && !step.done) ?? category.steps[0];
 		this.selectStep(selectedStep ?? toExpand.id, !selectedStep, true);
@@ -1368,6 +1386,8 @@ export class GettingStartedPage extends EditorPane {
 			this.currentWalkthrough = undefined;
 			this.editorInput.selectedCategory = undefined;
 			this.editorInput.selectedStep = undefined;
+			this.editorInput.showTelemetryNotice = false;
+
 			this.selectStep(undefined);
 			this.setSlide('categories');
 			this.container.focus();
