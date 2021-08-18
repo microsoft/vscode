@@ -13,7 +13,7 @@ import { IWorkingCopyBackupService, IResolvedWorkingCopyBackup } from 'vs/workbe
 import { IFileService, FileOperationError, FileOperationResult, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED, FileSystemProviderCapabilities, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { timeout, TaskSequentializer, ThrottledDelayer } from 'vs/base/common/async';
+import { timeout, TaskSequentializer } from 'vs/base/common/async';
 import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
 import { ILogService } from 'vs/platform/log/common/log';
 import { basename } from 'vs/base/common/path';
@@ -90,7 +90,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private lastResolvedFileStat: IFileStatWithMetadata | undefined;
 
 	private readonly saveSequentializer = new TaskSequentializer();
-	private readonly _autoDetectLanguageThrottler = this._register(new ThrottledDelayer<void>(600));
 
 	private dirty = false;
 	private inConflictMode = false;
@@ -531,13 +530,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Model Listeners
 		this.installModelListeners(textModel);
 
-		// Try to detect language from content (debounced by some time to reduce pressure).
-		this._autoDetectLanguageThrottler.trigger(async () => {
-			const currentMode = this.getMode();
-			if (this.resource.scheme === this.pathService.defaultUriScheme && (!currentMode || currentMode === PLAINTEXT_MODE_ID)) {
-				await this.autoDetectLanguage();
-			}
-		});
+		// Detect language
+		this.autoDetectLanguage();
 	}
 
 	private doUpdateTextModel(value: ITextBufferFactory): void {
@@ -608,13 +602,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Emit as event
 		this._onDidChangeContent.fire();
 
-		// Try to detect language from content (debounced by some time to reduce pressure).
-		this._autoDetectLanguageThrottler.trigger(async () => {
-			const currentMode = this.getMode();
-			if (this.resource.scheme === this.pathService.defaultUriScheme && (!currentMode || currentMode === PLAINTEXT_MODE_ID)) {
-				await this.autoDetectLanguage();
-			}
-		});
+		// Detect language from content. Internally, this is throttled to reduce pressure.
+		this.autoDetectLanguage();
+	}
+
+	override async autoDetectLanguage() {
+		const currentMode = this.getMode();
+		if (this.resource.scheme === this.pathService.defaultUriScheme && (!currentMode || currentMode === PLAINTEXT_MODE_ID)) {
+			super.autoDetectLanguage();
+		}
 	}
 
 	//#endregion

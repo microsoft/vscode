@@ -14,6 +14,7 @@ import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
+import { ThrottledDelayer } from 'vs/base/common/async';
 
 /**
  * The base text editor model leverages the code editor model. This class is only intended to be subclassed and not instantiated.
@@ -25,6 +26,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 	private createdEditorModel: boolean | undefined;
 
 	private readonly modelDisposeListener = this._register(new MutableDisposable());
+	private readonly _autoDetectLanguageThrottler = this._register(new ThrottledDelayer<void>(600));
 
 	constructor(
 		@IModelService protected modelService: IModelService,
@@ -100,6 +102,10 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 	}
 
 	protected async autoDetectLanguage() {
+		this._autoDetectLanguageThrottler.trigger(() => this.autoDetectLanguageImpl());
+	}
+
+	private async autoDetectLanguageImpl() {
 		if (this.hasModeSetExplicitly || !this.textEditorModelHandle || !this.languageDetectionService.isEnabledForMode(this.getMode() ?? PLAINTEXT_MODE_ID)) {
 			return;
 		}

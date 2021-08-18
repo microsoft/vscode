@@ -27,7 +27,6 @@ import { getCharContainingOffset } from 'vs/base/common/strings';
 import { UTF8 } from 'vs/workbench/services/textfile/common/encoding';
 import { bufferToStream, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
-import { ThrottledDelayer } from 'vs/base/common/async';
 
 export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport, IEncodingSupport, IWorkingCopy {
 
@@ -73,8 +72,11 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	private static readonly FIRST_LINE_NAME_CANDIDATE_MAX_LENGTH = UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH * 10;
 
 	// support the special '${activeEditorLanguage}' mode by
-	// looking up the language mode from the currently
-	// active text editor if any
+	// looking up the language mode from the editor that is
+	// active before the untitled editor opens. This special
+	// mode is only used for the initial language mode and
+	// can be changed after the fact (either manually or through
+	// auto-detection).
 	private static readonly ACTIVE_EDITOR_LANGUAGE_MODE = '${activeEditorLanguage}';
 
 	//#region Events
@@ -99,8 +101,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	readonly typeId = NO_TYPE_ID; // IMPORTANT: never change this to not break existing assumptions (e.g. backups)
 
 	readonly capabilities = WorkingCopyCapabilities.Untitled;
-
-	private readonly _autoDetectLanguageThrottler = this._register(new ThrottledDelayer<void>(600));
 
 	//#region Name
 
@@ -368,8 +368,8 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		// Emit as general content change event
 		this._onDidChangeContent.fire();
 
-		// Try to detect language from content (debounced by some time to reduce pressure).
-		this._autoDetectLanguageThrottler.trigger(() => this.autoDetectLanguage());
+		// Detect language from content. Internally this is throttled to reduce pressure.
+		this.autoDetectLanguage();
 	}
 
 	private updateNameFromFirstLine(textEditorModel: ITextModel): void {
