@@ -11,7 +11,6 @@ import * as types from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import type * as vscode from 'vscode';
 import * as tasks from '../common/shared/tasks';
-import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
 import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -23,25 +22,24 @@ import { ExtHostTaskBase, TaskHandleDTO, TaskDTO, CustomExecutionDTO, HandlerDat
 import { Schemas } from 'vs/base/common/network';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
-import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
 import * as resources from 'vs/base/common/resources';
 import { homedir } from 'os';
+import { IExtHostConfigurationResolverService } from 'vs/workbench/api/common/extHostConfigurationResolverService';
 
 export class ExtHostTask extends ExtHostTaskBase {
-	private _variableResolver: ExtHostVariableResolverService | undefined;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 		@IExtHostInitDataService initData: IExtHostInitDataService,
-		@IExtHostWorkspace private readonly workspaceService: IExtHostWorkspace,
+		@IExtHostWorkspace private readonly _workspaceService: IExtHostWorkspace,
 		@IExtHostDocumentsAndEditors editorService: IExtHostDocumentsAndEditors,
 		@IExtHostConfiguration configurationService: IExtHostConfiguration,
 		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService,
 		@ILogService logService: ILogService,
 		@IExtHostApiDeprecationService deprecationService: IExtHostApiDeprecationService,
-		@IExtHostEditorTabs private readonly editorTabs: IExtHostEditorTabs,
+		@IExtHostConfigurationResolverService private readonly _extHostConfigurationResolverService: IExtHostConfigurationResolverService,
 	) {
-		super(extHostRpc, initData, workspaceService, editorService, configurationService, extHostTerminalService, logService, deprecationService);
+		super(extHostRpc, initData, _workspaceService, editorService, configurationService, extHostTerminalService, logService, deprecationService);
 		if (initData.remote.isRemote && initData.remote.authority) {
 			this.registerTaskSystem(Schemas.vscodeRemote, {
 				scheme: Schemas.vscodeRemote,
@@ -68,7 +66,7 @@ export class ExtHostTask extends ExtHostTaskBase {
 		// We have a preserved ID. So the task didn't change.
 		if (tTask._id !== undefined) {
 			// Always get the task execution first to prevent timing issues when retrieving it later
-			const handleDto = TaskHandleDTO.from(tTask, this.workspaceService);
+			const handleDto = TaskHandleDTO.from(tTask, this._workspaceService);
 			const executionDTO = await this._proxy.$getTaskExecution(handleDto);
 			if (executionDTO.task === undefined) {
 				throw new Error('Task from execution DTO is undefined');
@@ -128,14 +126,6 @@ export class ExtHostTask extends ExtHostTaskBase {
 		return resolvedTaskDTO;
 	}
 
-	private async getVariableResolver(workspaceFolders: vscode.WorkspaceFolder[]): Promise<ExtHostVariableResolverService> {
-		if (this._variableResolver === undefined) {
-			const configProvider = await this._configurationService.getConfigProvider();
-			this._variableResolver = new ExtHostVariableResolverService(workspaceFolders, this._editorService, configProvider, this.editorTabs, this.workspaceService);
-		}
-		return this._variableResolver;
-	}
-
 	private async getAFolder(workspaceFolders: vscode.WorkspaceFolder[] | undefined): Promise<IWorkspaceFolder> {
 		let folder = (workspaceFolders && workspaceFolders.length > 0) ? workspaceFolders[0] : undefined;
 		if (!folder) {
@@ -161,7 +151,6 @@ export class ExtHostTask extends ExtHostTaskBase {
 		const workspaceFolder = await this._workspaceProvider.resolveWorkspaceFolder(uri);
 		const workspaceFolders = (await this._workspaceProvider.getWorkspaceFolders2()) ?? [];
 
-		const resolver = await this.getVariableResolver(workspaceFolders);
 		const ws: IWorkspaceFolder = workspaceFolder ? {
 			uri: workspaceFolder.uri,
 			name: workspaceFolder.name,
@@ -172,19 +161,20 @@ export class ExtHostTask extends ExtHostTaskBase {
 		} : await this.getAFolder(workspaceFolders);
 
 		for (let variable of toResolve.variables) {
-			result.variables[variable] = await resolver.resolveAsync(ws, variable);
+			result.variables[variable] = await this._extHostConfigurationResolverService.resolveAsync(ws, variable);
 		}
 		if (toResolve.process !== undefined) {
 			let paths: string[] | undefined = undefined;
 			if (toResolve.process.path !== undefined) {
 				paths = toResolve.process.path.split(path.delimiter);
 				for (let i = 0; i < paths.length; i++) {
-					paths[i] = await resolver.resolveAsync(ws, paths[i]);
+					paths[i] = await this._extHostConfigurationResolverService.resolveAsync(ws, paths[i]);
 				}
 			}
 			result.process = await win32.findExecutable(
-				await resolver.resolveAsync(ws, toResolve.process.name),
-				toResolve.process.cwd !== undefined ? await resolver.resolveAsync(ws, toResolve.process.cwd) : undefined,
+				await this._extHostConfigurationResolverService.resolveAsync(ws, toResolve.process.name),
+				toResolve.process.cwd !== undefined
+					? await this._extHostConfigurationResolverService.resolveAsync(ws, toResolve.process.cwd) : undefined,
 				paths
 			);
 		}

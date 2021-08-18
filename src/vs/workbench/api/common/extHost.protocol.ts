@@ -1045,6 +1045,10 @@ export interface MainThreadExtensionServiceShape extends IDisposable {
 	$setPerformanceMarks(marks: performance.PerformanceMark[]): Promise<void>;
 }
 
+export interface MainThreadConfigurationResolverShape extends IDisposable {
+	$getOriginalUri(uri: UriComponents): Promise<UriComponents>;
+}
+
 export interface SCMProviderFeatures {
 	hasQuickDiffProvider?: boolean;
 	count?: number;
@@ -2188,6 +2192,7 @@ export const MainContext = {
 	MainThreadCommands: createMainId<MainThreadCommandsShape>('MainThreadCommands'),
 	MainThreadComments: createMainId<MainThreadCommentsShape>('MainThreadComments'),
 	MainThreadConfiguration: createMainId<MainThreadConfigurationShape>('MainThreadConfiguration'),
+	MainThreadConfigurationResolver: createMainId<MainThreadConfigurationResolverShape>('MainThreadConfigurationResolver'),
 	MainThreadConsole: createMainId<MainThreadConsoleShape>('MainThreadConsole'),
 	MainThreadDebugService: createMainId<MainThreadDebugServiceShape>('MainThreadDebugService'),
 	MainThreadDecorations: createMainId<MainThreadDecorationsShape>('MainThreadDecorations'),

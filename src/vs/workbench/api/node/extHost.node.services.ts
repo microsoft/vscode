@@ -22,6 +22,8 @@ import { IExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelServ
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
 import { ExtensionStoragePaths } from 'vs/workbench/api/node/extHostStoragePaths';
+import { IExtHostConfigurationResolverService } from 'vs/workbench/api/common/extHostConfigurationResolverService';
+import { ExtHostConfigurationResolverService } from 'vs/workbench/api/node/extHostConfigurationResolverService';
 
 // #########################################################################
 // ###                                                                   ###
@@ -33,6 +35,7 @@ registerSingleton(IExtHostExtensionService, ExtHostExtensionService);
 registerSingleton(ILogService, ExtHostLogService);
 registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths);
 
+registerSingleton(IExtHostConfigurationResolverService, ExtHostConfigurationResolverService);
 registerSingleton(IExtHostDebugService, ExtHostDebugService);
 registerSingleton(IExtHostOutputService, ExtHostOutputService2);
 registerSingleton(IExtHostSearch, NativeExtHostSearch);

@@ -22,6 +22,7 @@ import './mainThreadCLICommands';
 import './mainThreadClipboard';
 import './mainThreadCommands';
 import './mainThreadConfiguration';
+import './mainThreadConfigurationResolver';
 import './mainThreadConsole';
 import './mainThreadDebugService';
 import './mainThreadDecorations';

@@ -1057,3 +1057,17 @@ const enum CodePoint {
 	 */
 	enclosingKeyCap = 0x20E3,
 }
+
+/**
+ * This async replace function will process the string twice, so consider avoiding if that's too costly.
+ */
+export async function replaceAsync(value: string, searchValue: RegExp, replacer: (substring: string, ...args: any[]) => Promise<string>) {
+	const promises: Promise<string>[] = [];
+	value.replace(searchValue, (match, ...args) => {
+		const promise = replacer(match, ...args);
+		promises.push(promise);
+		return match;
+	});
+	const data = await Promise.all(promises);
+	return value.replace(searchValue, () => data.shift()!);
+}
