@@ -16,6 +16,7 @@ import { EditorResolution, IEditorOptions } from 'vs/platform/editor/common/edit
 import { IEditorResolverService, ResolvedStatus, ResolvedEditor } from 'vs/workbench/services/editor/common/editorResolverService';
 import { isEditorInputWithOptions } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 /**
  * An implementation of editor for binary files that cannot be displayed.
@@ -29,7 +30,8 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 		@IThemeService themeService: IThemeService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super(
 			BinaryFileEditor.ID,
@@ -38,7 +40,8 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 			},
 			telemetryService,
 			themeService,
-			storageService
+			storageService,
+			instantiationService
 		);
 	}
 

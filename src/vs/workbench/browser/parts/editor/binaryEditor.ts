@@ -14,13 +14,15 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Dimension, size, clearNode, append, addDisposableListener, EventType, $ } from 'vs/base/browser/dom';
+import { Dimension, size, clearNode, append } from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { ByteSize } from 'vs/platform/files/common/files';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Link } from 'vs/platform/opener/browser/link';
 
 export interface IOpenCallbacks {
 	openInternal: (input: EditorInput, options: IEditorOptions | undefined) => Promise<void>;
@@ -47,7 +49,8 @@ export abstract class BaseBinaryResourceEditor extends EditorPane {
 		private readonly callbacks: IOpenCallbacks,
 		telemetryService: ITelemetryService,
 		themeService: IThemeService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(id, telemetryService, themeService, storageService);
 	}
@@ -98,16 +101,21 @@ export abstract class BaseBinaryResourceEditor extends EditorPane {
 		label.textContent = localize('nativeBinaryError', "The file is not displayed in the editor because it is either binary or uses an unsupported text encoding.");
 		binaryContainer.appendChild(label);
 
-		const link = append(label, $('a.embedded-link'));
-		link.setAttribute('role', 'button');
-		link.textContent = localize('openAsText', "Do you want to open it anyway?");
+		const link = this._register(this.instantiationService.createInstance(Link, {
+			label: localize('openAsText', "Do you want to open it anyway?"),
+			href: ''
+		}, {
+			opener: async () => {
 
-		disposables.add(addDisposableListener(link, EventType.CLICK, async () => {
-			await this.callbacks.openInternal(input, options);
+				// Open in place
+				await this.callbacks.openInternal(input, options);
 
-			// Signal to listeners that the binary editor has been opened in-place
-			this._onDidOpenInPlace.fire();
+				// Signal to listeners that the binary editor has been opened in-place
+				this._onDidOpenInPlace.fire();
+			}
 		}));
+
+		append(label, link.el);
 
 		scrollbar.scanDomNode();
 
