@@ -704,7 +704,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			allowScripts: true,
 			localResourceRoots: this.localResourceRootsCache,
 		}, undefined);
-		console.log(this.localResourceRootsCache);
+		// console.log(this.localResourceRootsCache);
 		webview.html = content;
 		return webview;
 	}
