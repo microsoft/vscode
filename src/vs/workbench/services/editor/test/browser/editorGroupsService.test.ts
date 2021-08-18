@@ -1344,4 +1344,98 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(firedCount, 0);
 		moveListener.dispose();
 	});
+
+	test('locked groups - basics', async () => {
+		const [part] = await createPart();
+		const group = part.activeGroup;
+
+		const rightGroup = part.addGroup(group, GroupDirection.RIGHT);
+
+		let leftFiredCountFromPart = 0;
+		let rightFiredCountFromPart = 0;
+		const partListener = part.onDidChangeGroupLocked(g => {
+			if (g === group) {
+				leftFiredCountFromPart++;
+			} else if (g === rightGroup) {
+				rightFiredCountFromPart++;
+			}
+		});
+
+		let leftFiredCountFromGroup = 0;
+		const leftGroupListener = group.onDidGroupChange(e => {
+			if (e.kind === GroupChangeKind.GROUP_LOCKED) {
+				leftFiredCountFromGroup++;
+			}
+		});
+
+		let rightFiredCountFromGroup = 0;
+		const rightGroupListener = rightGroup.onDidGroupChange(e => {
+			if (e.kind === GroupChangeKind.GROUP_LOCKED) {
+				rightFiredCountFromGroup++;
+			}
+		});
+
+		rightGroup.lock(true);
+		rightGroup.lock(true);
+
+		assert.strictEqual(leftFiredCountFromGroup, 0);
+		assert.strictEqual(leftFiredCountFromPart, 0);
+		assert.strictEqual(rightFiredCountFromGroup, 1);
+		assert.strictEqual(rightFiredCountFromPart, 1);
+
+		rightGroup.lock(false);
+		rightGroup.lock(false);
+
+		assert.strictEqual(leftFiredCountFromGroup, 0);
+		assert.strictEqual(leftFiredCountFromPart, 0);
+		assert.strictEqual(rightFiredCountFromGroup, 2);
+		assert.strictEqual(rightFiredCountFromPart, 2);
+
+		group.lock(true);
+		group.lock(true);
+
+		assert.strictEqual(leftFiredCountFromGroup, 1);
+		assert.strictEqual(leftFiredCountFromPart, 1);
+		assert.strictEqual(rightFiredCountFromGroup, 2);
+		assert.strictEqual(rightFiredCountFromPart, 2);
+
+		group.lock(false);
+		group.lock(false);
+
+		assert.strictEqual(leftFiredCountFromGroup, 2);
+		assert.strictEqual(leftFiredCountFromPart, 2);
+		assert.strictEqual(rightFiredCountFromGroup, 2);
+		assert.strictEqual(rightFiredCountFromPart, 2);
+
+		partListener.dispose();
+		leftGroupListener.dispose();
+		rightGroupListener.dispose();
+	});
+
+	test('locked groups - single group is never locked', async () => {
+		const [part] = await createPart();
+		const group = part.activeGroup;
+
+		group.lock(true);
+		assert.strictEqual(group.isLocked, false);
+
+		const rightGroup = part.addGroup(group, GroupDirection.RIGHT);
+		rightGroup.lock(true);
+
+		assert.strictEqual(rightGroup.isLocked, true);
+
+		part.removeGroup(group);
+		assert.strictEqual(rightGroup.isLocked, false);
+
+		const rightGroup2 = part.addGroup(rightGroup, GroupDirection.RIGHT);
+		rightGroup.lock(true);
+		rightGroup2.lock(true);
+
+		assert.strictEqual(rightGroup.isLocked, true);
+		assert.strictEqual(rightGroup2.isLocked, true);
+
+		part.removeGroup(rightGroup2);
+
+		assert.strictEqual(rightGroup.isLocked, false);
+	});
 });

@@ -505,6 +505,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private registerListeners(): void {
 
 		// Model Events
+		this._register(this.model.onDidChangeLocked(() => this.onDidChangeGroupLocked()));
 		this._register(this.model.onDidChangeEditorPinned(editor => this.onDidChangeEditorPinned(editor)));
 		this._register(this.model.onDidChangeEditorSticky(editor => this.onDidChangeEditorSticky(editor)));
 		this._register(this.model.onDidOpenEditor(editor => this.onDidOpenEditor(editor)));
@@ -519,6 +520,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Visibility
 		this._register(this.accessor.onDidVisibilityChange(e => this.onDidVisibilityChange(e)));
+	}
+
+	private onDidChangeGroupLocked(): void {
+		this._onDidGroupChange.fire({ kind: GroupChangeKind.GROUP_LOCKED });
 	}
 
 	private onDidChangeEditorPinned(editor: EditorInput): void {
@@ -1728,6 +1733,30 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 			await openEditorResult;
 		}
+	}
+
+	//#endregion
+
+	//#region Locking
+
+	get isLocked(): boolean {
+		if (this.accessor.groups.length === 1) {
+			// Special case: if only 1 group is opened, never report it as locked
+			// to ensure editors can always open in the "default" editor group
+			return false;
+		}
+
+		return this.model.isLocked;
+	}
+
+	lock(locked: boolean): void {
+		if (this.accessor.groups.length === 1) {
+			// Special case: if only 1 group is opened, never allow to lock
+			// to ensure editors can always open in the "default" editor group
+			locked = false;
+		}
+
+		this.model.lock(locked);
 	}
 
 	//#endregion
