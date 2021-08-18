@@ -4,9 +4,48 @@
  *--------------------------------------------------------------------------------------------*/
 
 const MarkdownIt = require('markdown-it');
+const insane = require('insane');
+import type { InsaneOptions } from 'insane';
 import type * as markdownIt from 'markdown-it';
 
-export function activate() {
+function _extInsaneOptions(opts: InsaneOptions, allowedAttributesForAll: string[]): InsaneOptions {
+	const allowedAttributes: Record<string, string[]> = opts.allowedAttributes ?? {};
+	if (opts.allowedTags) {
+		for (const tag of opts.allowedTags) {
+			let array = allowedAttributes[tag];
+			if (!array) {
+				array = allowedAttributesForAll;
+			} else {
+				array = array.concat(allowedAttributesForAll);
+			}
+			allowedAttributes[tag] = array;
+		}
+	}
+
+	return { ...opts, allowedAttributes };
+}
+
+const insaneOptions: InsaneOptions = _extInsaneOptions({
+	allowedTags: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
+	allowedAttributes: {
+		'a': ['href', 'x-dispatch'],
+		'button': ['data-href', 'x-dispatch'],
+		'input': ['type', 'placeholder', 'checked', 'required'],
+		'label': ['for'],
+		'select': ['required'],
+		'span': ['data-command', 'role'],
+		'textarea': ['name', 'placeholder', 'required'],
+	},
+	allowedSchemes: ['http', 'https']
+}, [
+	'align',
+	'class',
+	'id',
+	'style',
+	'aria-hidden',
+]);
+
+export function activate(ctx: { workspace: { isTrusted: boolean } }) {
 	let markdownIt = new MarkdownIt({
 		html: true
 	});
@@ -174,8 +213,10 @@ export function activate() {
 			} else {
 				previewNode.classList.remove('emptyMarkdownCell');
 
-				const rendered = markdownIt.render(text);
-				previewNode.innerHTML = rendered;
+				const unsanitizedRenderedMarkdown = markdownIt.render(text);
+				previewNode.innerHTML = ctx.workspace.isTrusted
+					? unsanitizedRenderedMarkdown
+					: insane(unsanitizedRenderedMarkdown, insaneOptions);
 			}
 		},
 		extendMarkdownIt: (f: (md: typeof markdownIt) => void) => {
