@@ -17,6 +17,7 @@ import * as UUID from 'vs/base/common/uuid';
 import * as nls from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -25,7 +26,7 @@ import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener'
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
+import { asWebviewUri, webviewGenericCspSource } from 'vs/workbench/api/common/shared/webview';
 import { CellEditState, ICellOutputViewModel, ICommonCellInfo, ICommonNotebookEditor, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IGenericCellViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { preloadsScriptStr, RendererMetadata } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
@@ -75,6 +76,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	private _disposed = false;
 	private _currentKernel?: INotebookKernel;
 
+	private readonly nonce = UUID.generateUuid();
+
 	constructor(
 		public readonly notebookEditor: ICommonNotebookEditor,
 		public readonly id: string,
@@ -103,6 +106,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -187,14 +191,26 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			this.options,
 			{ dragAndDropEnabled: this.options.dragAndDropEnabled },
 			renderersData,
-			this.workspaceTrustManagementService.isWorkspaceTrusted());
+			this.workspaceTrustManagementService.isWorkspaceTrusted(),
+			this.nonce);
 
+		const enableCsp = this.configurationService.getValue('notebook.experimental.enableCsp');
 		return html`
 		<html lang="en">
 			<head>
 				<meta charset="UTF-8">
-				<base href="${baseUrl}/"/>
-				<style>
+				<base href="${baseUrl}/" />
+				${enableCsp ?
+				`<meta http-equiv="Content-Security-Policy" content="
+					default-src 'none';
+					script-src ${webviewGenericCspSource} 'unsafe-inline' 'unsafe-eval';
+					style-src ${webviewGenericCspSource} 'unsafe-inline';
+					img-src ${webviewGenericCspSource} https: http: data:;
+					font-src ${webviewGenericCspSource} https:;
+					connect-src https:;
+					child-src https: data:;
+				">` : ''}
+				<style nonce="${this.nonce}">
 					#container .cell_container {
 						width: 100%;
 					}
@@ -308,8 +324,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				</style>
 			</head>
 			<body style="overflow: hidden;">
-				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
-				<script type="module">${preloadScript}</script>
+				<div id="container" class="widgetarea" style="position: absolute; width:100%; top: 0px"></div>
+				<script type="module" nonce="${this.nonce}">${preloadScript}</script>
 			</body>
 		</html>`;
 	}
@@ -688,7 +704,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			allowScripts: true,
 			localResourceRoots: this.localResourceRootsCache,
 		}, undefined);
-
+		console.log(this.localResourceRootsCache);
 		webview.html = content;
 		return webview;
 	}

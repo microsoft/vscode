@@ -44,6 +44,7 @@ export interface PreloadOptions {
 }
 
 interface PreloadContext {
+	readonly nonce: string;
 	readonly style: PreloadStyles;
 	readonly options: PreloadOptions;
 	readonly rendererData: readonly RendererMetadata[];
@@ -1448,12 +1449,13 @@ export interface RendererMetadata {
 	readonly messaging: boolean;
 }
 
-export function preloadsScriptStr(styleValues: PreloadStyles, options: PreloadOptions, renderers: readonly RendererMetadata[], isWorkspaceTrusted: boolean) {
+export function preloadsScriptStr(styleValues: PreloadStyles, options: PreloadOptions, renderers: readonly RendererMetadata[], isWorkspaceTrusted: boolean, nonce: string) {
 	const ctx: PreloadContext = {
 		style: styleValues,
 		options,
 		rendererData: renderers,
-		isWorkspaceTrusted
+		isWorkspaceTrusted,
+		nonce,
 	};
 	// TS will try compiling `import()` in webviewPreloads, so use an helper function instead
 	// of using `import(...)` directly
