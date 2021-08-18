@@ -57,21 +57,21 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		if (enabled && this.lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
 			const hasBackups = await this.workingCopyBackupService.hasBackups();
 			if (hasBackups) { return; }
-		}
 
-		// Open the welcome even if we opened a set of default editors
-		if (!this.editorService.activeEditor || this.layoutService.openedDefaultEditors) {
-			const startupEditorSetting = this.configurationService.inspect<string>(configurationKey);
+			// Open the welcome even if we opened a set of default editors
+			if (!this.editorService.activeEditor || this.layoutService.openedDefaultEditors) {
+				const startupEditorSetting = this.configurationService.inspect<string>(configurationKey);
 
-			// 'readme' should not be set in workspace settings to prevent tracking,
-			// but it can be set as a default (as in codespaces) or a user setting
-			const openWithReadme = startupEditorSetting.value === 'readme' &&
-				(startupEditorSetting.userValue === 'readme' || startupEditorSetting.defaultValue === 'readme');
+				// 'readme' should not be set in workspace settings to prevent tracking,
+				// but it can be set as a default (as in codespaces) or a user setting
+				const openWithReadme = startupEditorSetting.value === 'readme' &&
+					(startupEditorSetting.userValue === 'readme' || startupEditorSetting.defaultValue === 'readme');
 
-			if (openWithReadme) {
-				await this.openReadme();
-			} else {
-				await this.openWelcome();
+				if (openWithReadme) {
+					await this.openReadme();
+				} else {
+					await this.openWelcome();
+				}
 			}
 		}
 	}
