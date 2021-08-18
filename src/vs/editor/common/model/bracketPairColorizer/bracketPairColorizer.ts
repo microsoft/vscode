@@ -15,7 +15,7 @@ import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvent
 import { LanguageId } from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {
-	editorBracketHighlightingForeground1, editorBracketHighlightingForeground2, editorBracketHighlightingForeground3, editorBracketHighlightingForeground4, editorBracketHighlightingForeground5, editorBracketHighlightingForeground6
+	editorBracketHighlightingForeground1, editorBracketHighlightingForeground2, editorBracketHighlightingForeground3, editorBracketHighlightingForeground4, editorBracketHighlightingForeground5, editorBracketHighlightingForeground6, editorBracketHighlightingUnexpectedBracketForeground
 } from 'vs/editor/common/view/editorColorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { AstNode, AstNodeKind } from './ast';
@@ -227,9 +227,11 @@ class BracketPairColorizerImpl extends Disposable implements DecorationProvider 
 function collectBrackets(node: AstNode, nodeOffsetStart: Length, nodeOffsetEnd: Length, startOffset: Length, endOffset: Length, result: BracketInfo[], level: number = 0): void {
 	if (node.kind === AstNodeKind.Bracket) {
 		const range = lengthsToRange(nodeOffsetStart, nodeOffsetEnd);
-		result.push(new BracketInfo(range, level - 1));
-	}
-	else {
+		result.push(new BracketInfo(range, level - 1, false));
+	} else if (node.kind === AstNodeKind.UnexpectedClosingBracket) {
+		const range = lengthsToRange(nodeOffsetStart, nodeOffsetEnd);
+		result.push(new BracketInfo(range, level - 1, true));
+	} else {
 		if (node.kind === AstNodeKind.Pair) {
 			level++;
 		}
@@ -247,7 +249,8 @@ export class BracketInfo {
 	constructor(
 		public readonly range: Range,
 		/** 0-based level */
-		public readonly level: number
+		public readonly level: number,
+		public readonly isInvalid: boolean,
 	) { }
 
 	hash(): string {
@@ -256,7 +259,12 @@ export class BracketInfo {
 }
 
 class ColorProvider {
+	public readonly unexpectedClosingBracketClassName = 'unexpected-closing-bracket';
+
 	getInlineClassName(bracket: BracketInfo): string {
+		if (bracket.isInvalid) {
+			return this.unexpectedClosingBracketClassName;
+		}
 		return this.getInlineClassNameOfLevel(bracket.level);
 	}
 
@@ -277,6 +285,8 @@ registerThemingParticipant((theme, collector) => {
 		editorBracketHighlightingForeground6
 	];
 	const colorProvider = new ColorProvider();
+
+	collector.addRule(`.monaco-editor .${colorProvider.unexpectedClosingBracketClassName} { color: ${theme.getColor(editorBracketHighlightingUnexpectedBracketForeground)}; }`);
 
 	let colorValues = colors
 		.map(c => theme.getColor(c))
