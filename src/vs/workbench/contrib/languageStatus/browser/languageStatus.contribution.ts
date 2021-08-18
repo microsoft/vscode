@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
+import { MarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -78,14 +79,23 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			color = themeColorFromId(STATUS_BAR_WARNING_ITEM_FOREGROUND);
 		}
 
+		// todo@jrieken is is NOT OK because all md-strings are now trusted even though
+		// they are from different extensions
+		const tooltip = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
+		for (let status of this._status) {
+			tooltip.appendMarkdown(status.message);
+			tooltip.appendMarkdown('\n\n---\n\n');
+		}
+
 		const props: IStatusbarEntry = {
 			name: localize('status.editor.status', "Language Status"),
 			text: '$(circle-large-outline)',
 			ariaLabel: localize('status.editor.status', "Language Status"),
 			backgroundColor,
 			color,
-			command: EditorStatusContribution._id,
-			showBeak: this._showingDetails
+			// command: EditorStatusContribution._id,
+			showBeak: this._showingDetails,
+			tooltip
 		};
 
 		if (!this._entry.value) {
