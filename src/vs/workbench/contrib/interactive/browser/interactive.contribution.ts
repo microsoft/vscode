@@ -164,7 +164,7 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 		};
 		this._register(notebookService.registerNotebookController('interactive', {
 			id: new ExtensionIdentifier('interactive.builtin'),
-			location: URI.parse('interactive://test')
+			location: undefined
 		}, controller));
 
 		const info = notebookService.getContributedNotebookType('interactive');

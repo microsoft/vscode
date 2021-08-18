@@ -669,7 +669,7 @@ export interface WebviewExtensionDescription {
 
 export interface NotebookExtensionDescription {
 	readonly id: ExtensionIdentifier;
-	readonly location: UriComponents;
+	readonly location: UriComponents | undefined;
 }
 
 export enum WebviewEditorCapabilities {
