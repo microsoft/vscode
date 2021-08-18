@@ -1347,7 +1347,7 @@ export class GettingStartedPage extends EditorPane {
 
 		const categoryFooter = $('.getting-started-footer');
 		if (this.editorInput.showTelemetryNotice && this.configurationService.getValue('telemetry.enableTelemetry')) {
-			const mdRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
+			const mdRenderer = this._register(this.instantiationService.createInstance(MarkdownRenderer, {}));
 			const text = localize('telemetryFooter',
 				"VS Code collects usage data. Read our [privacy statement](command:{0}) and learn how to [opt out]({1}).", 'workbench.action.openPrivacyStatementUrl', 'command:settings.filterByTelemetry');
 			categoryFooter.append(mdRenderer.render({ value: text, isTrusted: true }).element);
@@ -1378,6 +1378,8 @@ export class GettingStartedPage extends EditorPane {
 			this.currentWalkthrough = undefined;
 			this.editorInput.selectedCategory = undefined;
 			this.editorInput.selectedStep = undefined;
+			this.editorInput.showTelemetryNotice = false;
+
 			this.selectStep(undefined);
 			this.setSlide('categories');
 			this.container.focus();
