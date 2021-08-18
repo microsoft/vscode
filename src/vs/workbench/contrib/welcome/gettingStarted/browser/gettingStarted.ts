@@ -1089,8 +1089,8 @@ export class GettingStartedPage extends EditorPane {
 
 		const rankWalkthrough = (e: IResolvedWalkthrough) => {
 			let rank: number | null = e.order;
-			// then add bonuses...
-			if (e.isFeatured) { rank += 5; }
+
+			if (e.isFeatured) { rank += 7; }
 			if (e.newEntry) { rank += 3; }
 			if (e.newItems) { rank += 2; }
 			if (e.recencyBonus) { rank += 4 * e.recencyBonus; }
