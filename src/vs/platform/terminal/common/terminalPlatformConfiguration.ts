@@ -107,6 +107,36 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			type: ['string', 'null'],
 			default: null
 		},
+		[TerminalSettingId.AutomationProfileLinux]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.automationProfile.linux', "The terminal profile to use on Linux for automation-related terminal usage like tasks and debug. This setting will currently be ignored if {0} is set.", '#terminal.integrated.automationShell.linux#'),
+			type: ['object', 'null'],
+			default: null,
+			'anyOf': [
+				{ type: 'null' },
+				terminalProfileSchema
+			]
+		},
+		[TerminalSettingId.AutomationProfileMacOs]: {
+			restricted: true,
+			description: localize('terminal.integrated.automationProfile.osx', "The terminal profile to use on macOS for automation-related terminal usage like tasks and debug. This setting will currently be ignored if {0} is set.", '#terminal.integrated.automationShell.osx#'),
+			type: ['object', 'null'],
+			default: null,
+			'anyOf': [
+				{ type: 'null' },
+				terminalProfileSchema
+			]
+		},
+		[TerminalSettingId.AutomationProfileWindows]: {
+			restricted: true,
+			description: localize('terminal.integrated.automationProfile.windows', "The terminal profile to use for automation-related terminal usage like tasks and debug. This setting will currently be ignored if {0} is set.", '#terminal.integrated.automationShell.windows#'),
+			type: ['object', 'null'],
+			default: null,
+			'anyOf': [
+				{ type: 'null' },
+				terminalProfileSchema
+			]
+		},
 		[TerminalSettingId.ShellLinux]: {
 			restricted: true,
 			markdownDescription: localize('terminal.integrated.shell.linux', "The path of the shell that the terminal uses on Linux. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
