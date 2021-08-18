@@ -69,6 +69,7 @@ import product from 'vs/platform/product/common/product';
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
 
+export const allWalkthroughsHiddenContext = new RawContextKey('allWalkthroughsHidden', false);
 export const inWelcomeContext = new RawContextKey('inWelcome', false);
 
 export interface IWelcomePageStartEntry {
@@ -1034,7 +1035,7 @@ export class GettingStartedPage extends EditorPane {
 				klass: 'start-container',
 				limit: 10,
 				renderElement: renderStartEntry,
-				rankElement: e => e.order,
+				rankElement: e => -e.order,
 				contextService: this.contextService
 			});
 
@@ -1116,9 +1117,13 @@ export class GettingStartedPage extends EditorPane {
 			const someWalkthroughsHidden = hidden.size || gettingStartedList.itemCount < this.gettingStartedCategories.filter(c => this.contextService.contextMatchesRules(c.when)).length;
 			this.container.classList.toggle('someWalkthroughsHidden', !!someWalkthroughsHidden);
 			this.registerDispatchListeners();
+			allWalkthroughsHiddenContext.bindTo(this.contextService).set(gettingStartedList.itemCount === 0);
 			this.updateCategoryProgress();
 		});
+
 		gettingStartedList.setEntries(this.gettingStartedCategories);
+		allWalkthroughsHiddenContext.bindTo(this.contextService).set(gettingStartedList.itemCount === 0);
+
 
 		return gettingStartedList;
 	}
