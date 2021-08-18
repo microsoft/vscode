@@ -104,7 +104,7 @@
     "asar": "^0.14.0",
     "chromium-pickle-js": "^0.2.0",
     "concurrently": "^5.2.0",
-    "copy-webpack-plugin": "^4.5.2",
+    "copy-webpack-plugin": "^5.0.0",
     "cson-parser": "^1.3.3",
     "css-loader": "^3.2.0",
     "debounce": "^1.0.0",
