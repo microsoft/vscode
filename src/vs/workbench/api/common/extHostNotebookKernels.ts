@@ -12,7 +12,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ICellExecuteUpdateDto, ExtHostNotebookKernelsShape, IMainContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape, NotebookOutputDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, IMainContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape, NotebookOutputDto } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { ExtHostCell, ExtHostNotebookDocument } from 'vs/workbench/api/common/extHostNotebookDocument';
@@ -509,6 +509,7 @@ class NotebookCellExecutionTask extends Disposable {
 class TimeoutBasedCollector<T> {
 	private batch: T[] = [];
 	private waitPromise: Promise<void> | undefined;
+	private lastFlush = Date.now();
 
 	constructor(
 		private readonly delay: number,
@@ -522,10 +523,21 @@ class TimeoutBasedCollector<T> {
 			});
 		}
 
+		// This can be called by the extension repeatedly for a long time before the timeout is able to run.
+		// Force a flush after the delay.
+		if (Date.now() - this.lastFlush > this.delay) {
+			this.flush();
+		}
+
 		return this.waitPromise;
 	}
 
 	flush(): void | Promise<void> {
+		if (this.batch.length === 0) {
+			return;
+		}
+
+		this.lastFlush = Date.now();
 		this.waitPromise = undefined;
 		const batch = this.batch;
 		this.batch = [];
