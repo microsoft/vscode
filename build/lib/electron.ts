@@ -123,7 +123,7 @@ export const config = {
 		darwinBundleDocumentType(['php'], 'PHP', 'source code'),
 		darwinBundleDocumentType(['ps1', 'psd1', 'psm1'], 'Powershell', 'script'),
 		darwinBundleDocumentType(['py', 'pyi'], 'Python', 'script'),
-		darwinBundleDocumentType(['gemspec', 'rb', 'erb', 'rhtml'], 'Ruby', 'source code'),
+		darwinBundleDocumentType(['gemspec', 'rb', 'erb'], 'Ruby', 'source code'),
 		darwinBundleDocumentType(['scss', 'sass'], 'SASS', 'file'),
 		darwinBundleDocumentType(['sql'], 'SQL', 'script'),
 		darwinBundleDocumentType(['ts'], 'TypeScript', 'file'),
