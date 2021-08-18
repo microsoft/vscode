@@ -10,7 +10,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
 import { DenseKeyProvider } from 'vs/editor/common/model/bracketPairColorizer/smallImmutableSet';
 import { DecorationProvider } from 'vs/editor/common/model/decorationProvider';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { BackgroundTokenizationState, TextModel } from 'vs/editor/common/model/textModel';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { LanguageId } from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
@@ -28,7 +28,6 @@ import { FastTokenizer, TextBufferTokenizer } from './tokenizer';
 export class BracketPairColorizer extends Disposable implements DecorationProvider {
 	private readonly didChangeDecorationsEmitter = new Emitter<void>();
 	private readonly cache = this._register(new MutableDisposable<IReference<BracketPairColorizerImpl>>());
-	private tokenizationState: TokenizationState = 'uninitialized';
 
 	get isDocumentSupported() {
 		const maxSupportedDocumentLength = /* max lines */ 50_000 * /* average column count */ 100;
@@ -53,14 +52,6 @@ export class BracketPairColorizer extends Disposable implements DecorationProvid
 		this._register(textModel.onDidChangeAttached(() => {
 			this.updateCache();
 		}));
-
-		this._register(textModel.onDidChangeTokens(({ ranges, backgroundTokenizationCompleted }) => {
-			if (backgroundTokenizationCompleted || this.tokenizationState === 'completed') {
-				this.tokenizationState = 'completed';
-			} else {
-				this.tokenizationState = 'inProgress';
-			}
-		}));
 	}
 
 	private updateCache() {
@@ -68,7 +59,7 @@ export class BracketPairColorizer extends Disposable implements DecorationProvid
 		if (this.textModel.isAttachedToEditor() && this.isDocumentSupported && options.enabled) {
 			if (!this.cache.value) {
 				const store = new DisposableStore();
-				this.cache.value = createDisposableRef(store.add(new BracketPairColorizerImpl(this.textModel, this.tokenizationState)), store);
+				this.cache.value = createDisposableRef(store.add(new BracketPairColorizerImpl(this.textModel)), store);
 				store.add(this.cache.value.object.onDidChangeDecorations(e => this.didChangeDecorationsEmitter.fire(e)));
 				this.didChangeDecorationsEmitter.fire();
 			}
@@ -108,8 +99,6 @@ function createDisposableRef<T>(object: T, disposable?: IDisposable): IReference
 	};
 }
 
-type TokenizationState = 'uninitialized' | 'inProgress' | 'completed';
-
 class BracketPairColorizerImpl extends Disposable implements DecorationProvider {
 	private readonly didChangeDecorationsEmitter = new Emitter<void>();
 	private readonly colorProvider = new ColorProvider();
@@ -133,15 +122,21 @@ class BracketPairColorizerImpl extends Disposable implements DecorationProvider 
 		return this.brackets.didLanguageChange(languageId);
 	}
 
-	constructor(private readonly textModel: TextModel, tokenizationState: TokenizationState) {
+	constructor(private readonly textModel: TextModel) {
 		super();
 
-		this._register(textModel.onDidChangeTokens(({ ranges, backgroundTokenizationCompleted }) => {
-			if (backgroundTokenizationCompleted) {
+		this._register(textModel.onBackgroundTokenizationStateChanged(() => {
+			if (textModel.backgroundTokenizationState === BackgroundTokenizationState.Completed) {
+				const wasUndefined = this.initialAstWithoutTokens === undefined;
 				// Clear the initial tree as we can use the tree with token information now.
 				this.initialAstWithoutTokens = undefined;
+				if (!wasUndefined) {
+					this.didChangeDecorationsEmitter.fire();
+				}
 			}
+		}));
 
+		this._register(textModel.onDidChangeTokens(({ ranges }) => {
 			const edits = ranges.map(r =>
 				new TextEditInfo(
 					toLength(r.fromLineNumber - 1, 0),
@@ -155,18 +150,18 @@ class BracketPairColorizerImpl extends Disposable implements DecorationProvider 
 			}
 		}));
 
-		if (tokenizationState === 'uninitialized') {
+		if (textModel.backgroundTokenizationState === BackgroundTokenizationState.Uninitialized) {
 			// There are no token information yet
 			const brackets = this.brackets.getSingleLanguageBracketTokens(this.textModel.getLanguageIdentifier().id);
 			const tokenizer = new FastTokenizer(this.textModel.getValue(), brackets);
 			this.initialAstWithoutTokens = parseDocument(tokenizer, [], undefined, this.denseKeyProvider);
 			this.astWithTokens = this.initialAstWithoutTokens.clone();
-		} else if (tokenizationState === 'completed') {
+		} else if (textModel.backgroundTokenizationState === BackgroundTokenizationState.Completed) {
 			// Skip the initial ast, as there is no flickering.
 			// Directly create the tree with token information.
 			this.initialAstWithoutTokens = undefined;
 			this.astWithTokens = this.parseDocumentFromTextBuffer([], undefined);
-		} else if (tokenizationState === 'inProgress') {
+		} else if (textModel.backgroundTokenizationState === BackgroundTokenizationState.InProgress) {
 			this.initialAstWithoutTokens = this.parseDocumentFromTextBuffer([], undefined);
 			this.astWithTokens = this.initialAstWithoutTokens.clone();
 		}
