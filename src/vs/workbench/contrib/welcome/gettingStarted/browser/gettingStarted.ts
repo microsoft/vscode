@@ -64,6 +64,7 @@ import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from 'vs
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { startEntries } from 'vs/workbench/contrib/welcome/gettingStarted/common/gettingStartedContent';
 import { GettingStartedIndexList } from './gettingStartedList';
+import product from 'vs/platform/product/common/product';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -1346,10 +1347,18 @@ export class GettingStartedPage extends EditorPane {
 		const stepListComponent = this.detailsScrollbar.getDomNode();
 
 		const categoryFooter = $('.getting-started-footer');
-		if (this.editorInput.showTelemetryNotice && this.configurationService.getValue('telemetry.enableTelemetry')) {
+		if (this.editorInput.showTelemetryNotice && this.configurationService.getValue('telemetry.enableTelemetry') && product.enableTelemetry) {
 			const mdRenderer = this._register(this.instantiationService.createInstance(MarkdownRenderer, {}));
-			const text = localize('telemetryFooter',
-				"VS Code collects usage data. Read our [privacy statement](command:{0}) and learn how to [opt out]({1}).", 'workbench.action.openPrivacyStatementUrl', 'command:settings.filterByTelemetry');
+
+			const privacyStatementCopy = localize('privacy statement', "privacy statement");
+			const privacyStatementButton = `[${privacyStatementCopy}](command:workbench.action.openPrivacyStatementUrl)`;
+
+			const optOutCopy = localize('optOut', "opt out");
+			const optOutButton = `[${optOutCopy}](command:settings.filterByTelemetry)`;
+
+			const text = localize({ key: 'footer', comment: ['fist substitution is "vs code", second is "privacy statement", third is "opt out".'] },
+				"{0} collects usage data. Read our {1} and learn how to {2}.", product.nameShort, privacyStatementButton, optOutButton);
+
 			categoryFooter.append(mdRenderer.render({ value: text, isTrusted: true }).element);
 		}
 
