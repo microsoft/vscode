@@ -23,7 +23,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalProfileType, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
+import { IExtensionTerminalProfile, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalProfileType, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
 import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IconDefinition } from 'vs/platform/theme/common/iconRegistry';
@@ -31,7 +31,7 @@ import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
 import { IEditableData, IViewsService } from 'vs/workbench/common/views';
-import { ICreateTerminalOptions, IRemoteTerminalService, IRequestAddInstanceToGroupEvent, ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalFindHost, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalLocationOptions, ITerminalProfileProvider, ITerminalService, TerminalConnectionState, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ICreateContributedTerminalProfileOptions, ICreateTerminalOptions, IRemoteTerminalService, IRequestAddInstanceToGroupEvent, ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalFindHost, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalLocationOptions, ITerminalProfileProvider, ITerminalService, TerminalConnectionState, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { refreshTerminalActions } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
@@ -937,7 +937,7 @@ export class TerminalService implements ITerminalService {
 
 			if ('id' in value.profile) {
 				await this._createContributedTerminalProfile(value.profile.extensionIdentifier, value.profile.id, {
-					isSplitTerminal: !!(keyMods?.alt && activeInstance),
+					location: !!(keyMods?.alt && activeInstance) ? { splitActive: true } : undefined,
 					icon: value.profile.icon,
 					color: value.profile.color
 				});
@@ -1021,12 +1021,25 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 		try {
-			await profileProvider.createContributedTerminalProfile(options);
+			const resolvedOptions = this._resolveOptions(options);
+			await profileProvider.createContributedTerminalProfile(resolvedOptions);
 			this._terminalGroupService.setActiveInstanceByIndex(this.instances.length - 1);
 			await this.activeInstance?.focusWhenReady();
 		} catch (e) {
 			this._notificationService.error(e.message);
 		}
+	}
+
+	private _resolveOptions(options: any): ICreateContributedTerminalProfileOptions {
+		const opts: ICreateContributedTerminalProfileOptions = {};
+		opts.icon = options.icon;
+		opts.color = options.color;
+		if (options.location && typeof options.location === 'object' && 'splitActive' in options.location) {
+			if (this.activeInstance) {
+				opts.location = { parentTerminal: this.activeInstance };
+			}
+		}
+		return opts;
 	}
 
 	private async _registerContributedProfile(extensionIdentifier: string, id: string, title: string, options: ICreateContributedTerminalProfileOptions): Promise<void> {
@@ -1126,9 +1139,8 @@ export class TerminalService implements ITerminalService {
 		// Launch the contributed profile
 		if (contributedProfile) {
 			await this._createContributedTerminalProfile(contributedProfile.extensionIdentifier, contributedProfile.id, {
-				isSplitTerminal: this._isSplitTerminal(options),
 				icon: contributedProfile.icon,
-				target: options?.location === TerminalLocation.Editor ? TerminalLocation.Editor : TerminalLocation.Panel,
+				location: options?.location,
 				color: contributedProfile.color
 			});
 			const instanceHost = options?.location === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
@@ -1215,6 +1227,8 @@ export class TerminalService implements ITerminalService {
 			return location.parentTerminal.target;
 		} else if (typeof location === 'object' && 'viewColumn' in location) {
 			return TerminalLocation.Editor;
+		} else if (typeof location === 'object' && 'splitActive' in location) {
+			return this._activeInstance?.target;
 		}
 		return location;
 	}
@@ -1222,6 +1236,8 @@ export class TerminalService implements ITerminalService {
 	private _getSplitParent(location?: ITerminalLocationOptions): ITerminalInstance | undefined {
 		if (location && typeof location === 'object' && 'parentTerminal' in location) {
 			return location.parentTerminal;
+		} else if (location && typeof location === 'object' && 'splitActive' in location) {
+			return this._activeInstance;
 		}
 		return undefined;
 	}

@@ -391,10 +391,9 @@ export interface IShellLaunchConfig {
 }
 
 export interface ICreateContributedTerminalProfileOptions {
-	target?: TerminalLocation;
 	icon?: URI | string | { light: URI, dark: URI };
 	color?: string;
-	isSplitTerminal?: boolean;
+	location?: TerminalLocation | { viewColumn: number, preserveState?: boolean } | { splitActive: boolean };
 }
 
 export enum TerminalLocation {

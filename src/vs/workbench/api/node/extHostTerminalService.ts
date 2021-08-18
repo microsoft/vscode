@@ -28,7 +28,9 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 			if (parentTerminal) {
 				const parentExtHostTerminal = this._terminals.find(t => t.value === parentTerminal);
 				internalOptions = internalOptions ? internalOptions : {};
-				internalOptions.parentTerminal = parentExtHostTerminal;
+				if (parentExtHostTerminal) {
+					internalOptions.location = { parentTerminal: parentExtHostTerminal };
+				}
 			}
 		}
 		terminal.create(options, internalOptions);

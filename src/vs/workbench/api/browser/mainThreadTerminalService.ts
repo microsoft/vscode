@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensions, TerminalLocation, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensions, TerminalLocation, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalLink, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
@@ -231,9 +231,17 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		// Proxy profile provider requests through the extension host
 		this._profileProviders.set(id, this._terminalService.registerTerminalProfileProvider(extensionIdentifier, id, {
 			createContributedTerminalProfile: async (options) => {
-				return this._proxy.$createContributedProfileTerminal(id, options);
+				const resolvedOptions = this._resolveOptions(options);
+				return this._proxy.$createContributedProfileTerminal(id, resolvedOptions);
 			}
 		}));
+	}
+
+	private _resolveOptions(options: any): ICreateContributedTerminalProfileOptions {
+		if (options.location && typeof options.location === 'object' && 'parentTerminal' in options.location) {
+			options.location = { splitActive: true };
+		}
+		return options;
 	}
 
 	public $unregisterProfileProvider(id: string): void {
