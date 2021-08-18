@@ -279,7 +279,7 @@ CommandsRegistry.registerCommand({
 		const extensionGalleryService = accessor.get(IExtensionGalleryService);
 		try {
 			if (typeof arg === 'string') {
-				const extension = await extensionGalleryService.getCompatibleExtension({ id: arg });
+				const [extension] = await extensionGalleryService.getExtensions([{ id: arg }], CancellationToken.None);
 				if (extension) {
 					await extensionManagementService.installFromGallery(extension);
 				} else {

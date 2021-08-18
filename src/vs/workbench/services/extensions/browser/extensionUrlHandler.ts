@@ -27,6 +27,7 @@ import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/commo
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
@@ -258,7 +259,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			let galleryExtension: IGalleryExtension | undefined;
 
 			try {
-				galleryExtension = await this.galleryService.getCompatibleExtension(extensionIdentifier) ?? undefined;
+				galleryExtension = (await this.galleryService.getExtensions([extensionIdentifier], CancellationToken.None))[0] ?? undefined;
 			} catch (err) {
 				return;
 			}
