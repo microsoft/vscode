@@ -2829,7 +2829,11 @@ declare module 'vscode' {
 
 	interface LanguageStatusItem {
 		selector: DocumentSelector;
-		detail: string;
+
+		text: string;
+		detail: string; // tooltip!
+		// command: string | Command | undefined;
+
 		severity: LanguageStatusSeverity;
 		dispose(): void;
 	}

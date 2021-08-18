@@ -12,50 +12,80 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { NOTIFICATIONS_BACKGROUND, NOTIFICATIONS_BORDER } from 'vs/workbench/common/theme';
 import { ILanguageStatus } from 'vs/workbench/services/languageStatus/common/languageStatusService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { parseLinkedText } from 'vs/base/common/linkedText';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Link } from 'vs/platform/opener/browser/link';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { Action } from 'vs/base/common/actions';
+import { Codicon } from 'vs/base/common/codicons';
+// import Severity from 'vs/base/common/severity';
 
 class LanguageStatusTemplate {
 
-	readonly firstLine: HTMLDivElement;
-	readonly secondLine: HTMLDivElement;
+	readonly text: HTMLDivElement;
+	readonly toolbar: ToolBar;
 
 	constructor(
 		readonly container: HTMLElement,
-		@IOpenerService private readonly _openerService: IOpenerService
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IOpenerService private readonly _openerService: IOpenerService,
 	) {
 		container.classList.add('status-element');
-		this.firstLine = document.createElement('div');
-		this.secondLine = document.createElement('div');
-		this.secondLine.classList.add('detail');
 
-		container.appendChild(this.firstLine);
-		container.appendChild(this.secondLine);
+		this.text = document.createElement('div');
+		container.appendChild(this.text);
+
+		const toolbarContainer = document.createElement('div');
+		container.appendChild(toolbarContainer);
+
+		this.toolbar = new ToolBar(toolbarContainer, contextMenuService, {});
 	}
 
 	dispose() {
-
+		this.toolbar.dispose();
 	}
 
 	set(element: ILanguageStatus): void {
 		// message
 		// source
-		dom.clearNode(this.firstLine);
+		dom.clearNode(this.text);
+
+		// switch (element.severity) {
+		// 	case Severity.Error:
+		// 		dom.append(this.text, ...renderLabelWithIcons('$(error)'));
+		// 		break;
+		// 	case Severity.Warning:
+		// 		dom.append(this.text, ...renderLabelWithIcons('$(warning)'));
+		// 		break;
+		// 	case Severity.Info:
+		// 	default:
+		// 		dom.append(this.text, ...renderLabelWithIcons('$(info)'));
+		// 		break;
+		// }
+
 		for (let node of parseLinkedText(element.message).nodes) {
 			if (typeof node === 'string') {
 				const parts = renderLabelWithIcons(node);
-				dom.append(this.firstLine, ...parts);
+				dom.append(this.text, ...parts);
 			} else {
-				dom.append(this.firstLine, new Link(node, undefined, this._openerService).el);
+				dom.append(this.text, new Link(node, undefined, this._openerService).el);
 			}
 		}
 
-		dom.reset(this.secondLine, element.source);
+		this.toolbar.setActions([new Action(
+			'dd',
+			localize('label.pin', 'Pin'),
+			ThemeIcon.asClassName(Codicon.pin),
+			true,
+			() => {
+				console.log(element);
+			}
+		)]);
 	}
 }
 
@@ -68,7 +98,7 @@ class Renderer implements IListRenderer<ILanguageStatus, LanguageStatusTemplate>
 	// delegate
 
 	getHeight(element: ILanguageStatus): number {
-		return 56;
+		return 42;
 	}
 	getTemplateId(element: ILanguageStatus): string {
 		return Renderer.templateId;
@@ -158,7 +188,7 @@ export class LanguageStatusDetailsWidget {
 	}
 
 	layout() {
-		const width = Math.max(200, this._layoutService.dimension.width * 0.6);
+		const width = Math.min(460, Math.max(200, this._layoutService.dimension.width * 0.6));
 		this._container.style.width = `${width}px`;
 		this._list.layout();
 	}

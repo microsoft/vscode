@@ -4,17 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench .language-status {
-	margin: 8px;
+	margin: 7px;
 	cursor: default;
 	box-shadow: var(--code-widget-shadow) 0 0 8px 2px;
 }
 
 .monaco-workbench .language-status .list-container .status-element {
 	padding: 10px 5px;
-}
-
-.monaco-workbench .language-status .list-container .status-element div.detail {
-	font-size: smaller;
+	display: flex;
+	justify-content: space-between;
 }
 
 .monaco-workbench .language-status .list-container .monaco-list-row[data-last-element="false"].status-element {

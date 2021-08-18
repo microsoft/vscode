@@ -87,6 +87,7 @@ export class ExtHostLanguages {
 				this._proxy.$setLanguageStatus(handle, {
 					source: extension.displayName ?? extension.name,
 					selector: data.selector,
+					text: data.text,
 					message: data.detail,
 					severity: data.severity === LanguageStatusSeverity.Error ? Severity.Error : data.severity === LanguageStatusSeverity.Warning ? Severity.Warning : Severity.Info
 				});
@@ -99,6 +100,13 @@ export class ExtHostLanguages {
 			},
 			set selector(value) {
 				data.selector = value;
+				updateAsync();
+			},
+			get text() {
+				return data.text;
+			},
+			set text(value) {
+				data.text = value;
 				updateAsync();
 			},
 			get detail() {

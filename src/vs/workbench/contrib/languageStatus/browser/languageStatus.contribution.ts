@@ -14,7 +14,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ThemeColor, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { STATUS_BAR_WARNING_ITEM_BACKGROUND, STATUS_BAR_WARNING_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
+import { STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ERROR_ITEM_FOREGROUND, STATUS_BAR_WARNING_ITEM_BACKGROUND, STATUS_BAR_WARNING_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
 import { LanguageStatusDetailsWidget } from 'vs/workbench/contrib/languageStatus/browser/languageStatusList';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ILanguageStatus, ILanguageStatusService } from 'vs/workbench/services/languageStatus/common/languageStatusService';
@@ -71,10 +71,11 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		let backgroundColor: ThemeColor | undefined;
 		let color: ThemeColor | undefined;
 		if (first.severity === Severity.Error) {
+			backgroundColor = themeColorFromId(STATUS_BAR_ERROR_ITEM_BACKGROUND);
+			color = themeColorFromId(STATUS_BAR_ERROR_ITEM_FOREGROUND);
+		} else if (first.severity === Severity.Warning) {
 			backgroundColor = themeColorFromId(STATUS_BAR_WARNING_ITEM_BACKGROUND);
 			color = themeColorFromId(STATUS_BAR_WARNING_ITEM_FOREGROUND);
-		} else if (first.severity === Severity.Warning) {
-			color = themeColorFromId(STATUS_BAR_WARNING_ITEM_BACKGROUND);
 		}
 
 		const props: IStatusbarEntry = {
