@@ -401,6 +401,11 @@ export enum TerminalLocation {
 	Editor = 1
 }
 
+export enum TerminalLocationString {
+	TerminalView = 'view',
+	Editor = 'editor'
+}
+
 export type TerminalIcon = ThemeIcon | URI | { light: URI; dark: URI };
 
 export interface IShellLaunchConfigDto {

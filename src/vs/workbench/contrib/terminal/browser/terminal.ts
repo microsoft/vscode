@@ -111,6 +111,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	readonly availableProfiles: ITerminalProfile[];
 	readonly allProfiles: ITerminalProfileType[] | undefined;
 	readonly profilesReady: Promise<void>;
+	readonly defaultLocation: TerminalLocation;
 
 	initializeTerminals(): Promise<void>;
 	onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;

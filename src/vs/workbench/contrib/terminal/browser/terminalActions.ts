@@ -123,7 +123,7 @@ export function registerTerminalActions() {
 			const terminalService = accessor.get(ITerminalService);
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 			if (terminalService.isProcessSupportRegistered) {
-				const instance = await terminalService.createTerminal({ location: terminalService.configHelper.config.defaultLocation });
+				const instance = await terminalService.createTerminal({ location: terminalService.defaultLocation });
 				if (!instance) {
 					return;
 				}
@@ -1620,7 +1620,7 @@ export function registerTerminalActions() {
 
 			if (terminalService.isProcessSupportRegistered) {
 				eventOrOptions = !eventOrOptions || eventOrOptions instanceof MouseEvent ? {} : eventOrOptions;
-				eventOrOptions.location = eventOrOptions.location || terminalService.configHelper.config.defaultLocation;
+				eventOrOptions.location = eventOrOptions.location || terminalService.defaultLocation;
 				let instance: ITerminalInstance | undefined;
 				if (folders.length <= 1) {
 					// Allow terminal service to handle the path when there is only a

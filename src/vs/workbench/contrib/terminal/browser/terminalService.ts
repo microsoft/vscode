@@ -23,7 +23,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionTerminalProfile, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalProfileType, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
+import { IExtensionTerminalProfile, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalProfileType, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalLocationString, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
 import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IconDefinition } from 'vs/platform/theme/common/iconRegistry';
@@ -96,6 +96,8 @@ export class TerminalService implements ITerminalService {
 	get instances(): ITerminalInstance[] {
 		return this._terminalGroupService.instances.concat(this._terminalEditorService.instances);
 	}
+
+	get defaultLocation(): TerminalLocation { return this.configHelper.config.defaultLocation === TerminalLocationString.Editor ? TerminalLocation.Editor : TerminalLocation.Panel; }
 
 	private _activeInstance: ITerminalInstance | undefined;
 	get activeInstance(): ITerminalInstance | undefined {
@@ -947,11 +949,11 @@ export class TerminalService implements ITerminalService {
 					// create split, only valid if there's an active instance
 					instance = await this.createTerminal({ location: { parentTerminal: activeInstance }, config: value.profile });
 				} else {
-					instance = await this.createTerminal({ location: this.configHelper.config.defaultLocation, config: value.profile, cwd });
+					instance = await this.createTerminal({ location: this.defaultLocation, config: value.profile, cwd });
 				}
 			}
 
-			if (instance && this.configHelper.config.defaultLocation !== TerminalLocation.Editor) {
+			if (instance && this.defaultLocation !== TerminalLocation.Editor) {
 				this._terminalGroupService.showPanel(true);
 				this.setActiveInstance(instance);
 				return instance;
@@ -992,7 +994,7 @@ export class TerminalService implements ITerminalService {
 
 
 	getDefaultInstanceHost(): ITerminalInstanceHost {
-		if (this.configHelper.config.defaultLocation === TerminalLocation.Editor) {
+		if (this.defaultLocation === TerminalLocation.Editor) {
 			return this._terminalEditorService;
 		}
 		return this._terminalGroupService;
@@ -1166,7 +1168,7 @@ export class TerminalService implements ITerminalService {
 		}
 
 		this._evaluateLocalCwd(shellLaunchConfig);
-		const location = this._resolveLocation(options?.location) || this.configHelper.config.defaultLocation;
+		const location = this._resolveLocation(options?.location) || this.defaultLocation;
 		const parent = this._getSplitParent(options?.location);
 		return parent ? this._splitTerminal(shellLaunchConfig, location, parent) : this._createTerminal(shellLaunchConfig, location, options);
 	}
