@@ -478,6 +478,8 @@ export class NotebookService extends Disposable implements INotebookService {
 			return true;
 		}
 
+		await this._extensionService.whenInstalledExtensionsRegistered();
+
 		const info = this._notebookProviderInfoStore?.get(viewType);
 		const waitFor: Promise<any>[] = [];
 		if (info && info.extension) {
@@ -488,10 +490,7 @@ export class NotebookService extends Disposable implements INotebookService {
 			return this._notebookProviders.has(viewType);
 		})));
 
-		await Promise.all([
-			this._extensionService.whenInstalledExtensionsRegistered(),
-			Promise.race(waitFor)
-		]);
+		await Promise.race(waitFor);
 
 		return this._notebookProviders.has(viewType);
 	}
