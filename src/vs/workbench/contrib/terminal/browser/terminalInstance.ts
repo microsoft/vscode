@@ -1575,7 +1575,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._xtermUnicode11 = new Addon();
 			this._xterm.loadAddon(this._xtermUnicode11);
 		}
-		this._xterm.unicode.activeVersion = this._configHelper.config.unicodeVersion;
+		if (this._xterm.unicode.activeVersion !== this._configHelper.config.unicodeVersion) {
+			this._xterm.unicode.activeVersion = this._configHelper.config.unicodeVersion;
+			this._processManager.setUnicodeVersion(this._configHelper.config.unicodeVersion);
+		}
 	}
 
 	updateAccessibilitySupport(): void {

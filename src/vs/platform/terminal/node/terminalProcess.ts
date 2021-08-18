@@ -470,6 +470,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 	}
 
+	async setUnicodeVersion(version: '6' | '11'): Promise<void> {
+		// No-op
+	}
+
 	getInitialCwd(): Promise<string> {
 		return Promise.resolve(this._initialCwd);
 	}

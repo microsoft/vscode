@@ -183,6 +183,10 @@ registerSendSequenceKeybinding(String.fromCharCode('A'.charCodeAt(0) - 64), {
 registerSendSequenceKeybinding(String.fromCharCode('E'.charCodeAt(0) - 64), {
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.RightArrow }
 });
+// Break: ctrl+C
+registerSendSequenceKeybinding(String.fromCharCode('C'.charCodeAt(0) - 64), {
+	mac: { primary: KeyMod.CtrlCmd | KeyCode.US_DOT }
+});
 
 setupTerminalCommands();
 

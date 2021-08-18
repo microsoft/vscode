@@ -146,9 +146,9 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		await this._localPtyService.updateIcon(id, icon, color);
 	}
 
-	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess> {
+	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, unicodeVersion: '6' | '11', env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess> {
 		const executableEnv = await this._shellEnvironmentService.getShellEnv();
-		const id = await this._localPtyService.createProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, shouldPersist, this._getWorkspaceId(), this._getWorkspaceName());
+		const id = await this._localPtyService.createProcess(shellLaunchConfig, cwd, cols, rows, unicodeVersion, env, executableEnv, windowsEnableConpty, shouldPersist, this._getWorkspaceId(), this._getWorkspaceName());
 		const pty = this._instantiationService.createInstance(LocalPty, id, shouldPersist);
 		this._ptys.set(id, pty);
 		return pty;

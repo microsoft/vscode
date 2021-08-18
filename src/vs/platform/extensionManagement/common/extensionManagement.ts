@@ -76,7 +76,6 @@ export interface IGalleryExtension {
 	name: string;
 	identifier: IGalleryExtensionIdentifier;
 	version: string;
-	date: string;
 	displayName: string;
 	publisherId: string;
 	publisher: string;
@@ -89,8 +88,6 @@ export interface IGalleryExtension {
 	tags: readonly string[];
 	releaseDate: number;
 	lastUpdated: number;
-	assetUri: URI;
-	assetTypes: string[];
 	assets: IGalleryExtensionAssets;
 	properties: IGalleryExtensionProperties;
 	telemetryData: any;

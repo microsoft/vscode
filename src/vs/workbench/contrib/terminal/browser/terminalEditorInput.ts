@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
+import Severity from 'vs/base/common/severity';
 import { dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { IEditorIdentifier, IEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -19,6 +21,7 @@ import { ConfirmOnKill } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { Emitter } from 'vs/base/common/event';
 
 export class TerminalEditorInput extends EditorInput {
@@ -100,6 +103,28 @@ export class TerminalEditorInput extends EditorInput {
 		return false;
 	}
 
+	override async confirm(terminals?: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult> {
+		const { choice } = await this._dialogService.show(
+			Severity.Warning,
+			localize('confirmDirtyTerminal.message', "Do you want to terminate running processes?"),
+			[
+				localize({ key: 'confirmDirtyTerminal.button', comment: ['&& denotes a mnemonic'] }, "&&Terminate"),
+				localize('cancel', "Cancel")
+			],
+			{
+				cancelId: 1,
+				detail: terminals && terminals.length > 1 ?
+					terminals.map(terminal => terminal.editor.getName()).join('\n') + '\n\n' + localize('confirmDirtyTerminals.detail', "Closing will terminate the running processes in the terminals.") :
+					localize('confirmDirtyTerminal.detail', "Closing will terminate the running processes in this terminal.")
+			}
+		);
+
+		switch (choice) {
+			case 0: return ConfirmResult.DONT_SAVE;
+			default: return ConfirmResult.CANCEL;
+		}
+	}
+
 	override async revert(): Promise<void> {
 		// On revert just treat the terminal as permanently non-dirty
 		this._isReverted = true;
@@ -113,7 +138,8 @@ export class TerminalEditorInput extends EditorInput {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IContextKeyService _contextKeyService: IContextKeyService
+		@IContextKeyService _contextKeyService: IContextKeyService,
+		@IDialogService private readonly _dialogService: IDialogService
 	) {
 		super();
 

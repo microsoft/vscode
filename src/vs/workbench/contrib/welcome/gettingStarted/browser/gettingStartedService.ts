@@ -28,15 +28,13 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { dirname } from 'vs/base/common/path';
 import { coalesce, flatten } from 'vs/base/common/arrays';
 import { IViewsService } from 'vs/workbench/common/views';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { isLinux, isMacintosh, isWindows, OperatingSystem as OS } from 'vs/base/common/platform';
+
 import { localize } from 'vs/nls';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { checkGlobFileExists } from 'vs/workbench/api/common/shared/workspaceContains';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
-export const WorkspacePlatform = new RawContextKey<'mac' | 'linux' | 'windows' | undefined>('workspacePlatform', undefined, localize('workspacePlatform', "The platform of the current workspace, which in remote contexts may be different from the platform of the UI"));
 export const HasMultipleNewFileEntries = new RawContextKey<boolean>('hasMultipleNewFileEntries', false);
 
 export const IWalkthroughsService = createDecorator<IWalkthroughsService>('walkthroughsService');
@@ -114,7 +112,7 @@ export interface IWalkthroughsService {
 const DAYS = 24 * 60 * 60 * 1000;
 const NEW_WALKTHROUGH_TIME = 7 * DAYS;
 
-export class GettingStartedService extends Disposable implements IWalkthroughsService {
+export class WalkthroughsService extends Disposable implements IWalkthroughsService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidAddWalkthrough = new Emitter<IResolvedWalkthrough>();
@@ -158,7 +156,6 @@ export class GettingStartedService extends Disposable implements IWalkthroughsSe
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IHostService private readonly hostService: IHostService,
 		@IViewsService private readonly viewsService: IViewsService,
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
 	) {
@@ -181,7 +178,6 @@ export class GettingStartedService extends Disposable implements IWalkthroughsSe
 		});
 
 		this.initCompletionEventListeners();
-		this.initWorkspacePlatformContextKey();
 
 		HasMultipleNewFileEntries.bindTo(this.contextService).set(false);
 
@@ -224,29 +220,6 @@ export class GettingStartedService extends Disposable implements IWalkthroughsSe
 						});
 					})
 			});
-		});
-	}
-
-	private initWorkspacePlatformContextKey() {
-		this.remoteAgentService.getEnvironment().then(env => {
-			const remoteOS = env?.os;
-
-			const remotePlatform = remoteOS === OS.Macintosh ? 'mac'
-				: remoteOS === OS.Windows ? 'windows'
-					: remoteOS === OS.Linux ? 'linux'
-						: undefined;
-
-			if (remotePlatform) {
-				WorkspacePlatform.bindTo(this.contextService).set(remotePlatform);
-			} else if (isMacintosh) {
-				WorkspacePlatform.bindTo(this.contextService).set('mac');
-			} else if (isLinux) {
-				WorkspacePlatform.bindTo(this.contextService).set('linux');
-			} else if (isWindows) {
-				WorkspacePlatform.bindTo(this.contextService).set('windows');
-			} else {
-				WorkspacePlatform.bindTo(this.contextService).set(undefined);
-			}
 		});
 	}
 
@@ -730,4 +703,4 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerSingleton(IWalkthroughsService, GettingStartedService);
+registerSingleton(IWalkthroughsService, WalkthroughsService);

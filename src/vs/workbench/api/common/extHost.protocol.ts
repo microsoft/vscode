@@ -65,7 +65,7 @@ import { InternalTimelineOptions, Timeline, TimelineChangeEvent, TimelineOptions
 import { TypeHierarchyItem } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ActivationKind, ExtensionHostKind, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
-import { createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId, IRPCProtocol } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId, IRPCProtocol, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import * as search from 'vs/workbench/services/search/common/search';
 import * as statusbar from 'vs/workbench/services/statusbar/common/statusbar';
@@ -944,7 +944,7 @@ export interface MainThreadNotebookKernelsShape extends IDisposable {
 	$updateNotebookPriority(handle: number, uri: UriComponents, value: number | undefined): void;
 
 	$addExecution(handle: number, uri: UriComponents, cellHandle: number): void;
-	$updateExecutions(data: ICellExecuteUpdateDto[]): void;
+	$updateExecutions(data: SerializableObjectWithBuffers<ICellExecuteUpdateDto[]>): void;
 	$removeExecution(handle: number): void;
 }
 
@@ -1952,7 +1952,7 @@ export interface INotebookDocumentsAndEditorsDelta {
 
 export interface NotebookOutputItemDto {
 	readonly mime: string;
-	readonly valueBytes: number[]; // todo@jrieken ugly, should be VSBuffer
+	readonly valueBytes: VSBuffer;
 }
 
 export interface NotebookOutputDto {
@@ -1993,13 +1993,13 @@ export interface ExtHostNotebookShape extends ExtHostNotebookDocumentsAndEditors
 	$provideNotebookCellStatusBarItems(handle: number, uri: UriComponents, index: number, token: CancellationToken): Promise<INotebookCellStatusBarListDto | undefined>;
 	$releaseNotebookCellStatusBarItems(id: number): void;
 
-	$openNotebook(viewType: string, uri: UriComponents, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken): Promise<NotebookDataDto>;
+	$openNotebook(viewType: string, uri: UriComponents, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken): Promise<SerializableObjectWithBuffers<NotebookDataDto>>;
 	$saveNotebook(viewType: string, uri: UriComponents, token: CancellationToken): Promise<boolean>;
 	$saveNotebookAs(viewType: string, uri: UriComponents, target: UriComponents, token: CancellationToken): Promise<boolean>;
 	$backupNotebook(viewType: string, uri: UriComponents, cancellation: CancellationToken): Promise<string>;
 
-	$dataToNotebook(handle: number, data: VSBuffer, token: CancellationToken): Promise<NotebookDataDto>;
-	$notebookToData(handle: number, data: NotebookDataDto, token: CancellationToken): Promise<VSBuffer>;
+	$dataToNotebook(handle: number, data: VSBuffer, token: CancellationToken): Promise<SerializableObjectWithBuffers<NotebookDataDto>>;
+	$notebookToData(handle: number, data: SerializableObjectWithBuffers<NotebookDataDto>, token: CancellationToken): Promise<VSBuffer>;
 }
 
 export interface ExtHostNotebookRenderersShape {
@@ -2007,7 +2007,7 @@ export interface ExtHostNotebookRenderersShape {
 }
 
 export interface ExtHostNotebookDocumentsAndEditorsShape {
-	$acceptDocumentAndEditorsDelta(delta: INotebookDocumentsAndEditorsDelta): void;
+	$acceptDocumentAndEditorsDelta(delta: SerializableObjectWithBuffers<INotebookDocumentsAndEditorsDelta>): void;
 }
 
 export type NotebookRawContentEventDto =
@@ -2050,7 +2050,7 @@ export type NotebookCellsChangedEventDto = {
 };
 
 export interface ExtHostNotebookDocumentsShape {
-	$acceptModelChanged(uriComponents: UriComponents, event: NotebookCellsChangedEventDto, isDirty: boolean): void;
+	$acceptModelChanged(uriComponents: UriComponents, event: SerializableObjectWithBuffers<NotebookCellsChangedEventDto>, isDirty: boolean): void;
 	$acceptDirtyStateChanged(uriComponents: UriComponents, isDirty: boolean): void;
 	$acceptModelSaved(uriComponents: UriComponents): void;
 	$acceptDocumentPropertiesChanged(uriComponents: UriComponents, data: INotebookDocumentPropertiesChangeData): void;

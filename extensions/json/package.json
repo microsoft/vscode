@@ -29,7 +29,8 @@
           ".ts.map",
           ".har",
           ".jslintrc",
-          ".jsonld"
+          ".jsonld",
+          ".geojson"
         ],
         "filenames": [
           "composer.lock",

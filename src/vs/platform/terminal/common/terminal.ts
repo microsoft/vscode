@@ -200,6 +200,7 @@ export interface IPtyService {
 		cwd: string,
 		cols: number,
 		rows: number,
+		unicodeVersion: '6' | '11',
 		env: IProcessEnvironment,
 		executableEnv: IProcessEnvironment,
 		windowsEnableConpty: boolean,
@@ -223,6 +224,7 @@ export interface IPtyService {
 	getCwd(id: number): Promise<string>;
 	getLatency(id: number): Promise<number>;
 	acknowledgeDataEvent(id: number, charCount: number): Promise<void>;
+	setUnicodeVersion(id: number, version: '6' | '11'): Promise<void>;
 	processBinary(id: number, data: string): Promise<void>;
 	/** Confirm the process is _not_ an orphan. */
 	orphanQuestionReply(id: number): Promise<void>;
@@ -484,6 +486,12 @@ export interface ITerminalChildProcess {
 	 * @param charCount The number of characters being acknowledged.
 	 */
 	acknowledgeDataEvent(charCount: number): void;
+
+	/**
+	 * Sets the unicode version for the process, this drives the size of some characters in the
+	 * xterm-headless instance.
+	 */
+	setUnicodeVersion(version: '6' | '11'): Promise<void>;
 
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;

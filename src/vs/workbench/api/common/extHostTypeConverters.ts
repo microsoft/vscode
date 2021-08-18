@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
+import { VSBuffer } from 'vs/base/common/buffer';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as marked from 'vs/base/common/marked/marked';
@@ -1494,12 +1495,12 @@ export namespace NotebookCellOutputItem {
 	export function from(item: types.NotebookCellOutputItem): extHostProtocol.NotebookOutputItemDto {
 		return {
 			mime: item.mime,
-			valueBytes: Array.from(item.data), //todo@jrieken this HACKY and SLOW... hoist VSBuffer instead
+			valueBytes: VSBuffer.wrap(item.data),
 		};
 	}
 
 	export function to(item: extHostProtocol.NotebookOutputItemDto): types.NotebookCellOutputItem {
-		return new types.NotebookCellOutputItem(new Uint8Array(item.valueBytes), item.mime);
+		return new types.NotebookCellOutputItem(item.valueBytes.buffer, item.mime);
 	}
 }
 
