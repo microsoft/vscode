@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { firstOrDefault } from 'vs/base/common/arrays';
-import { IEditorInput, IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, EditorInputCapabilities, IEditorFactoryRegistry, EditorExtensions, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, EditorInputCapabilities, IEditorFactoryRegistry, EditorExtensions, DEFAULT_EDITOR_ASSOCIATION, GroupIdentifier } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -564,14 +564,6 @@ abstract class AbstractCloseAllAction extends Action {
 
 	override async run(): Promise<void> {
 
-		// Since we are about to show combined dialog for saving
-		// or reverting editors, make sure to reveal all dirty
-		// editors across all groups as a help for the user
-		const didRevealEditor = await this.revealDirtyEditors();
-		if (!didRevealEditor) {
-			return this.doCloseAll(); // just close all directly if we did not reveal any dirty editor
-		}
-
 		// Depending on the editor and auto save configuration,
 		// split dirty editors into buckets
 
@@ -611,6 +603,8 @@ abstract class AbstractCloseAllAction extends Action {
 		if (dirtyEditorsWithDefaultConfirm.size > 0) {
 			const editors = Array.from(dirtyEditorsWithDefaultConfirm.values());
 
+			await this.revealDirtyEditors(editors); // help user make a decision by revealing editors
+
 			const confirmation = await this.fileDialogService.showSaveConfirm(editors.map(({ editor }) => {
 				if (editor instanceof SideBySideEditorInput) {
 					return editor.primary.getName(); // prefer shorter names by using primary's name in this case
@@ -626,7 +620,7 @@ abstract class AbstractCloseAllAction extends Action {
 					await this.editorService.revert(editors, { soft: true });
 					break;
 				case ConfirmResult.SAVE:
-					await this.editorService.save(editors);
+					await this.editorService.save(editors, { reason: SaveReason.EXPLICIT });
 					break;
 			}
 		}
@@ -634,6 +628,8 @@ abstract class AbstractCloseAllAction extends Action {
 		// 2.) Show custom confirm based dialog
 		for (const [, editorIdentifiers] of dirtyEditorsWithCustomConfirm) {
 			const editors = Array.from(editorIdentifiers.values());
+
+			await this.revealDirtyEditors(editors); // help user make a decision by revealing editors
 
 			const confirmation = await firstOrDefault(editors)?.editor.confirm?.(editors);
 			if (typeof confirmation === 'number') {
@@ -644,7 +640,7 @@ abstract class AbstractCloseAllAction extends Action {
 						await this.editorService.revert(editors, { soft: true });
 						break;
 					case ConfirmResult.SAVE:
-						await this.editorService.save(editors);
+						await this.editorService.save(editors, { reason: SaveReason.EXPLICIT });
 						break;
 				}
 			}
@@ -657,29 +653,29 @@ abstract class AbstractCloseAllAction extends Action {
 			await this.editorService.save(editors, { reason: SaveReason.FOCUS_CHANGE });
 		}
 
-		// 4.) Finally figure out which editors can be closed
+		// 4.) Finally close all editors: even if an editor failed to
+		// save or revert and still reports dirty, the editor part makes
+		// sure to bring up another confirm dialog for those editors
+		// specifically.
 		return this.doCloseAll();
 	}
 
-	private async revealDirtyEditors(): Promise<boolean> {
-		let revealedEditor = false;
-
+	private async revealDirtyEditors(editors: ReadonlyArray<IEditorIdentifier>): Promise<void> {
 		try {
-			await Promise.all(this.groupsToClose.map(async groupToClose => {
-				for (const editor of groupToClose.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, { excludeSticky: this.excludeSticky })) {
-					if (editor.isDirty() && !editor.isSaving() /* ignore editors that are being saved */) {
-						revealedEditor = true;
-						await groupToClose.openEditor(editor);
-
-						break;
-					}
+			const handledGroups = new Set<GroupIdentifier>();
+			for (const { editor, groupId } of editors) {
+				if (handledGroups.has(groupId)) {
+					continue;
 				}
-			}));
+
+				handledGroups.add(groupId);
+
+				const group = this.editorGroupService.getGroup(groupId);
+				await group?.openEditor(editor);
+			}
 		} catch (error) {
 			// ignore any error as the revealing is just convinience
 		}
-
-		return revealedEditor;
 	}
 
 	protected abstract get excludeSticky(): boolean;
