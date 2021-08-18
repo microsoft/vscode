@@ -326,6 +326,11 @@ export interface INotebookOptionsMessage {
 	readonly options: PreloadOptions;
 }
 
+export interface INotebookUpdateWorkspaceTrust {
+	readonly type: 'updateWorkspaceTrust';
+	readonly isTrusted: boolean;
+}
+
 export type FromWebviewMessage = WebviewIntialized |
 	IDimensionMessage |
 	IMouseEnterMessage |
@@ -373,6 +378,7 @@ export type ToWebviewMessage = IClearMessage |
 	IUpdateSelectedMarkupCellsMessage |
 	IInitializeMarkupCells |
 	INotebookStylesMessage |
-	INotebookOptionsMessage;
+	INotebookOptionsMessage |
+	INotebookUpdateWorkspaceTrust;
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;
