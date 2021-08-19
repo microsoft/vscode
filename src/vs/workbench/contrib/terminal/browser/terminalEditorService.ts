@@ -158,7 +158,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		this._onDidChangeActiveInstance.fire(this.activeInstance);
 	}
 
-	async openEditor(instance: ITerminalInstance, sideGroup: boolean = false, editorOptions?: TerminalEditorLocation): Promise<void> {
+	async openEditor(instance: ITerminalInstance, editorOptions?: TerminalEditorLocation): Promise<void> {
 		const resource = this.resolveResource(instance);
 		if (resource) {
 			await this._editorService.openEditor({
@@ -169,8 +169,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 					forceReload: true,
 					preserveFocus: editorOptions?.preserveFocus
 				}
-			},
-				editorOptions?.viewColumn || (sideGroup ? SIDE_GROUP : undefined));
+			}, editorOptions?.viewColumn);
 		}
 	}
 

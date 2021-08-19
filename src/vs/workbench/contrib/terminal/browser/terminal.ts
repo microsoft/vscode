@@ -8,7 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalIcon, TitleEventSource, TerminalShellType, IExtensionTerminalProfile, ITerminalProfileType, TerminalLocation } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalIcon, TitleEventSource, TerminalShellType, IExtensionTerminalProfile, ITerminalProfileType, TerminalLocation, ICreateContributedTerminalProfileOptions } from 'vs/platform/terminal/common/terminal';
 import { ICommandTracker, INavigationMode, IOffProcessTerminalService, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
@@ -184,7 +184,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	safeDisposeTerminal(instance: ITerminalInstance): Promise<void>;
 
 	getDefaultInstanceHost(): ITerminalInstanceHost;
-	getInstanceHost(target: TerminalLocation | undefined): ITerminalInstanceHost;
+	getInstanceHost(target: ITerminalLocationOptions | undefined): ITerminalInstanceHost;
 	getFindHost(instance?: ITerminalInstance): ITerminalFindHost;
 
 	getDefaultProfileName(): string;
@@ -200,7 +200,7 @@ export interface ITerminalEditorService extends ITerminalInstanceHost, ITerminal
 	/** Gets all _terminal editor_ instances. */
 	readonly instances: readonly ITerminalInstance[];
 
-	openEditor(instance: ITerminalInstance, sideGroup?: boolean, editorOptions?: TerminalEditorLocation): Promise<void>;
+	openEditor(instance: ITerminalInstance, editorOptions?: TerminalEditorLocation): Promise<void>;
 	detachActiveEditorInstance(): ITerminalInstance;
 	detachInstance(instance: ITerminalInstance): void;
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
@@ -210,13 +210,7 @@ export interface ITerminalEditorService extends ITerminalInstanceHost, ITerminal
 	getInputFromResource(resource: URI): TerminalEditorInput;
 }
 
-export type ITerminalLocationOptions = TerminalLocation | TerminalEditorLocation | { parentTerminal: ITerminalInstance } | { splitActive: boolean };
-
-export interface ICreateContributedTerminalProfileOptions {
-	icon?: URI | string | { light: URI, dark: URI };
-	color?: string;
-	location?: ITerminalLocationOptions;
-}
+export type ITerminalLocationOptions = TerminalLocation | TerminalEditorLocation | { parentTerminal: ITerminalInstance };
 
 export interface ICreateTerminalOptions {
 	/**

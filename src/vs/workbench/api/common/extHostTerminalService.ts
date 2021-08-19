@@ -662,9 +662,14 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 	private _resolveParentTerminal(options: ICreateContributedTerminalProfileOptions): ITerminalInternalOptions {
 		let internalOptions: ITerminalInternalOptions = {};
-		if (options.location && typeof options.location === 'object' && 'splitActive' in options.location) {
-			const id = this._terminals.find(t => t.value === this.activeTerminal)?._id;
-			internalOptions.resolvedExtHostIdentifier = id;
+		if (options.location && typeof options.location === 'object' && 'parentTerminal' in options.location) {
+			const location = options.location;
+			if ('parentTerminal' in location) {
+				const extHostTerminal = this._terminals.find(t => t._id === location.parentTerminal.toString());
+				if (extHostTerminal) {
+					internalOptions.resolvedExtHostIdentifier = extHostTerminal._id;
+				}
+			}
 		}
 		return internalOptions;
 	}

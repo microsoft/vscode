@@ -1425,7 +1425,7 @@ export function registerTerminalActions() {
 			const terminalService = accessor.get(ITerminalService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const options = convertOptionsOrProfileToOptions(optionsOrProfile);
-			const activeInstance = terminalService.getInstanceHost(options?.location === TerminalLocation.Editor ? TerminalLocation.Editor : TerminalLocation.Panel).activeInstance;
+			const activeInstance = terminalService.getInstanceHost(options?.location).activeInstance;
 			if (!activeInstance) {
 				return;
 			}
@@ -2026,10 +2026,10 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 
 			const folders = workspaceContextService.getWorkspace().folders;
 			if (event && (event.altKey || event.ctrlKey)) {
-				const activeInstance = terminalService.activeInstance;
-				if (activeInstance) {
-					const cwd = await getCwdForSplit(terminalService.configHelper, activeInstance);
-					await terminalService.createTerminal({ location: { parentTerminal: activeInstance }, config: options?.config, cwd });
+				const parentTerminal = terminalService.activeInstance;
+				if (parentTerminal) {
+					const cwd = await getCwdForSplit(terminalService.configHelper, parentTerminal);
+					await terminalService.createTerminal({ location: { parentTerminal }, config: options?.config, cwd });
 					return;
 				}
 			}
