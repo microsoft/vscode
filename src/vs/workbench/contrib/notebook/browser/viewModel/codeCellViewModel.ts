@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
+import { dispose } from 'vs/base/common/lifecycle';
 import * as UUID from 'vs/base/common/uuid';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -118,6 +119,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			this._onDidChangeOutputs.fire(splice);
 			this._onDidRemoveOutputs.fire(removedOutputs);
 			this.layoutChange({ outputHeight: true }, 'CodeCellViewModel#model.onDidChangeOutputs');
+			dispose(removedOutputs);
 		}));
 
 		this._register(this.model.onDidChangeMetadata(e => {
@@ -424,5 +426,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 		this._outputCollection = [];
 		this._outputsTop = null;
+		dispose(this._outputViewModels);
 	}
 }
