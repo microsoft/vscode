@@ -514,7 +514,7 @@ export class CellOutputContainer extends Disposable {
 	constructor(
 		private notebookEditor: INotebookEditor,
 		private viewCell: CodeCellViewModel,
-		private templateData: CodeCellRenderTemplate,
+		private readonly templateData: CodeCellRenderTemplate,
 		private options: { limit: number; },
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,

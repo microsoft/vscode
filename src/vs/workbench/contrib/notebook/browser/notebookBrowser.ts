@@ -752,8 +752,8 @@ export interface BaseCellRenderTemplate {
 	betweenCellToolbar: ToolBar;
 	focusIndicatorLeft: HTMLElement;
 	focusIndicatorRight: HTMLElement;
-	disposables: DisposableStore;
-	elementDisposables: DisposableStore;
+	readonly disposables: DisposableStore;
+	readonly elementDisposables: DisposableStore;
 	bottomCellContainer: HTMLElement;
 	currentRenderedCell?: ICellViewModel;
 	statusBar: CellEditorStatusBar;

@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import * as DOM from 'vs/base/browser/dom';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mock } from 'vs/base/test/common/mock';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -95,7 +96,8 @@ suite('NotebookViewModel Outputs', async () => {
 						getContentHeight: () => {
 							return 100;
 						}
-					}
+					},
+					disposables: new DisposableStore(),
 				} as unknown as CodeCellRenderTemplate, { limit: 5 }, openerService, instantiationService);
 				container.render(100);
 				assert.strictEqual(container.renderedOutputEntries.length, 4);
@@ -173,7 +175,8 @@ suite('NotebookViewModel Outputs', async () => {
 						getContentHeight: () => {
 							return 100;
 						}
-					}
+					},
+					disposables: new DisposableStore(),
 				} as unknown as CodeCellRenderTemplate, { limit: 5 }, openerService, instantiationService);
 				container.render(100);
 				assert.strictEqual(container.renderedOutputEntries.length, 5);
