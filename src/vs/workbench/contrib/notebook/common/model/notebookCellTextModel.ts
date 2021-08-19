@@ -18,19 +18,19 @@ import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/commo
 import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellOutput, IOutputDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
-	private _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice>();
+	private readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
 	onDidChangeOutputs: Event<NotebookCellOutputsSplice> = this._onDidChangeOutputs.event;
 
-	private _onDidChangeContent = new Emitter<'content' | 'language' | 'mime'>();
+	private readonly _onDidChangeContent = this._register(new Emitter<'content' | 'language' | 'mime'>());
 	onDidChangeContent: Event<'content' | 'language' | 'mime'> = this._onDidChangeContent.event;
 
-	private _onDidChangeMetadata = new Emitter<void>();
+	private readonly _onDidChangeMetadata = this._register(new Emitter<void>());
 	onDidChangeMetadata: Event<void> = this._onDidChangeMetadata.event;
 
-	private _onDidChangeInternalMetadata = new Emitter<CellInternalMetadataChangedEvent>();
+	private readonly _onDidChangeInternalMetadata = this._register(new Emitter<CellInternalMetadataChangedEvent>());
 	onDidChangeInternalMetadata: Event<CellInternalMetadataChangedEvent> = this._onDidChangeInternalMetadata.event;
 
-	private _onDidChangeLanguage = new Emitter<string>();
+	private readonly _onDidChangeLanguage = this._register(new Emitter<string>());
 	onDidChangeLanguage: Event<string> = this._onDidChangeLanguage.event;
 
 	private _outputs: NotebookCellOutputTextModel[];
