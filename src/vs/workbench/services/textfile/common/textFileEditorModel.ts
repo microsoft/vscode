@@ -530,7 +530,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Model Listeners
 		this.installModelListeners(textModel);
 
-		// Detect language
+		// Detect language from content
 		this.autoDetectLanguage();
 	}
 
@@ -602,14 +602,17 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Emit as event
 		this._onDidChangeContent.fire();
 
-		// Detect language from content. Internally, this is throttled to reduce pressure.
+		// Detect language from content
 		this.autoDetectLanguage();
 	}
 
-	override async autoDetectLanguage() {
-		const currentMode = this.getMode();
-		if (this.resource.scheme === this.pathService.defaultUriScheme && (!currentMode || currentMode === PLAINTEXT_MODE_ID)) {
-			super.autoDetectLanguage();
+	protected override async autoDetectLanguage(): Promise<void> {
+		const mode = this.getMode();
+		if (
+			this.resource.scheme === this.pathService.defaultUriScheme && 	// make sure to not detect language for non-user visible documents
+			(!mode || mode === PLAINTEXT_MODE_ID)							// require a valid mode that is enlisted for detection
+		) {
+			return super.autoDetectLanguage();
 		}
 	}
 
