@@ -26,9 +26,11 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 			if (doAutoComplete) {
 				options.hideAutoCompleteProposals = true;
 			}
-			let doNotAddAttributeQuotes = settings && settings.html && settings.html.doNotAddAttributeQuotes;
-			if (doNotAddAttributeQuotes) {
-				options.doNotAddAttributeQuotes = true;
+			let attributeDefaultValue = settings && settings.html && settings.html.completion.attributeDefaultValue;
+			if (attributeDefaultValue === 'empty') {
+				options.useEmptyAttrValue = true;
+			} else if (attributeDefaultValue === 'singleQuotes') {
+				options.useSingleQuotesForAttrs = true;
 			}
 
 			const htmlDocument = htmlDocuments.get(document);
