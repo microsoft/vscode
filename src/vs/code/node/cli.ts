@@ -340,7 +340,7 @@ export async function main(argv: string[]): Promise<any> {
 				});
 			}
 		} else {
-			const requiresWait = args['telemetry'] || args['status'] || args['verbose'];
+			const requiresWait = args['status'] || args['verbose'];
 			const envVars: string[] = [];
 			for (const envKey in env) {
 				if (envKey === '_') {
@@ -365,12 +365,8 @@ export async function main(argv: string[]): Promise<any> {
 				argv.push('--wait');
 			}
 			const argsArr: string[] = [];
-			if (process.execPath.startsWith('code')) {
-				argsArr.push('-a', process.execPath);
-			} else {
-				// running from OSS, launch stable
-				argsArr.push('-b', 'com.microsoft.VSCode');
-			}
+			const execPathToUse = args['exec-path'] ?? process.execPath;
+			argsArr.push('-a', execPathToUse);
 			argsArr.push(...envVars, ...openArgs, '--args', ...argv.slice(2));
 			child = spawn('open', argsArr, options);
 
@@ -392,19 +388,13 @@ export async function main(argv: string[]): Promise<any> {
 								c();
 							}, 1500);
 						});
-					} else if (args['status']) {
+					} else {
 						child.on('exit', () => {
 							const buffer = readFileSync(tmpfile);
 							let bufferContents = buffer.toString().trim();
 							console.log(bufferContents);
 							c();
 						});
-					} else {
-						// TODO: find telemetry file
-						// We currently get the following error:
-						/* vscode/.build/electron/Code\ -\ OSS.app/Contents/MacOS/Electron vscode/out/cli.js --telemetry
-						ENOENT: no such file or directory, open '/Users/raymondzhao/work/vscode/telemetry-core.json'
-						*/
 					}
 				}).then(() => {
 					unlinkSync(tmpfile);
