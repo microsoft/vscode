@@ -12,7 +12,7 @@ import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IHeaders, IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { arePlatformsValid, DefaultIconPath, IExtensionGalleryService, IExtensionIdentifier, IExtensionIdentifierWithVersion, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IReportedExtension, isIExtensionIdentifier, ITranslation, SortBy, SortOrder, StatisticType, TargetPlatform, WEB_EXTENSION_TAG } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { arePlatformsValid, CURRENT_TARGET_PLATFORM, DefaultIconPath, IExtensionGalleryService, IExtensionIdentifier, IExtensionIdentifierWithVersion, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IReportedExtension, isIExtensionIdentifier, ITranslation, SortBy, SortOrder, StatisticType, TargetPlatform, WEB_EXTENSION_TAG } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, getGalleryExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
@@ -391,6 +391,11 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 	};
 }
 
+function getLatestVersion(versions: IRawGalleryExtensionVersion[]): IRawGalleryExtensionVersion {
+	const latestVersion = versions[0];
+	return versions.find(v => v.version === latestVersion.version && arePlatformsValid(getTargetPlatforms(v), CURRENT_TARGET_PLATFORM)) || latestVersion;
+}
+
 interface IRawExtensionsReport {
 	malicious: string[];
 	slow: string[];
@@ -454,7 +459,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 					result.push(toExtension(galleryExtension, versionAsset, index, query));
 				}
 			} else {
-				result.push(toExtension(galleryExtension, galleryExtension.versions[0], index, query));
+				result.push(toExtension(galleryExtension, getLatestVersion(galleryExtension.versions), index, query));
 			}
 		}
 
@@ -565,14 +570,14 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		}
 
 		const { galleryExtensions, total } = await this.queryGallery(query, token);
-		const extensions = galleryExtensions.map((e, index) => toExtension(e, e.versions[0], index, query, options.source));
+		const extensions = galleryExtensions.map((e, index) => toExtension(e, getLatestVersion(e.versions), index, query, options.source));
 		const getPage = async (pageIndex: number, ct: CancellationToken) => {
 			if (ct.isCancellationRequested) {
 				throw canceled();
 			}
 			const nextPageQuery = query.withPage(pageIndex + 1);
 			const { galleryExtensions } = await this.queryGallery(nextPageQuery, ct);
-			return galleryExtensions.map((e, index) => toExtension(e, e.versions[0], index, nextPageQuery, options.source));
+			return galleryExtensions.map((e, index) => toExtension(e, getLatestVersion(e.versions), index, nextPageQuery, options.source));
 		};
 
 		return { firstPage: extensions, total, pageSize: query.pageSize, getPage } as IPager<IGalleryExtension>;
