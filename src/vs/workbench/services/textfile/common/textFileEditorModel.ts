@@ -605,10 +605,20 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.autoDetectLanguage();
 	}
 
+	private _resourceHasExtension: boolean | undefined;
+	private async getResourceHasExtension() {
+		if (this._resourceHasExtension !== undefined) {
+			return this._resourceHasExtension;
+		}
+		const path = await this.pathService.path;
+		this._resourceHasExtension = !!path.extname(this.resource.fsPath);
+		return this._resourceHasExtension;
+	}
+
 	protected override async autoDetectLanguage(): Promise<void> {
 		if (
 			this.resource.scheme === this.pathService.defaultUriScheme && 	// make sure to not detect language for non-user visible documents
-			!this.modeService.getModeIdByFilepathOrFirstLine(this.resource)	// only run if a mode is not associated with this particular file
+			!await this.getResourceHasExtension()							// only run if this particular file doesn't have an extension
 		) {
 			return super.autoDetectLanguage();
 		}
