@@ -394,7 +394,7 @@ export interface IShellLaunchConfig {
 export interface ICreateContributedTerminalProfileOptions {
 	icon?: URI | string | { light: URI, dark: URI };
 	color?: string;
-	location?: TerminalLocation | { viewColumn: number, preserveState?: boolean } | { parentTerminal: any };
+	location?: TerminalLocation | { viewColumn: number, preserveState?: boolean } | { parentTerminal: number };
 }
 
 export enum TerminalLocation {

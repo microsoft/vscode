@@ -938,8 +938,12 @@ export class TerminalService implements ITerminalService {
 			let instance;
 
 			if ('id' in value.profile) {
+				let parentTerminal = undefined;
+				if (!!(keyMods?.alt && activeInstance?.instanceId)) {
+					parentTerminal = { parentTerminal: activeInstance.instanceId };
+				}
 				await this._createContributedTerminalProfile(value.profile.extensionIdentifier, value.profile.id, {
-					location: !!(keyMods?.alt && activeInstance) ? { parentTerminal: this.activeInstance } : undefined,
+					location: parentTerminal,
 					icon: value.profile.icon,
 					color: value.profile.color
 				});
@@ -1030,21 +1034,12 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 		try {
-			const resolvedOptions = this._resolveOptions(options);
-			await profileProvider.createContributedTerminalProfile(resolvedOptions);
+			await profileProvider.createContributedTerminalProfile(options);
 			this._terminalGroupService.setActiveInstanceByIndex(this.instances.length - 1);
 			await this.activeInstance?.focusWhenReady();
 		} catch (e) {
 			this._notificationService.error(e.message);
 		}
-	}
-
-	private _resolveOptions(options: ICreateContributedTerminalProfileOptions): ICreateContributedTerminalProfileOptions {
-		const profileOptions: ICreateContributedTerminalProfileOptions = { icon: options?.icon, color: options?.color };
-		if (options.location && typeof options.location === 'object' && 'parentTerminal' in options.location) {
-			profileOptions.location = { parentTerminal: options.location.parentTerminal };
-		}
-		return profileOptions;
 	}
 
 	private async _registerContributedProfile(extensionIdentifier: string, id: string, title: string, options: ICreateContributedTerminalProfileOptions): Promise<void> {
@@ -1143,9 +1138,11 @@ export class TerminalService implements ITerminalService {
 
 		// Launch the contributed profile
 		if (contributedProfile) {
+			const parent = this._getSplitParent(options?.location);
+			const location = this._resolveLocation(options?.location) || this.defaultLocation;
 			await this._createContributedTerminalProfile(contributedProfile.extensionIdentifier, contributedProfile.id, {
 				icon: contributedProfile.icon,
-				location: options?.location,
+				location: parent ? { parentTerminal: parent.instanceId } : location,
 				color: contributedProfile.color
 			});
 			const instanceHost = options?.location === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
