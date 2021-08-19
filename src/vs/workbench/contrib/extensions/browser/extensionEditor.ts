@@ -476,7 +476,7 @@ export class ExtensionEditor extends EditorPane {
 							callback: (content) => {
 								this.openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
 							},
-							disposeables: disposables
+							disposables: disposables
 						}
 					}));
 			}
@@ -1078,7 +1078,7 @@ export class ExtensionEditor extends EditorPane {
 				),
 				...contrib.map(key => $('tr', undefined,
 					$('td', undefined, $('code', undefined, key)),
-					$('td', undefined, properties[key].description || (properties[key].markdownDescription && renderMarkdown({ value: properties[key].markdownDescription }, { actionHandler: { callback: (content) => this.openerService.open(content).catch(onUnexpectedError), disposeables: this.contentDisposables } }))),
+					$('td', undefined, properties[key].description || (properties[key].markdownDescription && renderMarkdown({ value: properties[key].markdownDescription }, { actionHandler: { callback: (content) => this.openerService.open(content).catch(onUnexpectedError), disposables: this.contentDisposables } }))),
 					$('td', undefined, $('code', undefined, `${isUndefined(properties[key].default) ? getDefaultValue(properties[key].type) : properties[key].default}`))
 				))
 			)

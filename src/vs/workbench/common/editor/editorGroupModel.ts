@@ -48,6 +48,7 @@ export interface ISerializedEditorInput {
 
 export interface ISerializedEditorGroupModel {
 	readonly id: number;
+	readonly locked?: boolean;
 	readonly editors: ISerializedEditorInput[];
 	readonly mru: number[];
 	readonly preview?: number;
@@ -65,6 +66,9 @@ export class EditorGroupModel extends Disposable {
 	private static IDS = 0;
 
 	//#region events
+
+	private readonly _onDidChangeLocked = this._register(new Emitter<void>());
+	readonly onDidChangeLocked = this._onDidChangeLocked.event;
 
 	private readonly _onDidActivateEditor = this._register(new Emitter<EditorInput>());
 	readonly onDidActivateEditor = this._onDidActivateEditor.event;
@@ -104,9 +108,11 @@ export class EditorGroupModel extends Disposable {
 	private editors: EditorInput[] = [];
 	private mru: EditorInput[] = [];
 
+	private locked = false;
+
 	private preview: EditorInput | null = null; // editor in preview state
 	private active: EditorInput | null = null;  // editor in active state
-	private sticky = -1; // index of first editor in sticky state
+	private sticky = -1; 						// index of first editor in sticky state
 
 	private editorOpenPositioning: ('left' | 'right' | 'first' | 'last') | undefined;
 	private focusRecentEditorAfterClose: boolean | undefined;
@@ -732,6 +738,18 @@ export class EditorGroupModel extends Disposable {
 		return editor.matches(candidate);
 	}
 
+	get isLocked(): boolean {
+		return this.locked;
+	}
+
+	lock(locked: boolean): void {
+		if (this.isLocked !== locked) {
+			this.locked = locked;
+
+			this._onDidChangeLocked.fire();
+		}
+	}
+
 	clone(): EditorGroupModel {
 		const clone = this.instantiationService.createInstance(EditorGroupModel, undefined);
 
@@ -797,6 +815,7 @@ export class EditorGroupModel extends Disposable {
 
 		return {
 			id: this.id,
+			locked: this.locked ? true : undefined,
 			editors: serializedEditors,
 			mru: serializableMru,
 			preview: serializablePreviewIndex,
@@ -813,6 +832,10 @@ export class EditorGroupModel extends Disposable {
 			EditorGroupModel.IDS = Math.max(data.id + 1, EditorGroupModel.IDS); // make sure our ID generator is always larger
 		} else {
 			this._id = EditorGroupModel.IDS++; // backwards compatibility
+		}
+
+		if (data.locked) {
+			this.locked = true;
 		}
 
 		this.editors = coalesce(data.editors.map((e, index) => {

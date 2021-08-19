@@ -164,6 +164,12 @@ const enum StringOffsetValidationType {
 	SurrogatePairs = 1,
 }
 
+export const enum BackgroundTokenizationState {
+	Uninitialized = 0,
+	InProgress = 1,
+	Completed = 2,
+}
+
 type ContinueBracketSearchPredicate = null | (() => boolean);
 
 class BracketSearchCanceled {
@@ -306,6 +312,20 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	//#endregion
 
 	private readonly _bracketPairColorizer;
+
+	private _backgroundTokenizationState = BackgroundTokenizationState.Uninitialized;
+	public get backgroundTokenizationState(): BackgroundTokenizationState {
+		return this._backgroundTokenizationState;
+	}
+	private setBackgroundTokenizationState(newState: BackgroundTokenizationState) {
+		if (this._backgroundTokenizationState !== newState) {
+			this._backgroundTokenizationState = newState;
+			this._onBackgroundTokenizationStateChanged.fire();
+		}
+	}
+
+	private readonly _onBackgroundTokenizationStateChanged = this._register(new Emitter<void>());
+	public readonly onBackgroundTokenizationStateChanged: Event<void> = this._onBackgroundTokenizationStateChanged.event;
 
 	constructor(
 		source: string | model.ITextBufferFactory,
@@ -1945,44 +1965,42 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 
 	public setTokens(tokens: MultilineTokens[], backgroundTokenizationCompleted: boolean = false): void {
-		if (tokens.length === 0) {
-			return;
-		}
+		if (tokens.length !== 0) {
+			let ranges: { fromLineNumber: number; toLineNumber: number; }[] = [];
 
-		let ranges: { fromLineNumber: number; toLineNumber: number; }[] = [];
-
-		for (let i = 0, len = tokens.length; i < len; i++) {
-			const element = tokens[i];
-			let minChangedLineNumber = 0;
-			let maxChangedLineNumber = 0;
-			let hasChange = false;
-			for (let j = 0, lenJ = element.tokens.length; j < lenJ; j++) {
-				const lineNumber = element.startLineNumber + j;
-				if (hasChange) {
-					this._tokens.setTokens(this._languageIdentifier.id, lineNumber - 1, this._buffer.getLineLength(lineNumber), element.tokens[j], false);
-					maxChangedLineNumber = lineNumber;
-				} else {
-					const lineHasChange = this._tokens.setTokens(this._languageIdentifier.id, lineNumber - 1, this._buffer.getLineLength(lineNumber), element.tokens[j], true);
-					if (lineHasChange) {
-						hasChange = true;
-						minChangedLineNumber = lineNumber;
+			for (let i = 0, len = tokens.length; i < len; i++) {
+				const element = tokens[i];
+				let minChangedLineNumber = 0;
+				let maxChangedLineNumber = 0;
+				let hasChange = false;
+				for (let j = 0, lenJ = element.tokens.length; j < lenJ; j++) {
+					const lineNumber = element.startLineNumber + j;
+					if (hasChange) {
+						this._tokens.setTokens(this._languageIdentifier.id, lineNumber - 1, this._buffer.getLineLength(lineNumber), element.tokens[j], false);
 						maxChangedLineNumber = lineNumber;
+					} else {
+						const lineHasChange = this._tokens.setTokens(this._languageIdentifier.id, lineNumber - 1, this._buffer.getLineLength(lineNumber), element.tokens[j], true);
+						if (lineHasChange) {
+							hasChange = true;
+							minChangedLineNumber = lineNumber;
+							maxChangedLineNumber = lineNumber;
+						}
 					}
 				}
+				if (hasChange) {
+					ranges.push({ fromLineNumber: minChangedLineNumber, toLineNumber: maxChangedLineNumber });
+				}
 			}
-			if (hasChange) {
-				ranges.push({ fromLineNumber: minChangedLineNumber, toLineNumber: maxChangedLineNumber });
-			}
-		}
 
-		if (ranges.length > 0) {
-			this._emitModelTokensChangedEvent({
-				tokenizationSupportChanged: false,
-				semanticTokensApplied: false,
-				backgroundTokenizationCompleted,
-				ranges: ranges
-			});
+			if (ranges.length > 0) {
+				this._emitModelTokensChangedEvent({
+					tokenizationSupportChanged: false,
+					semanticTokensApplied: false,
+					ranges: ranges
+				});
+			}
 		}
+		this.setBackgroundTokenizationState(backgroundTokenizationCompleted ? BackgroundTokenizationState.Completed : BackgroundTokenizationState.InProgress);
 	}
 
 	public setSemanticTokens(tokens: MultilineTokens2[] | null, isComplete: boolean): void {
@@ -1991,7 +2009,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._emitModelTokensChangedEvent({
 			tokenizationSupportChanged: false,
 			semanticTokensApplied: tokens !== null,
-			backgroundTokenizationCompleted: false,
 			ranges: [{ fromLineNumber: 1, toLineNumber: this.getLineCount() }]
 		});
 	}
@@ -2013,7 +2030,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._emitModelTokensChangedEvent({
 			tokenizationSupportChanged: false,
 			semanticTokensApplied: true,
-			backgroundTokenizationCompleted: false,
 			ranges: [{ fromLineNumber: changedRange.startLineNumber, toLineNumber: changedRange.endLineNumber }]
 		});
 	}
@@ -2029,7 +2045,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._emitModelTokensChangedEvent({
 			tokenizationSupportChanged: true,
 			semanticTokensApplied: false,
-			backgroundTokenizationCompleted: false,
 			ranges: [{
 				fromLineNumber: 1,
 				toLineNumber: this._buffer.getLineCount()
@@ -2043,7 +2058,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._emitModelTokensChangedEvent({
 			tokenizationSupportChanged: false,
 			semanticTokensApplied: false,
-			backgroundTokenizationCompleted: false,
 			ranges: [{ fromLineNumber: 1, toLineNumber: this.getLineCount() }]
 		});
 	}

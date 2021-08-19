@@ -14,17 +14,21 @@ import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
+import { ThrottledDelayer } from 'vs/base/common/async';
 
 /**
  * The base text editor model leverages the code editor model. This class is only intended to be subclassed and not instantiated.
  */
 export class BaseTextEditorModel extends EditorModel implements ITextEditorModel, IModeSupport {
 
+	private static readonly AUTO_DETECT_LANGUAGE_THROTTLE_DELAY = 600;
+
 	protected textEditorModelHandle: URI | undefined = undefined;
 
 	private createdEditorModel: boolean | undefined;
 
 	private readonly modelDisposeListener = this._register(new MutableDisposable());
+	private readonly autoDetectLanguageThrottler = this._register(new ThrottledDelayer<void>(BaseTextEditorModel.AUTO_DETECT_LANGUAGE_THROTTLE_DELAY));
 
 	constructor(
 		@IModelService protected modelService: IModelService,
@@ -99,17 +103,21 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 		return this.textEditorModel?.getModeId();
 	}
 
-	protected async autoDetectLanguage() {
-		if (this.hasModeSetExplicitly || !this.textEditorModelHandle || !this.languageDetectionService.isEnabledForMode(this.getMode() ?? PLAINTEXT_MODE_ID)) {
+	protected autoDetectLanguage(): Promise<void> {
+		return this.autoDetectLanguageThrottler.trigger(() => this.doAutoDetectLanguage());
+	}
+
+	private async doAutoDetectLanguage(): Promise<void> {
+		if (
+			this.hasModeSetExplicitly || 															// skip detection when the user has made an explicit choice on the mode
+			!this.textEditorModelHandle ||															// require a URI to run the detection for
+			!this.languageDetectionService.isEnabledForMode(this.getMode() ?? PLAINTEXT_MODE_ID)	// require a valid mode that is enlisted for detection
+		) {
 			return;
 		}
 
 		const lang = await this.languageDetectionService.detectLanguage(this.textEditorModelHandle);
-		if (!lang) {
-			return;
-		}
-
-		if (!this.isDisposed()) {
+		if (lang && !this.isDisposed()) {
 			this.setModeInternal(lang);
 		}
 	}

@@ -77,6 +77,7 @@ suite('EditorGroupModel', () => {
 	}
 
 	interface GroupEvents {
+		locked: number[],
 		opened: EditorInput[];
 		activated: EditorInput[];
 		closed: EditorCloseEvent[];
@@ -90,6 +91,7 @@ suite('EditorGroupModel', () => {
 
 	function groupListener(group: EditorGroupModel): GroupEvents {
 		const groupEvents: GroupEvents = {
+			locked: [],
 			opened: [],
 			closed: [],
 			activated: [],
@@ -101,6 +103,7 @@ suite('EditorGroupModel', () => {
 			disposed: []
 		};
 
+		group.onDidChangeLocked(() => groupEvents.locked.push(group.id));
 		group.onDidOpenEditor(e => groupEvents.opened.push(e));
 		group.onDidCloseEditor(e => groupEvents.closed.push(e));
 		group.onDidActivateEditor(e => groupEvents.activated.push(e));
@@ -257,9 +260,15 @@ suite('EditorGroupModel', () => {
 		group.stick(input2);
 		assert.ok(group.isSticky(input2));
 
+		// Locked
+		assert.strictEqual(group.isLocked, false);
+		group.lock(true);
+		assert.strictEqual(group.isLocked, true);
+
 		const clone = group.clone();
 		assert.notStrictEqual(group.id, clone.id);
 		assert.strictEqual(clone.count, 3);
+		assert.strictEqual(clone.isLocked, false); // locking does not clone over
 
 		let didEditorLabelChange = false;
 		const toDispose = clone.onDidChangeEditorLabel(() => didEditorLabelChange = true);
@@ -573,6 +582,40 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(deserialized.stickyCount, 0);
 		assert.strictEqual(deserialized.getEditors(EditorsOrder.SEQUENTIAL).length, 0);
 		assert.strictEqual(deserialized.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).length, 0);
+	});
+
+	test('group serialization (locked group)', function () {
+		const group = createEditorGroupModel();
+
+		const events = groupListener(group);
+
+		assert.strictEqual(events.locked.length, 0);
+
+		group.lock(true);
+		group.lock(true);
+
+		assert.strictEqual(events.locked.length, 1);
+
+		group.lock(false);
+		group.lock(false);
+
+		assert.strictEqual(events.locked.length, 2);
+	});
+
+	test('locked group', function () {
+		const group = createEditorGroupModel();
+		group.lock(true);
+
+		let deserialized = createEditorGroupModel(group.serialize());
+		assert.strictEqual(group.id, deserialized.id);
+		assert.strictEqual(deserialized.count, 0);
+		assert.strictEqual(deserialized.isLocked, true);
+
+		group.lock(false);
+		deserialized = createEditorGroupModel(group.serialize());
+		assert.strictEqual(group.id, deserialized.id);
+		assert.strictEqual(deserialized.count, 0);
+		assert.strictEqual(deserialized.isLocked, false);
 	});
 
 	test('One Editor', function () {

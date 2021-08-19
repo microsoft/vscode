@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isEqual } from 'vs/base/common/resources';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInputWithOptions, isEditorInputWithOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, IEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IEditorGroup, GroupsOrder, preferredSideBySideGroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { PreferredGroup, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
@@ -58,14 +59,23 @@ function doFindGroup(input: IEditorInputWithOptions | IUntypedEditorInput, prefe
 		group = preferredGroup;
 	}
 
-	// Group: Side by Side
-	else if (preferredGroup === SIDE_GROUP) {
-		group = doFindSideBySideGroup(editorGroupService, configurationService);
-	}
-
 	// Group: Specific Group
 	else if (typeof preferredGroup === 'number' && preferredGroup >= 0) {
 		group = editorGroupService.getGroup(preferredGroup);
+	}
+
+	// Group: Side by Side
+	else if (preferredGroup === SIDE_GROUP) {
+		const direction = preferredSideBySideGroupDirection(configurationService);
+
+		let candidateGroup = editorGroupService.findGroup({ direction });
+		if (!candidateGroup || isGroupLockedForEditor(candidateGroup, editor)) {
+			// Create new group either when the candidate group
+			// is locked or was not found in the direction
+			candidateGroup = editorGroupService.addGroup(editorGroupService.activeGroup, direction);
+		}
+
+		group = candidateGroup;
 	}
 
 	// Group: Unspecified without a specific index to open
@@ -111,21 +121,63 @@ function doFindGroup(input: IEditorInputWithOptions | IUntypedEditorInput, prefe
 		}
 	}
 
-	// Fallback to active group if target not valid
+	// Fallback to active group if target not valid but avoid
+	// locked editor groups unless editor is already opened there
 	if (!group) {
-		group = editorGroupService.activeGroup;
+		let candidateGroup = editorGroupService.activeGroup;
+
+		// Locked group: find the next non-locked group
+		// going up the neigbours of the group or create
+		// a new group otherwise
+		if (isGroupLockedForEditor(candidateGroup, editor)) {
+			for (const group of editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+				if (isGroupLockedForEditor(group, editor)) {
+					continue;
+				}
+
+				candidateGroup = group;
+				break;
+			}
+
+			if (isGroupLockedForEditor(candidateGroup, editor)) {
+				// Group is still locked, so we have to create a new
+				// group to the side of the candidate group
+				group = editorGroupService.addGroup(candidateGroup, preferredSideBySideGroupDirection(configurationService));
+			} else {
+				group = candidateGroup;
+			}
+		}
+
+		// Non-locked group: take as is
+		else {
+			group = candidateGroup;
+		}
 	}
 
 	return group;
 }
 
-function doFindSideBySideGroup(editorGroupService: IEditorGroupsService, configurationService: IConfigurationService): IEditorGroup {
-	const direction = preferredSideBySideGroupDirection(configurationService);
-
-	let neighbourGroup = editorGroupService.findGroup({ direction });
-	if (!neighbourGroup) {
-		neighbourGroup = editorGroupService.addGroup(editorGroupService.activeGroup, direction);
+function isGroupLockedForEditor(group: IEditorGroup, editor: IEditorInput | IUntypedEditorInput): boolean {
+	if (!group.isLocked) {
+		// only relevant for locked editor groups
+		return false;
 	}
 
-	return neighbourGroup;
+	if (group.activeEditor) {
+		const resource = EditorResourceAccessor.getCanonicalUri(editor);
+		if (group.activeEditor.matches(editor) || isEqual(group.activeEditor.resource, resource)) {
+			// special case: the active editor of the locked group
+			// matches the provided one, so in that case we do not
+			// want to open the editor in any different group.
+			//
+			// Note: intentionally doing a "weak" check on the resource
+			// because `IEditorInput.matches` will not work for untyped
+			// editors that have no `override` defined.
+			//
+			return false;
+		}
+	}
+
+	// group is locked for this editor
+	return true;
 }

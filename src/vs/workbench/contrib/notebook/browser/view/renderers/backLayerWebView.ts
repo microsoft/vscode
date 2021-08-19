@@ -132,6 +132,13 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				return Promise.resolve(true);
 			};
 		}
+
+		this._register(workspaceTrustManagementService.onDidChangeTrust(e => {
+			this._sendMessageToWebview({
+				type: 'updateWorkspaceTrust',
+				isTrusted: e,
+			});
+		}));
 	}
 
 	updateOptions(options: {

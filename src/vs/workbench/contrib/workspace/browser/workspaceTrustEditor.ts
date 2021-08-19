@@ -6,7 +6,7 @@
 import { $, addDisposableListener, addStandardDisposableListener, append, clearNode, Dimension, EventHelper, EventType } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ButtonBar } from 'vs/base/browser/ui/button/button';
-import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { IMessage, InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { Action, IAction } from 'vs/base/common/actions';
@@ -31,7 +31,7 @@ import { WorkbenchTable } from 'vs/platform/list/browser/listService';
 import { Link } from 'vs/platform/opener/browser/link';
 import product from 'vs/platform/product/common/product';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
+import { isVirtualResource, isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { buttonBackground, buttonSecondaryBackground, editorErrorForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -53,6 +53,7 @@ import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/brow
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { getExtensionDependencies } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { EnablementState, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { posix } from 'vs/base/common/path';
 
 export const shieldIcon = registerCodicon('workspace-trust-icon', Codicon.shield);
 
@@ -280,6 +281,38 @@ class WorkspaceTrustedUrisTable extends Disposable {
 		this.layout();
 	}
 
+	validateUri(path: string, item?: ITrustedUriItem): IMessage | null {
+		if (!item) {
+			return null;
+		}
+
+		if (item.uri.scheme === 'vscode-vfs') {
+			const segments = path.split(posix.sep).filter(s => s.length);
+			if (segments.length === 0 && path.startsWith(posix.sep)) {
+				return {
+					type: MessageType.WARNING,
+					content: localize('trustAll', "You will trust all repositories on {0}.", getHostLabel(this.labelService, item))
+				};
+			}
+
+			if (segments.length === 1) {
+				return {
+					type: MessageType.WARNING,
+					content: localize('trustOrg', "You will trust all repositories and forks under '{0}'.", segments[0])
+				};
+			}
+
+			if (segments.length > 2) {
+				return {
+					type: MessageType.ERROR,
+					content: localize('invalidTrust', "'{0}' is not valid and has too many path segments.", path)
+				};
+			}
+		}
+
+		return null;
+	}
+
 	acceptEdit(item: ITrustedUriItem, uri: URI) {
 		const trustedFolders = this.workspaceTrustManagementService.getTrustedUris();
 		const index = trustedFolders.findIndex(u => this.uriService.extUri.isEqual(u, item.uri));
@@ -305,7 +338,11 @@ class WorkspaceTrustedUrisTable extends Disposable {
 
 	async edit(item: ITrustedUriItem, usePickerIfPossible?: boolean) {
 		const canUseOpenDialog = item.uri.scheme === Schemas.file ||
-			(item.uri.scheme === this.currentWorkspaceUri.scheme && this.uriService.extUri.isEqualAuthority(this.currentWorkspaceUri.authority, item.uri.authority));
+			(
+				item.uri.scheme === this.currentWorkspaceUri.scheme &&
+				this.uriService.extUri.isEqualAuthority(this.currentWorkspaceUri.authority, item.uri.authority) &&
+				!isVirtualResource(item.uri)
+			);
 		if (canUseOpenDialog && usePickerIfPossible) {
 			const uri = await this.fileDialogService.showOpenDialog({
 				canSelectFiles: false,
@@ -363,7 +400,11 @@ class TrustedUriActionsColumnRenderer implements ITableRenderer<ITrustedUriItem,
 		templateData.actionBar.clear();
 
 		const canUseOpenDialog = item.uri.scheme === Schemas.file ||
-			(item.uri.scheme === this.currentWorkspaceUri.scheme && this.uriService.extUri.isEqualAuthority(this.currentWorkspaceUri.authority, item.uri.authority));
+			(
+				item.uri.scheme === this.currentWorkspaceUri.scheme &&
+				this.uriService.extUri.isEqualAuthority(this.currentWorkspaceUri.authority, item.uri.authority) &&
+				!isVirtualResource(item.uri)
+			);
 
 		const actions: IAction[] = [];
 		if (canUseOpenDialog) {
@@ -428,6 +469,7 @@ class TrustedUriPathColumnRenderer implements ITableRenderer<ITrustedUriItem, IT
 	static readonly TEMPLATE_ID = 'path';
 
 	readonly templateId: string = TrustedUriPathColumnRenderer.TEMPLATE_ID;
+	private currentItem?: ITrustedUriItem;
 
 	constructor(
 		private readonly table: WorkspaceTrustedUrisTable,
@@ -440,7 +482,11 @@ class TrustedUriPathColumnRenderer implements ITableRenderer<ITrustedUriItem, IT
 		const element = container.appendChild($('.path'));
 		const pathLabel = element.appendChild($('div.path-label'));
 
-		const pathInput = new InputBox(element, this.contextViewService);
+		const pathInput = new InputBox(element, this.contextViewService, {
+			validationOptions: {
+				validation: value => this.table.validateUri(value, this.currentItem)
+			}
+		});
 
 		const disposables = new DisposableStore();
 		disposables.add(attachInputBoxStyler(pathInput, this.themeService));
@@ -459,6 +505,7 @@ class TrustedUriPathColumnRenderer implements ITableRenderer<ITrustedUriItem, IT
 	renderElement(item: ITrustedUriItem, index: number, templateData: ITrustedUriPathColumnTemplateData, height: number | undefined): void {
 		templateData.renderDisposables.clear();
 
+		this.currentItem = item;
 		templateData.renderDisposables.add(this.table.onEdit(async (e) => {
 			if (item === e) {
 				templateData.element.classList.add('input-mode');

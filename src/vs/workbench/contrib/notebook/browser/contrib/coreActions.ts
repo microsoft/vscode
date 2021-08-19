@@ -608,8 +608,6 @@ registerAction2(class ExecuteCellFocusContainer extends NotebookMultiCellAction<
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		await runCell(accessor, context);
-
 		if (context.ui && context.cell) {
 			context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
 		} else if (context.selectedCells) {
@@ -619,6 +617,8 @@ registerAction2(class ExecuteCellFocusContainer extends NotebookMultiCellAction<
 				context.notebookEditor.focusNotebookCell(firstCell, 'container', { skipReveal: true });
 			}
 		}
+
+		await runCell(accessor, context);
 	}
 });
 

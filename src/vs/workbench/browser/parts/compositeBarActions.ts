@@ -417,7 +417,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		this.hover.value = this.hoverService.showHover({
 			target: this.container,
 			hoverPosition,
-			text: this.computeTitle(),
+			content: this.computeTitle(),
 			showPointer: true,
 			compact: true,
 			skipFadeInAnimation
