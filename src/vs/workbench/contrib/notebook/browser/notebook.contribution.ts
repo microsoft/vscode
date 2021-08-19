@@ -715,7 +715,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout']
 		},
 		[FocusIndicator]: {
-			description: nls.localize('notebook.focusIndicator.description', "Control whether to render the focus indicator as a cell border or a highlight bar on the left gutter"),
+			description: nls.localize('notebook.focusIndicator.description', "Controls where the focus indicator is rendered, either along the cell borders or on the left gutter"),
 			type: 'string',
 			enum: ['border', 'gutter'],
 			default: 'gutter',
