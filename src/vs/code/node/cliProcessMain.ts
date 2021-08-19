@@ -229,7 +229,10 @@ class CliMain extends Disposable {
 
 		// Telemetry
 		else if (this.argv['telemetry']) {
-			console.log(await buildTelemetryMessage(environmentService.appRoot, environmentService.extensionsPath));
+			const rootToUse = this.argv['exec-path'] ?
+				join(this.argv['exec-path'], '/Contents/Resources/app') :
+				environmentService.appRoot;
+			console.log(await buildTelemetryMessage(rootToUse, environmentService.extensionsPath));
 		}
 	}
 
