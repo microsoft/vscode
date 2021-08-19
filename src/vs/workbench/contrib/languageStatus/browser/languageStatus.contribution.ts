@@ -3,24 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import 'vs/css!./media/languageStatus';
+import * as dom from 'vs/base/browser/dom';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ThemeColor, themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, ThemeColor, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ERROR_ITEM_FOREGROUND, STATUS_BAR_WARNING_ITEM_BACKGROUND, STATUS_BAR_WARNING_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
-import { LanguageStatusDetailsWidget } from 'vs/workbench/contrib/languageStatus/browser/languageStatusList';
+import { NOTIFICATIONS_BORDER, STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ERROR_ITEM_FOREGROUND, STATUS_BAR_WARNING_ITEM_BACKGROUND, STATUS_BAR_WARNING_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ILanguageStatus, ILanguageStatusService } from 'vs/workbench/services/languageStatus/common/languageStatusService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
+import { parseLinkedText } from 'vs/base/common/linkedText';
+import { Link } from 'vs/platform/opener/browser/link';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Action } from 'vs/base/common/actions';
+import { Codicon } from 'vs/base/common/codicons';
 
 class EditorStatusContribution implements IWorkbenchContribution {
 
@@ -30,17 +33,13 @@ class EditorStatusContribution implements IWorkbenchContribution {
 	private readonly _disposables = new DisposableStore();
 
 	private _status: ILanguageStatus[] = [];
-	private _showingDetails: boolean = false;
 
 	constructor(
 		@ILanguageStatusService private readonly _languageStatusService: ILanguageStatusService,
 		@IStatusbarService private readonly _statusBarService: IStatusbarService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IOpenerService private readonly _openerService: IOpenerService,
 	) {
-		this._disposables.add(CommandsRegistry.registerCommand(EditorStatusContribution._id, () => this._toggleDetails()));
-
 		_languageStatusService.onDidChange(this._update, this, this._disposables);
 		_editorService.onDidActiveEditorChange(this._update, this, this._disposables);
 		this._update();
@@ -79,12 +78,9 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			color = themeColorFromId(STATUS_BAR_WARNING_ITEM_FOREGROUND);
 		}
 
-		// todo@jrieken is is NOT OK because all md-strings are now trusted even though
-		// they are from different extensions
-		const tooltip = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
-		for (let status of this._status) {
-			tooltip.appendMarkdown(status.message);
-			tooltip.appendMarkdown('\n\n---\n\n');
+		const element = document.createElement('div');
+		for (const status of this._status) {
+			element.appendChild(this._renderStatus(status));
 		}
 
 		const props: IStatusbarEntry = {
@@ -93,9 +89,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			ariaLabel: localize('status.editor.status', "Language Status"),
 			backgroundColor,
 			color,
-			// command: EditorStatusContribution._id,
-			showBeak: this._showingDetails,
-			tooltip
+			tooltip: element
 		};
 
 		if (!this._entry.value) {
@@ -105,44 +99,54 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		}
 	}
 
-	private _toggleDetails(): void {
-		if (!this._entry.value) {
-			return;
-		}
+	private _renderStatus(status: ILanguageStatus): HTMLElement {
 
-		if (this._showingDetails) {
-			this._contextViewService.hideContextView();
-			// this._showingDetails = false; // happens in onHide
-			return;
-		}
+		const node = document.createElement('div');
+		node.classList.add('hover-language-status-element');
 
-		const anchor = document.getElementById(EditorStatusContribution._id);
-		if (!anchor) {
-			return;
-		}
+		const left = document.createElement('div');
+		node.appendChild(left);
 
-		let widget: LanguageStatusDetailsWidget | undefined;
+		const detail = document.createElement('div');
+		detail.classList.add('detail');
+		this._renderTextPlus(detail, status.detail);
+		left.appendChild(detail);
 
-		this._contextViewService.showContextView({
-			getAnchor: () => anchor,
-			render: container => {
-				widget = this._instantiationService.createInstance(LanguageStatusDetailsWidget, this._status, container);
-				return toDisposable(() => {
-					widget?.dispose();
-					widget = undefined;
-				});
+		const label = document.createElement('div');
+		label.classList.add('label');
+		this._renderTextPlus(label, status.label);
+		left.appendChild(label);
 
-			},
-			onHide: () => {
-				this._showingDetails = false;
-				this._update();
+		const right = document.createElement('div');
+		node.appendChild(right);
+
+		const actions = new ActionBar(right, {});
+		actions.push(new Action(
+			'pin',
+			localize('label.pin', 'Pin'),
+			ThemeIcon.asClassName(Codicon.pin),
+			true,
+			() => {
+				console.log(status);
 			}
-		});
-		this._showingDetails = true;
-		this._update();
+		), { icon: true, label: false });
+		return node;
+	}
+
+	private _renderTextPlus(target: HTMLElement, text: string): void {
+		for (let node of parseLinkedText(text).nodes) {
+			if (typeof node === 'string') {
+				const parts = renderLabelWithIcons(node);
+				dom.append(target, ...parts);
+			} else {
+				dom.append(target, new Link(node, undefined, this._openerService).el);
+			}
+		}
 	}
 }
 
-
+registerThemingParticipant((theme, collector) => {
+	collector.addRule(`:root { --code-notifications-border: ${theme.getColor(NOTIFICATIONS_BORDER)}}`);
+});
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorStatusContribution, LifecyclePhase.Restored);

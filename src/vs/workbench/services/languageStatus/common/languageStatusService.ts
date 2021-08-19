@@ -17,8 +17,8 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export interface ILanguageStatus {
 	selector: LanguageSelector,
 	severity: Severity;
-	text: string;
-	message: string;
+	label: string;
+	detail: string;
 	source: string;
 }
 
