@@ -26,6 +26,7 @@ import { UTF8 } from 'vs/workbench/services/textfile/common/encoding';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { extUri } from 'vs/base/common/resources';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {
 	mtime: number;
@@ -76,6 +77,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	readonly capabilities = WorkingCopyCapabilities.None;
 
 	readonly name = basename(this.labelService.getUriLabel(this.resource));
+	private resourceHasExtension: boolean = !!extUri.extname(this.resource);
 
 	private contentEncoding: string | undefined; // encoding as reported from disk
 
@@ -605,20 +607,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.autoDetectLanguage();
 	}
 
-	private _resourceHasExtension: boolean | undefined;
-	private async getResourceHasExtension() {
-		if (this._resourceHasExtension !== undefined) {
-			return this._resourceHasExtension;
-		}
-		const path = await this.pathService.path;
-		this._resourceHasExtension = !!path.extname(this.resource.fsPath);
-		return this._resourceHasExtension;
-	}
-
 	protected override async autoDetectLanguage(): Promise<void> {
 		if (
-			this.resource.scheme === this.pathService.defaultUriScheme && 	// make sure to not detect language for non-user visible documents
-			!await this.getResourceHasExtension()							// only run if this particular file doesn't have an extension
+			this.resource.scheme === this.pathService.defaultUriScheme &&	// make sure to not detect language for non-user visible documents
+			!this.resourceHasExtension										// only run if this particular file doesn't have an extension
 		) {
 			return super.autoDetectLanguage();
 		}
