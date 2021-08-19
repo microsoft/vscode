@@ -64,7 +64,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 		throw new Error('MarkdownCellViewModel.editorHeight is write only');
 	}
 
-	protected readonly _onDidChangeLayout = new Emitter<MarkdownCellLayoutChangeEvent>();
+	protected readonly _onDidChangeLayout = this._register(new Emitter<MarkdownCellLayoutChangeEvent>());
 	readonly onDidChangeLayout = this._onDidChangeLayout.event;
 
 	get foldingState() {
@@ -103,7 +103,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 		return this.model.getHashValue();
 	}
 
-	private readonly _onDidHideInput = new Emitter<void>();
+	private readonly _onDidHideInput = this._register(new Emitter<void>());
 	readonly onDidHideInput = this._onDidHideInput.event;
 
 	constructor(

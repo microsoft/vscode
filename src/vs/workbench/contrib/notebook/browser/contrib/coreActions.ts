@@ -71,6 +71,7 @@ const EXECUTE_CELL_INSERT_BELOW = 'notebook.cell.executeAndInsertBelow';
 const EXECUTE_CELL_AND_BELOW = 'notebook.cell.executeCellAndBelow';
 const EXECUTE_CELLS_ABOVE = 'notebook.cell.executeCellsAbove';
 const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.clearOutputs';
+const TOGGLE_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.toggleOutputs';
 const CENTER_ACTIVE_CELL = 'notebook.centerActiveCell';
 
 const COLLAPSE_CELL_INPUT_COMMAND_ID = 'notebook.cell.collapseCellInput';
@@ -688,6 +689,46 @@ registerAction2(class CancelExecuteCell extends NotebookMultiCellAction<INoteboo
 		} else if (context.selectedCells) {
 			return context.notebookEditor.cancelNotebookCells(context.selectedCells);
 		}
+	}
+});
+
+registerAction2(class extends NotebookMultiCellAction<INotebookActionContext> {
+	constructor() {
+		super({
+			id: TOGGLE_CELL_OUTPUTS_COMMAND_ID,
+			precondition: NOTEBOOK_CELL_LIST_FOCUSED,
+			title: localize('notebookActions.toggleOutputs', "Toggle Outputs"),
+			description: {
+				description: localize('notebookActions.toggleOutputs', "Toggle Outputs"),
+				args: cellExecutionArgs
+			}
+		});
+	}
+
+	parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookActionContext | undefined {
+		return parseMultiCellExecutionArgs(accessor, ...args);
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
+		const textModel = context.notebookEditor.viewModel.notebookDocument;
+		let cells: ICellViewModel[] = [];
+		if (context.ui && context.cell) {
+			cells = [context.cell];
+		} else if (context.selectedCells) {
+			cells = [...context.selectedCells];
+		} else {
+			cells = [...context.notebookEditor.viewModel.getCells()];
+		}
+
+		const edits: ICellEditOperation[] = [];
+		for (const cell of cells) {
+			const index = textModel.cells.indexOf(cell.model);
+			if (index >= 0) {
+				edits.push({ editType: CellEditType.Metadata, index, metadata: { ...cell.metadata, outputCollapsed: !cell.metadata.outputCollapsed } });
+			}
+		}
+
+		textModel.applyEdits(edits, true, undefined, () => undefined, undefined);
 	}
 });
 

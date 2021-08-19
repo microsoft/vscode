@@ -23,10 +23,10 @@ import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 
 export abstract class BaseCellViewModel extends Disposable {
 
-	protected readonly _onDidChangeEditorAttachState = new Emitter<void>();
+	protected readonly _onDidChangeEditorAttachState = this._register(new Emitter<void>());
 	// Do not merge this event with `onDidChangeState` as we are using `Event.once(onDidChangeEditorAttachState)` elsewhere.
 	readonly onDidChangeEditorAttachState = this._onDidChangeEditorAttachState.event;
-	protected readonly _onDidChangeState: Emitter<CellViewModelStateChangeEvent> = this._register(new Emitter<CellViewModelStateChangeEvent>());
+	protected readonly _onDidChangeState = this._register(new Emitter<CellViewModelStateChangeEvent>());
 	public readonly onDidChangeState: Event<CellViewModelStateChangeEvent> = this._onDidChangeState.event;
 
 	get handle() {
@@ -112,8 +112,10 @@ export abstract class BaseCellViewModel extends Disposable {
 	private _cursorChangeListener: IDisposable | null = null;
 	private _editorViewStates: editorCommon.ICodeEditorViewState | null = null;
 	private _resolvedCellDecorations = new Map<string, INotebookCellDecorationOptions>();
-	private _cellDecorationsChanged = new Emitter<{ added: INotebookCellDecorationOptions[], removed: INotebookCellDecorationOptions[] }>();
+
+	private readonly _cellDecorationsChanged = this._register(new Emitter<{ added: INotebookCellDecorationOptions[], removed: INotebookCellDecorationOptions[] }>());
 	onCellDecorationsChanged: Event<{ added: INotebookCellDecorationOptions[], removed: INotebookCellDecorationOptions[] }> = this._cellDecorationsChanged.event;
+
 	private _resolvedDecorations = new Map<string, {
 		id?: string;
 		options: model.IModelDeltaDecoration;
@@ -121,7 +123,7 @@ export abstract class BaseCellViewModel extends Disposable {
 	private _lastDecorationId: number = 0;
 
 	private _cellStatusBarItems = new Map<string, INotebookCellStatusBarItem>();
-	private _onDidChangeCellStatusBarItems = new Emitter<void>();
+	private readonly _onDidChangeCellStatusBarItems = this._register(new Emitter<void>());
 	readonly onDidChangeCellStatusBarItems: Event<void> = this._onDidChangeCellStatusBarItems.event;
 	private _lastStatusBarId: number = 0;
 

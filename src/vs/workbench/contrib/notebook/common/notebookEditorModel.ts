@@ -443,10 +443,10 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 
 export class SimpleNotebookEditorModel extends EditorModel implements INotebookEditorModel {
 
-	private readonly _onDidChangeDirty = new Emitter<void>();
-	private readonly _onDidSave = new Emitter<void>();
-	private readonly _onDidChangeOrphaned = new Emitter<void>();
-	private readonly _onDidChangeReadonly = new Emitter<void>();
+	private readonly _onDidChangeDirty = this._register(new Emitter<void>());
+	private readonly _onDidSave = this._register(new Emitter<void>());
+	private readonly _onDidChangeOrphaned = this._register(new Emitter<void>());
+	private readonly _onDidChangeReadonly = this._register(new Emitter<void>());
 
 	readonly onDidChangeDirty: Event<void> = this._onDidChangeDirty.event;
 	readonly onDidSave: Event<void> = this._onDidSave.event;
@@ -454,7 +454,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	readonly onDidChangeReadonly: Event<void> = this._onDidChangeReadonly.event;
 
 	private _workingCopy?: IStoredFileWorkingCopy<NotebookFileWorkingCopyModel> | IUntitledFileWorkingCopy<NotebookFileWorkingCopyModel>;
-	private readonly _workingCopyListeners = new DisposableStore();
+	private readonly _workingCopyListeners = this._register(new DisposableStore());
 
 	constructor(
 		readonly resource: URI,
@@ -468,12 +468,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	}
 
 	override dispose(): void {
-		this._workingCopyListeners.dispose();
 		this._workingCopy?.dispose();
-		this._onDidChangeDirty.dispose();
-		this._onDidSave.dispose();
-		this._onDidChangeOrphaned.dispose();
-		this._onDidChangeReadonly.dispose();
 		super.dispose();
 	}
 

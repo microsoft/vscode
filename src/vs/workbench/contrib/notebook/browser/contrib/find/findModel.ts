@@ -24,7 +24,7 @@ export class FindModel extends Disposable {
 	private _currentMatch: number = -1;
 	private _allMatchesDecorations: ICellModelDecorations[] = [];
 	private _currentMatchDecorations: ICellModelDecorations[] = [];
-	private _modelDisposable = new DisposableStore();
+	private readonly _modelDisposable = this._register(new DisposableStore());
 
 	get findMatches() {
 		return this._findMatches;
