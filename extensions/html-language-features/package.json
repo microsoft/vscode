@@ -38,6 +38,22 @@
       "type": "object",
       "title": "HTML",
       "properties": {
+        "html.completion.attributeDefaultValue": {
+          "type": "string",
+          "scope": "resource",
+          "enum": [
+            "doubleQuotes",
+            "singleQuotes",
+            "empty"
+          ],
+          "enumDescriptions": [
+            "%html.completion.attributeDefaultValue.doubleQuotes%",
+            "%html.completion.attributeDefaultValue.singleQuotes%",
+            "%html.completion.attributeDefaultValue.empty%"
+          ],
+          "default": "doubleQuotes",
+          "description": "%html.completion.attributeDefaultValue%"
+        },
         "html.customData": {
           "type": "array",
           "markdownDescription": "%html.customData.desc%",
@@ -187,12 +203,6 @@
           "scope": "resource",
           "default": true,
           "description": "%html.autoClosingTags%"
-        },
-        "html.doNotAddAttributeQuotes": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": false,
-          "description": "%html.doNotAddAttributeQuotes%"
         },
         "html.hover.documentation": {
           "type": "boolean",
