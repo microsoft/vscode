@@ -30,7 +30,25 @@ import { URI } from 'vs/base/common/uri';
 const LOG_EXTENSION_HOST_COMMUNICATION = false;
 const LOG_USE_COLORS = true;
 
-export class ExtensionHostManager extends Disposable {
+export interface IExtensionHostManager {
+	readonly kind: ExtensionHostKind;
+	readonly onDidExit: Event<[number, string | null]>;
+	readonly onDidChangeResponsiveState: Event<ResponsiveState>;
+	dispose(): void;
+	ready(): Promise<void>;
+	deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void>;
+	activate(extension: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean>;
+	activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void>;
+	getInspectPort(tryEnableInspector: boolean): Promise<number>;
+	resolveAuthority(remoteAuthority: string): Promise<ResolverResult>;
+	getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI>;
+	start(enabledExtensionIds: ExtensionIdentifier[]): Promise<void>;
+	extensionTestsExecute(): Promise<number>;
+	extensionTestsSendExit(exitCode: number): Promise<void>;
+	setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
+}
+
+export class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 
 	public readonly kind: ExtensionHostKind;
 	public readonly onDidExit: Event<[number, string | null]>;
