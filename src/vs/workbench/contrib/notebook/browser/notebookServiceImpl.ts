@@ -92,8 +92,9 @@ export class NotebookProviderInfoStore extends Disposable {
 		const builtins: NotebookProviderInfo[] = [...this._contributedEditors.values()].filter(info => !info.extension);
 		this._clear();
 
+		const builtinProvidersFromCache: Map<string, IDisposable> = new Map();
 		builtins.forEach(builtin => {
-			this.add(builtin);
+			builtinProvidersFromCache.set(builtin.id, this.add(builtin));
 		});
 
 		for (const extension of extensions) {
@@ -104,9 +105,16 @@ export class NotebookProviderInfoStore extends Disposable {
 					continue;
 				}
 
-				if (this.get(notebookContribution.type)) {
-					extension.collector.error(`Notebook type '${notebookContribution.type}' already used`);
-					continue;
+				const existing = this.get(notebookContribution.type);
+
+				if (existing) {
+					if (!existing.extension && extension.description.isBuiltin && builtins.find(builtin => builtin.id === notebookContribution.type)) {
+						// we are registering an extension which is using the same view type which is already cached
+						builtinProvidersFromCache.get(notebookContribution.type)?.dispose();
+					} else {
+						extension.collector.error(`Notebook type '${notebookContribution.type}' already used`);
+						continue;
+					}
 				}
 
 				this.add(new NotebookProviderInfo({
@@ -681,7 +689,9 @@ export class NotebookService extends Disposable implements INotebookService {
 	getNotebookProviderResourceRoots(): URI[] {
 		const ret: URI[] = [];
 		this._notebookProviders.forEach(val => {
-			ret.push(URI.revive(val.extensionData.location));
+			if (val.extensionData.location) {
+				ret.push(URI.revive(val.extensionData.location));
+			}
 		});
 
 		return ret;

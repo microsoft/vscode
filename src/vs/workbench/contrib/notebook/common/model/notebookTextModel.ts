@@ -353,6 +353,21 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return this.cells.findIndex(c => c.handle === handle);
 	}
 
+	private _getCellIndexWithOutputIdHandleFromEdits(outputId: string, rawEdits: ICellEditOperation[]) {
+		const edit = rawEdits.find(e => 'outputs' in e && e.outputs.some(o => o.outputId === outputId));
+		if (edit) {
+			if ('index' in edit) {
+				return edit.index;
+			} else if ('handle' in edit) {
+				const cellIndex = this._getCellIndexByHandle(edit.handle);
+				this._assertIndex(cellIndex);
+				return cellIndex;
+			}
+		}
+
+		return -1;
+	}
+
 	private _getCellIndexWithOutputIdHandle(outputId: string) {
 		return this.cells.findIndex(c => !!c.outputs.find(o => o.outputId === outputId));
 	}
@@ -403,6 +418,12 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			} else if ('outputId' in edit) {
 				cellIndex = this._getCellIndexWithOutputIdHandle(edit.outputId);
 				if (this._indexIsInvalid(cellIndex)) {
+					// The referenced output may have been created in this batch of edits
+					cellIndex = this._getCellIndexWithOutputIdHandleFromEdits(edit.outputId, rawEdits.slice(0, index));
+				}
+
+				if (this._indexIsInvalid(cellIndex)) {
+					// It's possible for an edit to refer to an output which was just cleared, ignore it without throwing
 					return null;
 				}
 			} else if (edit.editType !== CellEditType.DocumentMetadata) {

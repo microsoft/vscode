@@ -121,7 +121,7 @@ export class HoverWidget extends Widget {
 			const { element } = mdRenderer.render(markdown, {
 				actionHandler: {
 					callback: (content) => this._linkHandler(content),
-					disposeables: this._messageListeners
+					disposables: this._messageListeners
 				},
 				asyncRenderCallback: () => {
 					contentsElement.classList.add('code-hover-contents');
