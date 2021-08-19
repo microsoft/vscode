@@ -111,7 +111,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		return new TextSearchManager(query, provider, {
 			readdir: resource => Promise.resolve([]), // TODO@rob implement
 			toCanonicalName: encoding => encoding
-		});
+		}, 'textSearchProvider');
 	}
 }
 

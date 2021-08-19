@@ -8,6 +8,7 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ExtHostSearch, reviveQuery } from 'vs/workbench/api/common/extHostSearch';
 import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
@@ -28,6 +29,7 @@ export class NativeExtHostSearch extends ExtHostSearch {
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@IExtHostInitDataService initData: IExtHostInitDataService,
 		@IURITransformerService _uriTransformer: IURITransformerService,
 		@ILogService _logService: ILogService,
 	) {
@@ -35,9 +37,16 @@ export class NativeExtHostSearch extends ExtHostSearch {
 
 		const outputChannel = new OutputChannel('RipgrepSearchUD', this._logService);
 		this.registerTextSearchProvider(Schemas.userData, new RipgrepSearchProvider(outputChannel));
+		if (initData.remote.isRemote && initData.remote.authority) {
+			this._registerEHSearchProviders();
+		}
 	}
 
 	override $enableExtensionHostSearch(): void {
+		this._registerEHSearchProviders();
+	}
+
+	private _registerEHSearchProviders(): void {
 		const outputChannel = new OutputChannel('RipgrepSearchEH', this._logService);
 		this.registerTextSearchProvider(Schemas.file, new RipgrepSearchProvider(outputChannel));
 		this.registerInternalFileSearchProvider(Schemas.file, new SearchService('fileSearchProvider'));
@@ -95,6 +104,6 @@ export class NativeExtHostSearch extends ExtHostSearch {
 	}
 
 	protected override createTextSearchManager(query: ITextQuery, provider: vscode.TextSearchProvider): TextSearchManager {
-		return new NativeTextSearchManager(query, provider);
+		return new NativeTextSearchManager(query, provider, undefined, 'textSearchProvider');
 	}
 }

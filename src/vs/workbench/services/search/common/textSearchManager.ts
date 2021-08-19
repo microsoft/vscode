@@ -12,7 +12,7 @@ import * as path from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { isArray, isPromise } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
+import { IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
 import { Range, TextSearchComplete, TextSearchMatch, TextSearchOptions, TextSearchProvider, TextSearchQuery, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
 
 export interface IFileUtils {
@@ -27,7 +27,7 @@ export class TextSearchManager {
 	private isLimitHit = false;
 	private resultCount = 0;
 
-	constructor(private query: ITextQuery, private provider: TextSearchProvider, private fileUtils: IFileUtils) { }
+	constructor(private query: ITextQuery, private provider: TextSearchProvider, private fileUtils: IFileUtils, private processType: ITextSearchStats['type']) { }
 
 	search(onProgress: (matches: IFileMatch[]) => void, token: CancellationToken): Promise<ISearchCompleteStats> {
 		const folderQueries = this.query.folderQueries || [];
@@ -77,7 +77,7 @@ export class TextSearchManager {
 						else { return [result.message]; }
 					})),
 					stats: {
-						type: 'textSearchProvider'
+						type: this.processType
 					}
 				});
 			}, (err: Error) => {

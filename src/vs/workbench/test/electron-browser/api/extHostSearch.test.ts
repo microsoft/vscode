@@ -12,8 +12,10 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
+import { mock } from 'vs/base/test/common/mock';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { MainContext, MainThreadSearchShape } from 'vs/workbench/api/common/extHost.protocol';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { Range } from 'vs/workbench/api/common/extHostTypes';
 import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { NativeExtHostSearch } from 'vs/workbench/api/node/extHostSearch';
@@ -139,6 +141,7 @@ suite('ExtHostSearch', () => {
 			constructor() {
 				super(
 					rpcProtocol,
+					new class extends mock<IExtHostInitDataService>() { override remote = { isRemote: false, authority: undefined, connectionData: null }; },
 					new URITransformerService(null),
 					logService
 				);
