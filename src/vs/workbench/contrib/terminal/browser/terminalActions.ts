@@ -112,7 +112,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.NewInActiveWorkspace,
-				title: { value: localize('workbench.action.terminal.newInActiveWorkspace', "Create New Integrated Terminal (In Active Workspace)"), original: 'Create New Integrated Terminal (In Active Workspace)' },
+				title: { value: localize('workbench.action.terminal.newInActiveWorkspace', "Create Terminal (In Active Workspace)"), original: 'Create Terminal (In Active Workspace)' },
 				f1: true,
 				category,
 				precondition: TerminalContextKeys.processSupported
@@ -1137,10 +1137,10 @@ export function registerTerminalActions() {
 	});
 	registerAction2(class extends Action2 {
 		constructor() {
-			const title = localize('workbench.action.terminal.newWithCwd', "Create New Integrated Terminal Starting in a Custom Working Directory");
+			const title = localize('workbench.action.terminal.newWithCwd', "Create Terminal Starting in a Custom Working Directory");
 			super({
 				id: TerminalCommandId.NewWithCwd,
-				title: { value: title, original: 'Create New Integrated Terminal Starting in a Custom Working Directory' },
+				title: { value: title, original: 'Create Terminal Starting in a Custom Working Directory' },
 				category,
 				description: {
 					description: title,
@@ -1582,7 +1582,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.New,
-				title: { value: localize('workbench.action.terminal.new', "Create New Integrated Terminal"), original: 'Create New Integrated Terminal' },
+				title: { value: localize('workbench.action.terminal.new', "Create Terminal"), original: 'Create Terminal' },
 				f1: true,
 				category,
 				precondition: TerminalContextKeys.processSupported,
@@ -1979,7 +1979,7 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 		constructor() {
 			super({
 				id: TerminalCommandId.NewWithProfile,
-				title: { value: localize('workbench.action.terminal.newWithProfile', "Create New Integrated Terminal (With Profile)"), original: 'Create New Integrated Terminal (With Profile)' },
+				title: { value: localize('workbench.action.terminal.newWithProfile', "Create Terminal (With Profile)"), original: 'Create Terminal (With Profile)' },
 				f1: true,
 				category,
 				precondition: TerminalContextKeys.processSupported,
