@@ -47,10 +47,10 @@ suite('FormattedTextRenderer', () => {
 		result = renderFormattedText('``code``');
 		assert.strictEqual(result.innerHTML, '``code``');
 
-		result = renderFormattedText('``code``', { renderCodeSegements: true });
+		result = renderFormattedText('``code``', { renderCodeSegments: true });
 		assert.strictEqual(result.innerHTML, '<code>code</code>');
 
-		result = renderFormattedText('this string has **bold**, __italics__, and ``code``!!', { renderCodeSegements: true });
+		result = renderFormattedText('this string has **bold**, __italics__, and ``code``!!', { renderCodeSegments: true });
 		assert.strictEqual(result.innerHTML, 'this string has <b>bold</b>, <i>italics</i>, and <code>code</code>!!');
 	});
 
@@ -72,7 +72,7 @@ suite('FormattedTextRenderer', () => {
 					assert.strictEqual(content, '0');
 					callbackCalled = true;
 				},
-				disposeables: store
+				disposables: store
 			}
 		});
 		assert.strictEqual(result.innerHTML, '<a href="#">action</a>');
@@ -91,7 +91,7 @@ suite('FormattedTextRenderer', () => {
 					assert.strictEqual(content, '0');
 					callbackCalled = true;
 				},
-				disposeables: store
+				disposables: store
 			}
 		});
 		assert.strictEqual(result.innerHTML, '<i><b><a href="#">action</a></b></i>');
@@ -105,13 +105,13 @@ suite('FormattedTextRenderer', () => {
 	test('fancier action', () => {
 		let callbackCalled = false;
 		let result: HTMLElement = renderFormattedText('``__**[[action]]**__``', {
-			renderCodeSegements: true,
+			renderCodeSegments: true,
 			actionHandler: {
 				callback(content) {
 					assert.strictEqual(content, '0');
 					callbackCalled = true;
 				},
-				disposeables: store
+				disposables: store
 			}
 		});
 		assert.strictEqual(result.innerHTML, '<code><i><b><a href="#">action</a></b></i></code>');

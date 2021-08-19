@@ -37,7 +37,7 @@ function generateViewMoreElement(notebookUri: URI, cellViewModel: IGenericCellVi
 
 				return;
 			},
-			disposeables: disposables
+			disposables: disposables
 		}
 	});
 

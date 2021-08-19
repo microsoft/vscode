@@ -1260,7 +1260,7 @@ export class GettingStartedPage extends EditorPane {
 				const p = append(container, $('p'));
 				for (const node of linkedText.nodes) {
 					if (typeof node === 'string') {
-						append(p, renderFormattedText(node, { inline: true, renderCodeSegements: true }));
+						append(p, renderFormattedText(node, { inline: true, renderCodeSegments: true }));
 					} else {
 						const link = this.instantiationService.createInstance(Link, node, {});
 
