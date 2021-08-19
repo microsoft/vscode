@@ -49,7 +49,7 @@ import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
-import { editorErrorForeground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { CATEGORIES } from 'vs/workbench/common/actions';
@@ -59,7 +59,7 @@ import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestExplorerFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
-import { testingPeekBorder } from 'vs/workbench/contrib/testing/browser/theme';
+import { testingPeekBorder, testingPeekHeaderBackground } from 'vs/workbench/contrib/testing/browser/theme';
 import { AutoOpenPeekViewWhen, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { IRichLocation, ITestErrorMessage, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
@@ -607,7 +607,7 @@ class TestingOutputPeek extends PeekViewWidget {
 
 	private applyTheme(theme: IColorTheme) {
 		const borderColor = theme.getColor(testingPeekBorder) || Color.transparent;
-		const headerBg = theme.getColor(editorErrorForeground)?.transparent(0.1);
+		const headerBg = theme.getColor(testingPeekHeaderBackground) || Color.transparent;
 		this.style({
 			arrowColor: borderColor,
 			frameColor: borderColor,
