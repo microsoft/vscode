@@ -25,6 +25,7 @@ import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtens
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { Barrier, timeout } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
+import { ILogService } from 'vs/platform/log/common/log';
 
 // Enable to see detailed message communication between window and extension host
 const LOG_EXTENSION_HOST_COMMUNICATION = false;
@@ -387,7 +388,8 @@ class LazyStartExtensionHostManager extends Disposable implements IExtensionHost
 
 	constructor(
 		extensionHost: IExtensionHost,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this._extensionHost = extensionHost;
@@ -397,18 +399,19 @@ class LazyStartExtensionHostManager extends Disposable implements IExtensionHost
 		this._actual = null;
 	}
 
-	private _createActual(): ExtensionHostManager {
+	private _createActual(reason: string): ExtensionHostManager {
+		this._logService.info(`Creating lazy extension host: ${reason}`);
 		this._actual = this._register(this._instantiationService.createInstance(ExtensionHostManager, this._extensionHost, []));
 		this._register(this._actual.onDidChangeResponsiveState((e) => this._onDidChangeResponsiveState.fire(e)));
 		return this._actual;
 	}
 
-	private async _getOrCreateActualAndStart(): Promise<ExtensionHostManager> {
+	private async _getOrCreateActualAndStart(reason: string): Promise<ExtensionHostManager> {
 		if (this._actual) {
 			// already created/started
 			return this._actual;
 		}
-		const actual = this._createActual();
+		const actual = this._createActual(reason);
 		await actual.start([]);
 		return actual;
 	}
@@ -424,7 +427,7 @@ class LazyStartExtensionHostManager extends Disposable implements IExtensionHost
 		const extensionHostAlreadyStarted = Boolean(this._actual);
 		const shouldStartExtensionHost = (toAdd.length > 0);
 		if (extensionHostAlreadyStarted || shouldStartExtensionHost) {
-			const actual = await this._getOrCreateActualAndStart();
+			const actual = await this._getOrCreateActualAndStart(`contains ${toAdd.length} new extension(s) (installed or enabled)`);
 			return actual.deltaExtensions(toAdd, toRemove);
 		}
 	}
@@ -465,7 +468,7 @@ class LazyStartExtensionHostManager extends Disposable implements IExtensionHost
 	public async start(enabledExtensionIds: ExtensionIdentifier[]): Promise<void> {
 		if (enabledExtensionIds.length > 0) {
 			// there are actual extensions, so let's launch the extension host
-			const actual = this._createActual();
+			const actual = this._createActual(`contains ${enabledExtensionIds.length} extension(s).`);
 			const result = actual.start(enabledExtensionIds);
 			this._startCalled.open();
 			return result;
@@ -475,12 +478,12 @@ class LazyStartExtensionHostManager extends Disposable implements IExtensionHost
 	}
 	public async extensionTestsExecute(): Promise<number> {
 		await this._startCalled.wait();
-		const actual = await this._getOrCreateActualAndStart();
+		const actual = await this._getOrCreateActualAndStart(`execute tests.`);
 		return actual.extensionTestsExecute();
 	}
 	public async extensionTestsSendExit(exitCode: number): Promise<void> {
 		await this._startCalled.wait();
-		const actual = await this._getOrCreateActualAndStart();
+		const actual = await this._getOrCreateActualAndStart(`execute tests.`);
 		return actual.extensionTestsSendExit(exitCode);
 	}
 	public async setRemoteEnvironment(env: { [key: string]: string | null; }): Promise<void> {
