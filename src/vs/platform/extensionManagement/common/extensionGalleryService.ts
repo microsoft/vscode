@@ -9,10 +9,11 @@ import { canceled, getErrorMessage, isPromiseCanceledError } from 'vs/base/commo
 import { getOrDefault } from 'vs/base/common/objects';
 import { IPager } from 'vs/base/common/paging';
 import { isWeb } from 'vs/base/common/platform';
+import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IHeaders, IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { arePlatformsValid, CURRENT_TARGET_PLATFORM, DefaultIconPath, IExtensionGalleryService, IExtensionIdentifier, IExtensionIdentifierWithVersion, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IReportedExtension, isIExtensionIdentifier, ITranslation, SortBy, SortOrder, StatisticType, TargetPlatform, WEB_EXTENSION_TAG } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { arePlatformsValid, CURRENT_TARGET_PLATFORM, DefaultIconPath, IExtensionGalleryService, IExtensionIdentifier, IExtensionIdentifierWithVersion, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IReportedExtension, isIExtensionIdentifier, ITranslation, SortBy, SortOrder, StatisticType, TargetPlatform, toTargetPlatform, WEB_EXTENSION_TAG } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, getGalleryExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
@@ -42,7 +43,7 @@ interface IRawGalleryExtensionVersion {
 	readonly fallbackAssetUri: string;
 	readonly files: IRawGalleryExtensionFile[];
 	readonly properties?: IRawGalleryExtensionProperty[];
-	readonly targetPlatform?: TargetPlatform;
+	readonly targetPlatform?: string;
 }
 
 interface IRawGalleryExtensionStatistics {
@@ -324,7 +325,7 @@ function getIsPreview(flags: string): boolean {
 }
 
 function getTargetPlatforms(version: IRawGalleryExtensionVersion): TargetPlatform[] {
-	return version.targetPlatform ? [version.targetPlatform] : [...ANY_TARGET_PLATFORMS];
+	return version.targetPlatform && !equalsIgnoreCase(version.targetPlatform, 'universal') ? [toTargetPlatform(version.targetPlatform)] : [...ANY_TARGET_PLATFORMS];
 }
 
 function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGalleryExtensionVersion, index: number, query: Query, querySource?: string): IGalleryExtension {

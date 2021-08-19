@@ -31,6 +31,22 @@ export const enum TargetPlatform {
 	DARWIN_ARM64 = 'darwin-arm64',
 
 	WEB = 'web',
+	UNKNOWN = 'unknown',
+}
+
+export function toTargetPlatform(targetPlatform: string): TargetPlatform {
+	switch (targetPlatform) {
+		case TargetPlatform.WIN32_X64: return TargetPlatform.WIN32_X64;
+		case TargetPlatform.WIN32_IA32: return TargetPlatform.WIN32_IA32;
+		case TargetPlatform.WIN32_ARM64: return TargetPlatform.WIN32_ARM64;
+		case TargetPlatform.LINUX_X64: return TargetPlatform.LINUX_X64;
+		case TargetPlatform.LINUX_ARM64: return TargetPlatform.LINUX_ARM64;
+		case TargetPlatform.LINUX_ARMHF: return TargetPlatform.LINUX_ARMHF;
+		case TargetPlatform.DARWIN_X64: return TargetPlatform.DARWIN_X64;
+		case TargetPlatform.DARWIN_ARM64: return TargetPlatform.DARWIN_ARM64;
+		case TargetPlatform.WEB: return TargetPlatform.WEB;
+	}
+	return TargetPlatform.UNKNOWN;
 }
 
 export function getTargetPlatformFromOS(os: OperatingSystem, arch: string): TargetPlatform {
