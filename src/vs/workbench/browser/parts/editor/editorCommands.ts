@@ -22,7 +22,8 @@ import { IEditorGroupsService, IEditorGroup, GroupDirection, GroupLocation, Grou
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { EditorResolution, ITextEditorOptions } from 'vs/platform/editor/common/editor';
@@ -41,6 +42,9 @@ export const MOVE_ACTIVE_EDITOR_COMMAND_ID = 'moveActiveEditor';
 export const LAYOUT_EDITOR_GROUPS_COMMAND_ID = 'layoutEditorGroups';
 export const KEEP_EDITOR_COMMAND_ID = 'workbench.action.keepEditor';
 export const TOGGLE_KEEP_EDITORS_COMMAND_ID = 'workbench.action.toggleKeepEditors';
+export const TOGGLE_LOCK_GROUP_COMMAND_ID = 'workbench.action.experimentalToggleEditorGroupLock';
+export const LOCK_GROUP_COMMAND_ID = 'workbench.action.experimentalLockEditorGroup';
+export const UNLOCK_GROUP_COMMAND_ID = 'workbench.action.experimentalUnlockEditorGroup';
 export const SHOW_EDITORS_IN_GROUP = 'workbench.action.showEditorsInGroup';
 export const REOPEN_WITH_COMMAND_ID = 'workbench.action.reopenWithEditor';
 
@@ -955,6 +959,60 @@ function registerOtherEditorCommands(): void {
 			const currentSetting = configurationService.getValue('workbench.editor.enablePreview');
 			const newSetting = currentSetting === true ? false : true;
 			configurationService.updateValue('workbench.editor.enablePreview', newSetting);
+		}
+	});
+
+	function setEditorGroupLock(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext, locked?: boolean): void {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		const { group } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
+		if (group) {
+			group.lock(locked ?? !group.isLocked);
+		}
+	}
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TOGGLE_LOCK_GROUP_COMMAND_ID,
+				title: localize('toggleEditorGroupLock', "Toggle Editor Group Lock"),
+				category: CATEGORIES.View,
+				precondition: ContextKeyExpr.has('multipleEditorGroups'),
+				f1: true
+			});
+		}
+		async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): Promise<void> {
+			setEditorGroupLock(accessor, resourceOrContext, context);
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: LOCK_GROUP_COMMAND_ID,
+				title: localize('lockEditorGroup', "Lock Editor Group"),
+				category: CATEGORIES.View,
+				precondition: ContextKeyExpr.has('multipleEditorGroups'),
+				f1: true
+			});
+		}
+		async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): Promise<void> {
+			setEditorGroupLock(accessor, resourceOrContext, context, true);
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: UNLOCK_GROUP_COMMAND_ID,
+				title: localize('unlockEditorGroup', "Unlock Editor Group"),
+				precondition: ContextKeyExpr.has('multipleEditorGroups'),
+				category: CATEGORIES.View,
+				f1: true
+			});
+		}
+		async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): Promise<void> {
+			setEditorGroupLock(accessor, resourceOrContext, context, false);
 		}
 	});
 

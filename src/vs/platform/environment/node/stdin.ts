@@ -36,7 +36,7 @@ export function stdinDataListener(durationinMs: number): Promise<boolean> {
 }
 
 export function getStdinFilePath(): string {
-	return paths.join(os.tmpdir(), `code-stdin-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 3)}.txt`);
+	return paths.join(os.tmpdir(), `code-stdin-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 3)}`);
 }
 
 export async function readFromStdin(targetPath: string, verbose: boolean): Promise<void> {

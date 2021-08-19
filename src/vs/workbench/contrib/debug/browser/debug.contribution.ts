@@ -55,6 +55,7 @@ import { DisassemblyView, DisassemblyViewContribution } from 'vs/workbench/contr
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 import { Codicon } from 'vs/base/common/codicons';
+import { DebugLifecycle } from 'vs/workbench/contrib/debug/common/debugLifecycle';
 
 const debugCategory = nls.localize('debugCategory', "Debug");
 registerColors();
@@ -70,6 +71,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugContentProvider, LifecyclePhase.Eventually);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(StatusBarColorProvider, LifecyclePhase.Eventually);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DisassemblyViewContribution, LifecyclePhase.Eventually);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugLifecycle, LifecyclePhase.Eventually);
 
 // Register Quick Access
 Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQuickAccessProvider({
@@ -524,6 +526,16 @@ configurationRegistry.registerConfiguration({
 			],
 			default: 'allEditorsInActiveGroup',
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
+		},
+		'debug.confirmOnExit': {
+			description: nls.localize('debug.confirmOnExit', "Controls whether to confirm when the window closes if there are active debug sessions."),
+			type: 'string',
+			enum: ['never', 'always'],
+			enumDescriptions: [
+				nls.localize('debug.confirmOnExit.never', "Never confirm."),
+				nls.localize('debug.confirmOnExit.always', "Always confirm if there are debug sessions."),
+			],
+			default: 'never'
 		}
 	}
 });

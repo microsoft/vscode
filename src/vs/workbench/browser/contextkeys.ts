@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext, IsMacContext, IsLinuxContext, IsWindowsContext, IsWebContext, IsMacNativeContext, IsDevelopmentContext, IsIOSContext } from 'vs/platform/contextkey/common/contextkeys';
-import { ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, TEXT_DIFF_EDITOR_ID, SplitEditorsVertically, InEditorZenModeContext, IsCenteredLayoutContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorReadonlyContext, EditorAreaVisibleContext, ActiveEditorAvailableEditorIdsContext, EditorInputCapabilities, ActiveEditorCanRevertContext } from 'vs/workbench/common/editor';
+import { ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, TEXT_DIFF_EDITOR_ID, SplitEditorsVertically, InEditorZenModeContext, IsCenteredLayoutContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorReadonlyContext, EditorAreaVisibleContext, ActiveEditorAvailableEditorIdsContext, EditorInputCapabilities, ActiveEditorCanRevertContext, ActiveEditorGroupLockedContext } from 'vs/workbench/common/editor';
 import { trackFocus, addDisposableListener, EventType, WebFileSystemAccess } from 'vs/base/browser/dom';
 import { preferredSideBySideGroupDirection, GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -54,6 +54,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	private activeEditorGroupEmpty: IContextKey<boolean>;
 	private activeEditorGroupIndex: IContextKey<number>;
 	private activeEditorGroupLast: IContextKey<boolean>;
+	private activeEditorGroupLocked: IContextKey<boolean>;
 	private multipleEditorGroupsContext: IContextKey<boolean>;
 
 	private editorsVisibleContext: IContextKey<boolean>;
@@ -124,6 +125,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this.activeEditorGroupEmpty = ActiveEditorGroupEmptyContext.bindTo(this.contextKeyService);
 		this.activeEditorGroupIndex = ActiveEditorGroupIndexContext.bindTo(this.contextKeyService);
 		this.activeEditorGroupLast = ActiveEditorGroupLastContext.bindTo(this.contextKeyService);
+		this.activeEditorGroupLocked = ActiveEditorGroupLockedContext.bindTo(this.contextKeyService);
 		this.multipleEditorGroupsContext = MultipleEditorGroupsContext.bindTo(this.contextKeyService);
 
 		// Working Copies
@@ -205,6 +207,9 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this._register(this.editorGroupService.onDidRemoveGroup(() => this.updateEditorContextKeys()));
 		this._register(this.editorGroupService.onDidChangeGroupIndex(() => this.updateEditorContextKeys()));
 
+		this._register(this.editorGroupService.onDidChangeActiveGroup(() => this.updateEditorGroupContextKeys()));
+		this._register(this.editorGroupService.onDidChangeGroupLocked(() => this.updateEditorGroupContextKeys()));
+
 		this._register(addDisposableListener(window, EventType.FOCUS_IN, () => this.updateInputContextKeys(), true));
 
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateWorkbenchStateContextKey()));
@@ -237,7 +242,6 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	}
 
 	private updateEditorContextKeys(): void {
-		const activeGroup = this.editorGroupService.activeGroup;
 		const activeEditorPane = this.editorService.activeEditorPane;
 		const visibleEditorPanes = this.editorService.visibleEditorPanes;
 
@@ -256,15 +260,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 			this.activeEditorGroupEmpty.reset();
 		}
 
-		const groupCount = this.editorGroupService.count;
-		if (groupCount > 1) {
-			this.multipleEditorGroupsContext.set(true);
-		} else {
-			this.multipleEditorGroupsContext.reset();
-		}
-
-		this.activeEditorGroupIndex.set(activeGroup.index + 1); // not zero-indexed
-		this.activeEditorGroupLast.set(activeGroup.index === groupCount - 1);
+		this.updateEditorGroupContextKeys();
 
 		if (activeEditorPane) {
 			this.activeEditorContext.set(activeEditorPane.getId());
@@ -280,6 +276,20 @@ export class WorkbenchContextKeysHandler extends Disposable {
 			this.activeEditorCanRevert.reset();
 			this.activeEditorAvailableEditorIds.reset();
 		}
+	}
+
+	private updateEditorGroupContextKeys(): void {
+		const groupCount = this.editorGroupService.count;
+		if (groupCount > 1) {
+			this.multipleEditorGroupsContext.set(true);
+		} else {
+			this.multipleEditorGroupsContext.reset();
+		}
+
+		const activeGroup = this.editorGroupService.activeGroup;
+		this.activeEditorGroupIndex.set(activeGroup.index + 1); // not zero-indexed
+		this.activeEditorGroupLast.set(activeGroup.index === groupCount - 1);
+		this.activeEditorGroupLocked.set(activeGroup.isLocked);
 	}
 
 	private updateInputContextKeys(): void {

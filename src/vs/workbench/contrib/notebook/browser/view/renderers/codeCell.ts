@@ -31,9 +31,9 @@ export class CodeCell extends Disposable {
 	private _renderedOutputCollapseState: boolean | undefined;
 
 	constructor(
-		private notebookEditor: IActiveNotebookEditor,
-		private viewCell: CodeCellViewModel,
-		private templateData: CodeCellRenderTemplate,
+		private readonly notebookEditor: IActiveNotebookEditor,
+		private readonly viewCell: CodeCellViewModel,
+		private readonly templateData: CodeCellRenderTemplate,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotebookCellStatusBarService readonly notebookCellStatusBarService: INotebookCellStatusBarService,
 		@IKeybindingService readonly keybindingService: IKeybindingService,

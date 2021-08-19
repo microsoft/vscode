@@ -55,6 +55,7 @@ declare function __import(path: string): Promise<any>;
 
 async function webviewPreloads(ctx: PreloadContext) {
 	let currentOptions = ctx.options;
+	let isWorkspaceTrusted = ctx.isWorkspaceTrusted;
 
 	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
@@ -693,6 +694,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 				currentOptions = event.data.options;
 				viewModel.toggleDragDropEnabled(currentOptions.dragAndDropEnabled);
 				break;
+			case 'updateWorkspaceTrust': {
+				isWorkspaceTrusted = event.data.isTrusted;
+				viewModel.rerenderMarkupCells();
+				break;
+			}
 		}
 	});
 
@@ -737,7 +743,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				// Currently the API is always resolved before we call `createRendererContext`.
 				getRenderer: async (id: string) => renderers.getRenderer(id)?.api,
 				workspace: {
-					isTrusted: ctx.isWorkspaceTrusted,
+					get isTrusted() { return isWorkspaceTrusted; }
 				}
 			};
 
@@ -973,6 +979,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 		public unhideMarkupCell(id: string): void {
 			const cell = this.getExpectedMarkupCell(id);
 			cell?.unhide();
+		}
+
+		public rerenderMarkupCells() {
+			for (const cell of this._markupCells.values()) {
+				cell.rerender();
+			}
 		}
 
 		private getExpectedMarkupCell(id: string): MarkupCell | undefined {
@@ -1212,6 +1224,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 		public unhide() {
 			this.element.style.visibility = 'visible';
 			this.updateMarkupDimensions();
+		}
+
+		public rerender() {
+			this.updateContentAndRender(this._content);
 		}
 
 		private async updateMarkupDimensions() {

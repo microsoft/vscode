@@ -40,10 +40,10 @@ export interface IHoverService {
 
 export interface IHoverOptions {
 	/**
-	 * The text to display in the primary section of the hover. The type of text determines the
+	 * The content to display in the primary section of the hover. The type of text determines the
 	 * default `hideOnHover` behavior.
 	 */
-	text: IMarkdownString | string;
+	content: IMarkdownString | string | HTMLElement;
 
 	/**
 	 * The target for the hover. This determines the position of the hover and it will only be

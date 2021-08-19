@@ -5,26 +5,26 @@
 
 /* eslint-disable code-import-patterns */
 
-import { URI } from 'vs/base/common/uri';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { Event } from 'vs/base/common/event';
-import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IExtensionService, NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { isWindows } from 'vs/base/common/platform';
-import { ITunnelProvider, ITunnelService, RemoteTunnel, TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { SearchService } from 'vs/workbench/services/search/common/searchService';
-import { ISearchService } from 'vs/workbench/services/search/common/search';
+import { Event } from 'vs/base/common/event';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { isWindows } from 'vs/base/common/platform';
+import { joinPath } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IFileService } from 'vs/platform/files/common/files';
+import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
+import { ITunnelProvider, ITunnelService, RemoteTunnel, TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { IExtensionService, NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { ISearchService } from 'vs/workbench/services/search/common/search';
+import { SearchService } from 'vs/workbench/services/search/common/searchService';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 //#region Environment
 

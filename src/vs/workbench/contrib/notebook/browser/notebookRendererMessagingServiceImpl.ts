@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { INotebookRendererMessagingService, IScopedRendererMessaging } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 type MessageToSend = { editorId: string; rendererId: string; message: unknown };
 
-export class NotebookRendererMessagingService implements INotebookRendererMessagingService {
+export class NotebookRendererMessagingService extends Disposable implements INotebookRendererMessagingService {
 	declare _serviceBrand: undefined;
 	/**
 	 * Activation promises. Maps renderer IDs to a queue of messages that should
@@ -17,10 +18,14 @@ export class NotebookRendererMessagingService implements INotebookRendererMessag
 	 */
 	private readonly activations = new Map<string /* rendererId */, undefined | MessageToSend[]>();
 	private readonly scopedMessaging = new Map</* editorId */ string, IScopedRendererMessaging>();
-	private readonly postMessageEmitter = new Emitter<MessageToSend>();
+	private readonly postMessageEmitter = this._register(new Emitter<MessageToSend>());
 	public readonly onShouldPostMessage = this.postMessageEmitter.event;
 
-	constructor(@IExtensionService private readonly extensionService: IExtensionService) { }
+	constructor(
+		@IExtensionService private readonly extensionService: IExtensionService
+	) {
+		super();
+	}
 
 	/** @inheritdoc */
 	public receiveMessage(editorId: string | undefined, rendererId: string, message: unknown): Promise<boolean> {

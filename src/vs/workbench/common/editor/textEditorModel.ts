@@ -21,12 +21,14 @@ import { ThrottledDelayer } from 'vs/base/common/async';
  */
 export class BaseTextEditorModel extends EditorModel implements ITextEditorModel, IModeSupport {
 
+	private static readonly AUTO_DETECT_LANGUAGE_THROTTLE_DELAY = 600;
+
 	protected textEditorModelHandle: URI | undefined = undefined;
 
 	private createdEditorModel: boolean | undefined;
 
 	private readonly modelDisposeListener = this._register(new MutableDisposable());
-	private readonly _autoDetectLanguageThrottler = this._register(new ThrottledDelayer<void>(600));
+	private readonly autoDetectLanguageThrottler = this._register(new ThrottledDelayer<void>(BaseTextEditorModel.AUTO_DETECT_LANGUAGE_THROTTLE_DELAY));
 
 	constructor(
 		@IModelService protected modelService: IModelService,
@@ -101,21 +103,21 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 		return this.textEditorModel?.getModeId();
 	}
 
-	protected async autoDetectLanguage() {
-		this._autoDetectLanguageThrottler.trigger(() => this.autoDetectLanguageImpl());
+	protected autoDetectLanguage(): Promise<void> {
+		return this.autoDetectLanguageThrottler.trigger(() => this.doAutoDetectLanguage());
 	}
 
-	private async autoDetectLanguageImpl() {
-		if (this.hasModeSetExplicitly || !this.textEditorModelHandle || !this.languageDetectionService.isEnabledForMode(this.getMode() ?? PLAINTEXT_MODE_ID)) {
+	private async doAutoDetectLanguage(): Promise<void> {
+		if (
+			this.hasModeSetExplicitly || 															// skip detection when the user has made an explicit choice on the mode
+			!this.textEditorModelHandle ||															// require a URI to run the detection for
+			!this.languageDetectionService.isEnabledForMode(this.getMode() ?? PLAINTEXT_MODE_ID)	// require a valid mode that is enlisted for detection
+		) {
 			return;
 		}
 
 		const lang = await this.languageDetectionService.detectLanguage(this.textEditorModelHandle);
-		if (!lang) {
-			return;
-		}
-
-		if (!this.isDisposed()) {
+		if (lang && !this.isDisposed()) {
 			this.setModeInternal(lang);
 		}
 	}

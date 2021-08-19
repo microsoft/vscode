@@ -686,14 +686,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: async (accessor, args?: { viewType: string }) => {
 		const editorService = accessor.get(IEditorService);
 
-		if (typeof args?.viewType === 'string') {
-			const editorGroupsService = accessor.get(IEditorGroupsService);
-
-			const group = editorGroupsService.activeGroup;
-			await editorService.openEditor({ resource: undefined, options: { override: args.viewType, pinned: true } }, group);
-		} else {
-			await editorService.openEditor({ resource: undefined, options: { pinned: true } }); // untitled are always pinned
-		}
+		await editorService.openEditor({
+			resource: undefined,
+			options: {
+				override: args?.viewType,
+				pinned: true
+			}
+		});
 	}
 });
 
