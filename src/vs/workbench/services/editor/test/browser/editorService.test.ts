@@ -198,8 +198,8 @@ suite('EditorService', () => {
 		let input5: IResourceEditorInput = { resource: URI.parse('file://resource5-basics.editor-service-locked-group-tests'), options: { pinned: true } };
 		let input6: IResourceEditorInput = { resource: URI.parse('file://resource6-basics.editor-service-locked-group-tests'), options: { pinned: true } };
 
-		let editor1 = await service.openEditor(input1);
-		let editor2 = await service.openEditor(input2, SIDE_GROUP);
+		let editor1 = await service.openEditor(input1, { pinned: true });
+		let editor2 = await service.openEditor(input2, { pinned: true }, SIDE_GROUP);
 
 		const group1 = editor1?.group;
 		assert.strictEqual(group1?.count, 1);
@@ -211,21 +211,22 @@ suite('EditorService', () => {
 		part.activateGroup(group2.id);
 
 		// Will open in group 1 because group 2 is locked
-		await service.openEditor(input3);
+		await service.openEditor(input3, { pinned: true });
 
 		assert.strictEqual(group1.count, 2);
 		assert.strictEqual(group1.activeEditor?.resource?.toString(), input3.resource.toString());
 		assert.strictEqual(group2.count, 1);
 
 		// Will open in group 2 because group was provided
-		await service.openEditor(input3, group2.id);
+		await service.openEditor(input3, { pinned: true }, group2.id);
 
 		assert.strictEqual(group1.count, 2);
 		assert.strictEqual(group2.count, 2);
 		assert.strictEqual(group2.activeEditor?.resource?.toString(), input3.resource.toString());
 
 		// Will reveal editor in group 2 because it is contained
-		await service.openEditor(input2, ACTIVE_GROUP);
+		await service.openEditor(input2, { pinned: true }, group2);
+		await service.openEditor(input2, { pinned: true }, ACTIVE_GROUP);
 
 		assert.strictEqual(group1.count, 2);
 		assert.strictEqual(group2.count, 2);
@@ -233,16 +234,17 @@ suite('EditorService', () => {
 
 		// Will open a new group because side group is locked
 		part.activateGroup(group1.id);
-		let editor3 = await service.openEditor(input4, SIDE_GROUP);
+		let editor3 = await service.openEditor(input4, { pinned: true }, SIDE_GROUP);
 		assert.strictEqual(part.count, 3);
 
 		const group3 = editor3?.group;
 		assert.strictEqual(group3?.count, 1);
 
 		// Will reveal editor in group 2 because it is contained
-		await service.openEditor(input3, SIDE_GROUP);
+		await service.openEditor(input3, { pinned: true }, group2);
+		part.activateGroup(group1.id);
+		await service.openEditor(input3, { pinned: true }, SIDE_GROUP);
 		assert.strictEqual(part.count, 3);
-		assert.strictEqual(part.activeGroup, group2);
 
 		// Will open a new group if all groups are locked
 		group1.lock(true);
@@ -250,7 +252,7 @@ suite('EditorService', () => {
 		group3.lock(true);
 
 		part.activateGroup(group1.id);
-		let editor5 = await service.openEditor(input5);
+		let editor5 = await service.openEditor(input5, { pinned: true });
 		const group4 = editor5?.group;
 		assert.strictEqual(group4?.count, 1);
 		assert.strictEqual(group4.activeEditor?.resource?.toString(), input5.resource.toString());
@@ -268,7 +270,7 @@ suite('EditorService', () => {
 		group4.lock(true);
 		group2.lock(true);
 
-		await service.openEditor(input6);
+		await service.openEditor(input6, { pinned: true });
 		assert.strictEqual(part.count, 4);
 		assert.strictEqual(part.activeGroup, group3);
 		assert.strictEqual(group3.activeEditor?.resource?.toString(), input6.resource.toString());
@@ -281,20 +283,18 @@ suite('EditorService', () => {
 
 		part.activateGroup(group1.id);
 
-		await service.openEditor(input6);
+		await service.openEditor(input6, { pinned: true });
 
 		assert.strictEqual(part.count, 4);
 		assert.strictEqual(part.activeGroup, group3);
 		assert.strictEqual(group3.activeEditor?.resource?.toString(), input6.resource.toString());
 
-		await service.openEditor(input3, group3);
-
 		assert.strictEqual(part.activeGroup, group3);
-		assert.strictEqual(group3.activeEditor?.resource?.toString(), input3.resource.toString());
+		assert.strictEqual(group3.activeEditor?.resource?.toString(), input6.resource.toString());
 
 		part.activateGroup(group1.id);
 
-		await service.openEditor(input6);
+		await service.openEditor(input6, { pinned: true });
 
 		assert.strictEqual(part.count, 4);
 		assert.strictEqual(part.activeGroup, group3);

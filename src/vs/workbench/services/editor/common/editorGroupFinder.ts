@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isEqual } from 'vs/base/common/resources';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInput, IEditorInputWithOptions, isEditorInput, isEditorInputWithOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, IEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IEditorGroup, GroupsOrder, preferredSideBySideGroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { PreferredGroup, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
@@ -162,18 +163,19 @@ function isGroupLockedForEditor(group: IEditorGroup, editor: IEditorInput | IUnt
 		return false;
 	}
 
-	if (!isEditorInput(editor) && typeof editor.options?.override !== 'string') {
-		// we need either a typed editor or a untyped
-		// editor with specified editor override to
-		// do a proper `group.contains` check, so we
-		// return early if that is not the case
-		return false;
-	}
-
-	if (group.contains(editor)) {
-		// even though the group is locked, it contains
-		// the editor, so we allow to open the editor
-		return false;
+	if (group.activeEditor) {
+		const resource = EditorResourceAccessor.getCanonicalUri(editor);
+		if (group.activeEditor.matches(editor) || isEqual(group.activeEditor.resource, resource)) {
+			// special case: the active editor of the locked group
+			// matches the provided one, so in that case we do not
+			// want to open the editor in any different group.
+			//
+			// Note: intentionally doing a "weak" check on the resource
+			// because `IEditorInput.matches` will not work for untyped
+			// editors that have no `override` defined.
+			//
+			return false;
+		}
 	}
 
 	// group is locked for this editor
