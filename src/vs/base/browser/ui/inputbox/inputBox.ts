@@ -642,14 +642,17 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 	private observer: MutationObserver | undefined;
 
 	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider | undefined, options: IHistoryInputOptions) {
-		const NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX = ` [\u21C5]`;
+		const NLS_PLACEHOLDER_HISTORY_HINT = nls.localize({ key: 'history.inputbox.hint', comment: ['Text will be prefixed with \u21C5 plus a single space, then used as a hint where input field keeps history'] }, "for history");
+		const NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX = ` or \u21C5 ${NLS_PLACEHOLDER_HISTORY_HINT}`;
+		const NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS = ` (\u21C5 ${NLS_PLACEHOLDER_HISTORY_HINT})`;
 		super(container, contextViewProvider, options);
 		this.history = new HistoryNavigator<string>(options.history, 100);
 
 		// Function to append the history suffix to the placeholder if necessary
 		const addSuffix = () => {
-			if (!this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX) && this.history.getHistory().length) {
-				const suffixedPlaceholder = this.placeholder + NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX;
+			if (!this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX) && !this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS) && this.history.getHistory().length) {
+				const suffix = this.placeholder.endsWith(')') ? NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX : NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS;
+				const suffixedPlaceholder = this.placeholder + suffix;
 				if (options.showPlaceholderOnFocus && document.activeElement !== this.input) {
 					this.placeholder = suffixedPlaceholder;
 				}
@@ -672,14 +675,23 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 
 		this.onfocus(this.input, () => addSuffix());
 		this.onblur(this.input, () => {
-			const revertedPlaceholder = this.placeholder.slice(0, this.placeholder.length - NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX.length);
-			if (this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX)) {
-				if (options.showPlaceholderOnFocus) {
-					this.placeholder = revertedPlaceholder;
+			const resetPlaceholder = (historyHint: string) => {
+				if (!this.placeholder.endsWith(historyHint)) {
+					return false;
 				}
 				else {
-					this.setPlaceHolder(revertedPlaceholder);
+					const revertedPlaceholder = this.placeholder.slice(0, this.placeholder.length - historyHint.length);
+					if (options.showPlaceholderOnFocus) {
+						this.placeholder = revertedPlaceholder;
+					}
+					else {
+						this.setPlaceHolder(revertedPlaceholder);
+					}
+					return true;
 				}
+			};
+			if (!resetPlaceholder(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS)) {
+				resetPlaceholder(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX);
 			}
 		});
 	}
