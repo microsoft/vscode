@@ -44,10 +44,7 @@ export class LocalSearchService extends SearchService {
 	) {
 		super(modelService, editorService, telemetryService, logService, extensionService, fileService, uriIdentityService);
 
-		const forceEHSearch = configurationService.getValue('search.experimental.forceExtensionHostSearch');
-		if (!forceEHSearch) {
-			this.diskSearch = instantiationService.createInstance(DiskSearch, !environmentService.isBuilt || environmentService.verbose, parseSearchPort(environmentService.args, environmentService.isBuilt));
-		}
+		this.diskSearch = instantiationService.createInstance(DiskSearch, !environmentService.isBuilt || environmentService.verbose, parseSearchPort(environmentService.args, environmentService.isBuilt));
 	}
 }
 

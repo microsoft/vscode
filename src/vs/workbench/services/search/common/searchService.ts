@@ -209,7 +209,7 @@ export class SearchService extends Disposable implements ISearchService {
 				this.fileSearchProviders.get(scheme) :
 				this.textSearchProviders.get(scheme);
 
-			if (scheme === Schemas.file && (!provider || this.diskSearch)) {
+			if (!provider && scheme === Schemas.file) {
 				diskSearchQueries.push(...schemeFQs);
 			} else {
 				if (!provider) {
