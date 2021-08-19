@@ -19,7 +19,7 @@ import { ActivationTimes, ExtensionPointContribution, IExtensionService, IExtens
 import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
-import { ExtensionHostManager, IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
+import { createExtensionHostManager, IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
 import { ExtensionIdentifier, IExtensionDescription, IExtension, ExtensionKind, IExtensionContributions } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
@@ -586,7 +586,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	private _startExtensionHosts(isInitialStart: boolean, initialActivationEvents: string[]): void {
 		const extensionHosts = this._createExtensionHosts(isInitialStart);
 		extensionHosts.forEach((extensionHost) => {
-			const processManager: IExtensionHostManager = this._instantiationService.createInstance(ExtensionHostManager, extensionHost, initialActivationEvents);
+			const processManager: IExtensionHostManager = createExtensionHostManager(this._instantiationService, extensionHost, isInitialStart, initialActivationEvents);
 			processManager.onDidExit(([code, signal]) => this._onExtensionHostCrashOrExit(processManager, code, signal));
 			processManager.onDidChangeResponsiveState((responsiveState) => { this._onDidChangeResponsiveChange.fire({ isResponsive: responsiveState === ResponsiveState.Responsive }); });
 			this._extensionHostManagers.push(processManager);
