@@ -3335,7 +3335,11 @@ export class TestTag implements vscode.TestTag {
 	constructor(
 		public readonly id: string,
 		public readonly label?: string,
-	) { }
+	) {
+		if (/\s/.test(id)) {
+			throw new Error(`Test tag ID "${id}" may not include whitespace`);
+		}
+	}
 }
 
 //#endregion
