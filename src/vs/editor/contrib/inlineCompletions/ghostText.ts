@@ -100,6 +100,10 @@ export class GhostTextPart {
 	constructor(
 		readonly column: number,
 		readonly lines: readonly string[],
+		/**
+		 * Indicates if this part is a preview of an inline suggestion when a suggestion is previewed.
+		*/
+		readonly preview: boolean,
 	) {
 	}
 

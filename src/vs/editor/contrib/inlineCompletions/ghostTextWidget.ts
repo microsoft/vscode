@@ -116,6 +116,7 @@ export class GhostTextWidget extends Disposable {
 				inlineTexts.push({
 					column: part.column,
 					text: lines[0],
+					preview: part.preview,
 				});
 				lines = lines.slice(1);
 			} else {
@@ -192,6 +193,7 @@ interface HiddenText {
 interface InsertedInlineText {
 	column: number;
 	text: string;
+	preview: boolean;
 }
 
 class DecorationsWidget implements IDisposable {
@@ -273,6 +275,7 @@ class DecorationsWidget implements IDisposable {
 					opacity,
 					color,
 					border,
+					fontWeight: p.preview ? 'bold' : 'normal',
 				},
 			}));
 
@@ -280,7 +283,7 @@ class DecorationsWidget implements IDisposable {
 				range: Range.fromPositions(new Position(lineNumber, p.column)),
 				options: shouldUseInjectedText ? {
 					description: 'ghost-text',
-					after: { content: contentText, inlineClassName: 'ghost-text-decoration' }
+					after: { content: contentText, inlineClassName: p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration' }
 				} : {
 					...decorationType.resolve()
 				}
@@ -495,6 +498,7 @@ registerThemingParticipant((theme, collector) => {
 		const color = Color.Format.CSS.format(opaque(foreground))!;
 
 		collector.addRule(`.monaco-editor .ghost-text-decoration { opacity: ${opacity}; color: ${color}; }`);
+		collector.addRule(`.monaco-editor .ghost-text-decoration-preview { color: ${foreground.toString()}; }`);
 		collector.addRule(`.monaco-editor .suggest-preview-text .ghost-text { opacity: ${opacity}; color: ${color}; }`);
 	}
 

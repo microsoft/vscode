@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SuggestWidgetAdapterModel } from 'vs/editor/contrib/inlineCompletions/suggestWidgetAdapterModel';
+import { SuggestWidgetPreviewModel } from 'vs/editor/contrib/inlineCompletions/suggestWidgetPreviewModel';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -27,6 +27,7 @@ import assert = require('assert');
 import { GhostTextContext } from 'vs/editor/contrib/inlineCompletions/test/utils';
 import { Range } from 'vs/editor/common/core/range';
 import { runWithFakedTimers } from 'vs/editor/contrib/inlineCompletions/test/timeTravelScheduler';
+import { SharedInlineCompletionCache } from 'vs/editor/contrib/inlineCompletions/ghostTextModel';
 
 suite('Suggest Widget Model', () => {
 	test('Active', async () => {
@@ -69,11 +70,11 @@ suite('Suggest Widget Model', () => {
 				const suggestController = (editor.getContribution(SuggestController.ID) as SuggestController);
 				suggestController.triggerSuggest();
 				await timeout(1000);
-				assert.deepStrictEqual(context.getAndClearViewStates(), ['', 'h[ello]']);
+				assert.deepStrictEqual(context.getAndClearViewStates(), ['', 'h', 'h[ello]']);
 
 				context.keyboardType('.');
 				await timeout(1000);
-				assert.deepStrictEqual(context.getAndClearViewStates(), ['hello', 'hello.[hello]']);
+				assert.deepStrictEqual(context.getAndClearViewStates(), ['hello', 'hello.', 'hello.[hello]']);
 
 				suggestController.cancelSuggestWidget();
 
@@ -107,7 +108,7 @@ const provider: CompletionItemProvider = {
 async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 	text: string,
 	options: TestCodeEditorCreationOptions & { provider?: CompletionItemProvider, fakeClock?: boolean, serviceCollection?: never },
-	callback: (args: { editor: ITestCodeEditor, editorViewModel: ViewModel, model: SuggestWidgetAdapterModel, context: GhostTextContext }) => Promise<void>
+	callback: (args: { editor: ITestCodeEditor, editorViewModel: ViewModel, model: SuggestWidgetPreviewModel, context: GhostTextContext }) => Promise<void>
 ): Promise<void> {
 	await runWithFakedTimers({ useFakeTimers: options.fakeClock }, async () => {
 		const disposableStore = new DisposableStore();
@@ -145,7 +146,8 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 			await withAsyncTestCodeEditor(text, { ...options, serviceCollection }, async (editor, editorViewModel, instantiationService) => {
 				editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
 				editor.registerAndInstantiateContribution(SuggestController.ID, SuggestController);
-				const model = instantiationService.createInstance(SuggestWidgetAdapterModel, editor);
+				const cache = disposableStore.add(new SharedInlineCompletionCache());
+				const model = instantiationService.createInstance(SuggestWidgetPreviewModel, editor, cache);
 				const context = new GhostTextContext(model, editor);
 				await callback({ editor, editorViewModel, model, context });
 				model.dispose();

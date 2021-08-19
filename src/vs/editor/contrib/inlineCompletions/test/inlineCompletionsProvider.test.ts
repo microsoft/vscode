@@ -9,12 +9,14 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { InlineCompletionsProvider, InlineCompletionsProviderRegistry } from 'vs/editor/common/modes';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { InlineCompletionsModel, inlineCompletionToGhostText } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsModel';
+import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsModel';
+import { inlineCompletionToGhostText } from '../inlineCompletionToGhostText';
 import { GhostTextContext, MockInlineCompletionsProvider } from 'vs/editor/contrib/inlineCompletions/test/utils';
 import { ITestCodeEditor, TestCodeEditorCreationOptions, withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { runWithFakedTimers } from 'vs/editor/contrib/inlineCompletions/test/timeTravelScheduler';
+import { SharedInlineCompletionCache } from 'vs/editor/contrib/inlineCompletions/ghostTextModel';
 
 suite('Inline Completions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -506,7 +508,8 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 
 			let result: T;
 			await withAsyncTestCodeEditor(text, options, async (editor, editorViewModel, instantiationService) => {
-				const model = instantiationService.createInstance(InlineCompletionsModel, editor);
+				const cache = disposableStore.add(new SharedInlineCompletionCache());
+				const model = instantiationService.createInstance(InlineCompletionsModel, editor, cache);
 				const context = new GhostTextContext(model, editor);
 				result = await callback({ editor, editorViewModel, model, context });
 				context.dispose();
