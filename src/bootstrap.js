@@ -73,11 +73,11 @@
 
 			NODE_MODULES_ALTERNATIVE_PATH = alternativeDriveLetter + NODE_MODULES_PATH.substr(1);
 		} else {
-			NODE_MODULES_ALTERNATIVE_PATH = NODE_MODULES_PATH;
+			NODE_MODULES_ALTERNATIVE_PATH = undefined;
 		}
 
 		const NODE_MODULES_ASAR_PATH = `${NODE_MODULES_PATH}.asar`;
-		const NODE_MODULES_ASAR_ALTERNATIVE_PATH = `${NODE_MODULES_ALTERNATIVE_PATH}.asar`;
+		const NODE_MODULES_ASAR_ALTERNATIVE_PATH = NODE_MODULES_ALTERNATIVE_PATH ? `${NODE_MODULES_ALTERNATIVE_PATH}.asar` : undefined;
 
 		// @ts-ignore
 		const originalResolveLookupPaths = Module._resolveLookupPaths;
@@ -92,17 +92,16 @@
 						asarPathAdded = true;
 						paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
 						break;
-					} else if (process.platform === 'win32' && paths[i] === NODE_MODULES_ALTERNATIVE_PATH) {
+					} else if (paths[i] === NODE_MODULES_ALTERNATIVE_PATH) {
 						asarPathAdded = true;
 						paths.splice(i, 0, NODE_MODULES_ASAR_ALTERNATIVE_PATH);
 						break;
 					}
 				}
 				if (!asarPathAdded && appRoot) {
+					// Assuming that adding just `NODE_MODULES_ASAR_PATH` is sufficient
+					// because nodejs should find it even if it has a different driver letter case
 					paths.push(NODE_MODULES_ASAR_PATH);
-					if (NODE_MODULES_ASAR_PATH !== NODE_MODULES_ASAR_ALTERNATIVE_PATH) {
-						paths.push(NODE_MODULES_ASAR_ALTERNATIVE_PATH);
-					}
 				}
 			}
 
