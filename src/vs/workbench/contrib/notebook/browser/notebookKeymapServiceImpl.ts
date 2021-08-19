@@ -105,6 +105,10 @@ export class NotebookKeymapService extends Disposable implements INotebookKeymap
 }
 
 export function isNotebookKeymapExtension(extension: IExtensionStatus): boolean {
+	if (extension.local.manifest.extensionPack) {
+		return false;
+	}
+
 	const keywords = extension.local.manifest.keywords;
 	if (!keywords) {
 		return false;
