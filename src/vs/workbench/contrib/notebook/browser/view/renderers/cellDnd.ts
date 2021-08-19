@@ -5,7 +5,7 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { Delayer } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { BaseCellRenderTemplate, expandCellRangesWithHiddenCells, ICellViewModel, INotebookCellList, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { cloneNotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
@@ -37,7 +37,9 @@ export class CellDragAndDropController extends Disposable {
 	private list!: INotebookCellList;
 
 	private isScrolling = false;
-	private scrollingDelayer: Delayer<void>;
+	private readonly scrollingDelayer: Delayer<void>;
+
+	private readonly listOnWillScrollListener = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
@@ -75,13 +77,13 @@ export class CellDragAndDropController extends Disposable {
 			this.onCellDragLeave(event);
 		});
 
-		this.scrollingDelayer = new Delayer(200);
+		this.scrollingDelayer = this._register(new Delayer(200));
 	}
 
 	setList(value: INotebookCellList) {
 		this.list = value;
 
-		this.list.onWillScroll(e => {
+		this.listOnWillScrollListener.value = this.list.onWillScroll(e => {
 			if (!e.scrollTopChanged) {
 				return;
 			}
