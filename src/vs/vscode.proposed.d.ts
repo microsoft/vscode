@@ -917,25 +917,11 @@ declare module 'vscode' {
 		readonly state: TerminalState;
 	}
 
-	/**
-	 * An event representing a change in a {@link Terminal.state terminal's state}.
-	 */
-	export interface TerminalStateChangeEvent {
-		/**
-		 * The {@link Terminal} this event occurred on.
-		 */
-		readonly terminal: Terminal;
-		/**
-		 * The {@link Terminal.state current state} of the {@link Terminal}.
-		 */
-		readonly state: TerminalState;
-	}
-
 	export namespace window {
 		/**
 		 * An {@link Event} which fires when a {@link Terminal.state terminal's state} has changed.
 		 */
-		export const onDidChangeTerminalState: Event<TerminalStateChangeEvent>;
+		export const onDidChangeTerminalState: Event<Terminal>;
 	}
 
 	//#endregion

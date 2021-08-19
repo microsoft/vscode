@@ -34,7 +34,7 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	onDidOpenTerminal: Event<vscode.Terminal>;
 	onDidChangeActiveTerminal: Event<vscode.Terminal | undefined>;
 	onDidChangeTerminalDimensions: Event<vscode.TerminalDimensionsChangeEvent>;
-	onDidChangeTerminalState: Event<vscode.TerminalStateChangeEvent>;
+	onDidChangeTerminalState: Event<vscode.Terminal>;
 	onDidWriteTerminalData: Event<vscode.TerminalDataWriteEvent>;
 
 	createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal;
@@ -351,7 +351,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	readonly onDidChangeActiveTerminal = this._onDidChangeActiveTerminal.event;
 	protected readonly _onDidChangeTerminalDimensions = new Emitter<vscode.TerminalDimensionsChangeEvent>();
 	readonly onDidChangeTerminalDimensions = this._onDidChangeTerminalDimensions.event;
-	protected readonly _onDidChangeTerminalState = new Emitter<vscode.TerminalStateChangeEvent>();
+	protected readonly _onDidChangeTerminalState = new Emitter<vscode.Terminal>();
 	readonly onDidChangeTerminalState = this._onDidChangeTerminalState.event;
 	protected readonly _onDidWriteTerminalData: Emitter<vscode.TerminalDataWriteEvent>;
 	get onDidWriteTerminalData(): Event<vscode.TerminalDataWriteEvent> { return this._onDidWriteTerminalData.event; }
@@ -571,10 +571,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	public $acceptTerminalInteraction(id: number): void {
 		const terminal = this._getTerminalById(id);
 		if (terminal?.setInteractedWith()) {
-			this._onDidChangeTerminalState.fire({
-				terminal: terminal.value,
-				state: terminal.value.state
-			});
+			this._onDidChangeTerminalState.fire(terminal.value);
 		}
 	}
 
