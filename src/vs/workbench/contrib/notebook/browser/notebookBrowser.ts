@@ -92,9 +92,10 @@ export const EXPAND_CELL_OUTPUT_COMMAND_ID = 'notebook.cell.expandCellOutput';
 
 // Hardcoding viewType/extension ID for now. TODO these should be replaced once we can
 // look them up in the marketplace dynamically.
+export const IPYNB_VIEW_TYPE = 'jupyter-notebook';
 export const JUPYTER_EXTENSION_ID = 'ms-toolsai.jupyter';
 export const KERNEL_EXTENSIONS = new Map<string, string>([
-	['jupyter-notebook', JUPYTER_EXTENSION_ID],
+	[IPYNB_VIEW_TYPE, JUPYTER_EXTENSION_ID],
 ]);
 
 //#endregion
