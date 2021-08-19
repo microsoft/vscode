@@ -42,13 +42,30 @@ export function scoreFuzzy(target: string, query: string, queryLower: string, fu
 	// When not searching fuzzy, we require the query to be contained fully
 	// in the target string contiguously.
 	if (!fuzzy) {
-		if (!targetLower.includes(queryLower)) {
+		const matchIndex = targetLower.indexOf(queryLower);
+		if (matchIndex === -1) {
+
 			// if (DEBUG) {
 			// 	console.log(`Characters not matching consecutively ${queryLower} within ${targetLower}`);
 			// }
 
 			return NO_SCORE;
 		}
+
+		const indexesArray: number[] = [];
+		for (let i = 0; i < queryLower.length; i++) {
+			indexesArray.push(i + matchIndex);
+		}
+
+		// TODO: what's a better value for the score?
+		const res: FuzzyScore = [100, indexesArray];
+
+		// if (DEBUG) {
+		// 	console.log(`%cFinal Score: ${res[0]}`, 'font-weight: bold');
+		// 	console.groupEnd();
+		// }
+
+		return res;
 	}
 
 	const res = doScoreFuzzy(query, queryLower, queryLength, target, targetLower, targetLength);
