@@ -120,6 +120,9 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'open-devtools': { type: 'boolean' },
 	'__sandbox': { type: 'boolean' },
 	'logsPath': { type: 'string' },
+	'exec-path': { type: 'string' },
+	'stdout-socket': { type: 'string' },
+	'stderr-socket': { type: 'string' },
 
 	// chromium flags
 	'no-proxy-server': { type: 'boolean' },

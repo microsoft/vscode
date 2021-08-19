@@ -86,6 +86,11 @@ export interface NativeParsedArgs {
 	'__sandbox'?: boolean;
 	'logsPath'?: string;
 
+	// args for launching the arg via open command https://github.com/microsoft/vscode/issues/102975
+	'exec-path'?: string; // to help debug the mac open command in OSS
+	'stdout-socket'?: string;
+	'stderr-socket'?: string;
+
 	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
 	'no-proxy-server'?: boolean;
 	'no-sandbox'?: boolean;

@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChildProcess, spawn, SpawnOptions } from 'child_process';
-import { chmodSync, closeSync, existsSync, openSync, readFileSync, readSync, statSync, truncateSync, unlinkSync } from 'fs';
+import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync } from 'fs';
+import { createServer, Server } from 'net';
 import { homedir, platform, tmpdir } from 'os';
 import type { ProfilingSession, Target } from 'v8-inspect-profiler';
 import { isAbsolute, join } from 'vs/base/common/path';
@@ -356,59 +357,52 @@ export async function main(argv: string[]): Promise<any> {
 			let tmpfileError = '';
 			if (requiresWait) {
 				const time = new Date().getTime();
-				tmpfile = `${tmpdir()}/vscode-wait-transfer-${time}.log`;
-				tmpfileError = `${tmpdir()}/vscode-wait-transfer-error-${time}.log`;
-				writeFileSync(tmpfile, '');
+				tmpfile = `${tmpdir()}/vscode-wait-transfer-${time}.sock`;
+				tmpfileError = `${tmpdir()}/vscode-wait-transfer-error-${time}.sock`;
 				openArgs.push('-W');
-				openArgs.push('--stdout', tmpfile);
-				openArgs.push('--stderr', tmpfileError);
 				argv.push('--wait');
+				argv.push('--stdout-socket', tmpfile);
+				argv.push('--stderr-socket', tmpfileError);
 			}
 			const argsArr: string[] = [];
-			if (process.execPath.startsWith('code')) {
-				argsArr.push('-a', process.execPath);
-			} else {
-				// running from OSS, launch stable
-				argsArr.push('-b', 'com.microsoft.VSCode');
-			}
+			const execPathToUse = args['exec-path'] ?? process.execPath;
+			argsArr.push('-a', execPathToUse);
 			argsArr.push(...envVars, ...openArgs, '--args', ...argv.slice(2));
 			child = spawn('open', argsArr, options);
 
 			if (requiresWait) {
 				const openPromise = (child: ChildProcess) => new Promise<void>((c) => {
-					console.log('Temp file location: ' + tmpfile);
-					if (args['verbose']) {
-						const stream = openSync(tmpfile, 'r');
-						const bufferSize = 50;
-						const buffer = Buffer.alloc(bufferSize);
-						const interval = setInterval(() => {
-							const readAmount = readSync(stream, buffer, 0, bufferSize, null);
-							process.stdout.write(buffer.toString(undefined, 0, readAmount));
-						}, 50);
-						child.on('exit', () => {
-							setTimeout(() => {
-								clearTimeout(interval);
-								closeSync(stream);
-								c();
-							}, 1500);
+					function createStream(infile: string, outStream: NodeJS.WriteStream): Server {
+						const server = createServer();
+						server.listen(infile, () => {
+							console.log('listening');
 						});
-					} else if (args['status']) {
-						child.on('exit', () => {
-							const buffer = readFileSync(tmpfile);
-							let bufferContents = buffer.toString().trim();
-							console.log(bufferContents);
-							c();
+						server.on('connection', (socket) => {
+							console.log('Got a connection');
+							socket.on('data', (chunk) => {
+								outStream.write(chunk.toString());
+							});
 						});
-					} else {
-						// TODO: find telemetry file
-						// We currently get the following error:
-						/* vscode/.build/electron/Code\ -\ OSS.app/Contents/MacOS/Electron vscode/out/cli.js --telemetry
-						ENOENT: no such file or directory, open '/Users/raymondzhao/work/vscode/telemetry-core.json'
-						*/
+						server.on('error', (err) => {
+							console.log('server error');
+							console.log(err);
+						});
+						server.on('close', () => {
+							console.log('server closing');
+						});
+						console.log('done creating connection');
+						return server;
 					}
-				}).then(() => {
-					unlinkSync(tmpfile);
-					unlinkSync(tmpfileError);
+					console.log('creating connection for stdout');
+					const stdoutServer = createStream(tmpfile, process.stdout);
+					console.log('creating connection for stderr');
+					const stderrServer = createStream(tmpfileError, process.stderr);
+					child.on('exit', () => {
+						console.log('exiting');
+						stdoutServer.close();
+						stderrServer.close();
+						c();
+					});
 				});
 				processCallbacks.push(openPromise);
 			}

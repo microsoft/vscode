@@ -5,6 +5,8 @@
 
 import { app, dialog } from 'electron';
 import { unlinkSync } from 'fs';
+import { createConnection, Socket } from 'net';
+import { platform } from 'os';
 import { coalesce, distinct } from 'vs/base/common/arrays';
 import { Promises } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -70,16 +72,21 @@ import 'vs/platform/update/common/update.config.contribution';
  */
 class CodeMain {
 
+	private _stdoutSocket: Socket | undefined;
+	private _stderrSocket: Socket | undefined;
+
 	main(): void {
 		try {
 			this.startup();
 		} catch (error) {
 			console.error(error.message);
+			this.unlinkSockets();
 			app.exit(1);
 		}
 	}
 
 	private async startup(): Promise<void> {
+		this.linkSockets();
 
 		// Set the error handler early enough so that we are not getting the
 		// default electron error dialog popping up
@@ -125,6 +132,7 @@ class CodeMain {
 					fileService.dispose();
 					configurationService.dispose();
 					evt.join(FSPromises.unlink(environmentMainService.mainLockfile).catch(() => { /* ignored */ }));
+					this.unlinkSockets();
 				});
 
 				return instantiationService.createInstance(CodeApplication, mainProcessNodeIpcServer, instanceEnvironment).startup();
@@ -426,6 +434,37 @@ class CodeMain {
 	}
 
 	//#region Command line arguments utilities
+
+	private linkSockets() {
+		if (platform() !== 'darwin') {
+			return;
+		}
+
+		const args = parseMainProcessArgv(process.argv);
+		if (args['stdout-socket']) {
+			this._stdoutSocket = createConnection({ path: args['stdout-socket'] });
+			process.stdout.pipe(this._stdoutSocket);
+			this._stdoutSocket.on('connect', () => {
+				console.log('Connected');
+			});
+		}
+		if (args['stderr-socket']) {
+			this._stderrSocket = createConnection({ path: args['stderr-socket'] });
+			process.stderr.pipe(this._stderrSocket);
+			this._stderrSocket.on('connect', () => {
+				console.log('Connected');
+			});
+		}
+	}
+
+	private unlinkSockets() {
+		if (platform() !== 'darwin') {
+			return;
+		}
+
+		this._stdoutSocket?.destroy();
+		this._stderrSocket?.destroy();
+	}
 
 	private resolveArgs(): NativeParsedArgs {
 
