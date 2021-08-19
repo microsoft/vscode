@@ -568,7 +568,7 @@ export class CellOutputContainer extends Disposable {
 
 		this.templateData.outputShowMoreContainer.innerText = '';
 		if (this.viewCell.outputsViewModels.length > this.options.limit) {
-			this.templateData.outputShowMoreContainer.appendChild(this._generateShowMoreElement());
+			this.templateData.outputShowMoreContainer.appendChild(this._generateShowMoreElement(this.templateData.disposables));
 		} else {
 			DOM.hide(this.templateData.outputShowMoreContainer);
 			this.viewCell.updateOutputShowMoreContainerHeight(0);
@@ -773,7 +773,7 @@ export class CellOutputContainer extends Disposable {
 		if (this.viewCell.outputsViewModels.length > this.options.limit) {
 			DOM.show(this.templateData.outputShowMoreContainer);
 			if (!this.templateData.outputShowMoreContainer.hasChildNodes()) {
-				this.templateData.outputShowMoreContainer.appendChild(this._generateShowMoreElement());
+				this.templateData.outputShowMoreContainer.appendChild(this._generateShowMoreElement(this.templateData.disposables));
 			}
 			this.viewCell.updateOutputShowMoreContainerHeight(46);
 		} else {
@@ -789,7 +789,7 @@ export class CellOutputContainer extends Disposable {
 		this._validateFinalOutputHeight(!outputHasDynamicHeight || this.viewCell.outputsViewModels.length === 0);
 	}
 
-	private _generateShowMoreElement(): any {
+	private _generateShowMoreElement(disposables: DisposableStore): HTMLElement {
 		const md: IMarkdownString = {
 			value: `There are more than ${this.options.limit} outputs, [show more (open the raw output data in a text editor) ...](command:workbench.action.openLargeOutput)`,
 			isTrusted: true,
@@ -805,7 +805,7 @@ export class CellOutputContainer extends Disposable {
 
 					return;
 				},
-				disposables: new DisposableStore()
+				disposables
 			}
 		});
 
