@@ -824,12 +824,13 @@ export class TerminalService implements ITerminalService {
 	protected async _showTerminalCloseConfirmation(singleTerminal?: boolean): Promise<boolean> {
 		let message: string;
 		if (this.instances.length === 1 || singleTerminal) {
-			message = nls.localize('terminalService.terminalCloseConfirmationSingular', "There is an active terminal session, do you want to kill it?");
+			message = nls.localize('terminalService.terminalCloseConfirmationSingular', "Do you want to terminate the active terminal session?");
 		} else {
-			message = nls.localize('terminalService.terminalCloseConfirmationPlural', "There are {0} active terminal sessions, do you want to kill them?", this.instances.length);
+			message = nls.localize('terminalService.terminalCloseConfirmationPlural', "Do you want to terminal the {0} active terminal sessions?", this.instances.length);
 		}
 		const res = await this._dialogService.confirm({
 			message,
+			primaryButton: nls.localize('terminate', "Terminate"),
 			type: 'warning',
 		});
 		return !res.confirmed;
