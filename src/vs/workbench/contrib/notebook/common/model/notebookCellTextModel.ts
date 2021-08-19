@@ -134,7 +134,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		return this._alternativeId;
 	}
 
-	private _textModelDisposables = new DisposableStore();
+	private readonly _textModelDisposables = this._register(new DisposableStore());
 	private _textModel: TextModel | undefined = undefined;
 	get textModel(): TextModel | undefined {
 		return this._textModel;
