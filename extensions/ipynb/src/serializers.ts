@@ -236,8 +236,8 @@ function convertStreamOutput(output: NotebookCellOutput): JupyterOutput {
 			if (outputs.length && lines.length && lines[0].length > 0) {
 				outputs[outputs.length - 1] = `${outputs[outputs.length - 1]}${lines.shift()!}`;
 			}
-			while (lines.length) {
-				outputs.push(lines.shift()!);
+			for (const line of lines) {
+				outputs.push(line);
 			}
 		});
 	// Skip last one if empty (it's the only one that could be length 0)

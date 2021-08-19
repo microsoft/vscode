@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { nbformat } from '@jupyterlab/coreutils';
+import * as detectIndent from 'detect-indent';
 import * as vscode from 'vscode';
 import { defaultNotebookFormat } from './constants';
 import { getPreferredLanguage, jupyterNotebookModelToNotebookData } from './deserializers';
@@ -39,8 +40,8 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 			}
 		}
 
-		// Then compute indent from the contents
-		const indentAmount = contents ? detectIndent(contents) : ' ';
+		// Then compute indent from the contents (only use first 1K characters as a perf optimization)
+		const indentAmount = contents ? detectIndent(contents.substring(0, 1_000)) : ' ';
 
 		const preferredCellLanguage = getPreferredLanguage(json.metadata);
 		// Ensure we always have a blank cell.
@@ -92,18 +93,4 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 			' ';
 		return JSON.stringify(notebookContent, undefined, indentAmount);
 	}
-}
-
-export function detectIndent(jsonString: string) {
-	// ipynb is a JSON string of Object, hence first character will always `{`.
-	// Lets just take the distance between the first `{` and the next non-white space character`, ignoring \r & \n
-	if (!jsonString.startsWith('{')) {
-		return '';
-	}
-	// We're only interested in a small part of the string.
-	// The assumption is that we won't have an indentation of 10, just around 5 or so.
-	jsonString = jsonString.substring(1, 10).replace(/\r?\n/g, '');
-	// first index of non white space is the indentation.
-	const firstPositionOfNonWhiteSpace = jsonString.length - jsonString.trimStart().length;
-	return jsonString.substring(0, firstPositionOfNonWhiteSpace);
 }
