@@ -279,8 +279,6 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	}
 
 	private updateEditorGroupContextKeys(): void {
-		const activeGroup = this.editorGroupService.activeGroup;
-
 		const groupCount = this.editorGroupService.count;
 		if (groupCount > 1) {
 			this.multipleEditorGroupsContext.set(true);
@@ -288,6 +286,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 			this.multipleEditorGroupsContext.reset();
 		}
 
+		const activeGroup = this.editorGroupService.activeGroup;
 		this.activeEditorGroupIndex.set(activeGroup.index + 1); // not zero-indexed
 		this.activeEditorGroupLast.set(activeGroup.index === groupCount - 1);
 		this.activeEditorGroupLocked.set(activeGroup.isLocked);

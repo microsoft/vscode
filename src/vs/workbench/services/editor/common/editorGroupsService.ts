@@ -488,6 +488,9 @@ export interface IEditorGroup {
 	 * Whether this editor group is locked or not. Locked editor groups
 	 * will only be considered for editors to open in when the group is
 	 * explicitly provided for the editor.
+	 *
+	 * Note: editor group locking only applies when more than one group
+	 * is opened.
 	 */
 	readonly isLocked: boolean;
 

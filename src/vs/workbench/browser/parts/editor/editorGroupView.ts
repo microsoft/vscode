@@ -124,7 +124,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private readonly mapEditorToPendingConfirmation = new Map<EditorInput, Promise<boolean>>();
 
-	private readonly containerToolBarMenuDisposables = this._register(new MutableDisposable());
+	private readonly containerToolBarMenuDisposable = this._register(new MutableDisposable());
 
 	private whenRestoredResolve: (() => void) | undefined;
 	readonly whenRestored = new Promise<void>(resolve => (this.whenRestoredResolve = resolve));
@@ -335,7 +335,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const updateContainerToolbar = () => {
 			const actions: { primary: IAction[], secondary: IAction[] } = { primary: [], secondary: [] };
 
-			this.containerToolBarMenuDisposables.value = combinedDisposable(
+			this.containerToolBarMenuDisposable.value = combinedDisposable(
 
 				// Clear old actions
 				toDisposable(() => containerToolbar.clear()),

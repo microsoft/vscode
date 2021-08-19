@@ -452,7 +452,7 @@ appendEditorToolItem(
 appendEditorToolItem(
 	{
 		id: UNLOCK_GROUP_COMMAND_ID,
-		title: localize('unlockEditorGroup', "Unlock Editor Group"),
+		title: localize('unlockEditorGroup', "Unlock Group"),
 		icon: Codicon.unlock
 	},
 	ActiveEditorGroupLockedContext,

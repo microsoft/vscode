@@ -630,7 +630,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	removeGroup(group: IEditorGroupView | GroupIdentifier): void {
 		const groupView = this.assertGroupView(group);
-		if (this.groupViews.size === 1) {
+		if (this.count === 1) {
 			return; // Cannot remove the last root group
 		}
 
@@ -1077,7 +1077,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	}
 
 	private get isEmpty(): boolean {
-		return this.groupViews.size === 1 && this._activeGroup.isEmpty;
+		return this.count === 1 && this._activeGroup.isEmpty;
 	}
 
 	setBoundarySashes(sashes: IBoundarySashes): void {
