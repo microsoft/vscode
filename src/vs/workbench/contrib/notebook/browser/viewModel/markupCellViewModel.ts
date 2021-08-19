@@ -115,7 +115,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITextModelService textModelService: ITextModelService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IUndoRedoService undoRedoService: IUndoRedoService
+		@IUndoRedoService undoRedoService: IUndoRedoService,
 	) {
 		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, textModelService, undoRedoService);
 
