@@ -188,6 +188,14 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('closeEmptyGroups', "Controls the behavior of empty editor groups when the last tab in the group is closed. When enabled, empty groups will automatically close. When disabled, empty groups will remain part of the grid."),
 				'default': true
 			},
+			'workbench.editor.experimentalAutoLockGroups': {
+				'type': 'array',
+				'description': localize('workbench.editor.experimentalAutoLockGroups', "Experimental: a set of editors that will cause a group to get locked automatically when the editor is the first in the group and only if more than one group is opened. Locked groups will only be used for opening editors when explicitly chosen by user gesture (e.g. drag and drop), but not by default (e.g. from the file picker). As such, the active editor in a locked group is less likely to be replaced by with a different editor by accident."),
+				'items': {
+					'type': 'string'
+				},
+				'default': ['workbench.editors.terminal']
+			},
 			'workbench.editor.revealIfOpen': {
 				'type': 'boolean',
 				'description': localize('revealIfOpen', "Controls whether an editor is revealed in any of the visible groups if opened. If disabled, an editor will prefer to open in the currently active editor group. If enabled, an already opened editor will be revealed instead of opened again in the currently active editor group. Note that there are some cases where this setting is ignored, e.g. when forcing an editor to open in a specific group or to the side of the currently active group."),
