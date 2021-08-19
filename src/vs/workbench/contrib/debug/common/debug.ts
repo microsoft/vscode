@@ -547,6 +547,7 @@ export interface IDebugConfiguration {
 	onTaskErrors: 'debugAnyway' | 'showErrors' | 'prompt' | 'abort';
 	showBreakpointsInOverviewRuler: boolean;
 	showInlineBreakpointCandidates: boolean;
+	confirmOnExit: 'always' | 'never';
 }
 
 export interface IGlobalConfig {
