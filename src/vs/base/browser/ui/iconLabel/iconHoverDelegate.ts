@@ -23,4 +23,6 @@ export interface IHoverDelegate {
 	showHover(options: IHoverDelegateOptions): IDisposable | undefined;
 	delay: number;
 	placement?: 'mouse' | 'element';
+	getHoverLeaveTimer?(): number;
+	resetHoverLeaveTimer?(): number;
 }

@@ -434,6 +434,8 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	private hoverDelegate: IHoverDelegate;
 
+	private _hoverLeaveTime = 0;
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
@@ -452,7 +454,9 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		this.hoverDelegate = {
 			showHover: (options: IHoverDelegateOptions) => hoverService.showHover(options),
 			delay: <number>configurationService.getValue('workbench.hover.delay'),
-			placement: 'element'
+			placement: 'element',
+			getHoverLeaveTimer: () => this._hoverLeaveTime,
+			resetHoverLeaveTimer: () => this._hoverLeaveTime = Date.now(),
 		};
 	}
 

@@ -99,16 +99,26 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 			}
 			mouseMoveDomListener?.dispose();
 		};
-		const timeout = new RunOnceScheduler(showHover, hoverDelegate.delay);
+
+		let shouldShowNow = false;
+		if (hoverDelegate.getHoverLeaveTimer) {
+			shouldShowNow = Date.now() - hoverDelegate.getHoverLeaveTimer() < 200;
+		}
+
+		const timeout = new RunOnceScheduler(showHover, shouldShowNow ? 0 : hoverDelegate.delay);
 		timeout.schedule();
 
 		hoverPreparation = toDisposable(() => {
+			if (hoverDelegate.resetHoverLeaveTimer) {
+				hoverDelegate.resetHoverLeaveTimer();
+			}
 			timeout.dispose();
 			mouseMoveDomListener?.dispose();
 			mouseDownDownListener.dispose();
 			mouseLeaveDomListener.dispose();
 			tokenSource.dispose(true);
 		});
+
 	};
 	const mouseOverDomEmitter = dom.addDisposableListener(htmlElement, dom.EventType.MOUSE_OVER, mouseEnter, true);
 	return toDisposable(() => {
