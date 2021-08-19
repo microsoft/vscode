@@ -53,6 +53,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 
 	public readonly kind = ExtensionHostKind.LocalWebWorker;
 	public readonly remoteAuthority = null;
+	public readonly lazyStart: boolean;
 
 	private readonly _onDidExit = this._register(new Emitter<[number, string | null]>());
 	public readonly onExit: Event<[number, string | null]> = this._onDidExit.event;
@@ -65,6 +66,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 	private readonly _extensionHostLogFile: URI;
 
 	constructor(
+		lazyStart: boolean,
 		private readonly _initDataProvider: IWebWorkerExtensionHostDataProvider,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
@@ -75,6 +77,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		@ILayoutService private readonly _layoutService: ILayoutService,
 	) {
 		super();
+		this.lazyStart = lazyStart;
 		this._isTerminating = false;
 		this._protocolPromise = null;
 		this._protocol = null;

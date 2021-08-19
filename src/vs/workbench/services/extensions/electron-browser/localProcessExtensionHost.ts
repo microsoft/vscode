@@ -67,6 +67,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 
 	public readonly kind = ExtensionHostKind.LocalProcess;
 	public readonly remoteAuthority = null;
+	public readonly lazyStart = false;
 
 	private readonly _onExit: Emitter<[number, string]> = new Emitter<[number, string]>();
 	public readonly onExit: Event<[number, string]> = this._onExit.event;
