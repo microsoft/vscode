@@ -283,8 +283,8 @@ function getRepositoryAsset(version: IRawGalleryExtensionVersion): IGalleryExten
 
 function getDownloadAsset(version: IRawGalleryExtensionVersion): IGalleryExtensionAsset {
 	return {
-		uri: `${version.fallbackAssetUri}/${AssetType.VSIX}?redirect=true`,
-		fallbackUri: `${version.fallbackAssetUri}/${AssetType.VSIX}`
+		uri: `${version.fallbackAssetUri}/${AssetType.VSIX}?redirect=true${version.targetPlatform ? `&targetPlatform=${version.targetPlatform}` : ''}`,
+		fallbackUri: `${version.fallbackAssetUri}/${AssetType.VSIX}${version.targetPlatform ? `?targetPlatform=${version.targetPlatform}` : ''}`
 	};
 }
 
@@ -683,8 +683,8 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 		const operationParam = operation === InstallOperation.Install ? 'install' : operation === InstallOperation.Update ? 'update' : '';
 		const downloadAsset = operationParam ? {
-			uri: `${extension.assets.download.uri}&${operationParam}=true`,
-			fallbackUri: `${extension.assets.download.fallbackUri}?${operationParam}=true`
+			uri: `${extension.assets.download.uri}${URI.parse(extension.assets.download.uri).query ? '&' : '?'}${operationParam}=true`,
+			fallbackUri: `${extension.assets.download.fallbackUri}${URI.parse(extension.assets.download.fallbackUri).query ? '&' : '?'}${operationParam}=true`
 		} : extension.assets.download;
 
 		const context = await this.getAsset(downloadAsset);
