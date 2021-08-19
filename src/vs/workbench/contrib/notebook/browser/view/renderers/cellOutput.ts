@@ -854,9 +854,6 @@ const JUPYTER_RENDERER_MIMETYPES = [
 	'application/vnd.code.notebook.error'
 ];
 
-
-
-
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
