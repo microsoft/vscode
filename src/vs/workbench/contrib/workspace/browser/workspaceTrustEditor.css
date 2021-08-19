@@ -238,6 +238,10 @@
 	display: none;
 }
 
+.workspace-trust-editor .monaco-table-tr .monaco-table-td .path {
+	width: 100%;
+}
+
 .workspace-trust-editor .monaco-table-tr .monaco-table-td .path:not(.input-mode) .monaco-inputbox,
 .workspace-trust-editor .monaco-table-tr .monaco-table-td .path.input-mode .path-label {
 	display: none;
@@ -247,11 +251,6 @@
 .workspace-trust-editor .monaco-table-tr .monaco-table-td .current-workspace-parent .host-label {
 	font-weight: bold;
 	font-style: italic;
-}
-
-
-.workspace-trust-editor .monaco-table-tr .monaco-table-td .path .monaco-inputbox input {
-	padding-left: 5px;
 }
 
 .workspace-trust-editor .monaco-table-th,

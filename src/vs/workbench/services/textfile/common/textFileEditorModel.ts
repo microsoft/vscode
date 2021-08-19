@@ -24,6 +24,9 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { UTF8 } from 'vs/workbench/services/textfile/common/encoding';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
+import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
+import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {
 	mtime: number;
@@ -105,9 +108,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@ILogService private readonly logService: ILogService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@ILanguageDetectionService languageDetectionService: ILanguageDetectionService,
+		@IPathService private readonly pathService: IPathService
 	) {
-		super(modelService, modeService);
+		super(modelService, modeService, languageDetectionService);
 
 		// Make known to working copy service
 		this._register(this.workingCopyService.registerWorkingCopy(this));
@@ -524,6 +529,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Model Listeners
 		this.installModelListeners(textModel);
+
+		// Detect language from content
+		this.autoDetectLanguage();
 	}
 
 	private doUpdateTextModel(value: ITextBufferFactory): void {
@@ -593,6 +601,19 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Emit as event
 		this._onDidChangeContent.fire();
+
+		// Detect language from content
+		this.autoDetectLanguage();
+	}
+
+	protected override async autoDetectLanguage(): Promise<void> {
+		const mode = this.getMode();
+		if (
+			this.resource.scheme === this.pathService.defaultUriScheme && 	// make sure to not detect language for non-user visible documents
+			(!mode || mode === PLAINTEXT_MODE_ID)							// require a valid mode that is enlisted for detection
+		) {
+			return super.autoDetectLanguage();
+		}
 	}
 
 	//#endregion

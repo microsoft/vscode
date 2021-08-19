@@ -133,7 +133,7 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 		return this.initializePromise;
 	}
 
-	protected createLogginOptions(): ISQLiteStorageDatabaseLoggingOptions {
+	protected createLoggingOptions(): ISQLiteStorageDatabaseLoggingOptions {
 		return {
 			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : undefined,
 			logError: error => this.logService.error(error)
@@ -201,7 +201,7 @@ export class GlobalStorageMain extends BaseStorageMain implements IStorageMain {
 		}
 
 		return new Storage(new SQLiteStorageDatabase(storagePath, {
-			logging: this.createLogginOptions()
+			logging: this.createLoggingOptions()
 		}));
 	}
 
@@ -254,7 +254,7 @@ export class WorkspaceStorageMain extends BaseStorageMain implements IStorageMai
 		const { storageFilePath, wasCreated } = await this.prepareWorkspaceStorageFolder();
 
 		return new Storage(new SQLiteStorageDatabase(storageFilePath, {
-			logging: this.createLogginOptions()
+			logging: this.createLoggingOptions()
 		}), { hint: wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : undefined });
 	}
 

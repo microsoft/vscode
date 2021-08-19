@@ -204,6 +204,7 @@ export interface ITerminalConfiguration {
 	},
 	bellDuration: number;
 	defaultLocation: TerminalLocationString;
+	customGlyphs: boolean;
 }
 
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];

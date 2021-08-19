@@ -9,14 +9,14 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export interface IContentActionHandler {
 	callback: (content: string, event?: IMouseEvent) => void;
-	readonly disposeables: DisposableStore;
+	readonly disposables: DisposableStore;
 }
 
 export interface FormattedTextRenderOptions {
 	readonly className?: string;
 	readonly inline?: boolean;
 	readonly actionHandler?: IContentActionHandler;
-	readonly renderCodeSegements?: boolean;
+	readonly renderCodeSegments?: boolean;
 }
 
 export function renderText(text: string, options: FormattedTextRenderOptions = {}): HTMLElement {
@@ -27,7 +27,7 @@ export function renderText(text: string, options: FormattedTextRenderOptions = {
 
 export function renderFormattedText(formattedText: string, options: FormattedTextRenderOptions = {}): HTMLElement {
 	const element = createElement(options);
-	_renderFormattedText(element, parseFormattedText(formattedText, !!options.renderCodeSegements), options.actionHandler, options.renderCodeSegements);
+	_renderFormattedText(element, parseFormattedText(formattedText, !!options.renderCodeSegments), options.actionHandler, options.renderCodeSegments);
 	return element;
 }
 
@@ -101,7 +101,7 @@ function _renderFormattedText(element: Node, treeNode: IFormatParseTree, actionH
 	} else if (treeNode.type === FormatType.Action && actionHandler) {
 		const a = document.createElement('a');
 		a.href = '#';
-		actionHandler.disposeables.add(DOM.addStandardDisposableListener(a, 'click', (event) => {
+		actionHandler.disposables.add(DOM.addStandardDisposableListener(a, 'click', (event) => {
 			actionHandler.callback(String(treeNode.index), event);
 		}));
 

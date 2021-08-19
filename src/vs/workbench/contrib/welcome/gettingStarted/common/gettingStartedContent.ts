@@ -118,6 +118,17 @@ export const startEntries: GettingStartedStartEntryContent = [
 			command: 'workbench.action.showCommands',
 		}
 	},
+	{
+		id: 'topLevelShowWalkthroughs',
+		title: localize('gettingStarted.topLevelShowWalkthroughs.title', "Open a Walkthrough..."),
+		description: localize('gettingStarted.topLevelShowWalkthroughs.description', ""),
+		icon: Codicon.checklist,
+		when: 'allWalkthroughsHidden',
+		content: {
+			type: 'startEntry',
+			command: 'welcome.showAllWalkthroughs',
+		}
+	},
 ];
 
 const Button = (title: string, href: string) => `[${title}](${href})`;

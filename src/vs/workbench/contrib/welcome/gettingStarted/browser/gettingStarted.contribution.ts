@@ -226,11 +226,9 @@ const prefersStandardMotionConfig = {
 class WorkbenchConfigurationContribution {
 	constructor(
 		@IInstantiationService _instantiationService: IInstantiationService,
-		@IWalkthroughsService _gettingStartedService: IWalkthroughsService,
 		@IConfigurationService _configurationService: IConfigurationService,
 		@ITASExperimentService _experimentSevice: ITASExperimentService,
 	) {
-		// Init the getting started service via DI.
 		this.registerConfigs(_experimentSevice);
 	}
 

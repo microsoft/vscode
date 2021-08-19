@@ -44,6 +44,7 @@ export interface PreloadOptions {
 }
 
 interface PreloadContext {
+	readonly nonce: string;
 	readonly style: PreloadStyles;
 	readonly options: PreloadOptions;
 	readonly rendererData: readonly RendererMetadata[];
@@ -54,6 +55,7 @@ declare function __import(path: string): Promise<any>;
 
 async function webviewPreloads(ctx: PreloadContext) {
 	let currentOptions = ctx.options;
+	let isWorkspaceTrusted = ctx.isWorkspaceTrusted;
 
 	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
@@ -692,6 +694,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 				currentOptions = event.data.options;
 				viewModel.toggleDragDropEnabled(currentOptions.dragAndDropEnabled);
 				break;
+			case 'updateWorkspaceTrust': {
+				isWorkspaceTrusted = event.data.isTrusted;
+				viewModel.rerenderMarkupCells();
+				break;
+			}
 		}
 	});
 
@@ -736,7 +743,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				// Currently the API is always resolved before we call `createRendererContext`.
 				getRenderer: async (id: string) => renderers.getRenderer(id)?.api,
 				workspace: {
-					isTrusted: ctx.isWorkspaceTrusted,
+					get isTrusted() { return isWorkspaceTrusted; }
 				}
 			};
 
@@ -972,6 +979,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 		public unhideMarkupCell(id: string): void {
 			const cell = this.getExpectedMarkupCell(id);
 			cell?.unhide();
+		}
+
+		public rerenderMarkupCells() {
+			for (const cell of this._markupCells.values()) {
+				cell.rerender();
+			}
 		}
 
 		private getExpectedMarkupCell(id: string): MarkupCell | undefined {
@@ -1213,6 +1226,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.updateMarkupDimensions();
 		}
 
+		public rerender() {
+			this.updateContentAndRender(this._content);
+		}
+
 		private async updateMarkupDimensions() {
 			dimensionUpdater.updateHeight(this.id, this.element.offsetHeight, {
 				isOutput: false
@@ -1448,12 +1465,13 @@ export interface RendererMetadata {
 	readonly messaging: boolean;
 }
 
-export function preloadsScriptStr(styleValues: PreloadStyles, options: PreloadOptions, renderers: readonly RendererMetadata[], isWorkspaceTrusted: boolean) {
+export function preloadsScriptStr(styleValues: PreloadStyles, options: PreloadOptions, renderers: readonly RendererMetadata[], isWorkspaceTrusted: boolean, nonce: string) {
 	const ctx: PreloadContext = {
 		style: styleValues,
 		options,
 		rendererData: renderers,
-		isWorkspaceTrusted
+		isWorkspaceTrusted,
+		nonce,
 	};
 	// TS will try compiling `import()` in webviewPreloads, so use an helper function instead
 	// of using `import(...)` directly

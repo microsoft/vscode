@@ -805,7 +805,7 @@ export class CellOutputContainer extends Disposable {
 
 					return;
 				},
-				disposeables: new DisposableStore()
+				disposables: new DisposableStore()
 			}
 		});
 
