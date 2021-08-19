@@ -129,7 +129,7 @@ export interface IRenderOutputViaExtension {
 export type IInsetRenderOutput = IRenderPlainHtmlOutput | IRenderOutputViaExtension;
 export type IRenderOutput = IRenderMainframeOutput | IInsetRenderOutput;
 
-export interface ICellOutputViewModel {
+export interface ICellOutputViewModel extends IDisposable {
 	cellViewModel: IGenericCellViewModel;
 	/**
 	 * When rendering an output, `model` should always be used as we convert legacy `text/error` output to `display_data` output under the hood.
