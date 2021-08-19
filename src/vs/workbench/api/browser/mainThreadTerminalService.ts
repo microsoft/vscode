@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore, Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, TerminalLaunchConfig, ITerminalDimensionsDto, TerminalIdentifier } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, TerminalLaunchConfig, ITerminalDimensionsDto, ExtHostTerminalIdentifier } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -21,7 +21,6 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { TerminalEditorLocationOptions } from 'vscode';
-import { ExtHostTerminal } from 'vs/workbench/api/common/extHostTerminalService';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -112,7 +111,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._proxy.$acceptDefaultProfile(...await Promise.all([defaultProfile, defaultAutomationProfile]));
 	}
 
-	private async _getTerminalInstance(id: TerminalIdentifier): Promise<ITerminalInstance | undefined> {
+	private async _getTerminalInstance(id: ExtHostTerminalIdentifier): Promise<ITerminalInstance | undefined> {
 		if (typeof id === 'string') {
 			return this._extHostTerminals.get(id);
 		}
@@ -144,21 +143,21 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._extHostTerminals.set(extHostTerminalId, new Promise(async r => {
 			const terminal = await this._terminalService.createTerminal({
 				config: shellLaunchConfig,
-				location: await this._resolveMainThreadLocation(launchConfig.location)
+				location: await this._deserializeParentTerminal(launchConfig.location)
 			});
 			r(terminal);
 		}));
 	}
 
-	private async _resolveMainThreadLocation(location?: TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminal }): Promise<TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ITerminalInstance } | undefined> {
+	private async _deserializeParentTerminal(location?: TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminalIdentifier }): Promise<TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ITerminalInstance } | undefined> {
 		if (typeof location === 'object' && 'parentTerminal' in location) {
-			const parentTerminal = await this._extHostTerminals.get(location.parentTerminal._id.toString());
+			const parentTerminal = await this._extHostTerminals.get(location.parentTerminal.toString());
 			return parentTerminal ? { parentTerminal } : undefined;
 		}
 		return location;
 	}
 
-	public async $show(id: TerminalIdentifier, preserveFocus: boolean): Promise<void> {
+	public async $show(id: ExtHostTerminalIdentifier, preserveFocus: boolean): Promise<void> {
 		const terminalInstance = await this._getTerminalInstance(id);
 		if (terminalInstance) {
 			this._terminalService.setActiveInstance(terminalInstance);
@@ -170,7 +169,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		}
 	}
 
-	public async $hide(id: TerminalIdentifier): Promise<void> {
+	public async $hide(id: ExtHostTerminalIdentifier): Promise<void> {
 		const instanceToHide = await this._getTerminalInstance(id);
 		const activeInstance = this._terminalService.activeInstance;
 		if (activeInstance && activeInstance.instanceId === instanceToHide?.instanceId && activeInstance.target !== TerminalLocation.Editor) {
@@ -178,11 +177,11 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		}
 	}
 
-	public async $dispose(id: TerminalIdentifier): Promise<void> {
+	public async $dispose(id: ExtHostTerminalIdentifier): Promise<void> {
 		(await this._getTerminalInstance(id))?.dispose();
 	}
 
-	public async $sendText(id: TerminalIdentifier, text: string, addNewLine: boolean): Promise<void> {
+	public async $sendText(id: ExtHostTerminalIdentifier, text: string, addNewLine: boolean): Promise<void> {
 		const instance = await this._getTerminalInstance(id);
 		await instance?.sendText(text, addNewLine);
 	}

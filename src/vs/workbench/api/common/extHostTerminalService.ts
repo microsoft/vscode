@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, ITerminalDimensionsDto, ITerminalLinkDto, TerminalIdentifier } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, ITerminalDimensionsDto, ITerminalLinkDto, ExtHostTerminalIdentifier } from 'vs/workbench/api/common/extHost.protocol';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
@@ -51,7 +51,7 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 export interface ITerminalInternalOptions {
 	isFeatureTerminal?: boolean;
 	useShellEnvironment?: boolean;
-	resolvedExtHostTerminal?: ExtHostTerminal;
+	resolvedExtHostIdentifier?: ExtHostTerminalIdentifier;
 }
 
 export const IExtHostTerminalService = createDecorator<IExtHostTerminalService>('IExtHostTerminalService');
@@ -71,7 +71,7 @@ export class ExtHostTerminal {
 
 	constructor(
 		private _proxy: MainThreadTerminalServiceShape,
-		public _id: TerminalIdentifier,
+		public _id: ExtHostTerminalIdentifier,
 		private readonly _creationOptions: vscode.TerminalOptions | vscode.ExtensionTerminalOptions,
 		private _name?: string,
 	) {
@@ -146,19 +146,12 @@ export class ExtHostTerminal {
 			isFeatureTerminal: withNullAsUndefined(internalOptions?.isFeatureTerminal),
 			isExtensionOwnedTerminal: true,
 			useShellEnvironment: withNullAsUndefined(internalOptions?.useShellEnvironment),
-			location: this._resolveExtHostLocation(options.location, internalOptions?.resolvedExtHostTerminal)
+			location: this._serializeParentTerminal(options.location, internalOptions?.resolvedExtHostIdentifier)
 		});
 	}
 
-	private _resolveExtHostLocation(location?: TerminalLocation | vscode.TerminalEditorLocationOptions | vscode.TerminalSplitLocationOptions, parentTerminal?: ExtHostTerminal): TerminalLocation | vscode.TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminal } | undefined {
-		if (typeof location === 'object' && 'parentTerminal' in location) {
-			// use the ExtHostTerminal with value = to the parentTerminal
-			return parentTerminal ? { parentTerminal } : undefined;
-		}
-		return location;
-	}
 
-	public async createExtensionTerminal(location?: TerminalLocation | vscode.TerminalEditorLocationOptions, parentTerminal?: ExtHostTerminal, iconPath?: TerminalIcon, color?: ThemeColor): Promise<number> {
+	public async createExtensionTerminal(location?: TerminalLocation | vscode.TerminalEditorLocationOptions | vscode.TerminalSplitLocationOptions, parentTerminal?: ExtHostTerminalIdentifier, iconPath?: TerminalIcon, color?: ThemeColor): Promise<number> {
 		if (typeof this._id !== 'string') {
 			throw new Error('Terminal has already been created');
 		}
@@ -167,13 +160,20 @@ export class ExtHostTerminal {
 			isExtensionCustomPtyTerminal: true,
 			icon: iconPath,
 			color: ThemeColor.isThemeColor(color) ? color.id : undefined,
-			location: this._resolveExtHostLocation(location, parentTerminal)
+			location: this._serializeParentTerminal(location, parentTerminal)
 		});
 		// At this point, the id has been set via `$acceptTerminalOpened`
 		if (typeof this._id === 'string') {
 			throw new Error('Terminal creation failed');
 		}
 		return this._id;
+	}
+
+	private _serializeParentTerminal(location?: TerminalLocation | vscode.TerminalEditorLocationOptions | vscode.TerminalSplitLocationOptions, parentTerminal?: ExtHostTerminalIdentifier): TerminalLocation | vscode.TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminalIdentifier } | undefined {
+		if (typeof location === 'object' && 'parentTerminal' in location) {
+			return parentTerminal ? { parentTerminal } : undefined;
+		}
+		return location;
 	}
 
 	private _checkDisposed() {
@@ -398,7 +398,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	public createExtensionTerminal(options: vscode.ExtensionTerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, generateUuid(), options, options.name);
 		const p = new ExtHostPseudoterminal(options.pty);
-		terminal.createExtensionTerminal(this._resolveLocation(options.location), internalOptions?.resolvedExtHostTerminal, asTerminalIcon(options.iconPath), asTerminalColor(options.color)).then(id => {
+		terminal.createExtensionTerminal(this._resolveLocation(options.location), internalOptions?.resolvedExtHostIdentifier, asTerminalIcon(options.iconPath), asTerminalColor(options.color)).then(id => {
 			const disposable = this._setupExtHostProcessListeners(id, p);
 			this._terminalProcessDisposables[id] = disposable;
 		});
@@ -664,12 +664,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		let internalOptions: ITerminalInternalOptions = {};
 		if (options.location && typeof options.location === 'object' && 'splitActive' in options.location) {
 			const id = this._terminals.find(t => t.value === this.activeTerminal)?._id;
-			if (id) {
-				const index = this._getTerminalObjectIndexById(this._terminals, id);
-				if (index) {
-					internalOptions.resolvedExtHostTerminal = this._terminals[index];
-				}
-			}
+			internalOptions.resolvedExtHostIdentifier = id;
 		}
 		return internalOptions;
 	}
@@ -770,7 +765,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		return index !== null ? array[index] : null;
 	}
 
-	private _getTerminalObjectIndexById<T extends ExtHostTerminal>(array: T[], id: TerminalIdentifier): number | null {
+	private _getTerminalObjectIndexById<T extends ExtHostTerminal>(array: T[], id: ExtHostTerminalIdentifier): number | null {
 		let index: number | null = null;
 		array.some((item, i) => {
 			const thisId = item._id;

@@ -46,7 +46,6 @@ import { IExtensionIdWithVersion } from 'vs/platform/userDataSync/common/extensi
 import { WorkspaceTrustRequestOptions } from 'vs/platform/workspace/common/workspaceTrust';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ExtHostInteractive } from 'vs/workbench/api/common/extHostInteractive';
-import { ExtHostTerminal } from 'vs/workbench/api/common/extHostTerminalService';
 import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 import * as tasks from 'vs/workbench/api/common/shared/tasks';
@@ -468,7 +467,7 @@ export interface MainThreadProgressShape extends IDisposable {
  * All other terminals (that are not created on the extension host side) always
  * use the numeric id.
  */
-export type TerminalIdentifier = number | string;
+export type ExtHostTerminalIdentifier = number | string;
 
 export interface TerminalLaunchConfig {
 	name?: string;
@@ -486,15 +485,15 @@ export interface TerminalLaunchConfig {
 	isFeatureTerminal?: boolean;
 	isExtensionOwnedTerminal?: boolean;
 	useShellEnvironment?: boolean;
-	location?: TerminalLocation | { viewColumn: number, preserveFocus?: boolean } | { parentTerminal: ExtHostTerminal };
+	location?: TerminalLocation | { viewColumn: number, preserveFocus?: boolean } | { parentTerminal: ExtHostTerminalIdentifier };
 }
 
 export interface MainThreadTerminalServiceShape extends IDisposable {
 	$createTerminal(extHostTerminalId: string, config: TerminalLaunchConfig): Promise<void>;
-	$dispose(id: TerminalIdentifier): void;
-	$hide(id: TerminalIdentifier): void;
-	$sendText(id: TerminalIdentifier, text: string, addNewLine: boolean): void;
-	$show(id: TerminalIdentifier, preserveFocus: boolean): void;
+	$dispose(id: ExtHostTerminalIdentifier): void;
+	$hide(id: ExtHostTerminalIdentifier): void;
+	$sendText(id: ExtHostTerminalIdentifier, text: string, addNewLine: boolean): void;
+	$show(id: ExtHostTerminalIdentifier, preserveFocus: boolean): void;
 	$startSendingDataEvents(): void;
 	$stopSendingDataEvents(): void;
 	$startLinkProvider(): void;
