@@ -21,7 +21,7 @@ const NO_SCORE: FuzzyScore = [NO_MATCH, []];
 // const DEBUG = false;
 // const DEBUG_MATRIX = false;
 
-export function scoreFuzzy(target: string, query: string, queryLower: string, fuzzy: boolean): FuzzyScore {
+export function scoreFuzzy(target: string, query: string, queryLower: string, fuzzy: boolean, excludeQuery: boolean): FuzzyScore {
 	if (!target || !query) {
 		return NO_SCORE; // return early if target or query are undefined
 	}
@@ -39,26 +39,8 @@ export function scoreFuzzy(target: string, query: string, queryLower: string, fu
 
 	const targetLower = target.toLowerCase();
 
-	// When not searching fuzzy, we require the query to be contained fully
-	// in the target string contiguously.
-	if (!fuzzy) {
-		const matchIndex = targetLower.indexOf(queryLower);
-		if (matchIndex === -1) {
-
-			// if (DEBUG) {
-			// 	console.log(`Characters not matching consecutively ${queryLower} within ${targetLower}`);
-			// }
-
-			return NO_SCORE;
-		}
-
-		const indexesArray: number[] = [];
-		for (let i = 0; i < queryLower.length; i++) {
-			indexesArray.push(i + matchIndex);
-		}
-
-		// TODO: what's a better value for the score?
-		const res: FuzzyScore = [100, indexesArray];
+	if (fuzzy && !excludeQuery) {
+		const res = doScoreFuzzy(query, queryLower, queryLength, target, targetLower, targetLength);
 
 		// if (DEBUG) {
 		// 	console.log(`%cFinal Score: ${res[0]}`, 'font-weight: bold');
@@ -68,7 +50,35 @@ export function scoreFuzzy(target: string, query: string, queryLower: string, fu
 		return res;
 	}
 
-	const res = doScoreFuzzy(query, queryLower, queryLength, target, targetLower, targetLength);
+	// When not searching fuzzy or with an exclude query, we require the query
+	// to be contained fully in the target string contiguously.
+	const matchIndex = targetLower.indexOf(queryLower);
+	if (
+		(excludeQuery && matchIndex >= 0) ||
+		!excludeQuery && matchIndex === -1
+	) {
+
+		// if (DEBUG) {
+		// 	console.log(`Exclude query?: ${excludeQuery}`);
+		// 	console.log(`Characters ${excludeQuery ? '' : 'not'} matching consecutively ${queryLower} within ${targetLower}`);
+		// }
+
+		return NO_SCORE;
+	}
+
+	const indexesArray: number[] = [];
+
+	// Exclude queries should return a score but no indexes
+	// this is because we want them to influence if a result
+	// shows up, but not what indexes are highlighted.
+	if (!excludeQuery) {
+		for (let i = 0; i < queryLower.length; i++) {
+			indexesArray.push(i + matchIndex);
+		}
+	}
+
+	// TODO: what's a better value for the score?
+	const res: FuzzyScore = [100, indexesArray];
 
 	// if (DEBUG) {
 	// 	console.log(`%cFinal Score: ${res[0]}`, 'font-weight: bold');
@@ -477,12 +487,13 @@ function doScoreItemFuzzyMultiple(label: string, description: string | undefined
 function doScoreItemFuzzySingle(label: string, description: string | undefined, path: string | undefined, query: IPreparedQueryPiece, preferLabelMatches: boolean, fuzzy: boolean): IItemScore {
 
 	// Prefer label matches if told so or we have no description
-	if (preferLabelMatches || !description) {
+	if ((preferLabelMatches && !query.excludeQuery) || !description) {
 		const [labelScore, labelPositions] = scoreFuzzy(
 			label,
 			query.normalized,
 			query.normalizedLowercase,
-			fuzzy && !query.expectExactMatch);
+			fuzzy && !query.expectExactMatch,
+			query.excludeQuery);
 		if (labelScore) {
 
 			// If we have a prefix match on the label, we give a much
@@ -524,7 +535,8 @@ function doScoreItemFuzzySingle(label: string, description: string | undefined, 
 			descriptionAndLabel,
 			query.normalized,
 			query.normalizedLowercase,
-			fuzzy && !query.expectExactMatch);
+			fuzzy && !query.expectExactMatch,
+			query.excludeQuery);
 		if (labelDescriptionScore) {
 			const labelDescriptionMatches = createMatches(labelDescriptionPositions);
 			const labelMatch: IMatch[] = [];
@@ -825,6 +837,12 @@ export interface IPreparedQueryPiece {
 	 * In other words, no fuzzy matching is used.
 	 */
 	expectExactMatch: boolean;
+
+	/**
+	 * The query starts with a "-" which means
+	 * the target must not contain the query.
+	 */
+	excludeQuery: boolean;
 }
 
 export interface IPreparedQuery extends IPreparedQueryPiece {
@@ -848,6 +866,14 @@ function queryExpectsExactMatch(query: string) {
 	return query.startsWith('"') && query.endsWith('"');
 }
 
+/*
+ * If a query is wrapped in quotes, the user does not want to
+ * use fuzzy search for this query.
+ */
+function queryIsExcludeQuery(query: string) {
+	return query.length > 1 && query.startsWith('-');
+}
+
 /**
  * Helper function to prepare a search value for scoring by removing unwanted characters
  * and allowing to score on multiple pieces separated by whitespace character.
@@ -859,7 +885,11 @@ export function prepareQuery(original: string): IPreparedQuery {
 	}
 
 	const originalLowercase = original.toLowerCase();
-	const { pathNormalized, normalized, normalizedLowercase } = normalizeQuery(original);
+	// we only support excluding results if you have multiple queries.
+	// This is so users searching for files like foo-bar.txt can search
+	// for "-bar" and still get results.
+	const excludeQuery = false;
+	const { pathNormalized, normalized, normalizedLowercase } = normalizeQuery(original, excludeQuery);
 	const containsPathSeparator = pathNormalized.indexOf(sep) >= 0;
 	const expectExactMatch = queryExpectsExactMatch(original);
 
@@ -869,11 +899,12 @@ export function prepareQuery(original: string): IPreparedQuery {
 	if (originalSplit.length > 1) {
 		for (const originalPiece of originalSplit) {
 			const expectExactMatchPiece = queryExpectsExactMatch(originalPiece);
+			const excludeQueryPiece = queryIsExcludeQuery(originalPiece);
 			const {
 				pathNormalized: pathNormalizedPiece,
 				normalized: normalizedPiece,
 				normalizedLowercase: normalizedLowercasePiece
-			} = normalizeQuery(originalPiece);
+			} = normalizeQuery(originalPiece, excludeQueryPiece);
 
 			if (normalizedPiece) {
 				if (!values) {
@@ -886,21 +917,28 @@ export function prepareQuery(original: string): IPreparedQuery {
 					pathNormalized: pathNormalizedPiece,
 					normalized: normalizedPiece,
 					normalizedLowercase: normalizedLowercasePiece,
-					expectExactMatch: expectExactMatchPiece
+					expectExactMatch: expectExactMatchPiece,
+					excludeQuery: excludeQueryPiece
 				});
 			}
 		}
 	}
 
-	return { original, originalLowercase, pathNormalized, normalized, normalizedLowercase, values, containsPathSeparator, expectExactMatch };
+	return { original, originalLowercase, pathNormalized, normalized, normalizedLowercase, values, containsPathSeparator, expectExactMatch, excludeQuery };
 }
 
-function normalizeQuery(original: string): { pathNormalized: string, normalized: string, normalizedLowercase: string } {
+function normalizeQuery(original: string, isExcludeQuery: boolean): { pathNormalized: string, normalized: string, normalizedLowercase: string } {
+	let baseline = original;
+	if (isExcludeQuery) {
+		// if we have an exclude query, we need to get rid of the dash in front.
+		baseline = baseline.substr(1, original.length - 1);
+	}
+
 	let pathNormalized: string;
 	if (isWindows) {
-		pathNormalized = original.replace(/\//g, sep); // Help Windows users to search for paths when using slash
+		pathNormalized = baseline.replace(/\//g, sep); // Help Windows users to search for paths when using slash
 	} else {
-		pathNormalized = original.replace(/\\/g, sep); // Help macOS/Linux users to search for paths when using backslash
+		pathNormalized = baseline.replace(/\\/g, sep); // Help macOS/Linux users to search for paths when using backslash
 	}
 
 	// we remove quotes here because quotes are used for exact match search
