@@ -25,7 +25,6 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { UTF8 } from 'vs/workbench/services/textfile/common/encoding';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {
@@ -607,10 +606,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	protected override async autoDetectLanguage(): Promise<void> {
-		const mode = this.getMode();
 		if (
 			this.resource.scheme === this.pathService.defaultUriScheme && 	// make sure to not detect language for non-user visible documents
-			(!mode || mode === PLAINTEXT_MODE_ID)							// require a valid mode that is enlisted for detection
+			!this.modeService.getModeIdByFilepathOrFirstLine(this.resource)	// only run if a mode is not associated with this particular file
 		) {
 			return super.autoDetectLanguage();
 		}
