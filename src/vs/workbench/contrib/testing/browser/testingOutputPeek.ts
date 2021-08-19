@@ -49,7 +49,7 @@ import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
-import { textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorErrorForeground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { CATEGORIES } from 'vs/workbench/common/actions';
@@ -596,7 +596,7 @@ class TestingOutputPeek extends PeekViewWidget {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITextModelService protected readonly modelService: ITextModelService,
 	) {
-		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true, className: 'test-output-peek' }, instantiationService);
+		super(editor, { showFrame: true, frameWidth: 1, showArrow: true, isResizeable: true, isAccessible: true, className: 'test-output-peek' }, instantiationService);
 
 		TestingContextKeys.isInPeek.bindTo(contextKeyService);
 		this._disposables.add(themeService.onDidColorThemeChange(this.applyTheme, this));
@@ -607,10 +607,11 @@ class TestingOutputPeek extends PeekViewWidget {
 
 	private applyTheme(theme: IColorTheme) {
 		const borderColor = theme.getColor(testingPeekBorder) || Color.transparent;
+		const headerBg = theme.getColor(editorErrorForeground)?.transparent(0.1);
 		this.style({
 			arrowColor: borderColor,
 			frameColor: borderColor,
-			headerBackgroundColor: theme.getColor(peekViewTitleBackground) || Color.transparent,
+			headerBackgroundColor: headerBg,
 			primaryHeadingColor: theme.getColor(peekViewTitleForeground),
 			secondaryHeadingColor: theme.getColor(peekViewTitleInfoForeground)
 		});
@@ -1558,7 +1559,7 @@ export class GoToNextMessageAction extends EditorAction2 {
 			id: GoToNextMessageAction.ID,
 			f1: true,
 			title: localize('testing.goToNextMessage', "Go to Next Test Failure"),
-			icon: Codicon.chevronDown,
+			icon: Codicon.arrowDown,
 			category: CATEGORIES.Test,
 			keybinding: {
 				primary: KeyMod.Alt | KeyCode.F8,
@@ -1588,7 +1589,7 @@ export class GoToPreviousMessageAction extends EditorAction2 {
 			id: GoToPreviousMessageAction.ID,
 			f1: true,
 			title: localize('testing.goToPreviousMessage', "Go to Previous Test Failure"),
-			icon: Codicon.chevronUp,
+			icon: Codicon.arrowUp,
 			category: CATEGORIES.Test,
 			keybinding: {
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F8,
