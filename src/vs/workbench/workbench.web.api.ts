@@ -148,6 +148,38 @@ interface IHomeIndicator {
 	title: string;
 }
 
+interface IWelcomeBanner {
+
+	/**
+	 * Welcome banner message to appear as text.
+	 */
+	message: string;
+
+	/**
+	 * Optional actions to appear as links after the welcome banner message.
+	 */
+	actions?: IWelcomeBannerAction[];
+}
+
+interface IWelcomeBannerAction {
+
+	/**
+	 * The link to open when clicking. Supports command invocation when
+	 * using the `command:<commandId>` value.
+	 */
+	href: string;
+
+	/**
+	 * The label to show for the action link.
+	 */
+	label: string;
+
+	/**
+	 * A tooltip that will appear while hovering over the action link.
+	 */
+	title?: string;
+}
+
 interface IWindowIndicator {
 
 	/**
@@ -423,6 +455,12 @@ interface IWorkbenchConstructionOptions {
 	 * Optional home indicator to appear above the hamburger menu in the activity bar.
 	 */
 	readonly homeIndicator?: IHomeIndicator;
+
+	/**
+	 * Optional welcome banner to appear above the workbench. Can be dismissed by the
+	 * user.
+	 */
+	readonly welcomeBanner?: IWelcomeBanner;
 
 	/**
 	 * Optional override for the product configuration properties.
@@ -701,6 +739,8 @@ export {
 
 	// Branding
 	IHomeIndicator,
+	IWelcomeBanner,
+	IWelcomeBannerAction,
 	IProductConfiguration,
 	IWindowIndicator,
 	IInitialColorTheme,
