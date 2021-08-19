@@ -40,7 +40,7 @@ export class NativeExtHostSearch extends ExtHostSearch {
 	override $enableExtensionHostSearch(): void {
 		const outputChannel = new OutputChannel('RipgrepSearchEH', this._logService);
 		this.registerTextSearchProvider(Schemas.file, new RipgrepSearchProvider(outputChannel));
-		this.registerInternalFileSearchProvider(Schemas.file, new SearchService());
+		this.registerInternalFileSearchProvider(Schemas.file, new SearchService('fileSearchProvider'));
 	}
 
 	private registerInternalFileSearchProvider(scheme: string, provider: SearchService): IDisposable {
