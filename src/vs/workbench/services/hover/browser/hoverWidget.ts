@@ -114,6 +114,7 @@ export class HoverWidget extends Widget {
 
 		} else if (options.content instanceof HTMLElement) {
 			contentsElement.appendChild(options.content);
+			contentsElement.classList.add('html-hover-contents');
 
 		} else {
 			const markdown = options.content;
