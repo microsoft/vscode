@@ -17,7 +17,7 @@ import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
-import { isString } from 'vs/base/common/types';
+import { isMarkdownString } from 'vs/base/common/htmlContent';
 
 const $ = dom.$;
 type TargetRect = {
@@ -73,7 +73,7 @@ export class HoverWidget extends Widget {
 	) {
 		super();
 
-		this._linkHandler = options.linkHandler || (url => this._openerService.open(url, { allowCommands: (!isString(options.text) && options.text.isTrusted) }));
+		this._linkHandler = options.linkHandler || (url => this._openerService.open(url, { allowCommands: (isMarkdownString(options.content) && options.content.isTrusted) }));
 
 		this._target = 'targetElements' in options.target ? options.target : new ElementHoverTarget(options.target);
 
@@ -108,11 +108,15 @@ export class HoverWidget extends Widget {
 
 		const rowElement = $('div.hover-row.markdown-hover');
 		const contentsElement = $('div.hover-contents');
-		if (typeof options.text === 'string') {
-			contentsElement.textContent = options.text;
+		if (typeof options.content === 'string') {
+			contentsElement.textContent = options.content;
 			contentsElement.style.whiteSpace = 'pre-wrap';
+
+		} else if (options.content instanceof HTMLElement) {
+			contentsElement.appendChild(options.content);
+
 		} else {
-			const markdown = options.text;
+			const markdown = options.content;
 			const mdRenderer = this._instantiationService.createInstance(
 				MarkdownRenderer,
 				{ codeBlockFontFamily: this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily }
@@ -168,7 +172,7 @@ export class HoverWidget extends Widget {
 		} else {
 			if (options.hideOnHover === undefined) {
 				// Defaults to true when string, false when markdown as it may contain links
-				hideOnHover = typeof options.text === 'string';
+				hideOnHover = typeof options.content === 'string';
 			} else {
 				// It's set explicitly
 				hideOnHover = options.hideOnHover;

@@ -72,7 +72,7 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 			if (hoverPreparation) {
 
 				const hoverOptions = {
-					text: localize('iconLabel.loading', "Loading..."),
+					content: localize('iconLabel.loading', "Loading..."),
 					target,
 					hoverPosition: HoverPosition.BELOW
 				};
@@ -87,7 +87,7 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 				// awaiting the tooltip could take a while. Make sure we're still preparing to hover.
 				if (resolvedTooltip && hoverPreparation) {
 					const hoverOptions = {
-						text: resolvedTooltip,
+						content: resolvedTooltip,
 						target,
 						showPointer: hoverDelegate.placement === 'element',
 						hoverPosition: HoverPosition.BELOW
