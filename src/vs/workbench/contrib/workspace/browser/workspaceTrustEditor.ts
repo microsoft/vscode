@@ -298,14 +298,14 @@ class WorkspaceTrustedUrisTable extends Disposable {
 			if (segments.length === 1) {
 				return {
 					type: MessageType.WARNING,
-					content: localize('trustOrg', "You will trust all repositories and forks under '{0}'.", segments[0])
+					content: localize('trustOrg', "You will trust all repositories and forks under '{0}' on {1}.", segments[0], getHostLabel(this.labelService, item))
 				};
 			}
 
 			if (segments.length > 2) {
 				return {
 					type: MessageType.ERROR,
-					content: localize('invalidTrust', "'{0}' is not valid and has too many path segments.", path)
+					content: localize('invalidTrust', "You cannot trust individual folders within a repository.", path)
 				};
 			}
 		}
