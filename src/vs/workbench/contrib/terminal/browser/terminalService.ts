@@ -1223,12 +1223,18 @@ export class TerminalService implements ITerminalService {
 	private _resolveLocation(location?: ITerminalLocationOptions): TerminalLocation | undefined {
 		if (!location) {
 			return location;
-		} else if (typeof location === 'object' && 'parentTerminal' in location) {
-			return location.parentTerminal.target;
-		} else if (typeof location === 'object' && 'viewColumn' in location) {
-			return TerminalLocation.Editor;
-		} else if (typeof location === 'object' && 'splitActive' in location) {
-			return this._activeInstance?.target;
+		}
+		if (typeof location !== 'object') {
+			if ('parentTerminal' in location) {
+				return location.parentTerminal.target;
+			}
+			if ('viewColumn' in location) {
+				return TerminalLocation.Editor;
+			} 
+			// TODO: Remove splitActive?
+			if ('splitActive' in location) {
+				return this._activeInstance?.target;
+			}
 		}
 		return location;
 	}
