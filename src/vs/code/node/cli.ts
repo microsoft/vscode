@@ -340,7 +340,7 @@ export async function main(argv: string[]): Promise<any> {
 				});
 			}
 		} else {
-			const requiresWait = args['status'] || args['verbose'];
+			const requiresWait = args['status'] || args['verbose'] || hasReadStdinArg;
 			const envVars: string[] = [];
 			for (const envKey in env) {
 				if (envKey === '_') {
@@ -388,7 +388,7 @@ export async function main(argv: string[]): Promise<any> {
 								c();
 							}, 1500);
 						});
-					} else {
+					} else if (args['status']) {
 						child.on('exit', () => {
 							const buffer = readFileSync(tmpfile);
 							let bufferContents = buffer.toString().trim();
