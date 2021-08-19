@@ -31,6 +31,8 @@ export const enum TargetPlatform {
 	DARWIN_ARM64 = 'darwin-arm64',
 
 	WEB = 'web',
+
+	UNIVERSAL = 'universal',
 	UNKNOWN = 'unknown',
 }
 
@@ -39,14 +41,19 @@ export function toTargetPlatform(targetPlatform: string): TargetPlatform {
 		case TargetPlatform.WIN32_X64: return TargetPlatform.WIN32_X64;
 		case TargetPlatform.WIN32_IA32: return TargetPlatform.WIN32_IA32;
 		case TargetPlatform.WIN32_ARM64: return TargetPlatform.WIN32_ARM64;
+
 		case TargetPlatform.LINUX_X64: return TargetPlatform.LINUX_X64;
 		case TargetPlatform.LINUX_ARM64: return TargetPlatform.LINUX_ARM64;
 		case TargetPlatform.LINUX_ARMHF: return TargetPlatform.LINUX_ARMHF;
+
 		case TargetPlatform.DARWIN_X64: return TargetPlatform.DARWIN_X64;
 		case TargetPlatform.DARWIN_ARM64: return TargetPlatform.DARWIN_ARM64;
+
 		case TargetPlatform.WEB: return TargetPlatform.WEB;
+
+		case TargetPlatform.UNIVERSAL: return TargetPlatform.UNIVERSAL;
+		default: return TargetPlatform.UNKNOWN;
 	}
-	return TargetPlatform.UNKNOWN;
 }
 
 export function getTargetPlatformFromOS(os: OperatingSystem, arch: string): TargetPlatform {
@@ -60,9 +67,6 @@ export function getTargetPlatformFromOS(os: OperatingSystem, arch: string): Targ
 }
 
 export function getTargetPlatform(platform: Platform, arch: string | undefined): TargetPlatform {
-	if (isWeb) {
-		return TargetPlatform.WEB;
-	}
 	switch (platform) {
 		case Platform.Windows:
 			if (arch === 'x64') {
@@ -74,7 +78,7 @@ export function getTargetPlatform(platform: Platform, arch: string | undefined):
 			if (arch === 'arm64') {
 				return TargetPlatform.WIN32_ARM64;
 			}
-			throw new Error(`Unknown Architecture '${arch}'`);
+			return TargetPlatform.UNKNOWN;
 
 		case Platform.Linux:
 			if (arch === 'x64') {
@@ -86,7 +90,7 @@ export function getTargetPlatform(platform: Platform, arch: string | undefined):
 			if (arch === 'arm') {
 				return TargetPlatform.LINUX_ARMHF;
 			}
-			throw new Error(`Unknown Architecture '${arch}'`);
+			return TargetPlatform.UNKNOWN;
 
 		case Platform.Mac:
 			if (arch === 'x64') {
@@ -95,28 +99,20 @@ export function getTargetPlatform(platform: Platform, arch: string | undefined):
 			if (arch === 'arm64') {
 				return TargetPlatform.DARWIN_ARM64;
 			}
-			throw new Error(`Unknown Architecture '${arch}'`);
+			return TargetPlatform.UNKNOWN;
 
 		case Platform.Web: return TargetPlatform.WEB;
 	}
 }
 
-export function arePlatformsValid(targetPlatforms: TargetPlatform[], targetPlatform: TargetPlatform): boolean {
-	switch (targetPlatform) {
-		case TargetPlatform.WIN32_X64: return targetPlatforms.some(t => t === TargetPlatform.WIN32_X64 || t === TargetPlatform.WIN32_IA32);
-		case TargetPlatform.WIN32_ARM64: return targetPlatforms.some(t => t === TargetPlatform.WIN32_ARM64 || t === TargetPlatform.WIN32_IA32);
-		default: return targetPlatforms.includes(targetPlatform);
-	}
-}
-
-export const CURRENT_TARGET_PLATFORM = getTargetPlatform(platform, arch);
+export const CURRENT_TARGET_PLATFORM = isWeb ? TargetPlatform.WEB : getTargetPlatform(platform, arch);
 
 export interface IGalleryExtensionProperties {
 	dependencies?: string[];
 	extensionPack?: string[];
 	engine?: string;
 	localizedLanguages?: string[];
-	targetPlatforms: TargetPlatform[];
+	targetPlatform: TargetPlatform;
 }
 
 export interface IGalleryExtensionAsset {
