@@ -181,6 +181,7 @@ export class MultiCommand extends Command {
 
 	public runCommand(accessor: ServicesAccessor, args: any): void | Promise<void> {
 		const logService = accessor.get(ILogService);
+		logService.trace(`Executing Command '${this.id}' which has ${this._implementations.length} bound.`);
 		for (const impl of this._implementations) {
 			const result = impl.implementation(accessor, args);
 			if (result) {
@@ -191,6 +192,7 @@ export class MultiCommand extends Command {
 				return result;
 			}
 		}
+		logService.trace(`The Command '${this.id}' was not handled by any implementation.`);
 	}
 }
 
