@@ -1142,8 +1142,7 @@ export class TerminalService implements ITerminalService {
 				color: contributedProfile.color,
 				splitActiveTerminal: typeof options?.location === 'object' && 'splitActiveTerminal' in options.location ? true : false
 			});
-			// TODO shouldn't the below use defaultLocation?
-			const instanceHost = options?.location === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
+			const instanceHost = this._resolveLocation(options?.location) === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
 			const instance = instanceHost.instances[instanceHost.instances.length - 1];
 			await instance.focusWhenReady();
 			return instance;
