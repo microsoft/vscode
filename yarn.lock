@@ -4520,10 +4520,10 @@ gulp-postcss@^9.0.0:
     postcss-load-config "^2.1.1"
     vinyl-sourcemaps-apply "^0.2.1"
 
-gulp-remote-retry-src@^0.6.0:
-  version "0.6.0"
-  resolved "https://registry.yarnpkg.com/gulp-remote-retry-src/-/gulp-remote-retry-src-0.6.0.tgz#fdcb5d5c9e67c31ae378a2a886ddad3d47913bb1"
-  integrity sha512-lFxpwwbM/GEIdYiNumxiUcPHZUROFJaF1zTBne1H8b3Pwx6Te6O9uEYp++JZPP62jdheOWcHUTBREiMkpdbm4Q==
+gulp-remote-retry-src@^0.7.0:
+  version "0.7.0"
+  resolved "https://registry.yarnpkg.com/gulp-remote-retry-src/-/gulp-remote-retry-src-0.7.0.tgz#fe25fb69866ce2f6ee300156f04364f67ed8d5b1"
+  integrity sha512-JJGUxNUVa+Iz9P1dDTxmGHGfjMaU4qa7I4QLzqN7ty3H2okAHiWlcipKp8MHdPxQ7aU1GWxwuAfTFdg5gx4a4Q==
   dependencies:
     event-stream "3.3.4"
     node.extend "~1.1.2"
