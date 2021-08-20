@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
+import { basename, dirname, join, normalize, sep } from 'vs/base/common/path';
 import { rtrim } from 'vs/base/common/strings';
-import { sep, join, normalize, dirname, basename } from 'vs/base/common/path';
 import { Promises, readdirSync } from 'vs/base/node/pfs';
 
 /**

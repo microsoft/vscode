@@ -112,6 +112,10 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		});
 	}
 
+	async setUnicodeVersion(version: '6' | '11'): Promise<void> {
+		return this._remoteTerminalChannel.setUnicodeVersion(this._id, version);
+	}
+
 	async getInitialCwd(): Promise<string> {
 		await this._startBarrier.wait();
 		return this._remoteTerminalChannel.getInitialCwd(this._id);

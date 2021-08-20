@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { parse } from 'path';
 import { debounce, throttle } from 'vs/base/common/decorators';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { ProcessItem } from 'vs/base/common/processes';
 import { listProcesses } from 'vs/base/node/ps';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ProcessItem } from 'vs/base/common/processes';
-import { parse } from 'path';
 
 const enum Constants {
 	/**

@@ -190,6 +190,16 @@ export class ExpressionContainer implements IExpressionContainer {
 	}
 }
 
+function handleSetResponse(expression: ExpressionContainer, response: DebugProtocol.SetVariableResponse | DebugProtocol.SetExpressionResponse | undefined): void {
+	if (response && response.body) {
+		expression.value = response.body.value || '';
+		expression.type = response.body.type || expression.type;
+		expression.reference = response.body.variablesReference;
+		expression.namedVariables = response.body.namedVariables;
+		expression.indexedVariables = response.body.indexedVariables;
+	}
+}
+
 export class Expression extends ExpressionContainer implements IExpression {
 	static readonly DEFAULT_VALUE = nls.localize('notAvailable', "not available");
 
@@ -211,6 +221,15 @@ export class Expression extends ExpressionContainer implements IExpression {
 
 	override toString(): string {
 		return `${this.name}\n${this.value}`;
+	}
+
+	async setExpression(value: string, stackFrame: IStackFrame): Promise<void> {
+		if (!this.session) {
+			return;
+		}
+
+		const response = await this.session.setExpression(stackFrame.frameId, this.name, value);
+		handleSetResponse(this, response);
 	}
 }
 
@@ -241,23 +260,32 @@ export class Variable extends ExpressionContainer implements IExpression {
 		this.type = type;
 	}
 
-	async setVariable(value: string): Promise<any> {
+	async setVariable(value: string, stackFrame: IStackFrame): Promise<any> {
 		if (!this.session) {
 			return;
 		}
 
 		try {
-			const response = await this.session.setVariable((<ExpressionContainer>this.parent).reference, this.name, value);
-			if (response && response.body) {
-				this.value = response.body.value || '';
-				this.type = response.body.type || this.type;
-				this.reference = response.body.variablesReference;
-				this.namedVariables = response.body.namedVariables;
-				this.indexedVariables = response.body.indexedVariables;
+			let response: DebugProtocol.SetExpressionResponse | DebugProtocol.SetVariableResponse | undefined;
+			// Send out a setExpression for debug extensions that do not support set variables https://github.com/microsoft/vscode/issues/124679#issuecomment-869844437
+			if (this.session.capabilities.supportsSetExpression && !this.session.capabilities.supportsSetVariable && this.evaluateName) {
+				return this.setExpression(value, stackFrame);
 			}
+
+			response = await this.session.setVariable((<ExpressionContainer>this.parent).reference, this.name, value);
+			handleSetResponse(this, response);
 		} catch (err) {
 			this.errorMessage = err.message;
 		}
+	}
+
+	async setExpression(value: string, stackFrame: IStackFrame): Promise<void> {
+		if (!this.session || !this.evaluateName) {
+			return;
+		}
+
+		const response = await this.session.setExpression(stackFrame.frameId, this.evaluateName, value);
+		handleSetResponse(this, response);
 	}
 
 	override toString(): string {
@@ -973,7 +1001,7 @@ export class DebugModel implements IDebugModel {
 	private breakpoints: Breakpoint[];
 	private functionBreakpoints: FunctionBreakpoint[];
 	private exceptionBreakpoints: ExceptionBreakpoint[];
-	private dataBreakopints: DataBreakpoint[];
+	private dataBreakpoints: DataBreakpoint[];
 	private watchExpressions: Expression[];
 	private instructionBreakpoints: InstructionBreakpoint[];
 
@@ -985,7 +1013,7 @@ export class DebugModel implements IDebugModel {
 		this.breakpoints = debugStorage.loadBreakpoints();
 		this.functionBreakpoints = debugStorage.loadFunctionBreakpoints();
 		this.exceptionBreakpoints = debugStorage.loadExceptionBreakpoints();
-		this.dataBreakopints = debugStorage.loadDataBreakpoints();
+		this.dataBreakpoints = debugStorage.loadDataBreakpoints();
 		this.watchExpressions = debugStorage.loadWatchExpressions();
 		this.instructionBreakpoints = [];
 		this.sessions = [];
@@ -1003,7 +1031,7 @@ export class DebugModel implements IDebugModel {
 	}
 
 	getSessions(includeInactive = false): IDebugSession[] {
-		// By default do not return inactive sesions.
+		// By default do not return inactive sessions.
 		// However we are still holding onto inactive sessions due to repl and debug service session revival (eh scenario)
 		return this.sessions.filter(s => includeInactive || s.state !== State.Inactive);
 	}
@@ -1011,7 +1039,7 @@ export class DebugModel implements IDebugModel {
 	addSession(session: IDebugSession): void {
 		this.sessions = this.sessions.filter(s => {
 			if (s.getId() === session.getId()) {
-				// Make sure to de-dupe if a session is re-intialized. In case of EH debugging we are adding a session again after an attach.
+				// Make sure to de-dupe if a session is re-initialized. In case of EH debugging we are adding a session again after an attach.
 				return false;
 			}
 			if (s.state === State.Inactive && s.configuration.name === session.configuration.name) {
@@ -1136,7 +1164,7 @@ export class DebugModel implements IDebugModel {
 	}
 
 	getDataBreakpoints(): IDataBreakpoint[] {
-		return this.dataBreakopints;
+		return this.dataBreakpoints;
 	}
 
 	getExceptionBreakpoints(): IExceptionBreakpoint[] {
@@ -1229,7 +1257,7 @@ export class DebugModel implements IDebugModel {
 				}
 			}
 		});
-		this.dataBreakopints.forEach(dbp => {
+		this.dataBreakpoints.forEach(dbp => {
 			if (!data) {
 				dbp.setSessionData(sessionId, undefined);
 			} else {
@@ -1321,7 +1349,7 @@ export class DebugModel implements IDebugModel {
 			}
 			fbp.enabled = enable;
 		});
-		this.dataBreakopints.forEach(dbp => {
+		this.dataBreakpoints.forEach(dbp => {
 			if (dbp.enabled !== enable) {
 				changed.push(dbp);
 			}
@@ -1379,18 +1407,18 @@ export class DebugModel implements IDebugModel {
 
 	addDataBreakpoint(label: string, dataId: string, canPersist: boolean, accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined, accessType: DebugProtocol.DataBreakpointAccessType): void {
 		const newDataBreakpoint = new DataBreakpoint(label, dataId, canPersist, true, undefined, undefined, undefined, accessTypes, accessType);
-		this.dataBreakopints.push(newDataBreakpoint);
+		this.dataBreakpoints.push(newDataBreakpoint);
 		this._onDidChangeBreakpoints.fire({ added: [newDataBreakpoint], sessionOnly: false });
 	}
 
 	removeDataBreakpoints(id?: string): void {
 		let removed: DataBreakpoint[];
 		if (id) {
-			removed = this.dataBreakopints.filter(fbp => fbp.getId() === id);
-			this.dataBreakopints = this.dataBreakopints.filter(fbp => fbp.getId() !== id);
+			removed = this.dataBreakpoints.filter(fbp => fbp.getId() === id);
+			this.dataBreakpoints = this.dataBreakpoints.filter(fbp => fbp.getId() !== id);
 		} else {
-			removed = this.dataBreakopints;
-			this.dataBreakopints = [];
+			removed = this.dataBreakpoints;
+			this.dataBreakpoints = [];
 		}
 		this._onDidChangeBreakpoints.fire({ removed, sessionOnly: false });
 	}

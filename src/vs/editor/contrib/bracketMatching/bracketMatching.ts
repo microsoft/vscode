@@ -235,6 +235,13 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 				const [open, close] = brackets;
 				selectFrom = selectBrackets ? open.getStartPosition() : open.getEndPosition();
 				selectTo = selectBrackets ? close.getEndPosition() : close.getStartPosition();
+
+				if (close.containsPosition(position)) {
+					// select backwards if the cursor was on the closing bracket
+					const tmp = selectFrom;
+					selectFrom = selectTo;
+					selectTo = tmp;
+				}
 			}
 
 			if (selectFrom && selectTo) {

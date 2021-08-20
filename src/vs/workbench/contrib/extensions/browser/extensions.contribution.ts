@@ -23,7 +23,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import * as jsonContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { IInstantiationService, ServicesAccessor, optional } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeymapExtensions } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
@@ -73,7 +73,6 @@ import { Promises } from 'vs/base/common/async';
 import { EditorExtensions } from 'vs/workbench/common/editor';
 import { WORKSPACE_TRUST_EXTENSION_SUPPORT } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { ExtensionsCompletionItemsProvider } from 'vs/workbench/contrib/extensions/browser/extensionsCompletionItemsProvider';
-import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Event } from 'vs/base/common/event';
 
@@ -177,9 +176,15 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				scope: ConfigurationScope.APPLICATION
 			},
 			'extensions.webWorker': {
-				type: 'boolean',
+				type: ['boolean', 'string'],
+				enum: [true, false, 'auto'],
+				enumDescriptions: [
+					localize('extensionsWebWorker.true', "The Web Worker Extension Host will always be launched."),
+					localize('extensionsWebWorker.false', "The Web Worker Extension Host will never be launched."),
+					localize('extensionsWebWorker.auto', "The Web Worker Extension Host will be launched when a web extension needs it."),
+				],
 				description: localize('extensionsWebWorker', "Enable web worker extension host."),
-				default: false
+				default: 'auto'
 			},
 			'extensions.supportVirtualWorkspaces': {
 				type: 'object',
@@ -396,8 +401,6 @@ interface IExtensionActionOptions extends IAction2Options {
 
 class ExtensionsContributions extends Disposable implements IWorkbenchContribution {
 
-	private tasExperimentService?: ITASExperimentService;
-
 	constructor(
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
@@ -408,7 +411,6 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ICommandService private readonly commandService: ICommandService,
-		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
 	) {
 		super();
 		const hasGalleryContext = CONTEXT_HAS_GALLERY.bindTo(contextKeyService);
@@ -431,7 +433,6 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			hasWebServerContext.set(true);
 		}
 
-		this.tasExperimentService = tasExperimentService;
 		this.registerGlobalActions();
 		this.registerContextMenuActions();
 		this.registerQuickAccessProvider();
@@ -461,7 +462,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 					title: localize({ key: 'miPreferencesExtensions', comment: ['&& denotes a mnemonic'] }, "&&Extensions")
 				},
 				group: '1_settings',
-				order: 3
+				order: 4
 			}
 		}, {
 			id: MenuId.GlobalActivity,
@@ -523,10 +524,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				id: MenuId.CommandPalette,
 				when: CONTEXT_HAS_GALLERY
 			},
-			run: async () => {
-				const recommended = await this.tasExperimentService?.getTreatment<boolean>('recommendedLanguages');
-				runAction(this.instantiationService.createInstance(SearchExtensionsAction, recommended ? '@recommended:languages ' : '@category:"programming languages" @sort:installs '));
-			}
+			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@recommended:languages '))
 		});
 
 		this.registerExtensionAction({
@@ -1184,7 +1182,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.copyExtensionId',
-			title: { value: localize('workbench.extensions.action.copyExtensionId', "Copy Extension Id"), original: 'Copy Extension Id' },
+			title: { value: localize('workbench.extensions.action.copyExtensionId', "Copy Extension ID"), original: 'Copy Extension ID' },
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '1_copy'
@@ -1200,7 +1198,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				group: '2_configure',
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.has('extensionHasConfiguration'))
 			},
-			run: async (accessor: ServicesAccessor, id: string) => accessor.get(IPreferencesService).openSettings(false, `@ext:${id}`)
+			run: async (accessor: ServicesAccessor, id: string) => accessor.get(IPreferencesService).openSettings({ jsonEditor: false, query: `@ext:${id}` })
 		});
 
 		this.registerExtensionAction({

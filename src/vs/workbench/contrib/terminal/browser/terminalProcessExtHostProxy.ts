@@ -124,6 +124,10 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 		// Flow control is disabled for extension terminals
 	}
 
+	async setUnicodeVersion(version: '6' | '11'): Promise<void> {
+		// No-op
+	}
+
 	async processBinary(data: string): Promise<void> {
 		// Disabled for extension terminals
 		this._onBinary.fire(data);

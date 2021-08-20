@@ -46,7 +46,7 @@ export class CellEditorOptions extends Disposable {
 
 	private _value: IEditorOptions;
 	private _lineNumbers: 'on' | 'off' | 'inherit' = 'inherit';
-	private readonly _onDidChange = new Emitter<void>();
+	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 	private _localDisposableStore = this._register(new DisposableStore());
 
@@ -91,8 +91,8 @@ export class CellEditorOptions extends Disposable {
 	}
 
 	private _computeEditorOptions() {
-		const renderLiNumbers = this.configurationService.getValue<'on' | 'off'>('notebook.lineNumbers') === 'on';
-		const lineNumbers: LineNumbersType = renderLiNumbers ? 'on' : 'off';
+		const renderLineNumbers = this.configurationService.getValue<'on' | 'off'>('notebook.lineNumbers') === 'on';
+		const lineNumbers: LineNumbersType = renderLineNumbers ? 'on' : 'off';
 		const editorOptions = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: this.language }));
 		const layoutConfig = this.notebookOptions.getLayoutConfiguration();
 		const editorOptionsOverrideRaw = layoutConfig.editorOptionsCustomizations ?? {};
@@ -105,18 +105,13 @@ export class CellEditorOptions extends Disposable {
 		const computed = {
 			...editorOptions,
 			...CellEditorOptions.fixedEditorOptions,
-			... { lineNumbers },
+			... { lineNumbers, folding: lineNumbers === 'on' },
 			...editorOptionsOverride,
 			...{ padding: { top: 12, bottom: 12 } },
 			readOnly: this.notebookEditor.viewModel?.options.isReadOnly ?? false
 		};
 
 		return computed;
-	}
-
-	override dispose(): void {
-		this._onDidChange.dispose();
-		super.dispose();
 	}
 
 	getValue(internalMetadata?: NotebookCellInternalMetadata): IEditorOptions {
@@ -136,8 +131,10 @@ export class CellEditorOptions extends Disposable {
 			const renderLiNumbers = this.configurationService.getValue<'on' | 'off'>('notebook.lineNumbers') === 'on';
 			const lineNumbers: LineNumbersType = renderLiNumbers ? 'on' : 'off';
 			this._value.lineNumbers = lineNumbers;
+			this._value.folding = lineNumbers === 'on';
 		} else {
 			this._value.lineNumbers = lineNumbers as LineNumbersType;
+			this._value.folding = lineNumbers === 'on';
 		}
 		this._onDidChange.fire();
 	}
@@ -163,20 +160,19 @@ registerAction2(class ToggleLineNumberAction extends Action2 {
 			id: 'notebook.toggleLineNumbers',
 			title: { value: localize('notebook.toggleLineNumbers', "Toggle Notebook Line Numbers"), original: 'Toggle Notebook Line Numbers' },
 			precondition: NOTEBOOK_EDITOR_FOCUSED,
-			menu: [{
-				id: MenuId.EditorTitle,
-				group: 'notebookLayout',
-				order: 2,
-				when: ContextKeyExpr.and(
-					NOTEBOOK_IS_ACTIVE_EDITOR,
-					ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
-				)
-			}, {
-				id: MenuId.NotebookToolbar,
-				group: 'notebookLayout',
-				order: 2,
-				when: ContextKeyExpr.equals('config.notebook.globalToolbar', true)
-			}],
+			menu: [
+				{
+					id: MenuId.NotebookEditorLayoutConfigure,
+					group: 'notebookLayoutDetails',
+					order: 1,
+					when: NOTEBOOK_IS_ACTIVE_EDITOR
+				},
+				{
+					id: MenuId.NotebookToolbar,
+					group: 'notebookLayout',
+					order: 2,
+					when: ContextKeyExpr.equals('config.notebook.globalToolbar', true)
+				}],
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			f1: true,
 			toggled: {

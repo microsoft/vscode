@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Client as TelemetryClient } from 'vs/base/parts/ipc/node/ipc.cp';
-import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { FileAccess } from 'vs/base/common/network';
-import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
+import { Client as TelemetryClient } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { combinedAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILoggerService } from 'vs/platform/log/common/log';
+import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
+import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
+import { combinedAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export class CustomEndpointTelemetryService implements ICustomEndpointTelemetryService {
 	declare readonly _serviceBrand: undefined;

@@ -21,7 +21,7 @@ import { Context as SuggestContext, CompletionItem } from './suggest';
 import { CompletionModel } from './completionModel';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, IColorTheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { registerColor, editorWidgetBackground, quickInputListFocusBackground, activeContrastBorder, listHighlightForeground, editorForeground, editorWidgetBorder, focusBorder, textLinkForeground, textCodeBlockBackground, quickInputListFocusForeground, listFocusHighlightForeground, quickInputListFocusIconForeground } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorWidgetBackground, quickInputListFocusBackground, activeContrastBorder, listHighlightForeground, editorForeground, editorWidgetBorder, focusBorder, textLinkForeground, textCodeBlockBackground, quickInputListFocusForeground, listFocusHighlightForeground, quickInputListFocusIconForeground, textLinkActiveForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TimeoutTimer, CancelablePromise, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -792,7 +792,8 @@ export class SuggestWidget implements IDisposable {
 			const cursorBox = this.editor.getScrolledVisiblePosition(this.editor.getPosition());
 			const cursorBottom = editorBox.top + cursorBox.top + cursorBox.height;
 			const maxHeightBelow = Math.min(bodyBox.height - cursorBottom - info.verticalPadding, fullHeight);
-			const maxHeightAbove = Math.min(editorBox.top + cursorBox.top - info.verticalPadding, fullHeight);
+			const availableSpaceAbove = editorBox.top + cursorBox.top - info.verticalPadding;
+			const maxHeightAbove = Math.min(availableSpaceAbove, fullHeight);
 			let maxHeight = Math.min(Math.max(maxHeightAbove, maxHeightBelow) + info.borderHeight, fullHeight);
 
 			if (height === this._cappedHeight?.capped) {
@@ -808,12 +809,11 @@ export class SuggestWidget implements IDisposable {
 				height = maxHeight;
 			}
 
-			const forceRenderingAboveRequiredSpace = 100;
-			if (height > maxHeightBelow || (this._forceRenderingAbove && maxHeightAbove > forceRenderingAboveRequiredSpace)) {
+			const forceRenderingAboveRequiredSpace = 150;
+			if (height > maxHeightBelow || (this._forceRenderingAbove && availableSpaceAbove > forceRenderingAboveRequiredSpace)) {
 				this._contentWidget.setPreference(ContentWidgetPositionPreference.ABOVE);
 				this.element.enableSashes(true, true, false, false);
 				maxHeight = maxHeightAbove;
-
 			} else {
 				this._contentWidget.setPreference(ContentWidgetPositionPreference.BELOW);
 				this.element.enableSashes(false, true, true, false);
@@ -1012,6 +1012,11 @@ registerThemingParticipant((theme, collector) => {
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
 		collector.addRule(`.monaco-editor .suggest-details a { color: ${link}; }`);
+	}
+
+	const linkHover = theme.getColor(textLinkActiveForeground);
+	if (linkHover) {
+		collector.addRule(`.monaco-editor .suggest-details a:hover { color: ${linkHover}; }`);
 	}
 
 	const codeBackground = theme.getColor(textCodeBlockBackground);

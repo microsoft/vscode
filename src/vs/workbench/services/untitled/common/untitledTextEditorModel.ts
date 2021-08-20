@@ -26,6 +26,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { getCharContainingOffset } from 'vs/base/common/strings';
 import { UTF8 } from 'vs/workbench/services/textfile/common/encoding';
 import { bufferToStream, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 
 export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport, IEncodingSupport, IWorkingCopy {
 
@@ -69,6 +70,14 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	private static readonly FIRST_LINE_NAME_MAX_LENGTH = 40;
 	private static readonly FIRST_LINE_NAME_CANDIDATE_MAX_LENGTH = UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH * 10;
+
+	// support the special '${activeEditorLanguage}' mode by
+	// looking up the language mode from the editor that is
+	// active before the untitled editor opens. This special
+	// mode is only used for the initial language mode and
+	// can be changed after the fact (either manually or through
+	// auto-detection).
+	private static readonly ACTIVE_EDITOR_LANGUAGE_MODE = '${activeEditorLanguage}';
 
 	//#region Events
 
@@ -126,16 +135,20 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@ILanguageDetectionService languageDetectionService: ILanguageDetectionService
 	) {
-		super(modelService, modeService);
+		super(
+			modelService,
+			modeService,
+			languageDetectionService,
+			undefined,
+			preferredMode = preferredMode === UntitledTextEditorModel.ACTIVE_EDITOR_LANGUAGE_MODE
+				? editorService.activeTextEditorMode
+				: preferredMode);
 
 		// Make known to working copy service
 		this._register(this.workingCopyService.registerWorkingCopy(this));
-
-		if (preferredMode) {
-			this.setMode(preferredMode);
-		}
 
 		// Fetch config
 		this.onConfigurationChange(false);
@@ -175,24 +188,10 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	//#region Mode
 
-	private _hasModeSetExplicitly: boolean = false;
-	get hasModeSetExplicitly(): boolean { return this._hasModeSetExplicitly; }
-
-	override setMode(mode: string, setExplicitly = true): void {
-
-		// Remember that an explicit mode was set
-		this._hasModeSetExplicitly = setExplicitly;
-
-		let actualMode: string | undefined = undefined;
-		if (mode === '${activeEditorLanguage}') {
-			// support the special '${activeEditorLanguage}' mode by
-			// looking up the language mode from the currently
-			// active text editor if any
-			actualMode = this.editorService.activeTextEditorMode;
-		} else {
-			actualMode = mode;
-		}
-
+	override setMode(mode: string): void {
+		let actualMode: string | undefined = mode === UntitledTextEditorModel.ACTIVE_EDITOR_LANGUAGE_MODE
+			? this.editorService.activeTextEditorMode
+			: mode;
 		this.preferredMode = actualMode;
 
 		if (actualMode) {
@@ -368,6 +367,9 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 		// Emit as general content change event
 		this._onDidChangeContent.fire();
+
+		// Detect language from content
+		this.autoDetectLanguage();
 	}
 
 	private updateNameFromFirstLine(textEditorModel: ITextModel): void {

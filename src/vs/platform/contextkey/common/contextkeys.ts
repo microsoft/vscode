@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isIOS, isLinux, isMacintosh, isWeb, isWindows } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { isMacintosh, isLinux, isWindows, isWeb, isIOS } from 'vs/base/common/platform';
 
 export const IsMacContext = new RawContextKey<boolean>('isMac', isMacintosh, localize('isMac', "Whether the operating system is macOS"));
 export const IsLinuxContext = new RawContextKey<boolean>('isLinux', isLinux, localize('isLinux', "Whether the operating system is Linux"));

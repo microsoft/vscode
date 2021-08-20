@@ -34,7 +34,7 @@ suite('UntitledFileWorkingCopyManager', () => {
 			new TestUntitledFileWorkingCopyModelFactory(),
 			accessor.fileService, accessor.lifecycleService, accessor.labelService, accessor.logService,
 			accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
-			accessor.textFileService, accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
+			accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
 			accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
 			accessor.environmentService, accessor.dialogService
 		);
@@ -275,7 +275,7 @@ suite('UntitledFileWorkingCopyManager', () => {
 				new TestUntitledFileWorkingCopyModelFactory(),
 				accessor.fileService, accessor.lifecycleService, accessor.labelService, accessor.logService,
 				accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
-				accessor.textFileService, accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
+				accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
 				accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
 				accessor.environmentService, accessor.dialogService
 			);
@@ -297,7 +297,7 @@ suite('UntitledFileWorkingCopyManager', () => {
 				new TestUntitledFileWorkingCopyModelFactory(),
 				accessor.fileService, accessor.lifecycleService, accessor.labelService, accessor.logService,
 				accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
-				accessor.textFileService, accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
+				accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
 				accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
 				accessor.environmentService, accessor.dialogService
 			);

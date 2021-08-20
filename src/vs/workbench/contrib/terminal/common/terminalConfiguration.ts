@@ -6,7 +6,7 @@
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
 import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_LOCAL_ECHO_EXCLUDE } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { TerminalLocationString, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Registry } from 'vs/platform/registry/common/platform';
 
@@ -78,7 +78,7 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.DefaultLocation]: {
 			type: 'string',
-			enum: [TerminalLocation.Editor, TerminalLocation.TerminalView],
+			enum: [TerminalLocationString.Editor, TerminalLocationString.TerminalView],
 			enumDescriptions: [
 				localize('terminal.integrated.defaultLocation.editor', "Create terminals in the editor"),
 				localize('terminal.integrated.defaultLocation.view', "Create terminals in the terminal view")
@@ -390,8 +390,8 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'string',
 			enum: ['executable', 'sequence'],
 			markdownEnumDescriptions: [
-				localize('titleMode.executable', "The title is set by the _terminal_, the name of the detected foreground process will be used."),
-				localize('titleMode.sequence', "The title is set by the _process_ via an escape sequence, this is useful if your shell dynamically sets the title.")
+				localize('titleMode.executable', "The title is set by the terminal, the name of the detected foreground process will be used."),
+				localize('titleMode.sequence', "The title is set by the process via an escape sequence, this is useful if your shell dynamically sets the title.")
 			],
 			default: 'executable'
 		},
@@ -451,6 +451,11 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true
 		},
+		[TerminalSettingId.CustomGlyphs]: {
+			description: localize('terminal.integrated.customGlyphs', "Whether to draw custom glyphs for block element and box drawing characters instead of using the font, which typically yields better rendering with continuous lines. Note that this doesn't work with the DOM renderer"),
+			type: 'boolean',
+			default: true
+		}
 	}
 };
 

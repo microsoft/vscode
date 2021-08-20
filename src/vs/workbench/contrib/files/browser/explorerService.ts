@@ -22,6 +22,7 @@ import { IExplorerView, IExplorerService } from 'vs/workbench/contrib/files/brow
 import { IProgressService, ProgressLocation, IProgressNotificationOptions, IProgressCompositeOptions } from 'vs/platform/progress/common/progress';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export const UNDO_REDO_SOURCE = new UndoRedoSource();
 
@@ -48,7 +49,8 @@ export class ExplorerService implements IExplorerService {
 		@IEditorService private editorService: IEditorService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IBulkEditService private readonly bulkEditService: IBulkEditService,
-		@IProgressService private readonly progressService: IProgressService
+		@IProgressService private readonly progressService: IProgressService,
+		@IHostService hostService: IHostService
 	) {
 		this._sortOrder = this.configurationService.getValue('explorer.sortOrder');
 		this._lexicographicOptions = this.configurationService.getValue('explorer.sortOrderLexicographicOptions');
@@ -124,6 +126,8 @@ export class ExplorerService implements IExplorerService {
 				this.view.setTreeInput();
 			}
 		}));
+		// Refresh explorer when window gets focus to compensate for missing file events #126817
+		this.disposables.add(hostService.onDidChangeFocus(hasFocus => hasFocus ? this.refresh(false) : undefined));
 	}
 
 	get roots(): ExplorerItem[] {

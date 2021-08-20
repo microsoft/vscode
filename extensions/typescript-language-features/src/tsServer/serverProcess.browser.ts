@@ -52,6 +52,11 @@ export class WorkerServerProcess implements TsServerProcess {
 				handler(msg.data);
 			}
 		});
+		worker.onerror = (err: Error) => {
+			for (const handler of this._onErrorHandlers) {
+				handler(err);
+			}
+		};
 		worker.postMessage(args);
 	}
 
@@ -70,7 +75,6 @@ export class WorkerServerProcess implements TsServerProcess {
 
 	onError(handler: (err: Error) => void): void {
 		this._onErrorHandlers.add(handler);
-		// Todo: not implemented
 	}
 
 	onExit(handler: (code: number | null, signal: string | null) => void): void {

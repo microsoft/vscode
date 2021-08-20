@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
+import { VSBuffer } from 'vs/base/common/buffer';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as marked from 'vs/base/common/marked/marked';
@@ -31,7 +32,7 @@ import { SaveReason } from 'vs/workbench/common/editor';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import * as search from 'vs/workbench/contrib/search/common/search';
-import { CoverageDetails, DetailType, ICoveredCount, IFileCoverage, ISerializedTestResults, ITestItem, ITestItemContext, ITestMessage, SerializedTestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { CoverageDetails, DetailType, ICoveredCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestItemContext, ITestTag, SerializedTestResultItem, TestMessageType } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -1494,12 +1495,12 @@ export namespace NotebookCellOutputItem {
 	export function from(item: types.NotebookCellOutputItem): extHostProtocol.NotebookOutputItemDto {
 		return {
 			mime: item.mime,
-			valueBytes: Array.from(item.data), //todo@jrieken this HACKY and SLOW... hoist VSBuffer instead
+			valueBytes: VSBuffer.wrap(item.data),
 		};
 	}
 
 	export function to(item: extHostProtocol.NotebookOutputItemDto): types.NotebookCellOutputItem {
-		return new types.NotebookCellOutputItem(new Uint8Array(item.valueBytes), item.mime);
+		return new types.NotebookCellOutputItem(item.valueBytes.buffer, item.mime);
 	}
 }
 
@@ -1639,32 +1640,48 @@ export namespace NotebookRendererScript {
 }
 
 export namespace TestMessage {
-	export function from(message: vscode.TestMessage): ITestMessage {
+	export function from(message: vscode.TestMessage): ITestErrorMessage {
 		return {
 			message: MarkdownString.fromStrict(message.message) || '',
-			severity: types.TestMessageSeverity.Error,
-			expectedOutput: message.expectedOutput,
-			actualOutput: message.actualOutput,
+			type: TestMessageType.Error,
+			expected: message.expectedOutput,
+			actual: message.actualOutput,
 			location: message.location ? location.from(message.location) as any : undefined,
 		};
 	}
 
-	export function to(item: ITestMessage): vscode.TestMessage {
+	export function to(item: ITestErrorMessage): vscode.TestMessage {
 		const message = new types.TestMessage(typeof item.message === 'string' ? item.message : MarkdownString.to(item.message));
-		message.actualOutput = item.actualOutput;
-		message.expectedOutput = item.expectedOutput;
+		message.actualOutput = item.actual;
+		message.expectedOutput = item.expected;
 		return message;
 	}
+}
+
+export namespace TestTag {
+	const enum Constants {
+		Delimiter = '\0',
+	}
+
+	export const namespace = (ctrlId: string, tagId: string) =>
+		ctrlId + Constants.Delimiter + tagId;
+
+	export const denamespace = (namespaced: string) => {
+		const index = namespaced.indexOf(Constants.Delimiter);
+		return { ctrlId: namespaced.slice(0, index), tagId: namespaced.slice(index + 1) };
+	};
 }
 
 export namespace TestItem {
 	export type Raw = vscode.TestItem;
 
 	export function from(item: TestItemImpl): ITestItem {
+		const ctrlId = getPrivateApiFor(item).controllerId;
 		return {
-			extId: TestId.fromExtHostTestItem(item, getPrivateApiFor(item).controllerId).toString(),
+			extId: TestId.fromExtHostTestItem(item, ctrlId).toString(),
 			label: item.label,
 			uri: item.uri,
+			tags: item.tags.map(t => TestTag.namespace(ctrlId, t.id)),
 			range: Range.from(item.range) || null,
 			description: item.description || null,
 			error: item.error ? (MarkdownString.fromStrict(item.error) || null) : null,
@@ -1676,6 +1693,10 @@ export namespace TestItem {
 			id: TestId.fromString(item.extId).localId,
 			label: item.label,
 			uri: URI.revive(item.uri),
+			tags: (item.tags || []).map(t => {
+				const { tagId } = TestTag.denamespace(t);
+				return new types.TestTag(tagId, tagId);
+			}),
 			range: Range.to(item.range || undefined),
 			invalidateResults: () => undefined,
 			canResolveChildren: false,
@@ -1704,6 +1725,16 @@ export namespace TestItem {
 	}
 }
 
+export namespace TestTag {
+	export function from(tag: vscode.TestTag): ITestTag {
+		return { id: tag.id, label: tag.label };
+	}
+
+	export function to(tag: ITestTag): vscode.TestTag {
+		return new types.TestTag(tag.id, tag.label);
+	}
+}
+
 export namespace TestResults {
 	const convertTestResultItem = (item: SerializedTestResultItem, byInternalId: Map<string, SerializedTestResultItem>): vscode.TestResultSnapshot => {
 		const snapshot: vscode.TestResultSnapshot = ({
@@ -1712,7 +1743,9 @@ export namespace TestResults {
 			taskStates: item.tasks.map(t => ({
 				state: t.state as number as types.TestResultState,
 				duration: t.duration,
-				messages: t.messages.map(TestMessage.to),
+				messages: t.messages
+					.filter((m): m is ITestErrorMessage => m.type === TestMessageType.Error)
+					.map(TestMessage.to),
 			})),
 			children: item.children
 				.map(c => byInternalId.get(c))

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'mocha';
 import * as assert from 'assert';
+import 'mocha';
 import * as vscode from 'vscode';
+import { createTestEditor, joinLines, wait } from '../../test/testUtils';
 import { disposeAll } from '../../utils/dispose';
-import { createTestEditor, wait, joinLines } from '../../test/testUtils';
 
 const testDocumentUri = vscode.Uri.parse('untitled:test.ts');
 

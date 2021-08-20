@@ -57,3 +57,12 @@ export function createExtHostContextProxyIdentifier<T>(identifier: string): Prox
 export function getStringIdentifierForProxy(nid: number): string {
 	return identifiers[nid].sid;
 }
+
+/**
+ * Marks the object as containing buffers that should be serialized more efficently.
+ */
+export class SerializableObjectWithBuffers<T> {
+	constructor(
+		public readonly value: T
+	) { }
+}

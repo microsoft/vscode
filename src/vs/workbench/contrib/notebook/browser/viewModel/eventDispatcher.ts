@@ -6,6 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookLayoutChangeEvent, NotebookLayoutInfo, CellViewModelStateChangeEvent, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export enum NotebookViewEventType {
 	LayoutChanged = 1,
@@ -41,16 +42,15 @@ export class NotebookCellStateChangedEvent {
 
 export type NotebookViewEvent = NotebookLayoutChangedEvent | NotebookMetadataChangedEvent | NotebookCellStateChangedEvent;
 
-export class NotebookEventDispatcher {
-	protected readonly _onDidChangeLayout = new Emitter<NotebookLayoutChangedEvent>();
+export class NotebookEventDispatcher extends Disposable {
+	private readonly _onDidChangeLayout = this._register(new Emitter<NotebookLayoutChangedEvent>());
 	readonly onDidChangeLayout = this._onDidChangeLayout.event;
-	protected readonly _onDidChangeMetadata = new Emitter<NotebookMetadataChangedEvent>();
-	readonly onDidChangeMetadata = this._onDidChangeMetadata.event;
-	protected readonly _onDidChangeCellState = new Emitter<NotebookCellStateChangedEvent>();
-	readonly onDidChangeCellState = this._onDidChangeCellState.event;
 
-	constructor() {
-	}
+	private readonly _onDidChangeMetadata = this._register(new Emitter<NotebookMetadataChangedEvent>());
+	readonly onDidChangeMetadata = this._onDidChangeMetadata.event;
+
+	private readonly _onDidChangeCellState = this._register(new Emitter<NotebookCellStateChangedEvent>());
+	readonly onDidChangeCellState = this._onDidChangeCellState.event;
 
 	emit(events: NotebookViewEvent[]) {
 		for (let i = 0, len = events.length; i < len; i++) {

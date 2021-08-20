@@ -4,16 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
+import { dispose } from 'vs/base/common/lifecycle';
 import * as UUID from 'vs/base/common/uuid';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CellEditState, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, CodeCellLayoutState, ICellOutputViewModel, ICellViewModel, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { CellEditState, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, CellLayoutState, ICellOutputViewModel, ICellViewModel, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/cellOutputViewModel';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, INotebookSearchOptions, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookKeymapService } from 'vs/workbench/contrib/notebook/common/notebookKeymapService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { BaseCellViewModel } from './baseCellViewModel';
 
@@ -103,8 +106,10 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		@IConfigurationService configurationService: IConfigurationService,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@ITextModelService modelService: ITextModelService,
+		@IUndoRedoService undoRedoService: IUndoRedoService,
+		@INotebookKeymapService keymapService: INotebookKeymapService
 	) {
-		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, modelService);
+		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, modelService, undoRedoService);
 		this._outputViewModels = this.model.outputs.map(output => new CellOutputViewModel(this, output, this._notebookService));
 
 		this._register(this.model.onDidChangeOutputs((splice) => {
@@ -116,6 +121,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			this._onDidChangeOutputs.fire(splice);
 			this._onDidRemoveOutputs.fire(removedOutputs);
 			this.layoutChange({ outputHeight: true }, 'CodeCellViewModel#model.onDidChangeOutputs');
+			dispose(removedOutputs);
 		}));
 
 		this._register(this.model.onDidChangeMetadata(e => {
@@ -146,10 +152,10 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			outputTotalHeight: 0,
 			outputShowMoreContainerHeight: 0,
 			outputShowMoreContainerOffset: 0,
-			totalHeight: 0,
+			totalHeight: this.computeTotalHeight(17, 0, 0),
 			indicatorHeight: 0,
 			bottomToolbarOffset: 0,
-			layoutState: CodeCellLayoutState.Uninitialized
+			layoutState: CellLayoutState.Uninitialized
 		};
 	}
 
@@ -163,23 +169,23 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 		const originalLayout = this.layoutInfo;
 		if (!this.metadata.inputCollapsed) {
-			let newState: CodeCellLayoutState;
+			let newState: CellLayoutState;
 			let editorHeight: number;
 			let totalHeight: number;
-			if (!state.editorHeight && this._layoutInfo.layoutState === CodeCellLayoutState.FromCache && !state.outputHeight) {
+			if (!state.editorHeight && this._layoutInfo.layoutState === CellLayoutState.FromCache && !state.outputHeight) {
 				// No new editorHeight info - keep cached totalHeight and estimate editorHeight
 				editorHeight = this.estimateEditorHeight(state.font?.lineHeight ?? this._layoutInfo.fontInfo?.lineHeight);
 				totalHeight = this._layoutInfo.totalHeight;
-				newState = CodeCellLayoutState.FromCache;
-			} else if (state.editorHeight || this._layoutInfo.layoutState === CodeCellLayoutState.Measured) {
+				newState = CellLayoutState.FromCache;
+			} else if (state.editorHeight || this._layoutInfo.layoutState === CellLayoutState.Measured) {
 				// Editor has been measured
 				editorHeight = this._editorHeight;
 				totalHeight = this.computeTotalHeight(this._editorHeight, outputTotalHeight, outputShowMoreContainerHeight);
-				newState = CodeCellLayoutState.Measured;
+				newState = CellLayoutState.Measured;
 			} else {
 				editorHeight = this.estimateEditorHeight(state.font?.lineHeight ?? this._layoutInfo.fontInfo?.lineHeight);
 				totalHeight = this.computeTotalHeight(editorHeight, outputTotalHeight, outputShowMoreContainerHeight);
-				newState = CodeCellLayoutState.Estimated;
+				newState = CellLayoutState.Estimated;
 			}
 
 			const statusbarHeight = this.viewContext.notebookOptions.computeEditorStatusbarHeight(this.internalMetadata);
@@ -211,7 +217,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				layoutState: newState
 			};
 		} else {
-			outputTotalHeight = Math.max(this._outputMinHeight, this.metadata.inputCollapsed && this.metadata.outputCollapsed ? 0 : outputTotalHeight);
 			const indicatorHeight = notebookLayoutConfiguration.collapsedIndicatorHeight + outputTotalHeight + outputShowMoreContainerHeight;
 
 			const outputContainerOffset = notebookLayoutConfiguration.cellTopMargin + notebookLayoutConfiguration.collapsedIndicatorHeight;
@@ -257,7 +262,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 	override restoreEditorViewState(editorViewStates: editorCommon.ICodeEditorViewState | null, totalHeight?: number) {
 		super.restoreEditorViewState(editorViewStates);
-		if (totalHeight !== undefined && this._layoutInfo.layoutState !== CodeCellLayoutState.Measured) {
+		if (totalHeight !== undefined && this._layoutInfo.layoutState !== CellLayoutState.Measured) {
 			this._layoutInfo = {
 				fontInfo: this._layoutInfo.fontInfo,
 				editorHeight: this._layoutInfo.editorHeight,
@@ -269,7 +274,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				totalHeight: totalHeight,
 				indicatorHeight: this._layoutInfo.indicatorHeight,
 				bottomToolbarOffset: this._layoutInfo.bottomToolbarOffset,
-				layoutState: CodeCellLayoutState.FromCache
+				layoutState: CellLayoutState.FromCache
 			};
 		}
 	}
@@ -284,7 +289,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	}
 
 	getHeight(lineHeight: number) {
-		if (this._layoutInfo.layoutState === CodeCellLayoutState.Uninitialized) {
+		if (this._layoutInfo.layoutState === CellLayoutState.Uninitialized) {
 			const editorHeight = this.estimateEditorHeight(lineHeight);
 			return this.computeTotalHeight(editorHeight, 0, 0);
 		} else {
@@ -423,5 +428,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 		this._outputCollection = [];
 		this._outputsTop = null;
+		dispose(this._outputViewModels);
 	}
 }

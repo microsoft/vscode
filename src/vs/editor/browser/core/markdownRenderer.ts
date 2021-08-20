@@ -104,7 +104,7 @@ export class MarkdownRenderer {
 			asyncRenderCallback: () => this._onDidRenderAsync.fire(),
 			actionHandler: {
 				callback: (content) => this._openerService.open(content, { fromUserGesture: true, allowContributedOpeners: true, allowCommands: markdown.isTrusted }).catch(onUnexpectedError),
-				disposeables
+				disposables: disposeables
 			}
 		};
 	}

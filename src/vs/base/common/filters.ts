@@ -357,8 +357,8 @@ export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSep
 }
 
 /**
- * Match pattern againt word in a fuzzy way. As in IntelliSense and faster and more
- * powerfull than `matchesFuzzy`
+ * Match pattern against word in a fuzzy way. As in IntelliSense and faster and more
+ * powerful than `matchesFuzzy`
  */
 export function matchesFuzzy2(pattern: string, word: string): IMatch[] | null {
 	const score = fuzzyScore(pattern, pattern.toLowerCase(), 0, word, word.toLowerCase(), 0, true);
@@ -518,7 +518,7 @@ export function isPatternInWord(patternLow: string, patternPos: number, patternL
 const enum Arrow { Diag = 1, Left = 2, LeftLeft = 3 }
 
 /**
- * An array representating a fuzzy match.
+ * An array representing a fuzzy match.
  *
  * 0. the score
  * 1. the offset at which matching started
@@ -762,7 +762,7 @@ function _doScore(
 			// this would be the beginning of a new match (i.e. there would be a gap before this location)
 			score += isGapLocation ? 2 : 0;
 		} else {
-			// this is part of a contiguous match, so give it a slight bonus, but do so only if it would not be a prefered gap location
+			// this is part of a contiguous match, so give it a slight bonus, but do so only if it would not be a preferred gap location
 			score += isGapLocation ? 0 : 1;
 		}
 	}

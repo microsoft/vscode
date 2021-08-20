@@ -93,10 +93,10 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': 'text',
 				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'untitledHint' }, "Controls if the untitled hint should be inline text in the editor or a floating button or hidden.")
 			},
-			'workbench.editor.untitled.languageDetection': {
+			'workbench.editor.languageDetection': {
 				type: 'boolean',
-				default: false,
-				description: localize('workbench.editor.untitled.languageDetection', "Experimental. Controls whether the language in an untitled text editor is automatically detected unless the language has been explicitly set by the language picker. This can also be scoped by language so you can control which languages you want to trigger language detection on."),
+				default: true,
+				description: localize('workbench.editor.languageDetection', "Controls whether the language in a text editor is automatically detected unless the language has been explicitly set by the language picker. This can also be scoped by language so you can control which languages you want to trigger language detection on."),
 				scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
 			},
 			'workbench.editor.tabCloseButton': {
@@ -187,6 +187,14 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'description': localize('closeEmptyGroups', "Controls the behavior of empty editor groups when the last tab in the group is closed. When enabled, empty groups will automatically close. When disabled, empty groups will remain part of the grid."),
 				'default': true
+			},
+			'workbench.editor.experimentalAutoLockGroups': {
+				'type': 'array',
+				'description': localize('workbench.editor.experimentalAutoLockGroups', "Experimental: lock a group automatically when an editor is the first in the group and more than one group is open. Locked groups will only be used for opening editors when explicitly chosen by user gesture (e.g. drag and drop), but not by default. Consequently the active editor in a locked group is less likely to be replaced accidentally with a different editor."),
+				'items': {
+					'type': 'string'
+				},
+				'default': ['workbench.editors.terminal']
 			},
 			'workbench.editor.revealIfOpen': {
 				'type': 'boolean',

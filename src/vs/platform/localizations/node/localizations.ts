@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Promises } from 'vs/base/node/pfs';
 import { createHash } from 'crypto';
-import { IExtensionManagementService, ILocalExtension, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { Queue } from 'vs/base/common/async';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ILogService } from 'vs/platform/log/common/log';
-import { isValidLocalization, ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { distinct, equals } from 'vs/base/common/arrays';
+import { Queue } from 'vs/base/common/async';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { join } from 'vs/base/common/path';
+import { Promises } from 'vs/base/node/pfs';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IExtensionIdentifier, IExtensionManagementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { ILocalizationsService, isValidLocalization } from 'vs/platform/localizations/common/localizations';
+import { ILogService } from 'vs/platform/log/common/log';
 
 interface ILanguagePack {
 	hash: string;

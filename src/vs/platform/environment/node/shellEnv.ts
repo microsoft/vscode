@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
 import { spawn } from 'child_process';
-import { generateUuid } from 'vs/base/common/uuid';
+import * as path from 'path';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { canceled, isPromiseCanceledError } from 'vs/base/common/errors';
 import { IProcessEnvironment, isWindows, OS } from 'vs/base/common/platform';
-import { ILogService } from 'vs/platform/log/common/log';
+import { generateUuid } from 'vs/base/common/uuid';
+import { getSystemShell } from 'vs/base/node/shell';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { getSystemShell } from 'vs/base/node/shell';
-import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
-import { canceled, isPromiseCanceledError } from 'vs/base/common/errors';
+import { ILogService } from 'vs/platform/log/common/log';
 
 /**
  * We need to get the environment from a user's shell.

@@ -54,7 +54,8 @@ const args = minimist(process.argv, {
 		'local_port',
 		'extension',
 		'extensionId',
-		'github-auth'
+		'github-auth',
+		'open-file'
 	],
 });
 
@@ -71,6 +72,7 @@ if (args.help) {
 		' --secondary-port Secondary port\n' +
 		' --extension      Path of an extension to include\n' +
 		' --extensionId    Id of an extension to include\n' +
+		' --open-file      uri of the file to open. Also support selections in the file. Eg: scheme://authority/path#L1:2-L10:3\n' +
 		' --github-auth    Github authentication token\n' +
 		' --verbose        Print out more information\n' +
 		' --help\n' +
@@ -420,10 +422,35 @@ async function handleRoot(req, res) {
 			? req.headers['host'].replace(':' + PORT, ':' + SECONDARY_PORT)
 			: `${HOST}:${SECONDARY_PORT}`
 	);
+	const openFileUrl = args['open-file'] ? url.parse(args['open-file'], true) : undefined;
+	let selection;
+	if (openFileUrl?.hash) {
+		const rangeMatch = /L(?<startLineNumber>\d+)(?::(?<startColumn>\d+))?((?:-L(?<endLineNumber>\d+))(?::(?<endColumn>\d+))?)?/.exec(openFileUrl.hash);
+		if (rangeMatch?.groups) {
+			const { startLineNumber, startColumn, endLineNumber, endColumn } = rangeMatch.groups;
+			const start = { line: parseInt(startLineNumber), column: startColumn ? (parseInt(startColumn) || 1) : 1 };
+			const end = endLineNumber ? { line: parseInt(endLineNumber), column: endColumn ? (parseInt(endColumn) || 1) : 1 } : start;
+			selection = { start, end }
+		}
+	}
 	const webConfigJSON = {
 		folderUri: folderUri,
 		additionalBuiltinExtensions,
-		webWorkerExtensionHostIframeSrc: `${SCHEME}://${secondaryHost}/static/out/vs/workbench/services/extensions/worker/httpWebWorkerExtensionHostIframe.html`
+		webWorkerExtensionHostIframeSrc: `${SCHEME}://${secondaryHost}/static/out/vs/workbench/services/extensions/worker/httpWebWorkerExtensionHostIframe.html`,
+		defaultLayout: openFileUrl ? {
+			force: true,
+			editors: [{
+				uri: {
+					scheme: openFileUrl.protocol.substring(0, openFileUrl.protocol.length - 1),
+					authority: openFileUrl.host,
+					path: openFileUrl.path,
+				},
+				selection,
+			}]
+		} : undefined,
+		settingsSyncOptions: args['enable-sync'] ? {
+			enabled: true
+		} : undefined
 	};
 	if (args['wrap-iframe']) {
 		webConfigJSON._wrapWebWorkerExtHostInIframe = true;

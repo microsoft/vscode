@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ITreeNode, ITreeFilter, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
-import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
 import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
+import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
+import { ITreeFilter, ITreeNode, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 
 function toList<T>(arr: T[]): IList<T> {
 	return {

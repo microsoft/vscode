@@ -12,8 +12,8 @@ import { QuickPickInput, IQuickPickItem, IQuickInputService, IQuickPickItemButto
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { testingUpdateProfiles } from 'vs/workbench/contrib/testing/browser/icons';
 import { testConfigurationGroupNames } from 'vs/workbench/contrib/testing/common/constants';
-import { ITestRunProfile, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
+import { InternalTestItem, ITestRunProfile, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { canUseProfileWithTest, ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 
 interface IConfigurationPickerOptions {
 	/** Placeholder text */
@@ -21,7 +21,7 @@ interface IConfigurationPickerOptions {
 	/** Show buttons to trigger configuration */
 	showConfigureButtons?: boolean;
 	/** Only show configurations from this controller */
-	onlyControllerId?: string;
+	onlyForTest?: InternalTestItem;
 	/** Only show this group */
 	onlyGroup?: TestRunProfileBitset;
 	/** Only show items which are configurable */
@@ -30,8 +30,8 @@ interface IConfigurationPickerOptions {
 
 function buildPicker(accessor: ServicesAccessor, {
 	onlyGroup,
-	showConfigureButtons,
-	onlyControllerId,
+	showConfigureButtons = true,
+	onlyForTest,
 	onlyConfigurable,
 	placeholder = localize('testConfigurationUi.pick', 'Pick a test profile to use'),
 }: IConfigurationPickerOptions) {
@@ -74,13 +74,8 @@ function buildPicker(accessor: ServicesAccessor, {
 		}
 	};
 
-	if (onlyControllerId !== undefined) {
-		const lookup = profileService.getControllerProfiles(onlyControllerId);
-		if (!lookup) {
-			return;
-		}
-
-		pushItems(lookup.profiles);
+	if (onlyForTest !== undefined) {
+		pushItems(profileService.getControllerProfiles(onlyForTest.controllerId).filter(p => canUseProfileWithTest(p, onlyForTest)));
 	} else {
 		for (const { profiles, controller } of profileService.all()) {
 			pushItems(profiles, controller.label.value);

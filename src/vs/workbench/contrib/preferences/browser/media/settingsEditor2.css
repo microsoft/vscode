@@ -162,17 +162,16 @@
 	display: none !important;
 }
 
-.settings-editor.mid-width > .settings-body > .settings-tree-container .shadow.top {
+.settings-editor.mid-width > .settings-body > .settings-tree-container .settings-editor-tree > .monaco-scrollable-element > .shadow.top {
 	left: 0;
 	width: calc(100% - 48px);
 	margin-left: 24px;
 }
-
-.settings-editor > .settings-body > .settings-tree-container .shadow.top {
-	left: 50%;
-	max-width: 952px;
-	/* 1000 - 24*2 padding */
-	margin-left: -476px;
+.settings-editor.mid-width > .settings-body > .settings-tree-container .settings-editor-tree > .monaco-scrollable-element > .shadow.top.top-left-corner {
+	width: 24px;
+	margin-left: 0px;
+}
+.settings-editor > .settings-body > .settings-tree-container .settings-editor-tree > .monaco-scrollable-element > .shadow.top {
 	z-index: 11;
 }
 
@@ -453,6 +452,11 @@
 	line-height: 15px;
 	/** For some reason, this is needed, otherwise <code> will take up 20px height */
 	font-family: var(--monaco-monospace-font);
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown .monaco-tokenized-source {
+	font-family: var(--monaco-monospace-font);
+	white-space: pre;
 }
 
 .settings-editor > .settings-body > .settings-list-container .setting-item-contents .setting-item-markdown hr {

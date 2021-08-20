@@ -33,7 +33,7 @@ app.allowRendererProcessReuse = false;
 const portable = bootstrapNode.configurePortable(product);
 
 // Enable ASAR support
-bootstrap.enableASARSupport(undefined, false);
+bootstrap.enableASARSupport();
 
 // Set userData path before app 'ready' event
 const args = parseCLIArgs();
@@ -174,18 +174,12 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		// Persistently enable proposed api via argv.json: https://github.com/microsoft/vscode/issues/99775
 		'enable-proposed-api',
 
-		// TODO@sandbox remove me once testing is done on `vscode-file` protocol
-		// (all traces of `enable-browser-code-loading` and `VSCODE_BROWSER_CODE_LOADING`)
-		'enable-browser-code-loading',
-
 		// Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.
 		'log-level'
 	];
 
 	// Read argv config
 	const argvConfig = readArgvConfigSync();
-
-	let browserCodeLoadingStrategy = typeof codeCachePath === 'string' ? 'bypassHeatCheck' : 'none';
 
 	Object.keys(argvConfig).forEach(argvKey => {
 		const argvValue = argvConfig[argvKey];
@@ -221,14 +215,6 @@ function configureCommandlineSwitchesSync(cliArgs) {
 					}
 					break;
 
-				case 'enable-browser-code-loading':
-					if (argvValue === false) {
-						browserCodeLoadingStrategy = undefined;
-					} else if (typeof argvValue === 'string') {
-						browserCodeLoadingStrategy = argvValue;
-					}
-					break;
-
 				case 'log-level':
 					if (typeof argvValue === 'string') {
 						process.argv.push('--log', argvValue);
@@ -242,11 +228,6 @@ function configureCommandlineSwitchesSync(cliArgs) {
 	const jsFlags = getJSFlags(cliArgs);
 	if (jsFlags) {
 		app.commandLine.appendSwitch('js-flags', jsFlags);
-	}
-
-	// Configure vscode-file:// code loading environment
-	if (cliArgs.__sandbox || browserCodeLoadingStrategy) {
-		process.env['VSCODE_BROWSER_CODE_LOADING'] = browserCodeLoadingStrategy || 'bypassHeatCheck';
 	}
 
 	return argvConfig;
@@ -590,7 +571,7 @@ async function resolveNlsConfiguration() {
 			nlsConfiguration = { locale: 'en', availableLanguages: {} };
 		} else {
 
-			// See above the comment about the loader and case sensitiviness
+			// See above the comment about the loader and case sensitiveness
 			appLocale = appLocale.toLowerCase();
 
 			const { getNLSConfiguration } = require('./vs/base/node/languagePacks');

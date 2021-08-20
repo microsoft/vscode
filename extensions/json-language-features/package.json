@@ -24,8 +24,8 @@
     }
   },
   "scripts": {
-    "compile": "gulp compile-extension:json-language-features-client compile-extension:json-language-features-server",
-    "watch": "gulp watch-extension:json-language-features-client watch-extension:json-language-features-server",
+    "compile": "npx gulp compile-extension:json-language-features-client compile-extension:json-language-features-server",
+    "watch": "npx gulp watch-extension:json-language-features-client watch-extension:json-language-features-server",
     "install-client-next": "yarn add vscode-languageclient@next"
   },
   "categories": [
@@ -134,8 +134,8 @@
     ]
   },
   "dependencies": {
-    "request-light": "^0.5.3",
-    "vscode-extension-telemetry": "0.1.7",
+    "request-light": "^0.5.4",
+    "vscode-extension-telemetry": "0.2.8",
     "vscode-languageclient": "^7.0.0",
     "vscode-nls": "^5.0.0"
   },

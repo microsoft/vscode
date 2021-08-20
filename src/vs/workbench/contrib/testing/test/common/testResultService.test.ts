@@ -11,7 +11,7 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { NullLogService } from 'vs/platform/log/common/log';
 import { SingleUseTestCollection } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
 import { ITestTaskState, ResolvedTestRunRequest, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
-import { TestProfileService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
+import { TestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { HydratedTestResult, LiveOutputController, LiveTestResult, makeEmptyCounts, resultItemParents, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
@@ -274,7 +274,7 @@ suite('Workbench - Test Results Service', () => {
 		const makeHydrated = async (completedAt = 42, state = TestResultState.Passed) => new HydratedTestResult({
 			completedAt,
 			id: 'some-id',
-			tasks: [{ id: 't', running: false, name: undefined }],
+			tasks: [{ id: 't', messages: [], name: undefined }],
 			name: 'hello world',
 			request: defaultOpts([]),
 			items: [{

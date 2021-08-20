@@ -3,44 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
-import * as pfs from 'vs/base/node/pfs';
-import { zip, IFile } from 'vs/base/node/zip';
-import {
-	IExtensionManagementService, IExtensionGalleryService, ILocalExtension,
-	IGalleryExtension, IGalleryMetadata,
-	IExtensionIdentifier,
-	InstallOperation,
-	ExtensionManagementError,
-	InstallOptions,
-	InstallVSIXOptions,
-} from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions, getGalleryExtensionId, ExtensionIdentifierWithVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { isMacintosh } from 'vs/base/common/platform';
+import { joinPath } from 'vs/base/common/resources';
 import * as semver from 'vs/base/common/semver/semver';
 import { URI } from 'vs/base/common/uri';
-import product from 'vs/platform/product/common/product';
-import { isMacintosh } from 'vs/base/common/platform';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ExtensionsManifestCache } from 'vs/platform/extensionManagement/node/extensionsManifestCache';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
-import { joinPath } from 'vs/base/common/resources';
 import { generateUuid } from 'vs/base/common/uuid';
+import * as pfs from 'vs/base/node/pfs';
+import { IFile, zip } from 'vs/base/node/zip';
+import * as nls from 'vs/nls';
 import { IDownloadService } from 'vs/platform/download/common/download';
-import { optional, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Schemas } from 'vs/base/common/network';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
-import { IExtensionManifest, ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, INSTALL_ERROR_VALIDATING, IUninstallExtensionTask, joinErrors, UninstallExtensionTaskOptions } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
+import {
+	ExtensionManagementError, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallOperation, InstallOptions,
+	InstallVSIXOptions
+} from 'vs/platform/extensionManagement/common/extensionManagement';
+import { areSameExtensions, ExtensionIdentifierWithVersion, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionsDownloader } from 'vs/platform/extensionManagement/node/extensionDownloader';
-import { ExtensionsScanner, ILocalExtensionManifest, IMetadata } from 'vs/platform/extensionManagement/node/extensionsScanner';
 import { ExtensionsLifecycle } from 'vs/platform/extensionManagement/node/extensionLifecycle';
+import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
+import { ExtensionsManifestCache } from 'vs/platform/extensionManagement/node/extensionsManifestCache';
+import { ExtensionsScanner, ILocalExtensionManifest, IMetadata } from 'vs/platform/extensionManagement/node/extensionsScanner';
 import { ExtensionsWatcher } from 'vs/platform/extensionManagement/node/extensionsWatcher';
+import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
 import { IFileService } from 'vs/platform/files/common/files';
-import { AbstractExtensionManagementService, joinErrors, IUninstallExtensionTask, IInstallExtensionTask, INSTALL_ERROR_VALIDATING, UninstallExtensionTaskOptions, AbstractExtensionTask } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
+import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
+import product from 'vs/platform/product/common/product';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const INSTALL_ERROR_UNSET_UNINSTALLED = 'unsetUninstalled';
 const INSTALL_ERROR_DOWNLOADING = 'downloading';

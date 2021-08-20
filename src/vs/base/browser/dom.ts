@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as browser from 'vs/base/browser/browser';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { FileAccess, RemoteAuthorities } from 'vs/base/common/network';
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { insane, InsaneOptions } from 'vs/base/common/insane/insane';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { FileAccess, RemoteAuthorities } from 'vs/base/common/network';
+import * as platform from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
@@ -670,7 +670,7 @@ function getParentFlowToElement(node: HTMLElement): HTMLElement | null {
 }
 
 /**
- * Check if `testAncestor` is an ancessor of `testChild`, observing the explicit
+ * Check if `testAncestor` is an ancestor of `testChild`, observing the explicit
  * parents set by `setParentFlowTo`.
  */
 export function isAncestorUsingFlowTo(testChild: Node, testAncestor: Node): boolean {
@@ -1179,7 +1179,7 @@ export function computeScreenAwareSize(cssPx: number): number {
 
 /**
  * Open safely a new window. This is the best way to do so, but you cannot tell
- * if the window was opened or if it was blocked by the brower's popup blocker.
+ * if the window was opened or if it was blocked by the browser's popup blocker.
  * If you want to tell if the browser blocked the new window, use `windowOpenNoOpenerWithSuccess`.
  *
  * See https://github.com/microsoft/monaco-editor/issues/601
@@ -1199,7 +1199,7 @@ export function windowOpenNoOpener(url: string): void {
 }
 
 /**
- * Open safely a new window. This technique is not appropiate in certain contexts,
+ * Open safely a new window. This technique is not appropriate in certain contexts,
  * like for example when the JS context is executing inside a sandboxed iframe.
  * If it is not necessary to know if the browser blocked the new window, use
  * `windowOpenNoOpener`.
@@ -1305,7 +1305,7 @@ export enum DetectedFullscreenMode {
 	DOCUMENT = 1,
 
 	/**
-	 * The browser is fullsreen, e.g. because the user enabled
+	 * The browser is fullscreen, e.g. because the user enabled
 	 * native window fullscreen for it.
 	 */
 	BROWSER
@@ -1620,4 +1620,15 @@ export function addMatchMediaChangeListener(query: string, callback: () => void)
 		// Safari 13.x
 		mediaQueryList.addListener(callback);
 	}
+}
+
+export const enum ZIndex {
+	SASH = 35,
+	SuggestWidget = 40,
+	Hover = 50,
+	DragImage = 1000,
+	MenubarMenuItemsHolder = 2000, // quick-input-widget
+	ContextView = 2500,
+	ModalDialog = 2600,
+	PaneDropOverlay = 10000
 }

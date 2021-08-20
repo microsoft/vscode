@@ -164,6 +164,10 @@
 	max-width: none;
 }
 
+.testing-filter-wrapper {
+	height: 27px;
+}
+
 .testing-filter-action-item .testing-filter-wrapper {
 	flex-grow: 1;
 }
@@ -193,4 +197,15 @@
 
 .monaco-editor .testing-inline-message-line {
 	background: red;
+}
+
+.testing-diff-title-widget {
+	line-height: 19px;
+	font-size: 12px;
+	padding-right: 6px;
+
+	overflow: hidden;
+	display: inline-block;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }

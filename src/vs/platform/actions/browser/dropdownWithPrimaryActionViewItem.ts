@@ -10,12 +10,16 @@ import { ActionViewItem, BaseActionViewItem } from 'vs/base/browser/ui/actionbar
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { MenuItemAction } from 'vs/platform/actions/common/actions';
+import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+
+export interface IDropdownWithPrimaryActionViewItemOptions {
+	getKeyBinding?: (action: IAction) => ResolvedKeybinding | undefined;
+}
 
 export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 	private _primaryAction: ActionViewItem;
@@ -33,6 +37,7 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		dropdownMenuActions: IAction[],
 		className: string,
 		private readonly _contextMenuProvider: IContextMenuProvider,
+		private readonly _options: IDropdownWithPrimaryActionViewItemOptions | undefined,
 		@IKeybindingService _keybindingService: IKeybindingService,
 		@INotificationService _notificationService: INotificationService,
 		@IContextKeyService _contextKeyService: IContextKeyService
@@ -41,7 +46,8 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		this._primaryAction = new MenuEntryActionViewItem(primaryAction, undefined, _keybindingService, _notificationService, _contextKeyService);
 		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, this._contextMenuProvider, {
 			menuAsChild: true,
-			classNames: ['codicon', 'codicon-chevron-down']
+			classNames: ['codicon', 'codicon-chevron-down'],
+			keybindingProvider: this._options?.getKeyBinding
 		});
 	}
 

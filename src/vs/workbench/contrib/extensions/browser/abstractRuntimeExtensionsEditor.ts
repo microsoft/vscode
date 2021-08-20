@@ -11,10 +11,10 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IExtensionService, IExtensionsStatus, IExtensionHostProfile } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, IExtensionsStatus, IExtensionHostProfile, ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { append, $, reset, Dimension, clearNode, addDisposableListener } from 'vs/base/browser/dom';
+import { append, $, Dimension, clearNode, addDisposableListener } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -370,14 +370,21 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 					data.msgContainer.appendChild(el);
 				}
 
+				let extraLabel: string | null = null;
 				if (element.description.extensionLocation.scheme === Schemas.vscodeRemote) {
-					const el = $('span', undefined, ...renderLabelWithIcons(`$(remote) ${element.description.extensionLocation.authority}`));
-					data.msgContainer.appendChild(el);
-
 					const hostLabel = this._labelService.getHostLabel(Schemas.vscodeRemote, this._environmentService.remoteAuthority);
 					if (hostLabel) {
-						reset(el, ...renderLabelWithIcons(`$(remote) ${hostLabel}`));
+						extraLabel = `$(remote) ${hostLabel}`;
+					} else {
+						extraLabel = `$(remote) ${element.description.extensionLocation.authority}`;
 					}
+				} else if (element.status.runningLocation === ExtensionRunningLocation.LocalWebWorker) {
+					extraLabel = `$(rocket) web worker`;
+				}
+
+				if (extraLabel) {
+					const el = $('span', undefined, ...renderLabelWithIcons(extraLabel));
+					data.msgContainer.appendChild(el);
 				}
 
 				if (element.profileInfo) {

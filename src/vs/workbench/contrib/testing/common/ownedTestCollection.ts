@@ -10,7 +10,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { assertNever } from 'vs/base/common/types';
 import { diffTestItems, ExtHostTestItemEvent, ExtHostTestItemEventOp, getPrivateApiFor, TestItemImpl, TestItemRootImpl } from 'vs/workbench/api/common/extHostTestingPrivateApi';
 import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
-import { applyTestItemUpdate, TestDiffOpType, TestItemExpandState, TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testCollection';
+import { applyTestItemUpdate, ITestTag, TestDiffOpType, TestItemExpandState, TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 
 type TestItemRaw = Convert.TestItem.Raw;
@@ -46,6 +46,8 @@ export class SingleUseTestCollection extends Disposable {
 
 	public readonly root = new TestItemRootImpl(this.controllerId, this.controllerId);
 	public readonly tree = new Map</* full test id */string, OwnedCollectionTestItem>();
+	private readonly tags = new Map<string, { label?: string, refCount: number }>();
+
 	protected diff: TestsDiff = [];
 
 	constructor(private readonly controllerId: string) {
@@ -163,11 +165,14 @@ export class SingleUseTestCollection extends Disposable {
 				break;
 
 			case ExtHostTestItemEventOp.SetProp:
-				const { key, value } = evt;
+				const { key, value, previous } = evt;
 				const extId = internal.fullId.toString();
 				switch (key) {
 					case 'canResolveChildren':
 						this.updateExpandability(internal);
+						break;
+					case 'tags':
+						this.diffTagRefs(value, previous, extId);
 						break;
 					case 'range':
 						this.pushDiff([TestDiffOpType.Update, { extId, item: { range: Convert.Range.from(value) }, }]);
@@ -210,6 +215,7 @@ export class SingleUseTestCollection extends Disposable {
 				expand: TestItemExpandState.NotExpandable, // updated by `connectItemAndChildren`
 			};
 
+			actual.tags.forEach(this.incrementTagRefs, this);
 			this.tree.set(internal.fullId.toString(), internal);
 			this.setItemParent(actual, parent);
 			this.pushDiff([
@@ -241,7 +247,7 @@ export class SingleUseTestCollection extends Disposable {
 		internal.actual = actual;
 		internal.expand = TestItemExpandState.NotExpandable; // updated by `connectItemAndChildren`
 		for (const [key, value] of changedProps) {
-			this.onTestItemEvent(internal, { op: ExtHostTestItemEventOp.SetProp, key, value });
+			this.onTestItemEvent(internal, { op: ExtHostTestItemEventOp.SetProp, key, value, previous: oldActual[key] });
 		}
 
 		this.connectItemAndChildren(actual, internal, parent);
@@ -251,6 +257,44 @@ export class SingleUseTestCollection extends Disposable {
 			if (!actual.children.get(child.id)) {
 				this.removeItem(TestId.joinToString(fullId, child.id));
 			}
+		}
+	}
+
+	private diffTagRefs(newTags: ITestTag[], oldTags: ITestTag[], extId: string) {
+		const toDelete = new Set(oldTags.map(t => t.id));
+		for (const tag of newTags) {
+			if (!toDelete.delete(tag.id)) {
+				this.incrementTagRefs(tag);
+			}
+		}
+
+		this.pushDiff([
+			TestDiffOpType.Update,
+			{ extId, item: { tags: newTags.map(v => Convert.TestTag.namespace(this.controllerId, v.id)) } }]
+		);
+
+		toDelete.forEach(this.decrementTagRefs, this);
+	}
+
+	private incrementTagRefs(tag: ITestTag) {
+		const existing = this.tags.get(tag.id);
+		if (existing) {
+			existing.refCount++;
+		} else {
+			this.tags.set(tag.id, { label: tag.label, refCount: 1 });
+			this.pushDiff([TestDiffOpType.AddTag, {
+				id: Convert.TestTag.namespace(this.controllerId, tag.id),
+				ctrlLabel: this.root.label,
+				label: tag.label,
+			}]);
+		}
+	}
+
+	private decrementTagRefs(tagId: string) {
+		const existing = this.tags.get(tagId);
+		if (existing && !--existing.refCount) {
+			this.tags.delete(tagId);
+			this.pushDiff([TestDiffOpType.RemoveTag, Convert.TestTag.namespace(this.controllerId, tagId)]);
 		}
 	}
 
@@ -347,16 +391,22 @@ export class SingleUseTestCollection extends Disposable {
 		this.pushExpandStateUpdate(internal);
 
 		const barrier = internal.resolveBarrier = new Barrier();
+		const applyError = (err: Error) => {
+			console.error(`Unhandled error in resolveHandler of test controller "${this.controllerId}"`);
+			if (internal.actual !== this.root) {
+				internal.actual.error = err.stack || err.message || String(err);
+			}
+		};
 
 		let r: Thenable<void> | void;
 		try {
 			r = this._resolveHandler(internal.actual === this.root ? undefined : internal.actual);
 		} catch (err) {
-			internal.actual.error = err.stack || err.message;
+			applyError(err);
 		}
 
 		if (isThenable(r)) {
-			r.catch(err => internal.actual.error = err.stack || err.message).then(() => {
+			r.catch(applyError).then(() => {
 				barrier.open();
 				this.updateExpandability(internal);
 			});
@@ -388,6 +438,11 @@ export class SingleUseTestCollection extends Disposable {
 			}
 
 			getPrivateApiFor(item.actual).listener = undefined;
+
+			for (const tag of item.actual.tags) {
+				this.decrementTagRefs(tag.id);
+			}
+
 			this.tree.delete(item.fullId.toString());
 			for (const child of item.actual.children) {
 				queue.push(this.tree.get(TestId.joinToString(item.fullId, child.id)));

@@ -23,7 +23,7 @@ import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/commo
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSION_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { CodeCellRenderTemplate, ICellOutputViewModel, ICellViewModel, IInsetRenderOutput, INotebookEditor, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CodeCellRenderTemplate, ICellOutputViewModel, ICellViewModel, IInsetRenderOutput, INotebookEditor, IRenderOutput, JUPYTER_EXTENSION_ID, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { mimetypeIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
@@ -342,7 +342,7 @@ export class CellOutputElement extends Disposable {
 		};
 
 		// TODO: This could probably be a real registered action, but it has to talk to this output element
-		const pickAction = new Action('notebook.output.pickMimetype', nls.localize('pickMimeType', "Choose a different output mimetype"), ThemeIcon.asClassName(mimetypeIcon), undefined,
+		const pickAction = new Action('notebook.output.pickMimetype', nls.localize('pickMimeType', "Choose Output Mimetype"), ThemeIcon.asClassName(mimetypeIcon), undefined,
 			async _context => this._pickActiveMimeTypeRenderer(notebookTextModel, kernel, this.output));
 		if (index === 0 && useConsolidatedButton) {
 			const menu = this._renderDisposableStore.add(this.menuService.createMenu(MenuId.NotebookOutputToolbar, this.contextKeyService));
@@ -383,7 +383,7 @@ export class CellOutputElement extends Disposable {
 		});
 
 		if (unsupportedItems.some(m => JUPYTER_RENDERER_MIMETYPES.includes(m.id!))) {
-			unsupportedItems.unshift({
+			unsupportedItems.push({
 				label: nls.localize('installJupyterPrompt', "Install additional renderers from the marketplace"),
 				id: 'installRenderers',
 				index: mimeTypes.length
@@ -440,7 +440,7 @@ export class CellOutputElement extends Disposable {
 	private async _showJupyterExtension() {
 		const viewlet = await this.viewletService.openViewlet(EXTENSION_VIEWLET_ID, true);
 		const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
-		view?.search('@id:ms-toolsai.jupyter');
+		view?.search(`@id:${JUPYTER_EXTENSION_ID}`);
 	}
 
 	private _generateRendererInfo(renderId: string | undefined): string {
@@ -455,7 +455,7 @@ export class CellOutputElement extends Disposable {
 			return `${displayName} (${renderInfo.extensionId.value})`;
 		}
 
-		return nls.localize('unavailableRenderInfo', "not available");
+		return nls.localize('unavailableRenderInfo', "renderer not available");
 	}
 
 	private _outputHeightTimer: any = null;
@@ -514,7 +514,7 @@ export class CellOutputContainer extends Disposable {
 	constructor(
 		private notebookEditor: INotebookEditor,
 		private viewCell: CodeCellViewModel,
-		private templateData: CodeCellRenderTemplate,
+		private readonly templateData: CodeCellRenderTemplate,
 		private options: { limit: number; },
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -568,7 +568,7 @@ export class CellOutputContainer extends Disposable {
 
 		this.templateData.outputShowMoreContainer.innerText = '';
 		if (this.viewCell.outputsViewModels.length > this.options.limit) {
-			this.templateData.outputShowMoreContainer.appendChild(this._generateShowMoreElement());
+			this.templateData.outputShowMoreContainer.appendChild(this._generateShowMoreElement(this.templateData.disposables));
 		} else {
 			DOM.hide(this.templateData.outputShowMoreContainer);
 			this.viewCell.updateOutputShowMoreContainerHeight(0);
@@ -773,7 +773,7 @@ export class CellOutputContainer extends Disposable {
 		if (this.viewCell.outputsViewModels.length > this.options.limit) {
 			DOM.show(this.templateData.outputShowMoreContainer);
 			if (!this.templateData.outputShowMoreContainer.hasChildNodes()) {
-				this.templateData.outputShowMoreContainer.appendChild(this._generateShowMoreElement());
+				this.templateData.outputShowMoreContainer.appendChild(this._generateShowMoreElement(this.templateData.disposables));
 			}
 			this.viewCell.updateOutputShowMoreContainerHeight(46);
 		} else {
@@ -789,7 +789,7 @@ export class CellOutputContainer extends Disposable {
 		this._validateFinalOutputHeight(!outputHasDynamicHeight || this.viewCell.outputsViewModels.length === 0);
 	}
 
-	private _generateShowMoreElement(): any {
+	private _generateShowMoreElement(disposables: DisposableStore): HTMLElement {
 		const md: IMarkdownString = {
 			value: `There are more than ${this.options.limit} outputs, [show more (open the raw output data in a text editor) ...](command:workbench.action.openLargeOutput)`,
 			isTrusted: true,
@@ -805,7 +805,7 @@ export class CellOutputContainer extends Disposable {
 
 					return;
 				},
-				disposeables: new DisposableStore()
+				disposables
 			}
 		});
 

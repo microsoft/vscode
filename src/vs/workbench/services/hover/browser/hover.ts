@@ -40,10 +40,10 @@ export interface IHoverService {
 
 export interface IHoverOptions {
 	/**
-	 * The text to display in the primary section of the hover. The type of text determines the
+	 * The content to display in the primary section of the hover. The type of text determines the
 	 * default `hideOnHover` behavior.
 	 */
-	text: IMarkdownString | string;
+	content: IMarkdownString | string | HTMLElement;
 
 	/**
 	 * The target for the hover. This determines the position of the hover and it will only be
@@ -82,10 +82,17 @@ export interface IHoverOptions {
 	hideOnHover?: boolean;
 
 	/**
-	 * Position of the hover. Default is to show above the target.
-	 * It will be ignored if there is not enough room to layout the hover in the specified position.
+	 * Position of the hover. The default is to show above the target. This option will be ignored
+	 * if there is not enough room to layout the hover in the specified position, unless the
+	 * forcePosition option is set.
 	 */
 	hoverPosition?: HoverPosition;
+
+	/**
+	 * Force the hover position, reducing the size of the hover instead of adjusting the hover
+	 * position.
+	 */
+	forcePosition?: boolean
 
 	/**
 	 * Whether to show the hover pointer

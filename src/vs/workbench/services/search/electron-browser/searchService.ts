@@ -40,6 +40,7 @@ export class LocalSearchService extends SearchService {
 		@INativeWorkbenchEnvironmentService readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IInstantiationService readonly instantiationService: IInstantiationService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(modelService, editorService, telemetryService, logService, extensionService, fileService, uriIdentityService);
 

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ProxyChannel, getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
-import { IDiskFileChange, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IWatcherRequest, IWatcherOptions, IWatcherService } from 'vs/platform/files/node/watcher/unix/watcher';
 import { FileAccess } from 'vs/base/common/network';
+import { getNextTickChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
+import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
+import { IWatcherOptions, IWatcherRequest, IWatcherService } from 'vs/platform/files/node/watcher/unix/watcher';
+import { IDiskFileChange, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
 
 export class FileWatcher extends Disposable {
 

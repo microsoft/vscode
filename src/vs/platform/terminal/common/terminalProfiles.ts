@@ -18,7 +18,6 @@ export function createProfileSchemaEnums(detectedProfiles: ITerminalProfile[], e
 		};
 	});
 	if (extensionProfiles) {
-		console.log(extensionProfiles);
 		result.push(...extensionProfiles.map(extensionProfile => {
 			return {
 				name: extensionProfile.title,

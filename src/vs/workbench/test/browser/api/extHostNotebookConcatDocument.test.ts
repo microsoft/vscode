@@ -23,6 +23,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ExtHostNotebookDocuments } from 'vs/workbench/api/common/extHostNotebookDocuments';
+import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
 suite('NotebookConcatDocument', function () {
 
@@ -60,7 +61,7 @@ suite('NotebookConcatDocument', function () {
 		let reg = extHostNotebooks.registerNotebookContentProvider(nullExtensionDescription, 'test', new class extends mock<vscode.NotebookContentProvider>() {
 			// async openNotebook() { }
 		});
-		extHostNotebooks.$acceptDocumentAndEditorsDelta({
+		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({
 			addedDocuments: [{
 				uri: notebookUri,
 				viewType: 'test',
@@ -81,8 +82,8 @@ suite('NotebookConcatDocument', function () {
 				selections: [{ start: 0, end: 1 }],
 				visibleRanges: []
 			}]
-		});
-		extHostNotebooks.$acceptDocumentAndEditorsDelta({ newActiveEditor: '_notebook_editor_0' });
+		}));
+		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({ newActiveEditor: '_notebook_editor_0' }));
 
 		notebook = extHostNotebooks.notebookDocuments[0]!;
 
@@ -127,7 +128,7 @@ suite('NotebookConcatDocument', function () {
 		const cellUri1 = CellUri.generate(notebook.uri, 1);
 		const cellUri2 = CellUri.generate(notebook.uri, 2);
 
-		extHostNotebookDocuments.$acceptModelChanged(notebookUri, {
+		extHostNotebookDocuments.$acceptModelChanged(notebookUri, new SerializableObjectWithBuffers({
 			versionId: notebook.apiNotebook.version + 1,
 			rawEvents: [{
 				kind: NotebookCellsChangeType.ModelChange,
@@ -150,7 +151,7 @@ suite('NotebookConcatDocument', function () {
 				}]]
 				]
 			}]
-		}, false);
+		}), false);
 
 
 		assert.strictEqual(notebook.apiNotebook.cellCount, 1 + 2); // markdown and code
@@ -164,7 +165,7 @@ suite('NotebookConcatDocument', function () {
 
 	test('location, position mapping', function () {
 
-		extHostNotebookDocuments.$acceptModelChanged(notebookUri, {
+		extHostNotebookDocuments.$acceptModelChanged(notebookUri, new SerializableObjectWithBuffers({
 			versionId: notebook.apiNotebook.version + 1,
 			rawEvents: [
 				{
@@ -188,7 +189,7 @@ suite('NotebookConcatDocument', function () {
 					}]]]
 				}
 			]
-		}, false);
+		}), false);
 
 
 		assert.strictEqual(notebook.apiNotebook.cellCount, 1 + 2); // markdown and code
@@ -209,7 +210,7 @@ suite('NotebookConcatDocument', function () {
 		let doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.apiNotebook, undefined);
 
 		// UPDATE 1
-		extHostNotebookDocuments.$acceptModelChanged(notebookUri, {
+		extHostNotebookDocuments.$acceptModelChanged(notebookUri, new SerializableObjectWithBuffers({
 			versionId: notebook.apiNotebook.version + 1,
 			rawEvents: [
 				{
@@ -225,7 +226,7 @@ suite('NotebookConcatDocument', function () {
 					}]]]
 				}
 			]
-		}, false);
+		}), false);
 		assert.strictEqual(notebook.apiNotebook.cellCount, 1 + 1);
 		assert.strictEqual(doc.version, 1);
 		assertLines(doc, 'Hello', 'World', 'Hello World!');
@@ -236,7 +237,7 @@ suite('NotebookConcatDocument', function () {
 
 
 		// UPDATE 2
-		extHostNotebookDocuments.$acceptModelChanged(notebookUri, {
+		extHostNotebookDocuments.$acceptModelChanged(notebookUri, new SerializableObjectWithBuffers({
 			versionId: notebook.apiNotebook.version + 1,
 			rawEvents: [
 				{
@@ -252,7 +253,7 @@ suite('NotebookConcatDocument', function () {
 					}]]]
 				}
 			]
-		}, false);
+		}), false);
 
 		assert.strictEqual(notebook.apiNotebook.cellCount, 1 + 2);
 		assert.strictEqual(doc.version, 2);
@@ -264,7 +265,7 @@ suite('NotebookConcatDocument', function () {
 		assertLocation(doc, new Position(5, 12), new Location(notebook.apiNotebook.cellAt(1).document.uri, new Position(2, 11)), false); // don't check identity because position will be clamped
 
 		// UPDATE 3 (remove cell #2 again)
-		extHostNotebookDocuments.$acceptModelChanged(notebookUri, {
+		extHostNotebookDocuments.$acceptModelChanged(notebookUri, new SerializableObjectWithBuffers({
 			versionId: notebook.apiNotebook.version + 1,
 			rawEvents: [
 				{
@@ -272,7 +273,7 @@ suite('NotebookConcatDocument', function () {
 					changes: [[1, 1, []]]
 				}
 			]
-		}, false);
+		}), false);
 		assert.strictEqual(notebook.apiNotebook.cellCount, 1 + 1);
 		assert.strictEqual(doc.version, 3);
 		assertLines(doc, 'Hello', 'World', 'Hello World!');
@@ -286,7 +287,7 @@ suite('NotebookConcatDocument', function () {
 		let doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.apiNotebook, undefined);
 
 		// UPDATE 1
-		extHostNotebookDocuments.$acceptModelChanged(notebookUri, {
+		extHostNotebookDocuments.$acceptModelChanged(notebookUri, new SerializableObjectWithBuffers({
 			versionId: notebook.apiNotebook.version + 1,
 			rawEvents: [
 				{
@@ -311,7 +312,7 @@ suite('NotebookConcatDocument', function () {
 					}]]]
 				}
 			]
-		}, false);
+		}), false);
 		assert.strictEqual(notebook.apiNotebook.cellCount, 1 + 2);
 		assert.strictEqual(doc.version, 1);
 
@@ -347,7 +348,7 @@ suite('NotebookConcatDocument', function () {
 
 	test('selector', function () {
 
-		extHostNotebookDocuments.$acceptModelChanged(notebookUri, {
+		extHostNotebookDocuments.$acceptModelChanged(notebookUri, new SerializableObjectWithBuffers({
 			versionId: notebook.apiNotebook.version + 1,
 			rawEvents: [
 				{
@@ -371,7 +372,7 @@ suite('NotebookConcatDocument', function () {
 					}]]]
 				}
 			]
-		}, false);
+		}), false);
 
 		const mixedDoc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.apiNotebook, undefined);
 		const fooLangDoc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.apiNotebook, 'fooLang');
@@ -381,7 +382,7 @@ suite('NotebookConcatDocument', function () {
 		assertLines(fooLangDoc, 'fooLang-document');
 		assertLines(barLangDoc, 'barLang-document');
 
-		extHostNotebookDocuments.$acceptModelChanged(notebookUri, {
+		extHostNotebookDocuments.$acceptModelChanged(notebookUri, new SerializableObjectWithBuffers({
 			versionId: notebook.apiNotebook.version + 1,
 			rawEvents: [
 				{
@@ -397,7 +398,7 @@ suite('NotebookConcatDocument', function () {
 					}]]]
 				}
 			]
-		}, false);
+		}), false);
 
 		assertLines(mixedDoc, 'fooLang-document', 'barLang-document', 'barLang-document2');
 		assertLines(fooLangDoc, 'fooLang-document');
@@ -419,7 +420,7 @@ suite('NotebookConcatDocument', function () {
 
 	test('offsetAt(position) <-> positionAt(offset)', function () {
 
-		extHostNotebookDocuments.$acceptModelChanged(notebookUri, {
+		extHostNotebookDocuments.$acceptModelChanged(notebookUri, new SerializableObjectWithBuffers({
 			versionId: notebook.apiNotebook.version + 1,
 			rawEvents: [
 				{
@@ -443,7 +444,7 @@ suite('NotebookConcatDocument', function () {
 					}]]]
 				}
 			]
-		}, false);
+		}), false);
 
 		assert.strictEqual(notebook.apiNotebook.cellCount, 1 + 2); // markdown and code
 
@@ -476,7 +477,7 @@ suite('NotebookConcatDocument', function () {
 
 	test('locationAt(position) <-> positionAt(location)', function () {
 
-		extHostNotebookDocuments.$acceptModelChanged(notebookUri, {
+		extHostNotebookDocuments.$acceptModelChanged(notebookUri, new SerializableObjectWithBuffers({
 			versionId: notebook.apiNotebook.version + 1,
 			rawEvents: [
 				{
@@ -500,7 +501,7 @@ suite('NotebookConcatDocument', function () {
 					}]]]
 				}
 			]
-		}, false);
+		}), false);
 
 		assert.strictEqual(notebook.apiNotebook.cellCount, 1 + 2); // markdown and code
 
@@ -517,7 +518,7 @@ suite('NotebookConcatDocument', function () {
 
 	test('getText(range)', function () {
 
-		extHostNotebookDocuments.$acceptModelChanged(notebookUri, {
+		extHostNotebookDocuments.$acceptModelChanged(notebookUri, new SerializableObjectWithBuffers({
 			versionId: notebook.apiNotebook.version + 1,
 			rawEvents: [
 				{
@@ -549,7 +550,7 @@ suite('NotebookConcatDocument', function () {
 					}]]]
 				}
 			]
-		}, false);
+		}), false);
 
 		assert.strictEqual(notebook.apiNotebook.cellCount, 1 + 3); // markdown and code
 
@@ -564,7 +565,7 @@ suite('NotebookConcatDocument', function () {
 
 	test('validateRange/Position', function () {
 
-		extHostNotebookDocuments.$acceptModelChanged(notebookUri, {
+		extHostNotebookDocuments.$acceptModelChanged(notebookUri, new SerializableObjectWithBuffers({
 			versionId: notebook.apiNotebook.version + 1,
 			rawEvents: [
 				{
@@ -588,7 +589,7 @@ suite('NotebookConcatDocument', function () {
 					}]]]
 				}
 			]
-		}, false);
+		}), false);
 
 		assert.strictEqual(notebook.apiNotebook.cellCount, 1 + 2); // markdown and code
 

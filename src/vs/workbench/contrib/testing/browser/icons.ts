@@ -7,8 +7,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { localize } from 'vs/nls';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { TestMessageSeverity } from 'vs/workbench/api/common/extHostTypes';
-import { testingColorRunAction, testMessageSeverityColors, testStatesToIconColors } from 'vs/workbench/contrib/testing/browser/theme';
+import { testingColorRunAction, testStatesToIconColors } from 'vs/workbench/contrib/testing/browser/theme';
 import { TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export const testingViewIcon = registerIcon('test-view-icon', Codicon.beaker, localize('testViewIcon', 'View icon of the test view.'));
@@ -37,13 +36,6 @@ export const testingStatesToIcons = new Map<TestResultState, ThemeIcon>([
 	[TestResultState.Unset, registerIcon('testing-unset-icon', Codicon.circleOutline, localize('testingUnsetIcon', 'Icon shown for tests that are in an unset state.'))],
 ]);
 
-export const testMessageSeverityToIcons = new Map<TestMessageSeverity, ThemeIcon>([
-	[TestMessageSeverity.Error, registerIcon('testing-error-message-icon', Codicon.error, localize('testingErrorIcon', 'Icon shown for tests that have an error.'))],
-	[TestMessageSeverity.Warning, registerIcon('testing-warning-message-icon', Codicon.warning, localize('testingErrorIcon', 'Icon shown for tests that have an error.'))],
-	[TestMessageSeverity.Information, registerIcon('testing-info-message-icon', Codicon.info, localize('testingErrorIcon', 'Icon shown for tests that have an error.'))],
-	[TestMessageSeverity.Hint, registerIcon('testing-hint-message-icon', Codicon.question, localize('testingErrorIcon', 'Icon shown for tests that have an error.'))],
-]);
-
 registerThemingParticipant((theme, collector) => {
 	for (const [state, icon] of testingStatesToIcons.entries()) {
 		const color = testStatesToIconColors[state];
@@ -52,16 +44,6 @@ registerThemingParticipant((theme, collector) => {
 		}
 		collector.addRule(`.monaco-workbench ${ThemeIcon.asCSSSelector(icon)} {
 			color: ${theme.getColor(color)} !important;
-		}`);
-	}
-
-	for (const [state, { decorationForeground }] of Object.entries(testMessageSeverityColors)) {
-		const icon = testMessageSeverityToIcons.get(Number(state));
-		if (!icon) {
-			continue;
-		}
-		collector.addRule(`.monaco-workbench ${ThemeIcon.asCSSSelector(icon)} {
-			color: ${theme.getColor(decorationForeground)} !important;
 		}`);
 	}
 

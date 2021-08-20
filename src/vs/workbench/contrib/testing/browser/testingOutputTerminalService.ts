@@ -203,6 +203,10 @@ class TestOutputProcess extends Disposable implements ITerminalChildProcess {
 	public acknowledgeDataEvent(): void {
 		// no-op, flow control not currently implemented
 	}
+	public setUnicodeVersion(): Promise<void> {
+		// no-op
+		return Promise.resolve();
+	}
 
 	public getInitialCwd(): Promise<string> {
 		return Promise.resolve('');

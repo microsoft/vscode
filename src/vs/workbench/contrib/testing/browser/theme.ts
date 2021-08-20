@@ -5,11 +5,10 @@
 
 import { Color, RGBA } from 'vs/base/common/color';
 import { localize } from 'vs/nls';
-import { editorErrorForeground, editorForeground, editorHintForeground, editorInfoForeground, editorWarningForeground, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { editorErrorForeground, editorForeground, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { TestMessageSeverity } from 'vs/workbench/api/common/extHostTypes';
 import { ACTIVITY_BAR_BADGE_BACKGROUND } from 'vs/workbench/common/theme';
-import { TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestMessageType, TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export const testingColorIconFailed = registerColor('testing.iconFailed', {
 	dark: '#f14c4c',
@@ -60,12 +59,12 @@ export const testingPeekBorder = registerColor('testing.peekBorder', {
 }, localize('testing.peekBorder', 'Color of the peek view borders and arrow.'));
 
 export const testMessageSeverityColors: {
-	[K in TestMessageSeverity]: {
+	[K in TestMessageType]: {
 		decorationForeground: string,
 		marginBackground: string,
 	};
 } = {
-	[TestMessageSeverity.Error]: {
+	[TestMessageType.Error]: {
 		decorationForeground: registerColor(
 			'testing.message.error.decorationForeground',
 			{ dark: editorErrorForeground, light: editorErrorForeground, hc: editorForeground },
@@ -77,40 +76,16 @@ export const testMessageSeverityColors: {
 			localize('testing.message.error.marginBackground', 'Margin color beside error messages shown inline in the editor.')
 		),
 	},
-	[TestMessageSeverity.Warning]: {
-		decorationForeground: registerColor(
-			'testing.message.warning.decorationForeground',
-			{ dark: editorWarningForeground, light: editorWarningForeground, hc: editorForeground },
-			localize('testing.message.warning.decorationForeground', 'Text color of test warning messages shown inline in the editor.')
-		),
-		marginBackground: registerColor(
-			'testing.message.warning.lineBackground',
-			{ dark: new Color(new RGBA(255, 208, 0, 0.2)), light: new Color(new RGBA(255, 208, 0, 0.2)), hc: null },
-			localize('testing.message.warning.marginBackground', 'Margin color beside warning messages shown inline in the editor.')
-		),
-	},
-	[TestMessageSeverity.Information]: {
+	[TestMessageType.Info]: {
 		decorationForeground: registerColor(
 			'testing.message.info.decorationForeground',
-			{ dark: editorInfoForeground, light: editorInfoForeground, hc: editorForeground },
+			{ dark: transparent(editorForeground, 0.5), light: transparent(editorForeground, 0.5), hc: transparent(editorForeground, 0.5) },
 			localize('testing.message.info.decorationForeground', 'Text color of test info messages shown inline in the editor.')
 		),
 		marginBackground: registerColor(
 			'testing.message.info.lineBackground',
-			{ dark: new Color(new RGBA(0, 127, 255, 0.2)), light: new Color(new RGBA(0, 127, 255, 0.2)), hc: null },
+			{ dark: null, light: null, hc: null },
 			localize('testing.message.info.marginBackground', 'Margin color beside info messages shown inline in the editor.')
-		),
-	},
-	[TestMessageSeverity.Hint]: {
-		decorationForeground: registerColor(
-			'testing.message.hint.decorationForeground',
-			{ dark: editorHintForeground, light: editorHintForeground, hc: editorForeground },
-			localize('testing.message.hint.decorationForeground', 'Text color of test hint messages shown inline in the editor.')
-		),
-		marginBackground: registerColor(
-			'testing.message.hint.lineBackground',
-			{ dark: null, light: null, hc: editorForeground },
-			localize('testing.message.hint.marginBackground', 'Margin color beside hint messages shown inline in the editor.')
 		),
 	},
 };
