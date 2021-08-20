@@ -76,10 +76,10 @@ class NullAccessorClass implements IItemAccessor<URI> {
 	}
 }
 
-function _doScore(target: string, query: string, fuzzy: boolean): FuzzyScore {
+function _doScore(target: string, query: string, allowNonContiguousMatches: boolean): FuzzyScore {
 	const preparedQuery = prepareQuery(query);
 
-	return scoreFuzzy(target, preparedQuery.normalized, preparedQuery.normalizedLowercase, fuzzy);
+	return scoreFuzzy(target, preparedQuery.normalized, preparedQuery.normalizedLowercase, allowNonContiguousMatches);
 }
 
 function _doScore2(target: string, query: string, matchOffset: number = 0): FuzzyScore2 {
@@ -88,12 +88,12 @@ function _doScore2(target: string, query: string, matchOffset: number = 0): Fuzz
 	return scoreFuzzy2(target, preparedQuery, 0, matchOffset);
 }
 
-function scoreItem<T>(item: T, query: string, fuzzy: boolean, accessor: IItemAccessor<T>): IItemScore {
-	return scoreItemFuzzy(item, prepareQuery(query), fuzzy, accessor, Object.create(null));
+function scoreItem<T>(item: T, query: string, allowNonContiguousMatches: boolean, accessor: IItemAccessor<T>): IItemScore {
+	return scoreItemFuzzy(item, prepareQuery(query), allowNonContiguousMatches, accessor, Object.create(null));
 }
 
-function compareItemsByScore<T>(itemA: T, itemB: T, query: string, fuzzy: boolean, accessor: IItemAccessor<T>): number {
-	return compareItemsByFuzzyScore(itemA, itemB, prepareQuery(query), fuzzy, accessor, Object.create(null));
+function compareItemsByScore<T>(itemA: T, itemB: T, query: string, allowNonContiguousMatches: boolean, accessor: IItemAccessor<T>): number {
+	return compareItemsByFuzzyScore(itemA, itemB, prepareQuery(query), allowNonContiguousMatches, accessor, Object.create(null));
 }
 
 const NullAccessor = new NullAccessorClass();
