@@ -107,7 +107,7 @@
     "@types/mocha": "^8.2.0",
     "@types/node": "^14.14.37",
     "@types/sinon": "^1.16.36",
-    "@types/trusted-types": "^1.0.6",
+    "@types/trusted-types": "^2.0.2",
     "@types/vscode-windows-registry": "^1.0.0",
     "@types/webpack": "^4.41.25",
     "@types/wicg-file-system-access": "^2020.9.1",
