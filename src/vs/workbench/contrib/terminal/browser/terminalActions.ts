@@ -146,11 +146,10 @@ export function registerTerminalActions() {
 				precondition: TerminalContextKeys.processSupported
 			});
 		}
-		async run(accessor: ServicesAccessor) {
+		async run(accessor: ServicesAccessor, args?: unknown) {
 			const terminalService = accessor.get(ITerminalService);
-			const instance = await terminalService.createTerminal({
-				location: TerminalLocation.Editor
-			});
+			const options = (typeof args === 'object' && args && 'location' in args) ? args as ICreateTerminalOptions : { location: TerminalLocation.Editor };
+			const instance = await terminalService.createTerminal(options);
 			instance.focusWhenReady();
 		}
 	});
