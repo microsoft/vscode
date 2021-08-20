@@ -23,7 +23,7 @@ export interface IIconLabelCreationOptions {
 }
 
 export interface IIconLabelMarkdownString {
-	markdown: IMarkdownString | string | undefined | ((token: CancellationToken) => Promise<IMarkdownString | string | undefined>);
+	markdown: IMarkdownString | string | HTMLElement | undefined | ((token: CancellationToken) => Promise<IMarkdownString | string | undefined>);
 	markdownNotSupportedFallback: string | undefined;
 }
 
