@@ -204,7 +204,7 @@
     "webpack-cli": "^3.3.12",
     "webpack-stream": "^5.2.1",
     "xml2js": "^0.4.17",
-    "yaserver": "^0.2.0"
+    "yaserver": "^0.3.0"
   },
   "repository": {
     "type": "git",
